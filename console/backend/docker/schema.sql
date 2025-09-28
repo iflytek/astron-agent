@@ -1,13 +1,10 @@
 SELECT 'astron_console DATABASE initialization started' AS '';
-CREATE
-DATABASE IF NOT EXISTS astron_console;
+CREATE DATABASE IF NOT EXISTS astron_console;
 
-USE
-astron_console;
+USE astron_console;
 
 SET NAMES utf8mb4;
-SET
-FOREIGN_KEY_CHECKS = 0;
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- ----------------------------
 -- Table structure for agent_apply_record
