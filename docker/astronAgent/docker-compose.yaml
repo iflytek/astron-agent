@@ -175,8 +175,8 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/tenant/logs:/opt/tenant/logs
-      - /home/xingchen-opensource-config/tenant/config.toml:/opt/tenant/config/config.toml
+      - ./config/tenant/logs:/opt/tenant/logs
+      - ./config/tenant/config.toml:/opt/tenant/config/config.toml
       - /etc/localtime:/etc/localtime
     networks:
       - astron-agent-network
@@ -211,8 +211,8 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/database/config.env:/opt/database/memory/database/config.env
-      - /home/xingchen-opensource-config/database/logs/:/opt/database/memory/database/logs
+      - ./config/memory/config.env:/opt/database/memory/database/config.env
+      - ./config/memory/logs/:/opt/database/memory/database/logs
     networks:
       - astron-agent-network
     restart: always
@@ -251,10 +251,10 @@ services:
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
       MYSQL_DB: "${LINK_MYSQL_DB:-spark-link}"
       REDIS_IS_CLUSTER: "${REDIS_IS_CLUSTER:-false}"
-      REDIS_ADDR: "${REDIS_ADDR:-127.0.0.1:6379}"
+      REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
       REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:1234}"
+      OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       KAFKA_SERVERS: "${KAFKA_SERVERS}"
     ports:
       - "${CORE_LINK_PORT:-18888}:18888"
@@ -272,8 +272,8 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/link/config.env:/opt/link/config.env
-      - /home/xingchen-opensource-config/link/logs/:/opt/link/logs/
+      - ./config/link/config.env:/opt/link/config.env
+      - ./config/link/logs/:/opt/link/logs/
     networks:
       - astron-agent-network
     restart: always
@@ -309,8 +309,8 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/aitools/config.env:/opt/aitools/config.env
-      - /home/xingchen-opensource-config/aitools/logs/:/opt/aitools/logs/
+      - ./config/aitools/config.env:/opt/aitools/config.env
+      - ./config/aitools/logs/:/opt/aitools/logs/
     networks:
       - astron-agent-network
     restart: always
@@ -338,7 +338,7 @@ services:
       SERVICE_WS_PING_TIMEOUT: "${SERVICE_WS_PING_TIMEOUT:-false}"
       # Redis 缓存设置 (当 USE_POLARIS 为 false 时生效)
       REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
-      REDIS_ADDR: "${REDIS_ADDR:-127.0.0.1:6379}"
+      REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
       REDIS_EXPIRE: "${REDIS_EXPIRE:-3600}"
       # MySQL 配置
@@ -348,7 +348,7 @@ services:
       MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
       MYSQL_DB: "${AGENT_MYSQL_DB:-agent}"
       # 指标配置
-      OTLP_ENDPOINT: "${OTLP_ENDPOINT:-YOUR_METRIC_ENDPOINT:4317}"
+      OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       OTLP_METRIC_TIMEOUT: "${OTLP_METRIC_TIMEOUT:-3000}"
       OTLP_METRIC_EXPORT_INTERVAL_MILLIS: "${OTLP_METRIC_EXPORT_INTERVAL_MILLIS:-3000}"
       OTLP_METRIC_EXPORT_TIMEOUT_MILLIS: "${OTLP_METRIC_EXPORT_TIMEOUT_MILLIS:-3000}"
@@ -362,23 +362,23 @@ services:
       OTLP_TRACE_MAX_EXPORT_BATCH_SIZE: "${OTLP_TRACE_MAX_EXPORT_BATCH_SIZE:-2048}"
       OTLP_TRACE_EXPORT_TIMEOUT_MILLIS: "${OTLP_TRACE_EXPORT_TIMEOUT_MILLIS:-3000}"
       # Kafka 节点追踪配置
-      KAFKA_SERVERS: "${KAFKA_SERVERS:-YOUR_KAFKA_SERVERS}"
+      KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
       KAFKA_TIMEOUT: "${KAFKA_TIMEOUT:-10}"
       KAFKA_TOPIC: "${AGENT_KAFKA_TOPIC:-spark-agent-builder}"
       # Link 服务 URLs
-      GET_LINK_URL: "${GET_LINK_URL:-http://YOUR_LINK_HOST:18888/api/v1/tools}"
-      VERSIONS_LINK_URL: "${VERSIONS_LINK_URL:-http://YOUR_LINK_HOST:18888/api/v1/tools/versions}"
-      RUN_LINK_URL: "${RUN_LINK_URL:-http://YOUR_LINK_HOST:18888/api/v1/tools/http_run}"
+      GET_LINK_URL: "${GET_LINK_URL:-http://core-link:18888/api/v1/tools}"
+      VERSIONS_LINK_URL: "${VERSIONS_LINK_URL:-http://core-link:18888/api/v1/tools/versions}"
+      RUN_LINK_URL: "${RUN_LINK_URL:-http://core-link:18888/api/v1/tools/http_run}"
       # Workflow 服务 URLs
-      GET_WORKFLOWS_URL: "${GET_WORKFLOWS_URL:-http://YOUR_WORKFLOW_HOST:7880/sparkflow/v1/protocol/get}"
-      WORKFLOW_SSE_BASE_URL: "${WORKFLOW_SSE_BASE_URL:-http://YOUR_WORKFLOW_HOST:7880/workflow/v1}"
+      GET_WORKFLOWS_URL: "${GET_WORKFLOWS_URL:-http://core-workflow:7880/sparkflow/v1/protocol/get}"
+      WORKFLOW_SSE_BASE_URL: "${WORKFLOW_SSE_BASE_URL:-http://core-workflow:7880/workflow/v1}"
       # Knowledge 服务 URLs
-      CHUNK_QUERY_URL: "${CHUNK_QUERY_URL:-http://YOUR_KNOWLEDGE_HOST:10007/knowledge/v1/chunk/query}"
+      CHUNK_QUERY_URL: "${CHUNK_QUERY_URL:-http://core-knowledge:20010/knowledge/v1/chunk/query}"
       # MCP 插件 URLs
-      LIST_MCP_PLUGIN_URL: "${LIST_MCP_PLUGIN_URL:-http://YOUR_MCP_HOST:18888/api/v1/mcp/tool_list}"
-      RUN_MCP_PLUGIN_URL: "${RUN_MCP_PLUGIN_URL:-http://YOUR_MCP_HOST:18888/api/v1/mcp/call_tool}"
+      LIST_MCP_PLUGIN_URL: "${LIST_MCP_PLUGIN_URL:-http://core-link:18888/api/v1/mcp/tool_list}"
+      RUN_MCP_PLUGIN_URL: "${RUN_MCP_PLUGIN_URL:-http://core-link:18888/api/v1/mcp/call_tool}"
       # 应用认证配置
-      APP_AUTH_HOST: "${APP_AUTH_HOST:-YOUR_APP_AUTH_HOST}"
+      APP_AUTH_HOST: "${APP_AUTH_HOST:-core-tenant}"
       APP_AUTH_ROUTER: "${APP_AUTH_ROUTER:-/api-services/v2/app/details}"
       APP_AUTH_PROT: "${APP_AUTH_PROT:-http}"
       APP_AUTH_API_KEY: "${APP_AUTH_API_KEY:-YOUR_APP_AUTH_API_KEY}"
@@ -399,7 +399,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/agent/config.env:/opt/agent/config.env
+      - ./config/agent/config.env:/opt/agent/config.env
     networks:
       - astron-agent-network
     restart: always
@@ -430,8 +430,8 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/knowledge/config.env:/opt/core/knowledge/config.env
-      - /home/xingchen-opensource-config/knowledge/logs/:/opt/core/knowledge/logs
+      - ./config/knowledge/config.env:/opt/core/knowledge/config.env
+      - ./config/knowledge/logs/:/opt/core/knowledge/logs
     networks:
       - astron-agent-network
     restart: always
@@ -451,7 +451,7 @@ services:
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-admin}"
       MYSQL_DB: "${WORKFLOW_MYSQL_DB:-workflow}"
       REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
-      REDIS_ADDR: "${REDIS_ADDR:-127.0.0.1:6379}"
+      REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
       REDIS_EXPIRE: "${REDIS_EXPIRE:-3600}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
@@ -466,18 +466,18 @@ services:
       OTLP_TRACE_EXPORT_TIMEOUT_MILLIS: "${OTLP_TRACE_EXPORT_TIMEOUT_MILLIS:-3000}"
       # 对象存储配置
       OSS_TYPE: "${OSS_TYPE:-s3}"
-      OSS_ENDPOINT: "${OSS_ENDPOINT:-http://127.0.0.1:9000}"
+      OSS_ENDPOINT: "${OSS_ENDPOINT:-http://minio:9000}"
       OSS_ACCESS_KEY_ID: "${OSS_ACCESS_KEY_ID:-admin}"
       OSS_ACCESS_KEY_SECRET: "${OSS_ACCESS_KEY_SECRET:-admin}"
       OSS_BUCKET_NAME: "${OSS_BUCKET_NAME}"
       # S3 下载域名，使用 S3 存储类型时必需
-      OSS_DOWNLOAD_HOST: "${OSS_DOWNLOAD_HOST:-http://127.0.0.1:9000}"
+      OSS_DOWNLOAD_HOST: "${OSS_DOWNLOAD_HOST:-http://minio:9000}"
       # 讯飞对象存储的文件有效期（秒）
       OSS_TTL: "${OSS_TTL:-157788000}"
 
       # Apache Kafka 配置
       # 异步处理和事件流的消息队列设置
-      KAFKA_SERVERS: "${KAFKA_SERVERS:-127.0.0.1:9092}"
+      KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
       KAFKA_TIMEOUT: "${KAFKA_TIMEOUT:-10}"
       KAFKA_TOPIC: "${WORKFLOW_KAFKA_TOPIC:-spark-agent-builder}"
     ports:
@@ -496,7 +496,7 @@ services:
       minio:
         condition: service_healthy
     volumes:
-      - /home/xingchen-opensource-config/workflow/config.env:/opt/openstellar/workflow/config.env
+      - ./config/workflow/config.env:/opt/openstellar/workflow/config.env
     networks:
       - astron-agent-network
     restart: always

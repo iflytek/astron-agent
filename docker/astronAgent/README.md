@@ -61,10 +61,19 @@ docker-compose logs -f
 
 ### 3. 访问服务
 
-- **控制台前端**: http://localhost:3000
+- **控制台前端**: http://localhost:1881
 - **控制台Hub API**: http://localhost:8080
-- **控制台Toolkit API**: http://localhost:8081
 - **MinIO 控制台**: http://localhost:9001 (minioadmin/minioadmin123)
+
+### 核心服务端口
+
+- **Agent**: http://localhost:17870
+- **Workflow**: http://localhost:7880
+- **Knowledge**: http://localhost:20010
+- **Link**: http://localhost:18888
+- **AITools**: http://localhost:18668
+- **Tenant**: http://localhost:5052
+- **Memory**: http://localhost:7990
 
 ## 📋 服务管理
 
