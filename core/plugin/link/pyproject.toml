@@ -37,4 +37,5 @@ dependencies = [
     "cryptography>=46.0.1",
     "redis==3.5.3",
     "pytest>=8.4.2",
+    "types-pyyaml>=6.0.12.20250915",
 ]

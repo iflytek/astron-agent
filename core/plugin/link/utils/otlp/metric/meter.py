@@ -8,6 +8,7 @@ service performance and reliability.
 import inspect
 import os
 import time
+from typing import Dict, Optional, Union
 
 from loguru import logger
 from plugin.link.consts import const
@@ -46,11 +47,14 @@ class Meter:
             self.func = func
             return
         # Get the stack frame of the calling method
-        frame = inspect.currentframe().f_back
-        # Get the method name of the calling method
-        self.func = frame.f_code.co_name
+        frame = inspect.currentframe()
+        if frame and (parent_frame := frame.f_back):
+            # Get the method name of the calling method
+            self.func = parent_frame.f_code.co_name
+        else:
+            self.func = "unknown"
 
-    def _get_default_attr(self):
+    def _get_default_attr(self) -> Dict[str, Union[str, int, None]]:
         return {
             "dc": os.getenv(const.OTLP_DC_KEY),
             "server_host": get_host_ip(),
@@ -63,10 +67,10 @@ class Meter:
     def in_error_count(
         self,
         code: int,
-        lables: dict = None,
+        lables: Optional[Dict[str, Union[str, int]]] = None,
         count: int = 1,
         is_in_histogram: bool = True,
-    ):
+    ) -> None:
         """
         Report error count, with latency reporting by default.
 
@@ -90,7 +94,9 @@ class Meter:
         logger.info(f"code: {code}, count: {counter.value}")
         # print(f"code: {code}, count: {counter.value}, pid: {os.getpid()}")
 
-    def in_success_count(self, lables: dict = None, count: int = 1):
+    def in_success_count(
+        self, lables: Optional[Dict[str, Union[str, int]]] = None, count: int = 1
+    ) -> None:
         """
         Report success count.
 
@@ -100,7 +106,7 @@ class Meter:
         """
         self.in_error_count(0, lables, count)
 
-    def in_histogram(self, lables: dict = None):
+    def in_histogram(self, lables: Optional[Dict[str, Union[str, int]]] = None) -> None:
         """
         Report latency.
 

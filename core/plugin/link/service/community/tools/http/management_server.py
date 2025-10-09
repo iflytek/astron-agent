@@ -18,6 +18,7 @@ import json
 import os
 import re
 import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -47,7 +48,9 @@ from plugin.link.utils.snowflake.gen_snowflake import gen_id
 from plugin.link.utils.uid.generate_uid import new_uid
 
 
-def extract_management_params(run_params_list):
+def extract_management_params(
+    run_params_list: Dict[str, Any],
+) -> Tuple[Optional[str], str, str, str]:
     """Extract common parameters from management requests."""
     app_id = (
         run_params_list.get("header", {}).get("app_id")
@@ -73,8 +76,13 @@ def extract_management_params(run_params_list):
 
 
 def setup_span_and_trace_mgmt(
-    run_params_list, app_id, uid, caller, tool_type, service_id=""
-):
+    run_params_list: Dict[str, Any],
+    app_id: Optional[str],
+    uid: str,
+    caller: str,
+    tool_type: str,
+    service_id: str = "",
+) -> Tuple[Span, NodeTraceLog]:
     """Setup span and trace for management operations."""
     span = Span(app_id=app_id, uid=uid)
     sid = run_params_list.get("header", {}).get("sid")
@@ -95,7 +103,7 @@ def setup_span_and_trace_mgmt(
     return span, node_trace
 
 
-def send_telemetry_mgmt(node_trace):
+def send_telemetry_mgmt(node_trace: NodeTraceLog) -> None:
     """Send telemetry data to Kafka."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         kafka_service = get_kafka_producer_service()
@@ -103,7 +111,9 @@ def send_telemetry_mgmt(node_trace):
         kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
 
 
-def setup_logging_and_metrics_mgmt(span_context, run_params_list, func_name):
+def setup_logging_and_metrics_mgmt(
+    span_context: Any, run_params_list: Dict[str, Any], func_name: str
+) -> Meter:
     """Setup logging and metrics for management operations."""
     logger.info(
         {
@@ -119,8 +129,12 @@ def setup_logging_and_metrics_mgmt(span_context, run_params_list, func_name):
 
 
 def handle_validation_error_mgmt(
-    validate_err, span_context, node_trace, m, error_code=None
-):
+    validate_err: str,
+    span_context: Any,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    error_code: Optional[Any] = None,
+) -> ToolManagerResponse:
     """Handle validation errors with telemetry."""
     if error_code is None:
         error_code = ErrCode.JSON_SCHEMA_VALIDATE_ERR
@@ -142,7 +156,13 @@ def handle_validation_error_mgmt(
     )
 
 
-def handle_success_response_mgmt(span_context, node_trace, m, data, tool_ids=None):
+def handle_success_response_mgmt(
+    span_context: Any,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    data: Union[Dict[str, Any], str],
+    tool_ids: Optional[List[str]] = None,
+) -> ToolManagerResponse:
     """Handle successful response with telemetry."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         m.in_success_count()
@@ -167,7 +187,13 @@ def handle_success_response_mgmt(span_context, node_trace, m, data, tool_ids=Non
     )
 
 
-def handle_error_response_mgmt(err, span_context, node_trace, m, error_code=None):
+def handle_error_response_mgmt(
+    err: Union[Exception, str],
+    span_context: Any,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    error_code: Optional[Any] = None,
+) -> ToolManagerResponse:
     """Handle error responses with telemetry."""
     if error_code is None:
         error_code = ErrCode.COMMON_ERR
@@ -193,7 +219,9 @@ def handle_error_response_mgmt(err, span_context, node_trace, m, error_code=None
     )
 
 
-def validate_openapi_schema(tool, span_context):
+def validate_openapi_schema(
+    tool: Dict[str, Any], span_context: Any
+) -> Tuple[Optional[str], Optional[str]]:
     """Validate OpenAPI schema for a tool."""
     open_api_schema = tool.get("openapi_schema", "")
     schema_type = tool.get("schema_type", 0)
@@ -206,7 +234,9 @@ def validate_openapi_schema(tool, span_context):
     return validate_schema.get_schema_dumps(), None
 
 
-def process_tools_for_creation(tools, app_id, span_context):
+def process_tools_for_creation(
+    tools: List[Dict[str, Any]], app_id: Optional[str], span_context: Any
+) -> Tuple[Optional[List[Dict[str, Any]]], Optional[str]]:
     """Process tools for creation, including validation and ID generation."""
     tool_info = []
     for tool in tools:
@@ -240,7 +270,7 @@ def process_tools_for_creation(tools, app_id, span_context):
     return tool_info, None
 
 
-def validate_tool_ids(tool_ids):
+def validate_tool_ids(tool_ids: List[str]) -> Optional[str]:
     """Validate tool ID format."""
     for tool_id in tool_ids:
         if not re.compile("^tool@[0-9a-zA-Z]+$").match(tool_id):
@@ -248,7 +278,9 @@ def validate_tool_ids(tool_ids):
     return None
 
 
-def process_tools_for_update(tools, app_id, span_context):
+def process_tools_for_update(
+    tools: List[Dict[str, Any]], app_id: Optional[str], span_context: Any
+) -> Tuple[Optional[List[Dict[str, Any]]], List[str]]:
     """Process tools for update, including validation."""
     update_tool = []
     tool_ids = []
@@ -264,10 +296,9 @@ def process_tools_for_update(tools, app_id, span_context):
         if schema_content:
             validated_schema, err = validate_openapi_schema(tool, span_context)
             if err:
-                return (
-                    None,
+                raise Exception(
                     f"update tool: failed to validate tool {tool.get('id')} schema, "
-                    f"reason {json.dumps(err)}",
+                    f"reason {json.dumps(err)}"
                 )
             schema_content = validated_schema
 
@@ -282,7 +313,7 @@ def process_tools_for_update(tools, app_id, span_context):
                 "is_deleted": const.DEF_DEL,
             }
         )
-        tool_ids.append(tool.get("id"))
+        tool_ids.append(tool.get("id") or "")
 
     return update_tool, tool_ids
 
@@ -336,15 +367,16 @@ def create_version(tools_info: ToolCreateRequest) -> ToolManagerResponse:
             # Prepare response
             resp_tool = []
             tool_ids = []
-            for tool in tool_info:
-                resp_tool.append(
-                    {
-                        "name": tool.get("name"),
-                        "id": tool.get("tool_id"),
-                        "version": tool.get("version"),
-                    }
-                )
-                tool_ids.append(tool.get("tool_id"))
+            if tool_info:  # Check if tool_info is not None
+                for tool in tool_info:
+                    resp_tool.append(
+                        {
+                            "name": tool.get("name"),
+                            "id": tool.get("tool_id"),
+                            "version": tool.get("version"),
+                        }
+                    )
+                    tool_ids.append(tool.get("tool_id", ""))
 
             return handle_success_response_mgmt(
                 span_context, node_trace, m, {"tools": resp_tool}, tool_ids

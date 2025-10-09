@@ -18,7 +18,7 @@ class Snowflake:
     worker ID, and sequence number for distributed systems.
     """
 
-    def __init__(self, datacenter_id, worker_id):
+    def __init__(self, datacenter_id: int, worker_id: int) -> None:
         self.epoch = 1609459200000  # Custom start time, e.g., 2021-01-01 00:00:00
         self.datacenter_id = datacenter_id
         self.worker_id = worker_id
@@ -27,16 +27,16 @@ class Snowflake:
         self.lock = threading.Lock()
 
     @staticmethod
-    def _get_timestamp():
+    def _get_timestamp() -> int:
         return int(time.time() * 1000)
 
-    def _wait_for_next_millisecond(self, last_timestamp):
+    def _wait_for_next_millisecond(self, last_timestamp: int) -> int:
         timestamp = self._get_timestamp()
         while timestamp <= last_timestamp:
             timestamp = self._get_timestamp()
         return timestamp
 
-    def get_id(self):
+    def get_id(self) -> int:
         """Generate a unique Snowflake ID.
 
         Returns:
@@ -71,15 +71,19 @@ class Snowflake:
             )
 
 
-def gen_id():
+def gen_id() -> int:
     """Generate a Snowflake ID using environment configuration.
 
     Returns:
         int: Unique Snowflake ID generated from environment settings
     """
-    snowflake_client = Snowflake(
-        int(os.getenv(const.DATACENTER_ID_KEY)), int(os.getenv(const.WORKER_ID_KEY))
-    )
+    datacenter_id = os.getenv(const.DATACENTER_ID_KEY)
+    worker_id = os.getenv(const.WORKER_ID_KEY)
+    if datacenter_id is None:
+        raise ValueError("Missing DATACENTER_ID_KEY environment variable")
+    if worker_id is None:
+        raise ValueError("Missing WORKER_ID_KEY environment variable")
+    snowflake_client = Snowflake(int(datacenter_id), int(worker_id))
     return snowflake_client.get_id()
 
 

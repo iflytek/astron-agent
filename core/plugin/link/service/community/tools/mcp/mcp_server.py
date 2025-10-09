@@ -7,7 +7,7 @@ error handling, observability tracing, and security validations.
 
 import os
 import time
-from typing import Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -39,7 +39,9 @@ from plugin.link.utils.security.access_interceptor import is_in_blacklist, is_lo
 from plugin.link.utils.sid.sid_generator2 import new_sid
 
 
-async def _process_mcp_server_by_id(mcp_server_id: str, span_context) -> MCPItemInfo:
+async def _process_mcp_server_by_id(
+    mcp_server_id: str, span_context: Any
+) -> MCPItemInfo:
     """Process a single MCP server by ID and return its tools."""
     err, url = get_mcp_server_url(mcp_server_id=mcp_server_id, span=span_context)
     if err is not ErrCode.SUCCESSES:
@@ -86,7 +88,7 @@ async def _process_mcp_server_by_url(url: str) -> MCPItemInfo:
 
 
 async def _connect_and_get_tools(
-    url: str, server_id: str = None, server_url: str = None
+    url: str, server_id: Optional[str] = None, server_url: Optional[str] = None
 ) -> MCPItemInfo:
     """Connect to MCP server and retrieve tools."""
     try:
@@ -239,7 +241,7 @@ def _create_error_response(err: ErrCode, session_id: str) -> MCPCallToolResponse
 
 def _log_error_to_kafka(
     err: ErrCode, node_trace: NodeTraceLog, mcp_server_id: str, m: Meter
-):
+) -> None:
     """Log error information to Kafka if OTLP is enabled."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         m.in_error_count(err.code)
@@ -255,13 +257,13 @@ def _log_error_to_kafka(
 
 
 async def _initialize_session(
-    session,
+    session: Any,
     session_id: str,
-    span_context,
+    span_context: Any,
     node_trace: NodeTraceLog,
     mcp_server_id: str,
     m: Meter,
-):
+) -> Optional[MCPCallToolResponse]:
     """Initialize MCP session with error handling."""
     try:
         await session.initialize()
@@ -275,15 +277,18 @@ async def _initialize_session(
 
 
 async def _execute_tool_call(
-    session,
+    session: Any,
     tool_name: str,
-    tool_args: dict,
+    tool_args: Dict[str, Any],
     session_id: str,
-    span_context,
+    span_context: Any,
     node_trace: NodeTraceLog,
     mcp_server_id: str,
     m: Meter,
-):
+) -> Union[
+    Tuple[bool, List[Union[MCPTextResponse, MCPImageResponse]]],
+    Tuple[MCPCallToolResponse, None],
+]:
     """Execute the actual tool call and process response."""
     try:
         call_result = await session.call_tool(tool_name, arguments=tool_args)
@@ -311,9 +316,9 @@ async def _execute_tool_call(
 async def _call_mcp_tool(
     url: str,
     tool_name: str,
-    tool_args: dict,
+    tool_args: Dict[str, Any],
     session_id: str,
-    span_context,
+    span_context: Any,
     node_trace: NodeTraceLog,
     mcp_server_id: str,
     m: Meter,
@@ -368,8 +373,8 @@ async def _call_mcp_tool(
 
 
 def _validate_and_get_url(
-    call_info: MCPCallToolRequest, session_id: str, span_context, m: Meter
-) -> tuple[ErrCode, str]:
+    call_info: MCPCallToolRequest, session_id: str, span_context: Any, m: Meter
+) -> Tuple[ErrCode, str]:
     """Validate URL and get it from database if needed."""
     url = call_info.mcp_server_url
 

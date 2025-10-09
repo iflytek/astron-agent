@@ -2,21 +2,21 @@
 Unit tests for service modules
 Tests management server functions and utilities
 """
+
 import json
-import os
-from unittest.mock import Mock, patch, MagicMock
+from typing import Any
+from unittest.mock import Mock, patch
 
 import pytest
-
+from plugin.link.consts import const
 from plugin.link.service.community.tools.http.management_server import (
     extract_management_params,
-    setup_span_and_trace_mgmt,
+    handle_success_response_mgmt,
+    handle_validation_error_mgmt,
     send_telemetry_mgmt,
     setup_logging_and_metrics_mgmt,
-    handle_validation_error_mgmt,
-    handle_success_response_mgmt
+    setup_span_and_trace_mgmt,
 )
-from plugin.link.consts import const
 from plugin.link.utils.errors.code import ErrCode
 
 
@@ -24,14 +24,14 @@ from plugin.link.utils.errors.code import ErrCode
 class TestManagementServerUtils:
     """Test class for management server utility functions"""
 
-    def test_extract_management_params_with_header_values(self):
+    def test_extract_management_params_with_header_values(self) -> None:
         """Test extract_management_params with header values provided"""
         run_params = {
             "header": {
                 "app_id": "test_app_123",
                 "uid": "test_uid_456",
                 "caller": "test_caller",
-                "tool_type": "http_tool"
+                "tool_type": "http_tool",
             }
         }
 
@@ -44,12 +44,14 @@ class TestManagementServerUtils:
 
     @patch("plugin.link.service.community.tools.http.management_server.new_uid")
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_extract_management_params_with_defaults(self, mock_getenv, mock_new_uid):
+    def test_extract_management_params_with_defaults(
+        self, mock_getenv: Any, mock_new_uid: Any
+    ) -> None:
         """Test extract_management_params uses defaults when header values missing"""
         mock_getenv.return_value = "default_app_id"
         mock_new_uid.return_value = "generated_uid"
 
-        run_params = {"header": {}}
+        run_params: dict[str, Any] = {"header": {}}
 
         app_id, uid, caller, tool_type = extract_management_params(run_params)
 
@@ -60,12 +62,14 @@ class TestManagementServerUtils:
 
     @patch("plugin.link.service.community.tools.http.management_server.new_uid")
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_extract_management_params_no_header(self, mock_getenv, mock_new_uid):
+    def test_extract_management_params_no_header(
+        self, mock_getenv: Any, mock_new_uid: Any
+    ) -> None:
         """Test extract_management_params when no header is provided"""
         mock_getenv.return_value = "default_app_id"
         mock_new_uid.return_value = "generated_uid"
 
-        run_params = {}
+        run_params: dict[str, Any] = {}
 
         app_id, uid, caller, tool_type = extract_management_params(run_params)
 
@@ -74,17 +78,19 @@ class TestManagementServerUtils:
         assert caller == ""
         assert tool_type == ""
 
-    def test_extract_management_params_partial_header(self):
+    def test_extract_management_params_partial_header(self) -> None:
         """Test extract_management_params with partial header values"""
         run_params = {
             "header": {
                 "app_id": "test_app",
-                "caller": "test_caller"
+                "caller": "test_caller",
                 # uid and tool_type missing
             }
         }
 
-        with patch("plugin.link.service.community.tools.http.management_server.new_uid") as mock_new_uid:
+        with patch(
+            "plugin.link.service.community.tools.http.management_server.new_uid"
+        ) as mock_new_uid:
             mock_new_uid.return_value = "generated_uid"
 
             app_id, uid, caller, tool_type = extract_management_params(run_params)
@@ -96,17 +102,16 @@ class TestManagementServerUtils:
 
     @patch("plugin.link.service.community.tools.http.management_server.Span")
     @patch("plugin.link.service.community.tools.http.management_server.NodeTraceLog")
-    def test_setup_span_and_trace_mgmt(self, mock_node_trace_log, mock_span):
+    def test_setup_span_and_trace_mgmt(
+        self, mock_node_trace_log: Any, mock_span: Any
+    ) -> None:
         """Test setup_span_and_trace_mgmt creates span and trace objects"""
         mock_span_instance = Mock()
         mock_node_trace_instance = Mock()
         mock_span.return_value = mock_span_instance
         mock_node_trace_log.return_value = mock_node_trace_instance
 
-        run_params = {
-            "header": {"sid": "test_session_id"},
-            "data": "test_data"
-        }
+        run_params = {"header": {"sid": "test_session_id"}, "data": "test_data"}
         app_id = "test_app"
         uid = "test_uid"
         caller = "test_caller"
@@ -132,13 +137,15 @@ class TestManagementServerUtils:
             sub="spark-link",
             caller=caller,
             log_caller=tool_type,
-            question=json.dumps(run_params, ensure_ascii=False)
+            question=json.dumps(run_params, ensure_ascii=False),
         )
         assert node_trace == mock_node_trace_instance
 
     @patch("plugin.link.service.community.tools.http.management_server.Span")
     @patch("plugin.link.service.community.tools.http.management_server.NodeTraceLog")
-    def test_setup_span_and_trace_mgmt_no_sid(self, mock_node_trace_log, mock_span):
+    def test_setup_span_and_trace_mgmt_no_sid(
+        self, mock_node_trace_log: Any, mock_span: Any
+    ) -> None:
         """Test setup_span_and_trace_mgmt without session ID"""
         mock_span_instance = Mock()
         mock_node_trace_instance = Mock()
@@ -165,18 +172,22 @@ class TestManagementServerUtils:
             sub="spark-link",
             caller=caller,
             log_caller=tool_type,
-            question=json.dumps(run_params, ensure_ascii=False)
+            question=json.dumps(run_params, ensure_ascii=False),
         )
 
-    @patch("plugin.link.service.community.tools.http.management_server.get_kafka_producer_service")
+    @patch(
+        "plugin.link.service.community.tools.http.management_server.get_kafka_producer_service"
+    )
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
     @patch("plugin.link.service.community.tools.http.management_server.time.time")
-    def test_send_telemetry_mgmt_enabled(self, mock_time, mock_getenv, mock_kafka_service):
+    def test_send_telemetry_mgmt_enabled(
+        self, mock_time: Any, mock_getenv: Any, mock_kafka_service: Any
+    ) -> None:
         """Test send_telemetry_mgmt when OTLP is enabled"""
         mock_time.return_value = 1234567890.123
         mock_getenv.side_effect = lambda key, default=None: {
             const.OTLP_ENABLE_KEY: "true",
-            const.KAFKA_TOPIC_KEY: "test_topic"
+            const.KAFKA_TOPIC_KEY: "test_topic",
         }.get(key, default)
 
         mock_kafka_producer = Mock()
@@ -193,12 +204,11 @@ class TestManagementServerUtils:
 
         # Verify Kafka send was called
         mock_kafka_producer.send.assert_called_once_with(
-            "test_topic",
-            '{"test": "data"}'
+            "test_topic", '{"test": "data"}'
         )
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_send_telemetry_mgmt_disabled(self, mock_getenv):
+    def test_send_telemetry_mgmt_disabled(self, mock_getenv: Any) -> None:
         """Test send_telemetry_mgmt when OTLP is disabled"""
         mock_getenv.return_value = "false"
 
@@ -213,7 +223,9 @@ class TestManagementServerUtils:
 
     @patch("plugin.link.service.community.tools.http.management_server.logger")
     @patch("plugin.link.service.community.tools.http.management_server.Meter")
-    def test_setup_logging_and_metrics_mgmt(self, mock_meter, mock_logger):
+    def test_setup_logging_and_metrics_mgmt(
+        self, mock_meter: Any, mock_logger: Any
+    ) -> None:
         """Test setup_logging_and_metrics_mgmt"""
         mock_meter_instance = Mock()
         mock_meter.return_value = mock_meter_instance
@@ -225,7 +237,9 @@ class TestManagementServerUtils:
         run_params = {"test": "data"}
         func_name = "test_function"
 
-        result = setup_logging_and_metrics_mgmt(mock_span_context, run_params, func_name)
+        result = setup_logging_and_metrics_mgmt(
+            mock_span_context, run_params, func_name
+        )
 
         # Verify logging
         mock_logger.info.assert_called_once()
@@ -242,7 +256,9 @@ class TestManagementServerUtils:
         assert result == mock_meter_instance
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_handle_validation_error_mgmt_with_otlp_enabled(self, mock_getenv):
+    def test_handle_validation_error_mgmt_with_otlp_enabled(
+        self, mock_getenv: Any
+    ) -> None:
         """Test handle_validation_error_mgmt with OTLP enabled"""
         mock_getenv.return_value = "true"
 
@@ -254,8 +270,12 @@ class TestManagementServerUtils:
 
         validate_err = "Validation failed: invalid schema"
 
-        with patch("plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt") as mock_send_telemetry:
-            with patch("plugin.link.service.community.tools.http.management_server.Status") as mock_status:
+        with patch(
+            "plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt"
+        ) as mock_send_telemetry:
+            with patch(
+                "plugin.link.service.community.tools.http.management_server.Status"
+            ) as mock_status:
                 mock_status_instance = Mock()
                 mock_status.return_value = mock_status_instance
 
@@ -264,7 +284,9 @@ class TestManagementServerUtils:
                 )
 
                 # Verify metrics
-                mock_m.in_error_count.assert_called_once_with(ErrCode.JSON_SCHEMA_VALIDATE_ERR.code)
+                mock_m.in_error_count.assert_called_once_with(
+                    ErrCode.JSON_SCHEMA_VALIDATE_ERR.code
+                )
 
                 # Verify node trace updates
                 assert mock_node_trace.answer == validate_err
@@ -272,8 +294,7 @@ class TestManagementServerUtils:
 
                 # Verify status creation
                 mock_status.assert_called_once_with(
-                    code=ErrCode.JSON_SCHEMA_VALIDATE_ERR.code,
-                    message=validate_err
+                    code=ErrCode.JSON_SCHEMA_VALIDATE_ERR.code, message=validate_err
                 )
 
                 # Verify telemetry sent
@@ -286,7 +307,9 @@ class TestManagementServerUtils:
                 assert result.data == {}
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_handle_validation_error_mgmt_with_custom_error_code(self, mock_getenv):
+    def test_handle_validation_error_mgmt_with_custom_error_code(
+        self, mock_getenv: Any
+    ) -> None:
         """Test handle_validation_error_mgmt with custom error code"""
         mock_getenv.return_value = "true"
 
@@ -299,10 +322,18 @@ class TestManagementServerUtils:
         validate_err = "Custom validation error"
         custom_error_code = ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR
 
-        with patch("plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt"):
-            with patch("plugin.link.service.community.tools.http.management_server.Status"):
+        with patch(
+            "plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt"
+        ):
+            with patch(
+                "plugin.link.service.community.tools.http.management_server.Status"
+            ):
                 result = handle_validation_error_mgmt(
-                    validate_err, mock_span_context, mock_node_trace, mock_m, custom_error_code
+                    validate_err,
+                    mock_span_context,
+                    mock_node_trace,
+                    mock_m,
+                    custom_error_code,
                 )
 
                 # Verify custom error code is used
@@ -310,7 +341,9 @@ class TestManagementServerUtils:
                 assert result.code == custom_error_code.code
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_handle_validation_error_mgmt_with_otlp_disabled(self, mock_getenv):
+    def test_handle_validation_error_mgmt_with_otlp_disabled(
+        self, mock_getenv: Any
+    ) -> None:
         """Test handle_validation_error_mgmt with OTLP disabled"""
         mock_getenv.return_value = "false"
 
@@ -335,7 +368,9 @@ class TestManagementServerUtils:
         assert result.sid == "test_session_id"
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_handle_success_response_mgmt_with_otlp_enabled(self, mock_getenv):
+    def test_handle_success_response_mgmt_with_otlp_enabled(
+        self, mock_getenv: Any
+    ) -> None:
         """Test handle_success_response_mgmt with OTLP enabled"""
         mock_getenv.return_value = "true"
 
@@ -348,8 +383,12 @@ class TestManagementServerUtils:
         test_data = {"result": "success", "tools": ["tool1", "tool2"]}
         tool_ids = ["tool1", "tool2"]
 
-        with patch("plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt") as mock_send_telemetry:
-            with patch("plugin.link.service.community.tools.http.management_server.Status") as mock_status:
+        with patch(
+            "plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt"
+        ) as mock_send_telemetry:
+            with patch(
+                "plugin.link.service.community.tools.http.management_server.Status"
+            ) as mock_status:
                 mock_status_instance = Mock()
                 mock_status.return_value = mock_status_instance
 
@@ -367,8 +406,7 @@ class TestManagementServerUtils:
 
                 # Verify status creation with success code
                 mock_status.assert_called_once_with(
-                    code=ErrCode.SUCCESSES.code,
-                    message=ErrCode.SUCCESSES.msg
+                    code=ErrCode.SUCCESSES.code, message=ErrCode.SUCCESSES.msg
                 )
 
                 # Verify telemetry sent
@@ -381,7 +419,9 @@ class TestManagementServerUtils:
                 assert result.data == test_data
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_handle_success_response_mgmt_without_tool_ids(self, mock_getenv):
+    def test_handle_success_response_mgmt_without_tool_ids(
+        self, mock_getenv: Any
+    ) -> None:
         """Test handle_success_response_mgmt without tool_ids parameter"""
         mock_getenv.return_value = "true"
 
@@ -393,8 +433,12 @@ class TestManagementServerUtils:
 
         test_data = {"result": "success"}
 
-        with patch("plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt"):
-            with patch("plugin.link.service.community.tools.http.management_server.Status"):
+        with patch(
+            "plugin.link.service.community.tools.http.management_server.send_telemetry_mgmt"
+        ):
+            with patch(
+                "plugin.link.service.community.tools.http.management_server.Status"
+            ):
                 result = handle_success_response_mgmt(
                     mock_span_context, mock_node_trace, mock_m, test_data
                 )
@@ -408,7 +452,9 @@ class TestManagementServerUtils:
                 assert result.data == test_data
 
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_handle_success_response_mgmt_with_otlp_disabled(self, mock_getenv):
+    def test_handle_success_response_mgmt_with_otlp_disabled(
+        self, mock_getenv: Any
+    ) -> None:
         """Test handle_success_response_mgmt with OTLP disabled"""
         mock_getenv.return_value = "false"
 

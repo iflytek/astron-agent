@@ -10,7 +10,7 @@ import json
 import jsonschema
 
 
-def api_validate(schema_: str, data_: dict):
+def api_validate(schema_: str, data_: dict) -> str:
     """
     校验 api 入参
     :param schema_:

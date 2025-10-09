@@ -21,7 +21,7 @@ def init_trace(
     schedule_delay_millis: int = 5000,
     max_export_batch_size: int = 512,
     export_timeout_millis: int = 30000,
-):
+) -> None:
     """
     Initialize trace
     :param endpoint:        OTLP endpoint

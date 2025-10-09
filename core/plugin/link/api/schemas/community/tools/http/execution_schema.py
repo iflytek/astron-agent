@@ -4,6 +4,8 @@ This module defines Pydantic data transfer objects (DTOs) used for HTTP-based
 tool execution requests and responses within the community tools framework.
 """
 
+from typing import Any, Dict, Optional
+
 from pydantic import BaseModel
 
 
@@ -23,9 +25,9 @@ class HttpRunParameter(BaseModel):
     Specifies which tool, operation, and version to execute.
     """
 
-    tool_id: str = None
-    operation_id: str = None
-    version: str = None
+    tool_id: Optional[str] = None
+    operation_id: Optional[str] = None
+    version: Optional[str] = None
 
 
 class HttpRunPayload(BaseModel):
@@ -34,7 +36,7 @@ class HttpRunPayload(BaseModel):
     Contains the actual message or data to be processed by the tool.
     """
 
-    message: dict = None
+    message: Optional[Dict[Any, Any]] = None
 
 
 class HttpRunRequest(BaseModel):
@@ -43,9 +45,9 @@ class HttpRunRequest(BaseModel):
     Combines header, parameter, and payload information for tool execution.
     """
 
-    header: HttpRunHeader = None
-    parameter: HttpRunParameter = None
-    payload: HttpRunPayload = None
+    header: Optional[HttpRunHeader] = None
+    parameter: Optional[HttpRunParameter] = None
+    payload: Optional[HttpRunPayload] = None
 
 
 class HttpRunResponseHeader(BaseModel):
@@ -75,12 +77,12 @@ class ToolDebugRequest(BaseModel):
     Contains HTTP request details and OpenAPI schema for debugging purposes.
     """
 
-    server: str = None
-    method: str = None
-    path: dict = None
-    query: dict = None
-    header: dict = None
-    body: dict = None
+    server: Optional[str] = None
+    method: Optional[str] = None
+    path: Optional[Dict[Any, Any]] = None
+    query: Optional[Dict[Any, Any]] = None
+    header: Optional[Dict[Any, Any]] = None
+    body: Optional[Dict[Any, Any]] = None
     openapi_schema: str = ""
 
 

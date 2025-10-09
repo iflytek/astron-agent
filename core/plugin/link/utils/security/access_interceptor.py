@@ -1,12 +1,13 @@
 import ipaddress
 import os
 import re
+from typing import List, Optional, Tuple
 from urllib.parse import urlparse, urlunparse
 
 from plugin.link.consts import const
 
 
-def is_in_black_domain(url: str):
+def is_in_black_domain(url: str) -> bool:
     """Check if URL contains any blacklisted domains.
 
     Args:
@@ -35,24 +36,26 @@ def is_in_black_domain(url: str):
     return False
 
 
-def _get_blacklist_config():
+def _get_blacklist_config() -> (
+    Tuple[List[ipaddress.IPv4Network | ipaddress.IPv6Network], List[str]]
+):
     """Get blacklist configuration from environment variables.
 
     Returns:
         tuple: (segment_black_list, ip_black_list)
     """
     segment_black_list = []
-    for black_seg in os.getenv(const.SEGMENT_BLACK_LIST_KEY).split(","):
+    for black_seg in (os.getenv(const.SEGMENT_BLACK_LIST_KEY) or "").split(","):
         if black_seg:
             segment_black_list.append(ipaddress.ip_network(black_seg))
     ip_black_list = []
-    for black_id in os.getenv(const.IP_BLACK_LIST_KEY).split(","):
+    for black_id in (os.getenv(const.IP_BLACK_LIST_KEY) or "").split(","):
         if black_id:
             ip_black_list.append(black_id)
     return segment_black_list, ip_black_list
 
 
-def _extract_host_from_url(url):
+def _extract_host_from_url(url: str) -> Optional[str]:
     """Extract host/IP from URL.
 
     Args:
@@ -73,7 +76,11 @@ def _extract_host_from_url(url):
         return host
 
 
-def _is_ip_blacklisted(ip, ip_black_list, segment_black_list):
+def _is_ip_blacklisted(
+    ip: str,
+    ip_black_list: List[str],
+    segment_black_list: List[ipaddress.IPv4Network | ipaddress.IPv6Network],
+) -> bool:
     """Check if IP is in blacklist or blacklisted network segments.
 
     Args:
@@ -100,7 +107,7 @@ def _is_ip_blacklisted(ip, ip_black_list, segment_black_list):
         return False
 
 
-def is_in_blacklist(url):
+def is_in_blacklist(url: str) -> bool:
     """Check if URL is in security blacklist (domains, IPs, network segments).
 
     Args:
@@ -137,7 +144,7 @@ def is_in_blacklist(url):
 
 
 # Check if it's a loopback address
-def is_local_url(url):
+def is_local_url(url: str) -> bool:
     """Check if URL points to a local/loopback address.
 
     Args:

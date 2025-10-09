@@ -12,11 +12,11 @@ class SparkLinkBaseException(Exception):
     prefixes, and detailed error messages.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         self.code = code
         self.message = f"{err_pre}: {err}"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.message}"
 
 
@@ -27,7 +27,7 @@ class CallThirdApiException(SparkLinkBaseException):
     or services that the SparkLink plugin depends on.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 
@@ -38,7 +38,7 @@ class ToolNotExistsException(SparkLinkBaseException):
     that is not available or has not been registered.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 
@@ -49,7 +49,7 @@ class SparkLinkOpenapiSchemaException(SparkLinkBaseException):
     parsing, validation, or structure problems.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 
@@ -60,7 +60,7 @@ class SparkLinkJsonSchemaException(SparkLinkBaseException):
     expected schema or when schema validation encounters errors.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 
@@ -71,7 +71,7 @@ class SparkLinkFunctionCallException(SparkLinkBaseException):
     or methods within the SparkLink plugin framework.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 
@@ -82,7 +82,7 @@ class SparkLinkLLMException(SparkLinkBaseException):
     such as API calls, response processing, or model-related errors.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 
@@ -93,7 +93,7 @@ class SparkLinkAppIdException(SparkLinkBaseException):
     identification, authentication, or authorization processes.
     """
 
-    def __init__(self, code, err_pre, err):
+    def __init__(self, code: int, err_pre: str, err: str) -> None:
         super().__init__(code=code, err_pre=err_pre, err=err)
 
 

@@ -9,7 +9,7 @@ data_base_singleton: Optional[DatabaseService] = None
 redis_singleton: Optional[RedisService] = None
 
 
-def init_data_base():
+def init_data_base() -> None:
     """
     Initialize the database.
     """
@@ -30,15 +30,17 @@ def init_data_base():
     # Initialize Redis service using global singleton pattern
     # Use global statement to modify module-level singleton instance
     global redis_singleton
-    addr = os.getenv(const.REDIS_CLUSTER_ADDR_KEY)
-    if not addr:
-        addr = os.getenv(const.REDIS_ADDR_KEY)
+    if not (
+        addr := os.getenv(const.REDIS_CLUSTER_ADDR_KEY)
+        or os.getenv(const.REDIS_ADDR_KEY)
+    ):
+        raise ValueError("Redis address is not set in environment variables")
 
     password = os.getenv(const.REDIS_PASSWORD_KEY)
     redis_singleton = RedisService(cluster_addr=addr, password=password)
 
 
-def get_db_engine():
+def get_db_engine() -> Optional[DatabaseService]:
     """
     Get the global database service singleton instance.
 
@@ -48,7 +50,7 @@ def get_db_engine():
     return data_base_singleton
 
 
-def get_redis_engine():
+def get_redis_engine() -> Optional[RedisService]:
     """
     Get the global Redis service singleton instance.
 
@@ -80,6 +82,6 @@ if __name__ == "__main__":
         open_api_schema="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     )
 
-    redis_engine = get_redis_engine()
-    res = redis_engine.get("spark_bot:bot_config:0059649e52bb4c97a9f32a4d4bfcceea")
-    print(res)
+    if redis_engine := get_redis_engine():
+        res = redis_engine.get("spark_bot:bot_config:0059649e52bb4c97a9f32a4d4bfcceea")
+        print(res)

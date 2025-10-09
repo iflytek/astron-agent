@@ -5,6 +5,7 @@ extracting parameters, request bodies, and other schema information.
 """
 
 import json
+from typing import Any, Dict, List, Optional, Tuple
 
 from plugin.link.exceptions.sparklink_exceptions import SparkLinkOpenapiSchemaException
 from plugin.link.utils.errors.code import ErrCode
@@ -21,40 +22,43 @@ class OpenapiSchemaParser:
 
     span: Span | None = None
 
-    def __init__(self, schema, span: Span = None):
+    def __init__(self, schema: Any, span: Optional[Span] = None) -> None:
         self.schema = schema
         self.span = span
 
     @classmethod
-    def schema_params_config_parser(cls, params, span):
+    def schema_params_config_parser(
+        cls, params: Dict[str, Any], span: Optional[Span]
+    ) -> Optional[Tuple[Dict[str, Any], bool]]:
         """
         description: 解析openapi schema params 配置信息
         """
-        if span:
-            with span.start(
-                func_name="OpenapiSchemaParser.schema_params_config_parser"
-            ) as span_context:
-                params_config = {}
-                params_schema_info = params.get("schema")
-                span_context.add_info_events(
-                    {"input": json.dumps(params, ensure_ascii=False)}
-                )
-                if "type" in params_schema_info:
-                    params_config.update({"type": params_schema_info["type"]})
-                if "description" in params_schema_info:
-                    params_config.update(
-                        {"description": params_schema_info["description"]}
-                    )
-                if "default" in params_schema_info:
-                    params_config.update({"default": params_schema_info["default"]})
-                if "enum" in params_schema_info:
-                    params_config.update({"enum": params_schema_info["enum"]})
-                if "pattern" in params_schema_info:
-                    params_config.update({"pattern": params_schema_info["pattern"]})
-                return params_config, params.get("required", False)
+        if not span:
+            return None
+        with span.start(
+            func_name="OpenapiSchemaParser.schema_params_config_parser"
+        ) as span_context:
+            params_config = {}
+            params_schema_info = params.get("schema", {})
+            span_context.add_info_events(
+                {"input": json.dumps(params, ensure_ascii=False)}
+            )
+            if "type" in params_schema_info:
+                params_config.update({"type": params_schema_info["type"]})
+            if "description" in params_schema_info:
+                params_config.update({"description": params_schema_info["description"]})
+            if "default" in params_schema_info:
+                params_config.update({"default": params_schema_info["default"]})
+            if "enum" in params_schema_info:
+                params_config.update({"enum": params_schema_info["enum"]})
+            if "pattern" in params_schema_info:
+                params_config.update({"pattern": params_schema_info["pattern"]})
+            return params_config, params.get("required", False)
 
     @classmethod
-    def schema_params_parser(cls, params, span):
+    def schema_params_parser(
+        cls, params: List[Dict[str, Any]], span: Optional[Span]
+    ) -> Optional[Tuple[ParamsConfig, ParamsConfig, ParamsConfig]]:
         """Parse OpenAPI parameters into organized schema objects.
 
         Args:
@@ -64,63 +68,68 @@ class OpenapiSchemaParser:
         Returns:
             Tuple of (path_schema, query_schema, header_schema) ParamsConfig objects
         """
-        if span:
-            with span.start(
-                func_name="OpenapiSchemaParser.schema_params_parser"
-            ) as span_context:
-                header = {}
-                header_required = []
-                path = {}
-                path_required = []
-                query = {}
-                query_required = []
-                for parameter in params:
-                    params_key = parameter.get("name")
-                    params_config, required = (
-                        OpenapiSchemaParser.schema_params_config_parser(
-                            parameter, span_context
-                        )
-                    )
-                    if parameter.get("in") == "header":
-                        header.update({params_key: params_config})
-                        if required:
-                            header_required.append(params_key)
-                    elif parameter.get("in") == "query":
-                        query.update({params_key: params_config})
-                        if required:
-                            query_required.append(params_key)
-                    elif parameter.get("in") == "path":
-                        path.update({params_key: params_config})
-                        if required:
-                            path_required.append(params_key)
-                header_schema: ParamsConfig = ParamsConfig(
-                    type="object",
-                    properties=header,
-                    required=header_required if header_required else [],
-                )
-                path_schema: ParamsConfig = ParamsConfig(
-                    type="object",
-                    properties=path,
-                    required=path_required if path_required else [],
-                )
-                query_schema: ParamsConfig = ParamsConfig(
-                    type="object",
-                    properties=query,
-                    required=query_required if query_required else [],
-                )
-                span_context.add_info_events(
-                    {"header": json.dumps(header_schema.to_dict(), ensure_ascii=False)}
-                )
-                span_context.add_info_events(
-                    {"path": json.dumps(path_schema.to_dict(), ensure_ascii=False)}
-                )
-                span_context.add_info_events(
-                    {"query": json.dumps(query_schema.to_dict(), ensure_ascii=False)}
-                )
-                return path_schema, query_schema, header_schema
+        if not span:
+            return None
+        with span.start(
+            func_name="OpenapiSchemaParser.schema_params_parser"
+        ) as span_context:
+            header = {}
+            header_required = []
+            path = {}
+            path_required = []
+            query = {}
+            query_required = []
+            for parameter in params:
+                params_key = parameter.get("name")
+                if result := OpenapiSchemaParser.schema_params_config_parser(
+                    parameter, span_context
+                ):
+                    params_config, required = result
+                else:
+                    params_config, required = {}, False
+
+                if parameter.get("in") == "header":
+                    header.update({params_key: params_config})
+                    if required:
+                        header_required.append(params_key)
+                elif parameter.get("in") == "query":
+                    query.update({params_key: params_config})
+                    if required:
+                        query_required.append(params_key)
+                elif parameter.get("in") == "path":
+                    path.update({params_key: params_config})
+                    if required:
+                        path_required.append(params_key)
+            header_schema: ParamsConfig = ParamsConfig(
+                type="object",
+                properties=header,
+                required=header_required if header_required else [],
+            )
+            path_schema: ParamsConfig = ParamsConfig(
+                type="object",
+                properties=path,
+                required=path_required if path_required else [],
+            )
+            query_schema: ParamsConfig = ParamsConfig(
+                type="object",
+                properties=query,
+                required=query_required if query_required else [],
+            )
+            span_context.add_info_events(
+                {"header": json.dumps(header_schema.to_dict(), ensure_ascii=False)}
+            )
+            span_context.add_info_events(
+                {"path": json.dumps(path_schema.to_dict(), ensure_ascii=False)}
+            )
+            span_context.add_info_events(
+                {"query": json.dumps(query_schema.to_dict(), ensure_ascii=False)}
+            )
+            return path_schema, query_schema, header_schema
 
     @classmethod
-    def process_schema(cls, body_schema: dict, span) -> dict:
+    def process_schema(
+        cls, body_schema: Dict[str, Any], span: Optional[Span]
+    ) -> Dict[str, Any]:
         """
         description: 解析 application/json中schema的内容
         """
@@ -145,24 +154,27 @@ class OpenapiSchemaParser:
         return properties
 
     @classmethod
-    def schema_body_json_parser(cls, body, span):
+    def schema_body_json_parser(
+        cls, body: Dict[str, Any], span: Optional[Span]
+    ) -> Optional[Dict[str, Any]]:
         """
         description: 解析 application/json
         """
-        if span:
-            with span.start(
-                func_name="OpenapiSchemaParser.schema_body_json_parser"
-            ) as span_context:
-                body_schema: dict = body.get("schema", {})
-                span_context.add_info_events(
-                    {"body": json.dumps(body_schema, ensure_ascii=False)}
-                )
-                # TODO: Use this when body parsing is needed later
-                # body_schema_res = cls.process_schema(body_schema, span_context)
-                # return body_schema_res
-                return body_schema
+        if not span:
+            return None
+        with span.start(
+            func_name="OpenapiSchemaParser.schema_body_json_parser"
+        ) as span_context:
+            body_schema: dict = body.get("schema", {})
+            span_context.add_info_events(
+                {"body": json.dumps(body_schema, ensure_ascii=False)}
+            )
+            # TODO: Use this when body parsing is needed later
+            # body_schema_res = cls.process_schema(body_schema, span_context)
+            # return body_schema_res
+            return body_schema
 
-    def _extract_basic_info(self, openapi: dict) -> dict:
+    def _extract_basic_info(self, openapi: Dict[str, Any]) -> Dict[str, Any]:
         """Extract basic OpenAPI information."""
         bundles = {}
         openapi_info = openapi["info"]
@@ -174,7 +186,7 @@ class OpenapiSchemaParser:
         bundles.update({"tool_description": description})
         return bundles
 
-    def _validate_and_get_server_url(self, openapi: dict) -> str:
+    def _validate_and_get_server_url(self, openapi: Dict[str, Any]) -> str:
         """Validate server configuration and return server URL."""
         if len(openapi["servers"]) == 0:
             raise SparkLinkOpenapiSchemaException(
@@ -184,7 +196,7 @@ class OpenapiSchemaParser:
             )
         return openapi["servers"][0]["url"]
 
-    def _extract_interfaces(self, openapi: dict) -> list:
+    def _extract_interfaces(self, openapi: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract all interfaces from OpenAPI paths."""
         interfaces = []
         methods = ["get", "post", "put", "delete", "patch", "head", "options", "trace"]
@@ -201,7 +213,9 @@ class OpenapiSchemaParser:
                     )
         return interfaces
 
-    def _process_request_body_refs(self, interface: dict, openapi: dict) -> None:
+    def _process_request_body_refs(
+        self, interface: Dict[str, Any], openapi: Dict[str, Any]
+    ) -> None:
         """Process $ref references in request body schemas."""
         request_body = interface.get("operation", {}).get("requestBody", {})
         for content_type, content in request_body.get("content", {}).items():
@@ -218,8 +232,12 @@ class OpenapiSchemaParser:
                 ] = root
 
     def _process_interface_schemas(
-        self, interface: dict, api_key_info: dict, openapi: dict, span_context
-    ) -> dict:
+        self,
+        interface: Dict[str, Any],
+        api_key_info: Dict[str, Any],
+        openapi: Dict[str, Any],
+        span_context: Any,
+    ) -> Dict[str, Any]:
         """Process all schemas for a single interface."""
         path_schema = None
         query_schema = None
@@ -236,9 +254,12 @@ class OpenapiSchemaParser:
 
         # Process parameters
         if "parameters" in interface["operation"]:
-            path_schema, query_schema, header_schema = self.schema_params_parser(
+            if result := self.schema_params_parser(
                 interface["operation"]["parameters"], span=span_context
-            )
+            ):
+                path_schema, query_schema, header_schema = result
+            else:
+                path_schema = query_schema = header_schema = None
 
         # Process request body
         self._process_request_body_refs(interface, openapi)
@@ -265,8 +286,8 @@ class OpenapiSchemaParser:
         }
 
     def _build_operation_bundle(
-        self, interface: dict, schemas: dict, server_url: str
-    ) -> tuple:
+        self, interface: Dict[str, Any], schemas: Dict[str, Any], server_url: str
+    ) -> Tuple[str, Dict[str, Any]]:
         """Build operation bundle for a single interface."""
         path = interface["path"]
         method = interface["method"]
@@ -312,12 +333,12 @@ class OpenapiSchemaParser:
 
         return operation_id, operation_bundle
 
-    def schema_parser(self):
+    def schema_parser(self) -> Optional[Dict[str, Any]]:
         """
         解析 schema
         """
         if not self.span:
-            return
+            return None
         with self.span.start(
             func_name="OpenapiSchemaParser.schema_parser"
         ) as span_context:
