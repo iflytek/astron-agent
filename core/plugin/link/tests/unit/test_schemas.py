@@ -2,37 +2,37 @@
 Unit tests for API schema modules
 Tests request/response schemas and validation
 """
-import pytest
-from pydantic import ValidationError
 
+import pytest
 from plugin.link.api.schemas.community.tools.http.management_schema import (
-    ToolCreateRequest,
-    ToolUpdateRequest,
-    ToolManagerResponse,
-    ToolManagerHeader,
+    CreateInfo,
     ToolCreatePayload,
-    CreateInfo
+    ToolCreateRequest,
+    ToolManagerHeader,
+    ToolManagerResponse,
+    ToolUpdateRequest,
 )
+from pydantic import ValidationError
 
 
 @pytest.mark.unit
 class TestManagementSchemas:
     """Test class for management schema validation"""
 
-    def test_tool_create_request_valid(self):
+    def test_tool_create_request_valid(self) -> None:
         """Test ToolCreateRequest with valid data"""
         valid_data = {
-            "header": {
-                "app_id": "test_app_123"
-            },
+            "header": {"app_id": "test_app_123"},
             "payload": {
-                "tools": [{
-                    "name": "test_tool",
-                    "description": "A test tool for unit testing",
-                    "openapi_schema": '{"openapi": "3.0.0", "info": {"title": "Test API", "version": "1.0.0"}}',
-                    "schema_type": 1
-                }]
-            }
+                "tools": [
+                    {
+                        "name": "test_tool",
+                        "description": "A test tool for unit testing",
+                        "openapi_schema": '{"openapi": "3.0.0", "info": {"title": "Test API", "version": "1.0.0"}}',
+                        "schema_type": 1,
+                    }
+                ]
+            },
         }
 
         request = ToolCreateRequest(**valid_data)
@@ -41,12 +41,10 @@ class TestManagementSchemas:
         assert request.payload.tools[0].name == "test_tool"
         assert request.payload.tools[0].description == "A test tool for unit testing"
 
-    def test_tool_create_request_missing_required_fields(self):
+    def test_tool_create_request_missing_required_fields(self) -> None:
         """Test ToolCreateRequest validation with missing required fields"""
         invalid_data = {
-            "header": {
-                "app_id": "test_app"
-            }
+            "header": {"app_id": "test_app"}
             # Missing payload
         }
 
@@ -57,14 +55,10 @@ class TestManagementSchemas:
         field_names = [error["loc"][0] for error in errors]
         assert "payload" in field_names
 
-    def test_tool_create_request_empty_header(self):
+    def test_tool_create_request_empty_header(self) -> None:
         """Test ToolCreateRequest validation with missing header"""
         invalid_data = {
-            "payload": {
-                "tools": [{
-                    "name": "test_tool"
-                }]
-            }
+            "payload": {"tools": [{"name": "test_tool"}]}
             # Missing header
         }
 
@@ -75,20 +69,20 @@ class TestManagementSchemas:
         field_names = [error["loc"][0] for error in errors]
         assert "header" in field_names
 
-    def test_tool_update_request_valid(self):
+    def test_tool_update_request_valid(self) -> None:
         """Test ToolUpdateRequest with valid data"""
         valid_data = {
-            "header": {
-                "app_id": "test_app_123"
-            },
+            "header": {"app_id": "test_app_123"},
             "payload": {
-                "tools": [{
-                    "id": "tool_12345",
-                    "name": "updated_tool",
-                    "description": "An updated test tool",
-                    "version": "2.0.0"
-                }]
-            }
+                "tools": [
+                    {
+                        "id": "tool_12345",
+                        "name": "updated_tool",
+                        "description": "An updated test tool",
+                        "version": "2.0.0",
+                    }
+                ]
+            },
         }
 
         request = ToolUpdateRequest(**valid_data)
@@ -98,15 +92,10 @@ class TestManagementSchemas:
         assert request.payload.tools[0].name == "updated_tool"
         assert request.payload.tools[0].description == "An updated test tool"
 
-    def test_tool_update_request_missing_header(self):
+    def test_tool_update_request_missing_header(self) -> None:
         """Test ToolUpdateRequest validation with missing header"""
         invalid_data = {
-            "payload": {
-                "tools": [{
-                    "id": "tool_12345",
-                    "name": "updated_tool"
-                }]
-            }
+            "payload": {"tools": [{"id": "tool_12345", "name": "updated_tool"}]}
             # Missing header
         }
 
@@ -116,19 +105,19 @@ class TestManagementSchemas:
         errors = exc_info.value.errors()
         assert any(error["loc"][0] == "header" for error in errors)
 
-    def test_tool_update_request_partial_update(self):
+    def test_tool_update_request_partial_update(self) -> None:
         """Test ToolUpdateRequest with partial data (only some fields)"""
         partial_data = {
-            "header": {
-                "app_id": "test_app_123"
-            },
+            "header": {"app_id": "test_app_123"},
             "payload": {
-                "tools": [{
-                    "id": "tool_12345",
-                    "name": "new_name"
-                    # Only updating name, other fields optional
-                }]
-            }
+                "tools": [
+                    {
+                        "id": "tool_12345",
+                        "name": "new_name",
+                        # Only updating name, other fields optional
+                    }
+                ]
+            },
         }
 
         request = ToolUpdateRequest(**partial_data)
@@ -139,7 +128,7 @@ class TestManagementSchemas:
         # Other fields should be None or have default values
         assert request.payload.tools[0].description is None
 
-    def test_tool_manager_response_success(self):
+    def test_tool_manager_response_success(self) -> None:
         """Test ToolManagerResponse with successful response"""
         success_data = {
             "code": 0,
@@ -148,8 +137,8 @@ class TestManagementSchemas:
             "data": {
                 "tool_id": "tool_67890",
                 "name": "created_tool",
-                "status": "active"
-            }
+                "status": "active",
+            },
         }
 
         response = ToolManagerResponse(**success_data)
@@ -159,13 +148,13 @@ class TestManagementSchemas:
         assert response.sid == "session_12345"
         assert response.data["tool_id"] == "tool_67890"
 
-    def test_tool_manager_response_error(self):
+    def test_tool_manager_response_error(self) -> None:
         """Test ToolManagerResponse with error response"""
         error_data = {
             "code": 30201,
             "message": "Protocol validation failed",
             "sid": "session_12345",
-            "data": {}
+            "data": {},
         }
 
         response = ToolManagerResponse(**error_data)
@@ -175,7 +164,7 @@ class TestManagementSchemas:
         assert response.sid == "session_12345"
         assert response.data == {}
 
-    def test_tool_manager_response_missing_required_fields(self):
+    def test_tool_manager_response_missing_required_fields(self) -> None:
         """Test ToolManagerResponse validation with missing required fields"""
         invalid_data = {
             "code": 0
@@ -198,32 +187,34 @@ class TestManagementSchemas:
                 try:
                     response = ToolManagerResponse(code=0, message="", sid="", data={})
                     assert hasattr(response, field)
-                except:
+                except Exception:
                     pass
 
-    def test_tool_manager_response_type_validation(self):
+    def test_tool_manager_response_type_validation(self) -> None:
         """Test ToolManagerResponse type validation"""
         invalid_data = {
             "code": "not_an_integer",  # Should be int
             "message": 123,  # Should be string
             "sid": None,  # Depends on schema definition
-            "data": "not_a_dict"  # Should be dict
+            "data": "not_a_dict",  # Should be dict
         }
 
         with pytest.raises(ValidationError):
             ToolManagerResponse(**invalid_data)
 
-    def test_schema_serialization(self):
+    def test_schema_serialization(self) -> None:
         """Test schema serialization to dict"""
         create_request = ToolCreateRequest(
             header=ToolManagerHeader(app_id="test_app"),
             payload=ToolCreatePayload(
-                tools=[CreateInfo(
-                    name="test_tool",
-                    description="Test description",
-                    openapi_schema='{"openapi": "3.0.0"}'
-                )]
-            )
+                tools=[
+                    CreateInfo(
+                        name="test_tool",
+                        description="Test description",
+                        openapi_schema='{"openapi": "3.0.0"}',
+                    )
+                ]
+            ),
         )
 
         serialized = create_request.dict()
@@ -233,13 +224,10 @@ class TestManagementSchemas:
         assert serialized["payload"]["tools"][0]["name"] == "test_tool"
         assert serialized["payload"]["tools"][0]["description"] == "Test description"
 
-    def test_schema_json_serialization(self):
+    def test_schema_json_serialization(self) -> None:
         """Test schema JSON serialization"""
         response = ToolManagerResponse(
-            code=0,
-            message="Success",
-            sid="test_session",
-            data={"key": "value"}
+            code=0, message="Success", sid="test_session", data={"key": "value"}
         )
 
         json_str = response.json()
@@ -249,7 +237,7 @@ class TestManagementSchemas:
         assert "test_session" in json_str
         assert "key" in json_str
 
-    def test_nested_schema_validation(self):
+    def test_nested_schema_validation(self) -> None:
         """Test validation of nested schema structures"""
         complex_schema = """{
             "openapi": "3.0.0",
@@ -275,27 +263,31 @@ class TestManagementSchemas:
         request = ToolCreateRequest(
             header=ToolManagerHeader(app_id="test_app"),
             payload=ToolCreatePayload(
-                tools=[CreateInfo(
-                    name="complex_tool",
-                    description="Tool with complex schema",
-                    openapi_schema=complex_schema
-                )]
-            )
+                tools=[
+                    CreateInfo(
+                        name="complex_tool",
+                        description="Tool with complex schema",
+                        openapi_schema=complex_schema,
+                    )
+                ]
+            ),
         )
 
         assert request.payload.tools[0].name == "complex_tool"
 
-    def test_schema_with_optional_fields(self):
+    def test_schema_with_optional_fields(self) -> None:
         """Test schema behavior with optional fields"""
         request = ToolCreateRequest(
             header=ToolManagerHeader(app_id="test_app"),
             payload=ToolCreatePayload(
-                tools=[CreateInfo(
-                    name="minimal_tool",
-                    description="Minimal tool",
-                    openapi_schema='{"openapi": "3.0.0"}'
-                )]
-            )
+                tools=[
+                    CreateInfo(
+                        name="minimal_tool",
+                        description="Minimal tool",
+                        openapi_schema='{"openapi": "3.0.0"}',
+                    )
+                ]
+            ),
         )
 
         # Check that fields are properly set
@@ -303,7 +295,7 @@ class TestManagementSchemas:
         assert request.payload.tools[0].description == "Minimal tool"
         assert request.header.app_id == "test_app"
 
-    def test_schema_field_constraints(self):
+    def test_schema_field_constraints(self) -> None:
         """Test schema field constraints and validation rules"""
         # Test with very long name
         long_name = "a" * 1000
@@ -312,12 +304,14 @@ class TestManagementSchemas:
             request = ToolCreateRequest(
                 header=ToolManagerHeader(app_id="test_app"),
                 payload=ToolCreatePayload(
-                    tools=[CreateInfo(
-                        name=long_name,
-                        description="Test description",
-                        openapi_schema='{"openapi": "3.0.0"}'
-                    )]
-                )
+                    tools=[
+                        CreateInfo(
+                            name=long_name,
+                            description="Test description",
+                            openapi_schema='{"openapi": "3.0.0"}',
+                        )
+                    ]
+                ),
             )
             # If no error, then length constraint doesn't exist or is very high
             assert len(request.payload.tools[0].name) == 1000
@@ -329,12 +323,14 @@ class TestManagementSchemas:
         request = ToolCreateRequest(
             header=ToolManagerHeader(app_id="test_app"),
             payload=ToolCreatePayload(
-                tools=[CreateInfo(
-                    name="test-tool_123",
-                    description="Test description",
-                    openapi_schema='{"openapi": "3.0.0"}'
-                )]
-            )
+                tools=[
+                    CreateInfo(
+                        name="test-tool_123",
+                        description="Test description",
+                        openapi_schema='{"openapi": "3.0.0"}',
+                    )
+                ]
+            ),
         )
 
         assert request.payload.tools[0].name == "test-tool_123"

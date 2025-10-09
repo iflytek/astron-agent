@@ -19,7 +19,7 @@ tool_debug_schema: str = ""
 mcp_register_schema: str = ""
 
 
-def load_create_tool_schema():
+def load_create_tool_schema() -> None:
     """
     description: Load the tool's schema information
     :return:
@@ -32,7 +32,7 @@ def load_create_tool_schema():
     create_tool_schema = schema_info
 
 
-def load_update_tool_schema():
+def load_update_tool_schema() -> None:
     """Load the update tool schema from JSON file.
 
     Loads the update tools schema configuration from the schema_files directory
@@ -50,7 +50,7 @@ def load_update_tool_schema():
     # print(update_tool_schema)
 
 
-def load_http_run_schema():
+def load_http_run_schema() -> None:
     """Load the HTTP run schema from JSON file.
 
     Loads the HTTP run schema configuration from the schema_files directory
@@ -67,7 +67,7 @@ def load_http_run_schema():
     http_run_schema = schema_info
 
 
-def load_tool_debug_schema():
+def load_tool_debug_schema() -> None:
     """Load the tool debug schema from JSON file.
 
     Loads the tool debug schema configuration from the schema_files directory
@@ -84,7 +84,7 @@ def load_tool_debug_schema():
     tool_debug_schema = schema_info
 
 
-def load_mcp_register_schema():
+def load_mcp_register_schema() -> None:
     """Load the MCP register schema from JSON file.
 
     Loads the MCP register schema configuration from the schema_files directory
@@ -101,7 +101,7 @@ def load_mcp_register_schema():
     mcp_register_schema = schema_info
 
 
-def get_http_run_schema():
+def get_http_run_schema() -> str:
     """Get the loaded HTTP run schema.
 
     Returns:
@@ -110,7 +110,7 @@ def get_http_run_schema():
     return http_run_schema
 
 
-def get_tool_debug_schema():
+def get_tool_debug_schema() -> str:
     """Get the loaded tool debug schema.
 
     Returns:
@@ -159,7 +159,7 @@ class SchemaProcess:
         """
         self.path = dir_path
 
-    def __call__(self, file: str):
+    def __call__(self, file: str) -> str:
         """
         description: Synchronous call, read file information
         :return:

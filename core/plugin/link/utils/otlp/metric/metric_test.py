@@ -29,7 +29,7 @@ class TestMetric(unittest.TestCase):
     and multi-threaded metric collection scenarios.
     """
 
-    def init_metric(self):
+    def init_metric(self) -> None:
         """Initialize OTLP metric collection for testing.
 
         Sets up metric exporter with test endpoint and service configuration.
@@ -42,7 +42,7 @@ class TestMetric(unittest.TestCase):
             export_timeout_millis=EXPORT_TIMEOUT_MILLIS,
         )
 
-    def test_one(self):
+    def test_one(self) -> None:
         """Test single metric reporting operation.
 
         Validates basic metric initialization and single error count reporting.
@@ -57,7 +57,7 @@ class TestMetric(unittest.TestCase):
         time.sleep(0.2)
         m.in_error_count(0)
 
-    def test_metric(self):
+    def test_metric(self) -> None:
         """Test continuous metric reporting under load.
 
         Generates multiple metric events with different return codes
@@ -78,7 +78,7 @@ class TestMetric(unittest.TestCase):
         while True:
             pass
 
-    def test_thread(self):
+    def test_thread(self) -> None:
         """Test multi-threaded metric reporting.
 
         Validates metric collection accuracy and thread-safety
@@ -108,7 +108,7 @@ class MyThread(threading.Thread):
     concurrent metric reporting and thread-safety.
     """
 
-    def run(self):
+    def run(self) -> None:
         for i in range(100000):
             for ret_code in range(3):
                 m = Meter("test_appid_langflow")

@@ -10,7 +10,7 @@ import os
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Tuple, Union
 
 import redis
 import sqlalchemy as sa
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 @contextmanager
-def session_getter(db_service: "DatabaseService"):
+def session_getter(db_service: "DatabaseService") -> Generator[Session, None, None]:
     """Context manager for database session handling.
 
     Args:
@@ -106,7 +106,7 @@ class DatabaseService:
 
     def _create_engine(self) -> "Engine":
         """Create the engine for the database."""
-        connect_args = {}
+        connect_args: Dict[str, Any] = {}
         return create_engine(
             self.database_url,
             connect_args=connect_args,
@@ -116,7 +116,7 @@ class DatabaseService:
             pool_recycle=self.pool_recycle,
         )
 
-    def __enter__(self):
+    def __enter__(self) -> Session:
         """Enter the context manager and create a database session.
 
         Returns:
@@ -125,7 +125,12 @@ class DatabaseService:
         self._session = Session(self.engine)
         return self._session
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[Exception],
+        traceback: Optional[Any],
+    ) -> None:
         """Exit the context manager and handle session cleanup.
 
         Args:
@@ -143,7 +148,7 @@ class DatabaseService:
             self._session.commit()
         self._session.close()
 
-    def get_session(self):
+    def get_session(self) -> Generator[Session, None, None]:
         """Get a database session.
 
         Yields:
@@ -152,7 +157,7 @@ class DatabaseService:
         with Session(self.engine) as session:
             yield session
 
-    def check_table(self, model):
+    def check_table(self, model: type[SQLModel]) -> List[Result]:
         """Check if a table and its columns exist in the database.
 
         Args:
@@ -163,8 +168,15 @@ class DatabaseService:
         """
         results = []
         inspector = inspect(self.engine)
-        table_name = model.__tablename__
-        expected_columns = list(model.__fields__.keys())
+
+        # Use SQLAlchemy inspect() to get table name instead of private __tablename__
+        model_inspector = inspect(model)
+        if model_inspector is None:
+            raise ValueError(f"Unable to inspect model {model}")
+        table_name = model_inspector.local_table.name
+
+        # Use modern Pydantic v2 model_fields instead of deprecated __fields__
+        expected_columns = list(getattr(model, "model_fields", {}).keys())
         try:
             available_columns = [
                 col["name"] for col in inspector.get_columns(table_name)
@@ -183,7 +195,7 @@ class DatabaseService:
                 results.append(Result(name=column, type="column", success=True))
         return results
 
-    def create_db_and_tables(self):
+    def create_db_and_tables(self) -> None:
         """Create database tables based on SQLModel metadata.
 
         Raises:
@@ -213,8 +225,8 @@ class DatabaseService:
         # Now check if the required tables exist, if not, something went wrong.
         inspector = inspect(self.engine)
         table_names = inspector.get_table_names()
-        for table in current_tables:
-            if table not in table_names:
+        for table_name in current_tables:
+            if table_name not in table_names:
                 logger.error("Something went wrong creating the database and tables.")
                 logger.error("Please check your database settings.")
                 raise RuntimeError(
@@ -233,12 +245,19 @@ class RedisService:
 
     name = "redis_service"
 
-    def __init__(self, cluster_addr=None, password=None, expiration_time=60 * 60):
+    def __init__(
+        self,
+        cluster_addr: str,
+        password: Optional[str] = None,
+        expiration_time: int = 60 * 60,
+    ) -> None:
         self._client = self.init_redis_cluster(cluster_addr, password)
         print("redis init success")
         self.expiration_time = expiration_time
 
-    def init_redis_cluster(self, cluster_addr, password):
+    def init_redis_cluster(
+        self, cluster_addr: str, password: Optional[str]
+    ) -> Union[RedisCluster, redis.Redis]:
         """
         初始化 redis 集群连接
         :param cluster_addr: 格式如下 addr1:port1,addr2:port2,addr3:port3
@@ -262,9 +281,11 @@ class RedisService:
             host = match.group(1)
             port = match.group(2)
             return redis.Redis(host=host, port=port, password=password)
+        else:
+            raise ValueError(f"Invalid Redis address format: {cluster_addr}")
 
     # check connection
-    def is_connected(self):
+    def is_connected(self) -> bool:
         """
         Check if the Redis client is connected.
         """
@@ -274,7 +295,7 @@ class RedisService:
         except redis.exceptions.ConnectionError:
             return False
 
-    def get(self, key):
+    def get(self, key: str) -> Optional[Any]:
         """
         Retrieve an item from the cache.
 
@@ -287,7 +308,7 @@ class RedisService:
         value = self._client.get(key)
         return json.loads(value.decode("utf-8")) if value else None
 
-    def hash_get(self, name, key):
+    def hash_get(self, name: str, key: str) -> Any:
         """Get a field value from a Redis hash.
 
         Args:
@@ -310,7 +331,7 @@ class RedisService:
                 "RedisCache only accepts values that can be pickled. "
             ) from exc
 
-    def hash_del(self, name, *key):
+    def hash_del(self, name: str, *key: str) -> Tuple[bool, Dict[str, str]]:
         """Delete one or more fields from a Redis hash.
 
         Args:
@@ -342,7 +363,7 @@ class RedisService:
                 "RedisCache only accepts values that can be pickled. "
             ) from exc
 
-    def hash_get_all(self, name):
+    def hash_get_all(self, name: str) -> Dict[str, Any]:
         """Get all field-value pairs from a Redis hash.
 
         Args:
@@ -373,7 +394,7 @@ class RedisService:
                 "RedisCache only accepts values that can be pickled. "
             ) from exc
 
-    def upsert(self, key, value):
+    def upsert(self, key: str, value: Any) -> None:
         """
         Inserts or updates a value in the cache.
         If the existing value and the new value are both dictionaries, they are merged.
@@ -393,7 +414,7 @@ class RedisService:
 
         self.set(key, value)
 
-    def set(self, key, value):
+    def set(self, key: str, value: Any) -> None:
         """
         Store an item in the cache.
 
@@ -404,7 +425,7 @@ class RedisService:
         serialized_value = json.dumps(value)
         self._client.set(key, serialized_value, ex=self.expiration_time)
 
-    def delete(self, key):
+    def delete(self, key: str) -> None:
         """
         Remove an item from the cache.
 
@@ -413,28 +434,28 @@ class RedisService:
         """
         self._client.delete(key)
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Clear all items from the cache.
         """
         self._client.flushdb()
 
-    def __contains__(self, key):
+    def __contains__(self, key: Optional[str]) -> bool:
         """Check if the key is in the cache."""
         return False if key is None else self._client.exists(key)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Optional[Any]:
         """Retrieve an item from the cache using the square bracket notation."""
         return self.get(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any) -> None:
         """Add an item to the cache using the square bracket notation."""
         self.set(key, value)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str) -> None:
         """Remove an item from the cache using the square bracket notation."""
         self.delete(key)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Return a string representation of the RedisCache instance."""
         return f"RedisCache(expiration_time={self.expiration_time})"

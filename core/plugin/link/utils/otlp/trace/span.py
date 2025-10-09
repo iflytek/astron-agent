@@ -9,7 +9,7 @@ import inspect
 import os
 import time
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Any, Iterator, Optional
 
 from opentelemetry import trace
 from opentelemetry.trace import Status
@@ -34,18 +34,18 @@ class Span:
     app_id: str
     uid: str
 
-    def __init__(self, app_id: str = "", uid="", sid=""):
+    def __init__(self, app_id: str = "", uid: str = "", sid: str = "") -> None:
         self.app_id = app_id
         self.uid = uid
         self.sid = sid
-        self.tracer = trace.get_tracer(os.getenv(const.OTLP_SERVICE_NAME_KEY))
+        self.tracer = trace.get_tracer(os.getenv(const.OTLP_SERVICE_NAME_KEY) or "")
 
     @contextmanager
     def start(
         self,
         func_name: str = "",
         add_source_function_name: bool = False,
-        attributes: dict = None,
+        attributes: Optional[dict] = None,
     ) -> Iterator["Span"]:
         """
         开始一个span
@@ -70,11 +70,17 @@ class Span:
         with self.tracer.start_as_current_span(func_name, attributes=default_attr):
             yield self
 
-    def _get_source_function_name(self):
-        frame = inspect.currentframe().f_back.f_back
-        return frame.f_back.f_code.co_name
+    def _get_source_function_name(self) -> str:
+        frame = inspect.currentframe()
+        for _ in range(3):
+            if (frame := getattr(frame, "f_back", None)) is None:
+                return "<unknown>"
+        if frame and frame.f_code:
+            return frame.f_code.co_name
+        else:
+            return "<unknown>"
 
-    def set_attribute(self, key: str, value):
+    def set_attribute(self, key: str, value: Any) -> None:
         """
         设置属性
         :param key:
@@ -83,7 +89,7 @@ class Span:
         """
         self.get_otlp_span().set_attribute(key, value)
 
-    def set_status(self, status: Status):
+    def set_status(self, status: Status) -> None:
         """
         设置状态
         :param status:
@@ -91,7 +97,7 @@ class Span:
         """
         self.get_otlp_span().set_status(status)
 
-    def set_attributes(self, attributes: dict):
+    def set_attributes(self, attributes: dict) -> None:
         """
         设置属性
         :param attributes:
@@ -99,7 +105,7 @@ class Span:
         """
         self.get_otlp_span().set_attributes(attributes)
 
-    def get_otlp_span(self):
+    def get_otlp_span(self) -> Any:
         """Get the current OpenTelemetry span.
 
         Returns the active OTLP span from the current tracing context.
@@ -110,7 +116,9 @@ class Span:
         """
         return trace.get_current_span()
 
-    def record_exception(self, ex: Exception, attributes: types.Attributes = None):
+    def record_exception(
+        self, ex: Exception, attributes: types.Attributes = None
+    ) -> None:
         """
         记录异常
         :param attributes:
@@ -122,8 +130,11 @@ class Span:
         )
 
     def add_event(
-        self, name: str, attributes: types.Attributes = None, timestamp: int = None
-    ):
+        self,
+        name: str,
+        attributes: types.Attributes = None,
+        timestamp: Optional[int] = None,
+    ) -> None:
         """
         添加事件，如日志
         :param name:
@@ -133,7 +144,7 @@ class Span:
         """
         self.get_otlp_span().add_event(name, attributes=attributes, timestamp=timestamp)
 
-    def add_info_event(self, value: str):
+    def add_info_event(self, value: str) -> None:
         """
         添加INFO事件
         :param value:
@@ -142,8 +153,8 @@ class Span:
         self.get_otlp_span().add_event("INFO", attributes={"INFO LOG": value})
 
     def add_info_events(
-        self, attributes: types.Attributes = None, timestamp: int = None
-    ):
+        self, attributes: types.Attributes = None, timestamp: Optional[int] = None
+    ) -> None:
         """
         添加INFO事件
         :param attributes:
@@ -154,7 +165,7 @@ class Span:
             "INFO", attributes=attributes, timestamp=timestamp
         )
 
-    def add_error_event(self, value):
+    def add_error_event(self, value: Any) -> None:
         """
 
         :param attributes:
@@ -164,8 +175,8 @@ class Span:
         self.get_otlp_span().add_event("ERROR", attributes={"ERROR LOG": value})
 
     def add_error_events(
-        self, attributes: types.Attributes = None, timestamp: int = None
-    ):
+        self, attributes: types.Attributes = None, timestamp: Optional[int] = None
+    ) -> None:
         """
 
         :param attributes:

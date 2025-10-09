@@ -14,7 +14,7 @@ from plugin.link.utils.otlp.trace.trace import init_trace
 from plugin.link.utils.sid.sid_generator2 import init_sid
 
 
-def do_work1():
+def do_work1() -> None:
     """Create root span with attributes and nested span calls.
 
     Demonstrates span creation, attribute setting, status management,
@@ -37,7 +37,7 @@ def do_work1():
         do_work2(current_span)
 
 
-def do_work2(span: Span):
+def do_work2(span: Span) -> None:
     """Create nested span with custom name.
 
     Args:
@@ -48,7 +48,7 @@ def do_work2(span: Span):
         do_work3(current_span)
 
 
-def do_work3(span: Span):
+def do_work3(span: Span) -> None:
     """Create deeply nested span with events and attributes.
 
     Args:
@@ -64,7 +64,7 @@ def do_work3(span: Span):
         print("Hello world from OpenTelemetry Python!")
 
 
-def test_do_work():
+def test_do_work() -> None:
     """Integration test for span tracing functionality.
 
     Initializes tracing infrastructure and executes nested span operations

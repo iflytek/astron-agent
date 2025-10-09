@@ -2,29 +2,27 @@
 Unit tests for utils modules
 Tests error codes, logging configuration, and other utility functions
 """
-import os
-import tempfile
+
 from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from typing import Any, Dict
+from unittest.mock import Mock, patch
 
 import pytest
-from loguru import logger
-
+from plugin.link.consts import const
 from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.log.logger import (
-    serialize,
-    patching,
+    VALID_LOG_LEVELS,
     configure,
-    VALID_LOG_LEVELS
+    patching,
+    serialize,
 )
-from plugin.link.consts import const
 
 
 @pytest.mark.unit
 class TestErrCode:
     """Test class for ErrCode enumeration"""
 
-    def test_err_code_properties(self):
+    def test_err_code_properties(self) -> None:
         """Test ErrCode enum properties access"""
         success = ErrCode.SUCCESSES
         assert success.code == 0
@@ -34,7 +32,7 @@ class TestErrCode:
         assert app_init_err.code == 30001
         assert app_init_err.msg == "Initialization failed"
 
-    def test_all_error_codes_have_code_and_msg(self):
+    def test_all_error_codes_have_code_and_msg(self) -> None:
         """Test that all error codes have valid code and message properties"""
         for err_code in ErrCode:
             assert isinstance(err_code.code, int)
@@ -42,12 +40,12 @@ class TestErrCode:
             assert err_code.code >= 0
             assert len(err_code.msg) > 0
 
-    def test_error_code_uniqueness(self):
+    def test_error_code_uniqueness(self) -> None:
         """Test that all error codes are unique"""
         codes = [err_code.code for err_code in ErrCode]
         assert len(codes) == len(set(codes)), "Error codes should be unique"
 
-    def test_specific_error_codes(self):
+    def test_specific_error_codes(self) -> None:
         """Test specific error code values and messages"""
         test_cases = [
             (ErrCode.SUCCESSES, 0, "Success"),
@@ -61,7 +59,7 @@ class TestErrCode:
             assert err_code.code == expected_code
             assert err_code.msg == expected_msg
 
-    def test_json_schema_validation_errors(self):
+    def test_json_schema_validation_errors(self) -> None:
         """Test JSON schema validation error codes"""
         json_parser_err = ErrCode.JSON_PROTOCOL_PARSER_ERR
         json_validate_err = ErrCode.JSON_SCHEMA_VALIDATE_ERR
@@ -75,7 +73,7 @@ class TestErrCode:
         assert "Protocol validation failed" in json_validate_err.msg
         assert "Response type does not match" in response_validate_err.msg
 
-    def test_openapi_schema_errors(self):
+    def test_openapi_schema_errors(self) -> None:
         """Test OpenAPI schema error codes"""
         openapi_validate_err = ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR
         body_type_err = ErrCode.OPENAPI_SCHEMA_BODY_TYPE_ERR
@@ -87,7 +85,7 @@ class TestErrCode:
         assert server_not_exist_err.code == 30302
         assert auth_type_err.code == 30303
 
-    def test_api_request_errors(self):
+    def test_api_request_errors(self) -> None:
         """Test API request error codes"""
         official_api_err = ErrCode.OFFICIAL_API_REQUEST_FAILED_ERR
         function_call_err = ErrCode.FUNCTION_CALL_FAILED_ERR
@@ -99,7 +97,7 @@ class TestErrCode:
         assert llm_call_err.code == 30402
         assert third_api_err.code == 30403
 
-    def test_tool_version_errors(self):
+    def test_tool_version_errors(self) -> None:
         """Test tool and version error codes"""
         tool_not_exist = ErrCode.TOOL_NOT_EXIST_ERR
         version_not_exist = ErrCode.VERSION_NOT_EXIST_ERR
@@ -111,7 +109,7 @@ class TestErrCode:
         assert version_not_assign.code == 30502
         assert operation_not_exist.code == 30600
 
-    def test_mcp_server_errors(self):
+    def test_mcp_server_errors(self) -> None:
         """Test MCP server error codes"""
         mcp_errors = [
             (ErrCode.MCP_SERVER_ID_EMPTY_ERR, 30700),
@@ -136,12 +134,12 @@ class TestErrCode:
 class TestLoggerUtils:
     """Test class for logger utility functions"""
 
-    def test_valid_log_levels_constant(self):
+    def test_valid_log_levels_constant(self) -> None:
         """Test that VALID_LOG_LEVELS contains expected values"""
         expected_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         assert VALID_LOG_LEVELS == expected_levels
 
-    def test_serialize_function(self):
+    def test_serialize_function(self) -> None:
         """Test serialize function creates JSON output"""
         # Mock log record with time attribute
         mock_time = Mock()
@@ -155,14 +153,11 @@ class TestLoggerUtils:
         # Should contain the timestamp
         assert b"1234567890.123" in result
 
-    def test_patching_function(self):
+    def test_patching_function(self) -> None:
         """Test patching function adds serialized data to record"""
         mock_time = Mock()
         mock_time.timestamp.return_value = 1234567890.123
-        mock_record = {
-            "time": mock_time,
-            "extra": {}
-        }
+        mock_record: Dict[str, Any] = {"time": mock_time, "extra": {}}
 
         patching(mock_record)
 
@@ -172,11 +167,13 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_with_env_log_level(self, mock_getenv, mock_logger):
+    def test_configure_with_env_log_level(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function uses environment log level"""
         mock_getenv.side_effect = lambda key, default=None: {
             const.LOG_LEVEL_KEY: "DEBUG",
-            const.LOG_PATH_KEY: None
+            const.LOG_PATH_KEY: None,
         }.get(key, default)
 
         with patch("plugin.link.utils.log.logger.Path") as mock_path_class:
@@ -186,7 +183,9 @@ class TestLoggerUtils:
             mock_path_instance.__truediv__ = Mock(return_value=mock_path_instance)
             mock_path_class.return_value = mock_path_instance
 
-            with patch("plugin.link.utils.log.logger.appdirs.user_cache_dir") as mock_cache_dir:
+            with patch(
+                "plugin.link.utils.log.logger.appdirs.user_cache_dir"
+            ) as mock_cache_dir:
                 mock_cache_dir.return_value = "/tmp/cache"
 
                 configure()
@@ -197,7 +196,9 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_with_custom_log_level(self, mock_getenv, mock_logger):
+    def test_configure_with_custom_log_level(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function with custom log level parameter"""
         mock_getenv.return_value = None
 
@@ -206,7 +207,9 @@ class TestLoggerUtils:
             mock_path_instance.parent.mkdir = Mock()
             mock_path.return_value = mock_path_instance
 
-            with patch("plugin.link.utils.log.logger.appdirs.user_cache_dir") as mock_cache_dir:
+            with patch(
+                "plugin.link.utils.log.logger.appdirs.user_cache_dir"
+            ) as mock_cache_dir:
                 mock_cache_dir.return_value = "/tmp/cache"
 
                 configure(log_level="ERROR")
@@ -217,7 +220,9 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_with_custom_log_file(self, mock_getenv, mock_logger):
+    def test_configure_with_custom_log_file(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function with custom log file"""
         mock_getenv.return_value = None
         custom_log_path = Path("/custom/log/path")
@@ -230,11 +235,15 @@ class TestLoggerUtils:
             configure(log_file=custom_log_path)
 
             # Should use custom log file path
-            mock_path_instance.parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
+            mock_path_instance.parent.mkdir.assert_called_once_with(
+                parents=True, exist_ok=True
+            )
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_default_info_level(self, mock_getenv, mock_logger):
+    def test_configure_default_info_level(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function defaults to INFO level"""
         mock_getenv.return_value = None
 
@@ -243,7 +252,9 @@ class TestLoggerUtils:
             mock_path_instance.parent.mkdir = Mock()
             mock_path.return_value = mock_path_instance
 
-            with patch("plugin.link.utils.log.logger.appdirs.user_cache_dir") as mock_cache_dir:
+            with patch(
+                "plugin.link.utils.log.logger.appdirs.user_cache_dir"
+            ) as mock_cache_dir:
                 mock_cache_dir.return_value = "/tmp/cache"
 
                 configure()
@@ -254,11 +265,13 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_with_env_log_path(self, mock_getenv, mock_logger):
+    def test_configure_with_env_log_path(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function uses environment log path"""
         mock_getenv.side_effect = lambda key, default=None: {
             const.LOG_LEVEL_KEY: None,
-            const.LOG_PATH_KEY: "/env/log/path"
+            const.LOG_PATH_KEY: "/env/log/path",
         }.get(key, default)
 
         with patch("plugin.link.utils.log.logger.Path") as mock_path:
@@ -273,7 +286,7 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_log_format(self, mock_getenv, mock_logger):
+    def test_configure_log_format(self, mock_getenv: Any, mock_logger: Any) -> None:
         """Test configure function uses correct log format"""
         mock_getenv.return_value = None
 
@@ -282,7 +295,9 @@ class TestLoggerUtils:
             mock_path_instance.parent.mkdir = Mock()
             mock_path.return_value = mock_path_instance
 
-            with patch("plugin.link.utils.log.logger.appdirs.user_cache_dir") as mock_cache_dir:
+            with patch(
+                "plugin.link.utils.log.logger.appdirs.user_cache_dir"
+            ) as mock_cache_dir:
                 mock_cache_dir.return_value = "/tmp/cache"
 
                 configure()
@@ -302,7 +317,9 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_rotation_setting(self, mock_getenv, mock_logger):
+    def test_configure_rotation_setting(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function sets log rotation"""
         mock_getenv.return_value = None
 
@@ -311,7 +328,9 @@ class TestLoggerUtils:
             mock_path_instance.parent.mkdir = Mock()
             mock_path.return_value = mock_path_instance
 
-            with patch("plugin.link.utils.log.logger.appdirs.user_cache_dir") as mock_cache_dir:
+            with patch(
+                "plugin.link.utils.log.logger.appdirs.user_cache_dir"
+            ) as mock_cache_dir:
                 mock_cache_dir.return_value = "/tmp/cache"
 
                 configure()
@@ -323,7 +342,9 @@ class TestLoggerUtils:
 
     @patch("plugin.link.utils.log.logger.logger")
     @patch("plugin.link.utils.log.logger.os.getenv")
-    def test_configure_creates_log_directory(self, mock_getenv, mock_logger):
+    def test_configure_creates_log_directory(
+        self, mock_getenv: Any, mock_logger: Any
+    ) -> None:
         """Test configure function creates log directory if it doesn't exist"""
         mock_getenv.return_value = None
 
@@ -332,17 +353,20 @@ class TestLoggerUtils:
             mock_path_instance.parent = Mock()
             mock_path.return_value = mock_path_instance
 
-            with patch("plugin.link.utils.log.logger.appdirs.user_cache_dir") as mock_cache_dir:
+            with patch(
+                "plugin.link.utils.log.logger.appdirs.user_cache_dir"
+            ) as mock_cache_dir:
                 mock_cache_dir.return_value = "/tmp/cache"
 
                 configure()
 
-                mock_path_instance.parent.mkdir.assert_called_once_with(parents=True, exist_ok=True)
+                mock_path_instance.parent.mkdir.assert_called_once_with(
+                    parents=True, exist_ok=True
+                )
 
-    def test_serialize_with_mock_record(self):
+    def test_serialize_with_mock_record(self) -> None:
         """Test serialize function with mock record structure"""
         import time
-        from datetime import datetime
 
         # Create a more realistic mock record
         mock_datetime = Mock()
@@ -351,7 +375,7 @@ class TestLoggerUtils:
         record = {
             "time": mock_datetime,
             "level": {"name": "INFO"},
-            "message": "Test message"
+            "message": "Test message",
         }
 
         result = serialize(record)
@@ -360,20 +384,21 @@ class TestLoggerUtils:
         assert isinstance(result, bytes)
         # Should contain timestamp key
         import orjson
+
         parsed = orjson.loads(result)
         assert "timestamp" in parsed
         assert isinstance(parsed["timestamp"], (int, float))
 
-    def test_patching_adds_serialized_extra(self):
+    def test_patching_adds_serialized_extra(self) -> None:
         """Test patching function properly adds serialized data"""
         import time
 
         mock_datetime = Mock()
         mock_datetime.timestamp.return_value = time.time()
 
-        record = {
+        record: Dict[str, Any] = {
             "time": mock_datetime,
-            "extra": {"existing_key": "existing_value"}
+            "extra": {"existing_key": "existing_value"},
         }
 
         patching(record)

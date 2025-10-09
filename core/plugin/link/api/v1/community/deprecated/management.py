@@ -8,6 +8,7 @@ Please use the versioned tool management APIs instead.
 from fastapi import APIRouter, Query
 from plugin.link.api.schemas.community.deprecated.management_schema import (
     ToolManagerRequest,
+    ToolManagerResponse,
 )
 from plugin.link.service.community.deprecated.management_server import (
     create_tools,
@@ -25,7 +26,7 @@ deprecated_router = APIRouter(tags=["deprecated tool management api"])
     summary="Deprecated: No longer maintained api, please use "
     "`/tools/version` instead.",
 )
-def create_tools_api(tools_info: ToolManagerRequest):
+def create_tools_api(tools_info: ToolManagerRequest) -> ToolManagerResponse:
     """Create new tools using deprecated API.
 
     Args:
@@ -43,7 +44,9 @@ def create_tools_api(tools_info: ToolManagerRequest):
     summary="Deprecated: No longer maintained api, please use "
     "`/tools/version` instead.",
 )
-def delete_tools_api(tool_ids: list[str] = Query(), app_id: str = Query()):
+def delete_tools_api(
+    tool_ids: list[str] = Query(), app_id: str = Query()
+) -> ToolManagerResponse:
     """Delete existing tools using deprecated API.
 
     Args:
@@ -62,7 +65,7 @@ def delete_tools_api(tool_ids: list[str] = Query(), app_id: str = Query()):
     summary="Deprecated: No longer maintained api, please use "
     "`/tools/version` instead.",
 )
-def update_tools_api(tools_info: ToolManagerRequest):
+def update_tools_api(tools_info: ToolManagerRequest) -> ToolManagerResponse:
     """Update existing tools using deprecated API.
 
     Args:
@@ -80,7 +83,9 @@ def update_tools_api(tools_info: ToolManagerRequest):
     summary="Deprecated: No longer maintained api, please use "
     "`/tools/version` instead.",
 )
-def read_tools_api(tool_ids: list[str] = Query(), app_id: str = Query()):
+def read_tools_api(
+    tool_ids: list[str] = Query(), app_id: str = Query()
+) -> ToolManagerResponse:
     """Retrieve tool information using deprecated API.
 
     Args:

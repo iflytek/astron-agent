@@ -9,6 +9,7 @@ import base64
 import json
 import os
 import time
+from typing import Any, Dict, List, Optional, Tuple
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -49,7 +50,9 @@ default_value = {
 }
 
 
-def extract_request_params(run_params_list):
+def extract_request_params(
+    run_params_list: Dict[str, Any],
+) -> Tuple[Optional[str], str, str]:
     """Extract common request parameters."""
     app_id = (
         run_params_list.get("header", {}).get("app_id")
@@ -69,7 +72,7 @@ def extract_request_params(run_params_list):
     return app_id, uid, caller
 
 
-def send_telemetry(node_trace):
+def send_telemetry(node_trace: NodeTraceLog) -> None:
     """Send telemetry data to Kafka."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         kafka_service = get_kafka_producer_service()
@@ -77,7 +80,9 @@ def send_telemetry(node_trace):
         kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
 
 
-def handle_validation_error(validate_err, span_context, node_trace, m):
+def handle_validation_error(
+    validate_err: str, span_context: Span, node_trace: NodeTraceLog, m: Meter
+) -> HttpRunResponse:
     """Handle validation errors with telemetry."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         m.in_error_count(ErrCode.JSON_PROTOCOL_PARSER_ERR.code)
@@ -98,7 +103,14 @@ def handle_validation_error(validate_err, span_context, node_trace, m):
     )
 
 
-def handle_sparklink_error(err, span_context, node_trace, m, tool_id="", tool_type=""):
+def handle_sparklink_error(
+    err: SparkLinkBaseException,
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str = "",
+    tool_type: str = "",
+) -> HttpRunResponse:
     """Handle SparkLink base exceptions with telemetry."""
     span_context.add_error_event(err.message)
     span_context.set_status(OTelStatus(StatusCode.ERROR))
@@ -124,8 +136,14 @@ def handle_sparklink_error(err, span_context, node_trace, m, tool_id="", tool_ty
 
 
 def handle_custom_error(
-    error_code, message, span_context, node_trace, m, tool_id="", tool_type=""
-):
+    error_code: Any,
+    message: str,
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str = "",
+    tool_type: str = "",
+) -> HttpRunResponse:
     """Handle custom errors with telemetry."""
     span_context.add_error_event(message)
     span_context.set_status(OTelStatus(StatusCode.ERROR))
@@ -153,8 +171,13 @@ def handle_custom_error(
 
 
 def handle_general_exception(
-    err, span_context, node_trace, m, tool_id="", tool_type=""
-):
+    err: Exception,
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str = "",
+    tool_type: str = "",
+) -> HttpRunResponse:
     """Handle general exceptions with telemetry."""
     span_context.add_error_event(f"{ErrCode.COMMON_ERR.msg}: {err}")
     span_context.set_status(OTelStatus(StatusCode.ERROR))
@@ -181,7 +204,12 @@ def handle_general_exception(
     )
 
 
-def process_authentication(operation_id_schema, message_header, message_query, tool_id):
+def process_authentication(
+    operation_id_schema: Dict[str, Any],
+    message_header: Dict[str, Any],
+    message_query: Dict[str, Any],
+    tool_id: str,
+) -> None:
     """Process authentication for the request."""
     if not operation_id_schema["security"]:
         return
@@ -207,7 +235,9 @@ def process_authentication(operation_id_schema, message_header, message_query, t
             message_query.update(api_key_dict)
 
 
-def validate_response_schema(result_json, open_api_schema):
+def validate_response_schema(
+    result_json: Any, open_api_schema: Dict[str, Any]
+) -> List[str]:
     """Validate response against schema and return error messages."""
     response_schema = get_response_schema(open_api_schema)
     import jsonschema
@@ -256,7 +286,14 @@ def validate_response_schema(result_json, open_api_schema):
     return er_msgs
 
 
-def handle_success_response(result, span_context, node_trace, m, tool_id, tool_type):
+def handle_success_response(
+    result: str,
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str,
+    tool_type: str,
+) -> HttpRunResponse:
     """Handle successful response with telemetry."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         m.in_success_count()
@@ -284,8 +321,13 @@ def handle_success_response(result, span_context, node_trace, m, tool_id, tool_t
 
 
 def handle_debug_validation_error(
-    validate_err, span_context, node_trace, m, tool_id, tool_type
-):
+    validate_err: str,
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str,
+    tool_type: str,
+) -> HttpRunResponse:
     """Handle validation errors in tool debug with telemetry."""
     span_context.add_error_event(
         f"Error code: {ErrCode.JSON_PROTOCOL_PARSER_ERR.code}, "
@@ -314,8 +356,13 @@ def handle_debug_validation_error(
 
 
 def handle_debug_success_response(
-    result, span_context, node_trace, m, tool_id, tool_type
-):
+    result: str,
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str,
+    tool_type: str,
+) -> ToolDebugResponse:
     """Handle successful debug response with telemetry."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         m.in_success_count()
@@ -342,34 +389,41 @@ def handle_debug_success_response(
     )
 
 
-def process_message_params(message):
+def process_message_params(
+    message: Dict[str, Any],
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     """Process and decode message parameters."""
     message_header = (
-        json.loads(base64.b64decode(message.get("header")).decode("utf-8"))
-        if message.get("header")
+        json.loads(base64.b64decode(header_data).decode("utf-8"))
+        if (header_data := message.get("header"))
         else {}
     )
     message_query = (
-        json.loads(base64.b64decode(message.get("query")).decode("utf-8"))
-        if message.get("query")
+        json.loads(base64.b64decode(query_data).decode("utf-8"))
+        if (query_data := message.get("query"))
         else {}
     )
     path = (
-        json.loads(base64.b64decode(message.get("path")).decode("utf-8"))
-        if message.get("path")
+        json.loads(base64.b64decode(path_data).decode("utf-8"))
+        if (path_data := message.get("path"))
         else {}
     )
     body = (
-        json.loads(base64.b64decode(message.get("body")).decode("utf-8"))
-        if message.get("body")
+        json.loads(base64.b64decode(body_data).decode("utf-8"))
+        if (body_data := message.get("body"))
         else {}
     )
     return message_header, message_query, path, body
 
 
 def setup_http_request(
-    operation_id_schema, message_header, message_query, path, body, open_api_schema
-):
+    operation_id_schema: Dict[str, Any],
+    message_header: Dict[str, Any],
+    message_query: Dict[str, Any],
+    path: Dict[str, Any],
+    body: Dict[str, Any],
+    open_api_schema: Dict[str, Any],
+) -> HttpRun:
     """Setup HTTP request instance."""
     return HttpRun(
         server=operation_id_schema["server_url"],
@@ -383,8 +437,14 @@ def setup_http_request(
 
 
 def process_http_result(
-    result, open_api_schema, span_context, node_trace, m, tool_id, tool_type
-):
+    result: str,
+    open_api_schema: Dict[str, Any],
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+    tool_id: str,
+    tool_type: str,
+) -> HttpRunResponse:
     """Process HTTP call result and handle validation."""
     result_json = None
     try:
@@ -417,7 +477,9 @@ def process_http_result(
     )
 
 
-def setup_span_and_trace(run_params_list, app_id, uid, caller):
+def setup_span_and_trace(
+    run_params_list: Dict[str, Any], app_id: Optional[str], uid: str, caller: str
+) -> Tuple[Span, NodeTraceLog]:
     """Setup span and node trace for the request."""
     span = Span(app_id=app_id, uid=uid)
     sid = run_params_list.get("header", {}).get("sid")
@@ -438,7 +500,9 @@ def setup_span_and_trace(run_params_list, app_id, uid, caller):
     return span, node_trace
 
 
-def setup_logging_and_metrics(span_context, run_params_list):
+def setup_logging_and_metrics(
+    span_context: Span, run_params_list: Dict[str, Any]
+) -> Meter:
     """Setup logging and metrics for the request."""
     logger.info(
         {
@@ -458,7 +522,13 @@ def setup_logging_and_metrics(span_context, run_params_list):
     return Meter(app_id=span_context.app_id, func="http_run")
 
 
-def get_tool_schema(run_params_list, tool_id, operation_id, version, span_context):
+def get_tool_schema(
+    run_params_list: Dict[str, Any],
+    tool_id: str,
+    operation_id: str,
+    version: str,
+    span_context: Span,
+) -> Tuple[Optional[Dict[str, Any]], Optional[str], Optional[Dict[str, Any]]]:
     """Get tool schema from database."""
     tool_id_info = [
         {
@@ -492,7 +562,12 @@ def get_tool_schema(run_params_list, tool_id, operation_id, version, span_contex
     return operation_id_schema, tool_type, open_api_schema
 
 
-def validate_and_get_params(run_params_list, span_context, node_trace, m):
+def validate_and_get_params(
+    run_params_list: Dict[str, Any],
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+) -> Tuple[Optional[Dict[str, str]], Optional[HttpRunResponse]]:
     """Validate request and extract parameters."""
     validate_err = api_validate(get_http_run_schema(), run_params_list)
     if validate_err:
@@ -509,15 +584,15 @@ def validate_and_get_params(run_params_list, span_context, node_trace, m):
 
 
 async def handle_request_execution(
-    operation_id_schema,
-    tool_type,
-    open_api_schema,
-    run_params_list,
-    params,
-    span_context,
-    node_trace,
-    m,
-):
+    operation_id_schema: Dict[str, Any],
+    tool_type: str,
+    open_api_schema: Dict[str, Any],
+    run_params_list: Dict[str, Any],
+    params: Dict[str, str],
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+) -> HttpRunResponse:
     """Handle the actual HTTP request execution."""
     try:
         message = run_params_list["payload"]["message"]
@@ -570,7 +645,13 @@ async def handle_request_execution(
         )
 
 
-async def execute_http_request(run_params_list, params, span_context, node_trace, m):
+async def execute_http_request(
+    run_params_list: Dict[str, Any],
+    params: Dict[str, str],
+    span_context: Span,
+    node_trace: NodeTraceLog,
+    m: Meter,
+) -> HttpRunResponse:
     """Execute the HTTP request with all validations."""
     try:
         operation_id_schema, tool_type, open_api_schema = get_tool_schema(
@@ -605,13 +686,13 @@ async def execute_http_request(run_params_list, params, span_context, node_trace
                 node_trace,
                 m,
                 params["tool_id"],
-                tool_type,
+                tool_type or "",
             )
 
     return await handle_request_execution(
         operation_id_schema,
-        tool_type,
-        open_api_schema,
+        tool_type or "",
+        open_api_schema or {},
         run_params_list,
         params,
         span_context,
@@ -638,7 +719,7 @@ async def http_run(run_params: HttpRunRequest) -> HttpRunResponse:
             return error_response
 
         return await execute_http_request(
-            run_params_list, params, span_context, node_trace, m
+            run_params_list, params or {}, span_context, node_trace, m
         )
 
 
@@ -694,7 +775,7 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
             validate_err = api_validate(get_tool_debug_schema(), run_params_list)
             if validate_err:
                 return handle_debug_validation_error(
-                    validate_err, span_context, node_trace, m, tool_id, tool_type
+                    validate_err, span_context, node_trace, m, tool_id, tool_type or ""
                 )
 
             http_inst = HttpRun(
@@ -727,7 +808,7 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
                     node_trace,
                     m,
                     tool_id,
-                    tool_type,
+                    tool_type or "",
                 )
 
             span_context.add_info_events({"before result": result})
@@ -735,20 +816,20 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
             span_context.add_info_events({"after result": result})
 
             return handle_debug_success_response(
-                result, span_context, node_trace, m, tool_id, tool_type
+                result, span_context, node_trace, m, tool_id, tool_type or ""
             )
 
         except SparkLinkBaseException as err:
             return handle_sparklink_error(
-                err, span_context, node_trace, m, tool_id, tool_type
+                err, span_context, node_trace, m, tool_id, tool_type or ""
             )
         except Exception as err:
             return handle_general_exception(
-                err, span_context, node_trace, m, tool_id, tool_type
+                err, span_context, node_trace, m, tool_id, tool_type or ""
             )
 
 
-def process_array(name):
+def process_array(name: str) -> Tuple[str, int]:
     """Process array notation in parameter names."""
     bracket_left_index = name.find("[")
     bracket_right_index = name.find("]")
@@ -757,7 +838,7 @@ def process_array(name):
     return array_name, array_index
 
 
-def get_response_schema(openapi_schema):
+def get_response_schema(openapi_schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Get response schema from tool's OpenAPI schema."""
     if openapi_schema is None:
         return {}

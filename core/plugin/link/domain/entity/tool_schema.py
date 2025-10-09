@@ -46,7 +46,7 @@ class Tools(SQLModel, table=True):
     mcp_server_url: str = Field(
         sa_column=Column(String(255), nullable=True, comment="mcp_server_url")
     )
-    schema: str = Field(
+    schema: str = Field(  # type: ignore
         sa_column=Column(Text, nullable=True, comment="Schema, JSON format")
     )
     version: str = Field(

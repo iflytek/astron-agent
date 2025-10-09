@@ -2,6 +2,7 @@ import json
 import os
 import re
 import time
+from typing import Any, Dict, List, Optional, Tuple
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -30,7 +31,7 @@ from plugin.link.utils.snowflake.gen_snowflake import gen_id
 from plugin.link.utils.uid.generate_uid import new_uid
 
 
-def _extract_request_params(run_params_list):
+def _extract_request_params(run_params_list: Any) -> Dict:
     """Extract common parameters from request."""
     header = run_params_list.get("header", {})
     return {
@@ -42,34 +43,36 @@ def _extract_request_params(run_params_list):
     }
 
 
-def _setup_observability(params, run_params_list, func_name):
+def _setup_observability(params: Any, run_params_list: Any, func_name: Any) -> Tuple:
     """Setup span and tracing for a function."""
     span = Span(app_id=params["app_id"], uid=params["uid"])
     if params["sid"]:
         span.sid = params["sid"]
 
-    span_context = span.start(func_name=func_name)
-    span_context.add_info_events(
-        {"usr_input": json.dumps(run_params_list, ensure_ascii=False)}
-    )
+    with span.start(func_name=func_name) as span_context:
+        span_context.add_info_events(
+            {"usr_input": json.dumps(run_params_list, ensure_ascii=False)}
+        )
 
-    node_trace = NodeTraceLog(
-        service_id="",
-        sid=span_context.sid,
-        app_id=span_context.app_id,
-        uid=span_context.uid,
-        chat_id=span_context.sid,
-        sub="spark-link",
-        caller=params["caller"],
-        log_caller=params["tool_type"],
-        question=json.dumps(run_params_list, ensure_ascii=False),
-    )
+        node_trace = NodeTraceLog(
+            service_id="",
+            sid=span_context.sid,
+            app_id=span_context.app_id,
+            uid=span_context.uid,
+            chat_id=span_context.sid,
+            sub="spark-link",
+            caller=params["caller"],
+            log_caller=params["tool_type"],
+            question=json.dumps(run_params_list, ensure_ascii=False),
+        )
 
-    meter = Meter(app_id=span_context.app_id, func=func_name)
-    return span_context, node_trace, meter
+        meter = Meter(app_id=span_context.app_id, func=func_name)
+        return span_context, node_trace, meter
 
 
-def _send_error_telemetry(meter, node_trace, error_code, error_msg):
+def _send_error_telemetry(
+    meter: Any, node_trace: Any, error_code: Any, error_msg: Any
+) -> None:
     """Send error telemetry data."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         meter.in_error_count(error_code)
@@ -80,7 +83,9 @@ def _send_error_telemetry(meter, node_trace, error_code, error_msg):
         kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
 
 
-def _send_success_telemetry(meter, node_trace, response_data, service_id=None):
+def _send_success_telemetry(
+    meter: Any, node_trace: Any, response_data: Any, service_id: Any = None
+) -> None:
     """Send success telemetry data."""
     if os.getenv(const.OTLP_ENABLE_KEY, "false").lower() == "true":
         meter.in_success_count()
@@ -96,7 +101,9 @@ def _send_success_telemetry(meter, node_trace, response_data, service_id=None):
         kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
 
 
-def _validate_and_create_tool(tool, span_context):
+def _validate_and_create_tool(
+    tool: Any, span_context: Any
+) -> Tuple[Optional[Dict], Optional[str]]:
     """Validate and prepare a single tool for creation."""
     new_id = f"{hex(gen_id())}"
     tool_id = f"tool@{new_id[2:]}"
@@ -124,7 +131,7 @@ def _validate_and_create_tool(tool, span_context):
     }, None
 
 
-def create_tools(tools_info: ToolManagerRequest):
+def create_tools(tools_info: ToolManagerRequest) -> ToolManagerResponse:
     """
     description: Create tools
     :return:
@@ -146,77 +153,74 @@ def create_tools(tools_info: ToolManagerRequest):
             params, run_params_list, "create_tools"
         )
 
-        with span_context:
-            span_context.set_attributes(
-                attributes={
-                    "tools": str(run_params_list.get("payload", {}).get("tools"))
-                }
+        span_context.set_attributes(
+            attributes={"tools": str(run_params_list.get("payload", {}).get("tools"))}
+        )
+
+        # Validate API
+        validate_err = api_validate(get_create_tool_schema(), run_params_list)
+        if validate_err:
+            _send_error_telemetry(
+                meter,
+                node_trace,
+                ErrCode.JSON_SCHEMA_VALIDATE_ERR.code,
+                validate_err,
+            )
+            return ToolManagerResponse(
+                code=ErrCode.JSON_SCHEMA_VALIDATE_ERR.code,
+                message=validate_err,
+                sid=span_context.sid,
+                data={},
             )
 
-            # Validate API
-            validate_err = api_validate(get_create_tool_schema(), run_params_list)
-            if validate_err:
+        # Process tools
+        tool_info = []
+        tool_ids = []
+        for tool in tools:
+            tool_data, err = _validate_and_create_tool(tool, span_context)
+            if err or tool_data is None:
                 _send_error_telemetry(
                     meter,
                     node_trace,
-                    ErrCode.JSON_SCHEMA_VALIDATE_ERR.code,
-                    validate_err,
+                    ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
+                    json.dumps(err),
                 )
                 return ToolManagerResponse(
-                    code=ErrCode.JSON_SCHEMA_VALIDATE_ERR.code,
-                    message=validate_err,
+                    code=ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
+                    message=json.dumps(err),
                     sid=span_context.sid,
                     data={},
                 )
 
-            # Process tools
-            tool_info = []
-            tool_ids = []
-            for tool in tools:
-                tool_data, err = _validate_and_create_tool(tool, span_context)
-                if err:
-                    _send_error_telemetry(
-                        meter,
-                        node_trace,
-                        ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
-                        json.dumps(err),
-                    )
-                    return ToolManagerResponse(
-                        code=ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
-                        message=json.dumps(err),
-                        sid=span_context.sid,
-                        data={},
-                    )
-
-                tool_info.append(
-                    {
-                        "app_id": params["app_id"],
-                        "tool_id": tool_data["tool_id"],
-                        "schema": tool_data["schema"],
-                        "name": tool_data["name"],
-                        "description": tool_data["description"],
-                        "version": const.DEF_VER,
-                        "is_deleted": const.DEF_DEL,
-                    }
-                )
-
-            # Save to database
-            crud_inst = ToolCrudOperation(get_db_engine())
-            crud_inst.add_tools(tool_info)
-
-            # Prepare response
-            resp_tool = []
-            for tool in tool_info:
-                resp_tool.append({"name": tool.get("name"), "id": tool.get("tool_id")})
-                tool_ids.append(tool.get("tool_id"))
-
-            _send_success_telemetry(meter, node_trace, resp_tool, tool_ids)
-            return ToolManagerResponse(
-                code=ErrCode.SUCCESSES.code,
-                message=ErrCode.SUCCESSES.msg,
-                sid=span_context.sid,
-                data={"tools": resp_tool},
+            tool_info.append(
+                {
+                    "app_id": params["app_id"],
+                    "tool_id": tool_data.get("tool_id", ""),
+                    "schema": tool_data.get("schema", ""),
+                    "name": tool_data.get("name", ""),
+                    "description": tool_data.get("description", ""),
+                    "version": const.DEF_VER,
+                    "is_deleted": const.DEF_DEL,
+                }
             )
+
+        # Save to database
+        crud_inst = ToolCrudOperation(get_db_engine())
+        crud_inst.add_tools(tool_info)
+
+        # Prepare response
+        resp_tool = []
+        for tool in tool_info:
+            resp_tool.append({"name": tool.get("name"), "id": tool.get("tool_id")})
+            tool_ids.append(tool.get("tool_id"))
+
+        _send_success_telemetry(meter, node_trace, resp_tool, tool_ids)
+        return ToolManagerResponse(
+            code=ErrCode.SUCCESSES.code,
+            message=ErrCode.SUCCESSES.msg,
+            sid=span_context.sid,
+            data={"tools": resp_tool},
+        )
 
     except Exception as err:
         logger.error(f"failed to create tools, reason {err}")
@@ -229,7 +233,9 @@ def create_tools(tools_info: ToolManagerRequest):
         )
 
 
-def _validate_read_tool_ids(tool_ids, span_context, meter, node_trace):
+def _validate_read_tool_ids(
+    tool_ids: Any, span_context: Any, meter: Any, node_trace: Any
+) -> Optional[ToolManagerResponse]:
     """Validate tool IDs for reading."""
     if len(tool_ids) == 0:
         msg = f"get tool: tool num {len(tool_ids)} not in threshold 0 ~ 6"
@@ -262,7 +268,7 @@ def _validate_read_tool_ids(tool_ids, span_context, meter, node_trace):
     return None
 
 
-def _process_database_results(results):
+def _process_database_results(results: Any) -> List[Dict]:
     """Process database results into response format."""
     tools = []
     for result in results:
@@ -278,7 +284,9 @@ def _process_database_results(results):
     return tools
 
 
-def _validate_and_process_update_tool(tool, app_id, span_context):
+def _validate_and_process_update_tool(
+    tool: Any, app_id: Any, span_context: Any
+) -> Tuple[Optional[Dict], Optional[str]]:
     """Validate and process a single tool for update."""
     schema_content = tool.get("openapi_schema", "")
     if not schema_content:
@@ -313,7 +321,9 @@ def _validate_and_process_update_tool(tool, app_id, span_context):
     return update_tool_data, None
 
 
-def _validate_tool_ids(tool_ids, span_context, meter, node_trace):
+def _validate_tool_ids(
+    tool_ids: Any, span_context: Any, meter: Any, node_trace: Any
+) -> Optional[ToolManagerResponse]:
     """Validate tool IDs for deletion."""
     if len(tool_ids) == 0 or len(tool_ids) > 6:
         msg = f"del tool: tool num {len(tool_ids)} not in threshold 1 ~ 6"
@@ -346,7 +356,9 @@ def _validate_tool_ids(tool_ids, span_context, meter, node_trace):
     return None
 
 
-def delete_tools(tool_ids: list[str] = Query(), app_id: str = Query()):
+def delete_tools(
+    tool_ids: list[str] = Query(), app_id: str = Query()
+) -> ToolManagerResponse:
     """
     description: Delete tools
     :return:
@@ -427,7 +439,7 @@ def delete_tools(tool_ids: list[str] = Query(), app_id: str = Query()):
             )
 
 
-def update_tools(tools_info: ToolManagerRequest):
+def update_tools(tools_info: ToolManagerRequest) -> ToolManagerResponse:
     """
     description: Update tools
     :return:
@@ -449,66 +461,63 @@ def update_tools(tools_info: ToolManagerRequest):
             params, run_params_list, "update_tools"
         )
 
-        with span_context:
-            span_context.set_attributes(
-                attributes={
-                    "tools": str(run_params_list.get("payload", {}).get("tools"))
-                }
+        span_context.set_attributes(
+            attributes={"tools": str(run_params_list.get("payload", {}).get("tools"))}
+        )
+
+        # Validate API
+        validate_err = api_validate(get_update_tool_schema(), run_params_list)
+        if validate_err:
+            _send_error_telemetry(
+                meter,
+                node_trace,
+                ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
+                validate_err,
+            )
+            return ToolManagerResponse(
+                code=ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
+                message=validate_err,
+                sid=span_context.sid,
+                data={},
             )
 
-            # Validate API
-            validate_err = api_validate(get_update_tool_schema(), run_params_list)
-            if validate_err:
+        # Process tools
+        update_tool = []
+        tool_ids = []
+        for tool in tools:
+            tool_data, err = _validate_and_process_update_tool(
+                tool, params["app_id"], span_context
+            )
+            if tool_data is None and err is None:
+                continue  # Skip tools without schema content
+            if err:
                 _send_error_telemetry(
                     meter,
                     node_trace,
-                    ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
-                    validate_err,
+                    ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
+                    json.dumps(err),
                 )
                 return ToolManagerResponse(
-                    code=ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
-                    message=validate_err,
+                    code=ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
+                    message=json.dumps(err),
                     sid=span_context.sid,
                     data={},
                 )
 
-            # Process tools
-            update_tool = []
-            tool_ids = []
-            for tool in tools:
-                tool_data, err = _validate_and_process_update_tool(
-                    tool, params["app_id"], span_context
-                )
-                if tool_data is None and err is None:
-                    continue  # Skip tools without schema content
-                if err:
-                    _send_error_telemetry(
-                        meter,
-                        node_trace,
-                        ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
-                        json.dumps(err),
-                    )
-                    return ToolManagerResponse(
-                        code=ErrCode.OPENAPI_SCHEMA_VALIDATE_ERR.code,
-                        message=json.dumps(err),
-                        sid=span_context.sid,
-                        data={},
-                    )
+            update_tool.append(tool_data)
+            tool_ids.append(tool.get("id"))
 
-                update_tool.append(tool_data)
-                tool_ids.append(tool.get("id"))
+        # Update tools in database
+        crud_inst = ToolCrudOperation(get_db_engine())
+        crud_inst.update_tools(update_tool)
 
-            # Update tools in database
-            crud_inst = ToolCrudOperation(get_db_engine())
-            crud_inst.update_tools(update_tool)
-
-            _send_success_telemetry(meter, node_trace, ErrCode.SUCCESSES.msg, tool_ids)
-            return ToolManagerResponse(
-                code=ErrCode.SUCCESSES.code,
-                message=ErrCode.SUCCESSES.msg,
-                sid=span_context.sid,
-                data={},
-            )
+        _send_success_telemetry(meter, node_trace, ErrCode.SUCCESSES.msg, tool_ids)
+        return ToolManagerResponse(
+            code=ErrCode.SUCCESSES.code,
+            message=ErrCode.SUCCESSES.msg,
+            sid=span_context.sid,
+            data={},
+        )
 
     except Exception as err:
         msg = f"failed to update tool, reason {err}"
@@ -522,7 +531,9 @@ def update_tools(tools_info: ToolManagerRequest):
         )
 
 
-def read_tools(tool_ids: list[str] = Query(), app_id: str = Query()):
+def read_tools(
+    tool_ids: list[str] = Query(), app_id: str = Query()
+) -> ToolManagerResponse:
     """
     description: Get tools
     :return:

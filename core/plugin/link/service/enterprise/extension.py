@@ -8,6 +8,7 @@ and telemetry tracking.
 import json
 import os
 import time
+from typing import Union
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -30,7 +31,9 @@ from plugin.link.utils.json_schemas.schema_validate import api_validate
 from plugin.link.utils.snowflake.gen_snowflake import gen_id
 
 
-def register_mcp(mcp_info: MCPManagerRequest):
+def register_mcp(
+    mcp_info: MCPManagerRequest,
+) -> Union[MCPManagerResponse, ToolManagerResponse]:
     """Register a new MCP (Model Context Protocol) tool in the system.
 
     Validates the MCP registration request, generates a unique tool ID,

@@ -21,7 +21,7 @@ from plugin.link.utils.sid.sid_generator2 import spark_link_init_sid
 
 class SparkLinkServer:
 
-    def start(self):
+    def start(self) -> None:
         """
         Start the Spark Link server by setting up the environment,
         configuring the server, and launching Uvicorn.
@@ -33,7 +33,7 @@ class SparkLinkServer:
         self.start_uvicorn()
 
     @staticmethod
-    def setup_server():
+    def setup_server() -> None:
         """Initialize service suite"""
         need_init_services = [
             "settings_service",
@@ -46,7 +46,7 @@ class SparkLinkServer:
         initialize_services(services=need_init_services)
 
     @staticmethod
-    def start_uvicorn():
+    def start_uvicorn() -> None:
         """
         Start the Uvicorn ASGI server with configuration loaded from environment
         variables.
@@ -55,10 +55,13 @@ class SparkLinkServer:
         parameters such as host, port, worker count, reload settings, and WebSocket
         ping intervals retrieved from environment variables.
         """
+        service_port = os.getenv(const.SERVICE_PORT_KEY)
+        if not service_port:
+            raise ValueError("SERVICE_PORT_KEY is not set")
         uvicorn_config = uvicorn.Config(
             app=spark_link_app(),
             host="0.0.0.0",
-            port=int(os.getenv(const.SERVICE_PORT_KEY)),
+            port=int(service_port),
             workers=20,
             reload=False,
             # log_config=None
@@ -67,16 +70,19 @@ class SparkLinkServer:
         uvicorn_server.run()
 
 
-def spark_link_app():
+def spark_link_app() -> FastAPI:
     """
     Create Spark Link app.
 
     Returns:
         FastAPI: The configured FastAPI application instance
     """
+    log_path = os.getenv(const.LOG_PATH_KEY)
+    if not log_path:
+        raise ValueError("LOG_PATH_KEY is not set")
     configure(
         os.getenv(const.LOG_LEVEL_KEY),
-        Path(__file__).parent.parent / os.getenv(const.LOG_PATH_KEY),
+        Path(__file__).parent.parent / log_path,
     )
     init_data_base()
     load_create_tool_schema()

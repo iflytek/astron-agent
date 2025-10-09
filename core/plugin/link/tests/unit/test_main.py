@@ -2,41 +2,47 @@
 Unit tests for main.py module
 Tests the main entry point functions including environment setup and service startup
 """
+
 import os
 import subprocess
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from typing import Any
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
-
+from plugin.link.consts import const
 from plugin.link.main import (
-    setup_python_path,
     load_env_file,
     load_polaris,
+    main,
+    setup_python_path,
     start_service,
-    main
 )
-from plugin.link.consts import const
 
 
 @pytest.mark.unit
 class TestMain:
     """Test class for main module functions"""
 
-    def test_setup_python_path_adds_required_paths(self):
+    def test_setup_python_path_adds_required_paths(self) -> None:
         """Test that setup_python_path adds required directories to PYTHONPATH"""
         with patch.dict(os.environ, {"PYTHONPATH": ""}, clear=True):
             with patch("plugin.link.main.Path") as mock_path_class:
-                # Mock path structure
-                mock_file = Mock()
-                mock_parent = Mock()
-                mock_parent.__str__ = Mock(return_value="/project/root")
-                mock_grandparent = Mock()
-                mock_grandparent.__str__ = Mock(return_value="/parent/dir")
-                mock_great_grandparent = Mock()
-                mock_great_grandparent.__str__ = Mock(return_value="/grandparent/dir")
+                # Create custom mock classes that properly handle str()
+                class MockPath:
+                    def __init__(self, path_str: str) -> None:
+                        self.path_str = path_str
+                        self.parent: Any = None
 
+                    def __str__(self) -> str:
+                        return self.path_str
+
+                # Create mock path hierarchy
+                mock_great_grandparent = MockPath("/grandparent/dir")
+                mock_grandparent = MockPath("/parent/dir")
+                mock_parent = MockPath("/project/root")
+                mock_file = MockPath("/current/file")
+
+                # Set up parent relationships
                 mock_file.parent = mock_parent
                 mock_parent.parent = mock_grandparent
                 mock_grandparent.parent = mock_great_grandparent
@@ -50,19 +56,27 @@ class TestMain:
                 assert "/parent/dir" in pythonpath
                 assert "/grandparent/dir" in pythonpath
 
-    def test_setup_python_path_preserves_existing_paths(self):
+    def test_setup_python_path_preserves_existing_paths(self) -> None:
         """Test that setup_python_path preserves existing PYTHONPATH"""
         existing_path = "/existing/path"
         with patch.dict(os.environ, {"PYTHONPATH": existing_path}):
             with patch("plugin.link.main.Path") as mock_path_class:
-                mock_file = Mock()
-                mock_parent = Mock()
-                mock_parent.__str__ = Mock(return_value="/project/root")
-                mock_grandparent = Mock()
-                mock_grandparent.__str__ = Mock(return_value="/parent/dir")
-                mock_great_grandparent = Mock()
-                mock_great_grandparent.__str__ = Mock(return_value="/grandparent/dir")
+                # Create custom mock classes that properly handle str()
+                class MockPath:
+                    def __init__(self, path_str: str) -> None:
+                        self.path_str = path_str
+                        self.parent: Any = None
 
+                    def __str__(self) -> str:
+                        return self.path_str
+
+                # Create mock path hierarchy
+                mock_great_grandparent = MockPath("/grandparent/dir")
+                mock_grandparent = MockPath("/parent/dir")
+                mock_parent = MockPath("/project/root")
+                mock_file = MockPath("/current/file")
+
+                # Set up parent relationships
                 mock_file.parent = mock_parent
                 mock_parent.parent = mock_grandparent
                 mock_grandparent.parent = mock_great_grandparent
@@ -74,7 +88,7 @@ class TestMain:
                 pythonpath = os.environ.get("PYTHONPATH", "")
                 assert existing_path in pythonpath
 
-    def test_load_env_file_missing_file(self, capsys):
+    def test_load_env_file_missing_file(self, capsys: Any) -> None:
         """Test load_env_file behavior when file doesn't exist"""
         non_existent_file = "/path/to/nonexistent/file.env"
 
@@ -83,15 +97,15 @@ class TestMain:
         captured = capsys.readouterr()
         assert f"Configuration file {non_existent_file} does not exist" in captured.out
 
-    def test_load_env_file_parses_variables(self, capsys):
+    def test_load_env_file_parses_variables(self, capsys: Any) -> None:
         """Test load_env_file correctly parses environment variables"""
-        env_content = '''# Test configuration
+        env_content = """# Test configuration
 TEST_VAR=test_value
 USE_POLARIS=false
 ANOTHER_VAR=another_value
 
 # Comment line
-EMPTY_LINE_ABOVE=value'''
+EMPTY_LINE_ABOVE=value"""
 
         with patch("builtins.open", mock_open(read_data=env_content)):
             with patch("os.path.exists", return_value=True):
@@ -102,7 +116,7 @@ EMPTY_LINE_ABOVE=value'''
         assert "Loading configuration file: test.env" in captured.out
         assert "TEST_VAR=test_value" in captured.out
 
-    def test_load_env_file_triggers_polaris_when_enabled(self):
+    def test_load_env_file_triggers_polaris_when_enabled(self) -> None:
         """Test load_env_file triggers Polaris loading when USE_POLARIS=true"""
         env_content = "USE_POLARIS=true"
 
@@ -113,7 +127,7 @@ EMPTY_LINE_ABOVE=value'''
 
         mock_load_polaris.assert_called_once()
 
-    def test_load_env_file_skips_polaris_when_disabled(self):
+    def test_load_env_file_skips_polaris_when_disabled(self) -> None:
         """Test load_env_file skips Polaris loading when USE_POLARIS=false"""
         env_content = "USE_POLARIS=false"
 
@@ -124,11 +138,11 @@ EMPTY_LINE_ABOVE=value'''
 
         mock_load_polaris.assert_not_called()
 
-    def test_load_env_file_handles_malformed_lines(self, capsys):
+    def test_load_env_file_handles_malformed_lines(self, capsys: Any) -> None:
         """Test load_env_file handles malformed configuration lines"""
-        env_content = '''VALID_VAR=value
+        env_content = """VALID_VAR=value
 malformed line without equals
-ANOTHER_VALID=value2'''
+ANOTHER_VALID=value2"""
 
         with patch("builtins.open", mock_open(read_data=env_content)):
             with patch("os.path.exists", return_value=True):
@@ -139,7 +153,9 @@ ANOTHER_VALID=value2'''
 
     @patch("plugin.link.main.os.getenv")
     @patch("common.settings.polaris.ConfigFilter")
-    def test_load_polaris_missing_required_params(self, mock_config_filter, mock_getenv):
+    def test_load_polaris_missing_required_params(
+        self, mock_config_filter: Any, mock_getenv: Any
+    ) -> None:
         """Test load_polaris returns early when required parameters are missing"""
         # Mock missing required parameters
         mock_getenv.side_effect = lambda key, default=None: {
@@ -150,7 +166,7 @@ ANOTHER_VALID=value2'''
             const.PROJECT_NAME_KEY: "test_project",
             const.SERVICE_NAME_KEY: "spark-link",
             const.VERSION_KEY: "1.0.0",
-            const.CONFIG_FILE_KEY: "config.env"
+            const.CONFIG_FILE_KEY: "config.env",
         }.get(key, default)
 
         mock_filter_instance = Mock()
@@ -165,7 +181,9 @@ ANOTHER_VALID=value2'''
 
     @patch("plugin.link.main.os.getenv")
     @patch("common.settings.polaris.ConfigFilter")
-    def test_load_polaris_successful_config_load(self, mock_config_filter, mock_getenv):
+    def test_load_polaris_successful_config_load(
+        self, mock_config_filter: Any, mock_getenv: Any
+    ) -> None:
         """Test load_polaris successfully loads configuration"""
         # Mock all required parameters
         mock_getenv.side_effect = lambda key, default=None: {
@@ -176,7 +194,7 @@ ANOTHER_VALID=value2'''
             const.PROJECT_NAME_KEY: "test_project",
             const.SERVICE_NAME_KEY: "test_service",
             const.VERSION_KEY: "1.0.0",
-            const.CONFIG_FILE_KEY: "config.env"
+            const.CONFIG_FILE_KEY: "config.env",
         }.get(key, default)
 
         mock_filter_instance = Mock()
@@ -192,7 +210,9 @@ ANOTHER_VALID=value2'''
 
     @patch("plugin.link.main.os.getenv")
     @patch("common.settings.polaris.ConfigFilter")
-    def test_load_polaris_handles_connection_error(self, mock_config_filter, mock_getenv, capsys):
+    def test_load_polaris_handles_connection_error(
+        self, mock_config_filter: Any, mock_getenv: Any, capsys: Any
+    ) -> None:
         """Test load_polaris handles connection errors gracefully"""
         # Mock all required parameters
         mock_getenv.side_effect = lambda key, default=None: {
@@ -203,7 +223,7 @@ ANOTHER_VALID=value2'''
             const.PROJECT_NAME_KEY: "test_project",
             const.SERVICE_NAME_KEY: "test_service",
             const.VERSION_KEY: "1.0.0",
-            const.CONFIG_FILE_KEY: "config.env"
+            const.CONFIG_FILE_KEY: "config.env",
         }.get(key, default)
 
         mock_filter_instance = Mock()
@@ -219,7 +239,7 @@ ANOTHER_VALID=value2'''
             captured = capsys.readouterr()
             assert "Polaris configuration loading failed" in captured.out
 
-    def test_start_service_missing_server_file(self):
+    def test_start_service_missing_server_file(self) -> None:
         """Test start_service handles missing server file"""
         with patch("plugin.link.main.Path") as mock_path_class:
             mock_file = Mock()
@@ -239,7 +259,7 @@ ANOTHER_VALID=value2'''
                 with pytest.raises(FileNotFoundError):
                     start_service()
 
-    def test_start_service_successful_startup(self):
+    def test_start_service_successful_startup(self) -> None:
         """Test start_service successfully starts the service"""
         with patch("plugin.link.main.Path") as mock_path_class:
             mock_file = Mock()
@@ -260,7 +280,7 @@ ANOTHER_VALID=value2'''
                     start_service()
                     mock_run.assert_called_once()
 
-    def test_start_service_handles_subprocess_error(self):
+    def test_start_service_handles_subprocess_error(self) -> None:
         """Test start_service handles subprocess errors"""
         with patch("plugin.link.main.Path") as mock_path_class:
             mock_file = Mock()
@@ -283,7 +303,7 @@ ANOTHER_VALID=value2'''
                     with pytest.raises(SystemExit):
                         start_service()
 
-    def test_start_service_handles_keyboard_interrupt(self):
+    def test_start_service_handles_keyboard_interrupt(self) -> None:
         """Test start_service handles keyboard interrupt gracefully"""
         with patch("plugin.link.main.Path") as mock_path_class:
             mock_file = Mock()
@@ -306,7 +326,7 @@ ANOTHER_VALID=value2'''
                     with pytest.raises(SystemExit):
                         start_service()
 
-    def test_main_function_integration(self, capsys):
+    def test_main_function_integration(self, capsys: Any) -> None:
         """Test main function integrates all components"""
         with patch("plugin.link.main.setup_python_path") as mock_setup_path:
             with patch("plugin.link.main.load_env_file") as mock_load_env:

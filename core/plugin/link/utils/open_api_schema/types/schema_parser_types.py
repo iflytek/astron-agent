@@ -18,7 +18,7 @@ class ParamsConfig:
         self.properties = properties
         self.required = required
 
-    def to_dict(self):
+    def to_dict(self) -> Dict:
         """Convert the parameter configuration to dictionary format.
 
         Returns:

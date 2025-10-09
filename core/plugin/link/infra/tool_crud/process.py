@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any, Dict, List
 
 from plugin.link.consts import const
 from plugin.link.domain.entity.tool_schema import Tools
@@ -19,10 +20,10 @@ class ToolCrudOperation:
     from the database, including versioning and MCP tool management.
     """
 
-    def __init__(self, engine: DatabaseService):
+    def __init__(self, engine: DatabaseService) -> None:
         self.engine = engine
 
-    def add_tools(self, tool_info: list):
+    def add_tools(self, tool_info: List[Dict[str, Any]]) -> None:
         """
         description: Create tools
         """
@@ -40,7 +41,7 @@ class ToolCrudOperation:
                 session.add(tool_inst)
                 session.commit()
 
-    def add_mcp(self, mcp_info: dict):
+    def add_mcp(self, mcp_info: Dict[str, Any]) -> None:
         """
         description: Create MCP tool, update if tool already exists
         """
@@ -87,7 +88,7 @@ class ToolCrudOperation:
             session.add(tool_inst)
             session.commit()
 
-    def update_tools(self, tool_info: list):
+    def update_tools(self, tool_info: List[Dict[str, Any]]) -> None:
         """
         description: Update tools
         """
@@ -122,7 +123,7 @@ class ToolCrudOperation:
                 session.add(tool_inst)
                 session.commit()
 
-    def add_tool_version(self, tool_info: list):
+    def add_tool_version(self, tool_info: List[Dict[str, Any]]) -> None:
         """
         description: Add tool version
         """
@@ -144,7 +145,7 @@ class ToolCrudOperation:
                     session.rollback()
                     raise Exception("Version already exists!") from e
 
-    def delete_tools(self, tool_info: list):
+    def delete_tools(self, tool_info: List[Dict[str, Any]]) -> None:
         """
         description: Delete tools
         """
@@ -179,7 +180,7 @@ class ToolCrudOperation:
                         tool.is_deleted = int(datetime.now().timestamp())
                     session.commit()
 
-    def get_tools(self, tool_info: list, span: Span):
+    def get_tools(self, tool_info: List[Dict[str, Any]], span: Span) -> List[Tools]:
         """
         description: Get tools
         """

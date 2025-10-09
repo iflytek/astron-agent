@@ -13,13 +13,14 @@ import os
 import time
 from datetime import datetime
 from time import mktime
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlencode
 from wsgiref.handlers import format_date_time
 
 from plugin.link.consts import const
 
 
-def generate_13_digit_timestamp():
+def generate_13_digit_timestamp() -> str:
     """
     Generate a 13-digit timestamp.
 
@@ -37,7 +38,7 @@ def generate_13_digit_timestamp():
     return timestamp
 
 
-def md5_encode(text):
+def md5_encode(text: str) -> str:
     """
     Generate MD5 hash for the given text.
 
@@ -54,7 +55,9 @@ def md5_encode(text):
     # return md5
 
 
-def public_query_url(url: str, app_id=None, app_key=None):
+def public_query_url(
+    url: str, app_id: Optional[str] = None, app_key: Optional[str] = None
+) -> str:
     """
     Generate a public query URL with authentication parameters.
 
@@ -66,8 +69,8 @@ def public_query_url(url: str, app_id=None, app_key=None):
     Returns:
         str: URL with appId, token, and timestamp parameters
     """
-    app_id = os.getenv(const.HTTP_AUTH_QU_APP_ID_KEY)
-    app_key = os.getenv(const.HTTP_AUTH_QU_APP_KEY_KEY)
+    app_id = os.getenv(const.HTTP_AUTH_QU_APP_ID_KEY, "")
+    app_key = os.getenv(const.HTTP_AUTH_QU_APP_KEY_KEY, "")
     timestamp = generate_13_digit_timestamp()
     md5_string = app_id + app_key + timestamp
     token = md5_encode(md5_string)  # MD5
@@ -77,11 +80,11 @@ def public_query_url(url: str, app_id=None, app_key=None):
 
 def get_query_url(
     url: str,
-    app_id=None,
-    app_key=None,
-    public_data=None,
-    query_data=None,
-):
+    app_id: Optional[str] = None,
+    app_key: Optional[str] = None,
+    public_data: Optional[Dict[str, Any]] = None,
+    query_data: Optional[Dict[str, Any]] = None,
+) -> str:
     """
     Generate a query URL with authentication and additional query parameters.
 
@@ -95,8 +98,8 @@ def get_query_url(
     Returns:
         str: Complete URL with authentication and query parameters
     """
-    app_id = os.getenv(const.HTTP_AUTH_QU_APP_ID_KEY)
-    app_key = os.getenv(const.HTTP_AUTH_QU_APP_KEY_KEY)
+    app_id = os.getenv(const.HTTP_AUTH_QU_APP_ID_KEY, "")
+    app_key = os.getenv(const.HTTP_AUTH_QU_APP_KEY_KEY, "")
     timestamp = generate_13_digit_timestamp()
     md5_string = app_id + app_key + timestamp
     token = md5_encode(md5_string)  # MD5
@@ -114,20 +117,20 @@ def get_query_url(
 class AssembleHeaderException(Exception):
     """Exception raised when there's an error assembling authentication headers."""
 
-    def __init__(self, msg):
+    def __init__(self, msg: str) -> None:
         self.message = msg
 
 
 class Url:
     """Simple URL container class to store parsed URL components."""
 
-    def __init__(self, host, path, schema):
+    def __init__(self, host: str, path: str, schema: str) -> None:
         self.host = host
         self.path = path
         self.schema = schema
 
 
-def parse_url(requset_url):
+def parse_url(requset_url: str) -> Url:
     """
     Parse a URL into its components.
 
@@ -156,7 +159,12 @@ def parse_url(requset_url):
 
 
 # build websocket auth request url
-def assemble_ws_auth_url(requset_url, method, auth_con_js, body=None):
+def assemble_ws_auth_url(
+    requset_url: str,
+    method: str,
+    auth_con_js: Dict[str, Any],
+    body: Optional[Dict[str, Any]] = None,
+) -> Tuple[str, Dict[str, str]]:
     """
     Build WebSocket authentication request URL and headers.
 
@@ -171,7 +179,7 @@ def assemble_ws_auth_url(requset_url, method, auth_con_js, body=None):
     """
     app_id = os.getenv(const.HTTP_AUTH_AWAU_APP_ID_KEY)
     api_key = os.getenv(const.HTTP_AUTH_AWAU_API_KEY_KEY)
-    api_secret = os.getenv(const.HTTP_AUTH_AWAU_API_SECRET_KEY)
+    api_secret = os.getenv(const.HTTP_AUTH_AWAU_API_SECRET_KEY, "")
     try:
         u = parse_url(requset_url)
     except ValueError:
@@ -185,27 +193,28 @@ def assemble_ws_auth_url(requset_url, method, auth_con_js, body=None):
     # digest requires body for encryption
     signature_input_part = ""  # 1.""    2. digest: + digest
     if auth_con_js.get("is_digest"):
-        digest = hashlib_256(body)
+        digest = hashlib_256(body if body is not None else {})
         signature_input_part = "\n" + "digest: " + digest
 
     # date = "Thu, 12 Dec 2019 01:57:27 GMT"
     signature_origin = f"host: {host}\ndate: {date}\n{method.upper()} {path} HTTP/1.1"
     signature_origin += signature_input_part
     # print(signature_origin)
-    signature_sha = hmac.new(
+    signature_sha_bytes = hmac.new(
         api_secret.encode("utf-8"),
         signature_origin.encode("utf-8"),
         digestmod=hashlib.sha256,
     ).digest()
-    signature_sha = base64.b64encode(signature_sha).decode(encoding="utf-8")
+    signature_sha = base64.b64encode(signature_sha_bytes).decode(encoding="utf-8")
 
     # User input 1."api_key"   2."hmac username"
     authorization_input_part = auth_con_js.get("authorization_input_part")
     authorization_headers_part = "host date request-line"
     if auth_con_js.get("is_digest"):
         authorization_headers_part += " digest"
+    api_key_str = api_key or ""
     authorization_origin = (
-        f'{authorization_input_part}="{api_key}", '
+        f'{authorization_input_part}="{api_key_str}", '
         f'algorithm="hmac-sha256", '
         f'headers="{authorization_headers_part}", '
         f'signature="{signature_sha}"'
@@ -219,7 +228,7 @@ def assemble_ws_auth_url(requset_url, method, auth_con_js, body=None):
     headers = {
         "content-Type": "application/json",
         "host": host,
-        "app_id": app_id,
+        "app_id": app_id or "",
     }
     if auth_con_js.get("is_digest"):
         headers = {
@@ -228,7 +237,7 @@ def assemble_ws_auth_url(requset_url, method, auth_con_js, body=None):
             "Method": method,
             "Host": host,
             "Date": date,
-            "Digest": hashlib_256(body),
+            "Digest": hashlib_256(body if body is not None else {}),
             "Authorization": authorization_origin,
         }
 
@@ -241,7 +250,7 @@ def assemble_ws_auth_url(requset_url, method, auth_con_js, body=None):
     return result_url, headers
 
 
-def hashlib_256(res):
+def hashlib_256(res: Dict[str, Any]) -> str:
     """
     Generate SHA-256 digest with base64 encoding for request body.
 

@@ -8,6 +8,7 @@ import ipaddress
 import json
 import os
 import re
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 import aiohttp
@@ -49,7 +50,16 @@ class HttpRun:
     authentication handling, and security validation workflows.
     """
 
-    def __init__(self, server, method, path, query, header, body, open_api_schema=None):
+    def __init__(
+        self,
+        server: str,
+        method: str,
+        path: Dict[str, str],
+        query: Optional[Dict[str, str]],
+        header: Optional[Dict[str, str]],
+        body: Optional[Dict[str, Any]],
+        open_api_schema: Optional[Dict[str, Any]] = None,
+    ) -> None:
         self.server = server
         self.method = method
         self.path = path
@@ -76,7 +86,7 @@ class HttpRun:
         except Exception:
             self._is_in_blacklist = False
 
-    def _validate_blacklist(self):
+    def _validate_blacklist(self) -> None:
         """Validate server is not blacklisted.
 
         Raises:
@@ -89,7 +99,7 @@ class HttpRun:
                 err="Request tool path hostname is in blacklist",
             )
 
-    def _build_url(self):
+    def _build_url(self) -> str:
         """Build request URL with authentication and query parameters.
 
         Returns:
@@ -118,7 +128,7 @@ class HttpRun:
 
         return url
 
-    def _get_error_codes(self):
+    def _get_error_codes(self) -> Tuple[int, str]:
         """Get appropriate error codes based on API type.
 
         Returns:
@@ -134,7 +144,7 @@ class HttpRun:
             ErrCode.THIRD_API_REQUEST_FAILED_ERR.msg,
         )
 
-    async def _execute_request(self, url, span_context):
+    async def _execute_request(self, url: str, span_context: Any) -> Tuple[str, int]:
         """Execute the HTTP request.
 
         Args:
@@ -145,7 +155,8 @@ class HttpRun:
             tuple: (response_text, status_code)
         """
         try:
-            self.header.pop("@type")
+            if self.header:
+                self.header.pop("@type")
         except Exception:
             pass
 
@@ -155,7 +166,7 @@ class HttpRun:
             f"encoded_url: {encoded_url}, header: {self.header}, " f"body: {self.body}"
         )
 
-        kwargs = {
+        kwargs: Dict[str, Any] = {
             "headers": self.header if self.header else None,
             "json": self.body if self.body else None,
         }
@@ -170,7 +181,7 @@ class HttpRun:
 
         return response_text, status_code
 
-    async def do_call(self, span):
+    async def do_call(self, span: Any) -> str:
         """Execute the HTTP request with proper authentication and validation.
 
         Args:
@@ -194,7 +205,7 @@ class HttpRun:
                 span.add_error_event(str(err))
                 code_return, err_pre_return = self._get_error_codes()
                 raise CallThirdApiException(
-                    code=code_return, err_pre=err_pre_return, err=err
+                    code=code_return, err_pre=err_pre_return, err=str(err)
                 ) from err
 
         if status_code != 200:
@@ -209,7 +220,7 @@ class HttpRun:
         return third_result
 
     @staticmethod
-    def is_authorization_md5(open_api_schema):
+    def is_authorization_md5(open_api_schema: Optional[Dict[str, Any]]) -> bool:
         """Check if the API uses MD5 authorization.
 
         Args:
@@ -219,7 +230,7 @@ class HttpRun:
             bool: True if MD5 authorization is used
         """
         if open_api_schema:
-            paths = open_api_schema.get("paths")
+            paths = open_api_schema.get("paths", {})
             for _, get_dict in paths.items():
                 parameters = get_dict["get"]["parameters"]
                 for para in parameters:
@@ -232,7 +243,7 @@ class HttpRun:
         return False
 
     @staticmethod
-    def is_authorization_hmac(header):
+    def is_authorization_hmac(header: Optional[Dict[str, str]]) -> Tuple[bool, Any]:
         """Check if the request uses HMAC authorization.
 
         Args:
@@ -262,7 +273,7 @@ class HttpRun:
         return False, object
 
     @staticmethod
-    def is_official(open_api_schema):
+    def is_official(open_api_schema: Optional[Dict[str, Any]]) -> bool:
         """Check if the API is marked as official.
 
         Args:
@@ -272,14 +283,14 @@ class HttpRun:
             bool: True if API is official
         """
         if open_api_schema:
-            info = open_api_schema.get("info")
+            info = open_api_schema.get("info", {})
             if info.get("x-is-official"):
                 return True
 
         return False
 
     @staticmethod
-    def is_in_black_domain(url: str):
+    def is_in_black_domain(url: str) -> bool:
         """Check if URL domain is in the domain blacklist.
 
         Args:
@@ -310,20 +321,22 @@ class HttpRun:
         return False
 
     @staticmethod
-    def _get_blacklist_config():
+    def _get_blacklist_config() -> (
+        Tuple[List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]], List[str]]
+    ):
         """Get blacklist configuration from environment variables.
 
         Returns:
             tuple: (segment_blacklist, ip_blacklist)
         """
         segment_black_list = []
-        for black_i in os.getenv(const.SEGMENT_BLACK_LIST_KEY).split(","):
+        for black_i in (os.getenv(const.SEGMENT_BLACK_LIST_KEY) or "").split(","):
             segment_black_list.append(ipaddress.ip_network(black_i))
-        ip_black_list = os.getenv(const.IP_BLACK_LIST_KEY).split(",")
+        ip_black_list = (os.getenv(const.IP_BLACK_LIST_KEY) or "").split(",")
         return segment_black_list, ip_black_list
 
     @staticmethod
-    def _extract_ip_from_url(url):
+    def _extract_ip_from_url(url: Optional[str]) -> Optional[str]:
         """Extract IP address from URL.
 
         Args:
@@ -346,7 +359,11 @@ class HttpRun:
         return host
 
     @staticmethod
-    def _is_ip_blacklisted(ip, ip_black_list, segment_black_list):
+    def _is_ip_blacklisted(
+        ip: str,
+        ip_black_list: List[str],
+        segment_black_list: List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]],
+    ) -> bool:
         """Check if IP is in blacklist or blacklisted network segments.
 
         Args:
@@ -373,7 +390,7 @@ class HttpRun:
             return False
 
     @staticmethod
-    def is_in_blacklist(url):
+    def is_in_blacklist(url: str) -> bool:
         """Check if URL is in IP or network segment blacklist.
 
         Args:

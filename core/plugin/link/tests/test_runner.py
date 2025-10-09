@@ -9,17 +9,16 @@ This script provides convenient commands for running different types of tests:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 
 class TestRunner:
     """Test runner for Spark Link plugin"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.project_root = Path(__file__).parent.parent
         self.tests_dir = self.project_root / "tests"
 
@@ -30,10 +29,7 @@ class TestRunner:
 
         try:
             result = subprocess.run(
-                cmd,
-                cwd=self.project_root,
-                capture_output=quiet,
-                text=True
+                cmd, cwd=self.project_root, capture_output=quiet, text=True
             )
 
             if quiet and result.returncode != 0:
@@ -51,13 +47,15 @@ class TestRunner:
         cmd = ["python", "-m", "pytest", "tests/"]
 
         if not no_coverage:
-            cmd.extend([
-                "--cov=plugin.link",
-                "--cov-report=html:htmlcov",
-                "--cov-report=term-missing",
-                "--cov-report=xml",
-                "--cov-fail-under=80"
-            ])
+            cmd.extend(
+                [
+                    "--cov=plugin.link",
+                    "--cov-report=html:htmlcov",
+                    "--cov-report=term-missing",
+                    "--cov-report=xml",
+                    "--cov-fail-under=80",
+                ]
+            )
 
         if quiet:
             cmd.append("-q")
@@ -106,12 +104,15 @@ class TestRunner:
     def check_coverage(self, quiet: bool = False) -> int:
         """Generate coverage report"""
         cmd = [
-            "python", "-m", "pytest", "tests/",
+            "python",
+            "-m",
+            "pytest",
+            "tests/",
             "--cov=plugin.link",
             "--cov-report=html:htmlcov",
             "--cov-report=term-missing",
             "--cov-report=xml",
-            "--cov-fail-under=80"
+            "--cov-fail-under=80",
         ]
 
         if quiet:
@@ -136,7 +137,7 @@ class TestRunner:
         return exit_code
 
 
-def main():
+def main() -> None:
     """Main entry point"""
     parser = argparse.ArgumentParser(
         description="Test runner for Spark Link plugin",
@@ -151,31 +152,24 @@ Examples:
   python tests/test_runner.py specific --test-path tests/unit/test_main.py
   python tests/test_runner.py all --no-coverage      # Run tests without coverage
   python tests/test_runner.py all --quiet            # Run tests in quiet mode
-        """
+        """,
     )
 
     parser.add_argument(
         "command",
         choices=["all", "unit", "integration", "coverage", "report", "specific"],
-        help="Test command to run"
+        help="Test command to run",
     )
 
-    parser.add_argument(
-        "--test-path",
-        help="Specific test path for 'specific' command"
-    )
+    parser.add_argument("--test-path", help="Specific test path for 'specific' command")
 
     parser.add_argument(
         "--no-coverage",
         action="store_true",
-        help="Skip coverage analysis (faster execution)"
+        help="Skip coverage analysis (faster execution)",
     )
 
-    parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Run tests in quiet mode"
-    )
+    parser.add_argument("--quiet", action="store_true", help="Run tests in quiet mode")
 
     args = parser.parse_args()
 

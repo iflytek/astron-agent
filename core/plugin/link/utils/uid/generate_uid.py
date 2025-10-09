@@ -8,7 +8,7 @@ import hashlib
 import os
 
 
-def new_uid():
+def new_uid() -> str:
     """Generate a short random unique identifier.
 
     Returns:

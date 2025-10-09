@@ -1,10 +1,11 @@
 """
 Pytest configuration and fixtures for link plugin tests
 """
+
 import os
 import sys
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 from unittest.mock import Mock, patch
 
 import pytest
@@ -17,36 +18,37 @@ sys.path.insert(0, str(project_root.parent))
 sys.path.insert(0, str(project_root.parent.parent))
 
 # Early initialization of SID generator mock to prevent issues during session
-from unittest.mock import Mock
-
 # Create mock SID generator that can be imported everywhere
 mock_sid_generator = Mock()
 mock_sid_generator.gen.return_value = "test_sid_123"
 
 # Patch both plugin and common modules before any imports
-sys.modules['plugin.link.utils.sid.sid_generator2'] = Mock()
-sys.modules['plugin.link.utils.sid.sid_generator2'].sid_generator2 = mock_sid_generator
-sys.modules['plugin.link.utils.sid.sid_generator2'].new_sid = Mock(return_value="test_sid_123")
-sys.modules['plugin.link.utils.sid.sid_generator2'].get_sid_generate = Mock(return_value=mock_sid_generator)
+mock_sid_module = Mock()
+mock_sid_module.sid_generator2 = mock_sid_generator
+mock_sid_module.new_sid = Mock(return_value="test_sid_123")
+mock_sid_module.get_sid_generate = Mock(return_value=mock_sid_generator)
+sys.modules["plugin.link.utils.sid.sid_generator2"] = mock_sid_module
 
 try:
-    sys.modules['common.utils.sid.sid_generator2'] = Mock()
-    sys.modules['common.utils.sid.sid_generator2'].sid_generator2 = mock_sid_generator
-except:
+    mock_common_sid_module = Mock()
+    mock_common_sid_module.sid_generator2 = mock_sid_generator
+    sys.modules["common.utils.sid.sid_generator2"] = mock_common_sid_module
+except Exception:
     pass
 
 # Also patch the common span module to prevent sid_generator2 check
 try:
     import common.otlp.trace.span as common_span_module
+
     # Mock the sid_generator2 reference in the common module
     common_span_module.sid_module = Mock()
     common_span_module.sid_module.sid_generator2 = mock_sid_generator
-except:
+except Exception:
     pass
 
 
 @pytest.fixture(scope="session")
-def test_env():
+def test_env() -> Generator[dict, None, None]:
     """Set up test environment variables"""
     test_env_vars = {
         "CONFIG_ENV_PATH": str(project_root / "config.env"),
@@ -61,7 +63,7 @@ def test_env():
         "LOG_PATH": "logs/test.log",
         "SERVICE_PORT": "8080",
         "USE_POLARIS": "false",
-        "MYSQL_DB": "test_db"
+        "MYSQL_DB": "test_db",
     }
 
     with patch.dict(os.environ, test_env_vars):
@@ -69,60 +71,48 @@ def test_env():
 
 
 @pytest.fixture
-def mock_db():
+def mock_db() -> Mock:
     """Mock database connection"""
     return Mock()
 
 
 @pytest.fixture
-def mock_redis():
+def mock_redis() -> Mock:
     """Mock Redis connection"""
     return Mock()
 
 
 @pytest.fixture
-def mock_logger():
+def mock_logger() -> Mock:
     """Mock logger instance"""
     return Mock()
 
 
 @pytest.fixture
-def sample_tool_schema():
+def sample_tool_schema() -> dict:
     """Sample tool schema for testing"""
     return {
         "openapi": "3.1.0",
-        "info": {
-            "title": "Test Tool",
-            "version": "1.0.0"
-        },
+        "info": {"title": "Test Tool", "version": "1.0.0"},
         "paths": {
             "/test": {
                 "get": {
                     "description": "Test endpoint",
                     "operationId": "test--beta-pzbKElZp",
-                    "responses": {
-                        "200": {
-                            "description": "Success"
-                        }
-                    }
+                    "responses": {"200": {"description": "Success"}},
                 }
             }
-        }
+        },
     }
 
 
 @pytest.fixture
-def sample_mcp_tool():
+def sample_mcp_tool() -> dict:
     """Sample MCP tool configuration"""
     return {
         "name": "test_mcp_tool",
         "description": "Test MCP tool",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "param1": {"type": "string"}
-            }
-        }
+        "inputSchema": {"type": "object", "properties": {"param1": {"type": "string"}}},
     }
 
 
@@ -208,23 +198,39 @@ http_run_schema = """{
 
 # Global patch for schema functions to ensure they're always mocked
 @pytest.fixture(scope="session", autouse=True)
-def patch_schema_functions():
+def patch_schema_functions() -> Generator[None, None, None]:
     """Automatically patch schema functions for all tests"""
-    with patch('plugin.link.utils.json_schemas.read_json_schemas.get_update_tool_schema', return_value=update_schema), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.get_create_tool_schema', return_value=create_schema), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.get_http_run_schema', return_value=http_run_schema), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.get_tool_debug_schema', return_value=update_schema), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.get_mcp_register_schema', return_value=create_schema), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.load_update_tool_schema'), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.load_create_tool_schema'), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.load_http_run_schema'), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.load_tool_debug_schema'), \
-         patch('plugin.link.utils.json_schemas.read_json_schemas.load_mcp_register_schema'):
+    with patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.get_update_tool_schema",
+        return_value=update_schema,
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.get_create_tool_schema",
+        return_value=create_schema,
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.get_http_run_schema",
+        return_value=http_run_schema,
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.get_tool_debug_schema",
+        return_value=update_schema,
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.get_mcp_register_schema",
+        return_value=create_schema,
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.load_update_tool_schema"
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.load_create_tool_schema"
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.load_http_run_schema"
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.load_tool_debug_schema"
+    ), patch(
+        "plugin.link.utils.json_schemas.read_json_schemas.load_mcp_register_schema"
+    ):
         yield
 
 
 @pytest.fixture(scope="session")
-def app(test_env):
+def app(test_env: Any) -> Generator:
     """FastAPI test application"""
 
     # Mock environment setup to avoid loading real config
@@ -232,19 +238,41 @@ def app(test_env):
 
     with ExitStack() as stack:
         # Setup all patches
-        stack.enter_context(patch('plugin.link.main.load_env_file'))
-        stack.enter_context(patch('plugin.link.main.setup_python_path'))
-        stack.enter_context(patch('plugin.link.domain.models.manager.init_data_base'))
+        stack.enter_context(patch("plugin.link.main.load_env_file"))
+        stack.enter_context(patch("plugin.link.main.setup_python_path"))
+        stack.enter_context(patch("plugin.link.domain.models.manager.init_data_base"))
         # Schema patches are handled by autouse fixture
-        stack.enter_context(patch('plugin.link.utils.snowflake.gen_snowflake.gen_id', return_value=1234567890))
-        stack.enter_context(patch('plugin.link.utils.sid.sid_generator2.spark_link_init_sid'))
-        stack.enter_context(patch('plugin.link.utils.sid.sid_generator2.new_sid', return_value="test_sid_123"))
-        mock_get_sid = stack.enter_context(patch('plugin.link.utils.sid.sid_generator2.get_sid_generate'))
-        mock_sid_global = stack.enter_context(patch('plugin.link.utils.sid.sid_generator2.sid_generator2', create=True))
-        mock_setup_span = stack.enter_context(patch('plugin.link.service.community.tools.http.management_server.setup_span_and_trace_mgmt'))
-        stack.enter_context(patch('plugin.link.utils.log.logger.configure'))
-        mock_span = stack.enter_context(patch('common.otlp.trace.span.Span'))
-        mock_local_span = stack.enter_context(patch('plugin.link.utils.otlp.trace.span.Span'))
+        stack.enter_context(
+            patch(
+                "plugin.link.utils.snowflake.gen_snowflake.gen_id",
+                return_value=1234567890,
+            )
+        )
+        stack.enter_context(
+            patch("plugin.link.utils.sid.sid_generator2.spark_link_init_sid")
+        )
+        stack.enter_context(
+            patch(
+                "plugin.link.utils.sid.sid_generator2.new_sid",
+                return_value="test_sid_123",
+            )
+        )
+        mock_get_sid = stack.enter_context(
+            patch("plugin.link.utils.sid.sid_generator2.get_sid_generate")
+        )
+        mock_sid_global = stack.enter_context(
+            patch("plugin.link.utils.sid.sid_generator2.sid_generator2", create=True)
+        )
+        mock_setup_span = stack.enter_context(
+            patch(
+                "plugin.link.service.community.tools.http.management_server.setup_span_and_trace_mgmt"
+            )
+        )
+        stack.enter_context(patch("plugin.link.utils.log.logger.configure"))
+        mock_span = stack.enter_context(patch("common.otlp.trace.span.Span"))
+        mock_local_span = stack.enter_context(
+            patch("plugin.link.utils.otlp.trace.span.Span")
+        )
         # Configure mock SID generator
         mock_sid_generator = Mock()
         mock_sid_generator.gen.return_value = "test_sid_123"
@@ -288,12 +316,13 @@ def app(test_env):
         mock_local_span_instance.start = Mock(return_value=mock_context_manager)
 
         from plugin.link.app.start_server import spark_link_app
+
         fastapi_app = spark_link_app()
         yield fastapi_app
 
 
 @pytest.fixture(scope="session")
-def client(app):
+def client(app: Any) -> TestClient:
     """Test client for FastAPI application"""
     return TestClient(app)
 
@@ -305,10 +334,11 @@ pytest_markers = {
     "slow": "Slow tests that may take longer to execute",
     "database": "Tests that require database connectivity",
     "redis": "Tests that require Redis connectivity",
-    "network": "Tests that require network connectivity"
+    "network": "Tests that require network connectivity",
 }
 
+
 # Register markers
-def pytest_configure(config):
+def pytest_configure(config: Any) -> None:
     for marker, description in pytest_markers.items():
         config.addinivalue_line("markers", f"{marker}: {description}")

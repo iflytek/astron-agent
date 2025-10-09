@@ -54,11 +54,11 @@ class ErrCode(Enum):
     MCP_SERVER_BLACKLIST_URL_ERR = (30710, "MCP server URL is blacklisted")
 
     @property
-    def code(self):
+    def code(self) -> int:
         """Get status code"""
         return self.value[0]
 
     @property
-    def msg(self):
+    def msg(self) -> str:
         """Get status code message"""
         return self.value[1]
