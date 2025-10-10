@@ -151,7 +151,7 @@ def req_ase_ability_ocr(
             return response
         except Exception as e:
             log.error("request: %s, error: %s", ase_ocr_llm_vo.json(), str(e))
-            response = ErrorResponse(CodeEnum.OCR_FILE_HANDLING_ERROR)
+            response = ErrorResponse.from_enum(CodeEnum.OCR_FILE_HANDLING_ERROR)
             m.in_error_count(response.code)
 
             node_trace.answer = response.message
@@ -265,7 +265,7 @@ def req_ase_ability_image_generate(
             sid = header.get("sid", "")
             if code != 0:
                 codeEnum = CodeConvert.imageGeneratorCode(code)
-                return ErrorResponse(codeEnum, sid=sid)
+                return ErrorResponse.from_enum(codeEnum, sid=sid)
 
             payload = content_dict[0].get("payload", {})
             text = payload.get("choices", {}).get("text", [{}])[0].get("content", "")
@@ -287,7 +287,7 @@ def req_ase_ability_image_generate(
             return response
         except Exception as e:
             logging.error("request: %s, error: %s", image_generate_vo.json(), str(e))
-            response = ErrorResponse(CodeEnum.IMAGE_GENERATE_ERROR)
+            response = ErrorResponse.from_enum(CodeEnum.IMAGE_GENERATE_ERROR)
             m.in_error_count(response.code)
 
             node_trace.answer = response.message

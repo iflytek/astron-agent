@@ -23,7 +23,7 @@ class GenText2Img(BaseModel):
     height: int = 1024
 
 
-class SuccessDataResponse:
+class SuccessDataResponse(BaseModel):
     """Standard success response wrapper for API endpoints.
 
     This class has intentionally few public methods as it serves as a simple
@@ -37,25 +37,13 @@ class SuccessDataResponse:
     to create properly formatted success responses.
     """
 
-    code: int
-    message: str
+    code: int = 0
+    message: str = "success"
     data: Any
-
-    def __init__(
-        self, data: Any, message: str = "success", sid: Optional[str] = None
-    ) -> None:
-        """
-
-        :param data: json
-        """
-        self.code = 0
-        self.data = data
-        self.message = message
-        if sid is not None:
-            self.sid = sid
+    sid: Optional[str] = None
 
 
-class ErrorResponse:
+class ErrorResponse(BaseModel):
     """Standard error response wrapper for API endpoints using error enums.
 
     This class intentionally has few public methods as it serves as a simple
@@ -70,19 +58,21 @@ class ErrorResponse:
 
     code: int
     message: str
+    sid: Optional[str] = None
 
-    def __init__(
-        self, code_enum: Any, sid: Optional[str] = None, message: Optional[str] = None
-    ) -> None:
-        self.code = code_enum.code
-        self.message = code_enum.msg
+    @classmethod
+    def from_enum(
+        cls, code_enum: Any, sid: Optional[str] = None, message: Optional[str] = None
+    ) -> "ErrorResponse":
+        base_message = code_enum.msg
         if message:
-            self.message = f"{self.message}({message})"
-        if sid is not None:
-            self.sid = sid
+            final_message = f"{base_message}({message})"
+        else:
+            final_message = base_message
+        return cls(code=code_enum.code, message=final_message, sid=sid)
 
 
-class ErrorCResponse:
+class ErrorCResponse(BaseModel):
     """Custom error response wrapper for API endpoints with direct error codes.
 
     This class has intentionally few public methods as it serves as a simple
@@ -97,15 +87,8 @@ class ErrorCResponse:
     """
 
     code: int
-    message: Optional[str]
-
-    def __init__(
-        self, code: int, sid: Optional[str] = None, message: Optional[str] = None
-    ) -> None:
-        self.code = code
-        self.message = message
-        if sid is not None:
-            self.sid = sid
+    message: Optional[str] = None
+    sid: Optional[str] = None
 
 
 class OCRLLM(BaseModel):
