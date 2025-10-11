@@ -851,8 +851,8 @@ INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `p
                                       `member`, `available_expired`, `create_time`, `update_time`)
 VALUES (283, 'Update Bot', '', '', 'BotCreateController_update_POST', 1, 1, 1, 0, '2025-08-11 09:19:40',
         '2025-08-11 09:19:40');
-INSERT INTO `astron_console`.`agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`, `member`, `available_expired`, `create_time`, `update_time`) VALUES (282, '创建工作流智能体', NULL, NULL, 'BotCreateController_create_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
-INSERT INTO `astron_console`.`agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`, `member`, `available_expired`, `create_time`, `update_time`) VALUES (283, '更新工作流智能体', NULL, NULL, 'BotCreateController_update_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
+INSERT INTO `astron_console`.`agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`, `member`, `available_expired`, `create_time`, `update_time`) VALUES (284, '创建工作流智能体', NULL, NULL, 'BotCreateController_create_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
+INSERT INTO `astron_console`.`agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`, `member`, `available_expired`, `create_time`, `update_time`) VALUES (285, '更新工作流智能体', NULL, NULL, 'BotCreateController_update_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 COMMIT;
 
 -- ----------------------------
