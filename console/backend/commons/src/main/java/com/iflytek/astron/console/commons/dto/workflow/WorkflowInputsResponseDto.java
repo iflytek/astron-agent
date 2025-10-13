@@ -7,45 +7,46 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 工作流输入类型响应DTO 对应原接口：getInputsType的返回结果
+ * Workflow input type response DTO. Corresponds to the return result of the original interface:
+ * getInputsType
  *
  * @author Omuigix
  */
 @Data
-@Schema(name = "WorkflowInputsResponseDto", description = "工作流输入类型响应")
+@Schema(name = "WorkflowInputsResponseDto", description = "Workflow input type response")
 public class WorkflowInputsResponseDto {
 
-    @Schema(description = "输入参数列表")
+    @Schema(description = "Input parameter list")
     private List<InputParameter> parameters;
 
     /**
-     * 输入参数定义
+     * Input parameter definition
      */
     @Data
-    @Schema(name = "InputParameter", description = "输入参数定义")
+    @Schema(name = "InputParameter", description = "Input parameter definition")
     public static class InputParameter {
-        @Schema(description = "参数ID")
+        @Schema(description = "Parameter ID")
         private String id;
 
-        @Schema(description = "参数名称")
+        @Schema(description = "Parameter name")
         private String name;
 
-        @Schema(description = "参数类型")
+        @Schema(description = "Parameter type")
         private String type;
 
-        @Schema(description = "是否必需")
+        @Schema(description = "Whether required")
         private Boolean required;
 
-        @Schema(description = "参数描述")
+        @Schema(description = "Parameter description")
         private String description;
 
-        @Schema(description = "参数模式定义")
+        @Schema(description = "Parameter schema definition")
         private Map<String, Object> schema;
 
-        @Schema(description = "是否禁用删除")
+        @Schema(description = "Whether delete is disabled")
         private Boolean deleteDisabled;
 
-        @Schema(description = "名称错误信息")
+        @Schema(description = "Name error message")
         private String nameErrMsg;
     }
 }

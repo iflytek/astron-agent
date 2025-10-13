@@ -3,7 +3,7 @@ package com.iflytek.astron.console.commons.enums;
 import lombok.Getter;
 
 /**
- * 智能体与微信公众号的绑定状态枚举
+ * Binding status enum for agent and WeChat official account
  *
  * @author Omuigix
  */
@@ -11,22 +11,22 @@ import lombok.Getter;
 public enum BotOffiaccountStatusEnum {
 
     /**
-     * 已绑定
+     * Bound
      */
-    BOUND(1, "已绑定"),
+    BOUND(1, "Bound"),
 
     /**
-     * 已解绑
+     * Unbound
      */
-    UNBOUND(2, "已解绑");
+    UNBOUND(2, "Unbound");
 
     /**
-     * 状态码
+     * Status code
      */
     private final Integer status;
 
     /**
-     * 状态描述
+     * Status description
      */
     private final String desc;
 

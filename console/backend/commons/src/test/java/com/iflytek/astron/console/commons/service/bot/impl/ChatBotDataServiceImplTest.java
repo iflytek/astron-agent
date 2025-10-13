@@ -87,7 +87,7 @@ class ChatBotDataServiceImplTest {
 
     @BeforeAll
     static void initMybatisPlus() {
-        // 初始化 MyBatis-Plus TableInfo 以支持 Lambda 表达式
+        // Initialize MyBatis-Plus TableInfo to support Lambda expressions
         MybatisConfiguration configuration = new MybatisConfiguration();
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
 
@@ -111,7 +111,7 @@ class ChatBotDataServiceImplTest {
         testBot.setUpdateTime(LocalDateTime.now());
     }
 
-    // ========== 查询方法测试 ==========
+    // ========== Query Method Tests ==========
 
     @Test
     void testFindById_Success() {
@@ -232,7 +232,7 @@ class ChatBotDataServiceImplTest {
         verify(chatBotBaseMapper).selectList(any(LambdaQueryWrapper.class));
     }
 
-    // ========== 创建和更新方法测试 ==========
+    // ========== Create and Update Method Tests ==========
 
     @Test
     void testCreateBot_Success() {
@@ -278,7 +278,7 @@ class ChatBotDataServiceImplTest {
         assertFalse(result);
     }
 
-    // ========== 删除方法测试 ==========
+    // ========== Delete Method Tests ==========
 
     @Test
     void testDeleteBot_WithBotId_Success() {
@@ -350,7 +350,7 @@ class ChatBotDataServiceImplTest {
         verify(chatBotBaseMapper).update(any(ChatBotBase.class), any(LambdaQueryWrapper.class));
     }
 
-    // ========== 统计方法测试 ==========
+    // ========== Statistics Method Tests ==========
 
     @Test
     void testCountBotsByUid_Success() {
@@ -372,7 +372,7 @@ class ChatBotDataServiceImplTest {
         verify(chatBotBaseMapper).selectCount(any(LambdaQueryWrapper.class));
     }
 
-    // ========== 用户机器人列表相关测试 ==========
+    // ========== User Bot List Related Tests ==========
 
     @Test
     void testFindUserBotList_Success() {
@@ -435,7 +435,7 @@ class ChatBotDataServiceImplTest {
         verify(chatBotListMapper).insert(botList);
     }
 
-    // ========== 市场相关测试 ==========
+    // ========== Market Related Tests ==========
 
     @Test
     void testFindMarketBots_Success() {
@@ -512,7 +512,7 @@ class ChatBotDataServiceImplTest {
         verify(chatBotMarketMapper, never()).selectOne(any());
     }
 
-    // ========== 业务逻辑方法测试 ==========
+    // ========== Business Logic Method Tests ==========
 
     @Test
     void testBotIsDeleted_BotDeleted() {

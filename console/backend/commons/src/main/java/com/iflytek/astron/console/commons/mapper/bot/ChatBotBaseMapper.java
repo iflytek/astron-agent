@@ -15,24 +15,24 @@ public interface ChatBotBaseMapper extends BaseMapper<ChatBotBase> {
     List<ChatBotBase> selectByBotIds(@Param("botIds") List<Long> botIds);
 
     /**
-     * 验证用户是否有权限访问该智能体
+     * Verify if user has permission to access this agent
      *
-     * @param botId 智能体ID
-     * @param uid 用户ID
-     * @param spaceId 空间ID（可选）
-     * @return 权限数量（>0表示有权限，0表示无权限）
+     * @param botId Agent ID
+     * @param uid User ID
+     * @param spaceId Space ID (optional)
+     * @return Permission count (>0 means has permission, 0 means no permission)
      */
     int checkBotPermission(@Param("botId") Integer botId,
             @Param("uid") String uid,
             @Param("spaceId") Long spaceId);
 
     /**
-     * 验证用户是否有权限访问该智能体（Long类型botId的重载方法）
+     * Verify if user has permission to access this agent (overload method for Long type botId)
      *
-     * @param botId 智能体ID
-     * @param uid 用户ID
-     * @param spaceId 空间ID（可选）
-     * @return 权限数量（>0表示有权限，0表示无权限）
+     * @param botId Agent ID
+     * @param uid User ID
+     * @param spaceId Space ID (optional)
+     * @return Permission count (>0 means has permission, 0 means no permission)
      */
     default int checkBotPermission(Long botId, String uid, Long spaceId) {
         return checkBotPermission(botId.intValue(), uid, spaceId);

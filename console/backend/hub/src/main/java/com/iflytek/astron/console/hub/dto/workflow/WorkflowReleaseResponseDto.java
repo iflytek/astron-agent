@@ -3,28 +3,28 @@ package com.iflytek.astron.console.hub.dto.workflow;
 import lombok.Data;
 
 /**
- * 工作流发布响应DTO
+ * Workflow release response DTO
  */
 @Data
 public class WorkflowReleaseResponseDto {
 
     /**
-     * 工作流版本ID
+     * Workflow version ID
      */
     private Long workflowVersionId;
 
     /**
-     * 工作流版本名称
+     * Workflow version name
      */
     private String workflowVersionName;
 
     /**
-     * 发布是否成功
+     * Whether the release was successful
      */
     private Boolean success;
 
     /**
-     * 错误消息
+     * Error message
      */
     private String errorMessage;
 }

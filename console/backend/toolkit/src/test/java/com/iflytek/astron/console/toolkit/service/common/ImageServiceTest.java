@@ -30,11 +30,11 @@ class ImageServiceTest {
     private static MultipartFile mockFile(String name, String contentType, byte[] bytes, Long sizeOverride) throws Exception {
         MultipartFile f = mock(MultipartFile.class);
 
-        // 这两个通常都会被调用，保留严格校验
+        // These two are usually called, keep strict verification
         when(f.isEmpty()).thenReturn(bytes == null || bytes.length == 0);
         lenient().when(f.getContentType()).thenReturn(contentType);
 
-        // 这些在部分异常用例里不会被调用 → 标记为 lenient，避免未使用桩告警
+        // These won't be called in some exception cases → mark as lenient to avoid unused stub warnings
         lenient().when(f.getOriginalFilename()).thenReturn(name);
         lenient().when(f.getInputStream()).thenReturn(new ByteArrayInputStream(bytes == null ? new byte[0] : bytes));
         lenient().when(f.getSize()).thenReturn(sizeOverride != null ? sizeOverride : (bytes == null ? 0L : (long) bytes.length));
@@ -42,10 +42,10 @@ class ImageServiceTest {
         return f;
     }
 
-    // ------------------ 正常路径 ------------------
+    // ------------------ Normal path ------------------
 
     @Test
-    @DisplayName("upload - 已知长度：应走 putObject(key, in, size, contentType)，并返回规范的 objectKey")
+    @DisplayName("upload - known length: should use putObject(key, in, size, contentType) and return canonical objectKey")
     void upload_shouldPutWithKnownLength_andReturnObjectKey() throws Exception {
         byte[] data = "pngdata".getBytes();
         MultipartFile file = mockFile("avatar.png", "image/png", data, null);
@@ -53,19 +53,19 @@ class ImageServiceTest {
         String key = service.upload(file);
 
         assertThat(key).matches(Pattern.compile("^icon/user/sparkBot_[0-9a-f]{32}\\.png$"));
-        // 调用的是“已知长度”的重载：第三参是 long，第四参是 String
+        // Calling "known length" overload: 3rd param is long, 4th param is String
         verify(s3UtilClient, times(1))
                 .putObject(eq(key), any(InputStream.class), eq((long) data.length), eq("image/png"));
-        // 不会调用“未知长度”的重载：第三参是 String，第四参是 long
+        // Won't call "unknown length" overload: 3rd param is String, 4th param is long
         verify(s3UtilClient, never())
                 .putObject(anyString(), any(InputStream.class), anyString(), anyLong());
         verifyNoMoreInteractions(s3UtilClient);
     }
 
     @Test
-    @DisplayName("upload - 未知长度(size=0)：应走 putObject(key, in, contentType, 5MB)，并能由Content-Type推断jpg后缀")
+    @DisplayName("upload - unknown length (size=0): should use putObject(key, in, contentType, 5MB) and infer jpg suffix from Content-Type")
     void upload_shouldFallbackToMultipart_whenSizeIsZero() throws Exception {
-        MultipartFile file = mockFile(null, "image/jpeg", "x".getBytes(), 0L); // size=0 触发多段上传
+        MultipartFile file = mockFile(null, "image/jpeg", "x".getBytes(), 0L); // size=0 triggers multipart upload
 
         String key = service.upload(file);
 
@@ -78,19 +78,19 @@ class ImageServiceTest {
     }
 
     @Test
-    @DisplayName("upload - Fallback放行：image/bmp 非显式白名单但以 image/ 开头，允许上传（无后缀）")
+    @DisplayName("upload - Fallback allowed: image/bmp not explicitly whitelisted but starts with image/, allow upload (no suffix)")
     void upload_shouldAllowFallbackImageSubtype() throws Exception {
         MultipartFile file = mockFile("file", "image/bmp", "bmp".getBytes(), null);
 
         String key = service.upload(file);
 
-        // 未能从文件名/类型猜到扩展名 → 没有后缀
+        // Cannot infer extension from filename/type → no suffix
         assertThat(key).matches(Pattern.compile("^icon/user/sparkBot_[0-9a-f]{32}$"));
         verify(s3UtilClient).putObject(eq(key), any(InputStream.class), eq(3L), eq("image/bmp"));
     }
 
     @Test
-    @DisplayName("upload - 文件名包含危险字符：仍能得到 svg 后缀并上传成功")
+    @DisplayName("upload - filename contains dangerous characters: still gets svg suffix and uploads successfully")
     void upload_shouldSanitizeOriginalName_andKeepSvgExt() throws Exception {
         MultipartFile file = mockFile("../a b/..\\evil?.svg", "image/svg+xml", "svg".getBytes(), null);
 
@@ -101,21 +101,22 @@ class ImageServiceTest {
     }
 
     @Test
-    @DisplayName("upload - Content-Type 前后有空格/大小写：应被 normalize 并允许")
+    @DisplayName("upload - Content-Type has leading/trailing spaces/mixed case: should be normalized and allowed")
     void upload_shouldNormalizeContentType_andAllow() throws Exception {
         MultipartFile file = mockFile("a.jpg", "  image/JPEG  ", "abc".getBytes(), null);
 
         String key = service.upload(file);
 
         assertThat(key).matches(Pattern.compile("^icon/user/sparkBot_[0-9a-f]{32}\\.jpg$"));
-        // normalize 后传入 putObject 的 Content-Type 应为去空格的原值（大小写保留）
+        // Content-Type passed to putObject after normalization should be original value without spaces
+        // (case preserved)
         verify(s3UtilClient).putObject(eq(key), any(InputStream.class), eq(3L), eq("image/JPEG"));
     }
 
-    // ------------------ 边界条件 ------------------
+    // ------------------ Boundary conditions ------------------
 
     @Test
-    @DisplayName("upload - file==null：抛 BusinessException，且不触达 S3")
+    @DisplayName("upload - file==null: throws BusinessException and doesn't reach S3")
     void upload_nullFile_shouldThrow() {
         assertThatThrownBy(() -> service.upload(null))
                 .isInstanceOf(BusinessException.class);
@@ -123,7 +124,7 @@ class ImageServiceTest {
     }
 
     @Test
-    @DisplayName("upload - 空文件：抛 BusinessException，且不触达 S3")
+    @DisplayName("upload - empty file: throws BusinessException and doesn't reach S3")
     void upload_emptyFile_shouldThrow() throws Exception {
         MultipartFile file = mockFile("x.png", "image/png", new byte[0], 0L);
         when(file.isEmpty()).thenReturn(true);
@@ -134,7 +135,7 @@ class ImageServiceTest {
     }
 
     @Test
-    @DisplayName("upload - contentType=null：不允许，抛 BusinessException")
+    @DisplayName("upload - contentType=null: not allowed, throws BusinessException")
     void upload_nullContentType_shouldThrow() throws Exception {
         MultipartFile file = mockFile("x", null, "a".getBytes(), null);
 
@@ -144,7 +145,7 @@ class ImageServiceTest {
     }
 
     @Test
-    @DisplayName("upload - contentType 为空串：normalize 为 application/octet-stream → 不允许")
+    @DisplayName("upload - contentType is blank string: normalized to application/octet-stream → not allowed")
     void upload_blankContentType_shouldThrow() throws Exception {
         MultipartFile file = mockFile("x", "   ", "a".getBytes(), null);
 
@@ -153,14 +154,14 @@ class ImageServiceTest {
         verifyNoInteractions(s3UtilClient);
     }
 
-    // ------------------ 异常路径 ------------------
+    // ------------------ Exception path ------------------
 
     @Test
-    @DisplayName("upload - S3 putObject 抛错：应记录日志并转为 BusinessException(S3_UPLOAD_ERROR)")
+    @DisplayName("upload - S3 putObject throws error: should log and wrap as BusinessException(S3_UPLOAD_ERROR)")
     void upload_s3Throws_shouldWrapAsBusinessException() throws Exception {
         MultipartFile file = mockFile("a.png", "image/png", "abc".getBytes(), null);
 
-        // 抛在 putObject 上（已知长度分支）
+        // Throw on putObject (known length branch)
         doThrow(new RuntimeException("s3 down"))
                 .when(s3UtilClient)
                 .putObject(anyString(), any(InputStream.class), anyLong(), anyString());
@@ -168,7 +169,7 @@ class ImageServiceTest {
         assertThatThrownBy(() -> service.upload(file))
                 .isInstanceOf(BusinessException.class);
 
-        // 至少尝试过调用一次 S3
+        // At least tried to call S3 once
         verify(s3UtilClient).putObject(anyString(), any(InputStream.class), anyLong(), anyString());
     }
 }

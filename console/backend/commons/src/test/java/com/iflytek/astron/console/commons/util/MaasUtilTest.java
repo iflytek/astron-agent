@@ -88,7 +88,7 @@ class MaasUtilTest {
         ReflectionTestUtils.setField(maasUtil, "mcpReleaseUrl", "http://test.com/mcp/release");
     }
 
-    // ========== 静态方法测试 ==========
+    // ========== Static Method Tests ==========
 
     @Test
     void testGetAuthorizationHeader_WithValidHeader() {
@@ -434,7 +434,7 @@ class MaasUtilTest {
         assertEquals("image", result.getString("type"));
     }
 
-    // ========== deleteSynchronize 方法测试 ==========
+    // ========== deleteSynchronize Method Tests ==========
 
     @Test
     void testDeleteSynchronize_NullBotId_ReturnsEmptyJson() {
@@ -524,7 +524,7 @@ class MaasUtilTest {
         assertTrue(result.isEmpty());
     }
 
-    // ========== setBotTag 方法测试 (部分) ==========
+    // ========== setBotTag Method Tests (Partial) ==========
 
     @Test
     void testSetBotTag_NullBotTagList() {

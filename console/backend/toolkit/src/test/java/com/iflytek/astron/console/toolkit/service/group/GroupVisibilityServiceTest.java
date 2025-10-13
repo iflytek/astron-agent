@@ -33,7 +33,7 @@ class GroupVisibilityServiceTest {
     @InjectMocks
     private GroupVisibilityService service;
 
-    // ---------- 工具：读取 QueryWrapper.last("...") 里追加的 SQL ----------
+    // ---------- Utility: Read appended SQL in QueryWrapper.last("...") ----------
     private static String readLastSql(Object wrapper) {
         Class<?> c = wrapper.getClass();
         while (c != null) {
@@ -54,12 +54,12 @@ class GroupVisibilityServiceTest {
     // ===================== getOnly =====================
 
     @Test
-    @DisplayName("getOnly(QueryWrapper) 应追加 limit 1 并调用 getOne")
+    @DisplayName("getOnly(QueryWrapper) should append limit 1 and call getOne")
     void getOnly_shouldAppendLimitAndCallGetOne() {
         QueryWrapper<GroupVisibility> qw = new QueryWrapper<>();
         GroupVisibility expected = new GroupVisibility();
 
-        // 拦截父类 getOne，校验 last("limit 1")
+        // Intercept parent class getOne, verify last("limit 1")
         doAnswer(inv -> {
             Object arg = inv.getArgument(0);
             assertThat(arg).isInstanceOf(QueryWrapper.class);
@@ -79,10 +79,10 @@ class GroupVisibilityServiceTest {
     class SetRepoVisibilityTests {
 
         @Test
-        @DisplayName("visibility=0：应直接返回，不调用 remove/saveBatch")
+        @DisplayName("visibility=0: should return directly, not call remove/saveBatch")
         void visibilityPrivate_shouldReturnEarly() {
             try (MockedStatic<SpaceInfoUtil> space = mockStatic(SpaceInfoUtil.class)) {
-                space.when(SpaceInfoUtil::getSpaceId).thenReturn(123L); // 即便取了也不应影响后续
+                space.when(SpaceInfoUtil::getSpaceId).thenReturn(123L); // Should not affect subsequent even if retrieved
 
                 service.setRepoVisibility(99L, 5, 0, Arrays.asList("u1", "u2"));
 
@@ -94,7 +94,7 @@ class GroupVisibilityServiceTest {
 
 
         @Test
-        @DisplayName("uids 为空：只删除不保存")
+        @DisplayName("uids is empty: only delete not save")
         void emptyUids_shouldOnlyRemove_noSave() {
             try (MockedStatic<SpaceInfoUtil> space = mockStatic(SpaceInfoUtil.class);
                     MockedStatic<UserInfoManagerHandler> user = mockStatic(UserInfoManagerHandler.class)) {
@@ -115,7 +115,7 @@ class GroupVisibilityServiceTest {
     // ===================== listUser / get*VisibilityList =====================
 
     @Test
-    @DisplayName("listUser：应携带当前用户ID委托给Mapper")
+    @DisplayName("listUser: should delegate to Mapper with current user ID")
     void listUser_shouldDelegateToMapper_withCurrentUser() {
         try (MockedStatic<UserInfoManagerHandler> user = mockStatic(UserInfoManagerHandler.class)) {
             user.when(UserInfoManagerHandler::getUserId).thenReturn("u-1");
@@ -131,7 +131,7 @@ class GroupVisibilityServiceTest {
     }
 
     @Test
-    @DisplayName("getRepoVisibilityList：应传递当前用户与 spaceId")
+    @DisplayName("getRepoVisibilityList: should pass current user and spaceId")
     void getRepoVisibilityList_shouldDelegateWithSpaceId() {
         try (MockedStatic<UserInfoManagerHandler> user = mockStatic(UserInfoManagerHandler.class);
                 MockedStatic<SpaceInfoUtil> space = mockStatic(SpaceInfoUtil.class)) {
@@ -150,7 +150,7 @@ class GroupVisibilityServiceTest {
     }
 
     @Test
-    @DisplayName("getToolVisibilityList：应仅传递当前用户")
+    @DisplayName("getToolVisibilityList: should only pass current user")
     void getToolVisibilityList_shouldDelegate() {
         try (MockedStatic<UserInfoManagerHandler> user = mockStatic(UserInfoManagerHandler.class)) {
             user.when(UserInfoManagerHandler::getUserId).thenReturn("u-3");
@@ -166,7 +166,7 @@ class GroupVisibilityServiceTest {
     }
 
     @Test
-    @DisplayName("getSquareToolVisibilityList：应仅传递当前用户")
+    @DisplayName("getSquareToolVisibilityList: should only pass current user")
     void getSquareToolVisibilityList_shouldDelegate() {
         try (MockedStatic<UserInfoManagerHandler> user = mockStatic(UserInfoManagerHandler.class)) {
             user.when(UserInfoManagerHandler::getUserId).thenReturn("u-4");

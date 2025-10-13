@@ -40,10 +40,10 @@ public class UserNicknameUpdateEventListener {
                 uid, event.getOldNickname(), newNickname);
 
         try {
-            // 更新企业用户表中的昵称
+            // Update nickname in enterprise user table
             updateEnterpriseUserNickname(uid, newNickname);
 
-            // 更新空间用户表中的昵称
+            // Update nickname in space user table
             updateSpaceUserNickname(uid, newNickname);
 
             log.info("Successfully updated all related nickname fields for uid: {}", uid);

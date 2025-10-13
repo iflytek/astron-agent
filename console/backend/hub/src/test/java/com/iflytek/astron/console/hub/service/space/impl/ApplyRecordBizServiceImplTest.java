@@ -33,10 +33,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * ApplyRecordBizServiceImpl 单元测试类
+ * ApplyRecordBizServiceImpl unit test class
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("申请记录业务服务测试")
+@DisplayName("Apply Record Business Service Tests")
 class ApplyRecordBizServiceImplTest {
 
     @Mock
@@ -58,7 +58,7 @@ class ApplyRecordBizServiceImplTest {
     private static final Long TEST_SPACE_ID = 1L;
     private static final Long TEST_ENTERPRISE_ID = 100L;
     private static final Long TEST_APPLY_ID = 200L;
-    private static final String TEST_NICKNAME = "测试用户";
+    private static final String TEST_NICKNAME = "Test User";
 
     private UserInfo testUserInfo;
     private EnterpriseUser testEnterpriseUser;
@@ -66,7 +66,7 @@ class ApplyRecordBizServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        // 初始化测试数据
+        // Initialize test data
         testUserInfo = new UserInfo();
         testUserInfo.setUid(TEST_UID);
         testUserInfo.setNickname(TEST_NICKNAME);
@@ -91,17 +91,17 @@ class ApplyRecordBizServiceImplTest {
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 成功申请（普通用户）")
+    @DisplayName("Apply to join enterprise space - Success (Normal user)")
     void testJoinEnterpriseSpace_Success_NormalUser() {
-        // 准备测试数据
+        // Prepare test data
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID)).thenReturn(null);
             when(spaceUserService.getSpaceUserByUid(TEST_SPACE_ID, TEST_UID)).thenReturn(null);
             when(enterpriseUserService.getEnterpriseUserByUid(TEST_ENTERPRISE_ID, TEST_UID))
@@ -109,14 +109,14 @@ class ApplyRecordBizServiceImplTest {
             when(userInfoDataService.findByUid(TEST_UID)).thenReturn(Optional.of(testUserInfo));
             when(applyRecordService.save(any(ApplyRecord.class))).thenReturn(true);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertEquals(ResponseEnum.SUCCESS.getCode(), result.code());
             assertNull(result.data());
 
-            // 验证方法调用
+            // Verify method calls
             verify(applyRecordService).getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID);
             verify(spaceUserService).getSpaceUserByUid(TEST_SPACE_ID, TEST_UID);
             verify(enterpriseUserService).getEnterpriseUserByUid(TEST_ENTERPRISE_ID, TEST_UID);
@@ -126,19 +126,19 @@ class ApplyRecordBizServiceImplTest {
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 成功加入（超级管理员）")
+    @DisplayName("Apply to join enterprise space - Success (Super admin)")
     void testJoinEnterpriseSpace_Success_SuperAdmin() {
-        // 准备测试数据 - 超级管理员
+        // Prepare test data - Super admin
         testEnterpriseUser.setRole(EnterpriseRoleEnum.OFFICER.getCode());
 
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID)).thenReturn(null);
             when(spaceUserService.getSpaceUserByUid(TEST_SPACE_ID, TEST_UID)).thenReturn(null);
             when(enterpriseUserService.getEnterpriseUserByUid(TEST_ENTERPRISE_ID, TEST_UID))
@@ -146,274 +146,274 @@ class ApplyRecordBizServiceImplTest {
             when(spaceUserService.addSpaceUser(TEST_SPACE_ID, TEST_UID, SpaceRoleEnum.ADMIN))
                     .thenReturn(true);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertEquals(ResponseEnum.SUCCESS.getCode(), result.code());
             assertNull(result.data());
 
-            // 验证方法调用
+            // Verify method calls
             verify(spaceUserService).addSpaceUser(TEST_SPACE_ID, TEST_UID, SpaceRoleEnum.ADMIN);
             verify(applyRecordService, never()).save(any(ApplyRecord.class));
         }
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 失败：未加入企业")
+    @DisplayName("Apply to join enterprise space - Fail: Not in enterprise")
     void testJoinEnterpriseSpace_Fail_NotInEnterprise() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(null);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_PLEASE_JOIN_ENTERPRISE_FIRST.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 失败：重复申请")
+    @DisplayName("Apply to join enterprise space - Fail: Duplicate application")
     void testJoinEnterpriseSpace_Fail_DuplicateApplication() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock服务方法 - 已存在申请记录
+            // Mock service methods - 已存在申请记录
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID))
                     .thenReturn(testApplyRecord);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_DUPLICATE_NOT_ALLOWED.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 失败：用户已在空间中")
+    @DisplayName("Apply to join enterprise space - Fail: User already in space")
     void testJoinEnterpriseSpace_Fail_UserAlreadyInSpace() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID)).thenReturn(null);
             SpaceUser existingSpaceUser = new SpaceUser();
             existingSpaceUser.setId(1L);
             when(spaceUserService.getSpaceUserByUid(TEST_SPACE_ID, TEST_UID))
-                    .thenReturn(existingSpaceUser); // 用户已在空间中
+                    .thenReturn(existingSpaceUser); // User already in space
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_USER_ALREADY_IN_SPACE.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 失败：超级管理员加入失败")
+    @DisplayName("Apply to join enterprise space - Fail: Super admin join failed")
     void testJoinEnterpriseSpace_Fail_SuperAdminJoinFailed() {
-        // 准备测试数据 - 超级管理员
+        // Prepare test data - Super admin
         testEnterpriseUser.setRole(EnterpriseRoleEnum.OFFICER.getCode());
 
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID)).thenReturn(null);
             when(spaceUserService.getSpaceUserByUid(TEST_SPACE_ID, TEST_UID)).thenReturn(null);
             when(enterpriseUserService.getEnterpriseUserByUid(TEST_ENTERPRISE_ID, TEST_UID))
                     .thenReturn(testEnterpriseUser);
             when(spaceUserService.addSpaceUser(TEST_SPACE_ID, TEST_UID, SpaceRoleEnum.ADMIN))
-                    .thenReturn(false); // 加入失败
+                    .thenReturn(false); // Join failed
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_JOIN_FAILED.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("申请加入企业空间 - 失败：申请保存失败")
+    @DisplayName("Apply to join enterprise space - Fail: Save application failed")
     void testJoinEnterpriseSpace_Fail_SaveApplicationFailed() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<EnterpriseInfoUtil> enterpriseInfoMock = mockStatic(EnterpriseInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID)).thenReturn(null);
             when(spaceUserService.getSpaceUserByUid(TEST_SPACE_ID, TEST_UID)).thenReturn(null);
             when(enterpriseUserService.getEnterpriseUserByUid(TEST_ENTERPRISE_ID, TEST_UID))
                     .thenReturn(testEnterpriseUser);
             when(userInfoDataService.findByUid(TEST_UID)).thenReturn(Optional.of(testUserInfo));
-            when(applyRecordService.save(any(ApplyRecord.class))).thenReturn(false); // 保存失败
+            when(applyRecordService.save(any(ApplyRecord.class))).thenReturn(false); // Save failed
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.joinEnterpriseSpace(TEST_SPACE_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_FAILED.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("同意加入企业空间 - 成功")
+    @DisplayName("Approve join enterprise space - Success")
     void testAgreeEnterpriseSpace_Success() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn("admin_uid");
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
             when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(true);
             when(spaceUserService.addSpaceUser(TEST_SPACE_ID, TEST_UID, SpaceRoleEnum.MEMBER))
                     .thenReturn(true);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.agreeEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertEquals(ResponseEnum.SUCCESS.getCode(), result.code());
             assertNull(result.data());
 
-            // 验证申请记录状态更新
+            // Verify application record status update
             verify(applyRecordService).updateById(argThat(record -> record.getStatus().equals(ApplyRecord.Status.APPROVED.getCode()) &&
                     record.getAuditUid().equals("admin_uid") &&
                     record.getAuditTime() != null));
 
-            // 验证添加空间用户
+            // Verify add space user
             verify(spaceUserService).addSpaceUser(TEST_SPACE_ID, TEST_UID, SpaceRoleEnum.MEMBER);
         }
     }
 
     @Test
-    @DisplayName("同意加入企业空间 - 失败：申请记录不存在")
+    @DisplayName("Approve join enterprise space - Fail: Record not found")
     void testAgreeEnterpriseSpace_Fail_RecordNotFound() {
-        // Mock服务方法
+        // Mock service methods
         when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(null);
 
-        // 执行测试
+        // Execute test
         ApiResult<String> result = applyRecordBizService.agreeEnterpriseSpace(TEST_APPLY_ID);
 
-        // 验证结果
+        // Verify results
         assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
         assertEquals(ResponseEnum.SPACE_APPLICATION_RECORD_NOT_FOUND.getCode(), result.code());
     }
 
     @Test
-    @DisplayName("同意加入企业空间 - 失败：空间不一致")
+    @DisplayName("Approve join enterprise space - Fail: Space inconsistent")
     void testAgreeEnterpriseSpace_Fail_SpaceInconsistent() {
         try (MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法 - 返回不同的空间ID
+            // Mock static methods - 返回不同的空间ID
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(999L);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.agreeEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_CURRENT_SPACE_INCONSISTENT.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("同意加入企业空间 - 失败：申请状态不正确")
+    @DisplayName("Approve join enterprise space - Fail: Status incorrect")
     void testAgreeEnterpriseSpace_Fail_StatusIncorrect() {
         try (MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // 修改申请记录状态为已审批
+            // Modify application record status to approved
             testApplyRecord.setStatus(ApplyRecord.Status.APPROVED.getCode());
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.agreeEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_STATUS_INCORRECT.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("同意加入企业空间 - 失败：更新申请记录失败")
+    @DisplayName("Approve join enterprise space - Fail: Update record failed")
     void testAgreeEnterpriseSpace_Fail_UpdateRecordFailed() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn("admin_uid");
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
-            when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(false); // 更新失败
+            when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(false); // Update failed
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.agreeEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_APPROVAL_FAILED.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("同意加入企业空间 - 失败：添加空间用户失败")
+    @DisplayName("Approve join enterprise space - Fail: Add space user failed")
     void testAgreeEnterpriseSpace_Fail_AddSpaceUserFailed() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn("admin_uid");
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
             when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(true);
             when(spaceUserService.addSpaceUser(TEST_SPACE_ID, TEST_UID, SpaceRoleEnum.MEMBER))
-                    .thenReturn(false); // 添加用户失败
+                    .thenReturn(false); // Add user failed
 
-            // 执行测试并验证异常
+            // Execute test and verify exception
             BusinessException exception = assertThrows(BusinessException.class, () -> {
                 applyRecordBizService.agreeEnterpriseSpace(TEST_APPLY_ID);
             });
@@ -423,27 +423,27 @@ class ApplyRecordBizServiceImplTest {
     }
 
     @Test
-    @DisplayName("拒绝加入企业空间 - 成功")
+    @DisplayName("Reject join enterprise space - Success")
     void testRefuseEnterpriseSpace_Success() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn("admin_uid");
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
             when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(true);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.refuseEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertEquals(ResponseEnum.SUCCESS.getCode(), result.code());
             assertNull(result.data());
 
-            // 验证申请记录状态更新
+            // Verify application record status update
             verify(applyRecordService).updateById(argThat(record -> record.getStatus().equals(ApplyRecord.Status.REJECTED.getCode()) &&
                     record.getAuditUid().equals("admin_uid") &&
                     record.getAuditTime() != null));
@@ -451,80 +451,80 @@ class ApplyRecordBizServiceImplTest {
     }
 
     @Test
-    @DisplayName("拒绝加入企业空间 - 失败：申请记录不存在")
+    @DisplayName("Reject join enterprise space - Fail: Record not found")
     void testRefuseEnterpriseSpace_Fail_RecordNotFound() {
-        // Mock服务方法
+        // Mock service methods
         when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(null);
 
-        // 执行测试
+        // Execute test
         ApiResult<String> result = applyRecordBizService.refuseEnterpriseSpace(TEST_APPLY_ID);
 
-        // 验证结果
+        // Verify results
         assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
         assertEquals(ResponseEnum.SPACE_APPLICATION_RECORD_NOT_FOUND.getCode(), result.code());
     }
 
     @Test
-    @DisplayName("拒绝加入企业空间 - 失败：空间不一致")
+    @DisplayName("Reject join enterprise space - Fail: Space inconsistent")
     void testRefuseEnterpriseSpace_Fail_SpaceInconsistent() {
         try (MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法 - 返回不同的空间ID
+            // Mock static methods - 返回不同的空间ID
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(999L);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.refuseEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_CURRENT_SPACE_INCONSISTENT.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("拒绝加入企业空间 - 失败：申请状态不正确")
+    @DisplayName("Reject join enterprise space - Fail: Status incorrect")
     void testRefuseEnterpriseSpace_Fail_StatusIncorrect() {
         try (MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // 修改申请记录状态为已拒绝
+            // Modify application record status to rejected
             testApplyRecord.setStatus(ApplyRecord.Status.REJECTED.getCode());
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.refuseEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_STATUS_INCORRECT.getCode(), result.code());
         }
     }
 
     @Test
-    @DisplayName("拒绝加入企业空间 - 失败：更新申请记录失败")
+    @DisplayName("Reject join enterprise space - Fail: Update record failed")
     void testRefuseEnterpriseSpace_Fail_UpdateRecordFailed() {
         try (MockedStatic<RequestContextUtil> requestContextMock = mockStatic(RequestContextUtil.class);
                 MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock静态方法
+            // Mock static methods
             requestContextMock.when(RequestContextUtil::getUID).thenReturn("admin_uid");
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
 
-            // Mock服务方法
+            // Mock service methods
             when(applyRecordService.getById(TEST_APPLY_ID)).thenReturn(testApplyRecord);
-            when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(false); // 更新失败
+            when(applyRecordService.updateById(any(ApplyRecord.class))).thenReturn(false); // Update failed
 
-            // 执行测试
+            // Execute test
             ApiResult<String> result = applyRecordBizService.refuseEnterpriseSpace(TEST_APPLY_ID);
 
-            // 验证结果
+            // Verify results
             assertFalse(result.code() == ResponseEnum.SUCCESS.getCode());
             assertEquals(ResponseEnum.SPACE_APPLICATION_APPROVAL_FAILED.getCode(), result.code());
         }

@@ -57,7 +57,7 @@ class ShareDataServiceImplTest {
         testRecord.setUpdateTime(LocalDateTime.now());
     }
 
-    // ========== findActiveShareRecord 方法测试 ==========
+    // ========== findActiveShareRecord Method Tests ==========
 
     @Test
     void testFindActiveShareRecord_Success() {
@@ -114,7 +114,7 @@ class ShareDataServiceImplTest {
         verify(shareRecordMapper).selectOne(any(LambdaQueryWrapper.class));
     }
 
-    // ========== createShareRecord 方法测试 ==========
+    // ========== createShareRecord Method Tests ==========
 
     @Test
     void testCreateShareRecord_Success() {
@@ -170,7 +170,7 @@ class ShareDataServiceImplTest {
         verify(shareRecordMapper).insert(any(AgentShareRecord.class));
     }
 
-    // ========== findByShareKey 方法测试 ==========
+    // ========== findByShareKey Method Tests ==========
 
     @Test
     void testFindByShareKey_Success() {
@@ -228,7 +228,7 @@ class ShareDataServiceImplTest {
         verify(shareRecordMapper).selectOne(any(LambdaQueryWrapper.class));
     }
 
-    // ========== 集成场景测试 ==========
+    // ========== Integration Scenario Tests ==========
 
     @Test
     void testCreateAndFindFlow_Success() {

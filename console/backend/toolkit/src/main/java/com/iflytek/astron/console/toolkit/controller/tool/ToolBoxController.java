@@ -19,13 +19,13 @@ import java.util.Map;
 @RequestMapping("/tool")
 @Slf4j
 @ResponseResultBody
-@Tag(name = "插件管理")
+@Tag(name = "Plugin Management")
 public class ToolBoxController {
     @Resource
     ToolBoxService toolBoxService;
 
     @PostMapping("/create-tool")
-    @Operation(summary = "创建插件")
+    @Operation(summary = "Create plugin")
     @SpacePreAuth(key = "ToolBoxController_createTool_POST")
     public Object createTool(@RequestBody ToolBoxDto toolBoxDto) {
         if (toolBoxDto.getName() == null) {
@@ -38,7 +38,7 @@ public class ToolBoxController {
     }
 
     @PostMapping("/temporary-tool")
-    @Operation(summary = "暂存插件")
+    @Operation(summary = "Temporarily save plugin")
     @SpacePreAuth(key = "ToolBoxController_temporaryTool_POST")
     public Object temporaryTool(@RequestBody ToolBoxDto toolBoxDto) {
         if (toolBoxDto.getName() == null) {
@@ -48,14 +48,14 @@ public class ToolBoxController {
     }
 
     @PutMapping("/update-tool")
-    @Operation(summary = "编辑插件")
+    @Operation(summary = "Edit plugin")
     @SpacePreAuth(key = "ToolBoxController_updateTool_PUT")
     public Object updateTool(@RequestBody ToolBoxDto toolBoxDto) {
         return toolBoxService.updateTool(toolBoxDto);
     }
 
     @GetMapping("/list-tools")
-    @Operation(summary = "插件分页列表")
+    @Operation(summary = "Plugin paginated list")
     @SpacePreAuth(key = "ToolBoxController_listTools_GET")
     public Object listTools(@RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
             @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize,
@@ -65,41 +65,41 @@ public class ToolBoxController {
     }
 
     @GetMapping("/detail")
-    @Operation(summary = "插件详情")
+    @Operation(summary = "Plugin details")
     @SpacePreAuth(key = "ToolBoxController_detail_GET")
     public Object getDetail(@RequestParam("id") Long id, Boolean temporary) {
         return toolBoxService.getDetail(id, temporary);
     }
 
     @GetMapping("/get-tool-default-icon")
-    @Operation(summary = "插件默认图标")
+    @Operation(summary = "Plugin default icon")
     @SpacePreAuth(key = "ToolBoxController_getToolDefaultIcon_GET")
     public Object getToolDefaultIcon() {
         return toolBoxService.getToolDefaultIcon();
     }
 
     @DeleteMapping("/delete-tool")
-    @Operation(summary = "插件删除")
+    @Operation(summary = "Delete plugin")
     @SpacePreAuth(key = "ToolBoxController_deleteTool_DELETE")
     public Object deleteTool(@RequestParam("id") Long id) {
         return toolBoxService.deleteTool(id);
     }
 
     @PostMapping("/debug-tool")
-    @Operation(summary = "插件调试")
+    @Operation(summary = "Debug plugin")
     @SpacePreAuth(key = "ToolBoxController_debugTool_POST")
     public Object debugToolV2(@RequestBody ToolBoxDto toolBoxDto) {
         return toolBoxService.debugToolV2(toolBoxDto);
     }
 
-    @Operation(summary = "插件广场查询列表")
+    @Operation(summary = "Plugin square query list")
     @PostMapping("/list-tool-square")
     @SpacePreAuth(key = "ToolBoxController_listToolSquare_POST")
     public Object listToolSquare(@RequestBody ToolSquareDto dto) {
         return toolBoxService.listToolSquare(dto);
     }
 
-    @Operation(summary = "收藏/取消收藏工具")
+    @Operation(summary = "Favorite/Unfavorite tool")
     @GetMapping("/favorite")
     @SpacePreAuth(key = "ToolBoxController_favorite_GET")
     public Object favorite(@RequestParam("toolId") String toolId,
@@ -108,33 +108,33 @@ public class ToolBoxController {
         return toolBoxService.favorite(toolId, favoriteFlag, isMcp);
     }
 
-    @Operation(summary = "获取插件历史版本")
+    @Operation(summary = "Get plugin version history")
     @GetMapping("/get-tool-version")
     @SpacePreAuth(key = "ToolBoxController_getToolVersion_GET")
     public List<ToolBoxVo> getToolVersion(@RequestParam("toolId") String toolId) {
         return toolBoxService.getToolVersion(toolId);
     }
 
-    @Operation(summary = "获取插件最新版本")
+    @Operation(summary = "Get plugin latest version")
     @GetMapping("/get-tool-latestVersion")
     @SpacePreAuth(key = "ToolBoxController_getToolLatestVersion_GET")
     public Map<String, String> getToolLatestVersion(@RequestParam("toolIds") List<String> toolIds) {
         return toolBoxService.getToolLatestVersion(toolIds);
     }
 
-    @Operation(summary = "插件用户操作记录")
+    @Operation(summary = "Plugin user operation history")
     @GetMapping("/add-tool-operateHistory")
     public void addToolOperateHistory(@RequestParam("toolId") String toolId) {
         toolBoxService.addToolOperateHistory(toolId);
     }
 
-    @Operation(summary = "用户反馈")
+    @Operation(summary = "User feedback")
     @PostMapping("/feedback")
     public void addToolOperateHistory(@RequestBody ToolBoxFeedbackReq toolBoxFeedbackReq) {
         toolBoxService.feedback(toolBoxFeedbackReq);
     }
 
-    @Operation(summary = "工具发布到广场")
+    @Operation(summary = "Publish tool to square")
     @GetMapping("/publish-square")
     public void publishSquare(Long id) {
         toolBoxService.publishSquare(id);

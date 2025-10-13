@@ -121,7 +121,7 @@ class ChatDataServiceImplTest {
         testRespRecord.setCreateTime(LocalDateTime.now());
     }
 
-    // ========== 查询方法测试 ==========
+    // ========== Query Method Tests ==========
 
     @Test
     void testFindRequestsByChatIdAndUid_Success() {
@@ -198,7 +198,7 @@ class ChatDataServiceImplTest {
         verify(chatRespRecordsMapper).selectOne(any(LambdaQueryWrapper.class));
     }
 
-    // ========== 创建方法测试 ==========
+    // ========== Create Method Tests ==========
 
     @Test
     void testCreateRequest_Success() {
@@ -328,7 +328,7 @@ class ChatDataServiceImplTest {
         verify(botChatFileParamMapper).insert(fileParam);
     }
 
-    // ========== 更新方法测试 ==========
+    // ========== Update Method Tests ==========
 
     @Test
     void testUpdateByUidAndChatIdAndReqId_Success() {
@@ -439,7 +439,7 @@ class ChatDataServiceImplTest {
         verify(chatFileUserMapper).updateById(any(ChatFileUser.class));
     }
 
-    // ========== 统计方法测试 ==========
+    // ========== Statistics Method Tests ==========
 
     @Test
     void testCountChatsByUid_Success() {
@@ -481,7 +481,7 @@ class ChatDataServiceImplTest {
         verify(chatFileUserMapper).selectCount(any(LambdaQueryWrapper.class));
     }
 
-    // ========== 查询列表方法测试 ==========
+    // ========== Query List Method Tests ==========
 
     @Test
     void testFindRecentChatsByUid_Success() {
@@ -575,7 +575,7 @@ class ChatDataServiceImplTest {
         verify(botChatFileParamMapper).selectList(any(LambdaQueryWrapper.class));
     }
 
-    // ========== 复杂业务逻辑测试 ==========
+    // ========== Complex Business Logic Tests ==========
 
     @Test
     void testGetReqModelBotHistoryByChatId_Success() {

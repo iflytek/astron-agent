@@ -19,23 +19,24 @@ public interface ChatBotMarketMapper extends BaseMapper<ChatBotMarket> {
     List<ChatBotMarket> selectByBotIds(@Param("botIds") List<Long> botIds);
 
     /**
-     * 分页查询智能体列表 使用多表关联查询，确保数据一致性和完整性 遵循技术标准：使用实体类接收查询结果
+     * Paginated query for agent list. Uses multi-table join query to ensure data consistency and
+     * integrity. Follows technical standards: use entity class to receive query results
      *
-     * @param page 分页参数
-     * @param condition 查询条件
-     * @return 智能体列表
+     * @param page Pagination parameters
+     * @param condition Query conditions
+     * @return Agent list
      */
     Page<BotPublishQueryResult> selectBotListByConditions(
             Page<BotPublishQueryResult> page,
             @Param("condition") BotQueryCondition condition);
 
     /**
-     * 查询智能体详情 关联 chat_bot_base 和 chat_bot_market 表获取完整信息
+     * Query agent details. Join chat_bot_base and chat_bot_market tables to get complete information
      *
-     * @param botId 智能体ID
-     * @param uid 用户ID（用于权限验证）
-     * @param spaceId 空间ID（可选，用于空间权限验证）
-     * @return 智能体详情
+     * @param botId Agent ID
+     * @param uid User ID (for permission verification)
+     * @param spaceId Space ID (optional, for space permission verification)
+     * @return Agent details
      */
     BotPublishQueryResult selectBotDetail(
             @Param("botId") Integer botId,
@@ -43,14 +44,14 @@ public interface ChatBotMarketMapper extends BaseMapper<ChatBotMarket> {
             @Param("spaceId") Long spaceId);
 
     /**
-     * 更新智能体发布状态和发布渠道
+     * Update agent publish status and publish channels
      *
-     * @param botId 智能体ID
-     * @param uid 用户ID（用于权限验证）
-     * @param spaceId 空间ID（可选，用于空间权限验证）
-     * @param botStatus 新的发布状态
-     * @param publishChannels 新的发布渠道
-     * @return 影响的行数
+     * @param botId Agent ID
+     * @param uid User ID (for permission verification)
+     * @param spaceId Space ID (optional, for space permission verification)
+     * @param botStatus New publish status
+     * @param publishChannels New publish channels
+     * @return Number of rows affected
      */
     int updatePublishStatus(
             @Param("botId") Integer botId,

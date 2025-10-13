@@ -26,7 +26,7 @@ public enum BotTypeEnum {
     }
 
     /**
-     * 根据类型获取枚举
+     * Get enum by type
      */
     public static BotTypeEnum getByType(Integer type) {
         if (type == null) {
@@ -41,7 +41,7 @@ public enum BotTypeEnum {
     }
 
     /**
-     * 判断是否为工作流助手
+     * Determine if it is a workflow bot
      */
     public static boolean isWorkflowBot(Integer type) {
         return WORKFLOW_BOT.getType().equals(type);

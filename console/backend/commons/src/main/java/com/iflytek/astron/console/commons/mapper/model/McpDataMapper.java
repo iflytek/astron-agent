@@ -14,27 +14,27 @@ import java.util.List;
 public interface McpDataMapper extends BaseMapper<McpData> {
 
     /**
-     * 根据智能体ID获取最新的MCP数据
+     * Get the latest MCP data by agent ID
      *
-     * @param botId 智能体ID
-     * @return MCP数据
+     * @param botId Agent ID
+     * @return MCP data
      */
     McpData selectLatestByBotId(@Param("botId") Integer botId);
 
     /**
-     * 根据用户ID获取MCP数据列表
+     * Get MCP data list by user ID
      *
-     * @param uid 用户ID
-     * @return MCP数据列表
+     * @param uid User ID
+     * @return MCP data list
      */
     List<McpData> selectByUid(@Param("uid") String uid);
 
     /**
-     * 检查智能体是否已发布MCP
+     * Check if agent has published MCP
      *
-     * @param botId 智能体ID
-     * @param versionName 版本名称
-     * @return 记录数量
+     * @param botId Agent ID
+     * @param versionName Version name
+     * @return Record count
      */
     int checkMcpExists(@Param("botId") Integer botId, @Param("versionName") String versionName);
 }

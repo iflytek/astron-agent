@@ -7,7 +7,7 @@ public class CbmForm {
 
     private Integer botId;
 
-    // 老版创建需要 appId， 新版创建只需要keyId
+    // Old version creation requires appId, new version creation only needs keyId
     private String appId;
 
     private Long publishBindId;

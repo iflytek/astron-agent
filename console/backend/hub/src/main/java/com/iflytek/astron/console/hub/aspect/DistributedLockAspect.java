@@ -137,7 +137,7 @@ public class DistributedLockAspect {
      */
     private String parseLockKey(String keyExpression, ProceedingJoinPoint point) {
         try {
-            // 这个检查可以保留，作为对不含任何动态内容字符串的快速路径
+            // This check is a fast path for strings without any dynamic content
             if (!keyExpression.contains("#{")) {
                 return keyExpression;
             }

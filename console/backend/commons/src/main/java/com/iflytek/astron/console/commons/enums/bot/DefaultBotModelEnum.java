@@ -1,7 +1,7 @@
 package com.iflytek.astron.console.commons.enums.bot;
 
 /**
- * @author mingsuiyongheng 默认模型枚举类
+ * @author mingsuiyongheng Default model enum class
  */
 public enum DefaultBotModelEnum {
 
@@ -31,10 +31,10 @@ public enum DefaultBotModelEnum {
     }
 
     /**
-     * 根据domain获取对应的枚举常量
+     * Get the corresponding enum constant by domain
      *
-     * @param domain 模型域名
-     * @return 对应的枚举常量，如果未找到则返回null
+     * @param domain Model domain
+     * @return Corresponding enum constant, returns null if not found
      */
     public static DefaultBotModelEnum getByDomain(String domain) {
         if (domain == null) {

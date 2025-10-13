@@ -6,22 +6,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * 简单的事件测试，验证事件对象的创建和属性访问
+ * Simple event test to verify event object creation and property access
  */
 public class UserNicknameEventSimpleTest {
 
     @Test
     public void testUserNicknameUpdatedEventCreation() {
-        // 准备测试数据
+        // Prepare test data
         String testUid = "test-uid-123";
-        String oldNickname = "旧昵称";
-        String newNickname = "新昵称";
+        String oldNickname = "Old Nickname";
+        String newNickname = "New Nickname";
         Object source = new Object();
 
-        // 创建事件
+        // Create event
         UserNicknameUpdatedEvent event = new UserNicknameUpdatedEvent(source, testUid, oldNickname, newNickname);
 
-        // 验证事件属性
+        // Verify event properties
         assertNotNull(event);
         assertEquals(source, event.getSource());
         assertEquals(testUid, event.getUid());
@@ -31,16 +31,16 @@ public class UserNicknameEventSimpleTest {
 
     @Test
     public void testUserNicknameUpdatedEventWithNullValues() {
-        // 测试null值
+        // Test null values
         String testUid = null;
         String oldNickname = null;
-        String newNickname = "新昵称";
+        String newNickname = "New Nickname";
         Object source = new Object();
 
-        // 创建事件
+        // Create event
         UserNicknameUpdatedEvent event = new UserNicknameUpdatedEvent(source, testUid, oldNickname, newNickname);
 
-        // 验证事件属性
+        // Verify event properties
         assertNotNull(event);
         assertEquals(source, event.getSource());
         assertEquals(testUid, event.getUid());
@@ -50,16 +50,16 @@ public class UserNicknameEventSimpleTest {
 
     @Test
     public void testUserNicknameUpdatedEventWithEmptyStrings() {
-        // 测试空字符串
+        // Test empty strings
         String testUid = "";
         String oldNickname = "";
         String newNickname = "";
         Object source = new Object();
 
-        // 创建事件
+        // Create event
         UserNicknameUpdatedEvent event = new UserNicknameUpdatedEvent(source, testUid, oldNickname, newNickname);
 
-        // 验证事件属性
+        // Verify event properties
         assertNotNull(event);
         assertEquals(source, event.getSource());
         assertEquals(testUid, event.getUid());

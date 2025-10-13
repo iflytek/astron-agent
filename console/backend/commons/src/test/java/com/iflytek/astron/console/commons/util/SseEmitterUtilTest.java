@@ -56,7 +56,7 @@ class SseEmitterUtilTest {
         return (Map<String, EventSource>) ReflectionTestUtils.getField(SseEmitterUtil.class, "EVENTSOURCE_MAP");
     }
 
-    // ========== 基础方法测试 ==========
+    // ========== Basic Method Tests ==========
 
     @Test
     void testCreate_WithoutTimeout() {
@@ -138,7 +138,7 @@ class SseEmitterUtilTest {
         assertDoesNotThrow(() -> SseEmitterUtil.error("non-existent-id", testError));
     }
 
-    // ========== 消息发送测试 ==========
+    // ========== Message Sending Tests ==========
 
     @Test
     void testSendMessage_Success() {
@@ -283,7 +283,7 @@ class SseEmitterUtilTest {
         assertNotNull(emitter);
     }
 
-    // ========== 流处理测试 ==========
+    // ========== Stream Processing Tests ==========
 
     @Test
     void testStopStream_ValidStreamId() {
@@ -522,7 +522,7 @@ class SseEmitterUtilTest {
         assertTrue(errorHandled.get());
     }
 
-    // ========== StreamProcessor 内部类测试 ==========
+    // ========== StreamProcessor Inner Class Tests ==========
 
     @Test
     void testStreamProcessor_Creation() {
@@ -631,7 +631,7 @@ class SseEmitterUtilTest {
         assertNotNull(processor);
     }
 
-    // ========== EventSource Map 测试 ==========
+    // ========== EventSource Map Tests ==========
 
     @Test
     void testEventSourceMap_AddAndRetrieve() {

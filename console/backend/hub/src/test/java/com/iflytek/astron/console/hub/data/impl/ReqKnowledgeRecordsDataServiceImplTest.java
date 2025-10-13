@@ -58,7 +58,7 @@ class ReqKnowledgeRecordsDataServiceImplTest {
                 .build();
     }
 
-    // ========== create 方法测试 ==========
+    // ========== create Method Tests ==========
 
     @Test
     void testCreate_Success() {
@@ -73,7 +73,7 @@ class ReqKnowledgeRecordsDataServiceImplTest {
         verify(reqKnowledgeRecordsMapper).insert(testRecord);
     }
 
-    // ========== findByReqIds 方法测试 ==========
+    // ========== findByReqIds Method Tests ==========
 
     @Test
     void testFindByReqIds_Success_MultipleRecords() {

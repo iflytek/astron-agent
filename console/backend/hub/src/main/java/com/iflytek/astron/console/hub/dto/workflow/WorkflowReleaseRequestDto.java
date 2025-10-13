@@ -3,38 +3,38 @@ package com.iflytek.astron.console.hub.dto.workflow;
 import lombok.Data;
 
 /**
- * 工作流发布请求DTO
+ * Workflow release request DTO
  */
 @Data
 public class WorkflowReleaseRequestDto {
 
     /**
-     * 助手ID
+     * Bot ID
      */
     private String botId;
 
     /**
-     * 工作流ID
+     * Workflow ID
      */
     private String flowId;
 
     /**
-     * 发布渠道：1-市场，2-API，3-MCP
+     * Publish channel: 1-Market, 2-API, 3-MCP
      */
     private Integer publishChannel;
 
     /**
-     * 发布结果：成功/失败/审核中
+     * Publish result: Success/Failed/Under review
      */
     private String publishResult;
 
     /**
-     * 描述信息
+     * Description information
      */
     private String description;
 
     /**
-     * 版本名称
+     * Version name
      */
     private String name;
 }

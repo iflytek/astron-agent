@@ -24,14 +24,14 @@ import java.util.List;
 @RequestMapping("/db")
 @Slf4j
 @ResponseResultBody
-@Tag(name = "数据库管理")
+@Tag(name = "Database Management")
 public class DataBaseController {
 
     @Autowired
     private DatabaseService databaseService;
 
     @PostMapping("/create")
-    @Operation(summary = "创建数据库")
+    @Operation(summary = "Create database")
     @SpacePreAuth(key = "DataBaseController_createDatabase_POST")
     public ApiResult<Void> createDatabase(@RequestBody DatabaseDto databaseDto) {
         databaseService.create(databaseDto);
@@ -39,14 +39,14 @@ public class DataBaseController {
     }
 
     @GetMapping("/detail")
-    @Operation(summary = "查询数据库详情")
+    @Operation(summary = "Query database details")
     @SpacePreAuth(key = "DataBaseController_getDatabaseInfo_GET")
     public ApiResult<DbInfo> getDatabaseInfo(Long id) {
         return ApiResult.success(databaseService.getDatabaseInfo(id));
     }
 
     @PostMapping("/update")
-    @Operation(summary = "编辑数据库")
+    @Operation(summary = "Edit database")
     @SpacePreAuth(key = "DataBaseController_updateDatabase_POST")
     public ApiResult<Void> updateDatabase(@RequestBody DatabaseDto databaseDto) {
         databaseService.updateDateBase(databaseDto);
@@ -54,7 +54,7 @@ public class DataBaseController {
     }
 
     @GetMapping("/delete")
-    @Operation(summary = "删除数据库")
+    @Operation(summary = "Delete database")
     @SpacePreAuth(key = "DataBaseController_deleteDatabase_GET")
     public ApiResult<Void> deleteDatabase(Long id) {
         databaseService.delete(id);
@@ -62,21 +62,21 @@ public class DataBaseController {
     }
 
     @GetMapping("/copy")
-    @Operation(summary = "复制数据库")
+    @Operation(summary = "Copy database")
     public ApiResult<Void> copyDatabase(Long id) {
         databaseService.copyDatabase(id);
         return ApiResult.success();
     }
 
     @PostMapping("/page-list")
-    @Operation(summary = "查询数据库列表")
+    @Operation(summary = "Query database list")
     @SpacePreAuth(key = "DataBaseController_selectDatabase_POST")
     public ApiResult<Page<DbInfo>> selectDatabase(@RequestBody DataBaseSearchVo dataBaseSearchVo) {
         return ApiResult.success(databaseService.selectPage(dataBaseSearchVo));
     }
 
     @PostMapping("/create-table")
-    @Operation(summary = "创建表")
+    @Operation(summary = "Create table")
     @SpacePreAuth(key = "DataBaseController_createDbTable_POST")
     public ApiResult<Void> createDbTable(@RequestBody DbTableDto dbTableDto) {
         databaseService.createDbTable(dbTableDto);
@@ -84,14 +84,14 @@ public class DataBaseController {
     }
 
     @GetMapping("/table-list")
-    @Operation(summary = "获取表列表")
+    @Operation(summary = "Get table list")
     @SpacePreAuth(key = "DataBaseController_getDbTableList_GET")
     public ApiResult<List<DbTableVo>> getDbTableList(Long dbId) {
         return ApiResult.success(databaseService.getDbTableList(dbId));
     }
 
     @GetMapping("/db_table-list")
-    @Operation(summary = "获取用户数据库库表信息")
+    @Operation(summary = "Get user database table information")
     @SpacePreAuth(key = "DataBaseController_getDbTableInfoList_GET")
     public ApiResult<List<DbTableInfoVo>> getDbTableInfoList() {
         return ApiResult.success(databaseService.getDbTableInfoList());
@@ -99,7 +99,7 @@ public class DataBaseController {
 
 
     @PostMapping("/update-table")
-    @Operation(summary = "更新表字段")
+    @Operation(summary = "Update table fields")
     @SpacePreAuth(key = "DataBaseController_updateTable_POST")
     public ApiResult<Void> updateTable(@RequestBody DbTableDto dbTableDto) {
         databaseService.updateTable(dbTableDto);
@@ -107,7 +107,7 @@ public class DataBaseController {
     }
 
     @PostMapping("/import-field-list")
-    @Operation(summary = "导入表字段")
+    @Operation(summary = "Import table fields")
     @SpacePreAuth(key = "DataBaseController_importDbTableField_POST")
     public ApiResult<List<DbTableFieldDto>> importDbTableField(MultipartFile file) {
         return ApiResult.success(databaseService.importDbTableField(file));
@@ -115,14 +115,14 @@ public class DataBaseController {
 
 
     @PostMapping("/table-field-list")
-    @Operation(summary = "获取表字段列表")
+    @Operation(summary = "Get table field list")
     @SpacePreAuth(key = "DataBaseController_getDbTableFieldList_POST")
     public ApiResult<Page<DbTableField>> getDbTableFieldList(@RequestBody DataBaseSearchVo dataBaseSearchVo) {
         return ApiResult.success(databaseService.getDbTableFieldList(dataBaseSearchVo));
     }
 
     @GetMapping("/delete-table")
-    @Operation(summary = "删除表列表")
+    @Operation(summary = "Delete table list")
     @SpacePreAuth(key = "DataBaseController_deleteTable_GET")
     public ApiResult<Void> deleteTable(Long id) {
         databaseService.deleteTable(id);
@@ -130,7 +130,7 @@ public class DataBaseController {
     }
 
     @PostMapping("/operate-table-data")
-    @Operation(summary = "操作表数据")
+    @Operation(summary = "Operate table data")
     @SpacePreAuth(key = "DataBaseController_operateTableData_POST")
     public ApiResult<Void> operateTableData(@RequestBody DbTableOperateDto dbTableOperateDto) {
         databaseService.operateTableData(dbTableOperateDto);
@@ -138,21 +138,21 @@ public class DataBaseController {
     }
 
     @PostMapping("/select-table-data")
-    @Operation(summary = "查询表数据")
+    @Operation(summary = "Query table data")
     @SpacePreAuth(key = "DataBaseController_selectTableData_POST")
     public ApiResult<Page<JSONObject>> selectTableData(@RequestBody DbTableSelectDataDto dbTableSelectDataDto) {
         return ApiResult.success(databaseService.selectTableData(dbTableSelectDataDto));
     }
 
     @GetMapping("/copy-table")
-    @Operation(summary = "复制表")
+    @Operation(summary = "Copy table")
     public ApiResult<Void> copyTable(Long tbId) {
         databaseService.copyTable(tbId);
         return ApiResult.success();
     }
 
     @PostMapping("/import-table-data")
-    @Operation(summary = "导入表数据")
+    @Operation(summary = "Import table data")
     @SpacePreAuth(key = "DataBaseController_importTableData_POST")
     public ApiResult<Void> importTableData(Long tbId, MultipartFile file, Integer execDev) {
         databaseService.importTableData(tbId, execDev, file);
@@ -160,14 +160,14 @@ public class DataBaseController {
     }
 
     @PostMapping("/export-table-data")
-    @Operation(summary = "导出表数据")
+    @Operation(summary = "Export table data")
     @SpacePreAuth(key = "DataBaseController_exportTableData_POST")
     public void exportTableData(@RequestBody DatabaseExportDto databaseExportDto, HttpServletResponse response) {
         databaseService.exportTableData(databaseExportDto, response);
     }
 
     @GetMapping("/table-template")
-    @Operation(summary = "获取表模版文件")
+    @Operation(summary = "Get table template file")
     @SpacePreAuth(key = "DataBaseController_getTableTemplateFile_GET")
     public void getTableTemplateFile(HttpServletResponse response, Long tbId) {
         databaseService.getTableTemplateFile(response, tbId);
