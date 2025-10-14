@@ -41,6 +41,8 @@ public class SecurityConfig {
                 // Enable OAuth2 resource server support with JWT format tokens
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults()))
+                // Disable CSRF as we are not using Cookies for session tracking
+                .csrf(AbstractHttpConfigurer::disable)
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(restfulAuthenticationEntryPoint)
                         .accessDeniedHandler(restfulAccessDeniedHandler))
