@@ -124,7 +124,7 @@ public class WorkflowController {
      */
     @PostMapping
     @SpacePreAuth(
-            key = "WorkflowController_getDimension_POST",
+            key = "WorkflowController_create_POST",
             module = "Workflow",
             point = "Workflow Creation",
             description = "Workflow Creation")

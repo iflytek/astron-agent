@@ -51,7 +51,7 @@ public class MyBotController {
     /**
      * Display assistants I created
      */
-    @SpacePreAuth(key = "ChatBotMarketController_getCreatedList_POST")
+    @SpacePreAuth(key = "MyBotController_getCreatedList_POST")
     @PostMapping("/list")
     @Operation(summary = "User-created assistant presentation")
     public ApiResult<MyBotPageDTO> getCreatedList(@RequestBody MyBotParamDTO myBotParamDTO) {
@@ -61,7 +61,7 @@ public class MyBotController {
     /**
      * Delete assistant
      */
-    @SpacePreAuth(key = "ChatBotController_delete_POST")
+    @SpacePreAuth(key = "MyBotController_deleteBot_POST")
     @PostMapping("/delete")
     @Operation(summary = "User-created assistant deletion")
     public ApiResult<Boolean> deleteBot(@RequestParam(value = "botId") Integer botId) {
@@ -71,7 +71,7 @@ public class MyBotController {
     /**
      * Get bot detail information
      */
-    @SpacePreAuth(key = "ChatBotController_botDetail_POST")
+    @SpacePreAuth(key = "MyBotController_getBotDetail_POST")
     @PostMapping("/bot-detail")
     @Operation(summary = "Get bot detail information")
     public ApiResult<BotDetail> getBotDetail(HttpServletRequest request, @RequestParam("botId") Integer botId) {

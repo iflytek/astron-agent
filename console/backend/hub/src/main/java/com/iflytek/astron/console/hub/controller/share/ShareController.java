@@ -48,7 +48,7 @@ public class ShareController {
      * @param body CardAddBody object containing request body
      * @return Returns an ApiResult object containing share key
      */
-    @SpacePreAuth(key = "AgentController_getShareKey_POST")
+    @SpacePreAuth(key = "ShareController_getShareKey_POST")
     @PostMapping("/get-share-key")
     @Operation(summary = "Get sharing identifier")
     public ApiResult<ShareKey> getShareKey(@RequestBody CardAddBody body) {

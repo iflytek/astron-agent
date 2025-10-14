@@ -66,7 +66,7 @@ public class ToolBoxController {
 
     @GetMapping("/detail")
     @Operation(summary = "Plugin details")
-    @SpacePreAuth(key = "ToolBoxController_detail_GET")
+    @SpacePreAuth(key = "ToolBoxController_getDetail_GET")
     public Object getDetail(@RequestParam("id") Long id, Boolean temporary) {
         return toolBoxService.getDetail(id, temporary);
     }
@@ -87,7 +87,7 @@ public class ToolBoxController {
 
     @PostMapping("/debug-tool")
     @Operation(summary = "Debug plugin")
-    @SpacePreAuth(key = "ToolBoxController_debugTool_POST")
+    @SpacePreAuth(key = "ToolBoxController_debugToolV2_POST")
     public Object debugToolV2(@RequestBody ToolBoxDto toolBoxDto) {
         return toolBoxService.debugToolV2(toolBoxDto);
     }

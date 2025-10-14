@@ -57,7 +57,7 @@ public class FileController {
      * @throws BusinessException when file upload fails or validation errors occur
      */
     @PostMapping("/upload")
-    @SpacePreAuth(key = "FileController_upload_POST",
+    @SpacePreAuth(key = "FileController_uploadFile_POST",
             module = "File", point = "File Upload", description = "File Upload")
     public ApiResult<FileInfoV2> uploadFile(@RequestParam("file") MultipartFile file,
             @RequestParam("parentId") Long parentId,
@@ -163,7 +163,7 @@ public class FileController {
      * @throws BusinessException when status retrieval fails or files are not found
      */
     @PostMapping("/file-indexing-status")
-    @SpacePreAuth(key = "FileController_fileIndexingStatus_POST",
+    @SpacePreAuth(key = "FileController_getIndexingStatus_POST",
             module = "File", point = "File Indexing Status", description = "File Indexing Status")
     public ApiResult<List<FileInfoV2Dto>> getIndexingStatus(@RequestBody DealFileVO dealFileVO) {
         return ApiResult.success(fileInfoV2Service.getIndexingStatus(dealFileVO));

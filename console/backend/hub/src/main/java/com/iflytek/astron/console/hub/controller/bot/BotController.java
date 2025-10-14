@@ -118,7 +118,7 @@ public class BotController {
      * @param takeoffList
      * @return
      */
-    @SpacePreAuth(key = "ChatBotMarketController_takeoffBot_POST")
+    @SpacePreAuth(key = "BotController_takeoffBot_POST")
     @PostMapping("/take-off-bot")
     @Operation(summary = "take off agent")
     public ApiResult<Boolean> takeoffBot(HttpServletRequest request, @RequestBody TakeoffList takeoffList) {
@@ -166,7 +166,7 @@ public class BotController {
     /**
      * Copy assistant to specified assistant
      */
-    @SpacePreAuth(key = "BotV2Controller_copyBot2_POST")
+    @SpacePreAuth(key = "BotController_copyBot2_POST")
     @PostMapping("/copy-bot")
     public ApiResult<Void> copyBot2(HttpServletRequest request, @RequestParam Long botId) {
         botPermissionUtil.checkBot(Math.toIntExact(botId));

@@ -73,7 +73,7 @@ public class BotCreateController {
      * @param bot Assistant creation form
      * @return Created assistant ID
      */
-    @SpacePreAuth(key = "BotCreateController_create_POST")
+    @SpacePreAuth(key = "BotCreateController_createBot_POST")
     @PostMapping("/create")
     @RateLimit(dimension = "USER", window = 1, limit = 1)
     @Transactional
@@ -203,7 +203,7 @@ public class BotCreateController {
      * @param bot Assistant update form (must contain botId)
      * @return Update result
      */
-    @SpacePreAuth(key = "BotCreateController_update_POST")
+    @SpacePreAuth(key = "BotCreateController_updateBot_POST")
     @PostMapping("/update")
     @RateLimit(dimension = "USER", window = 1, limit = 1)
     @Transactional

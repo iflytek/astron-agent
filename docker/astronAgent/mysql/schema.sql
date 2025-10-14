@@ -292,7 +292,7 @@ CREATE TABLE `agent_space_permission`
 BEGIN;
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (1, 'Bot Management', 'testPoint', '', 'ChatBotMarketController_getCreatedList_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (1, 'Bot Management', 'testPoint', '', 'MyBotController_getCreatedList_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -308,11 +308,11 @@ VALUES (7, 'Bot Management', 'testPoint', '', 'WorkflowController_list_GET', 1, 
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (9, 'Publishing Management', 'testPoint', '', 'ChatBotMarketController_takeoffBot_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (9, 'Publishing Management', 'testPoint', '', 'BotController_takeoffBot_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (11, 'Bot Management', 'testPoint', '', 'AgentController_getShareKey_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (11, 'Bot Management', 'testPoint', '', 'ShareController_getShareKey_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -328,7 +328,7 @@ VALUES (17, 'Bot Management', 'testPoint', '', 'ChatBotController_generateAvatar
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (19, 'Bot Management', 'testPoint', '', 'BotV2Controller_copyBot2_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (19, 'Bot Management', 'testPoint', '', 'BotController_copyBot2_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -336,7 +336,7 @@ VALUES (21, 'Publishing Management', 'testPoint', '', 'ChatBotMarketController_u
         '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (23, 'Bot Management', 'testPoint', '', 'ChatBotController_delete_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (23, 'Bot Management', 'testPoint', '', 'MyBotController_deleteBot_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -568,7 +568,7 @@ VALUES (143, 'Evaluation Task Temporary Storage Echo', 'Evaluation Task Temporar
         '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (145, 'Model Management', 'Add/Edit Model', '', 'ModelController_create_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (145, 'Model Management', 'Add/Edit Model', '', 'ModelController_validateModel_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -580,7 +580,7 @@ VALUES (149, '', '', '', 'DataBaseController_deleteDatabase_GET', 1, 1, 1, 0, '2
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (151, 'Knowledge Base', 'Knowledge Base Details', '', 'RepoController_detail_GET', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (151, 'Knowledge Base', 'Knowledge Base Details', '', 'RepoController_getDetail_GET', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -683,7 +683,7 @@ VALUES (201, '', '', '', 'DataBaseController_operateTableData_POST', 1, 1, 1, 0,
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (203, 'Workflow', 'Add Workflow', '', 'WorkflowController_getDimension_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (203, 'Workflow', 'Add Workflow', '', 'WorkflowController_create_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -699,7 +699,7 @@ VALUES (209, 'Evaluation Set', 'Download Evaluation Set', '', 'EvalSetController
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (211, '', '', '', 'ToolBoxController_debugTool_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
+VALUES (211, '', '', '', 'ToolBoxController_debugToolV2_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
 VALUES (213, 'File', 'createHtmlFile', '', 'FileController_createHtmlFile_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
@@ -710,7 +710,7 @@ VALUES (215, 'Workflow', 'Edit Workflow', '', 'WorkflowController_update_PUT', 1
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (217, 'File', 'fileIndexingStatus', '', 'FileController_fileIndexingStatus_POST', 1, 1, 1, 0,
+VALUES (217, 'File', 'fileIndexingStatus', '', 'FileController_getIndexingStatus_POST', 1, 1, 1, 0,
         '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -742,14 +742,14 @@ VALUES (231, 'Knowledge Base', 'Enable Knowledge Base', '', 'RepoController_enab
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (233, 'Model Management', 'Delete Model', '', 'ModelController_delete_GET', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (233, 'Model Management', 'Delete Model', '', 'ModelController_validateModel_GET', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
 VALUES (235, '', '', '', 'ToolBoxController_updateTool_PUT', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (237, 'File', 'File Upload', '', 'FileController_upload_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (237, 'File', 'File Upload', '', 'FileController_uploadFile_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -793,7 +793,7 @@ VALUES (257, 'Evaluation Task Scenario', 'Evaluation Task Single Details', '', '
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (259, '', '', '', 'ToolBoxController_detail_GET', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
+VALUES (259, '', '', '', 'ToolBoxController_getDetail_GET', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
 VALUES (261, 'Space User Management', '', '', 'SpaceUserController_getUserLimit_GET', 1, 1, 0, 0, '2025-01-01 00:00:00',
@@ -836,7 +836,7 @@ VALUES (278, 'Model Management', 'Add/Edit Local Model', '', 'ModelController_lo
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (279, 'Model Management', 'Get Model File Directory List', '', 'ModelController_localModelList_POST', 1, 1, 1, 0,
+VALUES (279, 'Model Management', 'Get Model File Directory List', '', 'ModelController_localModelList_GET', 1, 1, 1, 0,
         '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
@@ -844,15 +844,15 @@ VALUES (280, 'Invite Management', '', '', 'InviteRecordController_spaceSearchUse
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (281, 'Agent Details', '', '', 'ChatBotController_botDetail_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
+VALUES (281, 'Agent Details', '', '', 'MyBotController_getBotDetail_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
         '2025-01-01 00:00:00');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (282, 'Create Bot', '', '', 'BotCreateController_create_POST', 1, 1, 1, 0, '2025-08-11 09:19:40',
+VALUES (282, 'Create Bot', '', '', 'BotCreateController_createBot_POST', 1, 1, 1, 0, '2025-08-11 09:19:40',
         '2025-09-20 16:00:44');
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
-VALUES (283, 'Update Bot', '', '', 'BotCreateController_update_POST', 1, 1, 1, 0, '2025-08-11 09:19:40',
+VALUES (283, 'Update Bot', '', '', 'BotCreateController_updateBot_POST', 1, 1, 1, 0, '2025-08-11 09:19:40',
         '2025-08-11 09:19:40');
 COMMIT;
 

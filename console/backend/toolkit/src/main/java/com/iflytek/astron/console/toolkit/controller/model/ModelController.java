@@ -36,7 +36,7 @@ public class ModelController {
      * @return
      */
     @PostMapping
-    @SpacePreAuth(key = "ModelController_create_POST", module = "Model Management", point = "Add/Edit Model", description = "Add/Edit Model")
+    @SpacePreAuth(key = "ModelController_validateModel_POST", module = "Model Management", point = "Add/Edit Model", description = "Add/Edit Model")
     public ApiResult validateModel(@RequestBody @Validated ModelValidationRequest request, HttpServletRequest httpServletRequest) {
         String userId = UserInfoManagerHandler.getUserId();
         request.setUid(userId);
@@ -44,7 +44,7 @@ public class ModelController {
     }
 
     @GetMapping("/delete")
-    @SpacePreAuth(key = "ModelController_delete_GET", module = "Model Management", point = "Delete Model", description = "Delete Model")
+    @SpacePreAuth(key = "ModelController_validateModel_GET", module = "Model Management", point = "Delete Model", description = "Delete Model")
     public ApiResult validateModel(@RequestParam(name = "modelId") Long modelId, HttpServletRequest request) {
         return modelService.checkAndDelete(modelId, request);
     }
@@ -151,7 +151,7 @@ public class ModelController {
      * @return
      */
     @GetMapping("/local-model/list")
-    @SpacePreAuth(key = "ModelController_localModelList_POST", module = "Model Management", point = "Get model file directory list", description = "Get model file directory list")
+    @SpacePreAuth(key = "ModelController_localModelList_GET", module = "Model Management", point = "Get model file directory list", description = "Get model file directory list")
     public ApiResult localModelList() {
         return ApiResult.success(modelService.localModelList());
     }

@@ -161,7 +161,7 @@ public class RepoController {
      * @throws RuntimeException if repository detail retrieval fails due to system error
      */
     @GetMapping("/detail")
-    @SpacePreAuth(key = "RepoController_detail_GET",
+    @SpacePreAuth(key = "RepoController_getDetail_GET",
             module = "Knowledge Base", point = "Repository Detail", description = "Repository Detail")
     public ApiResult<RepoDto> getDetail(@RequestParam("id") Long id, @RequestParam(value = "tag", defaultValue = "") String tag, HttpServletRequest request) {
         return ApiResult.success(repoService.getDetail(id, tag, request));
