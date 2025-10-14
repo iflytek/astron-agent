@@ -30,7 +30,7 @@ public class EnterpriseSpaceServiceImpl implements EnterpriseSpaceService {
 
     @Override
     @Transactional
-    @Cacheable(value = "space:space_payer", key = "#spaceId", cacheManager = "cacheManager10s")
+    @Cacheable(value = "space:space_payer", key = "#spaceId", unless = "#result == null", cacheManager = "cacheManager10s")
     public String getUidByCurrentSpaceId(Long spaceId) {
         if (spaceId == null) {
             return null;
@@ -48,7 +48,7 @@ public class EnterpriseSpaceServiceImpl implements EnterpriseSpaceService {
     }
 
     @Override
-    @Cacheable(value = "space:space_user", key = "#spaceId + '_' + #uid", cacheManager = "cacheManager10s")
+    @Cacheable(value = "space:space_user", key = "#spaceId + '_' + #uid", unless = "#result == null", cacheManager = "cacheManager10s")
     public SpaceUser checkUserBelongSpace(Long spaceId, String uid) {
         return spaceUserService.getSpaceUserByUid(spaceId, uid);
     }
@@ -60,7 +60,7 @@ public class EnterpriseSpaceServiceImpl implements EnterpriseSpaceService {
     }
 
     @Override
-    @Cacheable(value = "space:enterprise_user", key = "#enterpriseId + '_' + #uid", cacheManager = "cacheManager10s")
+    @Cacheable(value = "space:enterprise_user", key = "#enterpriseId + '_' + #uid", unless = "#result == null", cacheManager = "cacheManager10s")
     public EnterpriseUser checkUserBelongEnterprise(Long enterpriseId, String uid) {
         return enterpriseUserService.getEnterpriseUserByUid(enterpriseId, uid);
     }
@@ -72,13 +72,13 @@ public class EnterpriseSpaceServiceImpl implements EnterpriseSpaceService {
     }
 
     @Override
-    @Cacheable(value = "space:space_permission", key = "#key", cacheManager = "cacheManager10s")
+    @Cacheable(value = "space:space_permission", key = "#key", unless = "#result == null", cacheManager = "cacheManager10s")
     public SpacePermission getSpacePermissionByKey(String key) {
         return spacePermissionService.getSpacePermissionByKey(key);
     }
 
     @Override
-    @Cacheable(value = "space:enterprise_permission", key = "#key", cacheManager = "cacheManager10s")
+    @Cacheable(value = "space:enterprise_permission", key = "#key", unless = "#result == null", cacheManager = "cacheManager10s")
     public EnterprisePermission getEnterprisePermissionByKey(String key) {
         return enterprisePermissionService.getEnterprisePermissionByKey(key);
     }
