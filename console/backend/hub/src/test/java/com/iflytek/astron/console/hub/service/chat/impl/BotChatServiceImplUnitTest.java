@@ -466,7 +466,7 @@ class BotChatServiceImplUnitTest {
         market.setBotStatus(ShelfStatusEnum.ON_SHELF.getCode());
         market.setPrompt("test prompt");
         market.setSupportContext(1);
-        market.setModel("x1");  // Use Spark model to trigger sparkChatService
+        market.setModel("x1"); // Use Spark model to trigger sparkChatService
         market.setOpenedTool("ifly_search");
         market.setVersion(1);
         market.setModelId(null);
@@ -481,7 +481,7 @@ class BotChatServiceImplUnitTest {
                 .botName("Test Bot")
                 .prompt("test prompt")
                 .supportContext(1)
-                .model("x1")  // Use Spark model to trigger sparkChatService
+                .model("x1") // Use Spark model to trigger sparkChatService
                 .openedTool("ifly_search")
                 .version(1)
                 .modelId(null)

@@ -388,7 +388,8 @@ class ChatHistoryServiceImplTest {
         try (MockedStatic<I18nUtil> mockedI18nUtil = mockStatic(I18nUtil.class)) {
             // Mock I18n messages
             mockedI18nUtil.when(() -> I18nUtil.getMessage("loose.prefix.prompt"))
-                    .thenReturn("Please use the following document fragments as known information:[]\nPlease answer the question accurately based on the original text above and your knowledge\nWhen answering user questions, please answer in the language the user asked\nIf the above content cannot answer the user information, combine your knowledge to answer the user's question\nAnswer the user's questions concisely and professionally, and do not add fabricated content to the answer.");
+                    .thenReturn(
+                            "Please use the following document fragments as known information:[]\nPlease answer the question accurately based on the original text above and your knowledge\nWhen answering user questions, please answer in the language the user asked\nIf the above content cannot answer the user information, combine your knowledge to answer the user's question\nAnswer the user's questions concisely and professionally, and do not add fabricated content to the answer.");
             mockedI18nUtil.when(() -> I18nUtil.getMessage("loose.suffix.prompt"))
                     .thenReturn("\nMy next input is: {{}}");
 

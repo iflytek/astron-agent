@@ -7,6 +7,7 @@ import com.iflytek.astron.console.toolkit.common.constant.CommonConst;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
 import com.iflytek.astron.console.toolkit.config.properties.CommonConfig;
 import com.iflytek.astron.console.toolkit.entity.core.workflow.FlowProtocol;
+import com.iflytek.astron.console.toolkit.entity.enumVo.DBOperateEnum;
 import com.iflytek.astron.console.toolkit.util.OkHttpUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -428,7 +429,8 @@ class CoreSystemServiceTest {
                 http.when(() -> OkHttpUtil.post(anyString(), anyMap(), anyString()))
                     .thenReturn(ok(data));
 
-                assertThatThrownBy(() -> service.execDML("select *", "u", null, 1L, 1, 1))
+                // Use SELECT operation type to trigger the parsing logic that will fail
+                assertThatThrownBy(() -> service.execDML("select *", "u", null, 1L, DBOperateEnum.SELECT.getCode(), 1))
                     .isInstanceOf(BusinessException.class)
                     .hasMessageContaining("exec dml get search_data error = ,");
             }
