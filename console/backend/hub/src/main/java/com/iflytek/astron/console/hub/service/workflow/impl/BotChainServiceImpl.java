@@ -127,7 +127,7 @@ public class BotChainServiceImpl implements BotChainService {
      *
      * @param original Original node ID string
      * @return New node ID string, if the original string contains a colon, add a random UUID after the
-     * colon, otherwise throw an exception
+     *         colon, otherwise throw an exception
      */
     public static String getNewNodeId(String original) {
         int colonIndex = original.indexOf(':');

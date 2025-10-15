@@ -65,7 +65,7 @@ public class WorkflowBotController {
     @PostMapping("/createFromTemplate")
     @Transactional(rollbackFor = Exception.class)
     public ApiResult<BotInfoDto> createFromTemplate(HttpServletRequest request,
-                                                    @RequestBody MaasDuplicate maasDuplicate) {
+            @RequestBody MaasDuplicate maasDuplicate) {
         String uid = RequestContextUtil.getUID();
         return ApiResult.success(botMaasService.createFromTemplate(uid, maasDuplicate, request));
     }
@@ -73,7 +73,7 @@ public class WorkflowBotController {
     @PostMapping("/templateList")
     @Operation(summary = "work flow template", description = "Get workflow templates")
     public ApiResult<List<MaasTemplate>> templateList(HttpServletRequest request,
-                                                      @RequestBody WorkflowTemplateQueryDto queryDto) {
+            @RequestBody WorkflowTemplateQueryDto queryDto) {
         return ApiResult.success(botMaasService.templateList(queryDto));
     }
 

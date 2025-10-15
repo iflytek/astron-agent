@@ -347,132 +347,213 @@ public class BotAIServiceImpl implements BotAIService {
         BotGenerationDTO botDetail = new BotGenerationDTO();
 
         try {
-            // Get field mappings from database
             Map<String, List<String>> fieldMappings = getFieldMappings();
-
-            // Parse structured response
             String[] lines = response.split("\n");
-            String botName = null, botTypeName = null, botDesc = null;
-            String roleDesc = null, targetTask = null, requirement = null, inputExample = null;
 
-            for (int i = 0; i < lines.length; i++) {
-                String line = lines[i].trim();
-
-                if (matchesFieldMapping(line, fieldMappings.get("assistant_name"))) {
-                    botName = extractValue(line);
-                } else if (matchesFieldMapping(line, fieldMappings.get("assistant_category"))) {
-                    botTypeName = extractValue(line);
-                } else if (matchesFieldMapping(line, fieldMappings.get("assistant_description"))) {
-                    botDesc = extractValue(line);
-                } else if (matchesFieldMapping(line, fieldMappings.get("role_setting"))) {
-                    roleDesc = extractValue(line);
-                } else if (matchesFieldMapping(line, fieldMappings.get("target_task"))) {
-                    targetTask = extractValue(line);
-                } else if (matchesFieldMapping(line, fieldMappings.get("requirement_description"))) {
-                    requirement = extractValue(line);
-                } else if (matchesFieldMapping(line, fieldMappings.get("input_examples"))) {
-                    StringBuilder exampleBuilder = new StringBuilder(extractValue(line));
-
-                    for (int j = i + 1; j < lines.length; j++) {
-                        String nextLine = lines[j].trim();
-                        if (StringUtils.isBlank(nextLine)) {
-                            continue;
-                        }
-
-                        boolean isNextField = false;
-                        for (List<String> patterns : fieldMappings.values()) {
-                            if (matchesFieldMapping(nextLine, patterns)) {
-                                isNextField = true;
-                                break;
-                            }
-                        }
-
-                        if (isNextField) {
-                            break;
-                        }
-
-                        if (exampleBuilder.length() > 0) {
-                            exampleBuilder.append("\n");
-                        }
-                        exampleBuilder.append(nextLine);
-                        i = j;
-                    }
-
-                    inputExample = exampleBuilder.toString();
-                }
-            }
+            // Parse fields from response
+            ParsedBotFields fields = parseFieldsFromLines(lines, fieldMappings);
 
             // Map assistant category to numeric type
-            int botType = mapBotType(botTypeName);
+            int botType = mapBotType(fields.botTypeName);
 
-            // Build return data
-            botDetail.setBotName(StringUtils.isNotBlank(botName) ? botName : "AI Assistant");
-            botDetail.setBotDesc(StringUtils.isNotBlank(botDesc) ? botDesc : "Intelligent Assistant");
-            botDetail.setBotType(botType);
-            botDetail.setPromptType(1);
-            botDetail.setSupportContext(0);
-            botDetail.setSupportSystem(0);
-            botDetail.setVersion(1);
-            botDetail.setBotStatus(-9);
+            // Build basic bot details
+            populateBotBasicInfo(botDetail, fields, botType);
 
             // Build prompt structure
-            List<PromptStructDTO> promptStructList = new ArrayList<>();
-            Map<String, String> labels = getPromptStructLabels();
-
-            if (StringUtils.isNotBlank(roleDesc)) {
-                PromptStructDTO roleStruct = new PromptStructDTO();
-                roleStruct.setPromptKey(labels.get("role_setting"));
-                roleStruct.setPromptValue(roleDesc);
-                promptStructList.add(roleStruct);
-            }
-            if (StringUtils.isNotBlank(targetTask)) {
-                PromptStructDTO targetStruct = new PromptStructDTO();
-                targetStruct.setPromptKey(labels.get("target_task"));
-                targetStruct.setPromptValue(targetTask);
-                promptStructList.add(targetStruct);
-            }
-            if (StringUtils.isNotBlank(requirement)) {
-                PromptStructDTO reqStruct = new PromptStructDTO();
-                reqStruct.setPromptKey(labels.get("requirement_description"));
-                reqStruct.setPromptValue(requirement);
-                promptStructList.add(reqStruct);
-            }
+            List<PromptStructDTO> promptStructList = buildPromptStructList(fields);
             botDetail.setPromptStructList(promptStructList);
 
             // Process input examples
-            if (StringUtils.isNotBlank(inputExample)) {
-                List<String> exampleList;
+            List<String> examples = processInputExamples(fields.inputExample);
+            botDetail.setInputExample(examples);
 
-                if (inputExample.contains("|")) {
-                    String[] examples = inputExample.replace("||", "|").split("\\|");
-                    exampleList = new ArrayList<>();
-                    for (String example : examples) {
-                        if (StringUtils.isNotBlank(example.trim()) && exampleList.size() < 3) {
-                            exampleList.add(example.trim());
-                        }
-                    }
-                } else {
-                    exampleList = parseNumberedExamples(inputExample);
-                }
-
-                botDetail.setInputExample(exampleList.size() > 3 ? exampleList.subList(0, 3) : exampleList);
-            } else {
-                botDetail.setInputExample(new ArrayList<>());
-            }
-
-            log.info("Successfully parsed assistant configuration: botName={}, botType={}", botName, botType);
+            log.info("Successfully parsed assistant configuration: botName={}, botType={}",
+                    fields.botName, botType);
 
         } catch (Exception e) {
             log.error("Failed to parse assistant configuration", e);
-            // Return basic configuration as fallback
-            botDetail.setBotName("AI Assistant");
-            botDetail.setBotDesc("Intelligent Assistant");
-            botDetail.setBotType(1);
-            botDetail.setPromptStructList(new ArrayList<>());
-            botDetail.setInputExample(new ArrayList<>());
+            setDefaultBotDetails(botDetail);
         }
 
         return botDetail;
+    }
+
+    /**
+     * Parse fields from response lines
+     */
+    private ParsedBotFields parseFieldsFromLines(String[] lines, Map<String, List<String>> fieldMappings) {
+        ParsedBotFields fields = new ParsedBotFields();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+
+            if (matchesFieldMapping(line, fieldMappings.get("assistant_name"))) {
+                fields.botName = extractValue(line);
+            } else if (matchesFieldMapping(line, fieldMappings.get("assistant_category"))) {
+                fields.botTypeName = extractValue(line);
+            } else if (matchesFieldMapping(line, fieldMappings.get("assistant_description"))) {
+                fields.botDesc = extractValue(line);
+            } else if (matchesFieldMapping(line, fieldMappings.get("role_setting"))) {
+                fields.roleDesc = extractValue(line);
+            } else if (matchesFieldMapping(line, fieldMappings.get("target_task"))) {
+                fields.targetTask = extractValue(line);
+            } else if (matchesFieldMapping(line, fieldMappings.get("requirement_description"))) {
+                fields.requirement = extractValue(line);
+            } else if (matchesFieldMapping(line, fieldMappings.get("input_examples"))) {
+                fields.inputExample = extractMultiLineExample(lines, i, fieldMappings);
+                // Skip processed lines
+                i = findNextFieldIndex(lines, i + 1, fieldMappings) - 1;
+            }
+        }
+
+        return fields;
+    }
+
+    /**
+     * Extract multi-line example text
+     */
+    private String extractMultiLineExample(String[] lines, int startIndex,
+            Map<String, List<String>> fieldMappings) {
+        StringBuilder exampleBuilder = new StringBuilder(extractValue(lines[startIndex].trim()));
+
+        for (int j = startIndex + 1; j < lines.length; j++) {
+            String nextLine = lines[j].trim();
+            if (StringUtils.isBlank(nextLine)) {
+                continue;
+            }
+
+            if (isAnyFieldMapping(nextLine, fieldMappings)) {
+                break;
+            }
+
+            if (exampleBuilder.length() > 0) {
+                exampleBuilder.append("\n");
+            }
+            exampleBuilder.append(nextLine);
+        }
+
+        return exampleBuilder.toString();
+    }
+
+    /**
+     * Find next field index
+     */
+    private int findNextFieldIndex(String[] lines, int startIndex,
+            Map<String, List<String>> fieldMappings) {
+        for (int i = startIndex; i < lines.length; i++) {
+            if (isAnyFieldMapping(lines[i].trim(), fieldMappings)) {
+                return i;
+            }
+        }
+        return lines.length;
+    }
+
+    /**
+     * Check if line matches any field mapping
+     */
+    private boolean isAnyFieldMapping(String line, Map<String, List<String>> fieldMappings) {
+        for (List<String> patterns : fieldMappings.values()) {
+            if (matchesFieldMapping(line, patterns)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Populate basic bot information
+     */
+    private void populateBotBasicInfo(BotGenerationDTO botDetail, ParsedBotFields fields, int botType) {
+        botDetail.setBotName(StringUtils.isNotBlank(fields.botName) ? fields.botName : "AI Assistant");
+        botDetail.setBotDesc(StringUtils.isNotBlank(fields.botDesc) ? fields.botDesc : "Intelligent Assistant");
+        botDetail.setBotType(botType);
+        botDetail.setPromptType(1);
+        botDetail.setSupportContext(0);
+        botDetail.setSupportSystem(0);
+        botDetail.setVersion(1);
+        botDetail.setBotStatus(-9);
+    }
+
+    /**
+     * Build prompt structure list
+     */
+    private List<PromptStructDTO> buildPromptStructList(ParsedBotFields fields) {
+        List<PromptStructDTO> promptStructList = new ArrayList<>();
+        Map<String, String> labels = getPromptStructLabels();
+
+        addPromptStruct(promptStructList, labels.get("role_setting"), fields.roleDesc);
+        addPromptStruct(promptStructList, labels.get("target_task"), fields.targetTask);
+        addPromptStruct(promptStructList, labels.get("requirement_description"), fields.requirement);
+
+        return promptStructList;
+    }
+
+    /**
+     * Add prompt struct if value is not blank
+     */
+    private void addPromptStruct(List<PromptStructDTO> list, String key, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            PromptStructDTO struct = new PromptStructDTO();
+            struct.setPromptKey(key);
+            struct.setPromptValue(value);
+            list.add(struct);
+        }
+    }
+
+    /**
+     * Process input examples
+     */
+    private List<String> processInputExamples(String inputExample) {
+        if (StringUtils.isBlank(inputExample)) {
+            return new ArrayList<>();
+        }
+
+        List<String> exampleList;
+        if (inputExample.contains("|")) {
+            exampleList = parsePipeDelimitedExamples(inputExample);
+        } else {
+            exampleList = parseNumberedExamples(inputExample);
+        }
+
+        return exampleList.size() > 3 ? exampleList.subList(0, 3) : exampleList;
+    }
+
+    /**
+     * Parse pipe-delimited examples
+     */
+    private List<String> parsePipeDelimitedExamples(String inputExample) {
+        String[] examples = inputExample.replace("||", "|").split("\\|");
+        List<String> exampleList = new ArrayList<>();
+        for (String example : examples) {
+            if (StringUtils.isNotBlank(example.trim()) && exampleList.size() < 3) {
+                exampleList.add(example.trim());
+            }
+        }
+        return exampleList;
+    }
+
+    /**
+     * Set default bot details
+     */
+    private void setDefaultBotDetails(BotGenerationDTO botDetail) {
+        botDetail.setBotName("AI Assistant");
+        botDetail.setBotDesc("Intelligent Assistant");
+        botDetail.setBotType(1);
+        botDetail.setPromptStructList(new ArrayList<>());
+        botDetail.setInputExample(new ArrayList<>());
+    }
+
+    /**
+     * Inner class to hold parsed bot fields
+     */
+    private static class ParsedBotFields {
+        String botName;
+        String botTypeName;
+        String botDesc;
+        String roleDesc;
+        String targetTask;
+        String requirement;
+        String inputExample;
     }
 
     /**
@@ -734,50 +815,91 @@ public class BotAIServiceImpl implements BotAIService {
             return result;
         }
 
+        // Try pattern-based extraction first
+        result = tryPatternBasedExtraction(text);
+
+        // Fallback to line-based extraction if needed
+        if (result.isEmpty()) {
+            result = tryLineBasedExtraction(text);
+        }
+
+        return result;
+    }
+
+    /**
+     * Try to extract examples using pattern matching
+     */
+    private List<String> tryPatternBasedExtraction(String text) {
+        List<String> result = new ArrayList<>();
+
         // Non-greedy capture between markers; DOTALL for multi-line
         Pattern p = Pattern.compile("(?s)1\\.\\s*(.*?)(?:\\n|\r|$)\\s*2\\.\\s*(.*?)(?:\\n|\r|$)\\s*3\\.\\s*(.*?)(?:(?:\\n|\r)\\s*4\\.|$)");
         Matcher m = p.matcher(text);
+
         if (m.find()) {
             for (int i = 1; i <= 3; i++) {
-                String seg = StringUtils.trimToEmpty(m.group(i));
-                seg = seg.replaceAll("(?s)\\n\\s*[1-9]\\.\\s*.*$", "").trim();
-
-                if (seg.startsWith("\"") && seg.endsWith("\"") && seg.length() > 1) {
-                    seg = seg.substring(1, seg.length() - 1).trim();
-                } else if (seg.startsWith("'") && seg.endsWith("'") && seg.length() > 1) {
-                    seg = seg.substring(1, seg.length() - 1).trim();
-                }
-
+                String seg = cleanExtractedSegment(m.group(i));
                 if (StringUtils.isNotBlank(seg)) {
                     result.add(seg);
                 }
             }
         }
 
-        if (result.size() >= 1) {
-            return result;
+        return result;
+    }
+
+    /**
+     * Clean extracted segment by removing unwanted patterns
+     */
+    private String cleanExtractedSegment(String segment) {
+        String seg = StringUtils.trimToEmpty(segment);
+        seg = seg.replaceAll("(?s)\\n\\s*[1-9]\\.\\s*.*$", "").trim();
+        return removeQuotes(seg);
+    }
+
+    /**
+     * Remove surrounding quotes from string
+     */
+    private String removeQuotes(String text) {
+        if (text.startsWith("\"") && text.endsWith("\"") && text.length() > 1) {
+            return text.substring(1, text.length() - 1).trim();
         }
+        if (text.startsWith("'") && text.endsWith("'") && text.length() > 1) {
+            return text.substring(1, text.length() - 1).trim();
+        }
+        return text;
+    }
 
-        // Fallback: try simple line-based extraction
+    /**
+     * Try to extract examples using line-based approach
+     */
+    private List<String> tryLineBasedExtraction(String text) {
+        List<String> result = new ArrayList<>();
         String[] lines = text.split("\r?\n");
+
         for (String line : lines) {
-            String s = StringUtils.trimToEmpty(line);
-            if (s.isEmpty())
-                continue;
-            s = s.replaceFirst("^\\s*(?:[0-9]+[\\.)]|[-•])\\s*", "").trim();
-
-            if (s.startsWith("\"") && s.endsWith("\"") && s.length() > 1) {
-                s = s.substring(1, s.length() - 1).trim();
-            } else if (s.startsWith("'") && s.endsWith("'") && s.length() > 1) {
-                s = s.substring(1, s.length() - 1).trim();
-            }
-
+            String s = cleanLineForExtraction(line);
             if (!s.isEmpty()) {
                 result.add(s);
             }
-            if (result.size() == 3)
+            if (result.size() == 3) {
                 break;
+            }
         }
+
         return result;
+    }
+
+    /**
+     * Clean line for extraction
+     */
+    private String cleanLineForExtraction(String line) {
+        String s = StringUtils.trimToEmpty(line);
+        if (s.isEmpty()) {
+            return "";
+        }
+
+        s = s.replaceFirst("^\\s*(?:[0-9]+[\\.)]|[-•])\\s*", "").trim();
+        return removeQuotes(s);
     }
 }

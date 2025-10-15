@@ -286,7 +286,7 @@ public class BotChatServiceImpl implements BotChatService {
      * @param botId Bot ID
      * @return Returns BotConfiguration object
      */
-    private BotConfiguration getBotConfiguration(Integer botId) throws BusinessException{
+    private BotConfiguration getBotConfiguration(Integer botId) throws BusinessException {
         ChatBotMarket chatBotMarket = chatBotDataService.findMarketBotByBotId(botId);
 
         if (chatBotMarket != null && ShelfStatusEnum.isOnShelf(chatBotMarket.getBotStatus())) {
