@@ -45,9 +45,10 @@ dependencies = [
     "grpc-google-iam-v1==0.12.6",
     "googleapis-common-protos==1.60.0",
     "python-dotenv==1.0.1",
-    "confluent-kafka==2.5.0",
     "pydantic-settings==2.10.1",
     "toml>=0.10.2",
     "redis==3.5.3",
     "redis-py-cluster==2.1.3",
+    "confluent-kafka>=2.12.0",
+    "botocore>=1.40.53",
 ]
