@@ -52,4 +52,5 @@ dependencies = [
     "confluent-kafka>=2.12.0",
     "botocore>=1.40.53",
     "boto3>=1.40.53",
+    "anyio>=4.10.0",
 ]

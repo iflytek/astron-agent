@@ -103,6 +103,7 @@ version = "1.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
+    { name = "anyio" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
     { name = "botocore" },
@@ -153,6 +154,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.10.5" },
+    { name = "anyio", specifier = ">=4.10.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3" },
     { name = "boto3", specifier = ">=1.40.53" },
     { name = "botocore", specifier = ">=1.40.53" },
