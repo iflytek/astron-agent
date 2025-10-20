@@ -35,7 +35,7 @@ It not only provides full-lifecycle capabilities covering model hosting, applica
 
 ### Why Choose Astron Agent?
 - **Unified Technology Base, Stable and Reliable:** Shares the same core technology with [iFLYTEK Astron Agent Platform](https://agent.xfyun.cn), inheriting its proven enterprise-grade stability.  
-- **Closed Loop of Thinking + Acting:** Deep integration of intelligent RPA enables Agents to move from “generating answers” to “automatically completing tasks.”  
+- **Closed Loop of Thinking + Acting:** Deep integration of intelligent RPA enables Agents to move from "generating answers" to "automatically completing tasks."  
 - **Dual Value for Developers and Enterprises:** Developers can quickly get started and expand, while SMEs can efficiently implement digital workflows.  
 
 ### Key Features

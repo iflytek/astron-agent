@@ -86,7 +86,7 @@ The frontend is a modern React application built with TypeScript and Vite.
 - **Routing**: React Router DOM 6.22.3
 
 ### Key Features
-- **Agent Creation**: Tools for creating and managing AI agents
+- **Agent Creation**: Create and manage AI agents
 - **Bot Center**: Central hub for bot management
 - **Chat Interface**: Real-time chat functionality
 - **Workflow Management**: Visual workflow builder
