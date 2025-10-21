@@ -114,27 +114,27 @@ class NotificationPageResponseTest {
         assertTrue(personalNotifications.stream()
                 .allMatch(n -> n.getType() == NotificationType.PERSONAL));
         assertTrue(personalNotifications.stream()
-                .anyMatch(n -> "个人消息1".equals(n.getTitle())));
+                .anyMatch(n -> "Personal Message 1".equals(n.getTitle())));
         assertTrue(personalNotifications.stream()
-                .anyMatch(n -> "个人消息2".equals(n.getTitle())));
+                .anyMatch(n -> "Personal Message 2".equals(n.getTitle())));
 
         // Verify BROADCAST type notifications
         List<NotificationDto> broadcastNotifications = groupedNotifications.get(NotificationType.BROADCAST);
         assertNotNull(broadcastNotifications);
         assertEquals(1, broadcastNotifications.size());
-        assertEquals("广播消息1", broadcastNotifications.get(0).getTitle());
+        assertEquals("Broadcast Message 1", broadcastNotifications.get(0).getTitle());
 
         // Verify SYSTEM type notifications
         List<NotificationDto> systemNotifications = groupedNotifications.get(NotificationType.SYSTEM);
         assertNotNull(systemNotifications);
         assertEquals(1, systemNotifications.size());
-        assertEquals("系统通知1", systemNotifications.get(0).getTitle());
+        assertEquals("System Notification 1", systemNotifications.get(0).getTitle());
 
         // Verify PROMOTION type notifications
         List<NotificationDto> promotionNotifications = groupedNotifications.get(NotificationType.PROMOTION);
         assertNotNull(promotionNotifications);
         assertEquals(1, promotionNotifications.size());
-        assertEquals("推广消息1", promotionNotifications.get(0).getTitle());
+        assertEquals("Promotion Message 1", promotionNotifications.get(0).getTitle());
     }
 
     @Test
@@ -158,7 +158,7 @@ class NotificationPageResponseTest {
     void testSingleTypeNotifications() {
         // Test only one type of notification
         List<NotificationDto> singleTypeNotifications = Arrays.asList(
-                testNotifications.get(0), testNotifications.get(1)); // 两个 PERSONAL 类型
+                testNotifications.get(0), testNotifications.get(1)); // two PERSONAL types
 
         NotificationPageResponse response = new NotificationPageResponse(
                 singleTypeNotifications, 0, 10, 2L, 1L);
@@ -184,7 +184,7 @@ class NotificationPageResponseTest {
         NotificationDto nullTypeNotification = new NotificationDto();
         nullTypeNotification.setId(99L);
         nullTypeNotification.setType(null);
-        nullTypeNotification.setTitle("空类型消息");
+        nullTypeNotification.setTitle("Null Type Message");
 
         List<NotificationDto> mixedNotifications = Arrays.asList(
                 testNotifications.get(0), nullTypeNotification);
@@ -201,10 +201,10 @@ class NotificationPageResponseTest {
         List<NotificationDto> systemNotifications = groupedNotifications.get(NotificationType.SYSTEM);
         assertTrue(systemNotifications.size() >= 1);
 
-        // Verify at least one notification has the title "空类型消息"
+        // Verify at least one notification has the title "Null Type Message"
         boolean hasNullTypeNotification = systemNotifications.stream()
-                .anyMatch(notification -> "空类型消息".equals(notification.getTitle()));
-        assertTrue(hasNullTypeNotification, "应该包含标题为 '空类型消息' 的通知");
+                .anyMatch(notification -> "Null Type Message".equals(notification.getTitle()));
+        assertTrue(hasNullTypeNotification, "Should contain notification with title 'Null Type Message'");
 
         assertTrue(groupedNotifications.containsKey(NotificationType.PERSONAL));
         assertEquals(1, groupedNotifications.get(NotificationType.PERSONAL).size());
