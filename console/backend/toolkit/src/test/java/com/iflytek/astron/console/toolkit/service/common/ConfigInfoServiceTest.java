@@ -47,9 +47,13 @@ class ConfigInfoServiceTest {
         f.set(service, env);
     }
 
-    /** Read MyBatis-Plus Wrapper last("...") content via reflection (for verifying getOnly limit 1 behavior) */
+    /**
+     * Read MyBatis-Plus Wrapper last("...") content via reflection (for verifying getOnly limit 1
+     * behavior)
+     */
     private static String readLastSql(Object wrapper) {
-        // lastSql field defined somewhere in AbstractWrapper level (SharedString), search along inheritance chain here
+        // lastSql field defined somewhere in AbstractWrapper level (SharedString), search along inheritance
+        // chain here
         Class<?> c = wrapper.getClass();
         while (c != null) {
             try {

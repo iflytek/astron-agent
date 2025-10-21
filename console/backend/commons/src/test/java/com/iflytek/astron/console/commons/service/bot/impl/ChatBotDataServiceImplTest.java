@@ -740,6 +740,8 @@ class ChatBotDataServiceImplTest {
         verify(chatBotBaseMapper).insert(any(ChatBotBase.class));
     }
 
-    // Note: testFindOne_WithSpaceId has been removed because it depends on the SpaceInfoUtil static utility class,
-    // which requires additional mockito-inline or integration test environment to support static method mocking in unit tests
+    // Note: testFindOne_WithSpaceId has been removed because it depends on the SpaceInfoUtil static
+    // utility class,
+    // which requires additional mockito-inline or integration test environment to support static method
+    // mocking in unit tests
 }

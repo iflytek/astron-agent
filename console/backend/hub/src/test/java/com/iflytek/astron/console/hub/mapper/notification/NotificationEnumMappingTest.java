@@ -13,7 +13,8 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit test specifically for NotificationType enum mapping compatibility - Verify MyBatis enum mapping correctness without actual database connection
+ * Unit test specifically for NotificationType enum mapping compatibility - Verify MyBatis enum
+ * mapping correctness without actual database connection
  */
 class NotificationEnumMappingTest {
 
@@ -138,7 +139,8 @@ class NotificationEnumMappingTest {
         assertEquals(2, NotificationType.SYSTEM.ordinal());
         assertEquals(3, NotificationType.PROMOTION.ordinal());
 
-        // Warning: ordinal value should not be used for persistence as adding new enum values will change ordinals
+        // Warning: ordinal value should not be used for persistence as adding new enum values will change
+        // ordinals
         // This test is mainly to ensure the order of enum values remains stable
     }
 

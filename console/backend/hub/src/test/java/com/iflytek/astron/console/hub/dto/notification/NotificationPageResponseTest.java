@@ -41,7 +41,7 @@ class NotificationPageResponseTest {
         NotificationDto broadcast1 = new NotificationDto();
         broadcast1.setId(3L);
         broadcast1.setType(NotificationType.BROADCAST);
-         broadcast1.setTitle("Broadcast Message 1");
+        broadcast1.setTitle("Broadcast Message 1");
         broadcast1.setCreatedAt(now.minusHours(2));
 
         NotificationDto system1 = new NotificationDto();
