@@ -148,7 +148,10 @@ class NotificationPageResponseTest {
         Map<NotificationType, List<NotificationDto>> groupedNotifications =
                 response.getNotificationsByType();
         assertNotNull(groupedNotifications);
-        assertEquals(0, groupedNotifications.size());
+        // 构造函数会初始化所有NotificationType枚举值的空列表
+        assertEquals(NotificationType.values().length, groupedNotifications.size());
+        // 验证所有类型的列表都是空的
+        groupedNotifications.values().forEach(list -> assertTrue(list.isEmpty()));
     }
 
     @Test
@@ -163,9 +166,16 @@ class NotificationPageResponseTest {
         Map<NotificationType, List<NotificationDto>> groupedNotifications =
                 response.getNotificationsByType();
 
-        assertEquals(1, groupedNotifications.size());
+        // 构造函数会初始化所有NotificationType枚举值
+        assertEquals(NotificationType.values().length, groupedNotifications.size());
         assertTrue(groupedNotifications.containsKey(NotificationType.PERSONAL));
         assertEquals(2, groupedNotifications.get(NotificationType.PERSONAL).size());
+        // 验证其他类型的列表都是空的
+        for (NotificationType type : NotificationType.values()) {
+            if (type != NotificationType.PERSONAL) {
+                assertTrue(groupedNotifications.get(type).isEmpty());
+            }
+        }
     }
 
     @Test

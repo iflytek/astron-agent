@@ -202,7 +202,7 @@ class BotChainServiceImplTest {
         botChainService.cloneWorkFlow(uid, sourceId, targetId, request, spaceId);
 
         // Then
-        verify(maasUtil, never()).copyWorkFlow(anyLong(), request);
+        verify(maasUtil, never()).copyWorkFlow(anyLong(), any());
         verify(userLangChainDataService, never()).insertUserLangChainInfo(any());
     }
 
@@ -215,7 +215,7 @@ class BotChainServiceImplTest {
         botChainService.cloneWorkFlow(uid, sourceId, targetId, request, spaceId);
 
         // Then
-        verify(maasUtil, never()).copyWorkFlow(anyLong(), request);
+        verify(maasUtil, never()).copyWorkFlow(anyLong(), any());
         verify(userLangChainDataService, never()).insertUserLangChainInfo(any());
     }
 

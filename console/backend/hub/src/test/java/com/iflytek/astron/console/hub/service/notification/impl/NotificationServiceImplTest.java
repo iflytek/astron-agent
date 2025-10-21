@@ -239,7 +239,10 @@ class NotificationServiceImplTest {
         assertEquals(0L, response.getUnreadCount());
         assertEquals(0, response.getTotalPages());
         assertNotNull(response.getNotificationsByType());
-        assertTrue(response.getNotificationsByType().isEmpty());
+        // NotificationPageResponse构造函数会初始化所有枚举类型的空列表
+        assertFalse(response.getNotificationsByType().isEmpty());
+        // 但是所有类型的列表应该都是空的
+        response.getNotificationsByType().values().forEach(list -> assertTrue(list.isEmpty()));
     }
 
     @Test

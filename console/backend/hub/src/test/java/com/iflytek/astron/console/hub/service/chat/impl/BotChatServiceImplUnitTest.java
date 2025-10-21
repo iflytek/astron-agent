@@ -335,18 +335,23 @@ class BotChatServiceImplUnitTest {
         String sseId = "test-sse-id";
 
         LLMInfoVo llmInfoVo = createLLMInfoVo();
+        llmInfoVo.setLlmId(100L); // 设置llmId以便checkModelBase能够正常工作
+        llmInfoVo.setServiceId("test-service-id"); // 设置serviceId
         when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
-        when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), anyLong())).thenReturn(true);
+        when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
-        doNothing().when(promptChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
 
-        // When
-        botChatService.debugChatMessageBot(text, prompt, messages, uid, openedTool, model, modelId, maasDatasetList, sseEmitter, sseId);
+        // When & Then - mock SpaceInfoUtil静态方法
+        try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
+            mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
 
-        // Then
-        verify(modelService).getDetail(eq(0), eq(modelId), isNull());
-        verify(promptChatService).chatStream(any(JSONObject.class), eq(sseEmitter), eq(sseId), isNull(), eq(false), eq(true));
-        verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+            botChatService.debugChatMessageBot(text, prompt, messages, uid, openedTool, model, modelId, maasDatasetList, sseEmitter, sseId);
+
+            verify(modelService).getDetail(eq(0), eq(modelId), isNull());
+            verify(promptChatService).chatStream(any(JSONObject.class), eq(sseEmitter), eq(sseId), isNull(), eq(false), eq(true));
+            verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        }
     }
 
     @Test

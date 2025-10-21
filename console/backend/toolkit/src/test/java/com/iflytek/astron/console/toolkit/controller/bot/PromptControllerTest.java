@@ -1,7 +1,7 @@
 package com.iflytek.astron.console.toolkit.controller.bot;
 
 import com.alibaba.fastjson2.JSONObject;
-import com.iflytek.astron.console.toolkit.common.Result;
+import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.toolkit.entity.biz.AiCode;
 import com.iflytek.astron.console.toolkit.entity.biz.AiGenerate;
 import com.iflytek.astron.console.toolkit.service.bot.PromptService;
@@ -143,10 +143,10 @@ class PromptControllerTest {
 
     /**
      * Test normal case for /prompt/next-question-advice. Should delegate the question parameter and
-     * wrap result in {@link Result}.
+     * wrap result in {@link ApiResult}.
      */
     @Test
-    @DisplayName("nqa - normal: should delegate question and wrap result into Result")
+    @DisplayName("nqa - normal: should delegate question and wrap result into ApiResult")
     void nqa_shouldDelegate_andWrapIntoResult() {
         JSONObject req = new JSONObject();
         req.put("question", "how to write tests?");
@@ -154,7 +154,7 @@ class PromptControllerTest {
 
         Object result = controller.nqa(req);
 
-        assertThat(result).isInstanceOf(Result.class);
+        assertThat(result).isInstanceOf(ApiResult.class);
         verify(promptService).nextQuestionAdvice("how to write tests?");
     }
 
@@ -169,7 +169,7 @@ class PromptControllerTest {
 
         Object result = controller.nqa(req);
 
-        assertThat(result).isInstanceOf(Result.class);
+        assertThat(result).isInstanceOf(ApiResult.class);
         verify(promptService).nextQuestionAdvice(null);
     }
 
