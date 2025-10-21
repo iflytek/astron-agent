@@ -28,7 +28,7 @@ class GroupVisibilityServiceTest {
     @Mock
     private GroupVisibilityMapper groupVisibilityMapper;
 
-    // 使用 Spy + InjectMocks：拦截 ServiceImpl 的 getOne/remove/saveBatch
+    // Use Spy + InjectMocks: intercept ServiceImpl's getOne/remove/saveBatch
     @Spy
     @InjectMocks
     private GroupVisibilityService service;

@@ -13,27 +13,27 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * 专门测试 NotificationType 枚举映射兼容性的单元测试 验证 MyBatis 枚举映射的正确性，无需实际数据库连接
+ * Unit test specifically for NotificationType enum mapping compatibility - Verify MyBatis enum mapping correctness without actual database connection
  */
 class NotificationEnumMappingTest {
 
     @Test
-    @DisplayName("验证枚举常量名与code值一致性（MyBatis映射关键）")
+    @DisplayName("Verify enum constant name and code value consistency (MyBatis mapping key)")
     void testEnumNameAndCodeConsistency() {
         for (NotificationType type : NotificationType.values()) {
             assertEquals(type.name(), type.getCode(),
-                    String.format("枚举 %s 的 name() 和 getCode() 必须一致，以确保 MyBatis 正确映射", type.name()));
+                    String.format("Enum %s name() and getCode() must be consistent to ensure MyBatis correct mapping", type.name()));
         }
     }
 
     @Test
-    @DisplayName("验证 MyBatis valueOf 映射兼容性")
+    @DisplayName("Verify MyBatis valueOf mapping compatibility")
     void testMybatisValueOfCompatibility() {
-        // MyBatis 在反序列化时会使用 valueOf(String) 方法
+        // MyBatis will use valueOf(String) method during deserialization
         String[] dbStringValues = {"PERSONAL", "BROADCAST", "SYSTEM", "PROMOTION"};
 
         for (String dbValue : dbStringValues) {
-            // 模拟 MyBatis 的枚举转换过程
+            // Simulate MyBatis enum conversion process
             NotificationType enumValue = NotificationType.valueOf(dbValue);
 
             assertNotNull(enumValue);
@@ -43,25 +43,25 @@ class NotificationEnumMappingTest {
     }
 
     @Test
-    @DisplayName("验证 MyBatis name() 序列化兼容性")
+    @DisplayName("Verify MyBatis name() serialization compatibility")
     void testMybatisNameSerializationCompatibility() {
-        // MyBatis 在序列化时会使用 name() 方法
+        // MyBatis will use name() method during serialization
         for (NotificationType type : NotificationType.values()) {
             String serializedValue = type.name();
 
-            // 验证序列化后的值可以正确反序列化
+            // Verify serialized value can be correctly deserialized
             NotificationType deserializedEnum = NotificationType.valueOf(serializedValue);
             assertEquals(type, deserializedEnum);
 
-            // 验证与 code 值一致
+            // Verify consistency with code value
             assertEquals(type.getCode(), serializedValue);
         }
     }
 
     @Test
-    @DisplayName("验证 fromCode 方法的数据库兼容性")
+    @DisplayName("Verify fromCode method database compatibility")
     void testFromCodeDatabaseCompatibility() {
-        // 模拟从数据库查询到的字符串值
+        // Simulate string value queried from database
         String[] potentialDbValues = {"PERSONAL", "BROADCAST", "SYSTEM", "PROMOTION",
                 "personal", "broadcast", "invalid", null, ""};
 
@@ -69,43 +69,43 @@ class NotificationEnumMappingTest {
             NotificationType result = NotificationType.fromCode(dbValue);
 
             if (Arrays.asList("PERSONAL", "BROADCAST", "SYSTEM", "PROMOTION").contains(dbValue)) {
-                assertNotNull(result, "有效的数据库值 " + dbValue + " 应该返回对应的枚举");
+                assertNotNull(result, "Valid database value " + dbValue + " should return corresponding enum");
                 assertEquals(dbValue, result.getCode());
             } else {
-                assertNull(result, "无效的数据库值 " + dbValue + " 应该返回 null");
+                assertNull(result, "Invalid database value " + dbValue + " should return null");
             }
         }
     }
 
     @Test
-    @DisplayName("验证 NotificationDto 类型分组功能的枚举兼容性")
+    @DisplayName("Verify NotificationDto type grouping functionality enum compatibility")
     void testNotificationDtoTypeGroupingCompatibility() {
-        // 创建模拟的 NotificationDto 列表
+        // Create mock NotificationDto list
         List<NotificationDto> notifications = createMockNotificationDtos();
 
-        // 使用 Stream API 按类型分组（模拟 NotificationPageResponse 的逻辑）
+        // Use Stream API to group by type (simulating NotificationPageResponse logic)
         Map<NotificationType, List<NotificationDto>> groupedByType = notifications.stream()
                 .collect(Collectors.groupingBy(NotificationDto::getType));
 
-        // 验证分组结果
-        assertEquals(4, groupedByType.size(), "应该有4种不同的通知类型");
+        // Verify grouping result
+        assertEquals(4, groupedByType.size(), "Should have 4 different notification types");
 
         for (NotificationType type : NotificationType.values()) {
             assertTrue(groupedByType.containsKey(type),
-                    "分组结果应该包含" + type.name() + "类型");
+                    "Grouping result should contain " + type.name() + " type");
 
             List<NotificationDto> typeNotifications = groupedByType.get(type);
             assertFalse(typeNotifications.isEmpty());
 
-            // 验证该组中的所有通知都是相同类型
-            typeNotifications.forEach(dto -> assertEquals(type, dto.getType(), "分组中的通知类型应该一致"));
+            // Verify all notifications in the group are of the same type
+            typeNotifications.forEach(dto -> assertEquals(type, dto.getType(), "Notification types in the group should be consistent"));
         }
     }
 
     @Test
-    @DisplayName("验证空类型处理的兼容性")
+    @DisplayName("Verify null type handling compatibility")
     void testNullTypeHandlingCompatibility() {
-        // 创建包含 null 类型的通知
+        // Create notification with null type
         NotificationDto nullTypeDto = new NotificationDto();
         nullTypeDto.setId(999L);
         nullTypeDto.setType(null);
@@ -114,45 +114,45 @@ class NotificationEnumMappingTest {
         List<NotificationDto> notifications = createMockNotificationDtos();
         notifications.add(nullTypeDto);
 
-        // 测试分组时对 null 类型的处理（使用与 NotificationPageResponse 相同的逻辑）
+        // Test null type handling during grouping (using the same logic as NotificationPageResponse)
         Map<NotificationType, List<NotificationDto>> groupedByType = notifications.stream()
                 .collect(Collectors.groupingBy(dto -> dto.getType() != null ? dto.getType() : NotificationType.SYSTEM));
 
-        // 验证 null 类型被映射为 SYSTEM 类型
-        assertTrue(groupedByType.containsKey(NotificationType.SYSTEM), "应该包含 SYSTEM 类型的分组");
+        // Verify null type is mapped to SYSTEM type
+        assertTrue(groupedByType.containsKey(NotificationType.SYSTEM), "Should contain SYSTEM type grouping");
         List<NotificationDto> systemNotifications = groupedByType.get(NotificationType.SYSTEM);
-        assertTrue(systemNotifications.size() >= 1, "SYSTEM 类型分组应该至少有一个元素");
+        assertTrue(systemNotifications.size() >= 1, "SYSTEM type grouping should have at least one element");
 
-        // 验证包含 null 类型的通知
+        // Verify notifications containing null type
         boolean hasNullTypeNotification = systemNotifications.stream()
                 .anyMatch(dto -> "空类型通知".equals(dto.getTitle()));
-        assertTrue(hasNullTypeNotification, "应该包含标题为 '空类型通知' 的通知");
+        assertTrue(hasNullTypeNotification, "Should contain notification with title 'Empty Type Notification'");
     }
 
     @Test
-    @DisplayName("验证枚举的 ordinal 值稳定性")
+    @DisplayName("Verify enum ordinal value stability")
     void testEnumOrdinalStability() {
-        // 验证枚举的序号值（如果使用 EnumOrdinalTypeHandler）
+        // Verify enum ordinal value (if using EnumOrdinalTypeHandler)
         assertEquals(0, NotificationType.PERSONAL.ordinal());
         assertEquals(1, NotificationType.BROADCAST.ordinal());
         assertEquals(2, NotificationType.SYSTEM.ordinal());
         assertEquals(3, NotificationType.PROMOTION.ordinal());
 
-        // 警告：ordinal 值不应该用于持久化，因为添加新枚举值会改变序号
-        // 这个测试主要是为了确保枚举值的顺序保持稳定
+        // Warning: ordinal value should not be used for persistence as adding new enum values will change ordinals
+        // This test is mainly to ensure the order of enum values remains stable
     }
 
     @Test
     @DisplayName("模拟 MyBatis TypeHandler 转换过程")
     void testMybatisTypeHandlerSimulation() {
         for (NotificationType type : NotificationType.values()) {
-            // 模拟 MyBatis 写入数据库时的转换（枚举 -> 字符串）
+            // Simulate conversion when MyBatis writes to database (enum -> string)
             String dbValue = type.name(); // 默认 EnumTypeHandler 使用 name()
 
-            // 模拟 MyBatis 从数据库读取时的转换（字符串 -> 枚举）
+            // Simulate conversion when MyBatis reads from database (string -> enum)
             NotificationType reconstructedEnum = NotificationType.valueOf(dbValue);
 
-            // 验证往返转换的正确性
+            // Verify correctness of round-trip conversion
             assertEquals(type, reconstructedEnum);
             assertEquals(type.getCode(), dbValue);
             assertEquals(type.name(), dbValue);
@@ -160,7 +160,7 @@ class NotificationEnumMappingTest {
     }
 
     /**
-     * 创建模拟的 NotificationDto 列表用于测试
+     * Create mock NotificationDto list for testing
      */
     private List<NotificationDto> createMockNotificationDtos() {
         return Arrays.stream(NotificationType.values())

@@ -39,7 +39,7 @@ public class WorkflowReleaseRequestDto {
     private String name;
 
     /**
-     * 版本号（时间戳格式）
+     * Version number (timestamp format)
      */
     private String versionNum;
 

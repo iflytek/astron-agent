@@ -1,25 +1,26 @@
 package com.iflytek.astron.console.commons.enums.bot;
 
+import com.iflytek.astron.console.commons.util.I18nUtil;
+
 /**
  * @author mingsuiyongheng Default model enum class
  */
 public enum DefaultBotModelEnum {
+    X1("default.bot.model.x1", "x1", "https://openres.xfyun.cn/xfyundoc/2025-09-24/e9b74fbb-c2d6-4f4a-8c07-0ea7f03ee03a/1758681839941/icon.png"),
+    SPARK_4_0("default.bot.model.spark_4_0", "spark", "https://openres.xfyun.cn/xfyundoc/2025-09-24/e9b74fbb-c2d6-4f4a-8c07-0ea7f03ee03a/1758681839941/icon.png");
 
-    X1("星火大模型 Spark X1", "x1", "https://openres.xfyun.cn/xfyundoc/2025-09-24/e9b74fbb-c2d6-4f4a-8c07-0ea7f03ee03a/1758681839941/icon.png"),
-    SPARK_4_0("星火大模型 Spark V4.0 Ultra", "spark", "https://openres.xfyun.cn/xfyundoc/2025-09-24/e9b74fbb-c2d6-4f4a-8c07-0ea7f03ee03a/1758681839941/icon.png");
-
-    private String name;
+    private String nameKey;
     private String domain;
     private String icon;
 
-    DefaultBotModelEnum(String name, String domain, String icon) {
-        this.name = name;
+    DefaultBotModelEnum(String nameKey, String domain, String icon) {
+        this.nameKey = nameKey;
         this.domain = domain;
         this.icon = icon;
     }
 
     public String getName() {
-        return name;
+        return I18nUtil.getMessage(nameKey);
     }
 
     public String getDomain() {

@@ -12,7 +12,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * NotificationPageResponse 单元测试 测试分页响应和按类型分组功能
+ * NotificationPageResponse unit test - Test paging response and grouping by type functionality
  */
 class NotificationPageResponseTest {
 
@@ -29,31 +29,31 @@ class NotificationPageResponseTest {
         NotificationDto personal1 = new NotificationDto();
         personal1.setId(1L);
         personal1.setType(NotificationType.PERSONAL);
-        personal1.setTitle("个人消息1");
+        personal1.setTitle("Personal Message 1");
         personal1.setCreatedAt(now);
 
         NotificationDto personal2 = new NotificationDto();
         personal2.setId(2L);
         personal2.setType(NotificationType.PERSONAL);
-        personal2.setTitle("个人消息2");
+        personal2.setTitle("Personal Message 2");
         personal2.setCreatedAt(now.minusHours(1));
 
         NotificationDto broadcast1 = new NotificationDto();
         broadcast1.setId(3L);
         broadcast1.setType(NotificationType.BROADCAST);
-        broadcast1.setTitle("广播消息1");
+         broadcast1.setTitle("Broadcast Message 1");
         broadcast1.setCreatedAt(now.minusHours(2));
 
         NotificationDto system1 = new NotificationDto();
         system1.setId(4L);
         system1.setType(NotificationType.SYSTEM);
-        system1.setTitle("系统通知1");
+        system1.setTitle("System Notification 1");
         system1.setCreatedAt(now.minusHours(3));
 
         NotificationDto promotion1 = new NotificationDto();
         promotion1.setId(5L);
         promotion1.setType(NotificationType.PROMOTION);
-        promotion1.setTitle("推广消息1");
+        promotion1.setTitle("Promotion Message 1");
         promotion1.setCreatedAt(now.minusHours(4));
 
         return Arrays.asList(personal1, personal2, broadcast1, system1, promotion1);
@@ -74,7 +74,7 @@ class NotificationPageResponseTest {
 
     @Test
     void testTotalPagesCalculation() {
-        // 测试不同的总页数计算
+        // Test different total pages calculation
         NotificationPageResponse response1 = new NotificationPageResponse(
                 testNotifications, 0, 10, 25L, 5L);
         assertEquals(3, response1.getTotalPages()); // Math.ceil(25/10) = 3
@@ -90,7 +90,7 @@ class NotificationPageResponseTest {
 
     @Test
     void testTotalPagesWithZeroPageSize() {
-        // 测试页面大小为 0 的情况
+        // Test page size equals 0 case
         NotificationPageResponse response = new NotificationPageResponse(
                 testNotifications, 0, 0, 15L, 3L);
         assertEquals(0, response.getTotalPages());
@@ -107,7 +107,7 @@ class NotificationPageResponseTest {
         assertNotNull(groupedNotifications);
         assertEquals(4, groupedNotifications.size()); // 4种类型
 
-        // 验证 PERSONAL 类型的通知
+        // Verify PERSONAL type notifications
         List<NotificationDto> personalNotifications = groupedNotifications.get(NotificationType.PERSONAL);
         assertNotNull(personalNotifications);
         assertEquals(2, personalNotifications.size());
@@ -118,19 +118,19 @@ class NotificationPageResponseTest {
         assertTrue(personalNotifications.stream()
                 .anyMatch(n -> "个人消息2".equals(n.getTitle())));
 
-        // 验证 BROADCAST 类型的通知
+        // Verify BROADCAST type notifications
         List<NotificationDto> broadcastNotifications = groupedNotifications.get(NotificationType.BROADCAST);
         assertNotNull(broadcastNotifications);
         assertEquals(1, broadcastNotifications.size());
         assertEquals("广播消息1", broadcastNotifications.get(0).getTitle());
 
-        // 验证 SYSTEM 类型的通知
+        // Verify SYSTEM type notifications
         List<NotificationDto> systemNotifications = groupedNotifications.get(NotificationType.SYSTEM);
         assertNotNull(systemNotifications);
         assertEquals(1, systemNotifications.size());
         assertEquals("系统通知1", systemNotifications.get(0).getTitle());
 
-        // 验证 PROMOTION 类型的通知
+        // Verify PROMOTION type notifications
         List<NotificationDto> promotionNotifications = groupedNotifications.get(NotificationType.PROMOTION);
         assertNotNull(promotionNotifications);
         assertEquals(1, promotionNotifications.size());
@@ -148,15 +148,15 @@ class NotificationPageResponseTest {
         Map<NotificationType, List<NotificationDto>> groupedNotifications =
                 response.getNotificationsByType();
         assertNotNull(groupedNotifications);
-        // 构造函数会初始化所有NotificationType枚举值的空列表
+        // Constructor will initialize empty lists for all NotificationType enum values
         assertEquals(NotificationType.values().length, groupedNotifications.size());
-        // 验证所有类型的列表都是空的
+        // Verify all type lists are empty
         groupedNotifications.values().forEach(list -> assertTrue(list.isEmpty()));
     }
 
     @Test
     void testSingleTypeNotifications() {
-        // 测试只有一种类型的通知
+        // Test only one type of notification
         List<NotificationDto> singleTypeNotifications = Arrays.asList(
                 testNotifications.get(0), testNotifications.get(1)); // 两个 PERSONAL 类型
 
@@ -166,11 +166,11 @@ class NotificationPageResponseTest {
         Map<NotificationType, List<NotificationDto>> groupedNotifications =
                 response.getNotificationsByType();
 
-        // 构造函数会初始化所有NotificationType枚举值
+        // Constructor will initialize all NotificationType enum values
         assertEquals(NotificationType.values().length, groupedNotifications.size());
         assertTrue(groupedNotifications.containsKey(NotificationType.PERSONAL));
         assertEquals(2, groupedNotifications.get(NotificationType.PERSONAL).size());
-        // 验证其他类型的列表都是空的
+        // Verify other type lists are empty
         for (NotificationType type : NotificationType.values()) {
             if (type != NotificationType.PERSONAL) {
                 assertTrue(groupedNotifications.get(type).isEmpty());
@@ -180,7 +180,7 @@ class NotificationPageResponseTest {
 
     @Test
     void testNotificationsWithNullType() {
-        // 创建一个类型为 null 的通知
+        // Create a notification with null type
         NotificationDto nullTypeNotification = new NotificationDto();
         nullTypeNotification.setId(99L);
         nullTypeNotification.setType(null);
@@ -195,13 +195,13 @@ class NotificationPageResponseTest {
         Map<NotificationType, List<NotificationDto>> groupedNotifications =
                 response.getNotificationsByType();
 
-        // 验证 null 类型被映射为 SYSTEM 类型
+        // Verify null type is mapped to SYSTEM type
         assertTrue(groupedNotifications.containsKey(NotificationType.SYSTEM));
-        // SYSTEM 类型应该包含原来的通知和 null 类型的通知
+        // SYSTEM type should contain both original and null type notifications
         List<NotificationDto> systemNotifications = groupedNotifications.get(NotificationType.SYSTEM);
         assertTrue(systemNotifications.size() >= 1);
 
-        // 验证至少有一条通知的标题是 "空类型消息"
+        // Verify at least one notification has the title "空类型消息"
         boolean hasNullTypeNotification = systemNotifications.stream()
                 .anyMatch(notification -> "空类型消息".equals(notification.getTitle()));
         assertTrue(hasNullTypeNotification, "应该包含标题为 '空类型消息' 的通知");
@@ -218,7 +218,7 @@ class NotificationPageResponseTest {
         NotificationPageResponse response2 = new NotificationPageResponse(
                 testNotifications, 0, 10, 15L, 3L);
 
-        // 由于 Lombok 生成的 equals 方法
+        // Due to Lombok generated equals method
         assertEquals(response1, response2);
         assertEquals(response1.hashCode(), response2.hashCode());
     }

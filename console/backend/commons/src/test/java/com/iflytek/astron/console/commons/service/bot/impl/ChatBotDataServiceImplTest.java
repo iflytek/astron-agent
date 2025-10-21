@@ -740,6 +740,6 @@ class ChatBotDataServiceImplTest {
         verify(chatBotBaseMapper).insert(any(ChatBotBase.class));
     }
 
-    // Note: testFindOne_WithSpaceId 已移除，因为它依赖于 SpaceInfoUtil 静态工具类，
-    // 在单元测试环境中需要额外的 mockito-inline 或集成测试环境来支持静态方法 mock
+    // Note: testFindOne_WithSpaceId has been removed because it depends on the SpaceInfoUtil static utility class,
+    // which requires additional mockito-inline or integration test environment to support static method mocking in unit tests
 }

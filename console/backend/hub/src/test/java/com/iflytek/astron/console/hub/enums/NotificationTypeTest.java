@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * NotificationType 枚举单元测试 测试枚举的基本功能和代码映射
+ * NotificationType enum unit test - Test basic enum functionality and code mapping
  */
 class NotificationTypeTest {
 
@@ -59,7 +59,7 @@ class NotificationTypeTest {
 
     @Test
     void testEnumName() {
-        // 测试枚举常量名（用于 MyBatis 默认映射）
+        // Test enum constant name (for MyBatis default mapping)
         assertEquals("PERSONAL", NotificationType.PERSONAL.name());
         assertEquals("BROADCAST", NotificationType.BROADCAST.name());
         assertEquals("SYSTEM", NotificationType.SYSTEM.name());
@@ -68,16 +68,16 @@ class NotificationTypeTest {
 
     @Test
     void testCodeEqualsName() {
-        // 验证 code 值与枚举常量名一致（确保 MyBatis 映射正确）
+        // Verify code value matches enum constant name (ensure MyBatis mapping is correct)
         for (NotificationType type : NotificationType.values()) {
             assertEquals(type.name(), type.getCode(),
-                    "枚举 " + type.name() + " 的 code 值应该与常量名一致");
+                    "Enum " + type.name() + " code value should match constant name");
         }
     }
 
     @Test
     void testValueOf() {
-        // 测试 valueOf 方法（MyBatis 可能使用）
+        // Test valueOf method (MyBatis may use)
         assertEquals(NotificationType.PERSONAL, NotificationType.valueOf("PERSONAL"));
         assertEquals(NotificationType.BROADCAST, NotificationType.valueOf("BROADCAST"));
         assertEquals(NotificationType.SYSTEM, NotificationType.valueOf("SYSTEM"));
@@ -94,7 +94,7 @@ class NotificationTypeTest {
 
     @Test
     void testEnumOrdinal() {
-        // 测试枚举序号（如果使用 EnumOrdinalTypeHandler）
+        // Test enum ordinal (if using EnumOrdinalTypeHandler)
         assertEquals(0, NotificationType.PERSONAL.ordinal());
         assertEquals(1, NotificationType.BROADCAST.ordinal());
         assertEquals(2, NotificationType.SYSTEM.ordinal());
@@ -111,15 +111,15 @@ class NotificationTypeTest {
         assertEquals(type1, type3);
         assertEquals(type2, type3);
 
-        // 测试 == 比较
+        // Test == comparison
         assertSame(type1, type2);
-        // fromCode 返回的是通过遍历找到的，应该仍然是同一个实例
+        // fromCode returns the one found by iteration, should still be the same instance
         assertSame(type1, type3);
     }
 
     @Test
     void testEnumToString() {
-        // 默认 toString 返回枚举常量名
+        // Default toString returns enum constant name
         assertEquals("PERSONAL", NotificationType.PERSONAL.toString());
         assertEquals("BROADCAST", NotificationType.BROADCAST.toString());
         assertEquals("SYSTEM", NotificationType.SYSTEM.toString());
@@ -128,18 +128,18 @@ class NotificationTypeTest {
 
     @Test
     void testMybatisCompatibility() {
-        // 模拟 MyBatis 可能的转换场景
+        // Simulate possible MyBatis conversion scenarios
 
-        // 场景 1: 数据库值到枚举（使用 code）
+        // Scenario 1: Database value to enum (using code)
         String dbValue = "PERSONAL";
         NotificationType fromDb = NotificationType.fromCode(dbValue);
         assertEquals(NotificationType.PERSONAL, fromDb);
 
-        // 场景 2: 枚举到数据库值（使用 name）
+        // Scenario 2: Enum to database value (using name)
         String toDb = NotificationType.PERSONAL.name();
         assertEquals("PERSONAL", toDb);
 
-        // 场景 3: 验证双向转换一致性
+        // Scenario 3: Verify bidirectional conversion consistency
         for (NotificationType type : NotificationType.values()) {
             String code = type.getCode();
             NotificationType converted = NotificationType.fromCode(code);

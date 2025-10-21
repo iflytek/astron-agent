@@ -188,7 +188,7 @@ class ApplyRecordBizServiceImplTest {
             requestContextMock.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             enterpriseInfoMock.when(EnterpriseInfoUtil::getEnterpriseId).thenReturn(TEST_ENTERPRISE_ID);
 
-            // Mock service methods - 已存在申请记录
+            // Mock service methods - Application record already exists
             when(applyRecordService.getByUidAndSpaceId(TEST_UID, TEST_SPACE_ID))
                     .thenReturn(testApplyRecord);
 
@@ -336,7 +336,7 @@ class ApplyRecordBizServiceImplTest {
     void testAgreeEnterpriseSpace_Fail_SpaceInconsistent() {
         try (MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock static methods - 返回不同的空间ID
+            // Mock static methods - Return different space ID
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(999L);
 
             // Mock service methods
@@ -469,7 +469,7 @@ class ApplyRecordBizServiceImplTest {
     void testRefuseEnterpriseSpace_Fail_SpaceInconsistent() {
         try (MockedStatic<SpaceInfoUtil> spaceInfoMock = mockStatic(SpaceInfoUtil.class)) {
 
-            // Mock static methods - 返回不同的空间ID
+            // Mock static methods - Return different space ID
             spaceInfoMock.when(SpaceInfoUtil::getSpaceId).thenReturn(999L);
 
             // Mock service methods

@@ -24,9 +24,9 @@ import static org.mockito.Mockito.*;
 class ConfigInfoServiceTest {
 
     @Mock
-    private ConfigInfoMapper configInfoMapper; // 会被 @InjectMocks 注入到 ServiceImpl#baseMapper
+    private ConfigInfoMapper configInfoMapper; // Will be injected into ServiceImpl#baseMapper by @InjectMocks
 
-    // 使用 Spy，这样可以对 ServiceImpl#list / #getOne 做桩，同时保留真实方法名以便 verify
+    // Use Spy so we can stub ServiceImpl#list / #getOne while keeping real method names for verify
     @Spy
     @InjectMocks
     private ConfigInfoService service;
@@ -40,16 +40,16 @@ class ConfigInfoServiceTest {
 
     // ---------- Helpers ----------
 
-    /** 通过反射设置 env 字段（@Value 注入在单测中不可用） */
+    /** Set env field via reflection (@Value injection not available in unit tests) */
     private void setEnv(String env) throws Exception {
         Field f = ConfigInfoService.class.getDeclaredField("env");
         f.setAccessible(true);
         f.set(service, env);
     }
 
-    /** 反射读取 MyBatis-Plus Wrapper 的 last("...") 内容（用于验证 getOnly 的 limit 1 行为） */
+    /** Read MyBatis-Plus Wrapper last("...") content via reflection (for verifying getOnly limit 1 behavior) */
     private static String readLastSql(Object wrapper) {
-        // lastSql 字段定义在 AbstractWrapper 层级的某处（SharedString），这里沿继承链查找
+        // lastSql field defined somewhere in AbstractWrapper level (SharedString), search along inheritance chain here
         Class<?> c = wrapper.getClass();
         while (c != null) {
             try {
@@ -74,12 +74,12 @@ class ConfigInfoServiceTest {
         QueryWrapper<ConfigInfo> qw = new QueryWrapper<>();
         ConfigInfo expected = new ConfigInfo();
 
-        // 对 ServiceImpl#getOne 做桩，返回期望值并校验 last(...)
+        // Stub ServiceImpl#getOne, return expected value and verify last(...)
         doAnswer(inv -> {
             Object arg = inv.getArgument(0);
             assertThat(arg).isInstanceOf(QueryWrapper.class);
             String last = readLastSql(arg);
-            // last 可能包含首尾空格，这里做宽松校验
+            // last may contain leading/trailing spaces, do lenient verification here
             assertThat(last).isNotNull().containsIgnoringCase("limit 1");
             return expected;
         }).when(service).getOne(any(QueryWrapper.class));
@@ -241,7 +241,7 @@ class ConfigInfoServiceTest {
     @DisplayName("getListByIds - 非空列表应构造wrapper并调用 list")
     void getListByIds_shouldBuildWrapper_andCallList() {
         List<ConfigInfo> expected = Arrays.asList(new ConfigInfo(), new ConfigInfo());
-        // 桩 ServiceImpl#list 返回期望结果，并校验 wrapper 不为 null
+        // Stub ServiceImpl#list to return expected result and verify wrapper is not null
         doAnswer(inv -> {
             Object arg = inv.getArgument(0);
             assertThat(arg).isInstanceOf(LambdaQueryWrapper.class);

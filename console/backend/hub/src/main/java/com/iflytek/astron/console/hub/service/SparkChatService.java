@@ -499,7 +499,7 @@ public class SparkChatService {
 
         return switch (code) {
             case 10007 -> "User traffic limited: Service is processing user's current request, please wait for completion before sending new requests.";
-            case 10013, 10014, 10019 -> "抱歉,您这个问题我暂时无法回答,我抓紧学习一下,争取下次给您满意的答复。";
+            case 10013, 10014, 10019 -> "Sorry, I cannot answer this question at the moment. I will learn more and provide you with a satisfactory response next time.";
             case 10907 -> "Token count exceeds limit";
             case 11200 -> "Authorization error: This appId does not have authorization for related functions or business volume exceeds limit";
             case 11201 -> "Authorization error: Daily flow control exceeded. Exceeded daily maximum access limit";

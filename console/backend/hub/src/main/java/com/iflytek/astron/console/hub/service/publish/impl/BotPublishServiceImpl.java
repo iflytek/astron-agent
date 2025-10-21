@@ -572,8 +572,8 @@ public class BotPublishServiceImpl implements BotPublishService {
         marketData.setBotMultiFileParam(isMultiFileParam);
 
         // Set suggested tags and categories
-        marketData.setSuggestedTags(List.of("智能助手", "效率工具"));
-        marketData.setCategoryOptions(List.of("教育", "金融", "医疗", "客服"));
+        marketData.setSuggestedTags(List.of("AI Assistant", "Productivity Tool"));
+        marketData.setCategoryOptions(List.of("Education", "Finance", "Healthcare", "Customer Service"));
 
         return marketData;
     }
@@ -610,8 +610,8 @@ public class BotPublishServiceImpl implements BotPublishService {
 
         // Set suggested configuration
         FeishuPrepareDto.SuggestedConfig suggestedConfig = new FeishuPrepareDto.SuggestedConfig();
-        suggestedConfig.setDisplayName("智能助手");
-        suggestedConfig.setDescription("基于工作流的智能助手");
+        suggestedConfig.setDisplayName("AI Assistant");
+        suggestedConfig.setDescription("Workflow-based AI Assistant");
         feishuData.setSuggestedConfig(suggestedConfig);
 
         return feishuData;
@@ -625,8 +625,8 @@ public class BotPublishServiceImpl implements BotPublishService {
 
         // Set API endpoint
         apiData.setApiEndpoint("/api/v1/chat/" + botId);
-        apiData.setDocumentation("API文档URL");
-        apiData.setApiKey("生成的API Key");
+        apiData.setDocumentation("API Documentation URL");
+        apiData.setApiKey("Generated API Key");
         apiData.setAuthType("Bearer");
 
         // Set suggested configuration

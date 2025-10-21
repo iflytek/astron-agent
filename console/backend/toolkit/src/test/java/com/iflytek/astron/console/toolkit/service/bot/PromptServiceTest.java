@@ -238,12 +238,12 @@ class PromptServiceTest {
         @Test
         @DisplayName("aiCode: create 分支应替换 {var}/{prompt}，并使用传入 URL/Domain")
         void aiCode_create_shouldFillVars_andUseExplicitUrlDomain() {
-            // 模板
+            // Template
             ConfigInfo cfg = new ConfigInfo();
             cfg.setValue("var={var};prompt={prompt}");
             when(configInfoMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(cfg);
 
-            // URL/Domain 配置
+            // URL/Domain configuration
             ConfigInfo url = new ConfigInfo();
             url.setValue("http://code.url");
             ConfigInfo domain = new ConfigInfo();
@@ -261,7 +261,7 @@ class PromptServiceTest {
             AiCode req = new AiCode();
             req.setPrompt("P");
             req.setVar("V");
-            // req.setCode("") 保持空 → action=create
+            // req.setCode("") remains empty → action=create
 
             SseEmitter out = service.aiCode(req);
 
@@ -274,12 +274,12 @@ class PromptServiceTest {
         @Test
         @DisplayName("aiCode: fix 分支应抽取第2个 '(' 后到倒数第2位的错误片段，并使用默认 URL/Domain")
         void aiCode_fix_shouldExtractError_andUseDefaults() {
-            // 模板（fix）
+            // Template（fix）
             ConfigInfo cfg = new ConfigInfo();
             cfg.setValue("ERR={errMsg}");
             when(configInfoMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(cfg);
 
-            // URL/domain 缺失 → 使用 SparkApiTool 默认常量
+            // URL/domain missing → use SparkApiTool default constants
             when(configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_url")).thenReturn(null);
             when(configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_domain")).thenReturn(null);
 
@@ -290,11 +290,11 @@ class PromptServiceTest {
             when(sparkApiTool.onceChatReturnSseByWs(urlCap.capture(), domainCap.capture(), msgCap.capture()))
                     .thenReturn(expected);
 
-            // 构造满足 secLBracketIdx 截取逻辑的错误信息
-            // 第二个 '(' 之后到倒数第2个字符为止：
-            // "prefix (first) (ValueError: bad)X" → 期望截出 "ValueError: bad"
+            // Construct error message that satisfies secLBracketIdx extraction logic
+            // From after the second '(' to the second-to-last character:
+            // "prefix (first) (ValueError: bad)X" → expect to extract "ValueError: bad"
             AiCode req = new AiCode();
-            req.setErrMsg("prefix (first) (ValueError: bad)X"); // 末尾留1个多余字符 + 最末再减1 → 去掉 ')'
+            req.setErrMsg("prefix (first) (ValueError: bad)X"); // Leave 1 extra character at the end + subtract 1 at the very end → remove ')'
 
             SseEmitter out = service.aiCode(req);
 

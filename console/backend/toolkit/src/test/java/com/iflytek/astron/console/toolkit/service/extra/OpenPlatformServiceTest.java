@@ -40,7 +40,7 @@ class OpenPlatformServiceTest {
 
     @BeforeEach
     void setSecret() throws Exception {
-        // 私有 @Value 字段在单测环境手动注入
+        // Private @Value fields manually injected in unit test environment
         Field f = OpenPlatformService.class.getDeclaredField("secret");
         f.setAccessible(true);
         f.set(service, "sec-xyz");
@@ -94,11 +94,11 @@ class OpenPlatformServiceTest {
             try (MockedStatic<OpenPlatformTool> sign = mockStatic(OpenPlatformTool.class);
                  MockedStatic<OkHttpUtil> http = mockStatic(OkHttpUtil.class)) {
 
-                // 签名桩：校验 appId 与 secret，返回固定签名
+                // Signature stub: verify appId and secret, return fixed signature
                 sign.when(() -> OpenPlatformTool.getSignature(eq(commonConfig.getAppId()), eq("sec-xyz"), anyLong()))
                     .thenReturn("SIG-123");
 
-                // HTTP 桩：精确校验 URL/Headers/Body，返回 code=0 的响应
+                // HTTP stub: precisely verify URL/Headers/Body, return code=0 response
                 http.when(() -> OkHttpUtil.post(anyString(), anyMap(), anyString()))
                     .thenAnswer(inv -> {
                         String url = inv.getArgument(0);
@@ -107,13 +107,13 @@ class OpenPlatformServiceTest {
                         String body = inv.getArgument(2);
 
                         assertThat(url).isEqualTo("http://open/workflow/updateSynchronize");
-                        // header：appId、签名、时间戳
+                        // header: appId, signature, timestamp
                         assertThat(headers).containsEntry("appId", commonConfig.getAppId());
                         assertThat(headers).containsEntry("signature", "SIG-123");
                         assertThat(headers).containsKey("timestamp");
                         assertThat(headers.get("timestamp")).matches("\\d{10}"); // 秒级时间戳
 
-                        // body：字段与值
+                        // body: fields and values
                         JSONObject jo = JSON.parseObject(body);
                         assertThat(jo.getLong("massId")).isEqualTo(9L);
                         assertThat(jo.getString("botDesc")).isEqualTo("desc");
@@ -130,11 +130,11 @@ class OpenPlatformServiceTest {
 
                 Object out = service.syncWorkflowUpdate(9L, "desc", "pro", Arrays.asList("i1", "i2"));
 
-                // data 原样返回
+                // data returned as-is
                 assertThat(out).isInstanceOfAny(Map.class, JSONObject.class);
                 assertThat(JSON.toJSONString(out)).contains("\"ok\":true");
 
-                // 验证签名函数被调用（appId/secret 固定，时间戳为任意 long）
+                // Verify signature function was called (appId/secret fixed, timestamp any long)
                 sign.verify(() -> OpenPlatformTool.getSignature(
                         eq(commonConfig.getAppId()), eq("sec-xyz"), anyLong()));
             }
@@ -181,7 +181,7 @@ class OpenPlatformServiceTest {
                     .thenAnswer(inv -> {
                         String body = inv.getArgument(2);
                         JSONObject jo = JSON.parseObject(body);
-                        // 允许为 null
+                        // Allow null
                         assertThat(jo.get("botDesc")).isNull();
                         assertThat(jo.get("prologue")).isNull();
                         assertThat(jo.get("inputExample")).isNull();

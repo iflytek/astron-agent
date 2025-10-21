@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * NotificationServiceImpl 单元测试 测试通知服务的核心业务逻辑
+ * NotificationServiceImpl unit test - Test core business logic of notification service
  */
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceImplTest {
@@ -68,7 +68,7 @@ class NotificationServiceImplTest {
 
     @Test
     void testGetUserNotifications_Success() {
-        // 准备测试数据
+        // Prepare test data
         String receiverUid = "user123";
         long totalCount = 25L;
         long unreadCount = 8L;
@@ -80,10 +80,10 @@ class NotificationServiceImplTest {
         when(notificationDataService.countUserUnreadNotifications(receiverUid))
                 .thenReturn(unreadCount);
 
-        // 执行测试
+        // Execute test
         NotificationPageResponse response = notificationService.getUserNotifications(receiverUid, queryRequest);
 
-        // 验证结果
+        // Verify result
         assertNotNull(response);
         assertEquals(testNotifications, response.getNotifications());
         assertEquals(0, response.getPageIndex());
@@ -91,12 +91,12 @@ class NotificationServiceImplTest {
         assertEquals(totalCount, response.getTotalCount());
         assertEquals(unreadCount, response.getUnreadCount());
 
-        // 验证分组功能
+        // Verify grouping functionality
         assertNotNull(response.getNotificationsByType());
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.PERSONAL));
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.SYSTEM));
 
-        // 验证方法调用
+        // Verify method calls
         verify(notificationDataService).getUserNotifications(eq(receiverUid), any());
         verify(notificationDataService).countUserAllNotifications(receiverUid);
         verify(notificationDataService).countUserUnreadNotifications(receiverUid);
@@ -239,9 +239,9 @@ class NotificationServiceImplTest {
         assertEquals(0L, response.getUnreadCount());
         assertEquals(0, response.getTotalPages());
         assertNotNull(response.getNotificationsByType());
-        // NotificationPageResponse构造函数会初始化所有枚举类型的空列表
+        // NotificationPageResponse constructor will initialize empty lists for all enum types
         assertFalse(response.getNotificationsByType().isEmpty());
-        // 但是所有类型的列表应该都是空的
+        // But all type lists should be empty
         response.getNotificationsByType().values().forEach(list -> assertTrue(list.isEmpty()));
     }
 
@@ -274,7 +274,7 @@ class NotificationServiceImplTest {
     void testGetUserNotifications_WithDifferentTypes() {
         String receiverUid = "user123";
 
-        // 创建包含所有类型的通知列表
+        // Create notification list containing all types
         List<NotificationDto> allTypeNotifications = createAllTypeNotifications();
 
         when(notificationDataService.getUserNotifications(eq(receiverUid), any()))
@@ -286,14 +286,14 @@ class NotificationServiceImplTest {
 
         NotificationPageResponse response = notificationService.getUserNotifications(receiverUid, queryRequest);
 
-        // 验证所有类型都被正确分组
+        // Verify all types are correctly grouped
         assertEquals(4, response.getNotificationsByType().size());
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.PERSONAL));
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.BROADCAST));
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.SYSTEM));
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.PROMOTION));
 
-        // 验证每种类型只有一条通知
+        // Verify each type has only one notification
         assertEquals(1, response.getNotificationsByType().get(NotificationType.PERSONAL).size());
         assertEquals(1, response.getNotificationsByType().get(NotificationType.BROADCAST).size());
         assertEquals(1, response.getNotificationsByType().get(NotificationType.SYSTEM).size());
@@ -328,11 +328,11 @@ class NotificationServiceImplTest {
     void testGetUserNotifications_WithNullTypeNotification() {
         String receiverUid = "user123";
 
-        // 创建包含 null 类型的通知
+        // Create notification with null type
         NotificationDto nullTypeNotification = new NotificationDto();
         nullTypeNotification.setId(99L);
         nullTypeNotification.setType(null);
-        nullTypeNotification.setTitle("空类型通知");
+        nullTypeNotification.setTitle("Empty Type Notification");
 
         List<NotificationDto> mixedNotifications = Arrays.asList(
                 testNotifications.getFirst(), nullTypeNotification);
@@ -346,15 +346,15 @@ class NotificationServiceImplTest {
 
         NotificationPageResponse response = notificationService.getUserNotifications(receiverUid, queryRequest);
 
-        // 验证 null 类型被映射为 SYSTEM 类型
+        // Verify null type is mapped to SYSTEM type
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.SYSTEM));
         List<NotificationDto> systemNotifications = response.getNotificationsByType().get(NotificationType.SYSTEM);
         assertTrue(systemNotifications.size() >= 1);
 
-        // 验证包含 null 类型的通知
+        // Verify notifications containing null type
         boolean hasNullTypeNotification = systemNotifications.stream()
-                .anyMatch(notification -> "空类型通知".equals(notification.getTitle()));
-        assertTrue(hasNullTypeNotification, "应该包含标题为 '空类型通知' 的通知");
+                .anyMatch(notification -> "Empty Type Notification".equals(notification.getTitle()));
+        assertTrue(hasNullTypeNotification, "Should contain notification with title 'Empty Type Notification'");
 
         assertTrue(response.getNotificationsByType().containsKey(NotificationType.PERSONAL));
         assertEquals(1, response.getNotificationsByType().get(NotificationType.PERSONAL).size());
