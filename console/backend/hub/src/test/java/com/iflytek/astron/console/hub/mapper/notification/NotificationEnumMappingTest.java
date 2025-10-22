@@ -110,7 +110,7 @@ class NotificationEnumMappingTest {
         NotificationDto nullTypeDto = new NotificationDto();
         nullTypeDto.setId(999L);
         nullTypeDto.setType(null);
-        nullTypeDto.setTitle("空类型通知");
+        nullTypeDto.setTitle("Empty Type Notification");
 
         List<NotificationDto> notifications = createMockNotificationDtos();
         notifications.add(nullTypeDto);
@@ -126,7 +126,7 @@ class NotificationEnumMappingTest {
 
         // Verify notifications containing null type
         boolean hasNullTypeNotification = systemNotifications.stream()
-                .anyMatch(dto -> "空类型通知".equals(dto.getTitle()));
+                .anyMatch(dto -> "Empty Type Notification".equals(dto.getTitle()));
         assertTrue(hasNullTypeNotification, "Should contain notification with title 'Empty Type Notification'");
     }
 
@@ -145,11 +145,11 @@ class NotificationEnumMappingTest {
     }
 
     @Test
-    @DisplayName("模拟 MyBatis TypeHandler 转换过程")
+    @DisplayName("Simulate MyBatis TypeHandler conversion process")
     void testMybatisTypeHandlerSimulation() {
         for (NotificationType type : NotificationType.values()) {
             // Simulate conversion when MyBatis writes to database (enum -> string)
-            String dbValue = type.name(); // 默认 EnumTypeHandler 使用 name()
+            String dbValue = type.name(); // Default EnumTypeHandler uses name()
 
             // Simulate conversion when MyBatis reads from database (string -> enum)
             NotificationType reconstructedEnum = NotificationType.valueOf(dbValue);
@@ -170,8 +170,8 @@ class NotificationEnumMappingTest {
                     NotificationDto dto = new NotificationDto();
                     dto.setId((long) type.ordinal() + 1);
                     dto.setType(type);
-                    dto.setTitle("测试通知 - " + type.getDescription());
-                    dto.setBody("测试内容");
+                    dto.setTitle("Test notification - " + type.getDescription());
+                    dto.setBody("Test content");
                     return dto;
                 })
                 .collect(Collectors.toList());

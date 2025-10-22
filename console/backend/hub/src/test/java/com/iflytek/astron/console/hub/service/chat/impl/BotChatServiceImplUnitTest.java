@@ -335,14 +335,14 @@ class BotChatServiceImplUnitTest {
         String sseId = "test-sse-id";
 
         LLMInfoVo llmInfoVo = createLLMInfoVo();
-        llmInfoVo.setLlmId(100L); // 设置llmId以便checkModelBase能够正常工作
-        llmInfoVo.setServiceId("test-service-id"); // 设置serviceId
+        llmInfoVo.setLlmId(100L); // Set llmId so checkModelBase can work properly
+        llmInfoVo.setServiceId("test-service-id"); // Set serviceId
         when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
         when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
         doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
 
-        // When & Then - mock SpaceInfoUtil静态方法
+        // When & Then - Mock SpaceInfoUtil static method
         try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
             mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
 

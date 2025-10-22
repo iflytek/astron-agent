@@ -293,6 +293,7 @@ class TraceToSourceServiceImplTest {
         specialCharTrace.setId(3L);
         specialCharTrace.setReqId(300L);
         specialCharTrace.setType("special_chars");
+        // Test data with special characters
         specialCharTrace.setContent("Content with special chars: \"quotes\", {brackets}, [arrays], & symbols! 中文内容 🚀");
 
         List<ChatTraceSource> specialCharTraceList = Collections.singletonList(specialCharTrace);
@@ -300,7 +301,7 @@ class TraceToSourceServiceImplTest {
         // When
         traceToSourceService.respAddTrace(respList, specialCharTraceList);
 
-        // Then
+        // Then - Verify the Chinese content is preserved correctly
         String expectedContent = "Content with special chars: \"quotes\", {brackets}, [arrays], & symbols! 中文内容 🚀";
 
         ChatRespModelDto firstResp = respList.get(0);

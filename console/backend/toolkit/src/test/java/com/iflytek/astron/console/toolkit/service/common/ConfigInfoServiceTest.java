@@ -73,7 +73,7 @@ class ConfigInfoServiceTest {
     // ---------- getOnly(...) ----------
 
     @Test
-    @DisplayName("getOnly(QueryWrapper) - 应追加limit 1并调用getOne")
+    @DisplayName("getOnly(QueryWrapper) - Should append limit 1 and call getOne")
     void getOnly_withQueryWrapper_shouldAppendLimitAndCallGetOne() {
         QueryWrapper<ConfigInfo> qw = new QueryWrapper<>();
         ConfigInfo expected = new ConfigInfo();
@@ -95,7 +95,7 @@ class ConfigInfoServiceTest {
     }
 
     @Test
-    @DisplayName("getOnly(LambdaQueryWrapper) - 应追加limit 1并调用getOne")
+    @DisplayName("getOnly(LambdaQueryWrapper) - Should append limit 1 and call getOne")
     void getOnly_withLambdaWrapper_shouldAppendLimitAndCallGetOne() {
         LambdaQueryWrapper<ConfigInfo> lw = new QueryWrapper<ConfigInfo>().lambda();
         ConfigInfo expected = new ConfigInfo();
@@ -114,7 +114,7 @@ class ConfigInfoServiceTest {
     }
 
     @Test
-    @DisplayName("getOnly(QueryWrapper) - 当getOne抛错时应向外传播")
+    @DisplayName("getOnly(QueryWrapper) - Should propagate exception when getOne throws error")
     void getOnly_shouldPropagateException() {
         QueryWrapper<ConfigInfo> qw = new QueryWrapper<>();
         doThrow(new IllegalStateException("db down")).when(service).getOne(any(QueryWrapper.class));
@@ -130,7 +130,7 @@ class ConfigInfoServiceTest {
     class GetTagsTests {
 
         @Test
-        @DisplayName("getTags(tool) - 应调用 Mapper.TAG/TOOL_TAGS 并返回结果")
+        @DisplayName("getTags(tool) - Should call Mapper.TAG/TOOL_TAGS and return result")
         void getTags_tool_shouldDelegateToMapper() throws Exception {
             setEnv("prod");
             List<ConfigInfo> rows = Arrays.asList(new ConfigInfo(), new ConfigInfo());
@@ -144,7 +144,7 @@ class ConfigInfoServiceTest {
         }
 
         @Test
-        @DisplayName("getTags(bot) - 应调用 Mapper.TAG/BOT_TAGS 并返回结果")
+        @DisplayName("getTags(bot) - Should call Mapper.TAG/BOT_TAGS and return result")
         void getTags_bot_shouldDelegateToMapper() throws Exception {
             setEnv("test");
             List<ConfigInfo> rows = Collections.singletonList(new ConfigInfo());
@@ -158,7 +158,7 @@ class ConfigInfoServiceTest {
         }
 
         @Test
-        @DisplayName("getTags(tool_v2 & prod) - 不修改id，直接返回Mapper结果")
+        @DisplayName("getTags(tool_v2 & prod) - Should not modify id, return Mapper result directly")
         void getTags_toolV2_prod_shouldNotRewriteId() throws Exception {
             setEnv("prod");
             ConfigInfo a = new ConfigInfo();
@@ -179,9 +179,9 @@ class ConfigInfoServiceTest {
         }
 
         @Test
-        @DisplayName("getTags(tool_v2 & dev/test) - 非空remarks应覆盖为新id；空remarks保持原值")
+        @DisplayName("getTags(tool_v2 & dev/test) - Non-empty remarks should override with new id; empty remarks keep original value")
         void getTags_toolV2_dev_shouldRewriteIdFromRemarks() throws Exception {
-            setEnv("dev"); // 或 test
+            setEnv("dev"); // or test
             ConfigInfo a = new ConfigInfo();
             a.setId(1L);
             a.setRemarks("2");
@@ -194,18 +194,18 @@ class ConfigInfoServiceTest {
             List<ConfigInfo> out = service.getTags("tool_v2");
 
             assertThat(out).isSameAs(rows);
-            assertThat(a.getId()).isEqualTo(2L); // 覆盖
-            assertThat(b.getId()).isEqualTo(3L); // 保持
+            assertThat(a.getId()).isEqualTo(2L); // Override
+            assertThat(b.getId()).isEqualTo(3L); // Keep original
             verify(configInfoMapper).getTags("TAG", "TOOL_TAGS_V2");
         }
 
         @Test
-        @DisplayName("getTags(tool_v2 & dev) - remarks 非数字应抛 NumberFormatException")
+        @DisplayName("getTags(tool_v2 & dev) - remarks with non-numeric value should throw NumberFormatException")
         void getTags_toolV2_dev_shouldThrowOnInvalidRemarks() throws Exception {
             setEnv("dev");
             ConfigInfo a = new ConfigInfo();
             a.setId(1L);
-            a.setRemarks("abc"); // 非数字
+            a.setRemarks("abc"); // Non-numeric
             when(configInfoMapper.getTags("TAG", "TOOL_TAGS_V2")).thenReturn(Collections.singletonList(a));
 
             assertThatThrownBy(() -> service.getTags("tool_v2"))
@@ -213,7 +213,7 @@ class ConfigInfoServiceTest {
         }
 
         @Test
-        @DisplayName("getTags(Unknown) - 应返回空列表且不触达Mapper")
+        @DisplayName("getTags(Unknown) - Should return empty list without calling Mapper")
         void getTags_unknown_shouldReturnEmptyAndNoMapperCall() throws Exception {
             setEnv("prod");
             List<ConfigInfo> out = service.getTags("unknown");
@@ -226,7 +226,7 @@ class ConfigInfoServiceTest {
     // ---------- getListByIds(List<String>) ----------
 
     @Test
-    @DisplayName("getListByIds(null) - 直接返回空列表，不触达 list")
+    @DisplayName("getListByIds(null) - Should return empty list directly without calling list")
     void getListByIds_null_shouldReturnEmpty() {
         List<ConfigInfo> out = service.getListByIds(null);
         assertThat(out).isEmpty();
@@ -234,7 +234,7 @@ class ConfigInfoServiceTest {
     }
 
     @Test
-    @DisplayName("getListByIds(empty) - 直接返回空列表，不触达 list")
+    @DisplayName("getListByIds(empty) - Should return empty list directly without calling list")
     void getListByIds_empty_shouldReturnEmpty() {
         List<ConfigInfo> out = service.getListByIds(Collections.emptyList());
         assertThat(out).isEmpty();
@@ -242,7 +242,7 @@ class ConfigInfoServiceTest {
     }
 
     @Test
-    @DisplayName("getListByIds - 非空列表应构造wrapper并调用 list")
+    @DisplayName("getListByIds - Non-empty list should construct wrapper and call list")
     void getListByIds_shouldBuildWrapper_andCallList() {
         List<ConfigInfo> expected = Arrays.asList(new ConfigInfo(), new ConfigInfo());
         // Stub ServiceImpl#list to return expected result and verify wrapper is not null

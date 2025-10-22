@@ -332,7 +332,7 @@ class WorkflowControllerTest {
                 "'; DROP TABLE workflows; --",
                 "../../etc/passwd",
                 "\u0000\u0001\u0002",
-                "测试中文关键词");
+                "测试中文关键词"); // Test data: Chinese keywords for testing
     }
 
     // ==================== Workflow List Tests ====================

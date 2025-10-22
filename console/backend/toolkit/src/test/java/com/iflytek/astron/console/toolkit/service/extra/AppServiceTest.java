@@ -36,11 +36,11 @@ class AppServiceTest {
     // ↑ Add this import at the top
 
     @Test
-    @DisplayName("getAkSk - 远程返回空数组：应抛BusinessException（包含APPID提示）")
+    @DisplayName("getAkSk - Remote returns empty array: Should throw BusinessException (containing APPID hint)")
     void getAkSk_shouldThrow_whenArrayEmpty() throws Exception {
         String appId = "APP-5";
 
-        // 走“远程分支”：缓存未命中，且不是“特殊APPID”
+        // Take the "remote branch": Cache miss and not a "special APPID"
         when(redisUtil.get("app_detail_cache:" + appId)).thenReturn(null);
         when(commonConfig.getAppId()).thenReturn("NOT-SPECIAL");
 
@@ -86,10 +86,11 @@ class AppServiceTest {
         }
     }
 
-    // ================= getAkSk: HTTP 抛受检异常 → 包装成 RuntimeException =================
+    // ================= getAkSk: HTTP throws checked exception → Wrapped as RuntimeException
+    // =================
 
     @Test
-    @DisplayName("getAkSk - HeaderAuthHttpTool.get 抛 IOException：应包装为 RuntimeException 并带有 cause")
+    @DisplayName("getAkSk - HeaderAuthHttpTool.get throws IOException: Should wrap as RuntimeException with cause")
     void getAkSk_shouldWrapHttpException() {
         String appId = "APP-6";
         when(redisUtil.get("app_detail_cache:" + appId)).thenReturn(null);

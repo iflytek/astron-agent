@@ -49,7 +49,7 @@ class OpenPlatformServiceTest {
     // ================ syncWorkflowClone ================
 
     @Test
-    @DisplayName("syncWorkflowClone - 应组装 CloneSynchronize 并调用 botMassService，返回其结果")
+    @DisplayName("syncWorkflowClone - Should build CloneSynchronize and call botMassService, returning its result")
     void syncWorkflowClone_shouldBuildDto_andDelegate() {
         ArgumentCaptor<CloneSynchronize> cap =
                 ArgumentCaptor.forClass(CloneSynchronize.class);
@@ -68,7 +68,7 @@ class OpenPlatformServiceTest {
     }
 
     @Test
-    @DisplayName("syncWorkflowClone - 下游抛异常应向外传播")
+    @DisplayName("syncWorkflowClone - Downstream exception should be propagated")
     void syncWorkflowClone_shouldPropagateException() {
         when(botMassService.maasCopySynchronize(any()))
                 .thenThrow(new RuntimeException("down"));
@@ -84,7 +84,7 @@ class OpenPlatformServiceTest {
     class SyncWorkflowUpdateTests {
 
         @Test
-        @DisplayName("syncWorkflowUpdate - 成功：应正确拼 URL/Headers/Body 并返回 data")
+        @DisplayName("syncWorkflowUpdate - Success: Should correctly construct URL/Headers/Body and return data")
         void syncWorkflowUpdate_success() {
             when(apiUrl.getOpenPlatform()).thenReturn("http://open");
 
@@ -111,7 +111,7 @@ class OpenPlatformServiceTest {
                         assertThat(headers).containsEntry("appId", commonConfig.getAppId());
                         assertThat(headers).containsEntry("signature", "SIG-123");
                         assertThat(headers).containsKey("timestamp");
-                        assertThat(headers.get("timestamp")).matches("\\d{10}"); // 秒级时间戳
+                        assertThat(headers.get("timestamp")).matches("\\d{10}"); // Seconds-level timestamp
 
                         // body: fields and values
                         JSONObject jo = JSON.parseObject(body);
@@ -141,7 +141,7 @@ class OpenPlatformServiceTest {
         }
 
         @Test
-        @DisplayName("syncWorkflowUpdate - 平台返回非0应抛 BusinessException(common.response.failed)")
+        @DisplayName("syncWorkflowUpdate - Platform returns non-zero code: Should throw BusinessException(common.response.failed)")
         void syncWorkflowUpdate_failed_shouldThrowBusinessException() {
             when(apiUrl.getOpenPlatform()).thenReturn("http://open");
 
@@ -167,7 +167,7 @@ class OpenPlatformServiceTest {
         }
 
         @Test
-        @DisplayName("syncWorkflowUpdate - 允许 null 参数并照常发起请求")
+        @DisplayName("syncWorkflowUpdate - Allow null parameters and still send request normally")
         void syncWorkflowUpdate_nulls_shouldStillCallHttp() {
             when(apiUrl.getOpenPlatform()).thenReturn("http://open");
 

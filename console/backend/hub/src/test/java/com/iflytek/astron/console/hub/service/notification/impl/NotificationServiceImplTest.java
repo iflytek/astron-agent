@@ -50,16 +50,16 @@ class NotificationServiceImplTest {
         NotificationDto notification1 = new NotificationDto();
         notification1.setId(1L);
         notification1.setType(NotificationType.PERSONAL);
-        notification1.setTitle("个人消息1");
-        notification1.setBody("这是一条个人消息");
+        notification1.setTitle("Personal message 1");
+        notification1.setBody("This is a personal message");
         notification1.setIsRead(false);
         notification1.setCreatedAt(now);
 
         NotificationDto notification2 = new NotificationDto();
         notification2.setId(2L);
         notification2.setType(NotificationType.SYSTEM);
-        notification2.setTitle("系统通知");
-        notification2.setBody("系统维护通知");
+        notification2.setTitle("System notification");
+        notification2.setBody("System maintenance notification");
         notification2.setIsRead(true);
         notification2.setCreatedAt(now.minusHours(1));
 
@@ -301,25 +301,26 @@ class NotificationServiceImplTest {
     }
 
     private List<NotificationDto> createAllTypeNotifications() {
+        // Test data with Chinese titles for different notification types
         NotificationDto personal = new NotificationDto();
         personal.setId(1L);
         personal.setType(NotificationType.PERSONAL);
-        personal.setTitle("个人消息");
+        personal.setTitle("Personal message");
 
         NotificationDto broadcast = new NotificationDto();
         broadcast.setId(2L);
         broadcast.setType(NotificationType.BROADCAST);
-        broadcast.setTitle("广播消息");
+        broadcast.setTitle("Broadcast message");
 
         NotificationDto system = new NotificationDto();
         system.setId(3L);
         system.setType(NotificationType.SYSTEM);
-        system.setTitle("系统通知");
+        system.setTitle("System notification");
 
         NotificationDto promotion = new NotificationDto();
         promotion.setId(4L);
         promotion.setType(NotificationType.PROMOTION);
-        promotion.setTitle("推广消息");
+        promotion.setTitle("Promotion message");
 
         return Arrays.asList(personal, broadcast, system, promotion);
     }

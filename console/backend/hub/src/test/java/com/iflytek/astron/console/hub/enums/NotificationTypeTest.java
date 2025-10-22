@@ -49,7 +49,7 @@ class NotificationTypeTest {
         assertNull(NotificationType.fromCode("INVALID"));
         assertNull(NotificationType.fromCode("invalid"));
         assertNull(NotificationType.fromCode(""));
-        assertNull(NotificationType.fromCode("personal")); // 大小写敏感
+        assertNull(NotificationType.fromCode("personal")); // Case-sensitive
     }
 
     @Test

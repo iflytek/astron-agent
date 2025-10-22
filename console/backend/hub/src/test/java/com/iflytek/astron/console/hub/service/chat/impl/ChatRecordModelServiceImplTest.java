@@ -304,7 +304,7 @@ class ChatRecordModelServiceImplTest {
         // When
         chatRecordModelService.saveChatResponse(chatReqRecords, specialFinalResult, specialSid, editMode, answerType);
 
-        // Then
+        // Then - Verify Chinese content is preserved correctly
         ArgumentCaptor<ChatRespRecords> respRecordsCaptor = ArgumentCaptor.forClass(ChatRespRecords.class);
         verify(chatDataService).createResponse(respRecordsCaptor.capture());
 
@@ -317,12 +317,13 @@ class ChatRecordModelServiceImplTest {
     void testSaveThinkingResult_WithSpecialCharacters_ShouldCreateWithSpecialCharacters() {
         // Given
         boolean editMode = false;
+        // Test data with special characters and Chinese thinking content: "中文思考" means "Chinese thinking"
         StringBuffer specialThinkingResult = new StringBuffer("Thinking with special chars: \"quotes\", {brackets}, [arrays], & symbols! 中文思考 🤔");
 
         // When
         chatRecordModelService.saveThinkingResult(chatReqRecords, specialThinkingResult, editMode);
 
-        // Then
+        // Then - Verify Chinese thinking content is preserved correctly
         ArgumentCaptor<ChatReasonRecords> reasonRecordsCaptor = ArgumentCaptor.forClass(ChatReasonRecords.class);
         verify(chatDataService).createReasonRecord(reasonRecordsCaptor.capture());
 

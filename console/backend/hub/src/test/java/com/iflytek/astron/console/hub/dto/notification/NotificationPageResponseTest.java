@@ -105,7 +105,7 @@ class NotificationPageResponseTest {
                 response.getNotificationsByType();
 
         assertNotNull(groupedNotifications);
-        assertEquals(4, groupedNotifications.size()); // 4种类型
+        assertEquals(4, groupedNotifications.size()); // 4 types
 
         // Verify PERSONAL type notifications
         List<NotificationDto> personalNotifications = groupedNotifications.get(NotificationType.PERSONAL);
