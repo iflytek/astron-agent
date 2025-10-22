@@ -15,6 +15,28 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USER:astron}
     password: ${MYSQL_PASSWORD:astron-dev-env-db}
+    # HikariCP connection pool configuration
+    hikari:
+      # Maximum pool size
+      maximum-pool-size: 30
+      # Minimum idle connections
+      minimum-idle: 5
+      # Connection timeout (ms)
+      connection-timeout: 30000
+      # Idle timeout (ms)
+      idle-timeout: 600000
+      # Max connection lifetime (ms)
+      max-lifetime: 1800000
+      # Validation timeout (ms)
+      validation-timeout: 5000
+      # Connection test query
+      connection-test-query: SELECT 1
+      # Pool name
+      pool-name: AstronHikariCP
+      # Auto commit
+      auto-commit: true
+      # Leak detection threshold (ms)
+      leak-detection-threshold: 60000
   data:
     redis:
       host: ${REDIS_HOST:redis}
