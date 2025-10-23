@@ -36,6 +36,9 @@ public class S3ClientUtil {
     @Value("${s3.endpoint}")
     private String endpoint;
 
+    @Value("${s3.remoteEndpoint}")
+    private String remoteEndpoint;
+
     @Value("${s3.accessKey}")
     private String accessKey;
 
@@ -151,7 +154,7 @@ public class S3ClientUtil {
      * @return full object URL
      */
     private String buildObjectUrl(String bucketName, String objectKey) {
-        return String.format("%s/%s/%s", endpoint, bucketName, objectKey);
+        return String.format("%s/%s/%s", remoteEndpoint, bucketName, objectKey);
     }
 
     /**

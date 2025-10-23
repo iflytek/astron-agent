@@ -96,7 +96,8 @@ mybatis-plus:
 
 # S3(MinIO) basic configuration
 s3:
-  endpoint: ${OSS_REMOTE_ENDPOINT:http://minio:9000}
+  endpoint: ${OSS_ENDPOINT:http://minio:9000}
+  remoteEndpoint: ${OSS_REMOTE_ENDPOINT:http://your-host-domain:9000}
   accessKey: ${OSS_ACCESS_KEY_ID:astron-uploader}
   secretKey: ${OSS_ACCESS_KEY_SECRET:astron-uploader-secret}
   bucket: ${OSS_BUCKET_CONSOLE:astron-agent}
