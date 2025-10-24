@@ -31,16 +31,9 @@ COPY --from=build /backend/hub/target/hub-server.jar /app/app.jar
 EXPOSE 8080
 
 # Optimized JVM parameters for reduced memory usage:
-# - MaxRAMPercentage: reduced from 75% to 70% for lower heap memory usage
-# - InitialRAMPercentage: set to 50% to avoid frequent heap expansion
-# - UseG1GC: use G1 garbage collector (default in Java 21, but explicit for clarity)
-# - UseStringDeduplication: eliminate duplicate strings to save memory
-# - Xss512k: reduce thread stack size from default 1MB to 512KB (safe for production)
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
-    "-XX:MaxRAMPercentage=70.0", \
-    "-XX:InitialRAMPercentage=50.0", \
+    "-XX:MaxRAMPercentage=75.0", \
     "-XX:+UseG1GC", \
     "-XX:+UseStringDeduplication", \
-    "-Xss512k", \
     "-jar", "/app/app.jar"]
