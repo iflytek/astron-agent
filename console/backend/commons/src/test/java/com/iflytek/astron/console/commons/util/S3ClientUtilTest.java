@@ -39,8 +39,9 @@ class S3ClientUtilTest {
     private S3ClientUtil s3ClientUtil;
 
     // MinIO test environment configuration - from environment variables
+    // Use different values for endpoint and remoteEndpoint to test URL replacement logic
     private static final String TEST_ENDPOINT = System.getenv().getOrDefault("MINIO_TEST_ENDPOINT", "http://localhost:9000");
-    private static final String TEST_REMOTE_ENDPOINT = System.getenv().getOrDefault("MINIO_TEST_REMOTE_ENDPOINT", "http://localhost:9000");
+    private static final String TEST_REMOTE_ENDPOINT = System.getenv().getOrDefault("MINIO_TEST_REMOTE_ENDPOINT", "http://external-minio.example.com:9000");
     private static final String TEST_ACCESS_KEY = System.getenv().getOrDefault("MINIO_TEST_ACCESS_KEY", "minioadmin");
     private static final String TEST_SECRET_KEY = System.getenv().getOrDefault("MINIO_TEST_SECRET_KEY", "minioadmin");
     private static final String TEST_BUCKET = System.getenv().getOrDefault("MINIO_TEST_BUCKET", "astron-project");
@@ -225,7 +226,7 @@ class S3ClientUtilTest {
 
         // Verify result contains necessary components
         Assertions.assertNotNull(actualUrl);
-        Assertions.assertTrue(actualUrl.startsWith(TEST_ENDPOINT));
+        Assertions.assertTrue(actualUrl.startsWith(TEST_REMOTE_ENDPOINT));
         Assertions.assertTrue(actualUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(actualUrl.contains(objectKey));
         Assertions.assertTrue(actualUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
@@ -309,7 +310,7 @@ class S3ClientUtilTest {
 
         // Verify result
         Assertions.assertNotNull(actualUrl);
-        Assertions.assertTrue(actualUrl.startsWith(TEST_ENDPOINT));
+        Assertions.assertTrue(actualUrl.startsWith(TEST_REMOTE_ENDPOINT));
         Assertions.assertTrue(actualUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(actualUrl.contains(objectKey));
         Assertions.assertTrue(actualUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
@@ -487,15 +488,20 @@ class S3ClientUtilTest {
         // Generate presigned URL
         String presignedUrl = s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, objectKey, 600);
 
-        // Verify presigned URL format
+        // Verify presigned URL format (should use TEST_REMOTE_ENDPOINT)
         Assertions.assertNotNull(presignedUrl);
-        Assertions.assertTrue(presignedUrl.startsWith(TEST_ENDPOINT));
+        Assertions.assertTrue(presignedUrl.startsWith(TEST_REMOTE_ENDPOINT));
         Assertions.assertTrue(presignedUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(presignedUrl.contains(objectKey));
         Assertions.assertTrue(presignedUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 
+        // For actual upload testing, replace remote endpoint with internal endpoint
+        // This simulates the scenario where the remote endpoint is public-facing
+        // but we're testing from internal network
+        String actualUploadUrl = presignedUrl.replace(TEST_REMOTE_ENDPOINT, TEST_ENDPOINT);
+
         // Upload file using presigned URL
-        URL url = new URL(presignedUrl);
+        URL url = new URL(actualUploadUrl);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("PUT");
         connection.setDoOutput(true);
@@ -553,16 +559,19 @@ class S3ClientUtilTest {
         int expirySeconds = 3600;
         String presignedGetUrl = s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, objectKey, expirySeconds);
 
-        // Verify presigned GET URL format
+        // Verify presigned GET URL format (should use TEST_REMOTE_ENDPOINT)
         Assertions.assertNotNull(presignedGetUrl);
-        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_ENDPOINT));
+        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_REMOTE_ENDPOINT));
         Assertions.assertTrue(presignedGetUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(presignedGetUrl.contains(objectKey));
         Assertions.assertTrue(presignedGetUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 
+        // For actual download testing, replace remote endpoint with internal endpoint
+        String actualDownloadUrl = presignedGetUrl.replace(TEST_REMOTE_ENDPOINT, TEST_ENDPOINT);
+
         // Verify can read content via presigned GET URL
         try {
-            String downloadedContent = readFromUrl(presignedGetUrl);
+            String downloadedContent = readFromUrl(actualDownloadUrl);
             Assertions.assertEquals(testContent, downloadedContent,
                     "Content downloaded via presigned GET URL should match uploaded content");
         } catch (IOException e) {
@@ -584,16 +593,19 @@ class S3ClientUtilTest {
         // Generate presigned GET URL using default bucket and expiry
         String presignedGetUrl = s3ClientUtil.generatePresignedGetUrl(objectKey);
 
-        // Verify presigned GET URL format
+        // Verify presigned GET URL format (should use TEST_REMOTE_ENDPOINT)
         Assertions.assertNotNull(presignedGetUrl);
-        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_ENDPOINT));
+        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_REMOTE_ENDPOINT));
         Assertions.assertTrue(presignedGetUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(presignedGetUrl.contains(objectKey));
         Assertions.assertTrue(presignedGetUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 
+        // For actual download testing, replace remote endpoint with internal endpoint
+        String actualDownloadUrl = presignedGetUrl.replace(TEST_REMOTE_ENDPOINT, TEST_ENDPOINT);
+
         // Verify can read content via presigned GET URL
         try {
-            String downloadedContent = readFromUrl(presignedGetUrl);
+            String downloadedContent = readFromUrl(actualDownloadUrl);
             Assertions.assertEquals(testContent, downloadedContent,
                     "Content downloaded via presigned GET URL should match uploaded content");
         } catch (IOException e) {
