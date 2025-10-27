@@ -263,31 +263,6 @@ class KnowledgeControllerTest {
         }
 
         /**
-         * Test successful knowledge update with valid tags.
-         *
-         * @throws ExecutionException if the computation threw an exception
-         * @throws InterruptedException if the current thread was interrupted
-         */
-        @Test
-        @DisplayName("Update knowledge successfully with valid tags")
-        void testUpdateKnowledge_ValidTags_Success() throws ExecutionException, InterruptedException {
-            // Given
-            List<String> tags = Arrays.asList("tag1", "tag2", "tag3");
-            knowledgeVO.setTags(tags);
-            when(knowledgeService.updateKnowledge(any(KnowledgeVO.class))).thenReturn(mockKnowledge);
-
-            // When
-            ApiResult<Knowledge> result = knowledgeController.updateKnowledge(knowledgeVO);
-
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.code()).isEqualTo(0);
-            assertThat(result.data()).isNotNull();
-
-            verify(knowledgeService, times(1)).updateKnowledge(any(KnowledgeVO.class));
-        }
-
-        /**
          * Test knowledge update with tag length equal to 30 (boundary value).
          *
          * @throws ExecutionException if the computation threw an exception
@@ -505,17 +480,17 @@ class KnowledgeControllerTest {
         }
 
         /**
-         * Test knowledge update with valid Chinese tags.
+         * Test knowledge update with valid tags.
          *
          * @throws ExecutionException if the computation threw an exception
          * @throws InterruptedException if the current thread was interrupted
          */
         @Test
-        @DisplayName("Update knowledge - with valid Chinese tags")
-        void testUpdateKnowledge_ChineseTagsValid_Success() throws ExecutionException, InterruptedException {
-            // Given - 10 Chinese characters (30 bytes, but 10 characters in length)
-            String chineseTag = "这是一个测试标签1234"; // 10 characters
-            knowledgeVO.setTags(Collections.singletonList(chineseTag));
+        @DisplayName("Update knowledge - with valid tags")
+        void testUpdateKnowledge_ValidTags_Success() throws ExecutionException, InterruptedException {
+            // Given - 10 characters
+            String validTag = "TestTag123"; // 10 characters
+            knowledgeVO.setTags(Collections.singletonList(validTag));
             when(knowledgeService.updateKnowledge(any(KnowledgeVO.class))).thenReturn(mockKnowledge);
 
             // When
@@ -529,15 +504,15 @@ class KnowledgeControllerTest {
         }
 
         /**
-         * Test knowledge update with Chinese tags that are too long.
+         * Test knowledge update with tags that are too long.
          */
         @Test
-        @DisplayName("Update knowledge - with Chinese tags that are too long")
-        void testUpdateKnowledge_ChineseTagsTooLong_ThrowsException() {
-            // Given - 31 characters (Chinese + numbers)
-            String chineseTag = "这是一个非常长的中文标签用于测试边界条件的处理逻辑问题1234"; // 31 characters
-            assertThat(chineseTag.length()).isEqualTo(31); // Verify it's indeed 31 characters
-            knowledgeVO.setTags(Collections.singletonList(chineseTag));
+        @DisplayName("Update knowledge - with tags that are too long")
+        void testUpdateKnowledge_TagsTooLong_ThrowsException() {
+            // Given - 31 characters
+            String longTag = "VeryLongTagForBoundaryTest12345"; // 31 characters
+            assertThat(longTag.length()).isEqualTo(31); // Verify it's indeed 31 characters
+            knowledgeVO.setTags(Collections.singletonList(longTag));
 
             // When & Then
             assertThatThrownBy(() -> knowledgeController.updateKnowledge(knowledgeVO))

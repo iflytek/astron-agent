@@ -122,7 +122,7 @@ public class RedisUtil {
         Long ret = stringRedisTemplate.execute(
                 LUA_RENEW,
                 Collections.singletonList(key),
-                token, pttl // ——全部是字符串
+                token, pttl // String types
         );
         boolean ok = ret != null && ret > 0;
         log.debug("redis.renew key={}, ttl={}s, token={}, ok={}", key, ttlSeconds, safe(token), ok);

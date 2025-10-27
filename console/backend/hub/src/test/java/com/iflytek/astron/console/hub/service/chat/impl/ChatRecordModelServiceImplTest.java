@@ -317,7 +317,7 @@ class ChatRecordModelServiceImplTest {
     void testSaveThinkingResult_WithSpecialCharacters_ShouldCreateWithSpecialCharacters() {
         // Given
         boolean editMode = false;
-        // Test data with special characters and Chinese thinking content: "中文思考" means "Chinese thinking"
+        // Test data with special characters and Chinese thinking content
         StringBuffer specialThinkingResult = new StringBuffer("Thinking with special chars: \"quotes\", {brackets}, [arrays], & symbols! 中文思考 🤔");
 
         // When

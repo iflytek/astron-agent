@@ -10,7 +10,7 @@ public class StartReq {
     @NotBlank
     private String projectId;
     private String execPosition = "EXECUTOR";
-    // 可空，默认 RPA 当前启用版本
+    // Nullable, defaults to current active RPA version
     private Integer version;
     private Map<String, Object> params = Map.of();
 }

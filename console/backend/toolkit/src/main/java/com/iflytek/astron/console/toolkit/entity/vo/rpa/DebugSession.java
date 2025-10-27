@@ -17,19 +17,19 @@ public class DebugSession {
 
 
     private volatile String apiToken;
-    // RPA 返回
+    // Returned by RPA
     private volatile String executionId;
     private volatile DebugStatus status = DebugStatus.CREATED;
-    // 错误或提示信息
+    // Error or informational message
     private volatile String message;
-    // 若第三方不提供，保持 0
+    // Remains 0 if not provided by third party
     private volatile int progress = 0;
     private volatile Instant createdAt = Instant.now();
     private volatile Instant updatedAt = Instant.now();
-    // 生命周期（ms）
+    // Lifecycle duration (ms)
     private final long expireAtEpochMilli;
     private final AtomicInteger retries = new AtomicInteger(0);
-    // 当前轮询间隔（ms）
+    // Current polling interval (ms)
     private volatile long nextPollMs;
 
     public DebugSession(String projectId, Integer version, String execPosition, Map<String, Object> params, String apiToken, long timeoutSeconds, long initialPollMs) {
