@@ -3,10 +3,12 @@ package com.iflytek.astron.console.commons.util.space;
 
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.commons.service.space.EnterpriseSpaceService;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+@Slf4j
 public class SpaceInfoUtil {
 
     private static String spaceIdKey = "space-id";
@@ -62,10 +64,12 @@ public class SpaceInfoUtil {
     public static Long getSpaceId() {
         HttpServletRequest request = RequestContextUtil.getCurrentRequest();
         String spaceId = request.getHeader(spaceIdKey);
-        if (StringUtils.isNotBlank(spaceId)) {
+        try {
             return Long.parseLong(spaceId);
+        } catch (NumberFormatException e) {
+            log.debug("SpaceInfoUtil.getSpaceId() failed to parse spaceId: {}, return null", spaceId, e);
+            return null;
         }
-        return null;
     }
 
     /**
