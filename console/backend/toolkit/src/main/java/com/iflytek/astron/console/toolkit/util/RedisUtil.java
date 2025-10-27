@@ -158,8 +158,7 @@ public class RedisUtil {
         Long ret = stringRedisTemplate.execute(
                 LUA_UNLOCK,
                 Collections.singletonList(key),
-                token
-        );
+                token);
         boolean ok = ret != null && ret > 0;
         log.debug("redis.unlock key={}, token={}, ok={}", key, safe(token), ok);
         return ok;

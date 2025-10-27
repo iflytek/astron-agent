@@ -329,7 +329,8 @@ public class S3Util {
      * @return presigned URL string
      * @throws BusinessException when presign generation fails
      */
-    // Deprecated: use com.iflytek.astron.console.commons.util.S3ClientUtil.generatePresignedPutUrl() instead
+    // Deprecated: use com.iflytek.astron.console.commons.util.S3ClientUtil.generatePresignedPutUrl()
+    // instead
     @Deprecated(forRemoval = true)
     public String generatePresignedPutUrl(String objectKey, Integer expirySeconds) {
         try {
