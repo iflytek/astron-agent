@@ -25,8 +25,7 @@ import org.springframework.test.util.ReflectionTestUtils;
  *
  * Test configuration: - MinIO connection details configurable via environment variables Environment
  * variables: - MINIO_TEST_ENDPOINT: MinIO server endpoint (default: http://localhost:9000) -
- * MINIO_TEST_REMOTE_ENDPOINT: Remote endpoint for external access (default: http://localhost:9000)
- * - MINIO_TEST_ACCESS_KEY: Access key for authentication (default: minioadmin) -
+ * MINIO_TEST_ACCESS_KEY: Access key for authentication (default: minioadmin) -
  * MINIO_TEST_SECRET_KEY: Secret key for authentication (default: minioadmin) - MINIO_TEST_BUCKET:
  * Bucket name for testing (default: astron-project) - MINIO_INVALID_ACCESS_KEY: Invalid access key
  * for negative testing (default: invalid-user) - MINIO_INVALID_SECRET_KEY: Invalid secret key for
@@ -39,9 +38,8 @@ class S3ClientUtilTest {
     private S3ClientUtil s3ClientUtil;
 
     // MinIO test environment configuration - from environment variables
-    // Use different values for endpoint and remoteEndpoint to test URL replacement logic
+    // TEST_ENDPOINT is used for actual MinIO connection and URL generation
     private static final String TEST_ENDPOINT = System.getenv().getOrDefault("MINIO_TEST_ENDPOINT", "http://localhost:9000");
-    private static final String TEST_REMOTE_ENDPOINT = System.getenv().getOrDefault("MINIO_TEST_REMOTE_ENDPOINT", "http://external-minio.example.com:9000");
     private static final String TEST_ACCESS_KEY = System.getenv().getOrDefault("MINIO_TEST_ACCESS_KEY", "minioadmin");
     private static final String TEST_SECRET_KEY = System.getenv().getOrDefault("MINIO_TEST_SECRET_KEY", "minioadmin");
     private static final String TEST_BUCKET = System.getenv().getOrDefault("MINIO_TEST_BUCKET", "astron-project");
@@ -79,8 +77,7 @@ class S3ClientUtilTest {
         s3ClientUtil = new S3ClientUtil();
 
         // Use real MinIO test environment configuration
-        ReflectionTestUtils.setField(s3ClientUtil, "endpoint", TEST_ENDPOINT);
-        ReflectionTestUtils.setField(s3ClientUtil, "remoteEndpoint", TEST_REMOTE_ENDPOINT);
+        ReflectionTestUtils.setField(s3ClientUtil, "remoteEndpoint", TEST_ENDPOINT);
         ReflectionTestUtils.setField(s3ClientUtil, "accessKey", TEST_ACCESS_KEY);
         ReflectionTestUtils.setField(s3ClientUtil, "secretKey", TEST_SECRET_KEY);
         ReflectionTestUtils.setField(s3ClientUtil, "defaultBucket", TEST_BUCKET);
@@ -147,7 +144,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, inputStream, testContent.length, -1);
 
         // Verify returned URL format is correct
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -163,7 +160,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, null, inputStream, testContent.length, -1);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -179,7 +176,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, "", inputStream, testContent.length, -1);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -188,8 +185,7 @@ class S3ClientUtilTest {
     void uploadObject_withInvalidCredentials() {
         // Create an S3ClientUtil using invalid credentials
         S3ClientUtil invalidS3ClientUtil = new S3ClientUtil();
-        ReflectionTestUtils.setField(invalidS3ClientUtil, "endpoint", TEST_ENDPOINT);
-        ReflectionTestUtils.setField(invalidS3ClientUtil, "remoteEndpoint", TEST_REMOTE_ENDPOINT);
+        ReflectionTestUtils.setField(invalidS3ClientUtil, "remoteEndpoint", TEST_ENDPOINT);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "accessKey", INVALID_ACCESS_KEY);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "secretKey", INVALID_SECRET_KEY);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "defaultBucket", TEST_BUCKET);
@@ -226,7 +222,7 @@ class S3ClientUtilTest {
 
         // Verify result contains necessary components
         Assertions.assertNotNull(actualUrl);
-        Assertions.assertTrue(actualUrl.startsWith(TEST_REMOTE_ENDPOINT));
+        Assertions.assertTrue(actualUrl.startsWith(TEST_ENDPOINT));
         Assertions.assertTrue(actualUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(actualUrl.contains(objectKey));
         Assertions.assertTrue(actualUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
@@ -237,8 +233,7 @@ class S3ClientUtilTest {
     void generatePresignedPutUrl_withInvalidCredentials() {
         // Create an S3ClientUtil using invalid credentials
         S3ClientUtil invalidS3ClientUtil = new S3ClientUtil();
-        ReflectionTestUtils.setField(invalidS3ClientUtil, "endpoint", TEST_ENDPOINT);
-        ReflectionTestUtils.setField(invalidS3ClientUtil, "remoteEndpoint", TEST_REMOTE_ENDPOINT);
+        ReflectionTestUtils.setField(invalidS3ClientUtil, "remoteEndpoint", TEST_ENDPOINT);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "accessKey", INVALID_ACCESS_KEY);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "secretKey", INVALID_SECRET_KEY);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "defaultBucket", TEST_BUCKET);
@@ -295,7 +290,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(objectKey, contentType, inputStream, testContent.length, -1);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -310,7 +305,7 @@ class S3ClientUtilTest {
 
         // Verify result
         Assertions.assertNotNull(actualUrl);
-        Assertions.assertTrue(actualUrl.startsWith(TEST_REMOTE_ENDPOINT));
+        Assertions.assertTrue(actualUrl.startsWith(TEST_ENDPOINT));
         Assertions.assertTrue(actualUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(actualUrl.contains(objectKey));
         Assertions.assertTrue(actualUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
@@ -328,7 +323,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, data);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -344,7 +339,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, inputStream);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -360,7 +355,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(objectKey, contentType, data);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -376,7 +371,7 @@ class S3ClientUtilTest {
         String result = s3ClientUtil.uploadObject(objectKey, contentType, inputStream);
 
         // Verify returned URL
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, result);
     }
 
@@ -424,7 +419,7 @@ class S3ClientUtilTest {
         String generatedUrl = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, inputStream, testContentBytes.length, -1);
 
         // Verify URL format (should be remote endpoint)
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, generatedUrl);
 
         // For testing actual access, use internal endpoint if remote endpoint is not accessible
@@ -457,7 +452,7 @@ class S3ClientUtilTest {
         String generatedUrl = s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, data);
 
         // Verify URL format (should be remote endpoint)
-        String expectedUrl = TEST_REMOTE_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
+        String expectedUrl = TEST_ENDPOINT + "/" + TEST_BUCKET + "/" + objectKey;
         Assertions.assertEquals(expectedUrl, generatedUrl);
 
         // For testing actual access, use internal endpoint if remote endpoint is not accessible
@@ -488,20 +483,15 @@ class S3ClientUtilTest {
         // Generate presigned URL
         String presignedUrl = s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, objectKey, 600);
 
-        // Verify presigned URL format (should use TEST_REMOTE_ENDPOINT)
+        // Verify presigned URL format
         Assertions.assertNotNull(presignedUrl);
-        Assertions.assertTrue(presignedUrl.startsWith(TEST_REMOTE_ENDPOINT));
+        Assertions.assertTrue(presignedUrl.startsWith(TEST_ENDPOINT));
         Assertions.assertTrue(presignedUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(presignedUrl.contains(objectKey));
         Assertions.assertTrue(presignedUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 
-        // For actual upload testing, replace remote endpoint with internal endpoint
-        // This simulates the scenario where the remote endpoint is public-facing
-        // but we're testing from internal network
-        String actualUploadUrl = presignedUrl.replace(TEST_REMOTE_ENDPOINT, TEST_ENDPOINT);
-
         // Upload file using presigned URL
-        URL url = new URL(actualUploadUrl);
+        URL url = new URL(presignedUrl);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("PUT");
         connection.setDoOutput(true);
@@ -559,19 +549,17 @@ class S3ClientUtilTest {
         int expirySeconds = 3600;
         String presignedGetUrl = s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, objectKey, expirySeconds);
 
-        // Verify presigned GET URL format (should use TEST_REMOTE_ENDPOINT)
+        // Verify presigned GET URL format (should use TEST_ENDPOINT)
         Assertions.assertNotNull(presignedGetUrl);
-        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_REMOTE_ENDPOINT));
+        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_ENDPOINT));
         Assertions.assertTrue(presignedGetUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(presignedGetUrl.contains(objectKey));
         Assertions.assertTrue(presignedGetUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 
-        // For actual download testing, replace remote endpoint with internal endpoint
-        String actualDownloadUrl = presignedGetUrl.replace(TEST_REMOTE_ENDPOINT, TEST_ENDPOINT);
 
         // Verify can read content via presigned GET URL
         try {
-            String downloadedContent = readFromUrl(actualDownloadUrl);
+            String downloadedContent = readFromUrl(presignedGetUrl);
             Assertions.assertEquals(testContent, downloadedContent,
                     "Content downloaded via presigned GET URL should match uploaded content");
         } catch (IOException e) {
@@ -593,19 +581,17 @@ class S3ClientUtilTest {
         // Generate presigned GET URL using default bucket and expiry
         String presignedGetUrl = s3ClientUtil.generatePresignedGetUrl(objectKey);
 
-        // Verify presigned GET URL format (should use TEST_REMOTE_ENDPOINT)
+        // Verify presigned GET URL format (should use TEST_ENDPOINT)
         Assertions.assertNotNull(presignedGetUrl);
-        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_REMOTE_ENDPOINT));
+        Assertions.assertTrue(presignedGetUrl.startsWith(TEST_ENDPOINT));
         Assertions.assertTrue(presignedGetUrl.contains(TEST_BUCKET));
         Assertions.assertTrue(presignedGetUrl.contains(objectKey));
         Assertions.assertTrue(presignedGetUrl.contains("X-Amz-Algorithm=AWS4-HMAC-SHA256"));
 
-        // For actual download testing, replace remote endpoint with internal endpoint
-        String actualDownloadUrl = presignedGetUrl.replace(TEST_REMOTE_ENDPOINT, TEST_ENDPOINT);
 
         // Verify can read content via presigned GET URL
         try {
-            String downloadedContent = readFromUrl(actualDownloadUrl);
+            String downloadedContent = readFromUrl(presignedGetUrl);
             Assertions.assertEquals(testContent, downloadedContent,
                     "Content downloaded via presigned GET URL should match uploaded content");
         } catch (IOException e) {
@@ -618,8 +604,7 @@ class S3ClientUtilTest {
     void generatePresignedGetUrl_withInvalidCredentials() {
         // Create an S3ClientUtil using invalid credentials
         S3ClientUtil invalidS3ClientUtil = new S3ClientUtil();
-        ReflectionTestUtils.setField(invalidS3ClientUtil, "endpoint", TEST_ENDPOINT);
-        ReflectionTestUtils.setField(invalidS3ClientUtil, "remoteEndpoint", TEST_REMOTE_ENDPOINT);
+        ReflectionTestUtils.setField(invalidS3ClientUtil, "remoteEndpoint", TEST_ENDPOINT);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "accessKey", INVALID_ACCESS_KEY);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "secretKey", INVALID_SECRET_KEY);
         ReflectionTestUtils.setField(invalidS3ClientUtil, "defaultBucket", TEST_BUCKET);
