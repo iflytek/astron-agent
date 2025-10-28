@@ -67,7 +67,7 @@ public class SpaceInfoUtil {
         try {
             return Long.parseLong(spaceId);
         } catch (NumberFormatException e) {
-            log.debug("SpaceInfoUtil.getSpaceId() failed to parse spaceId: {}, return null", spaceId, e);
+            log.debug("SpaceInfoUtil.getSpaceId() failed to parse spaceId: {}, return null", spaceId);
             return null;
         }
     }

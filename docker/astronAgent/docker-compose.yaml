@@ -113,6 +113,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_SERVER_URL: ${OSS_REMOTE_ENDPOINT:-http://localhost:18998}
     ports:
       - "${EXPOSE_MINIO_PORT:-9000}:9000"
       - "${EXPOSE_MINIO_CONSOLE_PORT:-9001}:9001"
