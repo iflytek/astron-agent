@@ -51,10 +51,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class S3Util {
-
-    @Value("${s3.endpoint}")
-    private String endpoint;
-
     @Value("${s3.remoteEndpoint}")
     private String remoteEndpoint;
 
@@ -90,7 +86,7 @@ public class S3Util {
     @PostConstruct
     public void init() {
         MinioClient.Builder builder = MinioClient.builder();
-        builder.endpoint(endpoint);
+        builder.endpoint(remoteEndpoint);
         builder.credentials(accessKey, secretKey);
         this.minioClient = builder.build();
     }

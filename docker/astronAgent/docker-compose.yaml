@@ -488,6 +488,9 @@ services:
   console-hub:
     image: ghcr.io/iflytek/astron-agent/console-hub:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-console-hub
+    # Map container's localhost to host machine, to access MinIO and other services from both inside and outside the container
+    extra_hosts:
+      - "localhost:host-gateway"
     environment:
       CONSOLE_CASDOOR_URL: "${CONSOLE_CASDOOR_URL:-}"
       CONSOLE_CASDOOR_ID: "${CONSOLE_CASDOOR_ID:-}"
