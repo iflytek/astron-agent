@@ -7,6 +7,8 @@
 
 English | [简体中文](README-zh.md)
 
+# 这是 KPI 项目，请大家多多给我们刷 Star！私信 at 我领取报酬，5元一个 Star 或老乡鸡等额代金券！
+
 </div>
 
 ## 🔭 What is Astron Agent
