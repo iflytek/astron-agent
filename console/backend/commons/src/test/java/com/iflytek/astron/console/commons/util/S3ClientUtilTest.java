@@ -635,4 +635,320 @@ class S3ClientUtilTest {
 
         Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
     }
+
+    // ========== New tests for parameter validation ==========
+
+    @Test
+    void uploadObject_withNullBucketName_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+        String contentType = "text/plain";
+        InputStream inputStream = new ByteArrayInputStream("test".getBytes());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.uploadObject(null, objectKey, contentType, inputStream, 4, -1));
+
+        Assertions.assertEquals(ResponseEnum.S3_UPLOAD_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void uploadObject_withEmptyBucketName_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+        String contentType = "text/plain";
+        InputStream inputStream = new ByteArrayInputStream("test".getBytes());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.uploadObject("  ", objectKey, contentType, inputStream, 4, -1));
+
+        Assertions.assertEquals(ResponseEnum.S3_UPLOAD_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void uploadObject_withNullObjectKey_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String contentType = "text/plain";
+        InputStream inputStream = new ByteArrayInputStream("test".getBytes());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.uploadObject(TEST_BUCKET, null, contentType, inputStream, 4, -1));
+
+        Assertions.assertEquals(ResponseEnum.S3_UPLOAD_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void uploadObject_withEmptyObjectKey_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String contentType = "text/plain";
+        InputStream inputStream = new ByteArrayInputStream("test".getBytes());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.uploadObject(TEST_BUCKET, "  ", contentType, inputStream, 4, -1));
+
+        Assertions.assertEquals(ResponseEnum.S3_UPLOAD_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void uploadObject_withNullInputStream_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+        String contentType = "text/plain";
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, null, 4, -1));
+
+        Assertions.assertEquals(ResponseEnum.S3_UPLOAD_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void uploadObject_withNullByteArray_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+        String contentType = "text/plain";
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.uploadObject(TEST_BUCKET, objectKey, contentType, (byte[]) null));
+
+        Assertions.assertEquals(ResponseEnum.S3_UPLOAD_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedPutUrl_withNullBucketName_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedPutUrl(null, objectKey, 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedPutUrl_withEmptyBucketName_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedPutUrl("  ", objectKey, 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedPutUrl_withNullObjectKey_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, null, 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedPutUrl_withEmptyObjectKey_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, "  ", 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedPutUrl_withInvalidExpirySeconds_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+
+        // Test with expiry < 1
+        BusinessException exception1 = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, objectKey, 0));
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception1.getCode());
+
+        // Test with expiry > 604800 (7 days)
+        BusinessException exception2 = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, objectKey, 604801));
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception2.getCode());
+    }
+
+    @Test
+    void generatePresignedGetUrl_withNullBucketName_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedGetUrl(null, objectKey, 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedGetUrl_withEmptyBucketName_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedGetUrl("  ", objectKey, 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedGetUrl_withNullObjectKey_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, null, 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedGetUrl_withEmptyObjectKey_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, "  ", 600));
+
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void generatePresignedGetUrl_withInvalidExpirySeconds_shouldThrowException() {
+        // Additional runtime check since @DisabledIf is evaluated at class loading time
+        if (isMinioUnavailable()) {
+            System.out.println("Skipping test - MinIO is unavailable");
+            return;
+        }
+
+        String objectKey = "test/file.txt";
+
+        // Test with expiry < 1
+        BusinessException exception1 = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, objectKey, 0));
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception1.getCode());
+
+        // Test with expiry > 604800 (7 days)
+        BusinessException exception2 = Assertions.assertThrows(BusinessException.class,
+                () -> s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, objectKey, 604801));
+        Assertions.assertEquals(ResponseEnum.S3_PRESIGN_ERROR.getCode(), exception2.getCode());
+    }
+
+    @Test
+    void init_withNullEndpoint_shouldThrowException() {
+        S3ClientUtil invalidUtil = new S3ClientUtil();
+        ReflectionTestUtils.setField(invalidUtil, "endpoint", null);
+        ReflectionTestUtils.setField(invalidUtil, "remoteEndpoint", TEST_REMOTE_ENDPOINT);
+        ReflectionTestUtils.setField(invalidUtil, "accessKey", TEST_ACCESS_KEY);
+        ReflectionTestUtils.setField(invalidUtil, "secretKey", TEST_SECRET_KEY);
+        ReflectionTestUtils.setField(invalidUtil, "defaultBucket", TEST_BUCKET);
+        ReflectionTestUtils.setField(invalidUtil, "presignExpirySeconds", 600);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                invalidUtil::init);
+
+        Assertions.assertEquals(ResponseEnum.INTERNAL_SERVER_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void init_withEmptyRemoteEndpoint_shouldThrowException() {
+        S3ClientUtil invalidUtil = new S3ClientUtil();
+        ReflectionTestUtils.setField(invalidUtil, "endpoint", TEST_ENDPOINT);
+        ReflectionTestUtils.setField(invalidUtil, "remoteEndpoint", "  ");
+        ReflectionTestUtils.setField(invalidUtil, "accessKey", TEST_ACCESS_KEY);
+        ReflectionTestUtils.setField(invalidUtil, "secretKey", TEST_SECRET_KEY);
+        ReflectionTestUtils.setField(invalidUtil, "defaultBucket", TEST_BUCKET);
+        ReflectionTestUtils.setField(invalidUtil, "presignExpirySeconds", 600);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                invalidUtil::init);
+
+        Assertions.assertEquals(ResponseEnum.INTERNAL_SERVER_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void init_withInvalidPresignExpirySeconds_shouldThrowException() {
+        S3ClientUtil invalidUtil = new S3ClientUtil();
+        ReflectionTestUtils.setField(invalidUtil, "endpoint", TEST_ENDPOINT);
+        ReflectionTestUtils.setField(invalidUtil, "remoteEndpoint", TEST_REMOTE_ENDPOINT);
+        ReflectionTestUtils.setField(invalidUtil, "accessKey", TEST_ACCESS_KEY);
+        ReflectionTestUtils.setField(invalidUtil, "secretKey", TEST_SECRET_KEY);
+        ReflectionTestUtils.setField(invalidUtil, "defaultBucket", TEST_BUCKET);
+        ReflectionTestUtils.setField(invalidUtil, "presignExpirySeconds", 0); // Invalid value
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                invalidUtil::init);
+
+        Assertions.assertEquals(ResponseEnum.INTERNAL_SERVER_ERROR.getCode(), exception.getCode());
+    }
 }
