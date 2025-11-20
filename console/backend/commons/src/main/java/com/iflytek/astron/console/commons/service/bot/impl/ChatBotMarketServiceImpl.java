@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.iflytek.astron.console.commons.entity.bot.ChatBotMarket;
+import com.iflytek.astron.console.commons.enums.ShelfStatusEnum;
 import com.iflytek.astron.console.commons.enums.bot.BotStatusEnum;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotMarketMapper;
 import com.iflytek.astron.console.commons.service.bot.ChatBotMarketService;
@@ -31,7 +32,7 @@ public class ChatBotMarketServiceImpl implements ChatBotMarketService {
         Page<ChatBotMarket> marketPage = new Page<>(page, pageSize);
         LambdaQueryWrapper<ChatBotMarket> queryWrapper = Wrappers.lambdaQuery(ChatBotMarket.class)
                 .eq(ChatBotMarket::getIsDelete, NOT_DELETED)
-                .eq(ChatBotMarket::getBotStatus, BotStatusEnum.PUBLISHED.getCode())
+                .eq(ChatBotMarket::getBotStatus, ShelfStatusEnum.ON_SHELF.getCode())
                 .orderByDesc(ChatBotMarket::getCreateTime);
         if (type != null) {
             queryWrapper.eq(ChatBotMarket::getBotType, type);

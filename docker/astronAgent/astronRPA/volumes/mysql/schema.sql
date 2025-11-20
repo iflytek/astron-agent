@@ -822,6 +822,7 @@ CREATE TABLE `openai_workflows` (
   `version` int(11) NOT NULL DEFAULT '1' COMMENT '工作流版本号',
   `status` int(11) NOT NULL DEFAULT '1' COMMENT '工作流状态（1=激活，0=禁用）',
   `user_id` varchar(50) NOT NULL COMMENT '用户ID',
+  `example_project_id` varchar(100) DEFAULT NULL COMMENT '示例用户账号下的project_id，用于执行时映射',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `english_name` varchar(100) DEFAULT NULL COMMENT '翻译后的英文名称',
@@ -856,6 +857,21 @@ CREATE TABLE `openai_executions` (
   CONSTRAINT `openai_executions_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `openai_workflows` (`project_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- rpa.openapi_users definition
+
+CREATE TABLE `openapi_users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `default_api_key` varchar(100) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_id` (`user_id`),
+  UNIQUE KEY `phone` (`phone`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_phone` (`phone`)
+) ENGINE=InnoDB AUTO_INCREMENT=1151 DEFAULT CHARSET=utf8mb4;
 
 -- rpa.pypi_packages definition
 
