@@ -168,7 +168,7 @@ public class MaasUtil {
 
     public JSONObject synchronizeWorkFlow(UserLangChainInfo userLangChainInfo, BotCreateForm botCreateForm,
             HttpServletRequest request, Long spaceId, Integer version, TalkAgentConfigDto talkAgentConfig) {
-        AdvancedConfig advancedConfig = new AdvancedConfig(botCreateForm.getPrologue(), botCreateForm.getInputExample(), botCreateForm.getAppBackground(), new AdvancedConfig.TextToSpeech(true, "aisjiuxu", ""));
+        AdvancedConfig advancedConfig = new AdvancedConfig(botCreateForm.getPrologue(), botCreateForm.getInputExample(), botCreateForm.getAppBackground(), new AdvancedConfig.TextToSpeech(true, "x5_lingxiaotang_flow", ""));
         JSONObject param = new JSONObject();
         param.put("avatarIcon", botCreateForm.getAvatar());
         param.put("avatarColor", "");
