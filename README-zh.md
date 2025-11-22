@@ -42,7 +42,7 @@
 git clone https://github.com/iflytek/astron-agent.git
 
 # 进入 astronAgent 目录
-cd docker/astronAgent
+cd astron-agent/docker/astronAgent
 
 # 复制环境变量配置
 cp .env.example .env
