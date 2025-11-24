@@ -464,7 +464,9 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
       }}
     >
       {showInputs && <Inputs inputs={data?.inputs} label={inputLabel} />}
-      {showOutputs && <Outputs outputs={data?.outputs} data={data} label={outputLabel} />}
+      {showOutputs && (
+        <Outputs outputs={data?.outputs} data={data} label={outputLabel} />
+      )}
       {model && <Model model={model} />}
       {isKnowledgeNode && (
         <Knowledge data={data} repoList={data?.nodeParam?.repoList} />

@@ -159,10 +159,7 @@ const Index: React.ReactElement = () => {
         )}
       </FlowHeader>
       {!historyVersion && <MultipleCanvasesTip />}
-      <Spin
-        spinning={loadingModels}
-        wrapperClassName="flow-spin-wrapper"
-      >
+      <Spin spinning={loadingModels} wrapperClassName="flow-spin-wrapper">
         <div className="w-full h-full">
           <div className="flex items-start w-full h-full px-6">
             {showNodeList && <NodeList />}

@@ -16,7 +16,7 @@ export type FlowState = {
 };
 
 export type NodeType = Node & {
- nodeType: string;
+  nodeType: string;
 };
 
 export type FlowStoreType = {
@@ -31,12 +31,17 @@ export type FlowStoreType = {
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   deleteNodeRef: (nodeId: string, outputId: string) => void;
-  setNodes: (update: NodeType[] | ((oldState: NodeType[]) => NodeType[])) => void;
+  setNodes: (
+    update: NodeType[] | ((oldState: NodeType[]) => NodeType[])
+  ) => void;
   setEdges: (
     update: Edge[] | ((oldState: Edge[]) => Edge[]),
     noNeedTakeSnapshot?: boolean
   ) => void;
-  setNode: (id: string, update: NodeType | ((oldState: NodeType) => NodeType)) => void;
+  setNode: (
+    id: string,
+    update: NodeType | ((oldState: NodeType) => NodeType)
+  ) => void;
   delayCheckNode: (id: string) => void;
   checkNode: (id: string) => boolean;
   deleteNode: (nodeId: string) => void;

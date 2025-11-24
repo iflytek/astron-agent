@@ -21,104 +21,104 @@ import { FlowStoreType } from '../types/zustand/flow';
 import { UseBoundStore, StoreApi } from 'zustand';
 
 export const initialStatus = {
-  willAddNode: null,//Pending Node Information
-  beforeNode: null,//Previous Node Information
-  autonomousMode: false,//Whether to enable autonomous mode
-  nodeList: [],//Node List
-  sparkLlmModels: [],//Spark LLM Node Model List
-  decisionMakingModels: [],//Decision Node Model List
-  extractorParameterModels: [],//Parameter Extractor Node Model List
-  agentModels: [],//Agent Node Model List
-  knowledgeProModels: [],//Knowledge Base Pro Node Model List
-  questionAnswerModels: [],//Question Answer Node Model List
+  willAddNode: null, //Pending Node Information
+  beforeNode: null, //Previous Node Information
+  autonomousMode: false, //Whether to enable autonomous mode
+  nodeList: [], //Node List
+  sparkLlmModels: [], //Spark LLM Node Model List
+  decisionMakingModels: [], //Decision Node Model List
+  extractorParameterModels: [], //Parameter Extractor Node Model List
+  agentModels: [], //Agent Node Model List
+  knowledgeProModels: [], //Knowledge Base Pro Node Model List
+  questionAnswerModels: [], //Question Answer Node Model List
   flowResult: {
     status: '',
     timeCost: '',
     totalTokens: '',
-  },//Flow Execution Result
-  errNodes: [],//Nodes that failed validation
-  currentFlow: undefined,//Current Flow Information
-  showNodeList: true,//Whether to display the node list
-  isLoading: true,//Initialize flow data loading
-  canPublish: false,//Whether the flow can be published
-  showIterativeModal: false,//Whether to display the iterative node modal
+  }, //Flow Execution Result
+  errNodes: [], //Nodes that failed validation
+  currentFlow: undefined, //Current Flow Information
+  showNodeList: true, //Whether to display the node list
+  isLoading: true, //Initialize flow data loading
+  canPublish: false, //Whether the flow can be published
+  showIterativeModal: false, //Whether to display the iterative node modal
   selectPromptModalInfo: {
     open: false,
     nodeId: '',
-  },//Select Prompt Modal Information
+  }, //Select Prompt Modal Information
   selectAgentPromptModalInfo: {
     open: false,
     nodeId: '',
-  },//Select Agent Prompt Modal Information
+  }, //Select Agent Prompt Modal Information
   defaultValueModalInfo: {
     open: false,
     nodeId: '',
     paramsId: '',
     data: {},
-  },//Default Value Modal Information
+  }, //Default Value Modal Information
   promptOptimizeModalInfo: {
     open: false,
     nodeId: '',
     key: 'template',
-  },//Optimize Prompt Modal Information
+  }, //Optimize Prompt Modal Information
   clearFlowCanvasModalInfo: {
     open: false,
-  },//Clear Canvas Modal Information
+  }, //Clear Canvas Modal Information
   nodeInfoEditDrawerlInfo: {
     open: false,
     nodeId: '',
-  },//Node Information Edit Modal Information
+  }, //Node Information Edit Modal Information
   codeIDEADrawerlInfo: {
     open: false,
     nodeId: '',
-  },//Code IDEA Modal Information
-  iteratorId: '',//Iterator Node ID
-  currentStore: undefined,//Current Store
-  flowChatResultOpen: false,//Flow Last Session Input Output Modal
-  edgeType: 'curve',//Edge Type
-  loadingModels: false,//Load Model List
-  canvasesDisabled: false,//Disable Canvas
-  showMultipleCanvasesTip: false,//Multiple Open Modal Tip
-  updateNodeInputData: false,//Update Node Input Data
-  textNodeConfigList: [],//Text Node Separator Configuration List
-  agentStrategy: [],//Agent Node Strategy
-  knowledgeProStrategy: [],//Knowledge Base Pro Node Strategy
-  openOperationResult: false,//Node Validation Result Modal
+  }, //Code IDEA Modal Information
+  iteratorId: '', //Iterator Node ID
+  currentStore: undefined, //Current Store
+  flowChatResultOpen: false, //Flow Last Session Input Output Modal
+  edgeType: 'curve', //Edge Type
+  loadingModels: false, //Load Model List
+  canvasesDisabled: false, //Disable Canvas
+  showMultipleCanvasesTip: false, //Multiple Open Modal Tip
+  updateNodeInputData: false, //Update Node Input Data
+  textNodeConfigList: [], //Text Node Separator Configuration List
+  agentStrategy: [], //Agent Node Strategy
+  knowledgeProStrategy: [], //Knowledge Base Pro Node Strategy
+  openOperationResult: false, //Node Validation Result Modal
   knowledgeModalInfo: {
     open: false,
     nodeId: '',
-  },//Knowledge Base Node Add Knowledge Base Modal
+  }, //Knowledge Base Node Add Knowledge Base Modal
   knowledgeDetailModalInfo: {
     open: false,
     nodeId: '',
     repoId: '',
-  },//Knowledge Base Node Corresponding Knowledge Base Detail Modal
+  }, //Knowledge Base Node Corresponding Knowledge Base Detail Modal
   toolModalInfo: {
     open: false,
-  },//Tool Node Add Tool Modal
+  }, //Tool Node Add Tool Modal
   flowModalInfo: {
     open: false,
-  },//Flow Node Add Flow Modal
+  }, //Flow Node Add Flow Modal
   rpaModalInfo: {
     open: false,
-  },//RPA Node Add RPA Modal
+  }, //RPA Node Add RPA Modal
   knowledgeParameterModalInfo: {
     open: false,
     nodeId: '',
-  },//Knowledge Base Node Configure Knowledge Base Parameter Modal
+  }, //Knowledge Base Node Configure Knowledge Base Parameter Modal
   knowledgeProParameterModalInfo: {
     open: false,
     nodeId: '',
-  },//Knowledge Base Pro Node Configure Knowledge Base Pro Parameter Modal
-  advancedConfiguration: false,//Advanced Configuration Modal
-  versionManagement: false,//Version Management Modal
-  historyVersion: false,//Whether to be a history version
-  historyVersionData: {},//History Version Data
-  controlMode: 'mouse',//Control Mode
+  }, //Knowledge Base Pro Node Configure Knowledge Base Pro Parameter Modal
+  advancedConfiguration: false, //Advanced Configuration Modal
+  versionManagement: false, //Version Management Modal
+  historyVersion: false, //Whether to be a history version
+  historyVersionData: {}, //History Version Data
+  controlMode: 'mouse', //Control Mode
   singleNodeDebuggingInfo: {
     nodeId: '',
-    controller: null,//Node Controller
-  },//Single Node Debug Modal
+    controller: null, //Node Controller
+  }, //Single Node Debug Modal
 };
 
 export interface ModelConfig {
@@ -462,8 +462,8 @@ function validateDecisionMakingNode({
         index === intentChains?.length - 1
           ? getFlowErrorMsg('defaultIntentNotConnected')
           : getFlowErrorMsg('intentNotConnected', {
-            intentNumber: intentOrderList[index],
-          });
+              intentNumber: intentOrderList[index],
+            });
     }
   });
   if (!flag)
@@ -733,7 +733,7 @@ export function checkFlow(get): boolean {
       checkIteratorNode({
         iteratorId: currentCheckNode.id,
         outerErrNodes: errNodes,
-        cycleEdges
+        cycleEdges,
       });
     }
 

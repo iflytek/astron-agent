@@ -30,10 +30,10 @@ import {
 import { NodeDataType } from '@/components/workflow/types';
 
 export const initialStatus = {
-  historys: [],//History List
-  nodes: [],//Node List
-  edges: [],//Edge List
-  zoom: 80,//Zoom
+  historys: [], //History List
+  nodes: [], //Node List
+  edges: [], //Edge List
+  zoom: 80, //Zoom
 };
 
 // Undo
@@ -192,7 +192,7 @@ const setNode = (
 // Delay Check Node
 const delayCheckNode = (
   nodeId: string,
-  get: () => { nodes: Node[]; setNode: (id: string, node: Node) => void },
+  get: () => { nodes: Node[]; setNode: (id: string, node: Node) => void }
 ): void => {
   setTimeout(() => {
     checkNode(nodeId, get);

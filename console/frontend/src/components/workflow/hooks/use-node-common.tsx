@@ -115,12 +115,9 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const showInputs = useMemo(() => {
-    const isDatabaseNodeFormMode = isDataBaseNode && data?.nodeParam?.mode === 1;
-    return (
-      data?.inputs?.length > 0 &&
-      !isIfElseNode &&
-      !isDatabaseNodeFormMode
-    );
+    const isDatabaseNodeFormMode =
+      isDataBaseNode && data?.nodeParam?.mode === 1;
+    return data?.inputs?.length > 0 && !isIfElseNode && !isDatabaseNodeFormMode;
   }, [data, isIfElseNode, isDataBaseNode]);
 
   const showOutputs = useMemo(() => {
@@ -234,7 +231,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     nodeDesciption,
     isRpaNode,
     inputLabel,
-    outputLabel
+    outputLabel,
   };
 };
 
@@ -519,10 +516,11 @@ const OutputDescription = ({ id, data, output }): React.ReactElement => {
   }
   return (
     <div
-      className={`flex flex-col flex-1 h-full ${output?.deleteDisabled || output?.customParameterType === 'deepseekr1'
-        ? 'disabled-flow-textarea'
-        : ''
-        }`}
+      className={`flex flex-col flex-1 h-full ${
+        output?.deleteDisabled || output?.customParameterType === 'deepseekr1'
+          ? 'disabled-flow-textarea'
+          : ''
+      }`}
     >
       {renderTypeInput(output)}
     </div>
