@@ -349,9 +349,9 @@ const BaseConfig: React.FC<ChatProps> = ({
   const getModelConfig = (modelKey: string) => {
     const selectedModel = findModelOptionByUniqueKey(modelKey);
     return {
-      model: selectedModel?.modelDomain || modelKey,
+      model: selectedModel?.modelDomain ?? modelKey,
       modelId: selectedModel?.isCustom ? selectedModel.modelId : null,
-      isCustom: selectedModel?.isCustom,
+      isCustom: selectedModel?.isCustom ?? false,
     };
   };
 
