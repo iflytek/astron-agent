@@ -39,7 +39,6 @@ const Index: React.ReactElement = () => {
   const setFlowResult = useFlowsManager(state => state.setFlowResult);
   const setEdgeType = useFlowsManager(state => state.setEdgeType);
   const loadingModels = useFlowsManager(state => state.loadingModels);
-  const loadingNodesData = useFlowsManager(state => state.loadingNodesData);
   const singleNodeDebuggingInfo = useFlowsManager(
     state => state.singleNodeDebuggingInfo
   );
@@ -161,7 +160,7 @@ const Index: React.ReactElement = () => {
       </FlowHeader>
       {!historyVersion && <MultipleCanvasesTip />}
       <Spin
-        spinning={loadingNodesData || loadingModels}
+        spinning={loadingModels}
         wrapperClassName="flow-spin-wrapper"
       >
         <div className="w-full h-full">

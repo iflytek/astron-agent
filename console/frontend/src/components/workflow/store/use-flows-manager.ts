@@ -3,7 +3,6 @@ import { FlowType } from '@/components/workflow/types';
 import { FlowsManagerStoreType } from '@/components/workflow/types/zustand/flowsManager';
 import {
   initialStatus,
-  addModelParamsToNode,
   addTextNodeConfig,
   removeTextNodeConfig,
   getFlowDetail,
@@ -18,7 +17,6 @@ import {
   setTextNodeConfigList,
   setAgentStrategy,
   setKnowledgeProStrategy,
-  setHistorys,
 } from './flow-manager-function';
 import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
@@ -31,14 +29,7 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   setHistoryVersion: (historyVersion: boolean): void => set({ historyVersion }),
   setHistoryVersionData: (historyVersionData: unknown): void =>
     set({ historyVersionData }),
-  setDecisionNodeTransformationModal: (
-    decisionNodeTransformationModal: boolean
-  ): void => set({ decisionNodeTransformationModal }),
-  setChatHistoryTransformationModal: (
-    chatHistoryTransformationModal: boolean
-  ): void => set({ chatHistoryTransformationModal }),
   setAutonomousMode: (autonomousMode: boolean): void => set({ autonomousMode }),
-  setShowAiuiTips: (showAiuiTips: boolean): void => set({ showAiuiTips }),
   setCurrentStore: (type): void => setCurrentStore(type, set),
   setSingleNodeDebuggingInfo: (singleNodeDebuggingInfo: {
     nodeId: string;
@@ -53,8 +44,6 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   }): void => set({ codeIDEADrawerlInfo }),
   setVersionManagement: (versionManagement: boolean): void =>
     set({ versionManagement }),
-  setChatDebuggerResult: (chatDebuggerResult: boolean): void =>
-    set({ chatDebuggerResult }),
   setAdvancedConfiguration: (advancedConfiguration: boolean): void =>
     set({ advancedConfiguration }),
   setKnowledgeModalInfo: (knowledgeModalInfo: {
@@ -83,13 +72,6 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   setClearFlowCanvasModalInfo: (clearFlowCanvasModalInfo: {
     open: boolean;
   }): void => set({ clearFlowCanvasModalInfo }),
-  setCycleEdges: (change): void => {
-    const cycleEdges =
-      typeof change === 'function' ? change(get().cycleEdges) : change;
-    set({
-      cycleEdges,
-    });
-  },
   setTextNodeConfigList: (change): void =>
     setTextNodeConfigList(change, get, set),
   setAgentStrategy: (change): void => setAgentStrategy(change, get, set),
@@ -102,18 +84,9 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
       nodeList,
     });
   },
-  addModelParamsToNode: (currentModel): void =>
-    addModelParamsToNode(currentModel, get),
   addTextNodeConfig: (params): Promise<void> => addTextNodeConfig(params, get),
   removeTextNodeConfig: (id): Promise<unknown> => removeTextNodeConfig(id, get),
-  setHistorys: (change): void => setHistorys(change, get, set),
   setModels: (appId): void => setModels(appId, set),
-  setFlows: (flows: FlowType[]): void => {
-    set({
-      flows,
-      currentFlow: flows.find(flow => flow.id == get().currentFlowId),
-    });
-  },
   setErrNodes: (errNodes: unknown): void => {
     set({
       errNodes,
@@ -128,12 +101,6 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
       currentFlow: newChange,
     });
   },
-  setNodeTemplate: (nodeTemplate): void => {
-    set({
-      nodeTemplate,
-    });
-  },
-  setChatId: (chatId: string): void => set({ chatId }),
   setIteratorId: (iteratorId: string): void => set({ iteratorId }),
   setShowIterativeModal: (showIterativeModal: boolean): void =>
     set({ showIterativeModal }),
@@ -186,20 +153,14 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
       openOperationResult,
     });
   },
-  setIsMounted: (isMounted: boolean): void => set({ isMounted }),
   setCanPublish: (canPublish: boolean): void => set({ canPublish }),
-  setIsChanged: (isChanged: boolean): void => set({ isChanged }),
   setCanvasesDisabled: (canvasesDisabled: boolean): void =>
     set({ canvasesDisabled }),
   setShowMultipleCanvasesTip: (showMultipleCanvasesTip: boolean): void =>
     set({ showMultipleCanvasesTip }),
   setShowNodeList: (showNodeList: boolean): void => set({ showNodeList }),
   setIsLoading: (isLoading: boolean): void => set({ isLoading }),
-  setLoadingNodesData: (loadingNodesData: boolean): void =>
-    set({ loadingNodesData }),
   setLoadingModels: (loadingModels: boolean): void => set({ loadingModels }),
-  setLoadingNodesLayout: (loadingNodesLayout: boolean): void =>
-    set({ loadingNodesLayout }),
   setEdgeType: (edgeType: string): void => set({ edgeType }),
   setFlowChatResultOpen: (flowChatResultOpen: boolean): void =>
     set({ flowChatResultOpen }),

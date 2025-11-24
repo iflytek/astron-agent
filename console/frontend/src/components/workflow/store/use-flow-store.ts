@@ -51,7 +51,7 @@ const useFlowStore = create<FlowStoreType>((set, get) => ({
   setEdges: (change: unknown): void => setEdges(change, get, set),
   setNode: (id: string, change: Node | ((oldState: Node) => Node)): void =>
     setNode(id, change, get, set),
-  delayCheckNode: (nodeId: string): void => delayCheckNode(nodeId, get, set),
+  delayCheckNode: (nodeId: string): void => delayCheckNode(nodeId, get),
   checkNode: (nodeId: string): boolean => checkNode(nodeId, get),
   copyNode: (nodeId: string): void => copyNode(nodeId, get),
   deleteNode: (nodeId: string): void => deleteNode(nodeId, get),

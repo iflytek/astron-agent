@@ -445,6 +445,8 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
     showInputs,
     showOutputs,
     showExceptionFlow,
+    inputLabel,
+    outputLabel,
   } = useNodeCommon({
     id,
     data,
@@ -461,8 +463,8 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
         padding: '0 14px',
       }}
     >
-      {showInputs && <Inputs inputs={data?.inputs} />}
-      {showOutputs && <Outputs outputs={data?.outputs} data={data} />}
+      {showInputs && <Inputs inputs={data?.inputs} label={inputLabel} />}
+      {showOutputs && <Outputs outputs={data?.outputs} data={data} label={outputLabel} />}
       {model && <Model model={model} />}
       {isKnowledgeNode && (
         <Knowledge data={data} repoList={data?.nodeParam?.repoList} />

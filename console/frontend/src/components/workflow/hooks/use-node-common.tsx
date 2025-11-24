@@ -115,12 +115,13 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const showInputs = useMemo(() => {
+    const isDatabaseNodeFormMode = isDataBaseNode && data?.nodeParam?.mode === 1;
     return (
       data?.inputs?.length > 0 &&
       !isIfElseNode &&
-      (data?.nodeParam?.mode === 0 || data?.nodeParam?.mode === undefined)
+      !isDatabaseNodeFormMode
     );
-  }, [data, isIfElseNode]);
+  }, [data, isIfElseNode, isDataBaseNode]);
 
   const showOutputs = useMemo(() => {
     return data?.outputs?.length > 0;
@@ -190,6 +191,18 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   const isRpaNode = useMemo(() => {
     return nodeType === 'rpa' || nodeType === 'rpa';
   }, [nodeType]);
+  const inputLabel = useMemo(() => {
+    if (isEndNode || isIteratorEnd) {
+      return '输出';
+    }
+    return '输入';
+  }, [isEndNode, isIteratorEnd]);
+  const outputLabel = useMemo(() => {
+    if (isStartNode || isIteratorStart) {
+      return '输入';
+    }
+    return '输出';
+  }, [isStartNode, isIteratorStart]);
 
   return {
     nodeType,
@@ -220,6 +233,8 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     nodeIcon,
     nodeDesciption,
     isRpaNode,
+    inputLabel,
+    outputLabel
   };
 };
 
@@ -504,11 +519,10 @@ const OutputDescription = ({ id, data, output }): React.ReactElement => {
   }
   return (
     <div
-      className={`flex flex-col flex-1 h-full ${
-        output?.deleteDisabled || output?.customParameterType === 'deepseekr1'
-          ? 'disabled-flow-textarea'
-          : ''
-      }`}
+      className={`flex flex-col flex-1 h-full ${output?.deleteDisabled || output?.customParameterType === 'deepseekr1'
+        ? 'disabled-flow-textarea'
+        : ''
+        }`}
     >
       {renderTypeInput(output)}
     </div>

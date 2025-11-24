@@ -272,6 +272,8 @@ export interface UseNodeCommonReturn {
     }>;
   }>;
   isThinkModel: boolean;
+  inputLabel: string;
+  outputLabel: string;
 }
 
 export interface UseFlowCommonReturn {

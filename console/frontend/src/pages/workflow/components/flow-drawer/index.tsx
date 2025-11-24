@@ -1,6 +1,5 @@
 import React from 'react';
 import DebuggerCheck from '@/components/workflow/drawer/debugger-check';
-import ChatDebugger from '@/components/workflow/drawer/chat-debugger';
 import AdvancedConfig from '@/components/workflow/drawer/advanced-config';
 import VersionManagement from '@/components/workflow/drawer/version-management';
 import NodeDetail from '@/components/workflow/drawer/node-detail';
@@ -28,7 +27,6 @@ function index(): React.ReactElement {
         open={openOperationResult}
         setOpen={setOpenOperationResult}
       />
-      <ChatDebugger />
       <AdvancedConfig />
       <VersionManagement
         open={versionManagement}
