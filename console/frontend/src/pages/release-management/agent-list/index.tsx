@@ -637,9 +637,11 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
           onCancel={() => {
             setOpenWxmol(false);
           }}
-          agentType={AgentType}
+          agentType={botInfo?.version === 3 ? 'workflow' : 'agent'}
           agentMaasId={
-            AgentType === 'workflow' ? (botInfo?.maasId as string) : null
+            AgentType === 'workflow' || botInfo?.version === 3
+              ? (botInfo?.maasId as string)
+              : null
           }
         />
         <Table
@@ -647,7 +649,9 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
           loading={loading}
           dataSource={botList}
           columns={unifiedColumns}
-          rowKey={(record: { createTime: number }): number => record.createTime}
+          rowKey={(record: BotData & { action: BotData }): number =>
+            record.botId
+          }
           pagination={{
             position: ['bottomCenter'],
             total: total,
