@@ -15,7 +15,7 @@ ENV UV_NO_CACHE=1
 #    && rm -rf /var/lib/apt/lists/*
 
 # Install Deno runtime (commented out - not currently needed)
-#RUN curl -fsSL https://deno.land/install.sh | sh
+#RUN curl -fsSL https://deno.land/install.sh | sh -s v2.3.3
 
 # Install UV package manager using Tsinghua mirror for faster downloads
 RUN pip install uv --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple/
