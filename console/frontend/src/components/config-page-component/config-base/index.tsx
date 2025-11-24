@@ -345,6 +345,16 @@ const BaseConfig: React.FC<ChatProps> = ({
     );
   };
 
+  // 获取模型配置信息（model, modelId, isCustom）
+  const getModelConfig = (modelKey: string) => {
+    const selectedModel = findModelOptionByUniqueKey(modelKey);
+    return {
+      model: selectedModel?.modelDomain || modelKey,
+      modelId: selectedModel?.isCustom ? selectedModel.modelId : null,
+      isCustom: selectedModel?.isCustom,
+    };
+  };
+
   const handleModelChangeNew = (e: string, index: number): void => {
     const updatedModelList = [...modelList];
     updatedModelList[index] = { ...updatedModelList[index], model: e };
@@ -1390,17 +1400,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       .filter((key: any) => choosedAlltool[key])
                       .join(','),
                     prologue: prologue,
-                    model: (() => {
-                      const selectedModel = findModelOptionByUniqueKey(model);
-                      return selectedModel?.modelDomain || model;
-                    })(),
-                    modelId: (() => {
-                      const selectedModel = findModelOptionByUniqueKey(model);
-                      return selectedModel?.isCustom
-                        ? selectedModel.modelId
-                        : null;
-                    })(),
-                    isCustom: findModelOptionByUniqueKey(model)?.isCustom,
+                    ...getModelConfig(model),
                     prompt: prompt,
                     // 人设相关字段
                     enablePersonality: personalityData.enablePersonality,
@@ -1449,17 +1449,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       .filter((key: any) => choosedAlltool[key])
                       .join(','),
                     prologue: prologue,
-                    model: (() => {
-                      const selectedModel = findModelOptionByUniqueKey(model);
-                      return selectedModel?.modelDomain || model;
-                    })(),
-                    modelId: (() => {
-                      const selectedModel = findModelOptionByUniqueKey(model);
-                      return selectedModel?.isCustom
-                        ? selectedModel.modelId
-                        : null;
-                    })(),
-                    isCustom: findModelOptionByUniqueKey(model)?.isCustom,
+                    ...getModelConfig(model),
                     prompt: prompt,
                     // 人设相关字段
                     enablePersonality: personalityData.enablePersonality,
