@@ -63,6 +63,24 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
 
+  # Flyway database migration configuration
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    # Migration scripts location
+    locations: classpath:db/migration
+    # Baseline on migrate (for existing databases)
+    baseline-on-migrate: true
+    # Baseline version
+    baseline-version: 1.0
+    # Encoding of SQL migration files
+    encoding: UTF-8
+    # Validate migrations on startup
+    validate-on-migrate: true
+    # Table name for tracking migrations
+    table: flyway_schema_history
+    # Allow out of order migrations
+    out-of-order: false
+
   # Disable static resource mapping
   web:
     resources:

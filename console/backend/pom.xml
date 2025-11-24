@@ -55,6 +55,7 @@
         <minio.version>8.5.10</minio.version>
         <retrofit>2.5.0</retrofit>
         <converter-jackson>2.5.0</converter-jackson>
+        <flyway.version>10.21.0</flyway.version>
 
         <!-- maven plugins -->
         <spotless.version>2.46.1</spotless.version>
@@ -249,6 +250,18 @@
                 <groupId>com.squareup.retrofit2</groupId>
                 <artifactId>converter-jackson</artifactId>
                 <version>${converter-jackson}</version>
+            </dependency>
+
+            <!-- Flyway database migration -->
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-mysql</artifactId>
+                <version>${flyway.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
