@@ -1,7 +1,6 @@
 -- ----------------------------
 -- Records of agent_enterprise_permission
 -- ----------------------------
-BEGIN;
 INSERT INTO `agent_enterprise_permission` (`id`, `module`, `description`, `permission_key`, `officer`, `governor`,
                                            `staff`, `available_expired`, `create_time`, `update_time`)
 VALUES (1, 'Team/Enterprise level space management', 'Create space', 'SpaceController_createCorporateSpace_POST', 1, 1, 0, 0,
@@ -103,17 +102,14 @@ INSERT INTO `agent_enterprise_permission` (`id`, `module`, `description`, `permi
                                            `staff`, `available_expired`, `create_time`, `update_time`)
 VALUES (51, 'Invitation Management', 'Enterprise invitation batch search user', 'InviteRecordController_enterpriseBatchSearchUser_POST', 1, 1, 1, 0,
         '2025-01-01 00:00:00', '2025-01-01 00:00:00');
-INSERT INTO `astron_console`.`agent_enterprise_permission` (`module`, `description`, `permission_key`, `officer`, `governor`, `staff`, `available_expired`, `create_time`, `update_time`) VALUES ('Invitation Management', 'Enterprise invitation search username', 'InviteRecordController_enterpriseBatchSearchUsername_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
-INSERT INTO `astron_console`.`agent_enterprise_permission` (`module`, `description`, `permission_key`, `officer`, `governor`, `staff`, `available_expired`, `create_time`, `update_time`) VALUES ('Invitation Management', 'Enterprise invitation batch search username', 'InviteRecordController_enterpriseSearchUsername_GET', 1, 1, 0, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
-
-COMMIT;
+INSERT INTO `agent_enterprise_permission` (`module`, `description`, `permission_key`, `officer`, `governor`, `staff`, `available_expired`, `create_time`, `update_time`) VALUES ('Invitation Management', 'Enterprise invitation search username', 'InviteRecordController_enterpriseBatchSearchUsername_POST', 1, 1, 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
+INSERT INTO `agent_enterprise_permission` (`module`, `description`, `permission_key`, `officer`, `governor`, `staff`, `available_expired`, `create_time`, `update_time`) VALUES ('Invitation Management', 'Enterprise invitation batch search username', 'InviteRecordController_enterpriseSearchUsername_GET', 1, 1, 0, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');
 
 
 
 -- ----------------------------
 -- Records of agent_space_permission
 -- ----------------------------
-BEGIN;
 INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `permission_key`, `owner`, `admin`,
                                       `member`, `available_expired`, `create_time`, `update_time`)
 VALUES (1, 'Bot Management', 'testPoint', '', 'MyBotController_getCreatedList_POST', 1, 1, 1, 0, '2025-01-01 00:00:00',
@@ -679,10 +675,8 @@ INSERT INTO `agent_space_permission` (`id`, `module`, `point`, `description`, `p
 VALUES (283, 'Update Bot', '', '', 'BotCreateController_updateBot_POST', 1, 1, 1, 0, '2025-08-11 09:19:40',
         '2025-08-11 09:19:40');
 
-INSERT INTO astron_console.agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_create_POST', 1, 1, 1, 0, NOW(), NOW());
-INSERT INTO astron_console.agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_trainStatus_GET', 1, 1, 1, 0, NOW(), NOW());
-INSERT INTO astron_console.agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_trainSpeaker_GET', 1, 1, 1, 0, NOW(), NOW());
-INSERT INTO astron_console.agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_updateTrainSpeaker_POST', 1, 1, 1, 0, NOW(), NOW());
-INSERT INTO astron_console.agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_deleteTrainSpeaker_POST', 1, 1, 1, 0, NOW(), NOW());
-
-COMMIT;
+INSERT INTO agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_create_POST', 1, 1, 1, 0, NOW(), NOW());
+INSERT INTO agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_trainStatus_GET', 1, 1, 1, 0, NOW(), NOW());
+INSERT INTO agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_trainSpeaker_GET', 1, 1, 1, 0, NOW(), NOW());
+INSERT INTO agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_updateTrainSpeaker_POST', 1, 1, 1, 0, NOW(), NOW());
+INSERT INTO agent_space_permission (module, point, description, permission_key, owner, admin, member, available_expired, create_time, update_time) VALUES ('one-sentence', 'one-sentence', 'one-sentence', 'SpeakerTrainController_deleteTrainSpeaker_POST', 1, 1, 1, 0, NOW(), NOW());

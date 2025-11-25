@@ -2,7 +2,6 @@
 -- ----------------------------
 -- Records of config_info_en
 -- ----------------------------
-BEGIN;
 INSERT INTO config_info_en (id,category,code,name,value,is_valid,remarks,create_time,update_time) VALUES
 	 (1019,'DOCUMENT_LINK','1','SparkBotHelpDoc','https://experience.pro.iflyaicloud.com/aicloud-sparkbot-doc/',1,'你好','2023-08-17 00:00:00','2024-09-03 11:51:23'),
 	 (1021,'COMPRESSED_FOLDER','1','SparkBotSDK','https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/sdk%E6%8E%A5%E5%85%A5%E8%AF%B4%E6%98%8E.zip',1,'','2000-01-01 00:00:00','2024-06-27 10:35:15'),
@@ -7141,5 +7140,3 @@ Format: Strictly output in JSON format, with "Score" for the rating and "Reason"
         "icon": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/tool/rpa_icon.png"
     }
 }',1,'RPA','2000-01-01 00:00:00','2025-10-11 14:45:16');
-
-COMMIT;

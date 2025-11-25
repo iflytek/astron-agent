@@ -1,28 +1,27 @@
 
-BEGIN;
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(1, 'avatar_generation', 'zh', '请为名为"%s"的AI助手生成专业头像。助手描述：%s。要求：简洁现代风格，适合商务场景。', 1, '2025-09-20 11:37:51', '2025-09-20 11:41:22');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(2, 'avatar_generation', 'en', 'Please generate a professional avatar for an AI assistant named "%s". Assistant
   description: %s. Requirements: simple and modern style, suitable for business scenarios.', 1, '2025-09-20 11:37:51', '2025-09-20 11:41:22');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(3, 'prologue_generation', 'zh', '请根据给定的助手名称，在100字内生成智能助手简介，准确专业，用于作为助手的宣传文
   本，向用户展示其能力。%n助手名称：%s。%n请直接返回简介，不要添加其他无关语句', 1, '2025-09-20 11:37:51', '2025-09-20 11:41:22');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(4, 'prologue_generation', 'en', 'Please generate an intelligent agent profile within 100 words based on the given
    agent name, accurate and professional, to be used as promotional text for the agent to showcase its capabilities
   to users.%nAgent name: %s.%nReturn the profile directly without adding other irrelevant statements', 1, '2025-09-20 11:37:51', '2025-09-20 11:41:22');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(5, 'sentence_bot_generation', 'zh', '你是一个助手配置生成专家。请根据输入信息理解用户意图，合理准确处理用户输入，生成以下字段内容：助手名称、助手分类
   、助手描述(不超过100字)、角色设定、目标任务、需求描述、输入示例。其中输入示例字段需要提供三个具体示例，助手分类必须从【工作、学
   习、写作、编程、生活、健康】中选择。返回结果必须严格按照以下格式：%n助手名称：xxxx%n助手分类：xx%n助手描述：xxxxx%
   n角色设定：xxxxx%n目标任务：xxxxxxxx%n需求描述：xxxxxx%n输入示例：xxxxxxx||xxxxxxx||xxxxxxx%n用户输入为：%s', 1, '2025-09-20 11:37:51', '2025-09-20 11:41:23');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(6, 'sentence_bot_generation', 'en', 'You are an assistant configuration generation expert. Please understand the
   user''s intent based on the input information, process the user input appropriately and accurately, and generate
@@ -32,7 +31,7 @@ VALUES(6, 'sentence_bot_generation', 'en', 'You are an assistant configuration g
   Health]. The returned result must strictly follow the format below:%nAssistant Name: xxxx%nAssistant Category:
   xx%nAssistant Description: xxxxx%nRole Setting: xxxxx%nTarget Task: xxxxxxxx%nRequirement Description:
   xxxxxx%nInput Examples: xxxxxxx||xxxxxxx||xxxxxxx%nThe user input is: %s', 1, '2025-09-20 11:37:51', '2025-09-20 11:41:23');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(8, 'field_mappings', 'en', '{
         "assistant_name": ["Assistant Name:", "助手名称："],
@@ -43,7 +42,7 @@ VALUES(8, 'field_mappings', 'en', '{
         "requirement_description": ["Requirement Description:", "需求描述："],
         "input_examples": ["Input Examples:", "输入示例："]
     }', 1, '2025-09-20 12:59:28', '2025-09-20 12:59:28');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(10, 'bot_type_mappings', 'en', '{
     "Workplace": 10,
@@ -61,21 +60,21 @@ VALUES(10, 'bot_type_mappings', 'en', '{
     "健康": 39,
     "其他": 24
 }', 1, '2025-09-20 12:59:49', '2025-09-20 15:01:53');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(11, 'prompt_struct_labels', 'zh', '{
         "role_setting": "角色设定",
         "target_task": "目标任务",
         "requirement_description": "需求描述"
     }', 1, '2025-09-20 12:59:53', '2025-09-20 12:59:53');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(12, 'prompt_struct_labels', 'en', '{
         "role_setting": "Role Setting",
         "target_task": "Target Task",
         "requirement_description": "Requirement Description"
     }', 1, '2025-09-20 12:59:57', '2025-09-20 12:59:57');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(13, 'input_example_generation', 'zh', '
   助手名称如下:
@@ -110,7 +109,7 @@ VALUES(13, 'input_example_generation', 'zh', '
   2.context2
   3.context3
   ', 1, '2025-09-30 11:24:14', '2025-09-30 11:24:14');
-INSERT INTO astron_console.ai_prompt_template
+INSERT INTO ai_prompt_template
 (id, prompt_key, language_code, prompt_content, is_active, created_time, updated_time)
 VALUES(14, 'input_example_generation', 'en', '
   Assistant name as follows:
@@ -148,32 +147,31 @@ VALUES(14, 'input_example_generation', 'en', '
   2.context2
   3.context3
   ', 1, '2025-09-30 13:31:59', '2025-09-30 13:31:59');
-COMMIT;
 
 
-BEGIN;
-INSERT INTO astron_console.bot_template
+
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1623, 'PPT大纲助手', '请填写您PPT的核心内容，助手会提供PPT大纲', '比如输入"Q2门店销售情况复盘"，我将提供PPT大纲', 10, '职场', '["新员工入职培训","转正答辩","年终总结"]', '', '[{"id":16230,"promptKey":"角色设定","promptValue":"你是一位PPT大纲撰写高手"},{"id":16231,"promptKey":"目标任务","promptValue":"请根据我给出的PPT核心内容，写一个PPT大纲"},{"id":16232,"promptKey":"需求说明","promptValue":"要求结构清晰，有逻辑"},{"id":16233,"promptKey":"风格设定","promptValue":"条理清晰、思维严谨"}]', 1, 1, 2, 'zh', '2025-09-29 15:10:11', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1624, '文案写作助手', '输入您的写作需求，我将为您创作专业的文案内容', '例如：为新产品发布会写一段宣传语', 10, '职场', '["产品宣传语","活动邀请函","品牌故事"]', '', '[{"id":16240,"promptKey":"角色设定","promptValue":"你是一位专业的文案策划师"},{"id":16241,"promptKey":"目标任务","promptValue":"根据用户的写作需求，创作专业的文案内容"},{"id":16242,"promptKey":"需求说明","promptValue":"文案要突出产品特色，语言简洁有力"},{"id":16243,"promptKey":"风格设定","promptValue":"创意新颖、专业规范"}]', 1, 1, 2, 'zh', '2025-09-29 15:10:21', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1625, '代码审查助手', '提交您的代码，我将为您提供专业的代码审查和优化建议', '请粘贴需要审查的代码，并说明编程语言', 15, '技术', '["Java代码审查","Python代码优化","前端代码规范检查"]', '', '[{"id":16250,"promptKey":"角色设定","promptValue":"你是一位资深的软件开发工程师"},{"id":16251,"promptKey":"目标任务","promptValue":"对提交的代码进行专业审查，提供优化建议"},{"id":16252,"promptKey":"需求说明","promptValue":"检查代码质量、性能、安全性等方面"},{"id":16253,"promptKey":"风格设定","promptValue":"严谨专业、注重细节"}]', 1, 1, 2, 'zh', '2025-09-29 15:10:30', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1626, '数据分析助手', '提供您的数据和分析需求，我将帮您进行专业的数据分析', '例如：分析销售数据的趋势和规律', 15, '技术', '["销售数据分析","用户行为分析","财务数据报表"]', '', '[{"id":16260,"promptKey":"角色设定","promptValue":"你是一位专业的数据分析师"},{"id":16261,"promptKey":"目标任务","promptValue":"根据用户提供的数据进行专业分析"},{"id":16262,"promptKey":"需求说明","promptValue":"分析数据趋势、规律，提供可视化建议"},{"id":16263,"promptKey":"风格设定","promptValue":"数据驱动、逻辑清晰"}]', 1, 1, 2, 'zh', '2025-09-29 15:10:42', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1627, 'PPT Outline Assistant', 'Enter your PPT core content, and the assistant will provide PPT outline', 'For example, input"Q2 Store Sales Review", I will provide PPT outline', 10, 'Business', '["New Employee Onboarding","Promotion Defense","Annual Summary"]', '', '[{"id":16270,"promptKey":"Role Setting","promptValue":"You are a PPT outline writing expert"},{"id":16271,"promptKey":"Target Task","promptValue":"Please write a PPT outline based on the core content I provide"},{"id":16272,"promptKey":"Requirements","promptValue":"Require clear structure and logic"},{"id":16273,"promptKey":"Style Setting","promptValue":"Clear organization, rigorous thinking"}]', 1, 1, 2, 'en', '2025-09-29 15:10:56', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1628, 'Copywriting Assistant', 'Enter your writing needs, and I will create professional copy content for you', 'For example: Write a promotional slogan for a new product launch', 10, 'Business', '["Product Slogan","Event Invitation","Brand Story"]', '', '[{"id":16280,"promptKey":"Role Setting","promptValue":"You are a professional copywriter"},{"id":16281,"promptKey":"Target Task","promptValue":"Create professional copy content based on user writing needs"},{"id":16282,"promptKey":"Requirements","promptValue":"Copy should highlight product features with concise and powerful language"},{"id":16283,"promptKey":"Style Setting","promptValue":"Creative and professional"}]', 1, 1, 2, 'en', '2025-09-29 15:11:05', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1629, 'Code Review Assistant', 'Submit your code, and I will provide professional code review and optimization suggestions', 'Please paste the code to be reviewed and specify the programming language', 15, 'Technology', '["Java Code Review","Python Code Optimization","Frontend Code Standards Check"]', '', '[{"id":16290,"promptKey":"Role Setting","promptValue":"You are a senior software development engineer"},{"id":16291,"promptKey":"Target Task","promptValue":"Professionally review submitted code and provide optimization suggestions"},{"id":16292,"promptKey":"Requirements","promptValue":"Check code quality, performance, security and other aspects"},{"id":16293,"promptKey":"Style Setting","promptValue":"Rigorous and professional, attention to detail"}]', 1, 1, 2, 'en', '2025-09-29 15:11:16', '2025-09-30 09:35:58');
-INSERT INTO astron_console.bot_template
+INSERT INTO bot_template
 (id, bot_name, bot_desc, bot_template, bot_type, bot_type_name, input_example, prompt, prompt_struct_list, prompt_type, support_context, bot_status, `language`, create_time, update_time)
 VALUES(1630, 'Data Analysis Assistant', 'Provide your data and analysis needs, and I will help you with professional data analysis', 'For example: Analyze trends and patterns in sales data', 15, 'Technology', '["Sales Data Analysis","User Behavior Analysis","Financial Data Reports"]', '', '[{"id":16300,"promptKey":"Role Setting","promptValue":"You are a professional data analyst"},{"id":16301,"promptKey":"Target Task","promptValue":"Conduct professional analysis based on user-provided data"},{"id":16302,"promptKey":"Requirements","promptValue":"Analyze data trends and patterns, provide visualization suggestions"},{"id":16303,"promptKey":"Style Setting","promptValue":"Data-driven, clear logic"}]', 1, 1, 2, 'en', '2025-09-29 15:11:27', '2025-09-30 09:35:58');
 
@@ -402,6 +400,3 @@ INSERT INTO prompt_template (uid, name, description, deleted, prompt, created_ti
   "createTime": "2025-02-07T00:12:54.000+08:00",
   "updateTime": "2025-02-08T21:50:01.000+08:00"
 }', 1);
-
-
-COMMIT;
