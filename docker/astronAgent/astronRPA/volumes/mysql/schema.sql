@@ -873,6 +873,53 @@ CREATE TABLE `openapi_users` (
   KEY `idx_phone` (`phone`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1151 DEFAULT CHARSET=utf8mb4;
 
+
+-- rpa.point_allocations definition
+
+CREATE TABLE `point_allocations` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) NOT NULL,
+  `initial_amount` int(11) NOT NULL COMMENT '原始分配数量',
+  `remaining_amount` int(11) NOT NULL COMMENT '当前剩余数量',
+  `allocation_type` varchar(100) NOT NULL COMMENT '积分来源',
+  `priority` int(11) NOT NULL DEFAULT '0' COMMENT '优先级，数值越高优先级越高',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL COMMENT '积分过期时间',
+  `description` varchar(255) DEFAULT NULL COMMENT '描述',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_expires_at` (`expires_at`),
+  KEY `idx_user_expiry` (`user_id`,`expires_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=83 DEFAULT CHARSET=utf8mb4;
+
+
+-- rpa.point_consumptions definition
+
+CREATE TABLE `point_consumptions` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `transaction_id` bigint(20) NOT NULL COMMENT '关联的交易ID',
+  `allocation_id` bigint(20) NOT NULL COMMENT '关联的分配ID',
+  `amount` int(11) NOT NULL COMMENT '从此分配中使用的积分数量',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2809 DEFAULT CHARSET=utf8mb4;
+
+
+-- rpa.point_transactions definition
+
+CREATE TABLE `point_transactions` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(100) NOT NULL,
+  `amount` int(11) NOT NULL COMMENT '交易总金额（正数或负数）',
+  `transaction_type` varchar(50) NOT NULL COMMENT '交易类型',
+  `related_entity_type` varchar(50) DEFAULT NULL COMMENT '关联实体类型',
+  `related_entity_id` bigint(20) DEFAULT NULL COMMENT '关联实体ID',
+  `description` varchar(255) DEFAULT NULL COMMENT '描述',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2891 DEFAULT CHARSET=utf8mb4;
+
 -- rpa.pypi_packages definition
 
 CREATE TABLE `pypi_packages` (

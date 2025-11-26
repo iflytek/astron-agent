@@ -67,6 +67,17 @@ local function authenticate_user()
         end
     end
 
+    -- 4. 如果还是没有 token，尝试从查询参数中获取 API Key (支持 MCP 和其他 API Key 认证)
+    if not session_token then
+        local args = ngx.req.get_uri_args()
+        if args.key then
+            session_token = args.key
+            ngx_log(ngx_DEBUG, "Extracted Token from query parameter 'key': " .. session_token)
+        else
+            ngx_log(ngx_DEBUG, "No query parameter 'key' found.")
+        end
+    end
+
     if not session_token or session_token == "" or session_token == " " then
         ngx_log(ngx_ERR, "Missing SESSION/Token in " .. ctx_type .. " request after trying all sources.")
         ngx.status = ngx_HTTP_UNAUTHORIZED
