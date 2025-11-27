@@ -215,6 +215,7 @@ const PublishHeader: React.FC<PublishHeaderProps> = ({
           currentFlow?.ext ? JSON.parse(currentFlow.ext)?.botId : null
         }
         agentMaasId={agentMaasId || null}
+        isVirtual={currentFlow?.type === 4}
       />
       <Tooltip
         title={t('workflow.nodes.header.export')}
