@@ -419,7 +419,7 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
                 </div>
 
                 {/* NOTE: hide binding wechat for now - 2025.10 */}
-                {/* {(agentType == 'workflow' ||
+                {/* {(agentType === 'workflow' ||
                   window.location.pathname.includes('work_flow')) && (
                   <div
                     className={cls(styles.wx_fabu, {
@@ -515,7 +515,7 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
                   </div>
                 )} */}
                 {!isVirtual &&
-                  (agentType == 'workflow' ||
+                  (agentType === 'workflow' ||
                     window.location.pathname.includes('work_flow')) && (
                     <div
                       className={cls(styles.spark_fabu, {
@@ -571,7 +571,7 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
                     </div>
                   )}
                 {/* NOTE: publishing as mcp is currently not supported - 2025.10 */}
-                {/* {(agentType == 'workflow' ||
+                {/* {(agentType === 'workflow' ||
                     window.location.pathname.includes('work_flow')) && (
                     <div
                       className={cls(styles.mcp_fabu, {
