@@ -638,6 +638,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
             setOpenWxmol(false);
           }}
           agentType={botInfo?.version === 3 ? 'workflow' : 'agent'}
+          isVirtual={AgentType === 'virtual' || botInfo?.version === 4}
           agentMaasId={
             AgentType === 'workflow' || botInfo?.version === 3
               ? (botInfo?.maasId as string)

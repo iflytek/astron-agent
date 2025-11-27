@@ -1,3 +1,4 @@
+import functools
 import os
 from pathlib import Path
 
@@ -18,6 +19,8 @@ from plugin.link.utils.json_schemas.read_json_schemas import (
 )
 from plugin.link.utils.log.logger import configure
 from plugin.link.utils.sid.sid_generator2 import spark_link_init_sid
+
+print = functools.partial(print, flush=True)
 
 
 class SparkLinkServer:

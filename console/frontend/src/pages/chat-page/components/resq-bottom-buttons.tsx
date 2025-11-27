@@ -25,6 +25,7 @@ const ResqBottomButtons = ({
 }: {
   message: MessageListType;
   isLastMessage: boolean;
+  chatType: string;
 }): ReactElement => {
   const { t } = useTranslation();
   const [isPlaying, setIsPlaying] = useState<boolean>(false); // 是否正在播放音频

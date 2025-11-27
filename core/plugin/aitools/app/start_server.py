@@ -2,6 +2,7 @@
 Server startup module responsible for FastAPI application initialization and startup.
 """
 
+import functools
 import os
 
 import uvicorn
@@ -11,6 +12,8 @@ from plugin.aitools.const.const import SERVICE_PORT_KEY
 
 from common.initialize.initialize import initialize_services
 from common.settings.polaris import ConfigFilter, Polaris
+
+print = functools.partial(print, flush=True)
 
 
 class AIToolsServer:
