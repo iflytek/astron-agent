@@ -121,12 +121,14 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             doc_ids = knowledge.match.doc_ids or []
 
             # 添加调试日志
-            span.add_info_events({
-                "knowledge_name": knowledge.name,
-                "repo_type": knowledge.repo_type,
-                "repo_ids": repo_ids,
-                "doc_ids": doc_ids
-            })
+            span.add_info_events(
+                {
+                    "knowledge_name": knowledge.name,
+                    "repo_type": knowledge.repo_type,
+                    "repo_ids": repo_ids,
+                    "doc_ids": doc_ids,
+                }
+            )
 
             if not (repo_ids or doc_ids):
                 span.add_info_events({"skip_reason": "no repo_ids or doc_ids"})
@@ -141,9 +143,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             )
 
             # 添加映射后的日志
-            span.add_info_events({
-                "mapped_rag_type": repo_type
-            })
+            span.add_info_events({"mapped_rag_type": repo_type})
 
             params = KnowledgeQueryParams(
                 repo_ids=repo_ids,

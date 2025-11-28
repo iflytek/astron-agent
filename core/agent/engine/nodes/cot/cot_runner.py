@@ -155,12 +155,8 @@ class CotRunner(RunnerBase):
                     node_data_usage.completion_tokens += usage_data.get(
                         "completion_tokens", 0
                     )
-                    node_data_usage.prompt_tokens += usage_data.get(
-                        "prompt_tokens", 0
-                    )
-                    node_data_usage.total_tokens += (
-                        usage_data.get("total_tokens", 0)
-                    )
+                    node_data_usage.prompt_tokens += usage_data.get("prompt_tokens", 0)
+                    node_data_usage.total_tokens += usage_data.get("total_tokens", 0)
 
                 # Don't send usage in intermediate chunks
                 if final_answer and content:
@@ -197,13 +193,15 @@ class CotRunner(RunnerBase):
                     break
 
             # Usage will be attached to stop chunk in _finalize_run
-            sp.add_info_events({
-                "accumulated_usage": {
-                    "completion_tokens": node_data_usage.completion_tokens,
-                    "prompt_tokens": node_data_usage.prompt_tokens,
-                    "total_tokens": node_data_usage.total_tokens
+            sp.add_info_events(
+                {
+                    "accumulated_usage": {
+                        "completion_tokens": node_data_usage.completion_tokens,
+                        "prompt_tokens": node_data_usage.prompt_tokens,
+                        "total_tokens": node_data_usage.total_tokens,
+                    }
                 }
-            })
+            )
 
             node_end_time = int(round(time.time() * 1000))
             data_llm_output = answers

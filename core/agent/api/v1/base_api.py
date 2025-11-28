@@ -115,19 +115,15 @@ class CompletionBase(BaseModel, ABC):
             total_usage = {
                 "completion_tokens": 0,
                 "prompt_tokens": 0,
-                "total_tokens": 0
+                "total_tokens": 0,
             }
             for node in context.node_trace.trace:
                 if hasattr(node, "data") and hasattr(node.data, "usage"):
-                    total_usage["completion_tokens"] += (
-                        node.data.usage.completion_tokens
-                    )
-                    total_usage["prompt_tokens"] += (
-                        node.data.usage.prompt_tokens
-                    )
-                    total_usage["total_tokens"] += (
-                        node.data.usage.total_tokens
-                    )
+                    total_usage[
+                        "completion_tokens"
+                    ] += node.data.usage.completion_tokens
+                    total_usage["prompt_tokens"] += node.data.usage.prompt_tokens
+                    total_usage["total_tokens"] += node.data.usage.total_tokens
 
             if total_usage["total_tokens"] > 0:
                 stop_chunk.usage = CompletionUsage(**total_usage)

@@ -35,9 +35,7 @@ class McpPluginRunner(BaseModel):
             }
             sp.add_info_events(
                 attributes={
-                    "mcp-plugin-run-inputs": json.dumps(
-                        data, ensure_ascii=False
-                    )
+                    "mcp-plugin-run-inputs": json.dumps(data, ensure_ascii=False)
                 }
             )
             try:
@@ -145,9 +143,7 @@ class McpPluginFactory(BaseModel):
             }
             sp.add_info_events(
                 attributes={
-                    "mcp-query-servers-inputs": json.dumps(
-                        data, ensure_ascii=False
-                    )
+                    "mcp-query-servers-inputs": json.dumps(data, ensure_ascii=False)
                 }
             )
             try:
@@ -197,9 +193,7 @@ class McpPluginFactory(BaseModel):
         property_template = json.dumps(
             {
                 "type": "object",
-                "properties": tool.get("inputSchema", {}).get(
-                    "properties", {}
-                ),
+                "properties": tool.get("inputSchema", {}).get("properties", {}),
                 "required": tool.get("inputSchema", {}).get("required", []),
             },
             ensure_ascii=False,

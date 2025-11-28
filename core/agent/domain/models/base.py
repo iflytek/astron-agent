@@ -73,8 +73,7 @@ class BaseLLMModel(BaseModel):
             )
         elif "timeout" in error_msg_lower:
             return (
-                f"Request timeout: {error_msg}. "
-                "The server took too long to respond."
+                f"Request timeout: {error_msg}. " "The server took too long to respond."
             )
         else:
             return f"{error_type}: {error_msg}"
@@ -109,9 +108,7 @@ class BaseLLMModel(BaseModel):
                     sp.add_info_events({"llm-chunk": chunk.model_dump_json()})
 
                 if chunk_dict.get("code", 0) != 0:
-                    llm_plugin_error(
-                        chunk_dict.get("code"), chunk_dict.get("message")
-                    )
+                    llm_plugin_error(chunk_dict.get("code"), chunk_dict.get("message"))
 
                 yield chunk
 

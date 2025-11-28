@@ -2,6 +2,7 @@ import json
 from typing import Annotated, Any, AsyncGenerator
 
 from fastapi import APIRouter, Header
+from openai.types.completion_usage import CompletionUsage
 from starlette.responses import StreamingResponse
 
 from api.schemas.agent_response import cur_timestamp
@@ -12,7 +13,6 @@ from api.schemas.completion import (
     ReasonChoiceMessageToolCall,
     ReasonChoiceMessageToolCallFunction,
 )
-from openai.types.completion_usage import CompletionUsage
 from api.schemas.completion_chunk import ReasonChatCompletionChunk
 from api.schemas.openapi_inputs import CompletionInputs
 from api.v1.base_api import CompletionBase

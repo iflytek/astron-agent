@@ -62,10 +62,10 @@ if __name__ == "__main__":
     # Initialize common services (xingchen_utils initialization)
     # Note: otlp_span_service enables distributed tracing
     services_to_init = [
-        "otlp_sid_service",     # Service ID generator for request tracking
+        "otlp_sid_service",  # Service ID generator for request tracking
         "otlp_metric_service",  # Metrics collection and export
-        "otlp_span_service",    # Distributed tracing and span export
-        "settings_service"      # Configuration management
+        "otlp_span_service",  # Distributed tracing and span export
+        "settings_service",  # Configuration management
     ]
 
     initialize_services(services=services_to_init)

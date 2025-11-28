@@ -179,17 +179,13 @@ class TestAgentResponse:
         # Test invalid data - verify exceptions directly without dictionary unpacking
         try:
             # empty type test
-            AgentResponse(
-                typ="", content="test", model="test"
-            )
+            AgentResponse(typ="", content="test", model="test")
         except (ValidationError, ValueError):
             pass
 
         try:
             # None content test
-            AgentResponse(
-                typ="content", content=None, model="test"
-            )
+            AgentResponse(typ="content", content=None, model="test")
         except (ValidationError, TypeError, ValueError):
             pass
 
@@ -201,9 +197,7 @@ class TestAgentResponse:
 
         try:
             # invalid type test
-            AgentResponse(
-                typ="invalid_type", content="test", model=""
-            )
+            AgentResponse(typ="invalid_type", content="test", model="")
         except (ValidationError, ValueError):
             pass
 

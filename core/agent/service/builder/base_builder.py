@@ -275,22 +275,18 @@ class BaseApiBuilder(BaseModel):
             if skip_ssl == "true":
                 ssl_context.check_hostname = False
                 ssl_context.verify_mode = ssl.CERT_NONE
-                sp.add_info_event(
-                    "⚠️  SSL verification disabled for LLM requests"
-                )
+                sp.add_info_event("⚠️  SSL verification disabled for LLM requests")
 
             # Create HTTP client with custom settings
             http_client = httpx.AsyncClient(
                 verify=ssl_context,
                 timeout=httpx.Timeout(
                     connect=60.0,  # Connection timeout: 60 seconds
-                    read=300.0,    # Read timeout: 5 minutes
-                    write=30.0,    # Write timeout: 30 seconds
-                    pool=10.0      # Pool timeout: 10 seconds
+                    read=300.0,  # Read timeout: 5 minutes
+                    write=30.0,  # Write timeout: 30 seconds
+                    pool=10.0,  # Pool timeout: 10 seconds
                 ),
-                limits=httpx.Limits(
-                    max_connections=100, max_keepalive_connections=20
-                ),
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
             )
 
             model = BaseLLMModel(
