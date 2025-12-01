@@ -240,9 +240,6 @@ const useNodeFunc = ({ id, data }): UseNodeFuncReturn => {
   const setNodeInfoEditDrawerlInfo = useFlowsManager(
     state => state.setNodeInfoEditDrawerlInfo
   );
-  const setChatDebuggerResult = useFlowsManager(
-    state => state.setChatDebuggerResult
-  );
   const setVersionManagement = useFlowsManager(
     state => state.setVersionManagement
   );
@@ -268,7 +265,6 @@ const useNodeFunc = ({ id, data }): UseNodeFuncReturn => {
       open: true,
       nodeId: id,
     });
-    setChatDebuggerResult(false);
     setVersionManagement(false);
     setAdvancedConfiguration(false);
     setOpenOperationResult(false);
