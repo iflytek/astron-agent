@@ -51,6 +51,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
   const nodeList = useFlowsManager(state => state.nodeList);
+  const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
   const nodes = currentStore(state => state.nodes);
   const edges = currentStore(state => state.edges);
 
@@ -112,6 +113,10 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
 
   const isDataBaseNode = useMemo(() => {
     return nodeType === 'database';
+  }, [nodeType]);
+
+  const isLLMNode = useMemo(() => {
+    return nodeType === 'spark-llm';
   }, [nodeType]);
 
   const showInputs = useMemo(() => {
@@ -200,6 +205,24 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     }
     return '输出';
   }, [isStartNode, isIteratorStart]);
+  const stringSplitMode = useMemo(() => {
+    return data?.nodeParam?.mode === 1;
+  }, [data]);
+  const allowAddInput = useMemo(() => {
+    if (canvasesDisabled || stringSplitMode || isIteratorNode) {
+      return false;
+    }
+    return true;
+  }, [canvasesDisabled, stringSplitMode, isIteratorNode]);
+  const allowAddOutput = useMemo(() => {
+    if (canvasesDisabled) {
+      return false;
+    }
+    if (isLLMNode && data?.nodeParam?.respFormat === 0) {
+      return false;
+    }
+    return true;
+  }, [canvasesDisabled, isLLMNode, data]);
 
   return {
     nodeType,
@@ -232,6 +255,8 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     isRpaNode,
     inputLabel,
     outputLabel,
+    allowAddInput,
+    allowAddOutput,
   };
 };
 

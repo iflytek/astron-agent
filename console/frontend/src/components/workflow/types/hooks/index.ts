@@ -274,6 +274,8 @@ export interface UseNodeCommonReturn {
   isThinkModel: boolean;
   inputLabel: string;
   outputLabel: string;
+  allowAddInput: boolean;
+  allowAddOutput: boolean;
 }
 
 export interface UseFlowCommonReturn {
