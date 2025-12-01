@@ -787,6 +787,7 @@ export function checkFlow(get): boolean {
 
   dfs();
 
+  //not visitedNodes add error msg
   nodes.forEach(node => {
     if (!visitedNodes.has(node.id) && !node?.data?.parentId)
       addErrNode({
