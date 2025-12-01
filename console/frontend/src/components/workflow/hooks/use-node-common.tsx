@@ -207,7 +207,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [isStartNode, isIteratorStart]);
   const stringSplitMode = useMemo(() => {
     return data?.nodeParam?.mode === 1;
-  }, [data]);
+  }, [data?.nodeParam?.mode]);
   const allowAddInput = useMemo(() => {
     if (canvasesDisabled || stringSplitMode || isIteratorNode) {
       return false;
@@ -222,7 +222,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
       return false;
     }
     return true;
-  }, [canvasesDisabled, isLLMNode, data]);
+  }, [canvasesDisabled, isLLMNode, data?.nodeParam?.respFormat]);
 
   return {
     nodeType,
