@@ -715,12 +715,17 @@ export function checkFlow(get): boolean {
   const endNode = nodes.find(node => node.nodeType === 'node-end');
   const visitedNodes = new Set();
   const recStack = new Set();
-  const stack: { nodeId: string | undefined }[] = [{ nodeId: startNode?.id }];
+  const stack: { nodeId: string | null }[] = [
+    { nodeId: startNode?.id || null },
+  ];
   const variableNodes: unknown[] = [];
 
   function dfs(): void {
-    const { nodeId } = stack.pop() || { nodeId: undefined };
+    const nodeInfo = stack.pop();
+    const nodeId = nodeInfo?.nodeId;
     const currentCheckNode = nodes.find(node => node.id === nodeId);
+
+    if (!currentCheckNode) return;
 
     if (!visitedNodes.has(nodeId)) {
       visitedNodes.add(nodeId);
@@ -794,21 +799,21 @@ export function checkFlow(get): boolean {
   get().setErrNodes(errNodes);
   //cycle edges set red color
   if (cycleEdges?.length) {
-    setEdges(edges => {
-      edges.forEach(edge => {
+    setEdges(currentEdges =>
+      currentEdges.map(edge => {
         const isCycleEdge = cycleEdges?.find(
           item => item.target === edge.target && item.source === edge.source
         );
-        if (isCycleEdge) {
-          edge.animated = false;
-          edge.style = {
-            stroke: 'red',
+        return {
+          ...edge,
+          animated: false,
+          style: {
+            stroke: isCycleEdge ? 'red' : '#6356EA',
             strokeWidth: 2,
-          };
-        }
-      });
-      return cloneDeep(edges);
-    });
+          },
+        };
+      })
+    );
   } else {
     setEdges(edges =>
       edges?.map(edge => ({
