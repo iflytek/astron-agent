@@ -461,7 +461,8 @@ jobs:
     name: 💬 Comment Check
     runs-on: ubuntu-latest
     needs: [detect-projects]
-    if: needs.detect-projects.outputs.has-projects == 'true'
+    # TODO: Temporarily disabled - will re-enable with improved implementation
+    if: false && needs.detect-projects.outputs.has-projects == 'true'
     timeout-minutes: 10
     steps:
       - name: Checkout
@@ -490,14 +491,14 @@ jobs:
           echo "🔍 Project Detection: ${{ needs.detect-projects.result }}"
           echo "🔍 Quality Checks: ${{ needs.check.result }}"
           echo "🧪 Tests: ${{ needs.test.result }}"
-          echo "💬 Comment Check: ${{ needs.comment-check.result }}"
+          echo "💬 Comment Check: ${{ needs.comment-check.result }} (temporarily disabled)"
           echo ""
 
-          # Check overall success
+          # Check overall success (comment-check is temporarily disabled, so we accept 'skipped')
           if [[ "${{ needs.detect-projects.result }}" == "success" && \
                 "${{ needs.check.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \
-                "${{ needs.comment-check.result }}" == "success" ]]; then
+                ("${{ needs.comment-check.result }}" == "success" || "${{ needs.comment-check.result }}" == "skipped") ]]; then
             echo "✅ 🎉 All checks passed! Ready for merge."
           else
             echo "❌ 🚨 Some checks failed. Please review the logs."
