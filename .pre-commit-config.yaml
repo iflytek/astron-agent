@@ -282,6 +282,15 @@ repos:
         pass_filenames: false
 
   # =============================================================================
+  # Security Scanning
+  # =============================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: Detect secrets with gitleaks
+
+  # =============================================================================
   # Commit Message Validation
   # =============================================================================
   - repo: https://github.com/compilerla/conventional-pre-commit
