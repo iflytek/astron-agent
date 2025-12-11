@@ -8,7 +8,7 @@ import React, {
   memo,
 } from 'react';
 import {
-  FlowInput,
+  FlowTextArea,
   FlowSelect,
   FlowNodeInput,
   FLowCollapse,
@@ -606,19 +606,37 @@ const renderFileUpload = (
   );
 };
 
-const renderString = (params, index, handleChangeParam): React.ReactElement => (
-  <FlowInput
-    value={params?.default}
-    className="pt-0.5"
-    onChange={e =>
-      handleChangeParam(
-        index,
-        d => (d.default = e.target.value),
-        e.target.value
-      )
-    }
-  />
-);
+const renderString = (params, index, handleChangeParam): React.ReactElement => {
+  return (
+    <FlowTextArea
+      style={{
+        height: 30,
+        minHeight: 30,
+        maxHeight: 200,
+      }}
+      adaptiveHeight={true}
+      placeholder={params?.description || '请输入'}
+      value={params?.default}
+      onChange={e =>
+        handleChangeParam(
+          index,
+          d => (d.default = e.target.value),
+          e.target.value
+        )
+      }
+      onKeyDown={e => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          handleChangeParam(
+            index,
+            d => (d.default = params?.default + '\t'),
+            params?.default + '\t'
+          );
+        }
+      }}
+    />
+  );
+};
 
 const renderInteger = (
   params,

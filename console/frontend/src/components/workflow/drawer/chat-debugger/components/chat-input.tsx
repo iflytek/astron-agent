@@ -5,6 +5,7 @@ import { renderType } from '@/components/workflow/utils/reactflowUtils';
 import { cloneDeep } from 'lodash';
 import { renderParamInput } from '@/components/workflow/nodes/node-common';
 import { useMemoizedFn } from 'ahooks';
+import { FlowTextArea } from '@/components/workflow/ui';
 
 // 类型导入
 import {
@@ -165,13 +166,17 @@ function ChatInput({
     >
       {startNodeParams?.length === 1 || interruptChat?.interrupt ? (
         <div className="relative mx-5">
-          <textarea
+          <FlowTextArea
             disabled={interruptChat?.type === 'option'}
             className="user-chat-input pr-3.5 w-full py-3"
             value={userInput}
             style={{
               resize: 'none',
+              minHeight: 36,
+              lineHeight: '36px',
+              maxHeight: 200,
             }}
+            adaptiveHeight={true}
             onChange={e => {
               e.stopPropagation();
               const value = e.target.value;
