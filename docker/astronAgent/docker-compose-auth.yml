@@ -13,7 +13,7 @@ services:
       - origin=${CONSOLE_CASDOOR_URL:-http://localhost:8000}
       - originFrontend=${CONSOLE_CASDOOR_URL:-http://localhost:8000}
     volumes:
-      - ./casdoor/conf:/conf
+      - ./casdoor/conf:/conf-templates:ro
       - ./casdoor/entrypoint.sh:/entrypoint.sh:ro
       - casdoor-logs:/logs
     networks:
