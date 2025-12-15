@@ -461,6 +461,7 @@ class QuestionAnswerNode(BaseLLMNode):
         inputs: dict,
         resume_data: ResumeData,
         variable_pool: VariablePool,
+        question :str
     ) -> NodeRunResult:
         """
         Handle direct response asynchronously
@@ -472,7 +473,7 @@ class QuestionAnswerNode(BaseLLMNode):
         :return: NodeRunResult object containing node execution result and related information
         """
         # Dynamically construct output dictionary for easy extension
-        final_res = {"query": self.question, "content": resume_data.content}
+        final_res = {"query": question, "content": resume_data.content}
         span_context.add_info_events(
             {"direct_response": json.dumps(final_res, ensure_ascii=False)}
         )
@@ -614,6 +615,7 @@ class QuestionAnswerNode(BaseLLMNode):
         history: list = [],
         current_retries: int = 1,  # Add recursive depth counter
         event_log_node_trace: NodeLog | None = None,
+        question: str="",
     ) -> NodeRunResult:
         """
         Recursively handle templated direct answer logic with variable extraction,
@@ -634,7 +636,7 @@ class QuestionAnswerNode(BaseLLMNode):
         max_retries = self.directAnswer.maxRetryCounts
         if not history:
             history = [
-                {"role": "assistant", "content": self.question},
+                {"role": "assistant", "content": question},
                 {"role": "user", "content": resume_data.content},
             ]
 
@@ -738,6 +740,7 @@ class QuestionAnswerNode(BaseLLMNode):
                 variable_pool=variable_pool,
                 history=history,
                 current_retries=current_retries + 1,
+                question=question,
             )
         else:
             return await self.handle_ignore_abort_event(
@@ -908,13 +911,14 @@ class QuestionAnswerNode(BaseLLMNode):
         self.timeout = self.timeout * 60  # Convert timeout from minutes to seconds
         try:
             # Process question content
-            self.question = prompt_template_replace(
+            temp_question = prompt_template_replace(
                 input_identifier=self.input_identifier,
                 _prompt_template=self.question,
                 node_id=self.node_id,
                 variable_pool=variable_pool,
                 span_context=span,
             )
+            print("Question_A: " + temp_question)
 
             # Process input
             inputs = {}
@@ -926,11 +930,11 @@ class QuestionAnswerNode(BaseLLMNode):
 
             # Process output query
             outputs = {}
-            outputs.update({SystemOutputVariable.QUERY.value: self.question})
+            outputs.update({SystemOutputVariable.QUERY.value: temp_question})
 
             span.add_info_events(
                 {
-                    "question": self.question,
+                    "question": temp_question,
                     "inputs": json.dumps(inputs, ensure_ascii=False),
                     "output": json.dumps(outputs, ensure_ascii=False),
                 }
@@ -956,14 +960,14 @@ class QuestionAnswerNode(BaseLLMNode):
             if self.answerType == AnswerType.OPTION.value:
                 value = InterruptData(
                     type=AnswerType.OPTION.value,
-                    content=self.question,
+                    content=temp_question,
                     option=self.process_option_answers(
                         span_context=span, variable_pool=variable_pool
                     ),
                 )
             else:
                 value = InterruptData(
-                    type=AnswerType.DIRECT.value, content=self.question
+                    type=AnswerType.DIRECT.value, content=temp_question
                 )
 
             span.add_info_events(
@@ -996,6 +1000,7 @@ class QuestionAnswerNode(BaseLLMNode):
                             variable_pool=variable_pool,
                             callbacks=callbacks,
                             event_log_node_trace=event_log_node_trace,
+                            question=temp_question
                         )
                     else:
                         node_res = await self.handle_direct_response(
@@ -1003,6 +1008,7 @@ class QuestionAnswerNode(BaseLLMNode):
                             inputs=inputs,
                             resume_data=resume_data,
                             variable_pool=variable_pool,
+                            question=temp_question
                         )
 
             # Handle ignore logic
