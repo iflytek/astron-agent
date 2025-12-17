@@ -47,7 +47,7 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const ItemBadge = ({ item }: { item: unknown }): React.ReactElement => {
+  const ItemBadge = ({ item, size = 'xs' }: { item: unknown, size: 'xs' | 'base' }): React.ReactElement => {
     const hasError = item?.nameErrMsg || item?.schema?.value?.contentErrMsg;
 
     const containerStyle = {
@@ -64,7 +64,7 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
     return (
       <div
         key={item?.id}
-        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-base font-medium"
+        className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-${size} font-medium`}
         style={containerStyle}
       >
         <span style={labelStyle}>{useFlowTypeRender(item)}</span>
@@ -79,7 +79,7 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
       label: (
         <div className="p-1 w-[300px] flex items-center gap-1 flex-wrap">
           {inputs?.map(item => (
-            <ItemBadge item={item} />
+            <ItemBadge item={item} size="base" />
           ))}
         </div>
       ),
@@ -103,15 +103,15 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
         ref={elementRef}
       >
         {inputs?.map(item => (
-          <ItemBadge item={item} />
+          <ItemBadge item={item} size="xs" />
         ))}
         {showDropdown && (
-          <div className="absolute right-0 top-1 flex items-center">
+          <div className="absolute right-0 top-0 flex items-center">
             <div
               className="w-[93px] h-[20px]"
               style={{
                 background:
-                  'linear-gradient(to bottom right,  rgba(255, 255, 255, 0.6),rgba(240, 240, 240, 0.3))',
+                  'linear-gradient(90deg, rgba(255, 255, 255, 0) 0px, rgb(252, 252, 255) 78%)',
               }}
             ></div>
             <div className="bg-[#F2F5FE] flex items-center justify-center rounded overflow-hidden absolute right-0 top-[2px]">
@@ -135,11 +135,11 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const ItemBadge = ({ item }: unknown): React.ReactElement => {
+  const ItemBadge = ({ item, size = 'xs' }: unknown): React.ReactElement => {
     return (
       <div
         key={item?.id}
-        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-base font-medium"
+        className={`flex items-center gap-0.5 px-1 py-0.5 rounded font-medium text-${size}`}
         style={{
           backgroundColor: item?.nameErrMsg ? '#F0AE784D' : '#F2F5FE',
           color: item?.nameErrMsg ? '#ff7300' : '',
@@ -162,25 +162,25 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
       data?.retryConfig?.errorStrategy === 1) &&
       data?.retryConfig?.shouldRetry
       ? [
-          {
-            id: uuid(),
-            name: 'errorCode',
-            schema: {
-              type: 'string',
-              default: t('workflow.exceptionHandling.errorCode'),
-            },
-            nameErrMsg: '',
+        {
+          id: uuid(),
+          name: 'errorCode',
+          schema: {
+            type: 'string',
+            default: t('workflow.exceptionHandling.errorCode'),
           },
-          {
-            id: uuid(),
-            name: 'errorMessage',
-            schema: {
-              type: 'string',
-              default: t('workflow.exceptionHandling.errorMessage'),
-            },
-            nameErrMsg: '',
+          nameErrMsg: '',
+        },
+        {
+          id: uuid(),
+          name: 'errorMessage',
+          schema: {
+            type: 'string',
+            default: t('workflow.exceptionHandling.errorMessage'),
           },
-        ]
+          nameErrMsg: '',
+        },
+      ]
       : [];
   }, [data?.retryConfig?.errorStrategy, data?.retryConfig?.shouldRetry]);
 
@@ -194,7 +194,7 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
       label: (
         <div className="p-1 w-[300px] flex items-center gap-1 flex-wrap">
           {finallyOutputs?.map(item => (
-            <ItemBadge item={item} />
+            <ItemBadge item={item} size="base" />
           ))}
         </div>
       ),
@@ -218,15 +218,15 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
         ref={elementRef}
       >
         {finallyOutputs?.map(item => (
-          <ItemBadge item={item} />
+          <ItemBadge item={item} size="xs" />
         ))}
         {showDropdown && (
-          <div className="absolute right-0 top-1 flex items-center">
+          <div className="absolute right-0 top-0 flex items-center">
             <div
               className="w-[93px] h-[20px]"
               style={{
                 background:
-                  'linear-gradient(to bottom right,  rgba(255, 255, 255, 0.6),rgba(240, 240, 240, 0.3))',
+                  'linear-gradient(90deg, rgba(255, 255, 255, 0) 0px, rgb(252, 252, 255) 78%)',
               }}
             ></div>
             <div className="bg-[#F2F5FE] flex items-center justify-center rounded overflow-hidden absolute right-0 top-[2px]">
@@ -323,7 +323,7 @@ export const ExceptionContent = memo(({ id, data }) => {
   return (
     <>
       {data?.retryConfig?.shouldRetry &&
-      data?.retryConfig?.errorStrategy === 2 ? (
+        data?.retryConfig?.errorStrategy === 2 ? (
         <>
           <div className="text-[333] text-right">异常处理</div>
           <span className="relative exception-handle-edge">

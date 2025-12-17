@@ -21,8 +21,8 @@ function useFlowLayout(zoom): { optimizeLayout: () => void } {
   const getNodeDimensions = useMemoizedFn(id => {
     const nodeElement = showIterativeModal
       ? document
-          .getElementById('iterator-flow-container')
-          ?.querySelector(`[data-id="${id}"]`)
+        .getElementById('iterator-flow-container')
+        ?.querySelector(`[data-id="${id}"]`)
       : document.querySelector(`[data-id="${id}"]`);
     if (nodeElement) {
       const { width, height } = nodeElement.getBoundingClientRect();
@@ -107,9 +107,8 @@ function ModeControls(): React.ReactElement {
       content={
         <div className="flex gap-3 mt-3 relative">
           <div
-            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${
-              controlMode === 'mouse' ? 'active' : ''
-            }`}
+            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${controlMode === 'mouse' ? 'active' : ''
+              }`}
             style={{
               border: '1px solid #bcc0cc',
               padding: '13px 0px 20px',
@@ -142,9 +141,8 @@ function ModeControls(): React.ReactElement {
             </p>
           </div>
           <div
-            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${
-              controlMode === 'touch' ? 'active' : ''
-            }`}
+            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${controlMode === 'touch' ? 'active' : ''
+              }`}
             style={{
               border: '1px solid #bcc0cc',
               padding: '13px 0px 20px',
@@ -215,17 +213,21 @@ function ZoomControls({
 }): React.ReactElement {
   return (
     <div className="flex items-center gap-3.5 bg-[#F6F6F7] px-3 py-2 rounded-md">
-      <img
-        src={Icons.panel.zoomOut}
-        className="w-[15px] h-[2px] cursor-pointer"
-        alt=""
+      <div
+        className="flex items-center justify-between w-[15px] h-[15px] cursor-pointer"
         onClick={() => {
           let newZoom = zoom / 100 - 0.1;
           newZoom = newZoom <= 0 ? 0.1 : newZoom;
           reactFlowInstance.zoomTo(newZoom);
           setZoom(zoom - 10 <= 10 ? 10 : zoom - 10);
         }}
-      />
+      >
+        <img
+          src={Icons.panel.zoomOut}
+          className="w-[15px] h-[2px]"
+          alt=""
+        />
+      </div>
       <span>{zoom}%</span>
       <img
         src={Icons.panel.zoomIn}
