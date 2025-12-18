@@ -432,14 +432,12 @@ function index() {
                         </div>
                         <Tooltip
                           title={
-                            k.botStatus === 2
+                            k.botStatus === 1
                               ? t('agentPage.agentPage.searchableInMarketplace')
                               : k.botStatus === -9 || k.botStatus === 0
                                 ? t('agentPage.agentPage.personalUseOnly')
-                                : k.botStatus === 1 || k.botStatus === 4
-                                  ? t('agentPage.agentPage.underReview')
-                                  : t('agentPage.agentPage.needsModification') +
-                                    k.blockReason
+                                : t('agentPage.agentPage.needsModification') +
+                                  k.blockReason
                           }
                         >
                           <div
@@ -653,19 +651,17 @@ function index() {
                                     )}
                                   </div>
                                 )}
-                                {![1, 4].includes(k?.botStatus) && (
-                                  <div
-                                    className="p-1 rounded hover:bg-[#F2F5FE] text-[#F74E43]"
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      setBotDetail(k);
-                                      setDeleteModal(true);
-                                      setOperationId(null);
-                                    }}
-                                  >
-                                    {t('agentPage.agentPage.delete')}
-                                  </div>
-                                )}
+                                <div
+                                  className="p-1 rounded hover:bg-[#F2F5FE] text-[#F74E43]"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setBotDetail(k);
+                                    setDeleteModal(true);
+                                    setOperationId(null);
+                                  }}
+                                >
+                                  {t('agentPage.agentPage.delete')}
+                                </div>
                               </div>
                             )}
                           </div>
