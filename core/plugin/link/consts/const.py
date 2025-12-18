@@ -64,6 +64,7 @@ from plugin.link.consts.keys.uvicorn_keys import SERVICE_PORT_KEY
 # common
 # These imports are used via module attribute access
 from plugin.link.consts.keys.xc_utils_keys import (  # SERVICE_PORT_KEY,
+    KAFKA_THREAD_NUM_KEY,
     KAFKA_TOPIC_KEY,
     OTLP_DC_KEY,
     OTLP_ENABLE_KEY,
@@ -115,6 +116,7 @@ __all__ = [
     "OTLP_DC_KEY",
     "OTLP_SERVICE_NAME_KEY",
     "KAFKA_TOPIC_KEY",
+    "KAFKA_THREAD_NUM_KEY",
     # mysql_keys
     "MYSQL_DB_KEY",
     "MYSQL_HOST_KEY",

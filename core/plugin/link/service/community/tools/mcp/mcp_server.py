@@ -204,6 +204,8 @@ async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListRespon
         # Process URLs
         if mcp_server_urls:
             for url in mcp_server_urls:
+                if not url.strip():
+                    continue
                 item = await _process_mcp_server_by_url(url)
                 items.append(item)
 
