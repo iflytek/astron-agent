@@ -43,6 +43,9 @@ const translation = {
     view: '查看',
     reapply: '重新上架',
     delete: '删除',
+    debugNotPassed: '该智能体还未调试通过不可发布，',
+    goToDebug: '前往调试',
+    checkPublishStatusFailed: '检查发布状态失败',
   },
   releaseDetail: {
     workflow: '工作流',

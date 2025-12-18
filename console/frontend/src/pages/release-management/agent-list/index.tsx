@@ -18,6 +18,7 @@ import {
   cancelBindWx,
   // getChainInfo,
 } from '@/services/spark-common';
+import { isCanPublish } from '@/services/flow';
 import WxModal from '@/components/wx-modal';
 import { useBotStateStore } from '@/store/spark-store/bot-state';
 import RetractableInput from '@/components/ui/global/retract-table-input';
@@ -211,6 +212,33 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
     localBotTab();
   };
 
+  /** ## 显示调试未通过提示 */
+  const showDebugNotPassedWarning = (bot: any) => {
+    const warningMessage = message.error({
+      content: (
+        <span>
+          {t('releaseManagement.debugNotPassed')}
+          <span
+            style={{
+              color: '#1890ff',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+            onClick={() => {
+              // 关闭 Message
+              warningMessage();
+              // 跳转到调试页面
+              updateAgent(bot);
+            }}
+          >
+            {t('releaseManagement.goToDebug')}
+          </span>
+        </span>
+      ),
+      duration: 2.5,
+    });
+  };
+
   // 创建统一的动态columns
   const unifiedColumns = useMemo(() => {
     const cols: {
@@ -357,6 +385,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
       width: 200,
       render: (bot: {
         version: number;
+        maasId: number;
         botId: string | undefined;
         botName: string;
         botDesc: string;
@@ -373,39 +402,56 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
                 */
                 if (bot.version === 3) {
                   // console.log(bot, 'bot---------');
-                  getPreparationData(bot.botId as unknown as number)
-                    .then((res: any) => {
-                      setBotMultiFileParam(res?.data?.botMultiFileParam);
-                      getBotBaseInfo(bot?.botId);
-                      setFabuFlag(true);
-                      setOpenWxmol(true);
+
+                  isCanPublish(bot?.maasId)
+                    .then(flag => {
+                      if (flag) {
+                        getPreparationData(bot.botId as unknown as number)
+                          .then((res: any) => {
+                            setBotMultiFileParam(res?.data?.botMultiFileParam);
+                            getBotBaseInfo(bot?.botId);
+                            setFabuFlag(true);
+                            setOpenWxmol(true);
+                          })
+                          .catch(err => {
+                            message.error(err?.msg);
+                          });
+
+                        /* NOTE: Publishing as mcp is currently not supported - 2025.10
+                      original logic -- getAgentInputParams & getChainInfo
+                      new api -- getPreparationData
+                    */
+                        getPreparationData(
+                          bot.botId as unknown as number,
+                          'MCP'
+                        ).then((res: any) => {
+                          if (
+                            res.length > 1 &&
+                            res
+                              .slice(1)
+                              .some(
+                                (item: { fileType: string }) =>
+                                  item.fileType !== 'file'
+                              )
+                          ) {
+                            setMoreParams(true);
+                          } else {
+                            setMoreParams(false);
+                          }
+                        });
+                      } else {
+                        showDebugNotPassedWarning(bot);
+                      }
                     })
                     .catch(err => {
-                      message.error(err?.msg);
-                    });
-
-                  /* NOTE: Publishing as mcp is currently not supported - 2025.10
-                    original logic -- getAgentInputParams & getChainInfo
-                    new api -- getPreparationData
-                  */
-                  getPreparationData(
-                    bot.botId as unknown as number,
-                    'MCP'
-                  ).then((res: any) => {
-                    if (
-                      res.length > 1 &&
-                      res
-                        .slice(1)
-                        .some(
-                          (item: { fileType: string }) =>
-                            item.fileType !== 'file'
+                      return (
+                        err?.msg &&
+                        message.error(
+                          err.msg ||
+                            t('releaseManagement.checkPublishStatusFailed')
                         )
-                    ) {
-                      setMoreParams(true);
-                    } else {
-                      setMoreParams(false);
-                    }
-                  });
+                      );
+                    });
                 } else {
                   getBotBaseInfo(bot?.botId);
                   setFabuFlag(true);
