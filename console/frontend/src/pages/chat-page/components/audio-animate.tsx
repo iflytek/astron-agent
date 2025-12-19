@@ -11,8 +11,8 @@ interface AudioAnimateProps {
   type: 'record' | 'play';
 }
 
-const RECORDING_ICON_URL = "https://openres.xfyun.cn/xfyundoc/2024-10-23/713754ca-5528-4cc9-a8e8-959facc8c648/1729652844928/afdfsdaaf.svg";
-
+const RECORDING_ICON_URL =
+  'https://openres.xfyun.cn/xfyundoc/2024-10-23/713754ca-5528-4cc9-a8e8-959facc8c648/1729652844928/afdfsdaaf.svg';
 
 const AudioAnimate = ({ isPlaying, type }: AudioAnimateProps): ReactElement => {
   const [playing, setPlaying] = useState<boolean>(false);

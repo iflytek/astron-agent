@@ -21,8 +21,8 @@ function useFlowLayout(zoom): { optimizeLayout: () => void } {
   const getNodeDimensions = useMemoizedFn(id => {
     const nodeElement = showIterativeModal
       ? document
-        .getElementById('iterator-flow-container')
-        ?.querySelector(`[data-id="${id}"]`)
+          .getElementById('iterator-flow-container')
+          ?.querySelector(`[data-id="${id}"]`)
       : document.querySelector(`[data-id="${id}"]`);
     if (nodeElement) {
       const { width, height } = nodeElement.getBoundingClientRect();
@@ -107,8 +107,9 @@ function ModeControls(): React.ReactElement {
       content={
         <div className="flex gap-3 mt-3 relative">
           <div
-            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${controlMode === 'mouse' ? 'active' : ''
-              }`}
+            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${
+              controlMode === 'mouse' ? 'active' : ''
+            }`}
             style={{
               border: '1px solid #bcc0cc',
               padding: '13px 0px 20px',
@@ -141,8 +142,9 @@ function ModeControls(): React.ReactElement {
             </p>
           </div>
           <div
-            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${controlMode === 'touch' ? 'active' : ''
-              }`}
+            className={`w-[240px] flex flex-col items-center rounded-lg cursor-pointer h-[182px] control-mode-item ${
+              controlMode === 'touch' ? 'active' : ''
+            }`}
             style={{
               border: '1px solid #bcc0cc',
               padding: '13px 0px 20px',
@@ -222,11 +224,7 @@ function ZoomControls({
           setZoom(zoom - 10 <= 10 ? 10 : zoom - 10);
         }}
       >
-        <img
-          src={Icons.panel.zoomOut}
-          className="w-[15px] h-[2px]"
-          alt=""
-        />
+        <img src={Icons.panel.zoomOut} className="w-[15px] h-[2px]" alt="" />
       </div>
       <span>{zoom}%</span>
       <img

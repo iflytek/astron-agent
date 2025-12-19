@@ -47,7 +47,13 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const ItemBadge = ({ item, size = 'xs' }: { item: unknown, size: 'xs' | 'base' }): React.ReactElement => {
+  const ItemBadge = ({
+    item,
+    size = 'xs',
+  }: {
+    item: unknown;
+    size: 'xs' | 'base';
+  }): React.ReactElement => {
     const hasError = item?.nameErrMsg || item?.schema?.value?.contentErrMsg;
 
     const containerStyle = {
@@ -162,25 +168,25 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
       data?.retryConfig?.errorStrategy === 1) &&
       data?.retryConfig?.shouldRetry
       ? [
-        {
-          id: uuid(),
-          name: 'errorCode',
-          schema: {
-            type: 'string',
-            default: t('workflow.exceptionHandling.errorCode'),
+          {
+            id: uuid(),
+            name: 'errorCode',
+            schema: {
+              type: 'string',
+              default: t('workflow.exceptionHandling.errorCode'),
+            },
+            nameErrMsg: '',
           },
-          nameErrMsg: '',
-        },
-        {
-          id: uuid(),
-          name: 'errorMessage',
-          schema: {
-            type: 'string',
-            default: t('workflow.exceptionHandling.errorMessage'),
+          {
+            id: uuid(),
+            name: 'errorMessage',
+            schema: {
+              type: 'string',
+              default: t('workflow.exceptionHandling.errorMessage'),
+            },
+            nameErrMsg: '',
           },
-          nameErrMsg: '',
-        },
-      ]
+        ]
       : [];
   }, [data?.retryConfig?.errorStrategy, data?.retryConfig?.shouldRetry]);
 
@@ -323,7 +329,7 @@ export const ExceptionContent = memo(({ id, data }) => {
   return (
     <>
       {data?.retryConfig?.shouldRetry &&
-        data?.retryConfig?.errorStrategy === 2 ? (
+      data?.retryConfig?.errorStrategy === 2 ? (
         <>
           <div className="text-[333] text-right">异常处理</div>
           <span className="relative exception-handle-edge">
