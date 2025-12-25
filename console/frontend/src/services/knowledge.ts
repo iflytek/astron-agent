@@ -41,44 +41,26 @@ import {
 export async function createKnowledgeAPI(
   params: CreateKnowledgeParams
 ): Promise<RepoItem> {
-  try {
-    const response = await http.post(`/repo/create-repo`, params);
-    message.success('操作成功');
-    return response as unknown as RepoItem;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.post(`/repo/create-repo`, params);
+  message.success('操作成功');
+  return response as unknown as RepoItem;
 }
 
 export async function deleteKnowledgeAPI(
   id: number,
   tag: string
 ): Promise<KnowledgeOperationResponse> {
-  try {
-    const response = await http.delete(`/repo/delete-repo?id=${id}&tag=${tag}`);
-    message.success('操作成功');
-    return response as unknown as KnowledgeOperationResponse;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.delete(`/repo/delete-repo?id=${id}&tag=${tag}`);
+  message.success('操作成功');
+  return response as unknown as KnowledgeOperationResponse;
 }
 
 export async function updateRepoAPI(
   params: UpdateRepoParams
 ): Promise<RepoItem> {
-  try {
-    const response = await http.post(`/repo/update-repo`, params);
-    message.success('操作成功');
-    return response as unknown as RepoItem;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.post(`/repo/update-repo`, params);
+  message.success('操作成功');
+  return response as unknown as RepoItem;
 }
 
 export async function listRepos(
@@ -147,17 +129,11 @@ export async function updateFileAPI(
 export async function enableFlieAPI(
   params: EnableFileParams
 ): Promise<KnowledgeOperationResponse> {
-  try {
-    const response = await http.put(
-      `/file/enable-file?id=${params.id}&enabled=${params.enabled}`
-    );
-    message.success('操作成功');
-    return response as unknown as KnowledgeOperationResponse;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.put(
+    `/file/enable-file?id=${params.id}&enabled=${params.enabled}`
+  );
+  message.success('操作成功');
+  return response as unknown as KnowledgeOperationResponse;
 }
 
 export async function deleteFileAPI(
@@ -165,31 +141,19 @@ export async function deleteFileAPI(
   id: string | number,
   tag: string | number
 ): Promise<KnowledgeOperationResponse> {
-  try {
-    const response = await http.delete(
-      `/file/delete-file?repoId=${repoId}&id=${id}&tag=${tag}`
-    );
-    message.success('操作成功');
-    return response as unknown as KnowledgeOperationResponse;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.delete(
+    `/file/delete-file?repoId=${repoId}&id=${id}&tag=${tag}`
+  );
+  message.success('操作成功');
+  return response as unknown as KnowledgeOperationResponse;
 }
 
 export async function deleteFolderAPI(
   id: number | string
 ): Promise<KnowledgeOperationResponse> {
-  try {
-    const response = await http.delete(`/file/delete-folder?id=${id}`);
-    message.success('操作成功');
-    return response as unknown as KnowledgeOperationResponse;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.delete(`/file/delete-folder?id=${id}`);
+  message.success('操作成功');
+  return response as unknown as KnowledgeOperationResponse;
 }
 
 export async function listFileDirectoryTree(
@@ -213,15 +177,9 @@ export async function createKnowledge(
 export async function updateKnowledgeAPI(
   params: UpdateKnowledgeParams
 ): Promise<KnowledgeOperationResponse> {
-  try {
-    const response = await http.post(`/knowledge/update-knowledge`, params);
-    message.success('操作成功');
-    return response as unknown as KnowledgeOperationResponse;
-  } catch (error: unknown) {
-    // const errorMessage = (error as Error)?.message;
-    // message.error(errorMessage);
-    throw error;
-  }
+  const response = await http.post(`/knowledge/update-knowledge`, params);
+  message.success('操作成功');
+  return response as unknown as KnowledgeOperationResponse;
 }
 
 export async function enableKnowledgeAPI(
