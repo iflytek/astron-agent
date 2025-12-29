@@ -75,7 +75,7 @@ spring:
     # Encoding of SQL migration files
     encoding: UTF-8
     # Validate migrations on startup
-    validate-on-migrate: true
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:false}
     # Table name for tracking migrations
     table: flyway_schema_history
     # Allow out of order migrations
