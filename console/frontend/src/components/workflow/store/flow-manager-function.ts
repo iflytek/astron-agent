@@ -42,10 +42,6 @@ export const initialStatus = {
   isLoading: true, //Initialize flow data loading
   canPublish: false, //Whether the flow can be published
   showIterativeModal: false, //Whether to display the iterative node modal
-  selectPromptModalInfo: {
-    open: false,
-    nodeId: '',
-  }, //Select Prompt Modal Information
   selectAgentPromptModalInfo: {
     open: false,
     nodeId: '',

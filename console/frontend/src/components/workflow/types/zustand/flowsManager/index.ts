@@ -144,14 +144,6 @@ export type FlowsManagerStoreType = {
   setIteratorId: (iteratorId: string) => void;
   showIterativeModal: boolean;
   setShowIterativeModal: (showIterativeModal: boolean) => void;
-  selectPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  };
-  setSelectPromptModalInfo: (selectPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  }) => void;
   selectAgentPromptModalInfo: {
     open: boolean;
     nodeId: string;
@@ -166,7 +158,7 @@ export type FlowsManagerStoreType = {
     paramsId: string;
     data: unknown;
   };
-  setDefaultValueModalInfo: (selectPromptModalInfo: unknown) => void;
+  setDefaultValueModalInfo: (defaultValueModalInfo: unknown) => void;
   promptOptimizeModalInfo: {
     open: boolean;
     nodeId: string;
