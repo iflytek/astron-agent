@@ -55,7 +55,9 @@ export async function debugTool(params: DebugToolParams): Promise<{
   data: Record<string, string | number | boolean>;
   message: string;
 }> {
-  return await http.post(`/tool/debug-tool`, params);
+  return await http.post(`/tool/debug-tool`, params, {
+    timeout: 300000,
+  });
 }
 
 export async function listTools(params: {
