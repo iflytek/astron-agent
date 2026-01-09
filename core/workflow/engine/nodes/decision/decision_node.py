@@ -1,7 +1,8 @@
 import copy
 import json
 import re
-from typing import Any, Dict
+import time
+from typing import Any, Dict, cast
 
 from jsonschema import ValidationError, validate  # type: ignore
 from loguru import logger
@@ -10,7 +11,7 @@ from pydantic import BaseModel, Field
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.entities.history import History
-from workflow.engine.entities.variable_pool import VariablePool
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.base_node import BaseLLMNode
 from workflow.engine.nodes.decision.prompt_v1_0 import (
     prompt_template,
@@ -168,7 +169,8 @@ class DecisionNode(BaseLLMNode):
             max_tokens=self.maxTokens,
             top_k=self.topK,
             patch_id=self.patch_id,
-            uid=self.uid,
+            uid=variable_pool.system_params.get(ParamKey.Uid, default="")
+            or str(time.time()),
             question_type=self.question_type,
             function_choice="",
         )
@@ -622,7 +624,7 @@ class DecisionNode(BaseLLMNode):
         :param kwargs: Extra keyword arguments (e.g., callbacks containing flow_id)
         :return: NodeRunResult produced by the selected execution path
         """
-        callbacks: ChatCallBacks = kwargs.get("callbacks", None)
+        callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
 
         if self.reasonMode == 1:
             return await self.async_execute_prompt(

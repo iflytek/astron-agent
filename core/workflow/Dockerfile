@@ -1,5 +1,5 @@
 # Use the base image with Python 3.11 and Spark Link dependencies
-FROM python:3.11-slim
+FROM artifacts.iflytek.com/docker-private/hy-spark-agent-builder/python:3.11-slim-kong-discovery
 
 # Set the working directory for the application
 WORKDIR /opt/core
@@ -28,7 +28,8 @@ RUN uv sync -i https://pypi.tuna.tsinghua.edu.cn/simple/
 
 # Copy the entire workflow source code to the container
 COPY core/workflow ./workflow
+COPY core/workflow_business ./workflow_business
 COPY core/common ./common
 
 # Set the default command to run the main application using UV
-CMD ["uv", "run", "workflow/main.py"]
+CMD ["/watchdogs/watchdog", "uv", "run", "workflow/main.py"]

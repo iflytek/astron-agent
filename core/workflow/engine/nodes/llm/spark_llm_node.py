@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any
+from typing import Any, cast
 
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
@@ -137,7 +137,7 @@ class SparkLLMNode(BaseLLMNode):
         :param kwargs: Additional keyword arguments including callbacks and dependencies
         :return: Node execution result with outputs and metadata
         """
-        callbacks: ChatCallBacks = kwargs.get("callbacks", None)
+        callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
         msg_or_end_node_deps = kwargs.get("msg_or_end_node_deps", {})
         try:
             inputs = {}

@@ -169,7 +169,7 @@ class AgentNode(BaseNode):
     :param source: Model provider source (default: XINGHUO)
     """
 
-    _private_config = PrivateConfig(timeout=5 * 60.0)
+    _private_config = PrivateConfig()
 
     appId: str = Field(...)
     apiKey: str = Field(...)
@@ -238,7 +238,9 @@ class AgentNode(BaseNode):
 
         try:
             interval_timeout = (
-                self.retry_config.timeout if self.retry_config.should_retry else None
+                self.retry_config.timeout
+                if self.retry_config.should_retry
+                else self._private_config.timeout
             )
 
             timeout_config = ClientTimeout(

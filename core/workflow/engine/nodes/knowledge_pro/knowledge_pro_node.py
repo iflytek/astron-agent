@@ -15,6 +15,7 @@ import httpx
 from aiohttp import ClientResponse, ClientTimeout
 from pydantic import Field
 
+from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.entities.node_entities import NodeType
 from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.nodes.base_node import BaseNode
@@ -120,7 +121,9 @@ class KnowledgeProNode(BaseNode):
 
         # Set timeout based on retry configuration
         interval_timeout = (
-            self.retry_config.timeout if self.retry_config.should_retry else None
+            self.retry_config.timeout
+            if self.retry_config.should_retry
+            else self._private_config.timeout
         )
 
         try:
@@ -147,8 +150,10 @@ class KnowledgeProNode(BaseNode):
                             cause_error=f"Knowledge Pro node response status: {response.status}",
                         )
 
-                    content_list, knowledge_metadata = await self._handle_response(
-                        response, span, variable_pool, msg_or_end_node_deps
+                    content_list, knowledge_metadata, token_usage = (
+                        await self._handle_response(
+                            response, span, variable_pool, msg_or_end_node_deps
+                        )
                     )
 
             # Prepare final outputs with combined content and metadata
@@ -199,6 +204,11 @@ class KnowledgeProNode(BaseNode):
             node_id=self.node_id,
             alias_name=self.alias_name,
             node_type=self.node_type,
+            token_cost=GenerateUsage(
+                completion_tokens=token_usage.get("completion_tokens", 0),
+                prompt_tokens=token_usage.get("prompt_tokens", 0),
+                total_tokens=token_usage.get("total_tokens", 0),
+            ),
         )
 
     async def _handle_response(
@@ -207,7 +217,7 @@ class KnowledgeProNode(BaseNode):
         span: Span,
         variable_pool: VariablePool,
         msg_or_end_node_deps: dict,
-    ) -> Tuple[list, list]:
+    ) -> Tuple[list, list, dict]:
         """
         Handle response from Knowledge Pro API.
 
@@ -222,6 +232,8 @@ class KnowledgeProNode(BaseNode):
         content_list: list = []
         # Knowledge base metadata
         knowledge_metadata: list = []
+        # Token usage statistics
+        token_usage: dict = {}
 
         # Process streaming response line by line
         async for line in response.content:
@@ -282,7 +294,14 @@ class KnowledgeProNode(BaseNode):
                 else []
             )
 
-        return content_list, knowledge_metadata
+            # Extract token usage statistics if present
+            token_usage = (
+                msg.get("data", {}).get("usage", {})
+                if content_type == "knowledge_metadata"
+                else {}
+            )
+
+        return content_list, knowledge_metadata, token_usage
 
     async def async_execute(
         self,

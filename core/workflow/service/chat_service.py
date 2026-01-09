@@ -4,7 +4,17 @@ import json
 import time
 from asyncio import Queue
 from datetime import datetime
-from typing import Any, AsyncGenerator, AsyncIterator, Dict, List, Optional, Tuple, cast
+from typing import (
+    Any,
+    AsyncGenerator,
+    AsyncIterator,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    cast,
+)
 
 from loguru import logger
 
@@ -90,14 +100,6 @@ async def event_stream(
         )
     )
 
-    def _handle_task_result(t: asyncio.Task) -> None:
-        try:
-            t.result()
-        except Exception:
-            logger.exception("event_stream background task failed")
-
-    task.add_done_callback(_handle_task_result)
-
     return _chat_response_stream(
         response_queue,
         chat_vo.flow_id,
@@ -106,6 +108,7 @@ async def event_stream(
         chat_vo.stream,
         is_release,
         span,
+        task,
     )
 
 
@@ -541,6 +544,8 @@ async def _run(
             m.in_error_count(err.code, span=span_context)
             code = err.code
             error_message = err.message
+        except asyncio.exceptions.CancelledError:
+            raise
         except Exception as err:
             llm_resp = LLMGenerate.workflow_end_error(
                 sid=span.sid,
@@ -855,6 +860,7 @@ async def _chat_response_stream(
     is_stream: bool,
     is_release: bool,
     span: Span,
+    engine_task: asyncio.Task,
 ) -> AsyncIterator[str]:
     """
     Process chat response streaming queue and generate streaming output.
@@ -878,6 +884,7 @@ async def _chat_response_stream(
     final_reasoning_content = ""
     last_workflow_step = WorkflowStep(seq=0, progress=0)
     last_response: LLMGenerate | None = None
+    is_resume: bool = False
 
     with span.start(attributes={"flow_id": flow_id}) as span_context:
 
@@ -919,8 +926,10 @@ async def _chat_response_stream(
                             response_queue,
                             event_id,
                             span_context,
+                            engine_task,
                         )
                     )
+                    is_resume = True
                     yield await _del_response_resume_data(
                         app_audit_policy, response, is_stream, event_id
                     )
@@ -992,8 +1001,11 @@ async def _chat_response_stream(
             yield Streaming.generate_data(llm_resp.model_dump(exclude_none=True))
             return
         finally:
-            if task:
-                await audit_service.audit_task_cancel(task)
+            tasks: List[asyncio.Task | None] = [task]
+            if not is_resume:
+                tasks.append(engine_task)
+            await _cancel_task_gracefully(tasks)
+
             if response and (
                 response.event_data
                 or response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value
@@ -1005,12 +1017,60 @@ async def _chat_response_stream(
                 )
 
 
+async def _cancel_task_gracefully(
+    cancel_tasks: Iterable[asyncio.Task | None],
+    timeout: float = 1.0,
+) -> None:
+    """
+    Gracefully cancel multiple asyncio tasks.
+
+    - Sends cancel signal to all tasks
+    - Waits for completion with timeout
+    - Avoids double-cancel from wait_for
+    - Does not treat CancelledError as error
+    """
+
+    tasks = [t for t in cancel_tasks if t and not t.done()]
+    if not tasks:
+        return
+
+    for task in tasks:
+        task.cancel()
+
+    try:
+        done, pending = await asyncio.wait(
+            tasks,
+            timeout=timeout,
+        )
+
+        if pending:
+            logger.warning(
+                "Some tasks did not exit within %.1f seconds: %s",
+                timeout,
+                [t.get_name() for t in pending],
+            )
+    except asyncio.TimeoutError:
+        still_running = [t for t in tasks if not t.done()]
+        logger.warning(
+            "Some tasks did not exit within %.1f seconds: %s",
+            timeout,
+            [t.get_name() for t in still_running],
+        )
+    except asyncio.CancelledError:
+        logger.info("Task was cancelled")
+    except Exception as e:
+        logger.error(f"Error during task cancellation, err: {str(e)}")
+    finally:
+        logger.info(cancel_tasks)
+
+
 async def _forward_queue_messages(
     app_audit_policy: AppAuditPolicy,
     audit_strategy: AuditStrategy | None,
     response_queue: asyncio.Queue,
     event_id: str,
     span: Span,
+    engine_task: asyncio.Task,
 ) -> None:
     """
     Forward queue messages to event registry.
@@ -1032,7 +1092,7 @@ async def _forward_queue_messages(
             )
             if node:
                 last_response = response
-            event = EventRegistry().get_event(event_id=event_id)
+            event = await asyncio.to_thread(EventRegistry().get_event, event_id)
             data = json.dumps(response.dict(), ensure_ascii=False)
             await EventRegistry().write_resume_data(
                 queue_name=event.get_workflow_q_name(),
@@ -1044,6 +1104,8 @@ async def _forward_queue_messages(
     except Exception as e:
         span.record_exception(e)
         raise e
+    finally:
+        await _cancel_task_gracefully([engine_task])
 
 
 async def _del_response_resume_data(

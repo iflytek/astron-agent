@@ -173,6 +173,9 @@ class SparkChatAi(ChatAI):
                 else:
                     msg_json = await recv_with_retry(ws_handle)
                 yield msg_json
+            except asyncio.exceptions.CancelledError:
+                await ws_handle.close()
+                raise
             except asyncio.TimeoutError as e:
                 raise CustomException(
                     err_code=CodeEnum.SPARK_REQUEST_ERROR,
