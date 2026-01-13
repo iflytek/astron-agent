@@ -1,4 +1,10 @@
 const translation = {
+  import: '导入',
+  export: '导出',
+  importFile: '导入文件',
+  importFileDescription: '文件格式为json、yaml，文件大小支持20MB',
+  exportAsJson: '导出为JSON',
+  exportAsYaml: '导出为YAML',
   pleaseSelectOfficialPlugin: '请选择官方插件',
   pluginFeedback: '插件反馈',
   selectOfficialPlugin: '选择官方插件',

@@ -144,3 +144,18 @@ export const installPlugin = (
     `/iflygpt/plugin/user/install?infoId=${infoId}&redirectUri=${redirectUri}`
   );
 };
+
+// 导出数据
+export async function exportPlugin(params: {
+  id: string;
+  type: string;
+}): Promise<unknown> {
+  return await http.get(`/tool/export`, { params, responseType: 'blob' });
+}
+
+// 导入数据
+export async function importPlugin(params: { file: File }): Promise<unknown> {
+  return await http.post(`/tool/import`, params, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+}
