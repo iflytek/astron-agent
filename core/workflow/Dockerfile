@@ -29,6 +29,6 @@ RUN uv sync -i https://pypi.tuna.tsinghua.edu.cn/simple/
 # Copy the entire workflow source code to the container
 COPY core/workflow ./workflow
 COPY core/common ./common
-
-# Set the default command to run the main application using UV
-CMD ["uv", "run", "workflow/main.py"]
+RUN chmod +x workflow/entrypoint.sh
+# Set the entrypoint to run database migrations before starting the application
+ENTRYPOINT ["workflow/entrypoint.sh"]
