@@ -74,7 +74,7 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
         style={containerStyle}
       >
         <span style={labelStyle}>{useFlowTypeRender(item)}</span>
-        <span>{displayName}</span>
+        <span className="whitespace-nowrap">{displayName}</span>
       </div>
     );
   };
@@ -158,7 +158,9 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
         >
           {useFlowTypeRender(item)}
         </span>
-        <span>{item?.name?.trim() ? item?.name : '未定义'}</span>
+        <span className="whitespace-nowrap">
+          {item?.name?.trim() ? item?.name : '未定义'}
+        </span>
       </div>
     );
   };
