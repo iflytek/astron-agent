@@ -13,6 +13,7 @@ class RPAExecutionRequest(BaseModel):
     sid: Optional[str] = ""
     project_id: str
     version: Optional[int] = None
+    phone_number: Optional[str] = None
     exec_position: Optional[str] = "EXECUTOR"
     params: Optional[Dict[Any, Any]] = None
 

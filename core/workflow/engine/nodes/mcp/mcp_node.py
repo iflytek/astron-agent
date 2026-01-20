@@ -28,7 +28,7 @@ class MCPNode(BaseNode):
     supporting dynamic tool execution with configurable parameters and server endpoints.
     """
 
-    _private_config = PrivateConfig(timeout=5 * 60.0)
+    _private_config = PrivateConfig()
     mcpServerId: str = Field(default="", description="MCP server unique identifier")
     mcpServerUrl: str = Field(default="", description="MCP server endpoint URL")
     toolName: str = Field(..., description="Name of the MCP tool to execute")
@@ -110,6 +110,7 @@ class MCPNode(BaseNode):
                             err_msg=msg,
                             cause_error=msg,
                         )
+
             if not self.output_identifier:
                 msg = "MCP node output identifier is empty"
                 span.add_error_event(msg)

@@ -1,8 +1,6 @@
 import asyncio
 import json
-import logging
 import uuid
-from asyncio import Task
 from typing import Any, Awaitable, Callable
 
 from workflow.cache import event_registry
@@ -322,22 +320,3 @@ async def output_audit(
             # Check for audit errors and raise if found
             if audit_strategy.context.error:
                 raise audit_strategy.context.error
-
-
-async def audit_task_cancel(task: Task) -> None:
-    """
-    Cancel an audit task gracefully with timeout handling.
-
-    :param task: The asyncio task to cancel
-    :return: None
-    """
-    if task:
-        task.cancel()  # Signal task to exit
-        try:
-            await asyncio.wait_for(task, timeout=1.0)  # Wait up to 1 second
-        except asyncio.CancelledError:
-            logging.error("Task was cancelled")
-        except asyncio.TimeoutError:
-            logging.error("Task didn't exit in time")
-        except Exception as e:
-            logging.error(f"Error during task cancellation, err: {str(e)}")

@@ -1210,7 +1210,8 @@
       "signupItems": [
         {"name": "Username", "visible": true, "required": true, "prompted": false, "rule": "None"},
         {"name": "Password", "visible": true, "required": true, "prompted": false, "rule": "None"},
-        {"name": "Email", "visible": true, "required": true, "prompted": false, "rule": "None"}
+        {"name": "Email", "visible": false, "required": false, "prompted": false, "rule": "No verification"},
+        {"name": "Phone", "visible": false, "required": false, "prompted": false, "rule": "No verification"}
       ],
       "tags": [],
       "formOffset": 2

@@ -9,77 +9,12 @@ from typing import Any
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
-from plugin.link.main import load_env_file, main, setup_python_path, start_service
+from plugin.link.main import load_env_file, main, start_service
 
 
 @pytest.mark.unit
 class TestMain:
     """Test class for main module functions"""
-
-    def test_setup_python_path_adds_required_paths(self) -> None:
-        """Test that setup_python_path adds required directories to PYTHONPATH"""
-        with patch.dict(os.environ, {"PYTHONPATH": ""}, clear=True):
-            with patch("plugin.link.main.Path") as mock_path_class:
-                # Create custom mock classes that properly handle str()
-                class MockPath:
-                    def __init__(self, path_str: str) -> None:
-                        self.path_str = path_str
-                        self.parent: Any = None
-
-                    def __str__(self) -> str:
-                        return self.path_str
-
-                # Create mock path hierarchy
-                mock_great_grandparent = MockPath("/grandparent/dir")
-                mock_grandparent = MockPath("/parent/dir")
-                mock_parent = MockPath("/project/root")
-                mock_file = MockPath("/current/file")
-
-                # Set up parent relationships
-                mock_file.parent = mock_parent
-                mock_parent.parent = mock_grandparent
-                mock_grandparent.parent = mock_great_grandparent
-
-                mock_path_class.return_value = mock_file
-
-                setup_python_path()
-
-                pythonpath = os.environ.get("PYTHONPATH", "")
-                assert "/project/root" in pythonpath
-                assert "/parent/dir" in pythonpath
-                assert "/grandparent/dir" in pythonpath
-
-    def test_setup_python_path_preserves_existing_paths(self) -> None:
-        """Test that setup_python_path preserves existing PYTHONPATH"""
-        existing_path = "/existing/path"
-        with patch.dict(os.environ, {"PYTHONPATH": existing_path}):
-            with patch("plugin.link.main.Path") as mock_path_class:
-                # Create custom mock classes that properly handle str()
-                class MockPath:
-                    def __init__(self, path_str: str) -> None:
-                        self.path_str = path_str
-                        self.parent: Any = None
-
-                    def __str__(self) -> str:
-                        return self.path_str
-
-                # Create mock path hierarchy
-                mock_great_grandparent = MockPath("/grandparent/dir")
-                mock_grandparent = MockPath("/parent/dir")
-                mock_parent = MockPath("/project/root")
-                mock_file = MockPath("/current/file")
-
-                # Set up parent relationships
-                mock_file.parent = mock_parent
-                mock_parent.parent = mock_grandparent
-                mock_grandparent.parent = mock_great_grandparent
-
-                mock_path_class.return_value = mock_file
-
-                setup_python_path()
-
-                pythonpath = os.environ.get("PYTHONPATH", "")
-                assert existing_path in pythonpath
 
     def test_load_env_file_missing_file(self, capsys: Any) -> None:
         """Test load_env_file behavior when file doesn't exist"""

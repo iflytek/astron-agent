@@ -1,4 +1,10 @@
 const translation = {
+  import: 'Import',
+  export: 'Export',
+  importFile: 'Import File',
+  importFileDescription: 'File format is json, yaml, file size supports 20MB',
+  exportAsJson: 'Export as JSON',
+  exportAsYaml: 'Export as YAML',
   pleaseSelectOfficialPlugin: 'Please select official plugin',
   pluginFeedback: 'Plugin Feedback',
   selectOfficialPlugin: 'Select Official Plugin',

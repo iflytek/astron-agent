@@ -47,4 +47,11 @@ public enum BotTypeEnum {
     public static boolean isWorkflowBot(Integer type) {
         return WORKFLOW_BOT.getType().equals(type);
     }
+
+    /**
+     * Determine if it is a workflow bot
+     */
+    public static boolean isTalkBot(Integer type) {
+        return TALK.getType().equals(type);
+    }
 }

@@ -920,6 +920,7 @@ const useCreateToolReturn = ({
   toolOperations,
   paramsValidation,
   toolDebugger,
+  updatePlugin,
   toolStates,
   formManagement,
   currentToolId,
@@ -931,6 +932,7 @@ const useCreateToolReturn = ({
   toolOperations: ReturnType<typeof useToolOperations>;
   paramsValidation: ReturnType<typeof useParamsValidation>;
   toolDebugger: ReturnType<typeof useToolDebugger>;
+  updatePlugin: ReturnType<typeof usePluginImport>;
   toolStates: ReturnType<typeof useToolStates>;
   formManagement: ReturnType<typeof useFormManagement>;
   currentToolId: number | string | undefined;
@@ -960,6 +962,7 @@ const useCreateToolReturn = ({
   checkParmasTable: () => boolean;
   checkDebuggerParmasTable: () => boolean;
   handleDebuggerTool: () => void;
+  updatePlugin: (tool: ToolItem) => void;
   authType: number;
   name: string;
   debuggerJsonData: string;
@@ -1014,6 +1017,9 @@ const useCreateToolReturn = ({
     checkDebuggerParmasTable: toolDebugger.checkDebuggerParmasTable,
     handleDebuggerTool: toolDebugger.handleDebuggerTool,
 
+    // 插件导入
+    updatePlugin: updatePlugin.updatePlugin,
+
     // 状态数据
     authType: toolStates.authType,
     name: toolStates.name,
@@ -1043,6 +1049,26 @@ const useCreateToolReturn = ({
     avatarColor: initialization.avatarColor,
     avatarIcon: initialization.avatarIcon,
     setBaseFormData: formManagement.setBaseFormData,
+  };
+};
+
+const usePluginImport = ({
+  formHandler,
+}: {
+  formHandler: ReturnType<typeof useFormDataHandler>;
+}): {
+  updatePlugin: (tool: ToolItem) => void;
+} => {
+  const updatePlugin = useCallback((values: ToolItem): void => {
+    const paramsData = JSON.parse(values?.webSchema);
+    formHandler.handleSetFormData({
+      ...values,
+      toolRequestInput: paramsData?.toolRequestInput,
+      toolRequestOutput: paramsData?.toolRequestOutput,
+    });
+  }, []);
+  return {
+    updatePlugin,
   };
 };
 
@@ -1096,6 +1122,7 @@ export const useCreateTool = ({
   };
   checkDebuggerParmasTable: () => boolean;
   handleDebuggerTool: () => void;
+  updatePlugin: (tool: ToolItem) => void;
   authType: number;
   name: string;
   debuggerJsonData: string;
@@ -1204,6 +1231,8 @@ export const useCreateTool = ({
       paramsValidation.validateDebuggerTransformedData,
   });
 
+  const updatePlugin = usePluginImport({ formHandler });
+
   // 暴露方法给父组件
   useImperativeHandle(ref, () => ({
     updateToolInfo: toolInfoUpdater.updateToolInfo,
@@ -1228,6 +1257,7 @@ export const useCreateTool = ({
     toolOperations,
     paramsValidation,
     toolDebugger,
+    updatePlugin,
     toolStates,
     formManagement,
     currentToolId,

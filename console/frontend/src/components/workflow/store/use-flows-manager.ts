@@ -104,10 +104,6 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   setIteratorId: (iteratorId: string): void => set({ iteratorId }),
   setShowIterativeModal: (showIterativeModal: boolean): void =>
     set({ showIterativeModal }),
-  setSelectPromptModalInfo: (selectPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  }): void => set({ selectPromptModalInfo }),
   setSelectAgentPromptModalInfo: (selectAgentPromptModalInfo: {
     open: boolean;
     nodeId: string;

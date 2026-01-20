@@ -77,7 +77,7 @@ export const Inputs = memo(({ label, inputs }) => {
         style={containerStyle}
       >
         <span style={labelStyle}>{useFlowTypeRender(item)}</span>
-        <span>{displayName}</span>
+        <span className="whitespace-nowrap">{displayName}</span>
       </div>
     );
   };
@@ -161,7 +161,7 @@ export const Outputs = memo(({ data, label, outputs }) => {
         >
           {useFlowTypeRender(item)}
         </span>
-        <span>
+        <span className="whitespace-nowrap">
           {item?.name?.trim()
             ? item?.name
             : t('workflow.nodes.common.undefined')}

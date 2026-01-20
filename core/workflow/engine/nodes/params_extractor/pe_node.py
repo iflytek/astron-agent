@@ -1,14 +1,15 @@
 import copy
 import json
 import re
-from typing import Any
+import time
+from typing import Any, cast
 
 from common.utils.json_schema.json_schema_validator import JsonSchemaValidator
 from pydantic import Field
 
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
-from workflow.engine.entities.variable_pool import VariablePool
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.entities.workflow_dsl import OutputItem
 from workflow.engine.nodes.base_node import BaseLLMNode
 from workflow.engine.nodes.entities.node_run_result import (
@@ -202,7 +203,7 @@ class ParamsExtractorNode(BaseLLMNode):
         :return: Node execution result with extracted parameters
         """
         if self.reasonMode == 1:
-            callbacks: ChatCallBacks = kwargs.get("callbacks", None)
+            callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
             return await self.async_execute_prompt(
                 variable_pool=variable_pool,
                 span=span,
@@ -227,7 +228,8 @@ class ParamsExtractorNode(BaseLLMNode):
                 max_tokens=self.maxTokens,
                 top_k=self.topK,
                 patch_id=self.patch_id,
-                uid=self.uid,
+                uid=variable_pool.system_params.get(ParamKey.Uid, default="")
+                or str(time.time()),
                 question_type=self.question_type,
             )
             usr_input = variable_pool.get_variable(

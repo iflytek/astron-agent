@@ -40,7 +40,7 @@ class FlowNode(BaseNode):
     enabling workflow composition and reusability.
     """
 
-    _private_config = PrivateConfig(timeout=5 * 60.0)
+    _private_config = PrivateConfig()
 
     # Flow configuration parameters
     flowId: str = Field(..., min_length=1)  # Target flow ID to execute
@@ -210,7 +210,9 @@ class FlowNode(BaseNode):
 
             # Configure timeout based on retry settings
             interval_timeout = (
-                self.retry_config.timeout if self.retry_config.should_retry else None
+                self.retry_config.timeout
+                if self.retry_config.should_retry
+                else self._private_config.timeout
             )
 
             # Establish SSE connection with appropriate timeouts

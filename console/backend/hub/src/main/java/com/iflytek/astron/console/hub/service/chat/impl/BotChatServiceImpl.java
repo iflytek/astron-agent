@@ -115,7 +115,7 @@ public class BotChatServiceImpl implements BotChatService {
             log.info("Processing chat request, sseId: {}, chatId: {}, uid: {}", sseId, chatBotReqDto.getChatId(), chatBotReqDto.getUid());
 
             BotConfiguration botConfig = getBotConfiguration(chatBotReqDto.getBotId());
-            if (botConfig.version.equals(BotTypeEnum.WORKFLOW_BOT.getType())) {
+            if (botConfig.version.equals(BotTypeEnum.WORKFLOW_BOT.getType()) || botConfig.version.equals(BotTypeEnum.TALK.getType())) {
                 workflowBotChatService.chatWorkflowBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, workflowVersion);
             } else {
                 int maxInputTokens = this.maxInputTokens;

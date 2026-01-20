@@ -54,6 +54,7 @@ class TestCreateTask:
             access_token="test-token",
             project_id="project-123",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"key": "value"},
         )
@@ -90,6 +91,7 @@ class TestCreateTask:
                 access_token="test-token",
                 project_id="project-123",
                 version=None,
+                phone_number=None,
                 exec_position="EXECUTOR",
                 params={"key": "value"},
             )
@@ -124,6 +126,7 @@ class TestCreateTask:
                 access_token="test-token",
                 project_id="invalid-project",
                 version=None,
+                phone_number=None,
                 exec_position="EXECUTOR",
                 params={},
             )
@@ -159,6 +162,7 @@ class TestCreateTask:
                 access_token="test-token",
                 project_id="project-123",
                 version=None,
+                phone_number=None,
                 exec_position="EXECUTOR",
                 params={},
             )
@@ -194,6 +198,7 @@ class TestCreateTask:
                 access_token="test-token",
                 project_id="project-123",
                 version=None,
+                phone_number=None,
                 exec_position="EXECUTOR",
                 params={},
             )
@@ -224,6 +229,7 @@ class TestCreateTask:
                 access_token="test-token",
                 project_id="project-123",
                 version=None,
+                phone_number=None,
                 exec_position="EXECUTOR",
                 params={},
             )
@@ -258,6 +264,7 @@ class TestCreateTask:
             access_token="test-token",
             project_id="project-123",
             version=None,
+            phone_number=None,
             exec_position=None,
             params=None,
         )

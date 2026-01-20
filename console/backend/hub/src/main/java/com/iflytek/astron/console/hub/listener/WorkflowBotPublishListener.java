@@ -49,7 +49,7 @@ public class WorkflowBotPublishListener {
             }
 
             // 2. Check if it's a workflow bot
-            if (!BotTypeEnum.isWorkflowBot(botBase.getVersion())) {
+            if (!BotTypeEnum.isWorkflowBot(botBase.getVersion()) && !BotTypeEnum.isTalkBot(botBase.getVersion())) {
                 log.debug("Not a workflow bot, skipping workflow publish handling: botId={}, version={}", event.getBotId(), botBase.getVersion());
                 return;
             }

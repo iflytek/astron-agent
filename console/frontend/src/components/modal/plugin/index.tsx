@@ -16,6 +16,7 @@ import ToolOutputParametersDetail from '@/components/table/tool-output-parameter
 import DebuggerTable from '@/components/table/debugger-table';
 import { isJSON } from '@/utils/utils';
 import { useTranslation } from 'react-i18next';
+import ImportModal from './import';
 
 import publishIcon from '@/assets/imgs/workflow/publish-icon.png';
 import noAuthorizationRequired from '@/assets/imgs/plugin/no-authorization-required.png';
@@ -689,6 +690,7 @@ const ActionButtons: React.FC<{
   handlePreStep: () => void;
   handleNextStep: () => void;
   handlePublishTool: () => void;
+  updatePlugin: (tool: ToolItem) => void;
 }> = ({
   selectedCard,
   step,
@@ -698,8 +700,10 @@ const ActionButtons: React.FC<{
   handlePreStep,
   handleNextStep,
   handlePublishTool,
+  updatePlugin,
 }) => {
   const { t } = useTranslation();
+  const [importModalOpen, setImportModalOpen] = useState(false);
   return (
     <div
       className="mx-auto"
@@ -709,12 +713,28 @@ const ActionButtons: React.FC<{
         maxWidth: 1425,
       }}
     >
+      <ImportModal
+        visible={importModalOpen}
+        handleCancel={() => setImportModalOpen(false)}
+        onImport={updatePlugin}
+      />
       <div
         className="flex justify-end gap-3 mx-auto"
         style={{
           minWidth: 1000,
         }}
       >
+        {step === 1 && (
+          <Button
+            type="text"
+            className="px-6 origin-btn"
+            onClick={() => {
+              setImportModalOpen(true);
+            }}
+          >
+            {t('plugin.import')}
+          </Button>
+        )}
         {!selectedCard?.id && (
           <Button
             type="text"
@@ -827,6 +847,7 @@ export const CreateTool = forwardRef<
       avatarColor,
       avatarIcon,
       setBaseFormData,
+      updatePlugin,
     } = useCreateTool({
       currentToolInfo,
       handleCreateToolDone,
@@ -944,6 +965,7 @@ export const CreateTool = forwardRef<
           handlePreStep={handlePreStep}
           handleNextStep={handleNextStep}
           handlePublishTool={handlePublishTool}
+          updatePlugin={updatePlugin}
         />
       </div>
     );

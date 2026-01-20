@@ -76,7 +76,6 @@ def init_kafka_send_workers() -> None:
 
 def _kafka_worker_func(worker_idx: int) -> None:
     """Kafka worker function"""
-    global global_kafka_queue, _worker_last_active
 
     kafka_producer = None
     while True:
@@ -101,7 +100,6 @@ def _kafka_worker_func(worker_idx: int) -> None:
 
 def _kafka_watchdog_func() -> None:
     """Watchdog to monitor worker threads and restart if stuck"""
-    global _worker_threads, _worker_last_active
 
     while True:
         time.sleep(KAFKA_WATCHDOG_INTERVAL)
@@ -145,7 +143,6 @@ def extract_request_params(
 
 async def send_telemetry(node_trace: NodeTraceLog) -> None:
     """Send telemetry data to Kafka."""
-    global global_kafka_queue
     if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
         node_trace.start_time = int(round(time.time() * 1000))
         try:

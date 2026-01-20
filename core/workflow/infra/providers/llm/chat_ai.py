@@ -1,5 +1,5 @@
 import abc
-from asyncio import Queue
+from asyncio import Event
 from typing import Any, AsyncIterator
 
 from pydantic import BaseModel, Field
@@ -27,8 +27,8 @@ class ChatAI(abc.ABC, BaseModel):
     max_tokens: int  # Maximum number of tokens to generate in response
     top_k: int  # Number of top-k tokens to consider during sampling
     uid: str  # User identifier
-    stream_node_first_token: Queue = Field(
-        default_factory=lambda: Queue(maxsize=1)
+    stream_node_first_token: Event = Field(
+        default_factory=Event
     )  # Event flag indicating whether the first token of streaming node has been sent
 
     model_config = {"arbitrary_types_allowed": True, "protected_namespaces": ()}

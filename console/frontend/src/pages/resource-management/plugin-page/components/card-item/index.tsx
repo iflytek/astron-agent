@@ -3,10 +3,14 @@ import { useTranslation } from 'react-i18next';
 import CardButtonGroup, {
   type ButtonItemConfig,
 } from '@/pages/resource-management/card-button-group';
+import { Dropdown } from 'antd';
 import styles from './index.module.scss';
+import { getFixedUrl } from '@/components/workflow/utils';
+import { downloadFileWithHeaders } from '@/utils/http';
 
 import editIcon from '@/assets/svgs/edit-outline.svg';
 import deleteIcon from '@/assets/svgs/delete-outline.svg';
+import exportIcon from '@/assets/imgs/plugin/icon_export.png';
 import { ToolItem } from '@/types/resource';
 
 interface CardItemProps {
@@ -111,11 +115,6 @@ const CardItem: React.FC<CardItemProps> = ({
         <p className={styles.description} title={tool.description}>
           {tool.description}
         </p>
-        {/* <div className={styles.relatedApps}>
-          <span className={styles.relatedAppsTag}>
-            {t('plugin.relatedApplications')}：{tool?.botUsedCount || 0}
-          </span>
-        </div> */}
       </div>
 
       {/* 底部操作区域 */}
@@ -129,6 +128,53 @@ const CardItem: React.FC<CardItemProps> = ({
           gap={8}
           align="right"
         />
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: '1',
+                label: (
+                  <span
+                    onClick={() =>
+                      downloadFileWithHeaders(
+                        getFixedUrl(`/tool/export?id=${tool.id}&type=1`),
+                        `${tool.name}.json`
+                      )
+                    }
+                  >
+                    {t('plugin.exportAsJson')}
+                  </span>
+                ),
+              },
+              {
+                key: '2',
+                label: (
+                  <span
+                    onClick={() =>
+                      downloadFileWithHeaders(
+                        getFixedUrl(`/tool/export?id=${tool.id}&type=2`),
+                        `${tool.name}.yaml`
+                      )
+                    }
+                  >
+                    {t('plugin.exportAsYaml')}
+                  </span>
+                ),
+              },
+            ],
+            onClick: e => {
+              e.domEvent.stopPropagation();
+            },
+          }}
+        >
+          <div
+            className={styles.dropdownBtn}
+            onClick={e => e.stopPropagation()}
+          >
+            <img src={exportIcon} alt="" />
+            <span>{t('plugin.export')}</span>
+          </div>
+        </Dropdown>
       </div>
     </div>
   );

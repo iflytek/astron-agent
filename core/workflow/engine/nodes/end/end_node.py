@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 from pydantic import Field
 
@@ -78,7 +78,7 @@ class EndNode(BaseOutputNode):
                 msg_or_end_node_deps=msg_or_end_node_deps,
                 node_run_status=node_run_status,
             )
-            callbacks: ChatCallBacks = kwargs.get("callbacks", None)
+            callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
 
             # Notify callbacks that node execution has started
             await callbacks.on_node_start(

@@ -17,6 +17,7 @@ async def create_task(
     access_token: str,
     project_id: str,
     version: Optional[int],
+    phone_number: Optional[str],
     exec_position: Optional[str],
     params: Optional[dict],
 ) -> str:
@@ -41,9 +42,13 @@ async def create_task(
     if version:
         body["version"] = version
 
+    if phone_number:
+        body["phone_number"] = phone_number
+
     async with httpx.AsyncClient() as client:
         try:
             assert task_create_url is not None
+            logger.info(f"create_task_url:{task_create_url} header:{header}, body:{body}")
             response = await client.post(task_create_url, headers=header, json=body)
             response.raise_for_status()
 

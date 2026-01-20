@@ -25,6 +25,7 @@ async def task_monitoring(
     access_token: str,
     project_id: str,
     version: Optional[int],
+    phone_number: Optional[str],
     exec_position: Optional[str],
     params: Optional[dict],
 ) -> AsyncGenerator[str, None]:
@@ -38,10 +39,12 @@ async def task_monitoring(
     """
     logger.debug(
         f"Starting task monitoring for project_id: {project_id}, "
+        f"version: {version}, phone_number: {phone_number}, "
         f"exec_position: {exec_position}, params: {params}"
     )
     req = (
-        f"sid:{sid}, access_token:{access_token}, project_id:{project_id}"
+        f"sid:{sid}, access_token:{access_token}, project_id:{project_id}, "
+        f"version: {version}, phone_number: {phone_number}, "
         f"exec_position:{exec_position}, params:{params}"
     )
     span, node_trace = setup_span_and_trace(req=req, sid=sid)
@@ -60,6 +63,7 @@ async def task_monitoring(
                 access_token=access_token,
                 project_id=project_id,
                 version=version,
+                phone_number=phone_number,
                 exec_position=exec_position,
                 params=params,
             )  # Create task

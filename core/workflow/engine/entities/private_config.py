@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class PrivateConfig(BaseModel):
-    timeout: Optional[float] = 2 * 60.0
+    timeout: Optional[float] = 5 * 60.0
 
     class Config:
         extra = "forbid"

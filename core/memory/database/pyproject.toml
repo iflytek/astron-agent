@@ -14,7 +14,7 @@ dependencies = [
     "isort==5.13.2",
     "jsonschema>=4.23.0",
     "loguru>=0.7.3",
-    "mypy==1.9.0",
+    "mypy==1.18.2",
     "openpyxl>=3.1.5",
     "opentelemetry-api==1.25.0",
     "opentelemetry-exporter-opencensus==0.46b0",
