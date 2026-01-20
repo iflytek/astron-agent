@@ -48,6 +48,7 @@ import addItemIcon from '@/assets/imgs/workflow/add-item-icon.png';
 import remove from '@/assets/imgs/workflow/input-remove-icon.png';
 
 const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
+  const { t } = useTranslation();
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
   const nodeList = useFlowsManager(state => state.nodeList);
@@ -195,15 +196,15 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
   const inputLabel = useMemo(() => {
     if (isEndNode || isIteratorEnd) {
-      return '输出';
+      return t('workflow.nodes.common.output');
     }
-    return '输入';
+    return t('workflow.nodes.common.input');
   }, [isEndNode, isIteratorEnd]);
   const outputLabel = useMemo(() => {
     if (isStartNode || isIteratorStart) {
-      return '输入';
+      return t('workflow.nodes.common.input');
     }
-    return '输出';
+    return t('workflow.nodes.common.output');
   }, [isStartNode, isIteratorStart]);
   const stringSplitMode = useMemo(() => {
     return data?.nodeParam?.mode === 1;

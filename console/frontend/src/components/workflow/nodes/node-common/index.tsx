@@ -43,7 +43,8 @@ import { generateUploadType } from '@/components/workflow/utils/reactflowUtils';
 
 import dotSvg from '@/assets/imgs/workflow/dot.svg';
 
-export const Inputs = memo(({ label = '输入', inputs }) => {
+export const Inputs = memo(({ label, inputs }) => {
+  const { t } = useTranslation();
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -65,7 +66,9 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
       color: hasError ? '#f4c69e' : '#7F7F7F',
     };
 
-    const displayName = item?.name?.trim() ? item?.name : '未定义';
+    const displayName = item?.name?.trim()
+      ? item?.name
+      : t('workflow.nodes.common.undefined');
 
     return (
       <div
@@ -136,7 +139,7 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
   );
 });
 
-export const Outputs = memo(({ data, label = '输出', outputs }) => {
+export const Outputs = memo(({ data, label, outputs }) => {
   const { t } = useTranslation();
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -158,7 +161,11 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
         >
           {useFlowTypeRender(item)}
         </span>
-        <span>{item?.name?.trim() ? item?.name : '未定义'}</span>
+        <span>
+          {item?.name?.trim()
+            ? item?.name
+            : t('workflow.nodes.common.undefined')}
+        </span>
       </div>
     );
   };
@@ -324,6 +331,7 @@ export const Label = memo(
 );
 
 export const ExceptionContent = memo(({ id, data }) => {
+  const { t } = useTranslation();
   const { isConnectable, exceptionHandleId } = useNodeCommon({ id, data });
 
   return (
@@ -331,9 +339,13 @@ export const ExceptionContent = memo(({ id, data }) => {
       {data?.retryConfig?.shouldRetry &&
       data?.retryConfig?.errorStrategy === 2 ? (
         <>
-          <div className="text-[333] text-right">异常处理</div>
+          <div className="text-[333] text-right">
+            {t('workflow.exceptionHandling.title')}
+          </div>
           <span className="relative exception-handle-edge">
-            执行异常流程
+            {t(
+              'workflow.exceptionHandling.exceptionMethods.executeExceptionFlow.label'
+            )}
             <SourceHandle
               nodeId={id}
               id={exceptionHandleId}
@@ -347,9 +359,12 @@ export const ExceptionContent = memo(({ id, data }) => {
 });
 
 export const Model = memo(({ model }) => {
+  const { t } = useTranslation();
   return (
     <>
-      <div className="text-[#333] text-right">模型</div>
+      <div className="text-[#333] text-right">
+        {t('workflow.nodes.largeModelNode.model')}
+      </div>
       <div className="flex items-center gap-1">
         <img src={model?.icon} className="w-[14px] h-[14px]" alt="" />
         <span>{model?.name}</span>
@@ -521,9 +536,14 @@ export const NodeWrapper = memo<NodeWrapperProps>(({ id, data, children }) => {
 });
 
 export const ModelSection = memo(({ id, data }): React.ReactElement => {
+  const { t } = useTranslation();
   return (
     <FLowCollapse
-      label={<h2 className="text-base font-medium">模型</h2>}
+      label={
+        <h2 className="text-base font-medium">
+          {t('workflow.nodes.largeModelNode.model')}
+        </h2>
+      }
       content={
         <div className="rounded-md px-[18px] pb-3">
           <ModelSelect id={id} data={data} />

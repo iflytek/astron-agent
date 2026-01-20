@@ -15,6 +15,7 @@ const translation = {
         'You can use {{variableName}}, {{variableName.subVariable}}, {{variableName[arrayIndex]}} to reference variables in output parameters',
     },
     largeModelNode: {
+      model: 'Model',
       type: 'Large Model',
       prompt: 'Prompt',
       promptLibrary: 'Prompt Library',
@@ -231,12 +232,18 @@ const translation = {
         'You can define the format of the returned result based on parameter names, for example using {{variableName}} method for output',
     },
     questionAnswerNode: {
+      nodeQuestionContent: 'Node Question Content',
+      userReplyOptions: 'User Reply Options',
+      userReplyOptionContent: 'User Reply Option Content',
+      userInvisible: 'User Invisible',
+      answerType: 'Answer Type',
       type: 'Large Model',
       largeModel: 'Large Model',
       questionPlaceholder:
         'Fill in the question to ask the user here, you can use {(variableName}} method for output',
       input: 'Input',
       questionContent: 'Question Content',
+      questionContentPlaceholder: 'No question content configured',
       answerMode: 'Answer Mode',
       directReply: 'Direct Reply',
       optionReply: 'Option Reply',
@@ -423,6 +430,7 @@ const translation = {
       // 使用common中的input, output
     },
     common: {
+      undefined: 'Undefined',
       selectPlaceholder: 'Please select',
       inputPlaceholder: 'Please enter',
       outputPlaceholder: 'Output',
@@ -899,51 +907,51 @@ const translation = {
       'Mouse left-click to drag the canvas, scroll with the mouse wheel',
     touchFriendlyModeDescription:
       'Two fingers move in the same direction to drag the canvas, and pinch with two fingers to zoom',
-    // ExceptionHandling component translations
-    exceptionHandling: {
-      title: 'Exception Handling',
-      tooltip:
-        'You can set exception handling, including timeout, retry, and exception handling methods. After enabling stream output, once data output starts, even if an exception occurs, it cannot be retried or jump to exception branch.',
-      timeout: 'Timeout',
-      timeoutTooltip:
-        'Timeout refers to the maximum time consumption for node operation. If it exceeds this duration, it will be judged as node operation timeout. By default, the node timeout is 60s, that is, 1 minute. You can also change it to 0.1s~120s to flexibly control the timeout.',
-      retryTimes: 'Retry Times',
-      exceptionHandlingMethod: 'Exception Handling Method',
-      retryOptions: {
-        noRetry: 'No Retry',
-        retry1Time: 'Retry 1 Time',
-        retry2Times: 'Retry 2 Times',
-        retry3Times: 'Retry 3 Times',
-        retry4Times: 'Retry 4 Times',
-        retry5Times: 'Retry 5 Times',
+  },
+  // ExceptionHandling component translations
+  exceptionHandling: {
+    title: 'Exception Handling',
+    tooltip:
+      'You can set exception handling, including timeout, retry, and exception handling methods. After enabling stream output, once data output starts, even if an exception occurs, it cannot be retried or jump to exception branch.',
+    timeout: 'Timeout',
+    timeoutTooltip:
+      'Timeout refers to the maximum time consumption for node operation. If it exceeds this duration, it will be judged as node operation timeout. By default, the node timeout is 60s, that is, 1 minute. You can also change it to 0.1s~120s to flexibly control the timeout.',
+    retryTimes: 'Retry Times',
+    exceptionHandlingMethod: 'Exception Handling Method',
+    retryOptions: {
+      noRetry: 'No Retry',
+      retry1Time: 'Retry 1 Time',
+      retry2Times: 'Retry 2 Times',
+      retry3Times: 'Retry 3 Times',
+      retry4Times: 'Retry 4 Times',
+      retry5Times: 'Retry 5 Times',
+    },
+    exceptionMethods: {
+      interruptFlow: {
+        label: 'Interrupt Flow',
+        description:
+          'After an exception occurs, the flow execution is interrupted. Exception information will be displayed on the node card or returned through the call result.',
       },
-      exceptionMethods: {
-        interruptFlow: {
-          label: 'Interrupt Flow',
-          description:
-            'After an exception occurs, the flow execution is interrupted. Exception information will be displayed on the node card or returned through the call result.',
-        },
-        returnSetContent: {
-          label: 'Return Set Content',
-          description:
-            'After an exception occurs, the flow will not be interrupted. Exception information will be returned through errorCode and errorMessage. Developers can set the content that needs to be returned.',
-        },
-        executeExceptionFlow: {
-          label: 'Execute Exception Flow',
-          description:
-            'After an exception occurs, the flow will not be interrupted. Exception information will be returned through errorCode and errorMessage, and an exception branch will be added. Developers need to complete the exception handling flow before running the flow.',
-        },
+      returnSetContent: {
+        label: 'Return Set Content',
+        description:
+          'After an exception occurs, the flow will not be interrupted. Exception information will be returned through errorCode and errorMessage. Developers can set the content that needs to be returned.',
       },
-      setAnswerContent: 'Set Answer Content',
-      errorInfo: 'Error Information',
-      errorCode: 'Error Code',
-      errorMessage: 'Error Message',
-      validationMessages: {
-        valueCannotBeEmpty: 'Value cannot be empty',
-        invalidJsonFormat: 'Invalid JSON format',
-        outputVariableNameValidationFailed:
-          'Output variable name validation failed, automatic JSON generation failed',
+      executeExceptionFlow: {
+        label: 'Execute Exception Flow',
+        description:
+          'After an exception occurs, the flow will not be interrupted. Exception information will be returned through errorCode and errorMessage, and an exception branch will be added. Developers need to complete the exception handling flow before running the flow.',
       },
+    },
+    setAnswerContent: 'Set Answer Content',
+    errorInfo: 'Error Information',
+    errorCode: 'Error Code',
+    errorMessage: 'Error Message',
+    validationMessages: {
+      valueCannotBeEmpty: 'Value cannot be empty',
+      invalidJsonFormat: 'Invalid JSON format',
+      outputVariableNameValidationFailed:
+        'Output variable name validation failed, automatic JSON generation failed',
     },
   },
   nodeList: {

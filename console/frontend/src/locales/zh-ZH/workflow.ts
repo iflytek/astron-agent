@@ -15,6 +15,7 @@ const translation = {
         '可以使用{{变量名}}、{{变量名.子变量名}}、{{变量名[数组索引]}}的方式引用输出参数中的变量',
     },
     largeModelNode: {
+      model: '模型',
       type: '大模型',
       prompt: '提示词',
       promptLibrary: '提示词库',
@@ -226,12 +227,18 @@ const translation = {
         '可以根据参数名，在此定义返回结果的格式，例如使用{{变量名}}方式进行输出',
     },
     questionAnswerNode: {
+      nodeQuestionContent: '该节点的提问内容',
+      userReplyOptions: '用户回复的选项',
+      userReplyOptionContent: '用户回复的选项内容',
+      userInvisible: '用户不可见',
+      answerType: '问答类型',
       type: '大模型',
       largeModel: '大模型',
       questionPlaceholder:
         '在此填写向用户提出的问题，可以使用{(变量名}}方式进行输出',
       input: '输入',
       questionContent: '提问内容',
+      questionContentPlaceholder: '未配置提问内容',
       answerMode: '回答模式',
       directReply: '直接回复',
       optionReply: '选项回复',
@@ -413,6 +420,7 @@ const translation = {
       // 使用common中的input, output
     },
     common: {
+      undefined: '未定义',
       selectPlaceholder: '请选择',
       inputPlaceholder: '请输入',
       outputPlaceholder: '输出',

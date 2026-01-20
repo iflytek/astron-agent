@@ -29,6 +29,7 @@ import {
 import { Icons } from '@/components/workflow/icons';
 
 export const Agent = memo(({ data }: AgentProps) => {
+  const { t } = useTranslation();
   const agentStrategy = useFlowsManager(state => state.agentStrategy);
 
   const agentStrategyName = useMemo(() => {
@@ -39,7 +40,9 @@ export const Agent = memo(({ data }: AgentProps) => {
 
   return (
     <>
-      <div className="text-[#333] text-right">Agent策略</div>
+      <div className="text-[#333] text-right">
+        {t('workflow.nodes.agentNode.agentStrategy')}
+      </div>
       <span>{agentStrategyName}</span>
     </>
   );
@@ -690,7 +693,9 @@ export const AgentDetail = memo((props: AgentDetailProps) => {
           <FLowCollapse
             label={
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-medium">模型</h2>
+                <h2 className="text-base font-medium">
+                  {t('workflow.nodes.largeModelNode.model')}
+                </h2>
               </div>
             }
             content={
