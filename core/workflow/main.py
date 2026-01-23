@@ -21,6 +21,9 @@ from starlette.middleware.cors import CORSMiddleware
 from workflow.api.v1.router import old_auth_router, sparkflow_router, workflow_router
 from workflow.cache.event_registry import EventRegistry
 from workflow.extensions.fastapi.handler.validation import validation_exception_handler
+from workflow.extensions.fastapi.lifespan.database_migration import (
+    run_database_migration,
+)
 from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.fastapi.lifespan.utils import print_routes
 from workflow.extensions.fastapi.middleware.auth import AuthMiddleware
@@ -45,6 +48,9 @@ def create_app() -> FastAPI:
 
         # Initialize application services and middleware
         initialize_services()
+
+        # Run database migration before starting the service
+        run_database_migration()
 
         # Initialize the http connection pool when the entire service starts
         await HttpClient.setup()
