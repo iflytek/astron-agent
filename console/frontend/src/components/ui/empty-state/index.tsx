@@ -1,6 +1,7 @@
 import React from 'react';
 import { PrimaryBtn } from '../btns';
-import EmptyIcon from '@/assets/svgs/resource-empty.svg?react';
+import { ReactSVG } from 'react-svg';
+import emptyIcon from '@/assets/svgs/resource-empty.svg';
 import i18n from 'i18next';
 
 interface EmptyStateProps {
@@ -25,7 +26,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => {
   return (
     <div className="flex flex-col items-center justify-center">
-      <EmptyIcon />
+      <ReactSVG src={emptyIcon} />
       <div className="text-sm text-[#999] mt-2">{description}</div>
       {onCreate && (
         <div className="mt-5">

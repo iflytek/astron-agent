@@ -95,7 +95,6 @@
     "uuid": "^9.0.1",
     "uuidjs": "^5.1.0",
     "view-bigimg": "^1.0.7",
-    "vite-plugin-svgr": "^4.5.0",
     "xlsx": "^0.18.5",
     "zustand": "^5.0.3"
   },
