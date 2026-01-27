@@ -1,4 +1,7 @@
 const translation = {
+  pleaseCreate: 'No data, create one now~',
+  new: 'New',
+  noData: 'No data',
   workflowNotDebugged: 'Workflow not debugged successfully',
   noLLMNode: 'Workflow does not have LLM node',
   multipleParams: 'Workflow has multiple input parameters',

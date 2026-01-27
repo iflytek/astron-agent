@@ -838,9 +838,8 @@ const OperationContent = ({
           )}
           {operate === 'mcpDetail' && (
             <MCPDetail
-              currentToolId={currentToolInfo?.id}
-              handleClearMCPData={handleClearMCPData}
-              dataSource={dataSource}
+              currentTool={currentToolInfo}
+              handleClearMCPToolDetail={handleClearMCPData}
             />
           )}
         </>

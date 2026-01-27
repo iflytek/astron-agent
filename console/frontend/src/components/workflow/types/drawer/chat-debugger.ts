@@ -628,6 +628,15 @@ export interface FlowType {
   };
 }
 
+export interface McpType {
+  spark_id: string;
+  server_url: string;
+  mcpId: string;
+  name: string;
+  description: string;
+  args: unknown[];
+}
+
 export interface PositionType {
   x: number;
   y: number;

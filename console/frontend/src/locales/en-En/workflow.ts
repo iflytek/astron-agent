@@ -177,6 +177,9 @@ const translation = {
       outputParameterEnableDescription:
         'When set to invisible, this parameter will not be returned to the large model',
     },
+    mcpNode: {
+      officalMcp: 'Official MCP',
+    },
     knowledgeNode: {
       type: 'Knowledge Base',
       knowledgeBase: 'Knowledge Base',
@@ -430,6 +433,7 @@ const translation = {
       // 使用common中的input, output
     },
     common: {
+      back: 'Back',
       undefined: 'Undefined',
       selectPlaceholder: 'Please select',
       inputPlaceholder: 'Please enter',

@@ -180,7 +180,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
 
   const nodeDesciption = useMemo(() => {
     //工具节点需要特判一下，使用工具本身的描述
-    if (nodeType === 'plugin') {
+    if (nodeType === 'plugin' || nodeType === 'mcp') {
       return data?.nodeParam?.toolDescription;
     }
     if (nodeType === 'rpa') {
