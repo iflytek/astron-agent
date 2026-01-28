@@ -47,7 +47,7 @@ class CodeNode(BaseNode):
     appId: str = Field(..., description="App ID")
     uid: str = Field(..., description="User ID")
 
-    def _get_actual_parameter(
+    async def _get_actual_parameter(
         self, variable_pool: VariablePool, span_context: Span
     ) -> Dict[str, Any]:
         """
@@ -64,7 +64,7 @@ class CodeNode(BaseNode):
                 node_id=self.node_id, key_name=variable_key, span=span_context
             )
             actual_parameters.update({variable_key: value_content})
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"input": json.dumps(actual_parameters, ensure_ascii=False)}
         )
         return actual_parameters
@@ -86,7 +86,7 @@ class CodeNode(BaseNode):
         :return: Node execution result with outputs and timing information
         """
         try:
-            actual_parameters = self._get_actual_parameter(
+            actual_parameters = await self._get_actual_parameter(
                 variable_pool=variable_pool, span_context=span
             )
 
@@ -123,7 +123,7 @@ class CodeNode(BaseNode):
         runner = PYTHON_RUNNER.replace("{{code}}", self.code)
         runner = runner.replace("{{inputs}}", actual_parameters_str)
 
-        span_context.add_info_event(f"runner code: {runner}")
+        await span_context.add_info_event_async(f"runner code: {runner}")
 
         # Create appropriate code executor based on environment configuration
         code_executor = CodeExecutorFactory.create_executor(

@@ -209,9 +209,9 @@ class AgentNode(BaseNode):
             self._prepare_instructions(variable_pool, span)
         )
 
-        messages = self._deal_history(inputs, variable_pool, span)
+        messages = await self._deal_history(inputs, variable_pool, span)
         messages.append(AgentNodeMessage("user", query_instruction).to_dict())
-        span.add_info_event(f"messages: {messages}")
+        await span.add_info_event_async(f"messages: {messages}")
 
         self._normalize_tools()
 
@@ -224,8 +224,8 @@ class AgentNode(BaseNode):
         req_body = self._generate_agent_request(
             reasoning_instruction, answer_instruction, messages, span
         )
-        span.add_info_event(f"req header: {headers}")
-        span.add_info_event(f"req body: {req_body}")
+        await span.add_info_event_async(f"req header: {headers}")
+        await span.add_info_event_async(f"req body: {req_body}")
 
         if event_log_node_trace:
             event_log_node_trace.append_config_data(
@@ -336,7 +336,7 @@ class AgentNode(BaseNode):
             if line_str == "\n":
                 continue
 
-            span.add_info_event(f"recv: {line_str}")
+            await span.add_info_event_async(f"recv: {line_str}")
             msg = json.loads(line_str.removeprefix("data:"))
             if line_str == "[DONE]":
                 break
@@ -436,7 +436,7 @@ class AgentNode(BaseNode):
             if isinstance(tool, str):
                 self.plugin.tools[index] = {"tool_id": tool, "version": "V1.0"}
 
-    def _deal_history(
+    async def _deal_history(
         self,
         inputs: Dict,
         variable_pool: VariablePool,
@@ -468,7 +468,7 @@ class AgentNode(BaseNode):
                     AgentNodeMessage(role=item.role, content=item.content).to_dict()
                 )
         inputs.update({"chatHistory": messages})
-        span.add_info_event(f"history: {history}")
+        await span.add_info_event_async(f"history: {history}")
         return messages
 
     async def put_agent_content(

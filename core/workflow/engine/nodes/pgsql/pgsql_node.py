@@ -466,7 +466,7 @@ class PGSqlNode(BaseNode):
                     ),
                 )()
                 # Log generated SQL for tracing
-                request_span.add_info_events({"sql_string": compiled_sql})
+                await request_span.add_info_events_async({"sql_string": compiled_sql})
                 return compiled_sql
             except Exception as e:
                 # Handle any errors during SQL generation
@@ -594,7 +594,9 @@ class PGSqlNode(BaseNode):
         )
         status = self.run_s
         # Log input data for tracing
-        span.add_info_events({"inputs": json.dumps(inputs, ensure_ascii=False)})
+        await span.add_info_events_async(
+            {"inputs": json.dumps(inputs, ensure_ascii=False)}
+        )
         outputList = []
         try:
             self.check_table_key_valid(inputs)
@@ -668,7 +670,9 @@ class PGSqlNode(BaseNode):
                     else {"outputList": outputList}
                 ),
             }
-            span.add_info_events({"outputs": json.dumps(outputs, ensure_ascii=False)})
+            await span.add_info_events_async(
+                {"outputs": json.dumps(outputs, ensure_ascii=False)}
+            )
         except CustomException as e:
             status = self.run_f
             span.add_error_event(str(e))

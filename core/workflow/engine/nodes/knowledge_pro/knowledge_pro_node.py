@@ -135,7 +135,7 @@ class KnowledgeProNode(BaseNode):
 
             # Generate request payload for the Knowledge Pro API
             payload = self.gen_req_payload(query, span)
-            span.add_info_event(f"request body: {payload}")
+            await span.add_info_event_async(f"request body: {payload}")
             # Create HTTP session with appropriate timeout configuration
             async with aiohttp.ClientSession(
                 timeout=ClientTimeout(
@@ -241,7 +241,7 @@ class KnowledgeProNode(BaseNode):
             # Skip empty lines
             if line_str == "\n":
                 continue
-            span.add_info_event(f"recv: {line_str}")
+            await span.add_info_event_async(f"recv: {line_str}")
             # Remove SSE data prefix
             line_str = line_str.removeprefix("data: ")
             # Handle stream completion signal

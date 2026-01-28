@@ -54,7 +54,7 @@ class ChatAI(abc.ABC, BaseModel):
         pass
 
     @abc.abstractmethod
-    def assemble_url(self, span: Span) -> Any:
+    async def assemble_url(self, span: Span) -> Any:
         """
         Assemble and construct the complete URL with authentication for API requests.
 

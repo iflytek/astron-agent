@@ -84,8 +84,8 @@ class KnowledgeClient:
         """
         url = self.config.url
         payload = self.payload()
-        request_span.add_info_events({"url": url})
-        request_span.add_info_events({"request_data": payload})
+        await request_span.add_info_events_async({"url": url})
+        await request_span.add_info_events_async({"request_data": payload})
         try:
             event_log_node_trace = kwargs.get("event_log_node_trace")
             if event_log_node_trace:
@@ -111,7 +111,7 @@ class KnowledgeClient:
                             err_msg=f"{msg}",
                             cause_error=f"{msg}",
                         )
-                    request_span.add_info_events(
+                    await request_span.add_info_events_async(
                         {"response": json.dumps(background_json, ensure_ascii=False)}
                     )
                     recall_contents = background_json.get("data", {})

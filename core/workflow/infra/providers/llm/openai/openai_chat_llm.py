@@ -47,7 +47,7 @@ class OpenAIChatAI(ChatAI):
         """
         raise NotImplementedError
 
-    def assemble_url(self, span: Span) -> str:
+    async def assemble_url(self, span: Span) -> str:
         """
         Assemble and validate the OpenAI API URL.
 
@@ -62,7 +62,7 @@ class OpenAIChatAI(ChatAI):
                 err_msg="Request URL is empty",
                 cause_error="Request URL is empty",
             )
-        span.add_info_events({"openai_base_url": model_url})
+        await span.add_info_events_async({"openai_base_url": model_url})
         return model_url
 
     def assemble_payload(self, message: list) -> str:
@@ -114,17 +114,46 @@ class OpenAIChatAI(ChatAI):
             api_key=self.api_key,
             base_url=url,
         )
-        # Create streaming chat completion
-        stream = await aclient.chat.completions.create(
-            model=self.model_name,
-            messages=user_message,
-            stream=True,
-            **extra_params,
-        )
-        # Initialize tracking variables for streaming
+        stream = None
+        try:
+            # Create streaming chat completion
+            stream = await aclient.chat.completions.create(
+                model=self.model_name,
+                messages=user_message,
+                stream=True,
+                **extra_params,
+            )
+
+            async for response in self._process_stream(stream, span, timeout):
+                yield response
+
+        finally:
+            if stream:
+                try:
+                    await stream.aclose()
+                except Exception:
+                    span.add_error_events(
+                        {"stream_close_error": "Failed to close stream"}
+                    )
+
+            if aclient:
+                try:
+                    await aclient.close()
+                except Exception:
+                    span.add_error_events(
+                        {"client_close_error": "Failed to close client"}
+                    )
+
+    async def _process_stream(
+        self,
+        stream: Any,
+        span: Span,
+        timeout: float | None = None,
+    ) -> AsyncIterator[LLMResponse]:
         last_frame_data = {}
         is_first_frame = True
         start_time = None
+
         while True:
             try:
                 if timeout is not None:
@@ -134,15 +163,18 @@ class OpenAIChatAI(ChatAI):
                     chunk = await asyncio.wait_for(stream.__anext__(), timeout=timeout)
                 else:
                     chunk = await stream.__anext__()
+
                 # Track first frame timing for performance monitoring
                 if is_first_frame:
                     is_first_frame = False
                     if start_time is not None:
                         first_frame_cost = asyncio.get_event_loop().time() - start_time
-                        span.add_info_events({"llm first token cost": first_frame_cost})
+                        await span.add_info_events_async(
+                            {"llm first token cost": first_frame_cost}
+                        )
 
                 # Log received chunk data
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"recv": json.dumps(chunk.dict(), ensure_ascii=False)}
                 )
 
@@ -151,6 +183,7 @@ class OpenAIChatAI(ChatAI):
                 yield LLMResponse(
                     msg=last_frame_data,
                 )
+
             except StopAsyncIteration:
                 # Stream ended, mark as finished and yield final response
                 last_frame_data["choices"][0][
@@ -160,6 +193,7 @@ class OpenAIChatAI(ChatAI):
                     msg=last_frame_data,
                 )
                 break
+
             except asyncio.TimeoutError as e:
                 # Handle timeout error
                 raise CustomException(
@@ -192,9 +226,9 @@ class OpenAIChatAI(ChatAI):
         :raises CustomException: If request fails or times out
         """
         # Assemble API URL and log request information
-        url = self.assemble_url(span)
-        span.add_info_events({"domain": self.model_name})
-        span.add_info_events(
+        url = await self.assemble_url(span)
+        await span.add_info_events_async({"domain": self.model_name})
+        await span.add_info_events_async(
             {"extra_params": json.dumps(extra_params, ensure_ascii=False)}
         )
 

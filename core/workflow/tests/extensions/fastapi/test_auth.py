@@ -29,7 +29,7 @@ def create_mock_span_context() -> tuple[Mock, Mock]:
     mock_span_ctx.__exit__ = Mock(return_value=None)
     mock_span_ctx.sid = ""
     mock_span_ctx.record_exception = Mock()
-    mock_span_ctx.add_info_event = Mock()
+    mock_span_ctx.add_info_event_async = Mock()
 
     mock_span = Mock()
     mock_span.start.return_value = mock_span_ctx
@@ -587,7 +587,7 @@ class TestAuthMiddleware:
                     exc_info.value.code
                     == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
                 )
-                mock_span.add_info_event.assert_called_once_with(
+                await mock_span.add_info_event_async.assert_called_once_with(
                     "Application management platform response: Not found"
                 )
 

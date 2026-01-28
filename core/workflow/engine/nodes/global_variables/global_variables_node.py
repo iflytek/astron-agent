@@ -163,7 +163,7 @@ class GlobalVariablesNode(BaseNode):
                 "app_id": app_id,
                 "chat_id": chat_id,
             }
-            span.add_info_events(
+            await span.add_info_events_async(
                 {"redis_key": json.dumps(redis_key, ensure_ascii=False)}
             )
 
@@ -181,7 +181,9 @@ class GlobalVariablesNode(BaseNode):
                         node_id=self.node_id, key_name=key, span=span
                     )
                     await asyncio.to_thread(var_manager.add_variable, key, inputs[key])
-                span.add_info_events({"set": json.dumps(inputs, ensure_ascii=False)})
+                await span.add_info_events_async(
+                    {"set": json.dumps(inputs, ensure_ascii=False)}
+                )
 
             # Handle 'get' operation: retrieve global variables
             elif self.method == "get":
@@ -199,7 +201,9 @@ class GlobalVariablesNode(BaseNode):
                                 )
                             }
                         )
-                span.add_info_events({"get": json.dumps(outputs, ensure_ascii=False)})
+                await span.add_info_events_async(
+                    {"get": json.dumps(outputs, ensure_ascii=False)}
+                )
             # Order outputs according to output_identifier sequence
             order_outputs = {}
             for output in self.output_identifier:

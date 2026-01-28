@@ -399,7 +399,7 @@ class RetryableErrorHandler(ExceptionHandlerBase):
         output_keys = list(output_json.keys())
 
         try:
-            workflow_engine_ctx.variable_pool.add_variable(
+            await workflow_engine_ctx.variable_pool.add_variable(
                 run_result.node_id,
                 output_keys,
                 run_result,
@@ -1634,7 +1634,7 @@ class WorkflowEngine(BaseModel):
                 for simple_path in node_chains:
                     if not simple_path.inactive.is_set():
                         simple_path.inactive.set()
-                        span_context.add_info_events(
+                        await span_context.add_info_events_async(
                             {"inactive": simple_path.node_id_list}
                         )
 
@@ -1670,7 +1670,9 @@ class WorkflowEngine(BaseModel):
                 node_status.start_with_thread.set()
 
                 if span:
-                    span.add_info_events({"not_run_node_id": not_run_node_id})
+                    await span.add_info_events_async(
+                        {"not_run_node_id": not_run_node_id}
+                    )
 
                 # Recursively process subsequent nodes
                 if not self._is_terminal_node(not_run_node_id):
