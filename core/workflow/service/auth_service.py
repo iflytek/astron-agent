@@ -10,7 +10,7 @@ from workflow.extensions.otlp.trace.span import Span
 from workflow.service import app_service
 
 
-def handle(
+async def handle(
     session: Session, tenant_app_id: str, auth_input: AuthInput, span: Span
 ) -> None:
     """
@@ -30,21 +30,21 @@ def handle(
     user_app_id = auth_input.app_id
 
     # Validate tenant application exists and is a tenant
-    db_tenant_app = app_service.get_info(tenant_app_id, session, span)
+    db_tenant_app = await app_service.get_info(tenant_app_id, session, span)
     if not db_tenant_app.is_tenant:
-        span.add_info_event(f"Tenant app ID: {tenant_app_id}")
+        await span.add_info_event_async(f"Tenant app ID: {tenant_app_id}")
         raise CustomException(
             CodeEnum.APP_TENANT_NOT_FOUND_ERROR,
             err_msg=f"{tenant_app_id} is not a tenant",
         )
 
     # Get user application information
-    db_app = app_service.get_info(user_app_id, session, span)
+    db_app = await app_service.get_info(user_app_id, session, span)
 
     # Validate workflow exists
     db_flow = session.query(Flow).filter_by(id=auth_input.flow_id).first()
     if not db_flow:
-        span.add_info_event(f"Flow ID: {auth_input.flow_id}")
+        await span.add_info_event_async(f"Flow ID: {auth_input.flow_id}")
         raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
 
     group_id = db_flow.group_id
@@ -55,11 +55,11 @@ def handle(
         db_app.source
     ).get_publish  # Current platform publish permission value
 
-    span.add_info_event(f"Group ID: {group_id}")
-    span.add_info_event(
+    await span.add_info_event_async(f"Group ID: {group_id}")
+    await span.add_info_event_async(
         f"Current workflow publish permissions across platforms: {release_status}"
     )
-    span.add_info_event(f"Current platform publish permission value: {rs}")
+    await span.add_info_event_async(f"Current platform publish permission value: {rs}")
 
     # Check if workflow is published or not taken off from all platforms
     # Bottom line: Workflow should not be bindable if unpublished

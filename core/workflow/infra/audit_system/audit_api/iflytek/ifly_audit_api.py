@@ -251,7 +251,7 @@ class IFlyAuditAPI(AuditAPI):
 
         try:
             resp_json = await self._do_request(url, payload)
-            span.add_info_event(f"Audit response body: {resp_json}")
+            await span.add_info_event_async(f"Audit response body: {resp_json}")
 
             # Business layer logic judgment
             code = int(resp_json.get("code", -1))
@@ -289,7 +289,7 @@ class IFlyAuditAPI(AuditAPI):
         :return: Response result dictionary containing audit results
         :raises CustomException: If all retry attempts fail or API returns error status
         """
-        span.add_info_event(f"Audit request body: {payload}")
+        await span.add_info_event_async(f"Audit request body: {payload}")
         last_err = None
 
         for host in self.hosts:
@@ -300,7 +300,7 @@ class IFlyAuditAPI(AuditAPI):
                 )
             except Exception as e:
                 last_err = e
-                span.add_info_event(
+                await span.add_info_event_async(
                     f"Host {host} failed after retries. Moving to next..."
                 )
                 continue

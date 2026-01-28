@@ -135,7 +135,7 @@ class PluginNode(BaseNode):
                 action_inputs[identifier] = variable_pool.get_variable(
                     node_id=self.node_id, key_name=identifier, span=span
                 )
-            span.add_info_events({"action_input": f"{action_inputs}"})
+            await span.add_info_events_async({"action_input": f"{action_inputs}"})
             inputs = action_inputs
 
             # Find and execute the matching tool operation
@@ -156,12 +156,12 @@ class PluginNode(BaseNode):
                             node_id=self.node_id, key_name=output_key
                         ).get("type", "")
                         if output_key not in res:
-                            span.add_info_events(
+                            await span.add_info_events_async(
                                 {"null value occur": f"{output_key} does not exist"}
                             )
                             res[output_key] = schema_type_default_value[var_type]
                         else:
-                            span.add_info_events(
+                            await span.add_info_events_async(
                                 {
                                     "result type": f"{output_key}'s type is {type(res[output_key])}"
                                 }

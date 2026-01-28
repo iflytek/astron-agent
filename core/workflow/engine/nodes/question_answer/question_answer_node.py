@@ -256,7 +256,7 @@ class QuestionAnswerNode(BaseLLMNode):
             else:
                 self.token_usage[key] = value
 
-    def process_option_answers(
+    async def process_option_answers(
         self, span_context: Span, variable_pool: VariablePool
     ) -> list:
         """
@@ -304,7 +304,7 @@ class QuestionAnswerNode(BaseLLMNode):
                 cause_error="Invalid default option branch configuration",
             )
 
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"interrupt option": json.dumps(interrupt_options, ensure_ascii=False)}
         )
         return interrupt_options
@@ -338,7 +338,7 @@ class QuestionAnswerNode(BaseLLMNode):
                     retries=int(metadata.get("retries", "0")),
                     timestamp=int(metadata.get("timestamp", "0")),
                 )
-                span_context.add_info_events(
+                await span_context.add_info_events_async(
                     {"resume_data": json.dumps(res, ensure_ascii=False)}
                 )
                 return resume_data
@@ -402,7 +402,7 @@ class QuestionAnswerNode(BaseLLMNode):
         :return: NodeRunResult object containing node execution result and related information
         """
         user_reply = resume_data.content  # User reply content, e.g., "A"
-        span_context.add_info_events({"option_reply_content": user_reply})
+        await span_context.add_info_events_async({"option_reply_content": user_reply})
 
         option_output: Option | None = None
         # Single traversal to find matching item and default item
@@ -424,7 +424,7 @@ class QuestionAnswerNode(BaseLLMNode):
         # The ID to output for option answer is actually the option's name
         outputs[SystemOutputVariable.ID.value] = outputs["name"]
 
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"static_option_response": json.dumps(outputs, ensure_ascii=False)}
         )
 
@@ -473,7 +473,7 @@ class QuestionAnswerNode(BaseLLMNode):
         """
         # Dynamically construct output dictionary for easy extension
         final_res = {"query": self.question, "content": resume_data.content}
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"direct_response": json.dumps(final_res, ensure_ascii=False)}
         )
 
@@ -519,7 +519,7 @@ class QuestionAnswerNode(BaseLLMNode):
         try:
             # 1. Assemble schema information
             schema_content = self.assemble_schema_info()
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"cs_schema": json.dumps(schema_content), "user_input": user_input}
             )
             prompt_result = None
@@ -533,7 +533,7 @@ class QuestionAnswerNode(BaseLLMNode):
                 )
                 .replace("{{user_text}}", user_input)
             )
-            span_context.add_info_events({"user_prompt": user_prompt})
+            await span_context.add_info_events_async({"user_prompt": user_prompt})
 
             # 4. Call LLM service
             token_usage, response, _, _ = await self._chat_with_llm(
@@ -544,13 +544,15 @@ class QuestionAnswerNode(BaseLLMNode):
                 event_log_node_trace=event_log_node_trace,
             )
             self.calculate_usage_token(token_usage)
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"token_usage": json.dumps(self.token_usage, ensure_ascii=False)}
             )
             # 5. Extract JSON block
             json_match = re.search(r"```json\s*\n?(.*?)\n?```", response, re.DOTALL)
             json_str = json_match.group(1).strip() if json_match else response.strip()
-            span_context.add_info_events({"llm_result": response, "json_str": json_str})
+            await span_context.add_info_events_async(
+                {"llm_result": response, "json_str": json_str}
+            )
 
             # 6. Safely parse JSON
             try:
@@ -564,7 +566,7 @@ class QuestionAnswerNode(BaseLLMNode):
                     )
 
                 # Record parsed content
-                span_context.add_info_events(
+                await span_context.add_info_events_async(
                     {
                         "extracted_params": json.dumps(model_res, ensure_ascii=False),
                         "token_usage": str(token_usage),
@@ -647,7 +649,7 @@ class QuestionAnswerNode(BaseLLMNode):
             variable_pool=variable_pool,
             event_log_node_trace=event_log_node_trace,
         )
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {
                 "current_retries": current_retries,
                 "prompt_result": json.dumps(prompt_result.dict(), ensure_ascii=False),
@@ -681,7 +683,7 @@ class QuestionAnswerNode(BaseLLMNode):
             }
 
             res_dict = self.schema_fixed_data(res_dict, variable_pool)
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"handle_prompt_result": json.dumps(res_dict, ensure_ascii=False)}
             )
 
@@ -709,21 +711,21 @@ class QuestionAnswerNode(BaseLLMNode):
             type=AnswerType.DIRECT.value, content=prompt_result.content
         )
         await self.send_interrupt_callback(callbacks=callbacks, data=value)
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"retry_interrupt_data": json.dumps(value.dict(), ensure_ascii=False)}
         )
 
         # Wait for user Resume reply
         resume_data = await self.qa_fetch_resume_data(span_context=span_context)
         current_retries = resume_data.retries
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"retry_resume_data": json.dumps(resume_data.dict(), ensure_ascii=False)}
         )
 
         # Concatenate conversation history
         history.append({"role": "assistant", "content": prompt_result.content})
         history.append({"role": "user", "content": resume_data.content})
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"retry_history": json.dumps(history, ensure_ascii=False)}
         )
         if resume_data.event_type == EventType.EVENT_RESUME.value:
@@ -783,7 +785,7 @@ class QuestionAnswerNode(BaseLLMNode):
         :raises CustomException: When abort event is received
         """
         err_msg = "Received abort instruction"
-        span_context.add_info_event(err_msg)
+        await span_context.add_info_event_async(err_msg)
         raise CustomException(
             err_code=CodeEnum.QUESTION_ANSWER_RESUME_DATA_ERROR,
             err_msg=err_msg,
@@ -812,7 +814,7 @@ class QuestionAnswerNode(BaseLLMNode):
                 cause_error=err_msg,
             )
 
-        span_context.add_info_event("Received ignore instruction")
+        await span_context.add_info_event_async("Received ignore instruction")
 
         default_outputs = (
             self.default_outputs.copy()
@@ -825,11 +827,11 @@ class QuestionAnswerNode(BaseLLMNode):
         if self.answerType == AnswerType.OPTION.value:
             branch_id = self._get_first_option_id_by_type(OptionType.DEFAULT.value)
             outputs.update({"id": "default"})
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"ignore_option": json.dumps(outputs, ensure_ascii=False)}
             )
         else:
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"ignore_direct": json.dumps(outputs, ensure_ascii=False)}
             )
 
@@ -929,7 +931,7 @@ class QuestionAnswerNode(BaseLLMNode):
             outputs = {}
             outputs.update({SystemOutputVariable.QUERY.value: self.question})
 
-            span.add_info_events(
+            await span.add_info_events_async(
                 {
                     "question": self.question,
                     "inputs": json.dumps(inputs, ensure_ascii=False),
@@ -943,7 +945,7 @@ class QuestionAnswerNode(BaseLLMNode):
             EventRegistry().on_interrupt_node_start(
                 event_id=self.event_id, node_id=self.node_id, timeout=self.timeout
             )
-            span.add_info_events(
+            await span.add_info_events_async(
                 {
                     "interrupt_info": f"event_id: {self.event_id}, node_id: {self.node_id}, timeout: {str(self.timeout)}"
                 }
@@ -958,7 +960,7 @@ class QuestionAnswerNode(BaseLLMNode):
                 value = InterruptData(
                     type=AnswerType.OPTION.value,
                     content=self.question,
-                    option=self.process_option_answers(
+                    option=await self.process_option_answers(
                         span_context=span, variable_pool=variable_pool
                     ),
                 )
@@ -967,7 +969,7 @@ class QuestionAnswerNode(BaseLLMNode):
                     type=AnswerType.DIRECT.value, content=self.question
                 )
 
-            span.add_info_events(
+            await span.add_info_events_async(
                 {"interrupt_data": json.dumps(value.dict(), ensure_ascii=False)}
             )
 

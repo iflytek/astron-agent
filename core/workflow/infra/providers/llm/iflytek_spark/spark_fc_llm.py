@@ -44,14 +44,14 @@ class SparkFunctionCallAi(BaseModel):
 
     model_config = {"arbitrary_types_allowed": True, "protected_namespaces": ()}
 
-    def assemble_url(self, span: Span) -> str:
+    async def assemble_url(self, span: Span) -> str:
         """
         Assemble the authenticated URL for Spark Function Call API.
 
         :param span: Tracing span for logging
         :return: Authenticated WebSocket URL
         """
-        span.add_info_events({"spark_url": self.model_url})
+        await span.add_info_events_async({"spark_url": self.model_url})
         url_auth = SparkChatHmacAuth(self.model_url, self.api_key, self.api_secret)
         url = url_auth.create_url()
         return url
@@ -98,7 +98,7 @@ class SparkFunctionCallAi(BaseModel):
         while True:
             try:
                 msg = json.loads(await ws_handle.recv())
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"function_call_recv": json.dumps(msg, ensure_ascii=False)}
                 )
                 code = msg["header"]["code"]
@@ -144,7 +144,7 @@ class SparkFunctionCallAi(BaseModel):
                     cause_error=f"{e}",
                 )
 
-    def _process_message(
+    async def _process_message(
         self, msg: dict, span: Span
     ) -> tuple[str | None, dict | None, str | None]:
         """
@@ -154,7 +154,7 @@ class SparkFunctionCallAi(BaseModel):
         :param span: Tracing span for logging
         :return: Tuple containing (function_name, token_usage, arguments) or (None, None, None) if not ready
         """
-        span.add_info_events(
+        await span.add_info_events_async(
             {"function_call_recv": json.dumps(msg, ensure_ascii=False)}
         )
         code = msg["header"]["code"]
@@ -204,13 +204,13 @@ class SparkFunctionCallAi(BaseModel):
         :param function: Optional list of available functions
         :return: Tuple containing (function_name, token_usage, arguments)
         """
-        url = self.assemble_url(span)
-        span.add_info_events({"user_input": user_input})
+        url = await self.assemble_url(span)
+        await span.add_info_events_async({"user_input": user_input})
         usr_message = []
         if history:
             for h in history:
                 usr_message.append(h.dict())
-            span.add_info_events(
+            await span.add_info_events_async(
                 {"history": json.dumps(usr_message, ensure_ascii=False)}
             )
         fc_message = []
@@ -227,7 +227,7 @@ class SparkFunctionCallAi(BaseModel):
                 url, ping_interval=None, ping_timeout=None
             ) as ws_handle:
                 await ws_handle.send(payload)
-                span.add_info_events({"function_call_send": payload})
+                await span.add_info_events_async({"function_call_send": payload})
                 return await self._recv_messages(ws_handle, span)
         except websockets.ConnectionClosedError as conn_err:
             span.add_error_event(f"WebSocket connection error: {conn_err}")

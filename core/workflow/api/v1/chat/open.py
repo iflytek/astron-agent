@@ -69,9 +69,7 @@ async def chat_open(
                 chat_vo.version,
             )
             spark_dsl = db_flow.release_data
-            app_info = await asyncio.to_thread(
-                app_service.get_info, app_id, db_session, span
-            )
+            app_info = await app_service.get_info(app_id, db_session, span)
 
             app_audit_policy = (
                 AppAuditPolicy.DEFAULT
@@ -193,7 +191,7 @@ async def resume_open(request: ResumeVo) -> Union[StreamingResponse, JSONRespons
             span.uid = event.uid
             span.chat_id = event.chat_id
 
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"resume_event": json.dumps(event.dict(), ensure_ascii=False)}
             )
 
@@ -205,7 +203,7 @@ async def resume_open(request: ResumeVo) -> Union[StreamingResponse, JSONRespons
 
             # Input audit
             session = next(get_session())
-            app_info = app_service.get_info(event.app_id, session, span)
+            app_info = await app_service.get_info(event.app_id, session, span)
             if app_info.audit_policy == AppAuditPolicy.AGENT_PLATFORM.value:
                 await audit_service.input_audit(content, span)
 

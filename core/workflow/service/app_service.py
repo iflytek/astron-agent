@@ -35,7 +35,7 @@ def _gen_app_auth_header(url: str) -> dict[str, str]:
     )
 
 
-def get_app_source_id(app_id: str, span: Span) -> str:
+async def get_app_source_id(app_id: str, span: Span) -> str:
     """
     Retrieve the source ID for a given application from the application management
     platform.
@@ -71,7 +71,7 @@ def get_app_source_id(app_id: str, span: Span) -> str:
         )
 
     # Log the response data for debugging
-    span.add_info_event(
+    await span.add_info_event_async(
         "Application management platform response: "
         + json.dumps(resp.json(), ensure_ascii=False)
     )
@@ -80,7 +80,7 @@ def get_app_source_id(app_id: str, span: Span) -> str:
     return resp.json().get("data", [{}])[0].get("source", "")
 
 
-def get_app_source_detail(app_id: str, span: Span) -> tuple[str, str, str, str]:
+async def get_app_source_detail(app_id: str, span: Span) -> tuple[str, str, str, str]:
     """
     Retrieve detailed application information including name, description,
     and API credentials.
@@ -123,7 +123,7 @@ def get_app_source_detail(app_id: str, span: Span) -> tuple[str, str, str, str]:
         )
 
     # Log the response data for debugging
-    span.add_info_event(
+    await span.add_info_event_async(
         "Application management platform response: "
         + json.dumps(resp.json(), ensure_ascii=False)
     )
@@ -146,7 +146,7 @@ def get_app_source_detail(app_id: str, span: Span) -> tuple[str, str, str, str]:
     return name, desc, api_key, api_secret
 
 
-def get_info(app_id: str, session: Session, span: Span) -> App:
+async def get_info(app_id: str, session: Session, span: Span) -> App:
     """
     Retrieve application information from cache, database, or external API.
 
@@ -168,10 +168,10 @@ def get_info(app_id: str, session: Session, span: Span) -> App:
         app_info = session.query(App).filter_by(alias_id=app_id).first()
         if not app_info:
             # If not in database, fetch from external API
-            span.add_info_event(
+            await span.add_info_event_async(
                 "Fetching application source information from management platform"
             )
-            source_id = get_app_source_id(app_id, span)
+            source_id = await get_app_source_id(app_id, span)
             if not source_id:
                 raise CustomException(
                     CodeEnum.APP_TENANT_NOT_FOUND_ERROR,
@@ -187,7 +187,7 @@ def get_info(app_id: str, session: Session, span: Span) -> App:
                 )
 
             # Get detailed application information from external API
-            name, desc, api_key, api_secret = get_app_source_detail(app_id, span)
+            name, desc, api_key, api_secret = await get_app_source_detail(app_id, span)
 
             # Create new App record with fetched information
             app_info = App(

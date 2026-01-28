@@ -8,6 +8,7 @@ from workflow.cache.event_registry import Event, EventRegistry
 from workflow.consts.engine.chat_status import ChatStatus
 from workflow.consts.engine.timeout import QueueTimeout
 from workflow.engine.callbacks.openai_types_sse import LLMGenerate, WorkflowStep
+from workflow.engine.entities.node_entities import NodeType
 from workflow.exception.e import CustomException, CustomExceptionCM
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.trace.span import Span
@@ -49,6 +50,8 @@ def parse_frame_audit(response: LLMGenerate) -> OutputFrameAudit:
             and response.workflow_step.node
             and response.workflow_step.node.finish_reason
             == ChatStatus.FINISH_REASON.value
+            and response.workflow_step.node.id.split(":")[0]
+            in [NodeType.MESSAGE, NodeType.END]
         ):
             none_need_audit = True
     return OutputFrameAudit(
@@ -185,7 +188,7 @@ async def _common_response_audit(
                 response.event_data
                 or response.choices[0].finish_reason == Status.STOP.value
             ):
-                span.add_info_event(
+                await span.add_info_event_async(
                     f"Workflow original output data result:\n"
                     f"final_content: {final_content}, \n"
                     f"final_reasoning_content: {final_reasoning_content}"

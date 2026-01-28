@@ -188,7 +188,7 @@ class Tool:
 
         with span.start("run_link_tool") as link_tool_span:
             event_log_node_trace = kwargs.get("event_log_node_trace")
-            link_tool_span.add_info_events(
+            await link_tool_span.add_info_events_async(
                 {"schema": json.dumps(self.method_schema, ensure_ascii=False)}
             )
 
@@ -200,7 +200,7 @@ class Tool:
                 .get("application/json", {})
                 .get("schema", {})
             )
-            link_tool_span.add_info_events(
+            await link_tool_span.add_info_events_async(
                 {"plugin_node_link_get_cost_time": f"{time.time() * 1000 - start_time}"}
             )
 
@@ -244,8 +244,8 @@ class Tool:
             tool_input = json.dumps(callback_payload, ensure_ascii=False)
 
             # Log request information for debugging and monitoring
-            link_tool_span.add_info_events({"input": tool_input})
-            link_tool_span.add_info_events(
+            await link_tool_span.add_info_events_async({"input": tool_input})
+            await link_tool_span.add_info_events_async(
                 {"link_input": json.dumps(run_link_payload, ensure_ascii=False)}
             )
 
@@ -275,12 +275,12 @@ class Tool:
                     ) as response:
                         link_response = await response.json()
                         # Log response timing and content
-                        link_tool_span.add_info_events(
+                        await link_tool_span.add_info_events_async(
                             {
                                 "plugin_node_link_post_cost_time": f"{time.time() * 1000 - start_time}"
                             }
                         )
-                        link_tool_span.add_info_events(
+                        await link_tool_span.add_info_events_async(
                             {
                                 "link_response": json.dumps(
                                     link_response, ensure_ascii=False
@@ -298,7 +298,7 @@ class Tool:
                 # Handle other exceptions
                 raise e
 
-            link_tool_span.add_info_events(
+            await link_tool_span.add_info_events_async(
                 {"link_response": json.dumps(link_response, ensure_ascii=False)}
             )
 

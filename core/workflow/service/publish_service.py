@@ -18,7 +18,7 @@ from workflow.extensions.otlp.trace.span import Span
 from workflow.service import app_service
 
 
-def handle(
+async def handle(
     session: Session, tenant_app_id: str, publish_input: PublishInput, span: Span
 ) -> None:
     """
@@ -35,23 +35,23 @@ def handle(
     :param span: Tracing span for observability and debugging
     """
     # Retrieve and validate tenant application information
-    db_app = app_service.get_info(tenant_app_id, session, span)
+    db_app = await app_service.get_info(tenant_app_id, session, span)
     if db_app.is_tenant != 1:
-        span.add_info_event(f"Tenant app ID: {tenant_app_id}")
+        await span.add_info_event_async(f"Tenant app ID: {tenant_app_id}")
         raise CustomException(CodeEnum.APP_TENANT_NOT_FOUND_ERROR)
 
     # Determine target platform (use input platform or default to app source)
     plat = publish_input.plat if publish_input.plat else db_app.source
-    span.add_info_event(f"Platform: {plat}")
+    await span.add_info_event_async(f"Platform: {plat}")
 
     # Retrieve the workflow to be published
-    db_flow = _get_flow(session, publish_input.flow_id, span)
+    db_flow = await _get_flow(session, publish_input.flow_id, span)
 
     # Validate tenant permissions for the target platform
-    _check_permissions(db_app, db_flow, plat, span)
+    await _check_permissions(db_app, db_flow, plat, span)
 
     # Get and validate release status for the platform
-    release_status = _get_release_status(publish_input.release_status, plat, span)
+    release_status = await _get_release_status(publish_input.release_status, plat, span)
 
     # Update workflow release status based on operation type
     _update_flow_release_status(db_flow, release_status, publish_input, plat)
@@ -64,7 +64,7 @@ def handle(
     return
 
 
-def _check_permissions(db_app: App, db_flow: Flow, plat: int, span: Span) -> None:
+async def _check_permissions(db_app: App, db_flow: Flow, plat: int, span: Span) -> None:
     """
     Validate tenant application permissions for platform publishing.
 
@@ -80,7 +80,9 @@ def _check_permissions(db_app: App, db_flow: Flow, plat: int, span: Span) -> Non
     """
     # Check if tenant has permission to publish to target platform
     if db_app.plat_release_auth & plat == 0:
-        span.add_info_event(f"App platform release auth: {db_app.plat_release_auth}")
+        await span.add_info_event_async(
+            f"App platform release auth: {db_app.plat_release_auth}"
+        )
         raise CustomException(
             CodeEnum.APP_TENANT_PLATFORM_UNAUTHORIZED_ERROR,
             err_msg=f"Current app_id does not have permission "
@@ -88,7 +90,9 @@ def _check_permissions(db_app: App, db_flow: Flow, plat: int, span: Span) -> Non
         )
     # Check if tenant has permission for workflow's source platform
     if db_app.plat_release_auth & db_flow.source == 0:
-        span.add_info_event(f"App platform release auth: {db_app.plat_release_auth}")
+        await span.add_info_event_async(
+            f"App platform release auth: {db_app.plat_release_auth}"
+        )
         raise CustomException(
             CodeEnum.APP_TENANT_PLATFORM_UNAUTHORIZED_ERROR,
             err_msg=f"Current flow is on platform {SOURCE_MAPPING[db_flow.source]}, "
@@ -97,7 +101,7 @@ def _check_permissions(db_app: App, db_flow: Flow, plat: int, span: Span) -> Non
         )
 
 
-def _get_flow(session: Session, flow_id: str, span: Span) -> Any:
+async def _get_flow(session: Session, flow_id: str, span: Span) -> Any:
     """
     Retrieve workflow by ID from the database.
 
@@ -112,12 +116,12 @@ def _get_flow(session: Session, flow_id: str, span: Span) -> Any:
     """
     db_flow = session.query(Flow).filter_by(id=flow_id).first()
     if not db_flow:
-        span.add_info_event(f"Flow ID: {flow_id}")
+        await span.add_info_event_async(f"Flow ID: {flow_id}")
         raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
     return db_flow
 
 
-def _get_release_status(release_status: int, plat: int, span: Span) -> int:
+async def _get_release_status(release_status: int, plat: int, span: Span) -> int:
     """
     Get and validate release status for the specified platform.
 
@@ -131,7 +135,7 @@ def _get_release_status(release_status: int, plat: int, span: Span) -> int:
     :raises CustomException: If the release operation is not supported for the platform
     """
     rs = TenantPublishMatrix(plat).get_release_status(release_status)
-    span.add_info_event(f"Release status: {rs}")
+    await span.add_info_event_async(f"Release status: {rs}")
     if rs == -1:
         raise CustomException(
             CodeEnum.APP_PLAT_NOT_RELEASE_OP_ERROR,
