@@ -19,7 +19,6 @@ import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 import { ModelSection } from '@/components/workflow/nodes/node-common';
 
 import promptOptimizationIcon from '@/assets/imgs/workflow/prompt-optimization-icon.png';
-import promptLibraryIcon from '@/assets/imgs/workflow/prompt-library-icon.svg';
 
 const PromptSection = ({
   id,
@@ -184,7 +183,6 @@ const OutputSection = ({
                               default: '',
                             },
                           },
-                          ...data.outputs,
                         ]
                       : [
                           {
@@ -197,6 +195,17 @@ const OutputSection = ({
                           },
                         ];
                     updateNodeRef(id);
+                  } else {
+                    data.outputs = [
+                      {
+                        id: uuid(),
+                        name: 'output',
+                        schema: {
+                          type: 'string',
+                          default: '',
+                        },
+                      },
+                    ];
                   }
                   if (!checkedNodeOutputData(data?.outputs, currentNode)) {
                     const customOutput = JSON.stringify(

@@ -151,8 +151,8 @@ export const useSpaceType = (navigate?: any) => {
         if (_enterpriseId) {
           setSpaceStore({
             spaceType: 'team',
-            enterpriseId: _enterpriseId
-          })
+            enterpriseId: _enterpriseId,
+          });
         }
         console.log(
           _enterpriseId,
