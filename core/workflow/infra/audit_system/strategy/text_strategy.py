@@ -65,12 +65,16 @@ class TextAuditStrategy(AuditStrategy):
 
         # If first sentence not audited, perform intermediate frame audit
         if not self.context.first_sentence_audited:
-            span.add_info_event("↓↓↓↓↓↓↓↓↓↓↓ First Sentence Audit ↓↓↓↓↓↓↓↓↓↓↓")
+            await span.add_info_event_async(
+                "↓↓↓↓↓↓↓↓↓↓↓ First Sentence Audit ↓↓↓↓↓↓↓↓↓↓↓"
+            )
             await self._first_sentence_audit(output_frame, span)
 
         # After first sentence audit, proceed with sentence-by-sentence audit
         else:
-            span.add_info_event("↓↓↓↓↓↓↓↓↓↓↓ Sentence-by-Sentence Audit ↓↓↓↓↓↓↓↓↓↓↓")
+            await span.add_info_event_async(
+                "↓↓↓↓↓↓↓↓↓↓↓ Sentence-by-Sentence Audit ↓↓↓↓↓↓↓↓↓↓↓"
+            )
             await self._sentence_audit(output_frame, span)
 
     async def _first_sentence_audit(
@@ -112,7 +116,7 @@ class TextAuditStrategy(AuditStrategy):
 
         # If intermediate frame is audited, subsequent frames will not be audited until first frame is obtained
         if self.context.frame_blocked:
-            span.add_info_event(
+            await span.add_info_event_async(
                 "Intermediate frame audited, subsequent frames not audited until first frame"
             )
             if first_sentence_conditions:
@@ -126,16 +130,18 @@ class TextAuditStrategy(AuditStrategy):
 
         # If first sentence audit conditions are not met, continue concatenating content for intermediate frame audit
         else:
-            span.add_info_event(
+            await span.add_info_event_async(
                 "First sentence audit conditions not met, continue concatenating content for intermediate frame audit"
             )
             frame_audit_result = FrameAuditResult(
                 content=output_frame.content, source_frame=output_frame.source_frame
             )
-            span.add_info_event(f"Audit frame content: {output_frame}")
+            await span.add_info_event_async(f"Audit frame content: {output_frame}")
             try:
                 for audit_api in self.audit_apis:
-                    span.add_info_event(f"Current audit API: {audit_api.audit_name}")
+                    await span.add_info_event_async(
+                        f"Current audit API: {audit_api.audit_name}"
+                    )
                     await audit_api.output_text(
                         stage=output_frame.stage,
                         content=self.context.remaining_content,
@@ -161,7 +167,7 @@ class TextAuditStrategy(AuditStrategy):
     async def __first_sentence_audit(
         self, output_frame: OutputFrameAudit, span: Span, fallback_length: int
     ) -> None:
-        span.add_info_event(
+        await span.add_info_event_async(
             "First sentence audit conditions met, proceeding with first sentence audit"
         )
         # If current frame does not need sentence splitting, audit all content
@@ -185,8 +191,8 @@ class TextAuditStrategy(AuditStrategy):
             )
             else sentences
         )
-        span.add_info_event("Sentence splitting results:")
-        span.add_info_events(
+        await span.add_info_event_async("Sentence splitting results:")
+        await span.add_info_events_async(
             {
                 "sentences": sentences,
                 "remaining_content": self.context.remaining_content,
@@ -317,12 +323,12 @@ class TextAuditStrategy(AuditStrategy):
         :return: None
         """
         if self.context.error:
-            span.add_info_event(
+            await span.add_info_event_async(
                 f"Audit context error: {self.context.error}, subsequent frames will not be audited"
             )
             return
 
-        span.add_info_event(f"Current audit content: {need_audit_content}")
+        await span.add_info_event_async(f"Current audit content: {need_audit_content}")
         frame_audit_result = FrameAuditResult(
             content=need_audit_content, status=current_status
         )
@@ -341,7 +347,9 @@ class TextAuditStrategy(AuditStrategy):
 
         try:
             for audit_api in self.audit_apis:
-                span.add_info_event(f"Current audit API: {audit_api.audit_name}")
+                await span.add_info_event_async(
+                    f"Current audit API: {audit_api.audit_name}"
+                )
                 last_content_stage = cast(Stage, self.context.last_content_stage)
                 await audit_api.output_text(
                     stage=(

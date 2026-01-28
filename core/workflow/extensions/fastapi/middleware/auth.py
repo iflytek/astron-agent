@@ -138,7 +138,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         url = f"{url}/{api_key}"
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, headers=self._gen_app_auth_header(url))
-        span.add_info_event(f"Application management platform response: {resp.text}")
+        await span.add_info_event_async(
+            f"Application management platform response: {resp.text}"
+        )
         if resp.status_code != 200:
             raise CustomException(
                 CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR, cause_error=resp.text

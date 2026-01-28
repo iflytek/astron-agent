@@ -36,7 +36,7 @@ async def run_code(code_run_vo: CodeRunVo) -> JSONResponse:
     m = Meter(app_id=code_run_vo.app_id)
     span = Span()
     with span.start(attributes={"flow_id": code_run_vo.flow_id}) as span_context:
-        span.add_info_events(
+        await span.add_info_events_async(
             {"inputs": json.dumps(code_run_vo.dict(), ensure_ascii=False)}
         )
         var_dict = {}
@@ -103,7 +103,7 @@ async def node_debug(node_debug_vo: NodeDebugVo) -> JSONResponse:
                 code=CodeEnum.NODE_DEBUG_ERROR.code, message=str(err), sid=span.sid
             )
         m.in_success_count()
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {
                 "node_debug_resp": json.dumps(
                     node_debug_resp_vo.dict(), ensure_ascii=False

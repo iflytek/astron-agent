@@ -195,7 +195,7 @@ class FlowNode(BaseNode):
             )
 
         # Assemble request headers and body
-        headers, req_body = self._assemble_request(
+        headers, req_body = await self._assemble_request(
             url, inputs, variable_pool, span, event_log_node_trace
         )
 
@@ -232,7 +232,7 @@ class FlowNode(BaseNode):
                             continue
 
                         # Log received data for debugging
-                        span.add_info_event(f"recv: {line_str}")
+                        await span.add_info_event_async(f"recv: {line_str}")
 
                         # Parse SSE data format
                         msg: dict[str, Any] = json.loads(line_str.removeprefix("data:"))
@@ -291,7 +291,7 @@ class FlowNode(BaseNode):
         )
         return outputs, token_usage
 
-    def _assemble_request(
+    async def _assemble_request(
         self,
         url: str,
         inputs: dict,
@@ -370,7 +370,7 @@ class FlowNode(BaseNode):
             app = session.query(App).filter_by(alias_id=self.appId).first()
 
             # Log database query performance
-            span.add_info_events(
+            await span.add_info_events_async(
                 {
                     "flow_node_get_appid_from_database": f"{time.time() * 1000 - start_time}"
                 }

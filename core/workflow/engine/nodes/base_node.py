@@ -882,7 +882,7 @@ class BaseOutputNode(BaseNode):
                 )
                 llm_response = msg.llm_response
                 exception_occurred = msg.exception_occurred
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"recv": json.dumps(llm_response, ensure_ascii=False)}
                 )
                 frame: UnionFrame = frame_processor.process_frame(llm_response)
@@ -1090,7 +1090,7 @@ class BaseLLMNode(BaseNode):
             stream_node_first_token=self.stream_node_first_token,
         )
 
-    def _process_history(
+    async def _process_history(
         self,
         user_input: str,
         span_context: Span,
@@ -1115,18 +1115,18 @@ class BaseLLMNode(BaseNode):
         processed_history: list[dict[str, Any]] | list[HistoryItem] = []
         if history:
             processed_history = [h.dict() for h in history]
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"history": json.dumps(processed_history, ensure_ascii=False)}
             )
 
         if system_input:
             system_msg = {"role": "system", "content": system_input}
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"system_input": json.dumps(system_msg, ensure_ascii=False)}
             )
 
         user_msg = {"role": "user", "content": user_input}
-        span_context.add_info_events({"user_input": str(user_msg)})
+        await span_context.add_info_events_async({"user_input": str(user_msg)})
 
         if history_v2:
             # Subtract system_input and user_input token usage
@@ -1148,7 +1148,7 @@ class BaseLLMNode(BaseNode):
             processed_history=processed_history,
         )
 
-    def _assemble_messages(
+    async def _assemble_messages(
         self,
         span_context: Span,
         system_user_msg: SystemUserMsg,
@@ -1201,14 +1201,14 @@ class BaseLLMNode(BaseNode):
                 ),
                 "content_type": "image",
             }
-            span_context.add_info_events({"image": str(image_url)})
+            await span_context.add_info_events_async({"image": str(image_url)})
         # Don't upload base64
         if image_msg:
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"user_message": json.dumps(user_message[1:], ensure_ascii=False)}
             )
         else:
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"user_message": json.dumps(user_message, ensure_ascii=False)}
             )
         history = [
@@ -1254,14 +1254,14 @@ class BaseLLMNode(BaseNode):
         chat_ai = self._get_chat_ai(
             uid=variable_pool.system_params.get(ParamKey.Uid, default="")
         )
-        system_user_msg = self._process_history(
+        system_user_msg = await self._process_history(
             user_input=prompt_template,
             history=history_chat,
             history_v2=history_v2,
             system_input=system_prompt_template,
             span_context=span,
         )
-        user_message = self._assemble_messages(
+        user_message = await self._assemble_messages(
             system_user_msg=system_user_msg,
             history_v2=history_v2,
             image_url=image_url,
@@ -1325,9 +1325,11 @@ class BaseLLMNode(BaseNode):
 
             if texts:
                 res = "".join(texts)
-                span.add_info_events({"spark_llm_chat_result": "".join(texts)})
+                await span.add_info_events_async(
+                    {"spark_llm_chat_result": "".join(texts)}
+                )
                 think_contents = "".join(reasoning_contents)
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"spark_llm_reasoning_content": "".join(think_contents)}
                 )
                 return token_usage, res, think_contents, processed_history

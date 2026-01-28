@@ -25,7 +25,7 @@ router = APIRouter(tags=["Flows"])
 
 
 @router.post("/publish")
-def publish(
+async def publish(
     x_consumer_username: Annotated[str, Header()],
     publish_input: PublishInput,
     db_session: Session = Depends(get_session),
@@ -45,14 +45,14 @@ def publish(
     with span.start(
         attributes={"flow_id": publish_input.flow_id},
     ) as span_context:
-        span_context.add_info_event(f"user input: {publish_input.dict()}")
+        await span_context.add_info_event_async(f"user input: {publish_input.dict()}")
 
         # Delete flow protocol from Redis cache
         del_flow_by_id(publish_input.flow_id)
         del_flow_by_flow_id_latest_version(publish_input.flow_id)
 
         try:
-            publish_service.handle(
+            await publish_service.handle(
                 db_session, tenant_app_id, publish_input, span_context
             )
             db_session.commit()
@@ -75,7 +75,7 @@ def publish(
 
 
 @router.post("/auth")
-def auth(
+async def auth(
     x_consumer_username: Annotated[str, Header()],
     auth_input: AuthInput,
     db_session: Session = Depends(get_session),
@@ -95,10 +95,12 @@ def auth(
     with span.start(
         attributes={"flow_id": auth_input.flow_id},
     ) as span_context:
-        span_context.add_info_event(f"user input: {auth_input.dict()}")
+        await span_context.add_info_event_async(f"user input: {auth_input.dict()}")
 
         try:
-            auth_service.handle(db_session, tenant_app_id, auth_input, span_context)
+            await auth_service.handle(
+                db_session, tenant_app_id, auth_input, span_context
+            )
             db_session.commit()
         except CustomException as err:
             span_context.record_exception(err)

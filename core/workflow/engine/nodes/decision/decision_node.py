@@ -149,7 +149,7 @@ class DecisionNode(BaseLLMNode):
             )
             fs_instances.append(fs_instance)
         # Log function call schemas for debugging
-        span.add_info_events({"fs_schema": str(fs_instances)})
+        await span.add_info_events_async({"fs_schema": str(fs_instances)})
 
         # Get user input from variable pool
         usr_input = variable_pool.get_variable(
@@ -176,7 +176,7 @@ class DecisionNode(BaseLLMNode):
         )
         # Process prompt prefix and variable replacements
         prompt_prefix = copy.deepcopy(self.promptPrefix)
-        span.add_info_events({"user_input_prompt_prefix": prompt_prefix})
+        await span.add_info_events_async({"user_input_prompt_prefix": prompt_prefix})
 
         # Find variables that need to be replaced in the prompt
         available_placeholders = PromptUtils.get_available_placeholders(
@@ -217,7 +217,7 @@ class DecisionNode(BaseLLMNode):
             k: (lambda v: (str(v) or " "))(v) for k, v in replacements.items()
         }
         prompt_prefix = PromptUtils.replace_variables(prompt_prefix, replacements_str)
-        span.add_info_events({"finally_prompt_prefix": prompt_prefix})
+        await span.add_info_events_async({"finally_prompt_prefix": prompt_prefix})
         # Execute function call with Spark AI
         try:
             name, token_usage, _ = await fc_ai.async_call_spark_fc(
@@ -382,7 +382,7 @@ class DecisionNode(BaseLLMNode):
             match = re.search(r"```(json)?(.*)```", res, re.DOTALL)
             json_str = res if match is None else match.group(2)
             json_str = _custom_parser(json_str.strip())
-            span.add_info_event(f"json_str: {json_str}")
+            await span.add_info_event_async(f"json_str: {json_str}")
             result = json.loads(json_str)
 
             schema = {

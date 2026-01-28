@@ -97,7 +97,7 @@ class ParamsExtractorNode(BaseLLMNode):
         """
         try:
             schema_content = self.assemble_schema_info()
-            span.add_info_events(
+            await span.add_info_events_async(
                 {"cs_schema": json.dumps(schema_content, ensure_ascii=False)}
             )
 
@@ -214,7 +214,7 @@ class ParamsExtractorNode(BaseLLMNode):
             schema_content = self.assemble_schema_info()
             functions = [Function(parameters=schema_content)]
             for function in functions:
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"fc_schema": json.dumps(function.dict(), ensure_ascii=False)}
                 )
             fc_ai = SparkFunctionCallAi(

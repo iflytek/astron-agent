@@ -60,7 +60,9 @@ class IFlyExecutorV2(IFlyExecutor):
                 f"Bearer {workflow_config.code_executor_config.api_key}:"
                 f"{workflow_config.code_executor_config.api_secret}"
             )
-        span.add_info_events({"request_body": json.dumps(body, ensure_ascii=False)})
+        await span.add_info_events_async(
+            {"request_body": json.dumps(body, ensure_ascii=False)}
+        )
 
         try:
             return await self._execute_with_retry(
@@ -91,7 +93,7 @@ class IFlyExecutorV2(IFlyExecutor):
             status, resp_json = await self._do_request(url, body, params, headers, span)
 
             if status == httpx.codes.OK:
-                span.add_info_events(
+                await span.add_info_events_async(
                     {
                         "code execute v2 result": json.dumps(
                             resp_json, ensure_ascii=False

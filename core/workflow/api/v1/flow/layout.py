@@ -41,7 +41,7 @@ router = APIRouter(tags=["Flows"])
 
 
 @router.post("/protocol/add", status_code=status.HTTP_200_OK)
-def add(
+async def add(
     flow: Flow,
     session: Session = Depends(get_session),
 ) -> JSONResponse:
@@ -57,21 +57,21 @@ def add(
         attributes={"flow_id": flow.id},
     ) as current_span:
         try:
-            current_span.add_info_event(f"add flow vo: {flow.json()}")
+            await current_span.add_info_event_async(f"add flow vo: {flow.json()}")
 
-            app_info = app_service.get_info(flow.app_id, session, current_span)
+            app_info = await app_service.get_info(flow.app_id, session, current_span)
             db_flow = flow_service.save(flow, app_info, session, current_span)
 
             if flow.data:
                 try:
-                    current_span.add_info_event("Protocol validation start")
+                    await current_span.add_info_event_async("Protocol validation start")
                     sparkflow_protocol = flow.data
                     if isinstance(sparkflow_protocol, str):
                         sparkflow_protocol = json.loads(sparkflow_protocol)
                     WorkflowEngineFactory.create_engine(
                         WorkflowDSL.model_validate(flow.data.get("data")), current_span
                     )
-                    current_span.add_info_event("Protocol validation end")
+                    await current_span.add_info_event_async("Protocol validation end")
                 except ValidationError as err:
                     current_span.record_exception(err)
                     raise CustomException(
@@ -132,7 +132,7 @@ def get(flow_read: FlowRead, session: Session = Depends(get_session)) -> JSONRes
 
 
 @router.post("/protocol/update/{flow_id}", status_code=status.HTTP_200_OK)
-def update(
+async def update(
     flow_id: str,
     flow: FlowUpdate,
     session: Session = Depends(get_session),
@@ -150,10 +150,10 @@ def update(
         attributes={"flow_id": flow_id},
     ) as current_span:
         try:
-            current_span.add_info_event(f"update start: {flow_id}")
+            await current_span.add_info_event_async(f"update start: {flow_id}")
             del_flow_by_id(flow_id)
             update_content = json.dumps(flow.__dict__, ensure_ascii=False)
-            current_span.add_info_event(f"update vo: {update_content}")
+            await current_span.add_info_event_async(f"update vo: {update_content}")
             sparkflow_protocol = flow.data
             if sparkflow_protocol:
                 if isinstance(sparkflow_protocol, str):

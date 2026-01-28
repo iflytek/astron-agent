@@ -86,7 +86,7 @@ class IterationNode(BaseNode):
                     span=span_context,
                 )
                 inputs = {self.input_identifier[0]: batch_datas}
-                span_context.add_info_events({"inputs": f"{inputs}"})
+                await span_context.add_info_events_async({"inputs": f"{inputs}"})
 
                 batch_result_dict: dict[str, list] = {}
                 temp_variable_pool = copy.deepcopy(variable_pool)
@@ -113,7 +113,7 @@ class IterationNode(BaseNode):
                     return_result[out_put_key_name] = batch_result_dict.get(
                         out_put_key_name, []
                     )
-                span_context.add_info_events({"ret": f"{return_result}"})
+                await span_context.add_info_events_async({"ret": f"{return_result}"})
             except CustomException as err:
                 span_context.record_exception(err)
                 return NodeRunResult(

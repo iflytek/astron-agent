@@ -70,7 +70,9 @@ class MCPNode(BaseNode):
                     for k in self.input_identifier
                 }
             )
-            span.add_info_events({"mcp_input": json.dumps(inputs, ensure_ascii=False)})
+            await span.add_info_events_async(
+                {"mcp_input": json.dumps(inputs, ensure_ascii=False)}
+            )
             status = WorkflowNodeExecutionStatus.SUCCEEDED
 
             # Prepare MCP tool call request
@@ -97,7 +99,7 @@ class MCPNode(BaseNode):
                         )
 
                     res_json = json.loads(await resp.text())
-                    span.add_info_events(
+                    await span.add_info_events_async(
                         {"mcp_response": json.dumps(res_json, ensure_ascii=False)}
                     )
 

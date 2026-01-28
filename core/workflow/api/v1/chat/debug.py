@@ -7,6 +7,7 @@ validation and audit policies and should not be used in production environments.
 """
 
 import json
+import os
 from typing import Annotated, Optional, Union
 
 from common.utils.snowfake import get_id
@@ -16,6 +17,7 @@ from starlette.responses import JSONResponse, StreamingResponse
 from workflow.cache.event_registry import Event, EventRegistry
 from workflow.consts.app_audit import AppAuditPolicy
 from workflow.consts.engine.chat_status import ChatStatus
+from workflow.consts.runtime_env import RuntimeEnv
 from workflow.domain.entities.chat import ChatVo, ResumeVo
 from workflow.domain.entities.response import Streaming
 from workflow.engine.callbacks.openai_types_sse import LLMGenerate
@@ -54,8 +56,21 @@ async def chat_debug(
             db_flow = flow_service.get_flow_by_version(
                 chat_vo.flow_id, session, span_context, chat_vo.version
             )
+            spark_dsl = db_flow.data
 
-            app_info = app_service.get_info(app_id, session, span)
+            app_info = await app_service.get_info(app_id, session, span)
+
+            if not os.getenv("RUNTIME_ENV", RuntimeEnv.Local.value) in [
+                RuntimeEnv.Dev.value,
+                RuntimeEnv.Test.value,
+            ]:
+                # Replace app_id, api_key, api_secret in protocol
+                db_flow.data = chat_service.change_dsl_triplets(
+                    spark_dsl,
+                    app_id=app_id,
+                    api_key=app_info.api_key,
+                    api_secret=app_info.api_secret,
+                )
 
             event = Event(
                 flow_id=chat_vo.flow_id,
@@ -139,7 +154,7 @@ async def resume_debug(request: ResumeVo) -> Union[StreamingResponse, JSONRespon
             span.uid = event.uid
             span.chat_id = event.chat_id
 
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"resume_event": json.dumps(event.dict(), ensure_ascii=False)}
             )
 
@@ -151,7 +166,7 @@ async def resume_debug(request: ResumeVo) -> Union[StreamingResponse, JSONRespon
 
             # Input audit
             session = next(get_session())
-            app_info = app_service.get_info(event.app_id, session, span)
+            app_info = await app_service.get_info(event.app_id, session, span)
             if app_info.audit_policy == AppAuditPolicy.AGENT_PLATFORM.value:
                 await audit_service.input_audit(content, span)
 
