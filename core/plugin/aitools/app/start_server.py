@@ -17,6 +17,7 @@ from plugin.aitools.api.middlewares.otlp_middleware import OTLPMiddleware
 from plugin.aitools.api.routes.register import register_api_services
 from plugin.aitools.common.clients.aiohttp_client import close_aiohttp_session
 from plugin.aitools.common.exceptions.exceptions import register_exception_handlers
+from plugin.aitools.common.log.logger import init_uvicorn_logger
 from plugin.aitools.const.const import OTLP_ENABLE_KEY, SERVICE_PORT_KEY
 from plugin.aitools.utils.otlp_utils import (
     init_kafka_send_workers,
@@ -105,6 +106,8 @@ class AIToolsServer:
     def start_uvicorn() -> None:
         if not (service_port := os.getenv(SERVICE_PORT_KEY)):
             raise ValueError(f"Missing {SERVICE_PORT_KEY} environment variable")
+
+        init_uvicorn_logger()
 
         print(f"🚀 Starting server on port {service_port}")
         uvicorn_config = uvicorn.Config(

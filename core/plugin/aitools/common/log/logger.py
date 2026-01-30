@@ -21,7 +21,13 @@ logger.add(
 
 
 def init_uvicorn_logger() -> None:
-    logger_names = ("uvicorn.asgi", "uvicorn.access", "uvicorn")
+    logger_names = (
+        "uvicorn.asgi",
+        "uvicorn.access",
+        "uvicorn",
+        "uvicorn.error",
+        "fastapi",
+    )
 
     # change handler for default uvicorn logger
     logging.getLogger().handlers = [InterceptHandler()]
