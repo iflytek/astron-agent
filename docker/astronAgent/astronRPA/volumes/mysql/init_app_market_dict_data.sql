@@ -1,3 +1,4 @@
+TRUNCATE rpa.app_market_dict;
 INSERT INTO rpa.app_market_dict (business_code,name,dict_code,dict_value,user_type,description,seq,creator_id,create_time,updater_id,update_time,deleted) VALUES
 	 ('marketRoleFunc','编辑市场','market_team_edit','T','owner',NULL,NULL,'73','2025-05-19 17:33:11','73','2025-05-19 17:33:11',0),
 	 ('marketRoleFunc','编辑市场','market_team_edit','F','admin',NULL,NULL,'73','2024-03-25 10:27:56','73','2024-03-25 10:27:56',0),
