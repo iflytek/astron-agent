@@ -1,3 +1,5 @@
+# mypy: ignore-errors
+
 """init tables
 
 Revision ID: b13356244aea
