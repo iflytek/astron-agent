@@ -1,3 +1,4 @@
+TRUNCATE rpa.his_data_enum;
 INSERT INTO rpa.his_data_enum (parent_code,icon,field,text,num,unit,percent,tip,`order`) VALUES
 	 ('sourceData','icon-usercount','userNum','用户数量',NULL,'个',NULL,'企业中注册的用户总数（不包括禁用状态下的用户）',0),
 	 ('sourceData','icon-chanpin','terminal','终端数量',NULL,'个',NULL,'企业中总的终端数量',1),
