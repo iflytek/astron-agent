@@ -6,10 +6,13 @@ It initializes the necessary environment variables
 and starts the SparkLinkServer instance.
 """
 
+import functools
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+print = functools.partial(print, flush=True)  # pylint: disable=redefined-builtin
 
 
 def setup_python_path() -> None:
@@ -26,7 +29,7 @@ def setup_python_path() -> None:
     # Check and add the necessary directories.
     new_paths = []
     for directory in [project_root, parent_dir, grandparent_dir]:
-        if str(directory) not in python_path:
+        if Path(directory).exists() and str(directory) not in python_path:
             new_paths.append(str(directory))
 
     # If there is a path that needs to be added, update the PYTHONPATH.
@@ -64,10 +67,7 @@ def load_env_file(env_file: str) -> None:
                 key, value = line.split("=", 1)
                 # Set CONFIG_ENV_PATH, common to load
                 if os.environ.get(key.strip()):
-                    print(
-                        f"ENV  ✅ {key.strip()}= \
-                          {os.environ.get(key.strip())}"
-                    )
+                    print(f"ENV  ✅ {key.strip()}={os.environ.get(key.strip())}")
                 else:
                     print(f"CFG  ✅ {key.strip()}={value.strip()}")
 

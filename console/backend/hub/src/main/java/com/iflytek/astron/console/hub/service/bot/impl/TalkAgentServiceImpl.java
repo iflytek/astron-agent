@@ -32,9 +32,9 @@ import java.util.List;
 @Service
 @Slf4j
 public class TalkAgentServiceImpl implements TalkAgentService {
-    @Value("${spark.api-key}")
+    @Value("${spark.virtual-man-apiKey}")
     private String apiKey;
-    @Value("${spark.api-secret}")
+    @Value("${spark.virtual-man-apiSecret}")
     private String apiSecret;
 
     @Autowired

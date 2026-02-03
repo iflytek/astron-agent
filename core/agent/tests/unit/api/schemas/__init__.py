@@ -1,1 +1,0 @@
-# API schemas test package

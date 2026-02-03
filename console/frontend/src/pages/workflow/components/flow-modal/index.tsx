@@ -3,8 +3,8 @@ import AddFlow from '@/components/workflow/modal/add-flow';
 import AddRpa from '@/components/workflow/modal/add-rpa';
 import AddKnowledge from '@/components/workflow/modal/add-knowledge';
 import AddPlugin from '@/components/workflow/modal/add-plugin';
+import AddMcp from '@/components/workflow/modal/add-mcp';
 import IterativeAmplificationModal from '@/components/workflow/modal/iterative-amplification';
-import SelectPrompt from '@/components/workflow/modal/select-llm-prompt';
 import KnowledgeDetail from '@/components/workflow/modal/knowledge-detail';
 import SelectAgentPrompt from '@/components/workflow/modal/select-agent-prompt';
 import SetDefaultValue from '@/components/workflow/modal/set-default-value';
@@ -20,8 +20,8 @@ function index(): React.ReactElement {
       <AddRpa />
       <AddKnowledge />
       <AddPlugin />
+      <AddMcp />
       <IterativeAmplificationModal />
-      <SelectPrompt />
       <KnowledgeDetail />
       <SelectAgentPrompt />
       <SetDefaultValue />

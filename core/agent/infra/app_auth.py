@@ -3,15 +3,15 @@ import datetime
 import hashlib
 import hmac
 import json
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import aiohttp
+from common.otlp.trace.span import Span
 from pydantic import BaseModel, Field
 
-from common_imports import Span
-from exceptions.middleware_exc import MiddlewareExc
-from infra import agent_config
+from agent.exceptions.middleware_exc import AppAuthFailedExc
 
 
 def http_date(dt: datetime.datetime) -> str:
@@ -71,11 +71,11 @@ class APPAuth:
 
     def __init__(self) -> None:
         self.config = AuthConfig(
-            host=agent_config.APP_AUTH_HOST,
-            route=agent_config.APP_AUTH_ROUTER,
-            prot=agent_config.APP_AUTH_PROT,
-            api_key=agent_config.APP_AUTH_API_KEY,
-            secret=agent_config.APP_AUTH_SECRET,
+            host=os.getenv("APP_AUTH_HOST", "") or "",
+            route=os.getenv("APP_AUTH_ROUTER", "") or "",
+            prot=os.getenv("APP_AUTH_PROT", "") or "",
+            api_key=os.getenv("APP_AUTH_API_KEY", "") or "",
+            secret=os.getenv("APP_AUTH_SECRET", "") or "",
         )
         # Set current time
         self.date = http_date(datetime.datetime.utcnow())
@@ -130,11 +130,7 @@ class APPAuth:
                     result = await response.json()
                     return dict(result)
 
-                raise MiddlewareExc(
-                    40040,
-                    "AppId authentication information query failed",
-                    on=f"response code is {response.status}",
-                )
+                raise AppAuthFailedExc("response code is {response.status}")
 
 
 class MaasAuth(BaseModel):
@@ -154,34 +150,18 @@ class MaasAuth(BaseModel):
             )
 
             if app_detail is None:
-                raise MiddlewareExc(
-                    40040,
-                    "AppId authentication information query failed",
-                    on=self.app_id_not_found_msg,
-                )
+                raise AppAuthFailedExc(self.app_id_not_found_msg)
 
             if app_detail.get("code") != 0:
-                raise MiddlewareExc(
-                    40040,
-                    "AppId authentication information query failed",
-                    on=app_detail.get("message", ""),
-                )
+                raise AppAuthFailedExc(app_detail.get("message", ""))
 
             data = app_detail.get("data", [])
             if len(data) == 0:
-                raise MiddlewareExc(
-                    40040,
-                    "AppId authentication information query failed",
-                    on=self.app_id_not_found_msg,
-                )
+                raise AppAuthFailedExc(self.app_id_not_found_msg)
 
             auth_list = data[0].get("auth_list", [])
             if len(auth_list) == 0:
-                raise MiddlewareExc(
-                    40040,
-                    "AppId authentication information query failed",
-                    on=self.app_id_not_found_msg,
-                )
+                raise AppAuthFailedExc(self.app_id_not_found_msg)
 
             api_key = auth_list[0].get("api_key")
             api_secret = auth_list[0].get("api_secret")

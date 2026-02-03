@@ -6,6 +6,7 @@ handling flow retrieval and data transformation operations.
 """
 
 import json
+from typing import Any, Dict
 
 from sqlalchemy import text
 from sqlmodel import Session  # type: ignore
@@ -14,7 +15,7 @@ from workflow.domain.models.flow import Flow
 
 
 def get_latest_published_flow_by(
-    flow_group_id: str, session: Session, version: str = ""
+    flow_group_id: int, session: Session, version: str = ""
 ) -> Flow | None:
     """
     Retrieve the latest published flow by group ID and optional version.
@@ -51,7 +52,7 @@ def get_latest_published_flow_by(
     )
 
     # Set query parameters (release_status: 1|4 = published status)
-    params = {"group_id": flow_group_id, "release_status": 1 | 4}
+    params: Dict[str, Any] = {"group_id": flow_group_id, "release_status": 1 | 4}
     if version:
         params.update({"version": version})
 

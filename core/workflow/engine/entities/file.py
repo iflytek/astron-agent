@@ -47,7 +47,7 @@ class File(BaseModel):
     """
 
     @classmethod
-    def has_file_in_dsl(
+    async def has_file_in_dsl(
         cls, spark_dsl: dict, span: Span
     ) -> Tuple[list[FileVarInfo], bool]:
         """
@@ -72,7 +72,7 @@ class File(BaseModel):
                         file_flag = output.get("fileType")
                         if file_flag is None:
                             continue
-                        span.add_info_event(f"fileType: {file_flag}")
+                        await span.add_info_event_async(f"fileType: {file_flag}")
                         if file_flag == "file":
                             has_file = True
                             var_name = output.get("name")
@@ -141,7 +141,7 @@ class File(BaseModel):
             ) from e
 
     @classmethod
-    def check_file_var_isvalid(
+    async def check_file_var_isvalid(
         cls, input_file_url: str, allowed_file_type: str, span_context: Span
     ) -> None:
         """
@@ -152,8 +152,10 @@ class File(BaseModel):
         :param span_context: Tracing span for logging
         """
         try:
-            span_context.add_info_event(f"input file url: {input_file_url}")
-            span_context.add_info_event(f"allowed file type: {allowed_file_type}")
+            await span_context.add_info_event_async(f"input file url: {input_file_url}")
+            await span_context.add_info_event_async(
+                f"allowed file type: {allowed_file_type}"
+            )
             file_size = int(cls.get_file_size(input_file_url))
             pattern = workflow_config.file_config.get_extensions_pattern()
 

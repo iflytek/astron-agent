@@ -49,7 +49,6 @@ async def test_set_search_path_and_exec_success() -> None:
         env=env,
         uid=uid,
         span_context=fake_span_context,
-        m=mock_meter,
     )
 
     assert error_resp is None
@@ -161,7 +160,6 @@ async def test_export_data_success() -> None:
                     test_input.env,
                     test_input.uid,
                     fake_span_context,
-                    mock_meter_instance,
                 )
 
                 mock_meter_instance.in_success_count.assert_called_once_with(

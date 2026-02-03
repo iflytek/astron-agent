@@ -23,6 +23,7 @@ from fastapi.exceptions import RequestValidationError
 
 from workflow.extensions.fastapi.base import JSONResponseBase
 from workflow.extensions.otlp.trace.span import Span
+from workflow.utils.validation import ValidationParse
 
 
 async def validation_exception_handler(
@@ -53,17 +54,10 @@ async def validation_exception_handler(
     with span.start() as span_ctx:
         # Format validation errors into human-readable
         # messages with detailed information
-        errors_list = [
-            (
-                f"Parameter: {'->'.join(map(str, error['loc']))}, "
-                f"Input: {error.get('input')}, "
-                f"Error: {error['msg']} ({error['type']})"
-            )
-            for error in exc.errors()
-        ]
+        error_message = ValidationParse.validation_error(exc)
         # Log validation errors to the tracing system for monitoring and debugging
-        span_ctx.add_error_events(attributes={"errors": "\n".join(errors_list)})
+        span_ctx.add_error_events(attributes={"errors": error_message})
 
         return JSONResponseBase.generate_error_response(
-            request.url.path, "\n".join(errors_list), span_ctx.sid
+            request.url.path, error_message, span_ctx.sid
         )

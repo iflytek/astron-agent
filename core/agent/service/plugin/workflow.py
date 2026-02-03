@@ -1,18 +1,36 @@
 import asyncio
 import json
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, AsyncIterator
 
 import aiohttp
 import httpx
+from common.otlp.trace.span import Span
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
-from common_imports import Span
-from exceptions.plugin_exc import RunWorkflowExc
-from infra import agent_config
-from service.plugin.base import BasePlugin, PluginResponse
+from agent.exceptions.plugin_exc import RunWorkflowExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
+
+
+class _AgentConfig(BaseModel):
+    """Workflow-related configuration loaded from environment.
+
+    Tests may monkeypatch this object on the module (see test_plugin_base_link_mcp_workflow),
+    so keep the name `agent_config` stable.
+    """
+
+    WORKFLOW_SSE_BASE_URL: str = Field(
+        default_factory=lambda: os.getenv("WORKFLOW_SSE_BASE_URL", "")
+    )
+    GET_WORKFLOWS_URL: str = Field(
+        default_factory=lambda: os.getenv("GET_WORKFLOWS_URL", "")
+    )
+
+
+agent_config = _AgentConfig()
 
 
 @dataclass
@@ -110,7 +128,7 @@ class WorkflowPluginRunner(BaseModel):
 
             try:
                 response = await flow_client.chat.completions.create(
-                    **params, timeout=40
+                    **params, timeout=int(os.getenv("WORKFLOWS_CALL_TIMEOUT", "90"))
                 )
                 async for chunk in response:
                     chunk_data = chunk.model_dump()

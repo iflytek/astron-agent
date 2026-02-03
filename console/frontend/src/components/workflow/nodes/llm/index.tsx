@@ -19,7 +19,6 @@ import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 import { ModelSection } from '@/components/workflow/nodes/node-common';
 
 import promptOptimizationIcon from '@/assets/imgs/workflow/prompt-optimization-icon.png';
-import promptLibraryIcon from '@/assets/imgs/workflow/prompt-library-icon.svg';
 
 const PromptSection = ({
   id,
@@ -28,9 +27,6 @@ const PromptSection = ({
 }): React.ReactElement => {
   const { t } = useTranslation();
   const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
-  const setSelectPromptModalInfo = useFlowsManager(
-    state => state.setSelectPromptModalInfo
-  );
   const setPromptOptimizeModalInfo = useFlowsManager(
     state => state.setPromptOptimizeModalInfo
   );
@@ -44,22 +40,6 @@ const PromptSection = ({
           <h4 className="text-base font-medium">
             {t('workflow.nodes.largeModelNode.prompt')}
           </h4>
-          {!canvasesDisabled && (
-            <div
-              className="flex items-center gap-1 cursor-pointer text-[#6356EA] text-xs"
-              onClick={e => {
-                e.stopPropagation();
-                setSelectPromptModalInfo({ open: true, nodeId: id });
-              }}
-            >
-              <img
-                src={promptLibraryIcon}
-                className="w-[14px] h-[14px]"
-                alt=""
-              />
-              <span>{t('workflow.nodes.largeModelNode.promptLibrary')}</span>
-            </div>
-          )}
         </div>
       }
       content={
@@ -203,7 +183,6 @@ const OutputSection = ({
                               default: '',
                             },
                           },
-                          ...data.outputs,
                         ]
                       : [
                           {
@@ -216,6 +195,17 @@ const OutputSection = ({
                           },
                         ];
                     updateNodeRef(id);
+                  } else {
+                    data.outputs = [
+                      {
+                        id: uuid(),
+                        name: 'output',
+                        schema: {
+                          type: 'string',
+                          default: '',
+                        },
+                      },
+                    ];
                   }
                   if (!checkedNodeOutputData(data?.outputs, currentNode)) {
                     const customOutput = JSON.stringify(

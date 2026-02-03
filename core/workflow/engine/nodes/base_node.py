@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import os
+import time
 from abc import abstractmethod
 from asyncio import Event
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
@@ -43,7 +44,6 @@ from workflow.engine.nodes.util.prompt import (
     process_prompt,
 )
 from workflow.exception.e import CustomException
-from workflow.exception.errors.code_convert import CodeConvert
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
@@ -882,7 +882,7 @@ class BaseOutputNode(BaseNode):
                 )
                 llm_response = msg.llm_response
                 exception_occurred = msg.exception_occurred
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"recv": json.dumps(llm_response, ensure_ascii=False)}
                 )
                 frame: UnionFrame = frame_processor.process_frame(llm_response)
@@ -968,7 +968,7 @@ class BaseOutputNode(BaseNode):
         dep_var_name = variable_pool.get_variable_ref_node_id(
             self.node_id, template_unit.key, span=span
         ).ref_var_name
-        is_reasoning = dep_var_name == "REASONING_CONTENT"
+        is_reasoning = dep_var_name.upper() == "REASONING_CONTENT"
 
         if not is_reasoning:
             # If it's an LLM node, get values from message queue or from llm_output_cache
@@ -1035,6 +1035,8 @@ class BaseLLMNode(BaseNode):
     :param chat_ai: Chat AI instance
     """
 
+    _private_config = PrivateConfig()
+
     domain: str = Field(...)
     appId: str = Field(...)
     apiKey: str = Field(default="")
@@ -1058,7 +1060,7 @@ class BaseLLMNode(BaseNode):
     searchDisable: bool = Field(default=True)
     extraParams: dict = Field(default_factory=dict)
 
-    def _get_chat_ai(self) -> ChatAI:
+    def _get_chat_ai(self, uid: str = "") -> ChatAI:
         """
         Get or create the ChatAI instance for this LLM node.
 
@@ -1084,11 +1086,11 @@ class BaseLLMNode(BaseNode):
             max_tokens=self.maxTokens if hasattr(self, "maxTokens") else None,
             top_k=self.topK if hasattr(self, "topK") else None,
             patch_id=self.patch_id,
-            uid=self.uid,
+            uid=uid or str(time.time()),
             stream_node_first_token=self.stream_node_first_token,
         )
 
-    def _process_history(
+    async def _process_history(
         self,
         user_input: str,
         span_context: Span,
@@ -1113,18 +1115,18 @@ class BaseLLMNode(BaseNode):
         processed_history: list[dict[str, Any]] | list[HistoryItem] = []
         if history:
             processed_history = [h.dict() for h in history]
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"history": json.dumps(processed_history, ensure_ascii=False)}
             )
 
         if system_input:
             system_msg = {"role": "system", "content": system_input}
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"system_input": json.dumps(system_msg, ensure_ascii=False)}
             )
 
         user_msg = {"role": "user", "content": user_input}
-        span_context.add_info_events({"user_input": str(user_msg)})
+        await span_context.add_info_events_async({"user_input": str(user_msg)})
 
         if history_v2:
             # Subtract system_input and user_input token usage
@@ -1146,7 +1148,7 @@ class BaseLLMNode(BaseNode):
             processed_history=processed_history,
         )
 
-    def _assemble_messages(
+    async def _assemble_messages(
         self,
         span_context: Span,
         system_user_msg: SystemUserMsg,
@@ -1199,14 +1201,14 @@ class BaseLLMNode(BaseNode):
                 ),
                 "content_type": "image",
             }
-            span_context.add_info_events({"image": str(image_url)})
+            await span_context.add_info_events_async({"image": str(image_url)})
         # Don't upload base64
         if image_msg:
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"user_message": json.dumps(user_message[1:], ensure_ascii=False)}
             )
         else:
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {"user_message": json.dumps(user_message, ensure_ascii=False)}
             )
         history = [
@@ -1249,15 +1251,17 @@ class BaseLLMNode(BaseNode):
         :param event_log_node_trace: Node trace logging
         :return: Tuple containing (token_usage, response_text, reasoning_content, processed_history)
         """
-        chat_ai = self._get_chat_ai()
-        system_user_msg = self._process_history(
+        chat_ai = self._get_chat_ai(
+            uid=variable_pool.system_params.get(ParamKey.Uid, default="")
+        )
+        system_user_msg = await self._process_history(
             user_input=prompt_template,
             history=history_chat,
             history_v2=history_v2,
             system_input=system_prompt_template,
             span_context=span,
         )
-        user_message = self._assemble_messages(
+        user_message = await self._assemble_messages(
             system_user_msg=system_user_msg,
             history_v2=history_v2,
             image_url=image_url,
@@ -1278,54 +1282,54 @@ class BaseLLMNode(BaseNode):
                 timeout=(
                     self.retry_config.timeout
                     if self.retry_config.should_retry
-                    else None
+                    else self._private_config.timeout
                 ),
                 search_disable=self.searchDisable,
             ):
                 msg = llm_response.msg
-                code, status, content, reasoning_content, token_usage = (
+                status, content, reasoning_content, token_usage = (
                     self._get_chat_ai().decode_message(msg)
                 )
-                if code == 0:
-                    if reasoning_content:
-                        reasoning_contents.append(reasoning_content)
-                    if stream and self.respFormat != RespFormatEnum.JSON.value:
-                        await self.put_llm_content(
-                            node_id=self.node_id,
-                            model_name=self.domain,
-                            variable_pool=variable_pool,
-                            msg_or_end_node_deps=msg_or_end_node_deps or {},
-                            llm_content=msg,
-                        )
-                    texts.append(content if content else "")
-                    if status in [
+                # Mark streaming output first frame has been sent, trigger engine to set exception branches as inactive
+                if not self.stream_node_first_token.is_set():
+                    self.stream_node_first_token.set()
+                if reasoning_content:
+                    reasoning_contents.append(reasoning_content)
+                if stream and self.respFormat != RespFormatEnum.JSON.value:
+                    await self.put_llm_content(
+                        node_id=self.node_id,
+                        model_name=self.domain,
+                        variable_pool=variable_pool,
+                        msg_or_end_node_deps=msg_or_end_node_deps or {},
+                        llm_content=msg,
+                    )
+                texts.append(content if content else "")
+                if status in [
+                    SparkLLMStatus.END.value,
+                    ChatStatus.FINISH_REASON.value,
+                ]:
+                    token_usage = token_usage
+                    break
+                if (
+                    self.source == ModelProviderEnum.OPENAI.value
+                    and status
+                    and status
+                    not in [
                         SparkLLMStatus.END.value,
                         ChatStatus.FINISH_REASON.value,
-                    ]:
-                        token_usage = token_usage
-                        break
-                    if (
-                        self.source == ModelProviderEnum.OPENAI.value
-                        and status
-                        and status
-                        not in [
-                            SparkLLMStatus.END.value,
-                            ChatStatus.FINISH_REASON.value,
-                        ]
-                    ):
-                        # Exception case: finish_reason has value but not "stop", report the issue
-                        # For example, openai-gpt-4o gives "length" when max_token is very small
-                        raise CustomException(err_code=CodeEnum.OPEN_AI_REQUEST_ERROR)
-                else:
-                    raise CustomException(
-                        err_code=CodeConvert.sparkCode(code),
-                        cause_error=json.dumps(msg, ensure_ascii=False),
-                    )
+                    ]
+                ):
+                    # Exception case: finish_reason has value but not "stop", report the issue
+                    # For example, openai-gpt-4o gives "length" when max_token is very small
+                    raise CustomException(err_code=CodeEnum.OPEN_AI_REQUEST_ERROR)
+
             if texts:
                 res = "".join(texts)
-                span.add_info_events({"spark_llm_chat_result": "".join(texts)})
+                await span.add_info_events_async(
+                    {"spark_llm_chat_result": "".join(texts)}
+                )
                 think_contents = "".join(reasoning_contents)
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"spark_llm_reasoning_content": "".join(think_contents)}
                 )
                 return token_usage, res, think_contents, processed_history
@@ -1365,8 +1369,6 @@ class BaseLLMNode(BaseNode):
                 # As long as put_llm_content method is executed, it proves LLM has sent first frame,
                 # so set has_sent_first_token to True
                 variable_pool.set_stream_node_has_sent_first_token(node_id)
-            if not self.stream_node_first_token.is_set():
-                self.stream_node_first_token.set()  # Mark streaming output first frame has been sent, trigger engine to set exception branches as inactive
             if not msg_or_end_node_deps:
                 # No node dependencies during single node debugging
                 return

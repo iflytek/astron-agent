@@ -9,10 +9,12 @@ from typing import Any, Dict, List, Literal
 from urllib.parse import quote, urlencode
 
 import aiohttp
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.exception.errors.third_api_code import ThirdApiCodeEnum
+from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.otlp.trace.span import Span
 from workflow.infra.audit_system.audit_api.base import AuditAPI, Stage
 from workflow.infra.audit_system.base import ContextList
@@ -28,6 +30,12 @@ IMAGE_READ_TIMEOUT = 10
 
 # Maximum number of retry attempts for failed requests
 RETRY_COUNT = 2
+
+
+class NeedRetryException(Exception):
+    """Custom exception, only used to trigger retry logic"""
+
+    pass
 
 
 class ActionEnum:
@@ -178,6 +186,91 @@ class IFlyAuditAPI(AuditAPI):
         query_param["signature"] = signature
         return url + "?" + urlencode(query_param)
 
+    async def _do_request(self, url: str, payload: dict) -> dict:
+        """
+        Do request to audit API.
+
+        :param url: Request URL
+        :param payload: Request payload
+        :return: Response result dictionary containing audit results
+        :raises aiohttp.ClientResponseError: If request fails with non-retryable error
+        """
+        timeout = aiohttp.ClientTimeout(
+            sock_connect=CONNECT_TIMEOUT, sock_read=TEXT_READ_TIMEOUT
+        )
+        async with HttpClient.get_session().post(
+            url, json=payload, timeout=timeout
+        ) as response:
+            if response.status != 200:
+                text = await response.text()
+                raise aiohttp.ClientResponseError(
+                    request_info=response.request_info,
+                    history=response.history,
+                    status=response.status,
+                    message=f"HTTP Error: {text}",
+                )
+            return await response.json()
+
+    @retry(
+        stop=stop_after_attempt(RETRY_COUNT),  # Maximum number of retry attempts
+        wait=wait_fixed(1),  # Wait time between retries
+        retry=retry_if_exception_type(
+            (
+                aiohttp.ClientError,
+                asyncio.TimeoutError,
+                NeedRetryException,
+            )  # Retry on these exceptions
+        ),
+        reraise=True,  # Reraise the exception if all retry attempts fail
+    )
+    async def _request_with_retry(
+        self,
+        host: str,
+        path: str,
+        payload: dict,
+        chat_app_id: str,
+        uid: str,
+        span: Span,
+    ) -> dict:
+        """
+        Retry mechanism for a single Host
+        Send authenticated POST requests to the IFlyTek audit API with retry logic
+        and comprehensive error handling. Supports multiple host endpoints for
+        high availability.
+
+        :param host: Host URL
+        :param path: API endpoint path
+        :param payload: Request payload
+        :param chat_app_id: Chat application ID
+        :param uid: User ID
+        :param span: Span object for tracking request context information and logging
+        :return: Response result dictionary containing audit results
+        :raises CustomException: If all retry attempts fail or API returns error status
+        """
+        url = self._gen_req_url(f"{host}{path}", chat_app_id, uid)
+
+        try:
+            resp_json = await self._do_request(url, payload)
+            await span.add_info_event_async(f"Audit response body: {resp_json}")
+
+            # Business layer logic judgment
+            code = int(resp_json.get("code", -1))
+            if code == ThirdApiCodeEnum.SUCCESS.code:
+                return resp_json
+
+            if code == ThirdApiCodeEnum.AUDIT_ERROR.code:
+                # Raise specific exception to trigger @retry
+                raise NeedRetryException(f"Business retry trigger: {code}")
+
+            # Other non-recoverable errors
+            raise CustomException(
+                CodeEnum.AUDIT_SERVER_ERROR, cause_error=f"Logic Error: {resp_json}"
+            )
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            span.record_exception(e)
+            raise  # Raise to trigger @retry
+
     async def _post(
         self, path: str, payload: dict, span: Span, chat_app_id: str = "", uid: str = ""
     ) -> dict:
@@ -196,72 +289,26 @@ class IFlyAuditAPI(AuditAPI):
         :return: Response result dictionary containing audit results
         :raises CustomException: If all retry attempts fail or API returns error status
         """
-        span.add_info_event(f"Audit request body: {payload}")
-        for idx, host in enumerate(self.hosts):
+        await span.add_info_event_async(f"Audit request body: {payload}")
+        last_err = None
 
-            timeout = aiohttp.ClientTimeout(
-                sock_connect=CONNECT_TIMEOUT, sock_read=TEXT_READ_TIMEOUT
-            )
-            current_retry = 1
+        for host in self.hosts:
+            try:
+                # Invoke the request with a retry mechanism
+                return await self._request_with_retry(
+                    host, path, payload, chat_app_id, uid, span
+                )
+            except Exception as e:
+                last_err = e
+                await span.add_info_event_async(
+                    f"Host {host} failed after retries. Moving to next..."
+                )
+                continue
 
-            while True:
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    try:
-                        url = self._gen_req_url(f"{host}{path}", chat_app_id, uid)
-                        span.add_info_event(
-                            f"Request URL: {url}, retry count: {current_retry}/{RETRY_COUNT}"
-                        )
-                        async with session.post(url, json=payload) as response:
-                            cause_error = (
-                                f"Status code: {response.status}, "
-                                f"Response content: {await response.text()}"
-                            )
-
-                            if response.status != 200:
-                                span.add_error_event(cause_error)
-                                if current_retry < RETRY_COUNT:
-                                    continue
-                                else:
-                                    raise CustomException(
-                                        CodeEnum.AUDIT_SERVER_ERROR,
-                                        cause_error=cause_error,
-                                    )
-
-                            resp_json = await response.json()
-                            span.add_info_event(f"Audit response body: {resp_json}")
-
-                            code = resp_json.get("code", -1)
-                            if int(code) == ThirdApiCodeEnum.SUCCESS.code:
-                                return resp_json
-                            if (
-                                int(code) == ThirdApiCodeEnum.AUDIT_ERROR.code
-                                and current_retry < RETRY_COUNT
-                            ):
-                                continue
-                            else:
-                                cause_error = (
-                                    f"Request failed, status code: {response.status}, "
-                                    f"Response content: {await response.text()}, "
-                                    f"Response body: {resp_json}"
-                                )
-                                raise CustomException(
-                                    CodeEnum.AUDIT_SERVER_ERROR, cause_error=cause_error
-                                )
-
-                    except (aiohttp.ClientError, asyncio.TimeoutError, Exception) as e:
-                        span.record_exception(e)
-                        if current_retry < RETRY_COUNT:
-                            span.add_info_event(
-                                f"Request failed for the {current_retry}th time: {e}"
-                            )
-                            continue
-                        else:
-                            raise CustomException(
-                                CodeEnum.AUDIT_SERVER_ERROR, cause_error=str(e)
-                            ) from e
-                    finally:
-                        current_retry += 1
-        raise ValueError("Audit post error")
+        raise CustomException(
+            CodeEnum.AUDIT_SERVER_ERROR,
+            cause_error=f"All hosts exhausted. Last error: {last_err}",
+        )
 
     async def input_text(
         self,

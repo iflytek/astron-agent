@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState, useEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Drawer, Button, message, Spin } from 'antd';
+import { Button, message, Spin } from 'antd';
 import { cloneDeep } from 'lodash';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
@@ -744,22 +744,3 @@ export function ChatDebuggerContent({
     </div>
   );
 }
-
-function ChatDebuggerResult(): React.ReactElement {
-  const open = useFlowsManager(state => state.chatDebuggerResult);
-  const setOpen = useFlowsManager(state => state.setChatDebuggerResult);
-
-  return (
-    <Drawer
-      rootClassName="operation-result-container"
-      placement="right"
-      open={open}
-      mask={false}
-      destroyOnClose
-    >
-      <ChatDebuggerContent open={open} setOpen={setOpen} />
-    </Drawer>
-  );
-}
-
-export default memo(ChatDebuggerResult);

@@ -18,7 +18,7 @@ class NodeRef(BaseModel):
     name: str = Field(..., min_length=1)
 
 
-LiteralValue = Union[str, int, bool, float]
+LiteralValue = Union[str, int, bool, float, list, dict]
 Content = Union[NodeRef, LiteralValue]
 
 
@@ -157,5 +157,5 @@ class WorkflowDSL(BaseModel):
             if node.id == node_id:
                 return node
         raise CustomException(
-            CodeEnum.PROTOCOL_VALIDATION_ERROR, err_msg=f"Node {node_id} does not exist"
+            CodeEnum.PROTOCOL_BUILD_ERROR, err_msg=f"Node {node_id} does not exist"
         )

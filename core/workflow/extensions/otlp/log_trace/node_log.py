@@ -187,6 +187,8 @@ class NodeLog(BaseModel):
                 return {k: value_to_str(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [value_to_str(v) for v in obj]
+            elif hasattr(obj, "__dict__"):
+                return value_to_str(obj.__dict__)
             else:
                 return str(obj)
 

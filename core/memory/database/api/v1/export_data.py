@@ -4,7 +4,6 @@ import csv
 import io
 from typing import Generator, Union
 
-from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
 from common.service import get_otlp_metric_service, get_otlp_span_service
 from fastapi import APIRouter, Depends
@@ -65,7 +64,7 @@ async def export_data(
             span_context.add_info_events(need_check)
 
             rows, columns, error_response = await _set_search_path_and_exec(
-                db, database_id, table_name, env, uid, span_context, m
+                db, database_id, table_name, env, uid, span_context
             )
             if error_response:
                 return error_response  # type: ignore[no-any-return]
@@ -113,7 +112,6 @@ async def _set_search_path_and_exec(
     env: str,
     uid: str,
     span_context: Span,
-    m: Meter,
 ) -> tuple:
     """
     Set search path and execute query to fetch data.
@@ -139,9 +137,6 @@ async def _set_search_path_and_exec(
         await db.execute(text(f'SET search_path TO "{safe_schema}"'))  # type: ignore[call-overload]
     except Exception as schema_error:  # pylint: disable=broad-except
         span_context.record_exception(schema_error)
-        m.in_error_count(
-            CodeEnum.NoSchemaError.code, lables={"uid": uid}, span=span_context
-        )
         return (
             None,
             None,
@@ -162,11 +157,6 @@ async def _set_search_path_and_exec(
         columns = result.keys()
     except Exception as query_error:  # pylint: disable=broad-except
         span_context.record_exception(query_error)
-        m.in_error_count(
-            CodeEnum.DatabaseExecutionError.code,
-            lables={"uid": uid},
-            span=span_context,
-        )
         return (
             None,
             None,

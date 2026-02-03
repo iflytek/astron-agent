@@ -195,7 +195,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       avatarColor: avatarColorItem.name,
     };
   };
-  const [avatarUrl, setAvatarUrl] = useState(createAvatarParams().avatar);
+  const [avatarUrl, setAvatarUrl] = useState(createAvatarParams().avatarUrl);
   const [showModal, setShowModal] = useState(false);
 
   const [officialVcnList, setOfficialVcnList] = useState<VcnItem[]>([]);
@@ -267,7 +267,6 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
   useEffect(() => {
     setAvatarLoaded(false);
     if (avatarUrl) {
-      console.log('avatarUrl', avatarUrl);
       form.setFieldValue('avatar', avatarUrl);
     }
   }, [avatarUrl]);

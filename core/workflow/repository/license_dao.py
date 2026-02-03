@@ -11,7 +11,7 @@ from sqlmodel import Session  # type: ignore
 from workflow.domain.models.license import License
 
 
-def get_by(flow_group_id: str, app_alias_id: str, session: Session) -> License | None:
+def get_by(flow_group_id: int, app_alias_id: str, session: Session) -> License | None:
     """
     Retrieve license information by flow group ID and app alias ID.
 

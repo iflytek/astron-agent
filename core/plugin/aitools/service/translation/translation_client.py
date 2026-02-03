@@ -5,18 +5,81 @@ Supports bidirectional translation between Chinese and other languages including
 English, Japanese, Korean, and Russian.
 """
 
+# pylint: disable=broad-exception-caught
 import base64
 import json
 import logging
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Set, Tuple
 
 import requests
-from plugin.aitools.common.hmac_gen import assemble_auth_url
-from plugin.aitools.const.translation_constants import (
-    SUPPORTED_LANGUAGES,
-    is_valid_language_pair,
-)
+from common.utils.hmac_auth import HMACAuth
+
+# Complete language code mapping (44 languages + Chinese)
+SUPPORTED_LANGUAGES: Dict[str, str] = {
+    "cn": "中文",
+    "en": "英语",
+    "ja": "日语",
+    "ko": "韩语",
+    "th": "泰语",
+    "ru": "俄语",
+    "bg": "保加利亚语",
+    "uk": "乌克兰语",
+    "vi": "越南语",
+    "ms": "马来语",
+    "id": "印尼语",
+    "tl": "菲律宾语",
+    "de": "德语",
+    "es": "西班牙语",
+    "fr": "法语",
+    "cs": "捷克语",
+    "ro": "罗马尼亚语",
+    "sv": "瑞典语",
+    "nl": "荷兰语",
+    "pl": "波兰语",
+    "ar": "阿拉伯语",
+    "fa": "波斯语",
+    "ps": "普什图语",
+    "ur": "乌尔都语",
+    "hi": "印地语",
+    "bn": "孟加拉语",
+    "ha": "豪萨语",
+    "hu": "匈牙利语",
+    "sw": "斯瓦希里语",
+    "uz": "乌兹别克语",
+    "zu": "祖鲁语",
+    "el": "希腊语",
+    "he": "希伯来语",
+    "hy": "亚美尼亚语",
+    "ka": "格鲁吉亚语",
+    "yue": "广东话",
+    "ii": "彝语",
+    "nm": "外蒙语",
+    "zua": "壮语",
+    "kk": "外哈语",
+    "tr": "土耳其语",
+    "mn": "内蒙语",
+    "kka": "内哈萨克语",
+}
+
+# Quick access sets and lists
+VALID_LANGUAGE_CODES: Set[str] = set(SUPPORTED_LANGUAGES.keys())
+
+# Translation constraints
+REQUIRES_CHINESE_PIVOT: bool = True
+CHINESE_LANGUAGE_CODE: str = "cn"
+
+
+def is_valid_language_pair(source: str, target: str) -> bool:
+    """Check if language pair is supported (requires Chinese as pivot)"""
+    if source not in VALID_LANGUAGE_CODES or target not in VALID_LANGUAGE_CODES:
+        return False
+    return CHINESE_LANGUAGE_CODE in (source, target)
+
+
+def get_supported_language_name(code: str) -> str:
+    """Get language name by code"""
+    return SUPPORTED_LANGUAGES.get(code, "Unknown")
 
 
 class TranslationClient:
@@ -78,9 +141,8 @@ class TranslationClient:
                 and "dst" in response_json["trans_result"]
             ):
                 return response_json["trans_result"]["dst"]
-            else:
-                # Fallback: return full response if structure is unexpected
-                return response_text
+            # Fallback: return full response if structure is unexpected
+            return response_text
         except json.JSONDecodeError:
             # Fallback: return raw text if it's not JSON
             return response_text
@@ -127,8 +189,8 @@ class TranslationClient:
             }
 
             # Generate authentication URL
-            auth_url = assemble_auth_url(
-                self.base_url,
+            auth_url = HMACAuth.build_auth_request_url(
+                self.base_url,  # type: ignore[arg-type]
                 method="POST",
                 api_key=self.api_key,
                 api_secret=self.api_secret,
@@ -181,7 +243,7 @@ class TranslationClient:
             )
 
         except Exception as e:
-            logging.error(f"Translation error: {str(e)}")
+            logging.error("Translation error: %s", str(e))
             return False, f"翻译过程中发生错误: {str(e)}", {}
 
     def get_supported_languages(self) -> Dict[str, str]:

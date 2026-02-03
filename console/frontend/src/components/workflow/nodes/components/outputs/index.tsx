@@ -2,7 +2,6 @@ import React, { useMemo, memo } from 'react';
 import { cloneDeep } from 'lodash';
 import { useTranslation } from 'react-i18next';
 import { FLowCollapse, FLowTree } from '@/components/workflow/ui';
-import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 
 import inputAddIcon from '@/assets/imgs/workflow/input-add-icon.png';
@@ -13,17 +12,13 @@ function index({ id, data, children }): React.ReactElement {
     addUniqueComponentToProperties,
     outputs,
     isStartNode,
+    allowAddOutput,
   } = useNodeCommon({ id, data });
   const { t } = useTranslation();
-  const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
 
   const treeData = useMemo(() => {
     return addUniqueComponentToProperties(cloneDeep(outputs));
-  }, [outputs, outputs]);
-
-  const canAdd = useMemo(() => {
-    return !canvasesDisabled;
-  }, [canvasesDisabled]);
+  }, [outputs]);
 
   return (
     <FLowCollapse
@@ -59,7 +54,7 @@ function index({ id, data, children }): React.ReactElement {
               className="flow-output-tree"
             />
           </div>
-          {canAdd && (
+          {allowAddOutput && (
             <div
               className="text-[#6356EA] text-xs font-medium mt-1 inline-flex items-center cursor-pointer gap-1.5 pl-6"
               onClick={() => handleAddOutputLine()}

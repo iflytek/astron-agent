@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
+import React, { ClassAttributes, StyleHTMLAttributes, useEffect } from 'react';
+import ReactMarkdown, { ExtraProps } from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -8,15 +8,25 @@ import { v4 as uuid } from 'uuid';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { github } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import customFootnotePlugin from './custom-footnote-plugin';
+import 'katex/dist/katex.min.css';
 
-function index({ content, isSending = false }): React.ReactElement {
+function index({
+  content = '',
+  isSending = false,
+}: {
+  content: string;
+  isSending: boolean;
+}): React.ReactElement {
   const globalMarkdownId = uuid();
 
   function addCursorToLastElement(): void {
     // 清除之前的光标类
     const container = document.getElementById(globalMarkdownId);
     const mdContainer = container?.querySelector('.global-markdown');
-    const previousCursor = mdContainer?.querySelector(
+    if (!mdContainer) {
+      return;
+    }
+    const previousCursor = mdContainer.querySelector(
       '.global-markdown-flashing-cursor'
     );
     if (previousCursor) {
@@ -30,7 +40,8 @@ function index({ content, isSending = false }): React.ReactElement {
       lastElement.classList.add('global-markdown-flashing-cursor');
     }
   }
-  function getLastDeepestChild(element): unknown {
+
+  function getLastDeepestChild(element: Element): Element {
     while (element?.lastElementChild) {
       element = element?.lastElementChild;
       if (element?.textContent?.trim()) {
@@ -60,18 +71,18 @@ function index({ content, isSending = false }): React.ReactElement {
     }
   }, [content, isSending]);
 
-  const MyLink = ({ href, children }): React.ReactElement => (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
+  const MyLink = (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a {...props} target="_blank" rel="noopener noreferrer">
+      {props.children}
     </a>
   );
 
-  const ImageRenderer = ({ src, alt }): React.ReactElement => (
-    <img src={src} alt={alt} style={{ maxWidth: '100%' }} />
-  );
+  const ImageRenderer = (props: React.ImgHTMLAttributes<HTMLImageElement>) => {
+    return <img {...props} style={{ ...props.style, maxWidth: '100%' }} />;
+  };
 
   // 作用域化样式函数
-  const scopeStyles = (styles, scopeClass): string => {
+  const scopeStyles = (styles: string, scopeClass: string): string => {
     // 添加作用域类到每个样式规则
     return styles.replace(
       /([^{]+)\{([^}]*)\}/g,
@@ -83,7 +94,7 @@ function index({ content, isSending = false }): React.ReactElement {
 
         const scopedSelectors = selectors
           .split(',')
-          .map(selector => {
+          .map((selector: string) => {
             const trimmed = selector.trim();
             // 选择器是:root或html/body等，特殊处理
             if (
@@ -102,12 +113,18 @@ function index({ content, isSending = false }): React.ReactElement {
     );
   };
 
-  const ScopedStyle = (props: unknown): React.ReactElement => {
+  const ScopedStyle = (
+    props: ClassAttributes<HTMLStyleElement> &
+      StyleHTMLAttributes<HTMLStyleElement> &
+      ExtraProps
+  ): React.ReactNode => {
     const { children, node, ...rest } = props;
     // 从style标签中获取样式内容
     const styleContent = Array.isArray(children)
       ? children.join('')
-      : children || '';
+      : typeof children === 'string'
+        ? children
+        : '';
     // 添加作用域
     const scopedStyles = scopeStyles(styleContent, 'markdown-body');
 
@@ -122,16 +139,11 @@ function index({ content, isSending = false }): React.ReactElement {
       <ReactMarkdown
         skipHtml={false}
         className="global-markdown"
-        remarkPlugins={[remarkMath]}
-        rehypePlugins={[
-          rehypeRaw,
-          remarkGfm,
-          rehypeKatex,
-          customFootnotePlugin,
-        ]}
+        remarkPlugins={[remarkMath, [remarkGfm, { singleTilde: false }]]}
+        rehypePlugins={[rehypeRaw, rehypeKatex, customFootnotePlugin]}
         components={{
           a: MyLink,
-          image: ImageRenderer,
+          img: ImageRenderer,
           code(props) {
             const { children, className, node, ...rest } = props;
 

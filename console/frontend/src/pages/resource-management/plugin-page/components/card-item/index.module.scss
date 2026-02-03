@@ -125,6 +125,28 @@
   .actionGroup {
     flex-shrink: 0;
   }
+
+  .dropdownBtn {
+    margin-left: 4px;
+    padding: 6px 12px;
+    font-family: 'PingFang-Sim';
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 20px;
+    text-align: justify; /* 浏览器可能不支持 */
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    letter-spacing: normal;
+    border-radius: 6px;
+    background: #f1f0ff;
+    /* 字体主色 */
+    color: #222529;
+
+    > img {
+      width: 20px;
+    }
+  }
 }
 
 // 响应式设计

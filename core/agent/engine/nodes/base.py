@@ -3,18 +3,17 @@ import json
 import time
 from typing import Any, AsyncIterator, List
 
-from pydantic import BaseModel, Field
-
-from api.schemas.agent_response import AgentResponse, CotStep
-from api.schemas.llm_message import LLMMessage
+from common.otlp.log_trace.base import Usage
 
 # Use unified common package import module
-from common_imports import Node, NodeData, NodeDataUsage, NodeTrace, Span
-from domain.models.base import BaseLLMModel
+from common.otlp.log_trace.node_log import Data, NodeLog
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
+from pydantic import BaseModel, Field
 
-
-class UpdatedNode(Node):
-    node_name: str = Field(default="")
+from agent.api.schemas.agent_response import AgentResponse, CotStep
+from agent.api.schemas.llm_message import LLMMessage
+from agent.domain.models.base import BaseLLMModel
 
 
 class RunnerBase(BaseModel):
@@ -35,7 +34,7 @@ class RunnerBase(BaseModel):
         return "\n".join(history_lines) or "无"
 
     async def model_general_stream(
-        self, messages: list, span: Span, node_trace: NodeTrace
+        self, messages: list, span: Span, node_trace_log: NodeTraceLog
     ) -> AsyncIterator[AgentResponse]:
 
         with span.start("RunModelStream") as sp:
@@ -51,14 +50,11 @@ class RunnerBase(BaseModel):
             node_start_time = int(round(time.time() * 1000))
             node_running_status = True
             node_data_input = {
-                "model_general_stream_input": json.dumps(
-                    messages, ensure_ascii=False
-                )
+                "model_general_stream_input": json.dumps(messages, ensure_ascii=False)
             }
             node_data_output: dict[str, Any] = {}
             node_data_config: dict[str, Any] = {}
-            node_data_usage = NodeDataUsage()
-            last_chunk_has_content = False
+            node_data_usage = Usage()
             async for chunk in self.model.stream(messages, True, sp):
                 if not chunk.choices:
                     continue
@@ -72,12 +68,8 @@ class RunnerBase(BaseModel):
                     node_data_usage.completion_tokens += usage_data.get(
                         "completion_tokens", 0
                     )
-                    node_data_usage.prompt_tokens += usage_data.get(
-                        "prompt_tokens", 0
-                    )
-                    node_data_usage.total_tokens += (
-                        usage_data.get("total_tokens", 0)
-                    )
+                    node_data_usage.prompt_tokens += usage_data.get("prompt_tokens", 0)
+                    node_data_usage.total_tokens += usage_data.get("total_tokens", 0)
 
                 # For intermediate chunks, don't send usage yet
                 if reasoning_content:
@@ -88,7 +80,6 @@ class RunnerBase(BaseModel):
                         usage=None,
                     )
                     thinks += reasoning_content
-                    last_chunk_has_content = True
                 if content:
                     yield AgentResponse(
                         typ="content",
@@ -97,21 +88,25 @@ class RunnerBase(BaseModel):
                         usage=None,
                     )
                     answers += content
-                    last_chunk_has_content = True
 
             # Usage will be attached to stop chunk in _finalize_run
-            sp.add_info_events({
-                "accumulated_usage": {
-                    "completion_tokens": node_data_usage.completion_tokens,
-                    "prompt_tokens": node_data_usage.prompt_tokens,
-                    "total_tokens": node_data_usage.total_tokens
+            sp.add_info_events(
+                {
+                    "accumulated_usage": json.dumps(
+                        {
+                            "completion_tokens": node_data_usage.completion_tokens,
+                            "prompt_tokens": node_data_usage.prompt_tokens,
+                            "total_tokens": node_data_usage.total_tokens,
+                        },
+                        ensure_ascii=False,
+                    )
                 }
-            })
+            )
 
             node_end_time = int(round(time.time() * 1000))
             data_llm_output = answers
-            node_trace.trace.append(
-                UpdatedNode(
+            node_trace_log.trace.append(
+                NodeLog(
                     id=node_id,
                     sid=node_sid,
                     node_id=node_node_id,
@@ -122,7 +117,7 @@ class RunnerBase(BaseModel):
                     duration=node_end_time - node_start_time,
                     running_status=node_running_status,
                     llm_output=data_llm_output,
-                    data=NodeData(
+                    data=Data(
                         input=node_data_input if node_data_input else {},
                         output=node_data_output if node_data_output else {},
                         config=node_data_config if node_data_config else {},

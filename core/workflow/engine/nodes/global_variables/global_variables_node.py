@@ -152,23 +152,27 @@ class GlobalVariablesNode(BaseNode):
             inputs: dict = {}
             outputs: dict = {}
             flow_id: str = variable_pool.system_params.get(ParamKey.FlowId)
+            chat_id: str = variable_pool.system_params.get(ParamKey.ChatId)
+            uid: str = variable_pool.system_params.get(ParamKey.Uid)
+            app_id: str = variable_pool.system_params.get(ParamKey.AppId)
+
             # Build Redis key components for cache operations
             redis_key = {
                 "flow_id": flow_id,
-                "uid": span.uid,
-                "app_id": span.app_id,
-                "chat_id": variable_pool.chat_id,
+                "uid": uid,
+                "app_id": app_id,
+                "chat_id": chat_id,
             }
-            span.add_info_events(
+            await span.add_info_events_async(
                 {"redis_key": json.dumps(redis_key, ensure_ascii=False)}
             )
 
             # Initialize variable manager for cache operations
             var_manager = VariablesManage(
                 flow_id=flow_id,
-                uid=span.uid,
-                app_id=span.app_id,
-                chat_id=variable_pool.chat_id,
+                uid=uid,
+                app_id=app_id,
+                chat_id=chat_id,
             )
             # Handle 'set' operation: store input variables as global variables
             if self.method == "set":
@@ -177,7 +181,9 @@ class GlobalVariablesNode(BaseNode):
                         node_id=self.node_id, key_name=key, span=span
                     )
                     await asyncio.to_thread(var_manager.add_variable, key, inputs[key])
-                span.add_info_events({"set": json.dumps(inputs, ensure_ascii=False)})
+                await span.add_info_events_async(
+                    {"set": json.dumps(inputs, ensure_ascii=False)}
+                )
 
             # Handle 'get' operation: retrieve global variables
             elif self.method == "get":
@@ -195,7 +201,9 @@ class GlobalVariablesNode(BaseNode):
                                 )
                             }
                         )
-                span.add_info_events({"get": json.dumps(outputs, ensure_ascii=False)})
+                await span.add_info_events_async(
+                    {"get": json.dumps(outputs, ensure_ascii=False)}
+                )
             # Order outputs according to output_identifier sequence
             order_outputs = {}
             for output in self.output_identifier:

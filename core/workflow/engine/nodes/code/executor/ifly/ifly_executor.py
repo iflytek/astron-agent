@@ -1,15 +1,15 @@
 import asyncio
 import json
-import os
 from typing import Any
 
 import httpx
-from aiohttp import ClientSession
 
+from workflow.configs import workflow_config
 from workflow.engine.nodes.code.executor.base_executor import BaseExecutor
 from workflow.exception.e import CustomException, CustomExceptionCD
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.exception.errors.third_api_code import ThirdApiCodeEnum
+from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.otlp.trace.span import Span
 
 # Maximum number of retry attempts for failed requests
@@ -38,116 +38,156 @@ class IFlyExecutor(BaseExecutor):
         :return: Execution result as string
         :raises CustomException: If execution fails or service is unavailable
         """
-        url = os.getenv("CODE_EXEC_URL", "")
-        if not url:
-            raise CustomException(
-                err_code=CodeEnum.CODE_EXECUTION_ERROR,
-                err_msg="code_exec_url not found",
-                cause_error="code_exec_url not found",
-            )
 
-        runner_result = ""
         # Prepare request parameters
-        params = {
+        params: dict[str, Any] = {
             "appid": kwargs.get("app_id", ""),
             "uid": kwargs.get("uid", ""),
         }
-        body = {
+        body: dict[str, Any] = {
             "code": code,
             "timeout_sec": timeout,
         }
-        span.add_info_events({"request_body": json.dumps(body, ensure_ascii=False)})
+        headers: dict[str, str] = {}
+        if (
+            workflow_config.code_executor_config.api_key
+            and workflow_config.code_executor_config.api_secret
+        ):
+            headers["Authorization"] = (
+                f"Bearer {workflow_config.code_executor_config.api_key}:"
+                f"{workflow_config.code_executor_config.api_secret}"
+            )
+
+        await span.add_info_events_async(
+            {"request_body": json.dumps(body, ensure_ascii=False)}
+        )
 
         try:
-            retry_times = 0
-            while True:
-                retry_times += 1
-                if retry_times > MAX_RETRY_TIMES:
-                    raise CustomException(
-                        err_code=CodeEnum.CODE_EXECUTION_ERROR,
-                        err_msg="Retry attempts exceeded 5 times",
-                        cause_error="Retry attempts exceeded 5 times",
-                    )
-                status, runner_result, resp_body, resp_body_str = (
-                    await self._do_request(url, body, params, span)
-                )
-                if status == httpx.codes.OK:
-                    break
-                elif status in [httpx.codes.INTERNAL_SERVER_ERROR]:
-                    span.add_info_events({"code execute result": resp_body_str})
-                    resp_code = resp_body.get("code", 0)
-                    # Pod is not ready yet, retry after delay
-                    if (
-                        resp_code
-                        == ThirdApiCodeEnum.CODE_EXECUTE_POD_NOT_READY_ERROR.code
-                    ):
-                        await asyncio.sleep(1)
-                        continue
-                    stderr = resp_body.get("data", {}).get("stderr", "")
-                    resp_message = resp_body.get("message", "")
-                    span.add_error_event(f"stderr: {stderr}")
-                    span.add_error_event(f"response message: {resp_message}")
-                    err_code = (
-                        CodeEnum.CODE_EXECUTION_TIMEOUT_ERROR.code
-                        if resp_message.startswith(
-                            "exec code error::context deadline exceeded::signal: killed"
-                        )
-                        else CodeEnum.CODE_EXECUTION_ERROR.code
-                    )
-
-                    raise CustomExceptionCD(
-                        err_code=err_code,
-                        err_msg=f"{IFlyExecutor.__remove_first_traceback_line(stderr)}",
-                    )
+            return await self._execute_with_retry(
+                workflow_config.code_executor_config.url, body, params, headers, span
+            )
         except Exception as err:
-            if isinstance(err, CustomExceptionCD):
+            if isinstance(err, (CustomExceptionCD, CustomException)):
                 raise err
             else:
                 raise CustomException(
                     err_code=CodeEnum.CODE_EXECUTION_ERROR, cause_error=err
                 ) from err
 
-        return runner_result
+    async def _execute_with_retry(
+        self, url: str, body: dict, params: dict, headers: dict, span: Span
+    ) -> str:
+        """
+        Execute request with retry logic.
+
+        :param url: Service endpoint URL
+        :param body: Request body
+        :param params: Query parameters
+        :param headers: Request headers
+        :param span: Tracing span for logging
+        :return: Execution result as string
+        """
+        for _ in range(MAX_RETRY_TIMES):
+            status, resp_json = await self._do_request(url, body, params, headers, span)
+
+            if status == httpx.codes.OK:
+                await span.add_info_events_async(
+                    {"code execute result": json.dumps(resp_json, ensure_ascii=False)}
+                )
+                runner_result = resp_json.get("data", {}).get("stdout", "")
+                if isinstance(runner_result, str) and runner_result.endswith("\n"):
+                    runner_result = runner_result[:-1]
+                return runner_result
+
+            if status == httpx.codes.INTERNAL_SERVER_ERROR:
+                resp_code = resp_json.get("code", 0)
+                # Pod is not ready yet, retry after delay
+                if resp_code == ThirdApiCodeEnum.CODE_EXECUTE_POD_NOT_READY_ERROR.code:
+                    await asyncio.sleep(1)
+                    continue
+                self._handle_error_response(resp_json, span)
+
+            raise CustomExceptionCD(
+                err_code=CodeEnum.CODE_REQUEST_ERROR.code,
+                err_msg=json.dumps(resp_json, ensure_ascii=False),
+            )
+
+        raise CustomException(
+            err_code=CodeEnum.CODE_REQUEST_ERROR,
+            err_msg="Retry attempts exceeded 5 times",
+            cause_error="Retry attempts exceeded 5 times",
+        )
+
+    def _handle_error_response(self, resp_json: dict, span: Span) -> None:
+        """
+        Handle error response and raise appropriate exception.
+
+        :param resp_json: Response json dictionary
+        :param span: Tracing span for logging
+        :raises CustomExceptionCD: Based on error type
+        """
+        stderr = resp_json.get("data", {}).get("stderr", "")
+        resp_message = resp_json.get("message", "")
+        span.add_error_event(f"stderr: {stderr}")
+        span.add_error_event(f"response message: {resp_message}")
+
+        err_code = (
+            CodeEnum.CODE_EXECUTION_TIMEOUT_ERROR.code
+            if resp_message.startswith(
+                "exec code error::context deadline exceeded::signal: killed"
+            )
+            else CodeEnum.CODE_EXECUTION_ERROR.code
+        )
+        raise CustomExceptionCD(
+            err_code=err_code,
+            err_msg=self._remove_traceback_stdin_line(stderr),
+        )
 
     async def _do_request(
         self,
         url: str,
         body: dict,
         params: dict,
+        headers: dict,
         span: Span,
-    ) -> tuple[int, str, dict, str]:
+    ) -> tuple[int, dict]:
         """
         Make HTTP request to IFly code execution service.
 
         :param url: Service endpoint URL
         :param body: Request body containing code and timeout
         :param params: Query parameters (app_id, uid)
+        :param headers: Request headers
         :param span: Tracing span for logging
-        :return: Tuple of (status_code, result, response_body, response_body_string)
+        :return: Tuple of (status_code, resp_json)
         :raises CustomExceptionCD: If request fails with non-retryable error
         """
-        async with ClientSession() as session:
-            async with session.post(url, json=body, params=params) as resp:
-                resp_body = json.loads(await resp.text())
-                resp_body_str = json.dumps(resp_body, ensure_ascii=False)
-                if resp.status == httpx.codes.OK:
-                    span.add_info_events({"code execute result": resp_body_str})
-                    runner_result = resp_body.get("data", {}).get("stdout", "")
-                    # Remove trailing newline from result
-                    if isinstance(runner_result, str) and runner_result.endswith("\n"):
-                        runner_result = runner_result[:-1]
-                    return resp.status, runner_result, resp_body, resp_body_str
-                elif resp.status in [httpx.codes.INTERNAL_SERVER_ERROR]:
-                    return resp.status, "", resp_body, resp_body_str
+        try:
+            session = HttpClient.get_session()
+            async with session.post(
+                url, json=body, params=params, headers=headers
+            ) as resp:
+                resp_text = await resp.text()
+                resp_json = json.loads(resp_text)
+                if resp.status in (
+                    httpx.codes.OK,
+                    httpx.codes.INTERNAL_SERVER_ERROR,
+                    httpx.codes.SERVICE_UNAVAILABLE,
+                ):
+                    return resp.status, resp_json
                 else:
-                    span.add_error_event(f"{resp_body_str}")
+                    span.add_error_event(f"{resp_text}")
                     raise CustomExceptionCD(
-                        err_code=CodeEnum.CODE_EXECUTION_ERROR.value[0],
-                        err_msg=f"{resp_body_str}",
+                        err_code=CodeEnum.CODE_REQUEST_ERROR.code,
+                        err_msg=resp_text,
                     )
+        except Exception as err:
+            raise CustomExceptionCD(
+                err_code=CodeEnum.CODE_REQUEST_ERROR.code,
+                err_msg=str(err),
+            ) from err
 
-    @staticmethod
-    def __remove_first_traceback_line(traceback_str: str) -> str:
+    def _remove_traceback_stdin_line(self, traceback_str: str) -> str:
         """
         Remove the first occurrence of stdin traceback line from error message.
 

@@ -66,6 +66,36 @@ spec:
         {{- else if and (eq $key "xinghuoAppSecret") (eq $serviceName "coreKnowledge") }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $.Values.global.platformApiSecret | quote }}
+        {{- else if or (eq $key "mysqlPassword") (eq $key "databasePassword") }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-mysql-secret
+              key: mysql-root-password
+        {{- else if eq $key "pgsqlPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-postgres-secret
+              key: postgres-password
+        {{- else if eq $key "redisPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-redis-secret
+              key: redis-password
+        {{- else if eq $key "ossAccessKeyId" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-user
+        {{- else if eq $key "ossAccessKeySecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-password
         {{- else }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $value | quote }}

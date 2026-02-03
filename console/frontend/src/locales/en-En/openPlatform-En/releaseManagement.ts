@@ -44,6 +44,10 @@ const translation = {
     view: 'View',
     reapply: 'Reapply',
     delete: 'Delete',
+    debugNotPassed:
+      'This agent has not passed debugging and cannot be released, ',
+    goToDebug: 'Please go to debug',
+    checkPublishStatusFailed: 'Failed to check publish status',
   },
   releaseDetail: {
     workflow: 'Workflow',

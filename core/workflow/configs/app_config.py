@@ -1,7 +1,7 @@
 import re
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 from workflow.consts.database import PGSQL_INVALID_KEY
@@ -168,6 +168,53 @@ class PgsqlConfig(BaseSettings):
             )
 
 
+class CodeExecutorConfig(BaseSettings):
+    """
+    Code executor configuration model.
+    """
+
+    model_config = {"env_prefix": "", "case_sensitive": False}
+
+    exec_type: str = Field(default="local", alias="CODE_EXEC_TYPE")
+    url: str = Field(default="", alias="CODE_EXEC_URL")
+    timeout: int = Field(default=10, alias="CODE_EXEC_TIMEOUT_SEC")
+    api_key: str = Field(default="", alias="CODE_EXEC_API_KEY")
+    api_secret: str = Field(default="", alias="CODE_EXEC_API_SECRET")
+
+    @model_validator(mode="after")
+    def validator_url(self) -> "CodeExecutorConfig":
+        """
+        Validate the URL.
+
+        :return: The validated URL
+        """
+        if self.exec_type in ["ifly", "ifly-v2"]:
+            if not self.url:
+                raise ValueError("URL is required for ifly or ifly-v2")
+            if bool(self.api_key) != bool(self.api_secret):
+                raise ValueError(
+                    "Both API key and secret must be provided for ifly authentication, or neither."
+                )
+        return self
+
+
+class DatabaseConfig(BaseSettings):
+    """
+    Database connection configuration.
+
+    Loads MySQL connection parameters from environment variables
+    (MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB).
+    """
+
+    model_config = {"env_prefix": "", "case_sensitive": False}
+
+    host: str = Field(default="", alias="MYSQL_HOST")
+    port: str = Field(default="", alias="MYSQL_PORT")
+    user: str = Field(default="", alias="MYSQL_USER")
+    password: str = Field(default="", alias="MYSQL_PASSWORD")
+    database: str = Field(default="", alias="MYSQL_DB")
+
+
 class WorkflowConfig(BaseModel):
     """
     Workflow configuration model.
@@ -175,3 +222,5 @@ class WorkflowConfig(BaseModel):
 
     file_config: FileConfig = Field(default_factory=FileConfig)
     pgsql_config: PgsqlConfig = Field(default_factory=PgsqlConfig)
+    code_executor_config: CodeExecutorConfig = Field(default_factory=CodeExecutorConfig)
+    database_config: DatabaseConfig = Field(default_factory=DatabaseConfig)

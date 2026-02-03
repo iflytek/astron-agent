@@ -1,15 +1,15 @@
 import json
 from typing import AsyncIterator
 
+# Use unified common package import module
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
 from pydantic import Field
 
-from api.schemas.agent_response import AgentResponse
-
-# Use unified common package import module
-from common_imports import NodeTrace, Span
-from domain.models.base import BaseLLMModel
-from engine.nodes.base import RunnerBase, Scratchpad
-from engine.nodes.cot_process.cot_process_prompt import (
+from agent.api.schemas.agent_response import AgentResponse
+from agent.domain.models.base import BaseLLMModel
+from agent.engine.nodes.base import RunnerBase, Scratchpad
+from agent.engine.nodes.cot_process.cot_process_prompt import (
     COT_PROCESS_LAST_USER_STEP_TEMPLATE,
     COT_PROCESS_SYSTEM_TEMPLATE,
     COT_PROCESS_USER_STEP_TEMPLATE,
@@ -28,7 +28,7 @@ class CotProcessRunner(RunnerBase):
         self,
         scratchpad: Scratchpad,
         span: Span,
-        node_trace: NodeTrace,
+        node_trace_log: NodeTraceLog,
     ) -> AsyncIterator[AgentResponse]:
         """使用cot过程进行思考回答"""
 
@@ -74,5 +74,5 @@ class CotProcessRunner(RunnerBase):
                 {"role": "user", "content": user_prompt},
             ]
 
-            async for chunk in self.model_general_stream(messages, sp, node_trace):
+            async for chunk in self.model_general_stream(messages, sp, node_trace_log):
                 yield chunk

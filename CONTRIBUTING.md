@@ -82,6 +82,28 @@ make check-tools
 make hooks-install
 ```
 
+### Pre-commit Setup (Recommended)
+
+We use [pre-commit](https://pre-commit.com/) for automated code quality checks and secret scanning. This is the **recommended way** to ensure code quality before committing.
+
+```bash
+# Install pre-commit (if not already installed)
+pip install pre-commit
+
+# Install pre-commit hooks
+pre-commit install
+pre-commit install --hook-type commit-msg
+```
+
+Pre-commit will automatically run on every commit to:
+- Check code formatting (Black, Prettier, gofmt, Spotless)
+- Run linters (flake8, ESLint, golangci-lint, Checkstyle)
+- Perform type checking (mypy, TypeScript)
+- Scan for secrets (gitleaks)
+- Validate commit message format
+
+For detailed usage instructions, see the [Pre-commit Usage Guide](docs/PRE-COMMIT.md).
+
 ## Project Structure
 
 Astron Agent is a microservices-based platform with the following structure:
@@ -144,17 +166,14 @@ make new-hotfix name=security-vulnerability
 # Format all code
 make format
 
-# Run quality checks
-make check
+# Run code quality checks with pre-commit (recommended)
+pre-commit run --all-files
 
 # Run tests
 make test
 
 # Build all projects
 make build
-
-# Safe push with pre-checks
-make safe-push
 ```
 
 ## Code Quality Standards
@@ -181,18 +200,24 @@ All code must pass the following checks:
 - **Testing**: Adequate test coverage
 - **Documentation**: Clear code comments and documentation
 
-### Quality Check Commands
+### Code Quality Checks with Pre-commit
+
+We use pre-commit as the unified code quality checking tool. It automatically runs on staged files during commit, or you can run it manually:
 
 ```bash
-# Check all languages
-make check
+# Check only staged files (automatically runs on git commit)
+pre-commit run
 
-# Check specific language
-make check-go
-make check-java
-make check-python
-make check-typescript
+# Check all files in the repository
+pre-commit run --all-files
+
+# Run a specific hook
+pre-commit run black --all-files
+pre-commit run eslint-check --all-files
+pre-commit run golangci-lint --all-files
 ```
+
+For more details, see the [Pre-commit Usage Guide](docs/PRE-COMMIT.md).
 
 ## Testing Guidelines
 
@@ -275,12 +300,14 @@ docs(guide): improve quick start guide
 
 Before committing, ensure:
 
-- [ ] Code is formatted (`make format`)
-- [ ] Quality checks pass (`make check`)
+- [ ] Pre-commit hooks are installed (`pre-commit install && pre-commit install --hook-type commit-msg`)
+- [ ] Code quality checks pass (`pre-commit run --all-files`)
 - [ ] Tests pass (`make test`)
 - [ ] Branch naming follows conventions
-- [ ] Commit message follows format
+- [ ] Commit message follows [Conventional Commits](https://www.conventionalcommits.org/) format
 - [ ] Documentation is updated if needed
+
+> **Note**: If pre-commit hooks are installed, code quality and commit message format will be automatically checked on each commit.
 
 ## Issue Guidelines
 
@@ -391,6 +418,7 @@ Contributors will be recognized in:
 
 ## Additional Resources
 
+- [Pre-commit Usage Guide](docs/PRE-COMMIT.md)
 - [Branch and Commit Standards](.github/quality-requirements/branch-commit-standards.md)
 - [Code Quality Requirements](.github/quality-requirements/code-requirements.md)
 - [Makefile Usage Guide](docs/Makefile-readme.md)

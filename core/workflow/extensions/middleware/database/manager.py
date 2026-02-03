@@ -8,9 +8,10 @@ pooling, session management, and context manager support.
 from typing import Any, Generator, Optional
 
 from loguru import logger
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, text
 from sqlmodel import Session  # type: ignore
 
+from workflow.configs.app_config import DatabaseConfig
 from workflow.extensions.middleware.base import Service
 from workflow.extensions.middleware.utils import ServiceType
 
@@ -28,42 +29,78 @@ class DatabaseService(Service):
 
     def __init__(
         self,
-        database_url: str,
+        config: DatabaseConfig,
         connect_timeout: int = 10,
         pool_size: int = 200,
         max_overflow: int = 800,
         pool_recycle: int = 3600,
-    ):
+    ) -> None:
         """
         Initialize the database service with connection parameters.
 
-        :param database_url: Database connection URL string
-        :param connect_timeout: Connection timeout in seconds
-        :param pool_size: Number of connections to maintain in the pool
-        :param max_overflow: Maximum number of additional connections beyond pool_size
+        :param config: DatabaseConfig instance (host, port, user, password, database).
+        :param connect_timeout: Connection timeout in seconds.
+        :param pool_size: Number of connections to maintain in the pool.
+        :param max_overflow: Maximum number of additional connections beyond pool_size.
         :param pool_recycle: Maximum seconds before recycling a connection,
-                            used to handle database server auto-closing long-running connections
+                            used to handle database server auto-closing long-running connections.
         """
-        self.database_url = database_url
+        self.host = config.host
+        self.port = config.port
+        self.user = config.user
+        self.password = config.password
+        self.database = config.database
+        # Store pool configuration
         self.connect_timeout = connect_timeout
         self.pool_size = pool_size
         self.max_overflow = max_overflow
         self.pool_recycle = pool_recycle
+
+        # Initialize database and engine
+        self._create_database_if_not_exists()
         self.engine = self._create_engine()
 
-    def _create_engine(self) -> "Engine":
+    def _build_base_url(self) -> str:
+        """
+        Build the base connection URL without database name.
+        """
+        return f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}"
+
+    def _build_connection_url(self) -> str:
+        """
+        Build the complete database connection URL with database name.
+        """
+        return f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    def _create_engine(self, database_url: Optional[str] = None) -> "Engine":
         """
         Create and configure the SQLAlchemy engine.
 
+        :param database_url: Optional database URL. If not provided, uses the default connection URL
         :return: Configured SQLAlchemy engine instance
         """
+        url = database_url or self._build_connection_url()
         return create_engine(
-            self.database_url,
+            url,
             echo=False,
             pool_size=self.pool_size,
             max_overflow=self.max_overflow,
             pool_recycle=self.pool_recycle,
         )
+
+    def _create_database_if_not_exists(self) -> None:
+        """
+        Create the database if it doesn't exist.
+        """
+        try:
+            base_url = self._build_base_url()
+            engine = self._create_engine(base_url)
+            with engine.connect() as conn:
+                conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{self.database}`"))
+                conn.commit()
+            engine.dispose()
+        except Exception as e:
+            logger.warning(f"Failed to create database '{self.database}': {e}")
 
     def __enter__(self) -> Session:
         """

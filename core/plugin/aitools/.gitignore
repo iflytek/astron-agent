@@ -8,3 +8,4 @@ dialtest.env
 temp
 CLAUDE.md
 .script
+tests/example/

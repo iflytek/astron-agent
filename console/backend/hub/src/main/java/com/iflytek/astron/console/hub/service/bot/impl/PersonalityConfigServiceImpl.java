@@ -235,7 +235,7 @@ public class PersonalityConfigServiceImpl implements PersonalityConfigService {
         for (Object arg : args) {
             if (result.contains("%s")) {
                 if (arg == null) {
-                    // 参数为 null，则去掉对应的 "%s" 以及前面多余的逗号或空格
+                    // If the parameter is null, remove the corresponding "%s" and any preceding commas or spaces
                     result = result.replaceFirst("\\s*,?\\s*%s", "");
                 } else {
                     result = result.replaceFirst("%s", arg.toString());

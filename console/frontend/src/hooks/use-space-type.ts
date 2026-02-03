@@ -148,7 +148,12 @@ export const useSpaceType = (navigate?: any) => {
 
       try {
         const currentEnterpriseId = _enterpriseId || enterpriseId;
-        _enterpriseId && setEnterpriseId(_enterpriseId);
+        if (_enterpriseId) {
+          setSpaceStore({
+            spaceType: 'team',
+            enterpriseId: _enterpriseId,
+          });
+        }
         console.log(
           _enterpriseId,
           '-------------- _enterpriseId --------------'

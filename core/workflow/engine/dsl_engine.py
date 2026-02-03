@@ -380,8 +380,6 @@ class RetryableErrorHandler(ExceptionHandlerBase):
             )
             input_dict.update({input_key: input_value})
 
-        if not node.node_instance.stream_node_first_token.is_set():
-            node.node_instance.stream_node_first_token.set()
         # Create result
         run_result = NodeRunResult(
             status=WorkflowNodeExecutionStatus.SUCCEEDED,
@@ -401,7 +399,7 @@ class RetryableErrorHandler(ExceptionHandlerBase):
         output_keys = list(output_json.keys())
 
         try:
-            workflow_engine_ctx.variable_pool.add_variable(
+            await workflow_engine_ctx.variable_pool.add_variable(
                 run_result.node_id,
                 output_keys,
                 run_result,
@@ -837,24 +835,28 @@ class WorkflowEngine(BaseModel):
         :param event_log_trace: Event log trace for workflow execution tracking
         :return: NodeRunResult containing the final execution result
         """
+        try:
+            with span.start("engine_async_run") as span_context:
+                # Initialize parameters
+                if self.sparkflow_engine_node.node_id.startswith(NodeType.START.value):
+                    self.engine_ctx.qa_node_lock = asyncio.Lock()
+                    for _, iter_eng in self.engine_ctx.iteration_engine.items():
+                        iter_eng.engine_ctx.qa_node_lock = self.engine_ctx.qa_node_lock
+                self.engine_ctx.end_complete = asyncio.Event()
+                self.engine_ctx.callback = callback
+                self.engine_ctx.event_log_trace = event_log_trace
 
-        with span.start("engine_async_run") as span_context:
-            # Initialize parameters
-            if self.sparkflow_engine_node.node_id.startswith(NodeType.START.value):
-                self.engine_ctx.qa_node_lock = asyncio.Lock()
-                for _, iter_eng in self.engine_ctx.iteration_engine.items():
-                    iter_eng.engine_ctx.qa_node_lock = self.engine_ctx.qa_node_lock
-            self.engine_ctx.end_complete = asyncio.Event()
-            self.engine_ctx.callback = callback
-            self.engine_ctx.event_log_trace = event_log_trace
+                self._validate_start_node()
+                await self._initialize_variable_pool_with_start_node(
+                    inputs, span, callback, history, history_v2
+                )
 
-            self._validate_start_node()
-            await self._initialize_variable_pool_with_start_node(
-                inputs, span, callback, history, history_v2
-            )
-
-            # Execute the workflow
-            return await self._execute_workflow_internal(span_context)
+                # Execute the workflow
+                return await self._execute_workflow_internal(span_context)
+        except asyncio.exceptions.CancelledError:
+            for task in self.engine_ctx.dfs_tasks:
+                task.cancel()
+            raise
 
     async def _execute_workflow_internal(self, span: Span) -> NodeRunResult:
         """
@@ -1168,13 +1170,20 @@ class WorkflowEngine(BaseModel):
         """
 
         error: CustomException | None = None
+        node_type = node.node_id.split("::")[0]
         try:
             strategy = self.strategy_manager.get_strategy(node.node_id.split("::")[0])
             run_result = await asyncio.wait_for(
                 strategy.execute_node(node, self.engine_ctx, span_context),
-                timeout=node.node_instance._private_config.timeout,
+                timeout=(
+                    node.node_instance._private_config.timeout
+                    if node_type not in CONTINUE_ON_ERROR_STREAM_NODE_TYPE
+                    else None
+                ),
             )
             return run_result, False
+        except TimeoutError:
+            error = CustomException(CodeEnum.NODE_RUN_TIMEOUT_ERROR)
         except Exception as err:
             if isinstance(err, CustomException):
                 error = err
@@ -1284,6 +1293,7 @@ class WorkflowEngine(BaseModel):
         self,
         node: SparkFlowEngineNode,
         span_context: Span,
+        wait_and_deactivate_tasks: Optional[set[Task]] = None,
     ) -> NodeRunResult:
         """
         Execute streaming node with failure node cancellation handling.
@@ -1309,7 +1319,12 @@ class WorkflowEngine(BaseModel):
         task = asyncio.create_task(wait_and_deactivate())
         self.engine_ctx.dfs_tasks.append(task)
         strategy = self.strategy_manager.get_strategy(node.node_id.split("::")[0])
-        return await strategy.execute_node(node, self.engine_ctx, span_context)
+        try:
+            return await strategy.execute_node(node, self.engine_ctx, span_context)
+        except Exception as e:
+            # Cancel the waiting task if an exception occurs
+            task.cancel()
+            raise e
 
     async def _depth_first_search_execution(
         self,
@@ -1619,7 +1634,7 @@ class WorkflowEngine(BaseModel):
                 for simple_path in node_chains:
                     if not simple_path.inactive.is_set():
                         simple_path.inactive.set()
-                        span_context.add_info_events(
+                        await span_context.add_info_events_async(
                             {"inactive": simple_path.node_id_list}
                         )
 
@@ -1655,7 +1670,9 @@ class WorkflowEngine(BaseModel):
                 node_status.start_with_thread.set()
 
                 if span:
-                    span.add_info_events({"not_run_node_id": not_run_node_id})
+                    await span.add_info_events_async(
+                        {"not_run_node_id": not_run_node_id}
+                    )
 
                 # Recursively process subsequent nodes
                 if not self._is_terminal_node(not_run_node_id):

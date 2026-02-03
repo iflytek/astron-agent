@@ -128,7 +128,7 @@ public class RpaController {
     }
 
     /**
-     * 调试RPA机器人
+     * Debug RPA robot.
      */
     @PostMapping(value = "/debug", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@RequestBody StartReq req,

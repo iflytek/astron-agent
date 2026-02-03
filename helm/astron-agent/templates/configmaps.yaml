@@ -25,6 +25,19 @@ data:
   {{- end }}
 ---
 {{- end }}
+{{- if .Values.mysql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-mysql-init
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "files/mysql/*.sql" }}
+  {{ base $path }}: {{ $.Files.Get $path | quote }}
+  {{- end }}
+---
+{{- end }}
 {{- if .Values.coreTenant.enabled }}
 apiVersion: v1
 kind: ConfigMap

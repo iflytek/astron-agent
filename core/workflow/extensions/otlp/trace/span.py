@@ -247,8 +247,10 @@ class Span:
                     f"{str(uuid.uuid4())}", value_bytes
                 )
                 value = f"trace_link: {trace_link}"
-            except Exception:
-                value = "Content too large, failed to upload to OSS storage"
+            except Exception as e:
+                value = (
+                    f"Content too large, failed to upload to OSS storage, error: {e}"
+                )
 
         # Add INFO event to span
         self.get_otlp_span().add_event("INFO", attributes={"INFO LOG": value})
@@ -281,9 +283,79 @@ class Span:
                     f"{str(uuid.uuid4())}", value_bytes
                 )
                 attributes = {"trace_link": trace_link}
-            except Exception:
+            except Exception as e:
                 attributes = {
-                    "error": "Content too large, failed to upload to OSS storage"
+                    "error": f"Content too large, failed to upload to OSS storage, error: {e}"
+                }
+
+        # Add INFO event to span
+        self.get_otlp_span().add_event(
+            SpanLevel.INFO.value, attributes=attributes, timestamp=timestamp
+        )
+        if node_log:
+            node_log.add_info_log(f"{attributes}")
+
+    async def add_info_event_async(
+        self, value: str, node_log: Optional[NodeLog] = None
+    ) -> None:
+        """
+        Add an INFO level event to the current span.
+
+        If the content exceeds the size limit, it will be uploaded to OSS.
+
+        :param value: Information content to log
+        :param node_log: Optional node log for additional logging
+        """
+        # Log event
+        logger.opt(depth=1).info(f"sid: {self.sid}, event: {value}")
+        # Check if content exceeds size limit
+        value_bytes = value.encode("utf-8")
+        if len(value_bytes) >= SPAN_SIZE_LIMIT:
+            try:
+                # Upload large content to OSS and store link
+                trace_link = await get_oss_service().upload_file_async(
+                    f"{str(uuid.uuid4())}", value_bytes
+                )
+                value = f"trace_link: {trace_link}"
+            except Exception as e:
+                value = (
+                    f"Content too large, failed to upload to OSS storage, error: {e}"
+                )
+
+        # Add INFO event to span
+        self.get_otlp_span().add_event("INFO", attributes={"INFO LOG": value})
+        if node_log:
+            node_log.add_info_log(f"{value}")
+
+    async def add_info_events_async(
+        self,
+        attributes: Optional[types.Attributes] = None,
+        timestamp: Optional[int] = None,
+        node_log: Optional[NodeLog] = None,
+    ) -> None:
+        """
+        Add multiple INFO level events to the current span.
+
+        If the content exceeds the size limit, it will be uploaded to OSS.
+
+        :param attributes: Event attributes dictionary
+        :param timestamp: Optional timestamp for the event
+        :param node_log: Optional node log for additional logging
+        """
+        # Log event
+        logger.opt(depth=1).info(f"sid: {self.sid}, event: {attributes}")
+        # Check if content exceeds size limit
+        value_bytes = json.dumps(attributes, ensure_ascii=False).encode("utf-8")
+        if len(value_bytes) >= SPAN_SIZE_LIMIT:
+            try:
+                # Upload large content to OSS and store link
+                trace_link = await get_oss_service().upload_file_async(
+                    f"{str(uuid.uuid4())}", value_bytes
+                )
+                attributes = {"trace_link": trace_link}
+            except Exception as e:
+                attributes = {
+                    "error": f"Content too large, failed to upload to OSS storage, error: {e}"
                 }
 
         # Add INFO event to span

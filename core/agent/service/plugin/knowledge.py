@@ -1,14 +1,14 @@
 import asyncio
 import json
+import os
 from typing import Any, Dict, List
 
 import aiohttp
+from common.otlp.trace.span import Span
 from openai import BaseModel
 
-from common_imports import Span
-from exceptions.plugin_exc import KnowledgeQueryExc
-from infra import agent_config
-from service.plugin.base import BasePlugin
+from agent.exceptions.plugin_exc import KnowledgeQueryExc, PluginExc
+from agent.service.plugin.base import BasePlugin
 
 
 class KnowledgePlugin(BasePlugin):
@@ -55,10 +55,15 @@ class KnowledgePluginFactory(BaseModel):
                 return empty_resp
 
             try:
+                query_url = os.getenv("CHUNK_QUERY_URL")
+                if not query_url:
+                    raise PluginExc(-1, "CHUNK_QUERY_URL is not set")
                 async with aiohttp.ClientSession() as session:
-                    timeout = aiohttp.ClientTimeout(total=40)
+                    timeout = aiohttp.ClientTimeout(
+                        total=int(os.getenv("KNOWLEDGE_CALL_TIMEOUT", "90"))
+                    )
                     async with session.post(
-                        agent_config.CHUNK_QUERY_URL, json=data, timeout=timeout
+                        query_url, json=data, timeout=timeout
                     ) as response:
 
                         sp.add_info_events(

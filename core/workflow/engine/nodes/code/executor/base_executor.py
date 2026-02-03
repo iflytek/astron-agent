@@ -67,5 +67,11 @@ class CodeExecutorFactory:
             )
 
             return IFlyExecutor()
+        elif executor == "ifly-v2":
+            from workflow.engine.nodes.code.executor.ifly.ifly_executor_v2 import (
+                IFlyExecutorV2,
+            )
+
+            return IFlyExecutorV2()
         else:
             raise Exception(f"Unsupported executor type: {executor}")

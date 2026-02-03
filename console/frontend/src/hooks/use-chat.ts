@@ -254,6 +254,7 @@ const useChat = () => {
   }) => {
     setIsWorkflowOption(false);
     setWorkflowOption({ option: [], content: '' });
+    setWorkflowOperation([]);
     const { msg, workflowOperation, version, onSendCallback } = params;
     const esURL = `${baseURL}/chat-message/chat`;
     const form = new FormData();

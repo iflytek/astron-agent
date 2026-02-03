@@ -175,6 +175,7 @@ interface ToolDetail {
   location: string;
   parameterName: string;
   serviceToken: string;
+  childName: string;
 }
 
 //InputSchema的properties的类型

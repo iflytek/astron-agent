@@ -207,10 +207,12 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
 
   return (
     <>
-      <VoiceTraining
-        showVoiceTraining={showVoiceTraining}
-        changeTrainModal={closeTrainModal}
-      />
+      {showVoiceTraining && (
+        <VoiceTraining
+          showVoiceTraining={showVoiceTraining}
+          changeTrainModal={closeTrainModal}
+        />
+      )}
       <Modal
         open={showSpeakerModal && !showVoiceTraining}
         title={t('characterVoice')}

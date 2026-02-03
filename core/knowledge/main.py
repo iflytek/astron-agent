@@ -26,6 +26,7 @@ from knowledge.domain.response import ErrorResponse
 
 
 def initialize_extensions() -> None:
+    os.environ["CONFIG_ENV_PATH"] = "./knowledge/config.env"
     need_init_services = [
         "settings_service",
         "log_service",
@@ -37,10 +38,7 @@ def initialize_extensions() -> None:
 
 
 def create_app() -> FastAPI:
-    os.environ["CONFIG_ENV_PATH"] = "./knowledge/config.env"
-    initialize_extensions()
     logging.info(""" KNOWLEDGE SERVER START """)
-
     app = FastAPI()
     app.include_router(rag_router)
 
@@ -98,6 +96,7 @@ def create_app() -> FastAPI:
 
 
 if __name__ == "__main__":
+    initialize_extensions()
     uvicorn.run(
         app="main:create_app",
         host="0.0.0.0",

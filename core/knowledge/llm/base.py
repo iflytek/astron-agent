@@ -1,5 +1,5 @@
-from abc import ABC
-from typing import AsyncGenerator, Dict, List, Tuple
+from abc import ABC, abstractmethod
+from typing import Any, AsyncGenerator, Dict, List, Tuple
 
 
 class ChatResponse(ABC):
@@ -16,11 +16,12 @@ class BaseLLM(ABC):
     def __init__(self) -> None:
         pass
 
-    def chat(self, messages: List[Dict]) -> ChatResponse:
-        raise NotImplementedError
+    @abstractmethod
+    def chat(self, messages: List[Dict[str, Any]]) -> ChatResponse:
+        pass
 
+    @abstractmethod
     async def stream_chat(
-        self, messages: List[Dict], **kwargs
+        self, messages: List[Dict[str, Any]], **kwargs: Any
     ) -> AsyncGenerator[Tuple[ChatResponse, bool], None]:
-        raise NotImplementedError
-        yield  # Make this an async generator
+        pass

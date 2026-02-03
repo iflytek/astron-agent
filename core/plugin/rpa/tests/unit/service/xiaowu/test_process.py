@@ -99,6 +99,7 @@ class TestTaskMonitoring:
             access_token="test-token",
             project_id="test-project",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"key": "value"},
         )
@@ -118,6 +119,7 @@ class TestTaskMonitoring:
             access_token="test-token",
             project_id="test-project",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"key": "value"},
         )
@@ -139,6 +141,7 @@ class TestTaskMonitoring:
             access_token="test-token",
             project_id="test-project",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"key": "value"},
         )
@@ -176,6 +179,7 @@ class TestTaskMonitoring:
             access_token="test-token",
             project_id="test-project",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"key": "value"},
         )
@@ -226,6 +230,7 @@ class TestTaskMonitoring:
                     access_token="test-token",
                     project_id="test-project",
                     version=None,
+                    phone_number=None,
                     exec_position="EXECUTOR",
                     params={"key": "value"},
                 )
@@ -259,6 +264,7 @@ class TestTaskMonitoring:
             access_token="test-token",
             project_id="test-project",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"key": "value"},
         )
@@ -299,6 +305,7 @@ class TestTaskMonitoring:
                 access_token="test-token",
                 project_id="test-project",
                 version=None,
+                phone_number=None,
                 exec_position="EXECUTOR",
                 params={"key": "value"},
             )

@@ -93,10 +93,10 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             }
 
             // 3. Check if version already exists
-            if (isVersionExists(botId, versionName)) {
-                log.info("Version already exists, skipping publish: botId={}, versionName={}", botId, versionName);
-                return createSuccessResponse(null, versionName);
-            }
+//            if (isVersionExists(botId, versionName)) {
+//                log.info("Version already exists, skipping publish: botId={}, versionName={}", botId, versionName);
+//                return createSuccessResponse(null, versionName);
+//            }
 
             // 4. Create workflow version record
             WorkflowReleaseRequestDto request = new WorkflowReleaseRequestDto();
@@ -113,7 +113,12 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             }
 
             // 5. Sync to API system directly (no approval needed)
-            String appId = getAppIdByBotId(botId);
+            String appId;
+            if (ReleaseTypeEnum.MARKET.name().equals(publishType)) {
+                appId = maasAppId;
+            } else {
+                appId = getAppIdByBotId(botId);
+            }
             syncToApiSystem(botId, flowId, versionName, appId);
 
             // 6. Update audit result to success

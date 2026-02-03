@@ -71,7 +71,7 @@ cd docker/astronAgent
 cp .env.example .env
 ```
 
-#### 2.1 Configure Knowledge Base Service Connection (If RagFlow is deployed)
+#### 2.1 Configure Knowledge Base Service Connection (Optional,If RagFlow is deployed)
 
 Edit the docker/astronAgent/.env file to configure RagFlow connection information:
 

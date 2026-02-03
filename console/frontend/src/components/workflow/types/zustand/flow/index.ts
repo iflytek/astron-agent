@@ -15,33 +15,37 @@ export type FlowState = {
   handle_keys?: Array<string>;
 };
 
+export type NodeType = Node & {
+  nodeType: string;
+};
+
 export type FlowStoreType = {
-  loadHistory: (nodes: Node[], edges: Edge[]) => void;
-  sseData: object;
-  isBuilding: boolean;
-  isPending: boolean;
+  loadHistory: (nodes: NodeType[], edges: Edge[]) => void;
   zoom: number;
   setZoom: (zoom: number) => void;
   reactFlowInstance: ReactFlowInstance | null;
   setReactFlowInstance: (newState: ReactFlowInstance) => void;
   flowState: FlowState | undefined;
-  nodes: Node[];
+  nodes: NodeType[];
   edges: Edge[];
   onNodesChange: OnNodesChange;
   onEdgesChange: OnEdgesChange;
   deleteNodeRef: (nodeId: string, outputId: string) => void;
-  setNodes: (update: Node[] | ((oldState: Node[]) => Node[])) => void;
+  setNodes: (
+    update: NodeType[] | ((oldState: NodeType[]) => NodeType[])
+  ) => void;
   setEdges: (
     update: Edge[] | ((oldState: Edge[]) => Edge[]),
     noNeedTakeSnapshot?: boolean
   ) => void;
-  setNode: (id: string, update: Node | ((oldState: Node) => Node)) => void;
+  setNode: (
+    id: string,
+    update: NodeType | ((oldState: NodeType) => NodeType)
+  ) => void;
   delayCheckNode: (id: string) => void;
   checkNode: (id: string) => boolean;
   deleteNode: (nodeId: string) => void;
-  paste: (selection: { nodes: Node[]; edges: Edge[] }) => void;
-  lastCopiedSelection: { nodes: unknown; edges: unknown } | null;
-  isBuilt: boolean;
+  paste: (selection: { nodes: NodeType[]; edges: Edge[] }) => void;
   onConnect: (connection: Connection) => void;
   removeNodeRef: (
     souceId: string,
@@ -56,9 +60,9 @@ export type FlowStoreType = {
   reNameNode: (id: string, value: string) => void;
   copyNode: (id: string) => void;
   takeSnapshot: (flag?: boolean) => void;
+  undo: () => void;
   historys: History[];
   setHistorys: (
     update: History[] | ((oldState: History[]) => History[])
   ) => void;
-  undo: () => void;
 };

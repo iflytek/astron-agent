@@ -467,10 +467,40 @@ async def upload_document_to_dataset(
         Upload response containing document ID
     """
 
-    dataset = get_rag_object().list_datasets(
-        name=os.getenv("RAGFLOW_DEFAULT_GROUP", "")
-    )[0]
-    return dataset.upload_documents(
+    group_name = os.getenv("RAGFLOW_DEFAULT_GROUP", "")
+    rag = get_rag_object()
+
+    def _pick_first_dataset(datasets: List[Any]) -> Any:
+        if datasets:
+            return datasets[0]
+        raise ValueError(f"Dataset '{group_name}' not found when uploading document")
+
+    dataset_obj: Any
+
+    try:
+        # Preferred path: SDK finds the dataset directly by name
+        dataset_obj = _pick_first_dataset(rag.list_datasets(name=group_name))
+    except ValueError:
+        logger.warning(
+            "Dataset '%s' not visible via SDK lookup, refreshing via REST API",
+            group_name,
+        )
+
+        rest_response = await list_datasets(name=group_name)
+        datasets = rest_response.get("data", []) if rest_response else []
+        if not datasets:
+            raise ValueError(f"Dataset '{group_name}' does not exist in RAGFlow")
+
+        # Fall back to locating dataset via ID if REST returned it
+        actual_id = datasets[0].get("id") or dataset_id
+        sdk_datasets: List[Any] = rag.list_datasets(id=actual_id)
+        if not sdk_datasets:
+            raise ValueError(
+                f"Dataset '{group_name}' (id={actual_id}) not visible to ragflow_sdk"
+            )
+        dataset_obj = sdk_datasets[0]
+
+    return dataset_obj.upload_documents(
         [{"displayed_name": filename, "blob": file_content}]
     )
 

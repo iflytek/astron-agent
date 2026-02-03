@@ -17,3 +17,5 @@ async def set_search_path_by_schema(session: AsyncSession, schema: str) -> None:
     # Use SQLAlchemy's quoted_name to safely escape schema identifiers
     safe_name = quoted_name(schema, quote=True)
     await session.exec(text(f'SET search_path = "{safe_name}"'))  # type: ignore[call-overload]
+    # Store current schema on session object for potential recovery after connection invalidation
+    setattr(session, "_current_schema", schema)

@@ -101,11 +101,21 @@ class NodeTraceLog(BaseModel):
         def is_large_string(s: str, limit: int = 5 * 1024) -> bool:
             return isinstance(s, str) and sys.getsizeof(s.encode("utf-8")) > limit
 
-        def process_data(data: Any) -> Any:
+        def process_data(data: dict, depth: int = 0) -> Any:
+            """
+            Recursively process data structure to handle large strings.
+
+            :param data: Data structure to process
+            :param depth: Current depth of the data structure
+            :return: Processed data with large strings uploaded to OSS
+            """
+            if depth > 4 and not isinstance(data, str):
+                return json.dumps(data, ensure_ascii=False)
+
             if isinstance(data, dict):
-                return {k: process_data(v) for k, v in data.items()}
+                return {k: process_data(v, depth + 1) for k, v in data.items()}
             elif isinstance(data, list):
-                return [process_data(item) for item in data]
+                return [process_data(item, depth + 1) for item in data]
             elif isinstance(data, str):
                 if is_large_string(data):
                     if isinstance(large_field_save_service, BaseOSSService):
@@ -118,7 +128,7 @@ class NodeTraceLog(BaseModel):
             else:
                 return data
 
-        result = process_data(self.model_dump())
+        result = process_data(self.model_dump(mode="json"))
 
         def json_fallback(obj: Any) -> Any:
             if isinstance(obj, set):

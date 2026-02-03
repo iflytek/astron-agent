@@ -50,7 +50,10 @@ class OpenAI(BaseLLM):
             "base_url": self.base_url,
         }
 
-    async def stream_chat(
+    def chat(self, messages: List[Dict[str, Any]]) -> ChatResponse:
+        raise NotImplementedError("Use stream_chat for async chat completion")
+
+    async def stream_chat(  # type: ignore[override]
         self, messages: List[Dict[str, Any]], **kwargs: Any
     ) -> AsyncGenerator[Tuple[ChatResponse, bool], None]:
         try:

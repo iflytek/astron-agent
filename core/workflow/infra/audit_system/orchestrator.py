@@ -49,7 +49,7 @@ class AuditOrchestrator:
         with span.start(
             f"audit_orchestrator.process_output::frame_id:{output_frame.frame_id}"
         ) as context_span:
-            context_span.add_info_event(
+            await context_span.add_info_event_async(
                 f"Frame content for audit: {output_frame.dict()}"
             )
 
@@ -60,7 +60,7 @@ class AuditOrchestrator:
                 and not output_frame.none_need_audit
                 or (int(os.getenv("AUDIT_ENABLE", "0")) == 0)
             ):
-                context_span.add_info_event(
+                await context_span.add_info_event_async(
                     "↑↑↑↑↑↑↑↑↑↑↑ This frame is empty, skipping audit or audit is disabled ↑↑↑↑↑↑↑↑↑↑↑"
                 )
                 await self.audit_strategy.context.output_queue_put(

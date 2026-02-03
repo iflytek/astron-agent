@@ -120,7 +120,7 @@ const RecorderCom = forwardRef<RecorderRef, RecorderProps>(
               disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
             }`}
           >
-            <AudioAnimate isPlaying={true} />
+            <AudioAnimate isPlaying={true} type="record" />
           </div>
         )}
 

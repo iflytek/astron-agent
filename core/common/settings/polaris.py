@@ -69,7 +69,7 @@ class Polaris(BaseModel):
             try:
                 with self._session() as session:
                     url = f"{self.base_url}/config/download?project={config_filter.project_name}&cluster={config_filter.cluster_group}&service={config_filter.service_name}&version={config_filter.version}&configName={config_filter.config_file}"
-                    response = session.get(url, cookies={"JSESSIONID": self.cookie})
+                    response = session.get(url, cookies={"JSESSIONID": self.cookie}) # type: ignore
                     response.raise_for_status()
                     content = response.json()["data"]["content"]
                     if set_env:

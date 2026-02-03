@@ -65,12 +65,13 @@ class Streaming:
         else:
             body_iterator = iterate_in_threadpool(response)
 
+        content: Dict[str, Any] = {}
         async for chunk in body_iterator:
             if isinstance(chunk, bytes):
-                return json.loads(chunk.decode("utf-8").removeprefix("data: "))
+                content = json.loads(chunk.decode("utf-8").removeprefix("data: "))
             elif isinstance(chunk, str):
-                return json.loads(chunk.removeprefix("data: "))
-        return {}
+                content = json.loads(chunk.removeprefix("data: "))
+        return content
 
     @staticmethod
     async def send_error(

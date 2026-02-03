@@ -173,7 +173,7 @@ async def test_exec_generate_schema_success() -> None:
     mock_db = AsyncMock(spec=AsyncSession)
     mock_db.exec = AsyncMock(return_value=None)
     mock_db.commit = AsyncMock(return_value=None)
-    mock_db.add = AsyncMock(return_value=None)
+    mock_db.add = MagicMock(return_value=None)
 
     mock_span_context = MagicMock()
     mock_span_context.add_info_event = MagicMock()
@@ -232,7 +232,7 @@ async def test_create_db_success() -> None:
     mock_db.exec = AsyncMock(return_value=None)
     mock_db.commit = AsyncMock(return_value=None)
     mock_db.rollback = AsyncMock(return_value=None)
-    mock_db.add = AsyncMock(return_value=None)
+    mock_db.add = MagicMock(return_value=None)
 
     test_input = CreateDBInput(
         uid="u1",

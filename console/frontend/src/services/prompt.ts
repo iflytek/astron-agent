@@ -21,11 +21,6 @@ export async function createPromptGroup(
   return http.post('/prompt/manage/create-group', params);
 }
 
-// 获取官方 Prompt 列表
-export async function getOfficialPromptList(): Promise<unknown[]> {
-  return http.get('/prompt/manage/official-prompt');
-}
-
 // 获取 Agent 模版列表
 export async function getAgentPromptList(
   params: Record<string, unknown>

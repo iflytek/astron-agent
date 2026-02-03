@@ -71,7 +71,7 @@ cd docker/astronAgent
 cp .env.example .env
 ```
 
-#### 2.1 配置知识库服务连接（如已部署 RagFlow）
+#### 2.1 配置知识库服务连接（可选,如已部署 RagFlow）
 
 编辑 docker/astronAgent/.env 文件，配置 RagFlow 连接信息：
 

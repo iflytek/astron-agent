@@ -12,7 +12,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const appId = window?.__APP_CONFIG__?.SPARK_APP_ID;
+const appId = window?.__APP_CONFIG__?.SPARK_VIRTUAL_MAN_APP_ID;
 
 // 虚拟人初始化鉴权参数
 const sdkInitAppInfoDefault: any = {

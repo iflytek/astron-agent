@@ -15,6 +15,7 @@ import httpx
 from aiohttp import ClientResponse, ClientTimeout
 from pydantic import Field
 
+from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.entities.node_entities import NodeType
 from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.nodes.base_node import BaseNode
@@ -120,7 +121,9 @@ class KnowledgeProNode(BaseNode):
 
         # Set timeout based on retry configuration
         interval_timeout = (
-            self.retry_config.timeout if self.retry_config.should_retry else None
+            self.retry_config.timeout
+            if self.retry_config.should_retry
+            else self._private_config.timeout
         )
 
         try:
@@ -132,7 +135,7 @@ class KnowledgeProNode(BaseNode):
 
             # Generate request payload for the Knowledge Pro API
             payload = self.gen_req_payload(query, span)
-            span.add_info_event(f"request body: {payload}")
+            await span.add_info_event_async(f"request body: {payload}")
             # Create HTTP session with appropriate timeout configuration
             async with aiohttp.ClientSession(
                 timeout=ClientTimeout(
@@ -147,8 +150,10 @@ class KnowledgeProNode(BaseNode):
                             cause_error=f"Knowledge Pro node response status: {response.status}",
                         )
 
-                    content_list, knowledge_metadata = await self._handle_response(
-                        response, span, variable_pool, msg_or_end_node_deps
+                    content_list, knowledge_metadata, token_usage = (
+                        await self._handle_response(
+                            response, span, variable_pool, msg_or_end_node_deps
+                        )
                     )
 
             # Prepare final outputs with combined content and metadata
@@ -156,7 +161,7 @@ class KnowledgeProNode(BaseNode):
         except asyncio.TimeoutError:
             # Handle timeout errors during API request
             log_err = CustomException(
-                err_code=CodeEnum.KNOWLEDGE_NODE_EXECUTION_ERROR,
+                err_code=CodeEnum.KNOWLEDGE_REQUEST_ERROR,
                 err_msg=f"Knowledge Pro node response timeout ({interval_timeout}s)",
             )
             span.record_exception(log_err)
@@ -199,6 +204,11 @@ class KnowledgeProNode(BaseNode):
             node_id=self.node_id,
             alias_name=self.alias_name,
             node_type=self.node_type,
+            token_cost=GenerateUsage(
+                completion_tokens=token_usage.get("completion_tokens", 0),
+                prompt_tokens=token_usage.get("prompt_tokens", 0),
+                total_tokens=token_usage.get("total_tokens", 0),
+            ),
         )
 
     async def _handle_response(
@@ -207,7 +217,7 @@ class KnowledgeProNode(BaseNode):
         span: Span,
         variable_pool: VariablePool,
         msg_or_end_node_deps: dict,
-    ) -> Tuple[list, list]:
+    ) -> Tuple[list, list, dict]:
         """
         Handle response from Knowledge Pro API.
 
@@ -222,6 +232,8 @@ class KnowledgeProNode(BaseNode):
         content_list: list = []
         # Knowledge base metadata
         knowledge_metadata: list = []
+        # Token usage statistics
+        token_usage: dict = {}
 
         # Process streaming response line by line
         async for line in response.content:
@@ -229,7 +241,7 @@ class KnowledgeProNode(BaseNode):
             # Skip empty lines
             if line_str == "\n":
                 continue
-            span.add_info_event(f"recv: {line_str}")
+            await span.add_info_event_async(f"recv: {line_str}")
             # Remove SSE data prefix
             line_str = line_str.removeprefix("data: ")
             # Handle stream completion signal
@@ -282,7 +294,14 @@ class KnowledgeProNode(BaseNode):
                 else []
             )
 
-        return content_list, knowledge_metadata
+            # Extract token usage statistics if present
+            token_usage = (
+                msg.get("data", {}).get("usage", {})
+                if content_type == "knowledge_metadata"
+                else {}
+            )
+
+        return content_list, knowledge_metadata, token_usage
 
     async def async_execute(
         self,

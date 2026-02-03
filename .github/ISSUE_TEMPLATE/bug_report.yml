@@ -78,7 +78,7 @@ body:
       label: Environment
       description: List the versions, OS, deployment method, browser, and Docker info used when reproducing the issue.
       placeholder: |
-        - Astra Agent Version:
+        - Astron Agent Version:
         - OS:
         - Deployment (Docker Compose, Source, etc.):
         - Browser (if applicable):

@@ -61,7 +61,7 @@ def _setup_observability(params: Any, run_params_list: Any, func_name: Any) -> T
             uid=span_context.uid,
             chat_id=span_context.sid,
             sub="spark-link",
-            caller=params["caller"],
+            caller=str(func_name),
             log_caller=params["tool_type"],
             question=json.dumps(run_params_list, ensure_ascii=False),
         )
@@ -364,7 +364,7 @@ def delete_tools(
     :return:
     """
     uid = new_uid()
-    caller = ""
+    caller = "delete_tools"
     tool_type = ""
     span = Span(
         app_id=app_id if app_id else os.getenv(const.DEFAULT_APPID_KEY),
@@ -539,7 +539,7 @@ def read_tools(
     :return:
     """
     uid = new_uid()
-    caller = ""
+    caller = "read_tools"
     tool_type = ""
     span = Span(
         app_id=app_id if app_id else os.getenv(const.DEFAULT_APPID_KEY),

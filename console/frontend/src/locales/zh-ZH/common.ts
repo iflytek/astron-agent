@@ -1,4 +1,7 @@
 const translation = {
+  pleaseCreate: '暂无数据，快去创建吧~',
+  new: '新建',
+  noData: '暂无数据',
   workflowNotDebugged: '工作流未调试成功',
   noLLMNode: '工作流中没有大模型节点',
   multipleParams: '工作流中输入存在多参数',

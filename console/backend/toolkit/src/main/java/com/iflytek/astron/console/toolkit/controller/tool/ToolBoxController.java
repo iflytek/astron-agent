@@ -9,8 +9,10 @@ import com.iflytek.astron.console.toolkit.service.tool.ToolBoxService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -138,6 +140,22 @@ public class ToolBoxController {
     @GetMapping("/publish-square")
     public void publishSquare(Long id) {
         toolBoxService.publishSquare(id);
+    }
+
+    @Operation(summary = "Export tool")
+    @GetMapping("/export")
+    @SpacePreAuth(key = "ToolBoxController_exportTool_GET")
+    public void exportTool(@RequestParam("id") Long id,
+                          @RequestParam(value = "type", required = false) Integer type,
+                          HttpServletResponse response) {
+        toolBoxService.exportTool(id, type, response);
+    }
+
+    @Operation(summary = "Import tool")
+    @PostMapping("/import")
+    @SpacePreAuth(key = "ToolBoxController_importTool_POST")
+    public Object importTool(@RequestParam("file") MultipartFile file) {
+        return toolBoxService.importTool(file);
     }
 
 }

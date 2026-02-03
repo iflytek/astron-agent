@@ -115,7 +115,7 @@ def get_history(
         for node_id in node_ids:
             # Get only the most recent MAX_HISTORY_SIZE records for each node_id
             query = (
-                select(History.raw_question, History.raw_answer, History.create_time)
+                select(History.raw_question, History.raw_answer)
                 .where(
                     History.flow_id == flow_id,
                     History.node_id == node_id,

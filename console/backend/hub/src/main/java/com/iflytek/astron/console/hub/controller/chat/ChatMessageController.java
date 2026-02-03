@@ -381,7 +381,7 @@ public class ChatMessageController {
         }
         // Parse array from frontend
         List<String> maasDatasetList;
-        String maasDatasetListStr = debugRequest.getMaasDatasetListStr();
+        String maasDatasetListStr = debugRequest.getMaasDatasetList();
         if (Objects.nonNull(maasDatasetListStr) && StringUtils.isNotBlank(maasDatasetListStr)) {
             maasDatasetListStr = maasDatasetListStr.substring(1, maasDatasetListStr.length() - 1);
             maasDatasetList = Arrays.asList(maasDatasetListStr.split(","));

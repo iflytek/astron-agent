@@ -48,9 +48,11 @@ import addItemIcon from '@/assets/imgs/workflow/add-item-icon.png';
 import remove from '@/assets/imgs/workflow/input-remove-icon.png';
 
 const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
+  const { t } = useTranslation();
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
   const nodeList = useFlowsManager(state => state.nodeList);
+  const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
   const nodes = currentStore(state => state.nodes);
   const edges = currentStore(state => state.edges);
 
@@ -114,13 +116,15 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     return nodeType === 'database';
   }, [nodeType]);
 
+  const isLLMNode = useMemo(() => {
+    return nodeType === 'spark-llm';
+  }, [nodeType]);
+
   const showInputs = useMemo(() => {
-    return (
-      data?.inputs?.length > 0 &&
-      !isIfElseNode &&
-      (data?.nodeParam?.mode === 0 || data?.nodeParam?.mode === undefined)
-    );
-  }, [data, isIfElseNode]);
+    const isDatabaseNodeFormMode =
+      isDataBaseNode && data?.nodeParam?.mode === 1;
+    return data?.inputs?.length > 0 && !isIfElseNode && !isDatabaseNodeFormMode;
+  }, [data, isIfElseNode, isDataBaseNode]);
 
   const showOutputs = useMemo(() => {
     return data?.outputs?.length > 0;
@@ -176,7 +180,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
 
   const nodeDesciption = useMemo(() => {
     //工具节点需要特判一下，使用工具本身的描述
-    if (nodeType === 'plugin') {
+    if (nodeType === 'plugin' || nodeType === 'mcp') {
       return data?.nodeParam?.toolDescription;
     }
     if (nodeType === 'rpa') {
@@ -190,6 +194,36 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   const isRpaNode = useMemo(() => {
     return nodeType === 'rpa' || nodeType === 'rpa';
   }, [nodeType]);
+  const inputLabel = useMemo(() => {
+    if (isEndNode || isIteratorEnd) {
+      return t('workflow.nodes.common.output');
+    }
+    return t('workflow.nodes.common.input');
+  }, [isEndNode, isIteratorEnd]);
+  const outputLabel = useMemo(() => {
+    if (isStartNode || isIteratorStart) {
+      return t('workflow.nodes.common.input');
+    }
+    return t('workflow.nodes.common.output');
+  }, [isStartNode, isIteratorStart]);
+  const stringSplitMode = useMemo(() => {
+    return data?.nodeParam?.mode === 1;
+  }, [data?.nodeParam?.mode]);
+  const allowAddInput = useMemo(() => {
+    if (canvasesDisabled || stringSplitMode || isIteratorNode) {
+      return false;
+    }
+    return true;
+  }, [canvasesDisabled, stringSplitMode, isIteratorNode]);
+  const allowAddOutput = useMemo(() => {
+    if (canvasesDisabled) {
+      return false;
+    }
+    if (isLLMNode && data?.nodeParam?.respFormat === 0) {
+      return false;
+    }
+    return true;
+  }, [canvasesDisabled, isLLMNode, data?.nodeParam?.respFormat]);
 
   return {
     nodeType,
@@ -220,6 +254,10 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     nodeIcon,
     nodeDesciption,
     isRpaNode,
+    inputLabel,
+    outputLabel,
+    allowAddInput,
+    allowAddOutput,
   };
 };
 
@@ -227,9 +265,6 @@ const useNodeFunc = ({ id, data }): UseNodeFuncReturn => {
   const { isIteratorNode, nodeType } = useNodeInfo({ id, data });
   const setNodeInfoEditDrawerlInfo = useFlowsManager(
     state => state.setNodeInfoEditDrawerlInfo
-  );
-  const setChatDebuggerResult = useFlowsManager(
-    state => state.setChatDebuggerResult
   );
   const setVersionManagement = useFlowsManager(
     state => state.setVersionManagement
@@ -256,7 +291,6 @@ const useNodeFunc = ({ id, data }): UseNodeFuncReturn => {
       open: true,
       nodeId: id,
     });
-    setChatDebuggerResult(false);
     setVersionManagement(false);
     setAdvancedConfiguration(false);
     setOpenOperationResult(false);

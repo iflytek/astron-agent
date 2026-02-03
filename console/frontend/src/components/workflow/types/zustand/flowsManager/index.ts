@@ -30,30 +30,14 @@ export type FlowsManagerStoreType = {
   setWillAddNode: (willAddNode: unknown) => void;
   beforeNode: unknown;
   setBeforeNode: (beforeNode: unknown) => void;
-  cycleEdges: unknown[];
-  setCycleEdges: (
-    update: unknown[] | ((oldState: unknown[]) => unknown[])
-  ) => void;
-  decisionNodeTransformationModal: boolean;
-  setDecisionNodeTransformationModal: (
-    decisionNodeTransformationModal: boolean
-  ) => void;
-  chatHistoryTransformationModal: boolean;
-  setChatHistoryTransformationModal: (
-    chatHistoryTransformationModal: boolean
-  ) => void;
   autonomousMode: boolean;
   setAutonomousMode: (autonomousMode: boolean) => void;
-  showAiuiTips: boolean;
-  setShowAiuiTips: (showAiuiTips: boolean) => void;
   openOperationResult: boolean;
   setOpenOperationResult: (openOperationResult: unknown) => void;
   canvasesDisabled: boolean;
   setCanvasesDisabled: (canvasesDisabled: boolean) => void;
   showMultipleCanvasesTip: boolean;
   setShowMultipleCanvasesTip: (showMultipleCanvasesTip: boolean) => void;
-  chatDebuggerResult: boolean;
-  setChatDebuggerResult: (chatDebuggerResult: boolean) => void;
   advancedConfiguration: boolean;
   setAdvancedConfiguration: (advancedConfiguration: boolean) => void;
   versionManagement: boolean;
@@ -80,6 +64,10 @@ export type FlowsManagerStoreType = {
     open: boolean;
   };
   setToolModalInfo: (toolModalInfo: { open: boolean }) => void;
+  mcpModalInfo: {
+    open: boolean;
+  };
+  setMcpModalInfo: (mcpModalInfo: { open: boolean }) => void;
   flowModalInfo: {
     open: boolean;
   };
@@ -118,11 +106,8 @@ export type FlowsManagerStoreType = {
   setNodeList: (
     update: unknown[] | ((oldState: unknown[]) => unknown[])
   ) => void;
-  flows: Array<FlowType>;
-  setFlows: (flows: FlowType[]) => void;
   errNodes: Array<ErrNodeType>;
   setErrNodes: (node: Node | null, string?) => void;
-  currentFlowId: string;
   showNodeList: boolean;
   setShowNodeList: (showNodeList: boolean) => void;
   updateNodeInputData: boolean;
@@ -131,15 +116,12 @@ export type FlowsManagerStoreType = {
   setUpdateNodeInputData: (updateNodeInputData: unknown) => void;
   flowChatResultOpen: boolean;
   setFlowChatResultOpen: (flowChatResultOpen: boolean) => void;
-  isMounted: boolean;
-  setIsMounted: (isMounted: boolean) => void;
   flowResult: { status: string; timeCost: string; totalTokens: string };
   setFlowResult: (flowResult: {
     status: string;
     timeCost: string;
     totalTokens: string;
   }) => void;
-  setIsChanged: (isChanged: boolean) => void;
   isLoading: boolean;
   setIsLoading: (isLoading: boolean) => void;
   getFlowDetail: () => void;
@@ -148,8 +130,6 @@ export type FlowsManagerStoreType = {
   setCurrentFlow: (
     update: (FlowType | unknown) | ((oldState: FlowType) => FlowType)
   ) => void;
-  nodeTemplate: unknown;
-  setNodeTemplate: (nodeTemplate: unknown) => void;
   textNodeConfigList: unknown;
   setTextNodeConfigList: (textNodeConfigList: unknown) => void;
   agentStrategy: unknown;
@@ -163,22 +143,11 @@ export type FlowsManagerStoreType = {
   canPublish: boolean;
   setCanPublish: (canPublish: boolean) => void;
   setModels: (appId: string) => void;
-  addModelParamsToNode: (currentModel: unknown) => void;
   resetFlowsManager: () => void;
   iteratorId: string;
   setIteratorId: (iteratorId: string) => void;
-  chatId: string;
-  setChatId: (chatId: string) => void;
   showIterativeModal: boolean;
   setShowIterativeModal: (showIterativeModal: boolean) => void;
-  selectPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  };
-  setSelectPromptModalInfo: (selectPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  }) => void;
   selectAgentPromptModalInfo: {
     open: boolean;
     nodeId: string;
@@ -193,7 +162,7 @@ export type FlowsManagerStoreType = {
     paramsId: string;
     data: unknown;
   };
-  setDefaultValueModalInfo: (selectPromptModalInfo: unknown) => void;
+  setDefaultValueModalInfo: (defaultValueModalInfo: unknown) => void;
   promptOptimizeModalInfo: {
     open: boolean;
     nodeId: string;
@@ -205,13 +174,8 @@ export type FlowsManagerStoreType = {
     nodeId: string;
   };
   setNodeInfoEditDrawerlInfo: (nodeInfoEditDrawerlInfo: unknown) => void;
-  isChanged: boolean;
-  loadingNodesData: boolean;
-  setLoadingNodesData: (loadingNodesData: boolean) => void;
   loadingModels: boolean;
   setLoadingModels: (loadingModels: boolean) => void;
-  loadingNodesLayout: boolean;
-  setLoadingNodesLayout: (loadingNodesLayout: boolean) => void;
   historyVersion: boolean;
   setHistoryVersion: (historyVersion: boolean) => void;
   historyVersionData: unknown;

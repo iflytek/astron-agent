@@ -43,6 +43,7 @@ const transition = {
     copy: 'Copy',
     reAnswer: 'Re-answer',
     textTooLong: 'Text too long, maximum limit 8000 characters',
+    unSupportRead: 'Unsupported text reading',
   },
   chatWindow: {
     clearChatHistoryFailed: 'Failed to clear chat history',

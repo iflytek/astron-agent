@@ -42,7 +42,7 @@ class LogServiceFactory(ServiceFactory):
         os.makedirs(log_dir, exist_ok=True)  # Ensure log directory exists
 
         # Configure log storage path and log level
-        log_path = os.path.join(log_dir, "app.log")
+        log_path = os.path.join(log_dir, f"app_{os.getpid()}.log")
         log_level = os.getenv("LOG_LEVEL", "ERROR")
 
         # Initialize loguru

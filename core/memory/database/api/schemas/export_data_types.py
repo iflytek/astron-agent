@@ -25,11 +25,12 @@ class ExportDataInput(DidUidCommon):  # pylint: disable=too-few-public-methods
     # app_id: Required, cannot contain Chinese and special characters
     app_id: str = Field(
         ...,
+        min_length=1,
         pattern=r"^$|^[^！@#￥%……&*()\u4e00-\u9fa5]+$",
         description="Required, cannot contain Chinese and special symbols！@#￥%……&*()",
     )
     # table_name: Required
-    table_name: str
+    table_name: str = Field(..., min_length=1, description="Required, minimum length 1")
     # env: Required, can only be prod or test
     env: Literal["prod", "test"] = Field(
         ..., description="Required, can only be prod or test"

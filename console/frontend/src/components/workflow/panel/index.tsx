@@ -215,17 +215,17 @@ function ZoomControls({
 }): React.ReactElement {
   return (
     <div className="flex items-center gap-3.5 bg-[#F6F6F7] px-3 py-2 rounded-md">
-      <img
-        src={Icons.panel.zoomOut}
-        className="w-[15px] h-[2px] cursor-pointer"
-        alt=""
+      <div
+        className="flex items-center justify-between w-[15px] h-[15px] cursor-pointer"
         onClick={() => {
           let newZoom = zoom / 100 - 0.1;
           newZoom = newZoom <= 0 ? 0.1 : newZoom;
           reactFlowInstance.zoomTo(newZoom);
           setZoom(zoom - 10 <= 10 ? 10 : zoom - 10);
         }}
-      />
+      >
+        <img src={Icons.panel.zoomOut} className="w-[15px] h-[2px]" alt="" />
+      </div>
       <span>{zoom}%</span>
       <img
         src={Icons.panel.zoomIn}

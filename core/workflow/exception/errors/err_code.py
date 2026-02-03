@@ -45,21 +45,16 @@ class CodeEnum(Enum):
     APP_FLOW_AUTH_BOND_ERROR = (20007, "Application binding failed")
 
     # Protocol errors
-    PROTOCOL_VALIDATION_ERROR = (20100, "Protocol validation failed")
     PROTOCOL_BUILD_ERROR = (20101, "Protocol build failed")
     PROTOCOL_CREATE_ERROR = (20102, "Protocol creation error")
     PROTOCOL_DELETE_ERROR = (20103, "Protocol deletion error")
     PROTOCOL_UPDATE_ERROR = (20104, "Protocol update failed")
+    PROTOCOL_GET_ERROR = (20105, "Protocol get failed")
 
     # Flow errors
     FLOW_NOT_FOUND_ERROR = (20201, "Flow ID not found")
-    FLOW_ID_TYPE_ERROR = (20202, "Invalid Flow ID")
     FLOW_NOT_PUBLISH_ERROR = (20204, "Workflow not published")
-    FLOW_NO_APP_ID_ERROR = (20205, "Workflow has no appid")
     FLOW_PUBLISH_ERROR = (20206, "Workflow publish failed")
-    OPEN_API_FLOW_STATUS_ERROR = (20207, "Workflow is in draft status")  # DEPRECATED
-    FLOW_VERSION_ERROR = (20208, "Flow version not found")
-    FLOW_GET_ERROR = (20209, "Workflow retrieval failed")
 
     # Spark model errors
     SPARK_FUNCTION_NOT_CHOICE_ERROR = (20301, "Model did not select valid function")
@@ -244,6 +239,8 @@ class CodeEnum(Enum):
     # 21400
 
     # 21500
+    MCP_REQUEST_ERROR = (21500, "MCP node request failed")
+    MCP_ERROR = (21501, "MCP node execution failed")
 
     # Code interpreter errors
     CODE_EXECUTION_ERROR = (21600, "Code execution failed")
@@ -253,6 +250,7 @@ class CodeEnum(Enum):
         "Code node return result type does not meet requirements",
     )
     CODE_EXECUTION_TIMEOUT_ERROR = (21603, "Code execution timeout")
+    CODE_REQUEST_ERROR = (21604, "Code request failed")
 
     # Node debug related errors
     NODE_DEBUG_ERROR = (21700, "Node debug failed")
@@ -305,6 +303,7 @@ class CodeEnum(Enum):
     ENG_BUILD_ERROR = (22300, "Workflow engine build failed")
     ENG_RUN_ERROR = (22301, "Workflow engine run failed")
     NODE_RUN_ERROR = (22302, "Node execution failed")
+    NODE_RUN_TIMEOUT_ERROR = (22303, "Node execution timeout")
 
     # 22400
 

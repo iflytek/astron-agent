@@ -1,5 +1,7 @@
 // Agent Node 相关类型定义
 import React from 'react';
+import { McpTabType, McpOperateType, McpItem } from '../modal/add-mcp';
+import { NodeType } from '../zustand/flow';
 export interface AgentProps {
   data: AgentNodeData;
 }
@@ -92,4 +94,26 @@ export interface useAddAgentPluginType {
   handleInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   renderParamsTooltip: (params: string) => React.ReactNode;
   handleCheckTool: (tool: ToolItem) => void;
+}
+
+export interface useAddMcpType {
+  currentTab: McpTabType;
+  setCurrentTab: React.Dispatch<React.SetStateAction<McpTabType>>;
+  toolOperate: McpOperateType;
+  setToolOperate: React.Dispatch<React.SetStateAction<McpOperateType>>;
+  handleAddToolNodeThrottle: (tool: McpItem) => void;
+  loading: boolean;
+  setLoading: (loading: boolean) => void;
+  dataSource: McpItem[];
+  setDataSource: (dataSource: McpItem[]) => void;
+  handleClearMCPData: () => void;
+  handleChangeTab: (tab: McpTabType) => void;
+  currentMcpInfo: McpItem;
+  setCurrentMcpInfo: (currentMcpInfo: McpItem) => void;
+  getMcpServerList: () => void;
+  renderParamsTooltip: (data: McpItem) => React.ReactNode;
+  toolsNode: NodeType[];
+  closeMCPModal: () => void;
+  expandedKeys: string[];
+  setExpandedKeys: (expandedKeys: string[]) => void;
 }

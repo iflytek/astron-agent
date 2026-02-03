@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 
 import boto3  # type: ignore
 import requests  # type: ignore
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError  # type: ignore
 from loguru import logger
 
 from common.exceptions.codes import c9010
@@ -185,13 +185,13 @@ class IFlyGatewayStorageClient(BaseOSSService, Service):
             logger.error(e)
             return ""
         if resp.status_code != 200:
-            raise OssServiceException(*c9010)(str(e)) from e
+            raise OssServiceException(*c9010)(str(e)) from e  # type: ignore
 
         ret = resp.json()
         if ret["code"] != 0:
-            raise OssServiceException(*c9010)(str(e)) from e
+            raise OssServiceException(*c9010)(str(e)) from e  # type: ignore
         try:
             link = ret["data"]["link"]
         except Exception as e:
-            raise OssServiceException(*c9010)(str(e)) from e
+            raise OssServiceException(*c9010)(str(e)) from e  # type: ignore
         return link

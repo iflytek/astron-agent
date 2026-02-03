@@ -25,6 +25,7 @@ class ServiceType(str, Enum):
     OSS_SERVICE = "oss_service"
     MASDK_SERVICE = "masdk_service"
     OTLP_SERVICE = "otlp_service"
+    WATCHDOG_SERVICE = "watchdog_service"
 
 
 def get_factories_and_deps() -> List[Tuple[Any, List[ServiceType]]]:
@@ -44,7 +45,7 @@ def get_factories_and_deps() -> List[Tuple[Any, List[ServiceType]]]:
     from workflow.extensions.middleware.oss import factory as oss_factory
     from workflow.extensions.middleware.otlp import factory as otlp_factory
 
-    return [
+    factories = [
         (
             database_factory.DatabaseServiceFactory(),
             [ServiceType.DATABASE_SERVICE],
@@ -64,3 +65,20 @@ def get_factories_and_deps() -> List[Tuple[Any, List[ServiceType]]]:
         (otlp_factory.OTLPServiceFactory(), [ServiceType.OTLP_SERVICE]),
         (log_factory.LogServiceFactory(), [ServiceType.LOG_SERVICE]),
     ]
+
+    try:
+        # Service automatic discovery is an enterprise-level feature
+        from workflow_business.extensions.middleware.watchdog import (  # type: ignore[import-not-found]
+            factory as watchdog_factory,
+        )
+
+        factories.append(
+            (
+                watchdog_factory.WatchdogServiceFactory(),
+                [ServiceType.WATCHDOG_SERVICE],
+            )
+        )
+    except ImportError:
+        pass
+
+    return factories

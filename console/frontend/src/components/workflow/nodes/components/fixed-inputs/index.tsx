@@ -10,7 +10,7 @@ import {
   ErrorMessages,
 } from '@/components/workflow/nodes/components/inputs';
 import { EnabledChatHistory } from '../single-input';
-import { capitalizeFirstLetter } from '@/components/workflow/utils/reactflowUtils';
+import { renderType } from '@/components/workflow/utils/reactflowUtils';
 
 import desciptionIcon from '@/assets/imgs/workflow/desciption-icon.png';
 
@@ -38,7 +38,7 @@ function InputName({ item }: { item: unknown }): React.ReactElement {
 function InputTypeTag({ item }: { item: unknown }): React.ReactElement {
   return (
     <div className="bg-[#F0F0F0] py-1 px-2.5 rounded text-xs ml-1 flex-shrink-0">
-      {capitalizeFirstLetter(item?.schema?.type)}
+      {renderType(item)}
     </div>
   );
 }

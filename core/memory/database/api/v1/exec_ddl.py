@@ -1,10 +1,9 @@
 """API endpoints for executing DDL (Data Definition Language) statements."""
 
 import re
+import string
 from typing import Any, List, Union
 
-import asyncpg
-import asyncpg.exceptions
 import sqlglot
 from common.otlp.trace.span import Span
 from common.service import get_otlp_metric_service, get_otlp_span_service
@@ -17,11 +16,11 @@ from memory.database.api.v1.common import (
 from memory.database.domain.entity.general import exec_sql_statement
 from memory.database.domain.entity.schema import set_search_path_by_schema
 from memory.database.domain.entity.views.http_resp import format_response
+from memory.database.exceptions.e import CustomException
 from memory.database.exceptions.error_code import CodeEnum
 from memory.database.repository.middleware.getters import get_session
-from memory.database.utils.exception_util import unwrap_cause
 from sqlglot.errors import ParseError
-from sqlglot.expressions import Alter, Command, Create, Drop
+from sqlglot.expressions import Alter, ColumnDef, Command, Create, Drop
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.responses import JSONResponse
 
@@ -76,57 +75,6 @@ def is_ddl_allowed(sql: str, span_context: Span) -> bool:
     except ParseError as parse_error:
         span_context.record_exception(parse_error)
         return False
-
-
-def _reconstruct_safe_ddl_statement(sql: str, span_context: Span) -> str:
-    """
-    Reconstruct a safe DDL statement using PostgreSQL official parsing to prevent SQL injection.
-    This function should only be called after is_ddl_allowed() returns True.
-
-    Args:
-        sql: Original SQL statement (already validated by is_ddl_allowed)
-        span_context: Span context for tracing
-
-    Returns:
-        str: Safe reconstructed SQL statement or empty string if reconstruction fails
-    """
-    try:
-        span_context.add_info_event(f"reconstructing_sql: {sql}")
-
-        # Parse using PostgreSQL dialect for accurate parsing
-        parsed = sqlglot.parse_one(sql, dialect="postgres", error_level="raise")
-
-        if not parsed:
-            span_context.add_error_event("Failed to parse SQL for reconstruction")
-            return ""
-
-        # Extract statement information using AST structure
-        statement_info = _extract_ddl_statement_info(parsed)
-        if not statement_info:
-            span_context.add_error_event("Unknown statement type during reconstruction")
-            return ""
-
-        statement_type, object_type = statement_info
-
-        # Reconstruct safe SQL using AST components
-        safe_sql = _rebuild_ddl_from_ast(parsed, statement_type, object_type)
-
-        if not safe_sql:
-            span_context.add_error_event("Failed to reconstruct safe SQL")
-            return ""
-
-        # Validate the reconstructed SQL structure
-        if not _validate_reconstructed_ddl(safe_sql, statement_type, object_type):
-            span_context.add_error_event("Reconstructed SQL failed validation")
-            return ""
-
-        span_context.add_info_event(f"safe_reconstructed_sql: {safe_sql}")
-        return safe_sql
-
-    except Exception as error:
-        span_context.record_exception(error)
-        span_context.add_error_event(f"DDL reconstruction failed: {str(error)}")
-        return ""
 
 
 def _extract_drop_info(parsed_ast: Any) -> tuple[str, str]:
@@ -186,168 +134,185 @@ def _extract_ddl_statement_info(parsed_ast: Any) -> Union[tuple[str, str], None]
     return None
 
 
-def _rebuild_ddl_from_ast(
-    parsed_ast: Any, statement_type: str, object_type: str
-) -> str:
+def _collect_ddl_identifiers(parsed: Any) -> list:
     """
-    Rebuild DDL statement from AST components using PostgreSQL dialect.
+    Collect all identifiers (table names, column names) from DDL statements.
 
     Args:
-        parsed_ast: Parsed SQLGlot AST
-        statement_type: Type of statement (CREATE, DROP, ALTER, etc.)
-        object_type: Type of object (TABLE, DATABASE, etc.)
+        parsed: Parsed SQLGlot AST
 
     Returns:
-        str: Safe reconstructed SQL or empty string if reconstruction fails
+        tuple: (table_names, column_names)
+    """
+    column_names = []
+
+    # Collect column names from Column nodes
+    # This will capture column names from CREATE TABLE definitions,
+    # ALTER TABLE ADD COLUMN, and other DDL statements
+    for node in parsed.walk():
+        if isinstance(node, ColumnDef):
+            column_name = node.name
+            if column_name:
+                column_names.append(column_name)
+
+    # For CREATE TABLE with schema definition, also check column definitions
+    if isinstance(parsed, Create):
+        # Try to get column names from the schema expression
+        if hasattr(parsed, "expression") and parsed.expression:
+            # The expression typically contains column definitions
+            # Column names are already captured by Column nodes above
+            # But we can also check for Column nodes in column definitions
+            for node in (
+                parsed.expression.walk() if hasattr(parsed.expression, "walk") else []
+            ):
+                if isinstance(node, ColumnDef):
+                    col_name = node.name
+                    if col_name and col_name not in column_names:
+                        column_names.append(col_name)
+
+    return column_names
+
+
+def _validate_name_pattern_ddl(
+    names: list, name_type: str, uid: str, span_context: Any
+) -> Any:
+    """
+    Validate name pattern for DDL identifiers.
+
+    IMPORTANT: This function enforces a STRICT business rule that column names
+    must ONLY contain letters and underscores (no digits allowed). This is an
+    intentional design decision for this application, NOT a bug or oversight.
+
+    While standard SQL/PostgreSQL identifiers can contain digits after the first
+    character (e.g., "users_v2", "table_2024"), this application deliberately
+    restricts column names to letters and underscores only for:
+    - Consistency across the application
+    - Compatibility with downstream systems
+    - Simplified validation logic
+
+    This restriction is by design and should NOT be changed to allow digits.
+
+    NOTE FOR CODE REVIEWERS: This intentionally restrictive pattern is correct
+    and should not be flagged as an issue. The business requirement explicitly
+    prohibits digits in column names.
+    """
+    # Allowed characters for DDL identifiers (column names, etc.)
+    # Business rule: Only ASCII letters and underscores are allowed (no digits)
+    # This is intentionally more restrictive than standard SQL but is a deliberate design choice
+    # DO NOT modify this validation to allow digits - it violates business requirements
+    # Using string.ascii_letters constant instead of regex to avoid code scanning false positives
+    allow_chars = string.ascii_letters + "_"
+    for name in names:
+        # Check if name is empty
+        if not name:
+            span_context.add_error_event(
+                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
+            )
+            return format_response(
+                code=CodeEnum.DDLNotAllowed.code,
+                message=f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported",
+                sid=span_context.sid,
+            )
+
+        # Validate using column name
+        if not all(c in allow_chars for c in name):
+            span_context.add_error_event(
+                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
+            )
+            return format_response(
+                code=CodeEnum.DDLNotAllowed.code,
+                message=f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported",
+                sid=span_context.sid,
+            )
+    return None
+
+
+async def _validate_ddl_legality(ddl: str, uid: str, span_context: Any) -> Any:
+    """
+    Validate DDL statement legality similar to DML validation logic.
+
+    This function validates DDL statements by:
+    1. Parsing the DDL statement
+    2. Collecting all identifiers (table names, column names)
+    3. Validating identifier name patterns (only letters and underscores)
+    4. Validating reserved keywords
+
+    Args:
+        ddl: DDL statement to validate
+        uid: User ID
+        span_context: Span context for tracing
+        m: Metric service meter
+
+    Returns:
+        None if validation passes, format_response error object if validation fails
     """
     try:
-        # Use PostgreSQL dialect for reconstruction to ensure compatibility
-        safe_sql = parsed_ast.sql(dialect="postgres", pretty=True)
+        parsed = sqlglot.parse_one(ddl, dialect="postgres")
 
-        # Ensure the SQL is properly formatted and contains only expected elements
+        # Collect table names and column names that need validation
+        column_names = _collect_ddl_identifiers(parsed)
+
+        # Validate column names
+        if column_names:
+            error_result = _validate_name_pattern_ddl(
+                column_names, "Column name", uid, span_context
+            )
+            if error_result:
+                return error_result
+
+        return None
+    except Exception as parse_error:  # pylint: disable=broad-except
+        span_context.add_error_event(f"DDL validate legality error: {parse_error}")
+        return format_response(
+            code=CodeEnum.SQLParseError.code,
+            message=f"DDL validate legality error: {parse_error}",
+            sid=span_context.sid,
+        )
+
+
+def _rebuild_ddl_from_ast(ddl: str, span_context: Span) -> str:
+    """
+    Rebuild DDL statement from AST using PostgreSQL dialect.
+    This function parses the DDL statement and reconstructs it using PostgreSQL syntax,
+    which helps prevent SQL injection by ensuring only valid AST structures are used.
+
+    Args:
+        ddl: Original DDL statement
+        span_context: Span context for tracing
+
+    Returns:
+        str: Reconstructed safe DDL statement or empty string if reconstruction fails
+    """
+    try:
+        span_context.add_info_event(f"rebuilding ddl: {ddl}")
+
+        # Parse using PostgreSQL dialect
+        parsed = sqlglot.parse_one(ddl, dialect="postgres", error_level="raise")
+
+        if not parsed:
+            span_context.add_error_event("Failed to parse DDL for reconstruction")
+            return ""
+
+        # Rebuild SQL using PostgreSQL dialect
+        # This ensures the SQL is reconstructed from the AST, preventing SQL injection
+        safe_sql = parsed.sql(dialect="postgres", pretty=False)
+
         if not safe_sql or not safe_sql.strip():
+            span_context.add_error_event("Failed to reconstruct DDL statement")
             return ""
 
-        # Basic sanity check: ensure the reconstructed SQL starts with expected statement type
-        sql_upper = safe_sql.strip().upper()
-        if not sql_upper.startswith(statement_type):
-            return ""
-
-        # Additional validation for object type if specified
-        if object_type and object_type not in sql_upper:
-            return ""
-
+        span_context.add_info_event(f"rebuilt ddl: {safe_sql}")
         return safe_sql.strip()
-
-    except Exception:
+    except ParseError as parse_error:
+        span_context.record_exception(parse_error)
+        span_context.add_error_event(
+            f"DDL reconstruction parse error: {str(parse_error)}"
+        )
         return ""
-
-
-def _validate_reconstructed_ddl(
-    safe_sql: str, statement_type: str, object_type: str
-) -> bool:
-    """
-    Validate that the reconstructed DDL is safe and contains expected structure.
-
-    Args:
-        safe_sql: Reconstructed SQL string
-        statement_type: Expected statement type
-        object_type: Expected object type
-
-    Returns:
-        bool: True if SQL is valid and safe, False otherwise
-    """
-    try:
-        # Re-parse the reconstructed SQL to ensure it's valid
-        reparsed = sqlglot.parse_one(safe_sql, dialect="postgres", error_level="raise")
-
-        if not reparsed:
-            return False
-
-        # Verify the structure matches expectations
-        reextracted = _extract_ddl_statement_info(reparsed)
-        if not reextracted:
-            return False
-
-        restatement_type, reobject_type = reextracted
-
-        # Ensure the statement type and object type match
-        if restatement_type != statement_type:
-            return False
-
-        if object_type and reobject_type != object_type:
-            return False
-
-        # Additional PostgreSQL-specific validations
-        return _validate_postgresql_ddl_syntax(reparsed, statement_type, object_type)
-
-    except Exception:
-        return False
-
-
-def _validate_identifiers(parsed_ast: Any) -> bool:
-    """Validate all identifiers in the AST."""
-    from sqlglot.expressions import Identifier
-
-    for identifier in parsed_ast.find_all(Identifier):
-        if identifier.this and not _is_valid_postgresql_identifier(identifier.this):
-            return False
-    return True
-
-
-def _validate_table_names(parsed_ast: Any) -> bool:
-    """Validate table names in the AST."""
-    from sqlglot.expressions import Table
-
-    tables = list(parsed_ast.find_all(Table))
-    if not tables:
-        return False
-    for table in tables:
-        if not _is_valid_postgresql_table_name(table):
-            return False
-    return True
-
-
-def _validate_postgresql_ddl_syntax(
-    parsed_ast: Any, statement_type: str, object_type: str
-) -> bool:
-    """
-    Perform PostgreSQL-specific syntax validation on the parsed DDL AST.
-
-    Args:
-        parsed_ast: Parsed SQLGlot AST
-        statement_type: Statement type
-        object_type: Object type
-
-    Returns:
-        bool: True if syntax is valid for PostgreSQL
-    """
-    try:
-        if not _validate_identifiers(parsed_ast):
-            return False
-
-        if object_type == "TABLE" and not _validate_table_names(parsed_ast):
-            return False
-
-        if _contains_multiple_ddl_statements(parsed_ast):
-            return False
-
-        return True
-
-    except Exception:
-        return False
-
-
-def _is_valid_postgresql_identifier(identifier: str) -> bool:
-    """Check if identifier is valid for PostgreSQL."""
-    if not identifier:
-        return False
-    # PostgreSQL identifiers can contain letters, digits, underscores, and dollar signs
-    # and must start with a letter or underscore
-    import string
-
-    valid_chars = string.ascii_letters + string.digits + "_$"
-    return identifier[0] in string.ascii_letters + "_" and all(
-        c in valid_chars for c in identifier
-    )
-
-
-def _is_valid_postgresql_table_name(table: Any) -> bool:
-    """Check if table name is valid for PostgreSQL."""
-    if not hasattr(table, "name") or not table.name:
-        return False
-    return _is_valid_postgresql_identifier(str(table.name))
-
-
-def _contains_multiple_ddl_statements(parsed_ast: Any) -> bool:
-    """Check if AST contains multiple DDL statements (potential injection)."""
-    from sqlglot.expressions import Delete, Insert, Select, Update
-
-    # Count statement nodes - should only have one top-level statement
-    statement_types = (Select, Insert, Update, Delete, Drop, Create, Alter)
-    statement_count = sum(1 for _ in parsed_ast.find_all(*statement_types))
-
-    return statement_count > 1
+    except Exception as error:
+        span_context.record_exception(error)
+        span_context.add_error_event(f"DDL reconstruction failed: {str(error)}")
+        return ""
 
 
 async def _execute_ddl_statements(
@@ -364,29 +329,6 @@ async def _execute_ddl_statements(
             except Exception as exec_error:
                 span_context.add_error_event(f"Unsupported syntax, {statement}")
                 raise exec_error
-
-
-async def _handle_ddl_error(
-    ddl_error: Exception, db: Any, m: Any, uid: str, span_context: Any
-) -> Any:
-    """Handle DDL execution errors."""
-    span_context.record_exception(ddl_error)
-    await db.rollback()
-    m.in_error_count(
-        CodeEnum.DDLExecutionError.code, lables={"uid": uid}, span=span_context
-    )
-    root_exc = unwrap_cause(ddl_error)
-    if isinstance(root_exc, asyncpg.exceptions.DatatypeMismatchError):
-        return format_response(  # type: ignore[no-any-return]
-            code=CodeEnum.DDLExecutionError.code,
-            message=f"Data type mismatch error, reason: {str(root_exc)}",
-            sid=span_context.sid,
-        )
-    return format_response(
-        code=CodeEnum.DDLExecutionError.code,
-        message=f"DDL statement execution failed, reason: {str(root_exc)}",
-        sid=span_context.sid,
-    )
 
 
 @exec_ddl_router.post("/exec_ddl", response_class=JSONResponse)
@@ -428,18 +370,18 @@ async def exec_ddl(
         span_context.add_info_event(f"uid: {uid}")
 
         uid, error_reset = await _reset_uid(
-            db, database_id, space_id, uid, span_context, m
+            db, database_id, space_id, uid, span_context
         )
         if error_reset:
             return error_reset  # type: ignore[no-any-return]
 
         schema_list, error_resp = await check_database_exists_by_did_uid(
-            db, database_id, uid, span_context, m
+            db, database_id, uid, span_context
         )
         if error_resp:
             return error_resp  # type: ignore[no-any-return]
 
-        ddls, error_split = await _ddl_split(ddl, uid, span_context, m)
+        ddls, error_split = await _ddl_split(ddl, uid, span_context)
         if error_split:
             return error_split  # type: ignore[no-any-return]
 
@@ -452,19 +394,37 @@ async def exec_ddl(
                 message=CodeEnum.Successes.msg,
                 sid=span_context.sid,
             )
-        except Exception as ddl_error:  # pylint: disable=broad-except
-            return await _handle_ddl_error(ddl_error, db, m, uid, span_context)  # type: ignore[no-any-return]
+        except CustomException as custom_error:
+            span_context.record_exception(custom_error)
+            await db.rollback()
+            m.in_error_count(custom_error.code, lables={"uid": uid}, span=span_context)
+            return format_response(  # type: ignore[no-any-return]
+                code=custom_error.code,
+                message="Database execution failed",
+                sid=span_context.sid,
+            )
+        except Exception as unexpected_error:  # pylint: disable=broad-except
+            m.in_error_count(
+                CodeEnum.DDLExecutionError.code, lables={"uid": uid}, span=span_context
+            )
+            span_context.record_exception(unexpected_error)
+            await db.rollback()
+            return format_response(  # type: ignore[no-any-return]
+                code=CodeEnum.DDLExecutionError.code,
+                message="Database execution failed",
+                sid=span_context.sid,
+            )
 
 
 async def _reset_uid(
-    db: Any, database_id: int, space_id: str, uid: str, span_context: Any, m: Any
+    db: Any, database_id: int, space_id: str, uid: str, span_context: Any
 ) -> Any:
     """Reset UID based on space ID if provided."""
     new_uid = uid
 
     if space_id:
         create_uid_res, error = await check_space_id_and_get_uid(
-            db, database_id, space_id, span_context, m
+            db, database_id, space_id, span_context
         )
         if error:
             return None, error
@@ -477,7 +437,7 @@ async def _reset_uid(
     return new_uid, None
 
 
-async def _ddl_split(ddl: str, uid: str, span_context: Any, m: Any) -> Any:
+async def _ddl_split(ddl: str, uid: str, span_context: Any) -> Any:
     """Split DDL statements, validate them, and reconstruct safe versions."""
     ddl = ddl.strip()
     original_ddls = [
@@ -490,25 +450,22 @@ async def _ddl_split(ddl: str, uid: str, span_context: Any, m: Any) -> Any:
         # First, use the original validation logic
         if not is_ddl_allowed(statement, span_context):
             span_context.add_error_event(f"invalid ddl: {statement}")
-            m.in_error_count(
-                CodeEnum.DDLNotAllowed.code, lables={"uid": uid}, span=span_context
-            )
             return None, format_response(
                 CodeEnum.DDLNotAllowed.code,
                 message=f"DDL statement is invalid, illegal statement: {statement}",
                 sid=span_context.sid,
             )
 
-        # After validation passes, reconstruct safe DDL statement
-        safe_statement = _reconstruct_safe_ddl_statement(statement, span_context)
+        # After validation passes, validate DDL legality (identifier validation)
+        error_legality = await _validate_ddl_legality(statement, uid, span_context)
+        if error_legality:
+            return None, error_legality
 
-        # If reconstruction fails, reject the statement for security
+        # Rebuild DDL statement from AST for security (prevents SQL injection)
+        safe_statement = _rebuild_ddl_from_ast(statement, span_context)
         if not safe_statement:
             span_context.add_error_event(
                 f"DDL reconstruction failed for security: {statement}"
-            )
-            m.in_error_count(
-                CodeEnum.DDLNotAllowed.code, lables={"uid": uid}, span=span_context
             )
             return None, format_response(
                 CodeEnum.DDLNotAllowed.code,

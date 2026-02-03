@@ -61,6 +61,8 @@ class ThirdApiCodeEnum(Enum):
         "Pod is not ready yet, please try again later",
     )
     CODE_EXECUTE_ERROR = (1, "exec code error::exit status 1")
+    CODE_EXECUTE_LINUXSERRROR = (10407, "linux_user_error")
+    CODE_EXECUTE_NOAVAILABLEINSTANCE = (10406, "no_available_instance")
 
     # SparkLink related errors
     SPARK_LINK_APP_INIT_ERROR = (30001, "Initialization failed")

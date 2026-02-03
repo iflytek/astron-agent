@@ -693,6 +693,9 @@ function validateServiceIdParams(currentCheckNode: unknown): boolean {
 }
 
 function validateRetryConfig(currentCheckNode: unknown): boolean {
+  if (!currentCheckNode?.data?.retryConfig?.shouldRetry) {
+    return true;
+  }
   if (currentCheckNode?.data?.retryConfig?.errorStrategy !== 1) {
     return true;
   }
@@ -908,7 +911,7 @@ export function renderType(params): string {
     );
   }
   const type = params?.type || params?.schema?.type || '';
-  if (type?.includes('array')) {
+  if (type?.includes('array') && type?.split('-')?.[1]) {
     const baseType = type.split('-')[1];
     const capitalized = baseType.charAt(0).toUpperCase() + baseType.slice(1);
     return `Array<${capitalized}>`;
@@ -1380,9 +1383,9 @@ export function deleteFieldByPath(obj: unknown, path: string[]): unknown {
 export const handleModifyToolUrlParams = (
   toolUrlParams: unknown[]
 ): unknown[] => {
-  return (toolUrlParams || [])
-    .filter(item => item?.open !== false)
-    .map(item => ({
+  return toolUrlParams
+    ?.filter(item => item?.open !== false)
+    ?.map(item => ({
       id: uuid(),
       name: item.name,
       type: item.type,
@@ -1390,7 +1393,10 @@ export const handleModifyToolUrlParams = (
       required: item?.required,
       description: item?.description,
       schema: {
-        type: item.type,
+        type:
+          item?.type === 'array'
+            ? `array-${item?.children?.[0]?.type}`
+            : item?.type,
         value: {
           type: 'ref',
           content: {},

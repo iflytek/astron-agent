@@ -424,8 +424,6 @@ class LLMGenerate(BaseModel):
             code=code,
             message=message,
         )
-        if llm_generate.workflow_step:
-            llm_generate.workflow_step.node = None
         return llm_generate
 
     @staticmethod
@@ -450,8 +448,6 @@ class LLMGenerate(BaseModel):
             code=code,
             message=message,
         )
-        if r.workflow_step:
-            r.workflow_step.node = None
         return r
 
     @staticmethod

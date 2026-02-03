@@ -8,7 +8,7 @@ import React, {
   memo,
 } from 'react';
 import {
-  FlowInput,
+  FlowTextArea,
   FlowSelect,
   FlowNodeInput,
   FLowCollapse,
@@ -43,11 +43,18 @@ import { generateUploadType } from '@/components/workflow/utils/reactflowUtils';
 
 import dotSvg from '@/assets/imgs/workflow/dot.svg';
 
-export const Inputs = memo(({ label = '输入', inputs }) => {
+export const Inputs = memo(({ label, inputs }) => {
+  const { t } = useTranslation();
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const ItemBadge = ({ item }: { item: unknown }): React.ReactElement => {
+  const ItemBadge = ({
+    item,
+    size = 'xs',
+  }: {
+    item: unknown;
+    size: 'xs' | 'base';
+  }): React.ReactElement => {
     const hasError = item?.nameErrMsg || item?.schema?.value?.contentErrMsg;
 
     const containerStyle = {
@@ -59,16 +66,18 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
       color: hasError ? '#f4c69e' : '#7F7F7F',
     };
 
-    const displayName = item?.name?.trim() ? item?.name : '未定义';
+    const displayName = item?.name?.trim()
+      ? item?.name
+      : t('workflow.nodes.common.undefined');
 
     return (
       <div
         key={item?.id}
-        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-base font-medium"
+        className={`flex items-center gap-0.5 px-1 py-0.5 rounded text-${size} font-medium`}
         style={containerStyle}
       >
         <span style={labelStyle}>{useFlowTypeRender(item)}</span>
-        <span>{displayName}</span>
+        <span className="whitespace-nowrap">{displayName}</span>
       </div>
     );
   };
@@ -79,7 +88,7 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
       label: (
         <div className="p-1 w-[300px] flex items-center gap-1 flex-wrap">
           {inputs?.map(item => (
-            <ItemBadge item={item} />
+            <ItemBadge item={item} size="base" />
           ))}
         </div>
       ),
@@ -103,15 +112,15 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
         ref={elementRef}
       >
         {inputs?.map(item => (
-          <ItemBadge item={item} />
+          <ItemBadge item={item} size="xs" />
         ))}
         {showDropdown && (
-          <div className="absolute right-0 top-1 flex items-center">
+          <div className="absolute right-0 top-0 flex items-center">
             <div
               className="w-[93px] h-[20px]"
               style={{
                 background:
-                  'linear-gradient(to bottom right,  rgba(255, 255, 255, 0.6),rgba(240, 240, 240, 0.3))',
+                  'linear-gradient(90deg, rgba(255, 255, 255, 0) 0px, rgb(252, 252, 255) 78%)',
               }}
             ></div>
             <div className="bg-[#F2F5FE] flex items-center justify-center rounded overflow-hidden absolute right-0 top-[2px]">
@@ -130,16 +139,16 @@ export const Inputs = memo(({ label = '输入', inputs }) => {
   );
 });
 
-export const Outputs = memo(({ data, label = '输出', outputs }) => {
+export const Outputs = memo(({ data, label, outputs }) => {
   const { t } = useTranslation();
   const elementRef = useRef(null);
   const [showDropdown, setShowDropdown] = useState(false);
 
-  const ItemBadge = ({ item }: unknown): React.ReactElement => {
+  const ItemBadge = ({ item, size = 'xs' }: unknown): React.ReactElement => {
     return (
       <div
         key={item?.id}
-        className="flex items-center gap-0.5 px-1 py-0.5 rounded text-base font-medium"
+        className={`flex items-center gap-0.5 px-1 py-0.5 rounded font-medium text-${size}`}
         style={{
           backgroundColor: item?.nameErrMsg ? '#F0AE784D' : '#F2F5FE',
           color: item?.nameErrMsg ? '#ff7300' : '',
@@ -152,7 +161,11 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
         >
           {useFlowTypeRender(item)}
         </span>
-        <span>{item?.name?.trim() ? item?.name : '未定义'}</span>
+        <span className="whitespace-nowrap">
+          {item?.name?.trim()
+            ? item?.name
+            : t('workflow.nodes.common.undefined')}
+        </span>
       </div>
     );
   };
@@ -194,7 +207,7 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
       label: (
         <div className="p-1 w-[300px] flex items-center gap-1 flex-wrap">
           {finallyOutputs?.map(item => (
-            <ItemBadge item={item} />
+            <ItemBadge item={item} size="base" />
           ))}
         </div>
       ),
@@ -218,15 +231,15 @@ export const Outputs = memo(({ data, label = '输出', outputs }) => {
         ref={elementRef}
       >
         {finallyOutputs?.map(item => (
-          <ItemBadge item={item} />
+          <ItemBadge item={item} size="xs" />
         ))}
         {showDropdown && (
-          <div className="absolute right-0 top-1 flex items-center">
+          <div className="absolute right-0 top-0 flex items-center">
             <div
               className="w-[93px] h-[20px]"
               style={{
                 background:
-                  'linear-gradient(to bottom right,  rgba(255, 255, 255, 0.6),rgba(240, 240, 240, 0.3))',
+                  'linear-gradient(90deg, rgba(255, 255, 255, 0) 0px, rgb(252, 252, 255) 78%)',
               }}
             ></div>
             <div className="bg-[#F2F5FE] flex items-center justify-center rounded overflow-hidden absolute right-0 top-[2px]">
@@ -318,6 +331,7 @@ export const Label = memo(
 );
 
 export const ExceptionContent = memo(({ id, data }) => {
+  const { t } = useTranslation();
   const { isConnectable, exceptionHandleId } = useNodeCommon({ id, data });
 
   return (
@@ -325,9 +339,13 @@ export const ExceptionContent = memo(({ id, data }) => {
       {data?.retryConfig?.shouldRetry &&
       data?.retryConfig?.errorStrategy === 2 ? (
         <>
-          <div className="text-[333] text-right">异常处理</div>
+          <div className="text-[333] text-right">
+            {t('workflow.exceptionHandling.title')}
+          </div>
           <span className="relative exception-handle-edge">
-            执行异常流程
+            {t(
+              'workflow.exceptionHandling.exceptionMethods.executeExceptionFlow.label'
+            )}
             <SourceHandle
               nodeId={id}
               id={exceptionHandleId}
@@ -341,9 +359,12 @@ export const ExceptionContent = memo(({ id, data }) => {
 });
 
 export const Model = memo(({ model }) => {
+  const { t } = useTranslation();
   return (
     <>
-      <div className="text-[#333] text-right">模型</div>
+      <div className="text-[#333] text-right">
+        {t('workflow.nodes.largeModelNode.model')}
+      </div>
       <div className="flex items-center gap-1">
         <img src={model?.icon} className="w-[14px] h-[14px]" alt="" />
         <span>{model?.name}</span>
@@ -445,6 +466,8 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
     showInputs,
     showOutputs,
     showExceptionFlow,
+    inputLabel,
+    outputLabel,
   } = useNodeCommon({
     id,
     data,
@@ -461,8 +484,10 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
         padding: '0 14px',
       }}
     >
-      {showInputs && <Inputs inputs={data?.inputs} />}
-      {showOutputs && <Outputs outputs={data?.outputs} data={data} />}
+      {showInputs && <Inputs inputs={data?.inputs} label={inputLabel} />}
+      {showOutputs && (
+        <Outputs outputs={data?.outputs} data={data} label={outputLabel} />
+      )}
       {model && <Model model={model} />}
       {isKnowledgeNode && (
         <Knowledge data={data} repoList={data?.nodeParam?.repoList} />
@@ -511,9 +536,14 @@ export const NodeWrapper = memo<NodeWrapperProps>(({ id, data, children }) => {
 });
 
 export const ModelSection = memo(({ id, data }): React.ReactElement => {
+  const { t } = useTranslation();
   return (
     <FLowCollapse
-      label={<h2 className="text-base font-medium">模型</h2>}
+      label={
+        <h2 className="text-base font-medium">
+          {t('workflow.nodes.largeModelNode.model')}
+        </h2>
+      }
       content={
         <div className="rounded-md px-[18px] pb-3">
           <ModelSelect id={id} data={data} />
@@ -602,19 +632,37 @@ const renderFileUpload = (
   );
 };
 
-const renderString = (params, index, handleChangeParam): React.ReactElement => (
-  <FlowInput
-    value={params?.default}
-    className="pt-0.5"
-    onChange={e =>
-      handleChangeParam(
-        index,
-        d => (d.default = e.target.value),
-        e.target.value
-      )
-    }
-  />
-);
+const renderString = (params, index, handleChangeParam): React.ReactElement => {
+  return (
+    <FlowTextArea
+      style={{
+        height: 30,
+        minHeight: 30,
+        maxHeight: 200,
+      }}
+      adaptiveHeight={true}
+      placeholder={params?.description || '请输入'}
+      value={params?.default}
+      onChange={e =>
+        handleChangeParam(
+          index,
+          d => (d.default = e.target.value),
+          e.target.value
+        )
+      }
+      onKeyDown={e => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          handleChangeParam(
+            index,
+            d => (d.default = params?.default + '\t'),
+            params?.default + '\t'
+          );
+        }
+      }}
+    />
+  );
+};
 
 const renderInteger = (
   params,

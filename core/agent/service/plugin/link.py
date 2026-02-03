@@ -1,16 +1,16 @@
 import asyncio
 import json
+import os
 import time
 from base64 import b64encode
-from typing import Any, Optional
+from typing import Any, List, Optional, Union
 
 import aiohttp
+from common.otlp.trace.span import Span
 from pydantic import BaseModel, Field
 
-from common_imports import Span
-from exceptions.plugin_exc import GetToolSchemaExc, RunToolExc
-from infra import agent_config
-from service.plugin.base import BasePlugin, PluginResponse
+from agent.exceptions.plugin_exc import GetToolSchemaExc, RunToolExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
 class LinkPluginRunner(BaseModel):
@@ -146,10 +146,15 @@ class LinkPluginRunner(BaseModel):
             # Finished parsing parameters, start calling link
             result: dict[str, Any] = {}
             try:
-                timeout = aiohttp.ClientTimeout(total=40)
+                run_url = os.getenv("RUN_LINK_URL")
+                if not run_url:
+                    raise RunToolExc("RUN_LINK_URL is not set")
+                timeout = aiohttp.ClientTimeout(
+                    total=int(os.getenv("LINK_CALL_TIMEOUT", "90"))
+                )
                 async with aiohttp.ClientSession() as session:
                     async with session.post(
-                        agent_config.RUN_LINK_URL,
+                        run_url,
                         data=json.dumps(run_link_payload),
                         timeout=timeout,
                         headers={"Content-Type": "application/json"},
@@ -202,7 +207,7 @@ class LinkPlugin(BasePlugin):
 class LinkPluginFactory(BaseModel):
     app_id: str
     uid: str
-    tool_ids: list[str | dict[str, Any]]
+    tool_ids: List[Union[str, dict[str, Any]]]
 
     const_headers: dict[str, str] = Field(default={"Content-Type": "application/json"})
 
@@ -221,7 +226,8 @@ class LinkPluginFactory(BaseModel):
             if not self.tool_ids:
                 return []
 
-            url = agent_config.VERSIONS_LINK_URL + "?" + f"app_id={self.app_id}"
+            base_url = os.getenv("VERSIONS_LINK_URL") or ""
+            url = base_url + "?" + f"app_id={self.app_id}"
 
             for tool_id in self.tool_ids:
                 if isinstance(tool_id, str):

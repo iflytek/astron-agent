@@ -5,7 +5,7 @@ This module provides the MessageNode class which handles intermediate message ou
 during workflow execution. It supports template-based message generation and streaming output.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 
 from pydantic import Field
 
@@ -57,7 +57,7 @@ class MessageNode(BaseOutputNode):
         :return: NodeRunResult containing execution results and timing information
         """
         # Initialize execution variables
-        callbacks: ChatCallBacks = kwargs.get("callbacks", None)
+        callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
         content = ""
         reasoning_content = ""
         inputs = {}

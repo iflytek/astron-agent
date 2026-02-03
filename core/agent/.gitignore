@@ -1,72 +1,12 @@
-# Python
+# Python-generated files
 __pycache__/
-*.py[cod]
-*.pyc
-*.pyo
-*.pyd
-.Python
+*.py[oc]
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-*.egg-info/
-.installed.cfg
-*.egg
+wheels/
+*.egg-info
+*.log
 
 # Virtual environments
-.env
-.env.*
 .venv
-venv/
-ENV/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-.DS_Store?
-Thumbs.db
-
-# Testing
-.coverage
-coverage.xml
-.pytest_cache/
-.mypy_cache/
-htmlcov/
-
-# Logs
-*.log
-logs/
-
-# AI Tools
-.serena/
-stubs/
-
-# Databases
-*.sqlite
-*.sqlite3
-*.db
-
-# Temporary
-*.tmp
-tmp/
-
-# Backup
-backup/
-
-# Configuration files with sensitive data
-config.env
-
-# Development scripts (excluded from version control)
-scripts/run_tests.sh
-scripts/start_dev.sh
-
-# Documentation and deployment directories (excluded from version control)
-doc/
-docker/
+.idea

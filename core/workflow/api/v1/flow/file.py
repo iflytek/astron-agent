@@ -46,7 +46,7 @@ async def upload_file(
                     err_msg="File name cannot be empty",
                 )
             extension = file.filename.split(".")[-1].lower()
-            file_url = get_oss_service().upload_file(
+            file_url = await get_oss_service().upload_file_async(
                 f"{str(uuid.uuid4())}.{extension}", contents
             )
             m.in_success_count()
@@ -91,7 +91,7 @@ async def upload_files(
                         err_msg="File name cannot be empty",
                     )
                 extension = file.filename.split(".")[-1].lower()
-                file_url = get_oss_service().upload_file(
+                file_url = await get_oss_service().upload_file_async(
                     f"{str(uuid.uuid4())}.{extension}", contents
                 )
                 file_urls.append(file_url)

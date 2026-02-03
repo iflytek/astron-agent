@@ -26,6 +26,7 @@ class NodeType(Enum):
     QUESTION_ANSWER = "question-answer"
     DATABASE = "database"
     RPA = "rpa"
+    MCP = "mcp"
 
     @classmethod
     def value_of(cls, value: str) -> "NodeType":
@@ -88,6 +89,8 @@ CONTINUE_ON_ERROR_NOT_STREAM_NODE_TYPE = [
     NodeType.DECISION_MAKING.value,
     NodeType.KNOWLEDGE_BASE.value,
     NodeType.PARAMETER_EXTRACTOR.value,
+    NodeType.MCP.value,
+    NodeType.RPA.value,
 ]
 
 # Node types that continue execution on error with streaming

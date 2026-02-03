@@ -37,6 +37,8 @@ spec:
           value: {{ .Values.consoleFrontend.env.casdoorOrg | quote }}
         - name: SPARK_APP_ID
           value: {{ .Values.global.platformAppId | quote }}
+        - name: SPARK_VIRTUAL_MAN_APP_ID
+          value: {{ .Values.global.sparkVirtualManAppId | quote }}
         ports:
         - name: http
           containerPort: {{ .Values.consoleFrontend.service.port }}

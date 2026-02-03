@@ -25,7 +25,7 @@ class OSSServiceFactory(ServiceFactory):
                 access_key_secret=os.getenv("OSS_ACCESS_KEY_SECRET") or "",
                 bucket_name=os.getenv("OSS_BUCKET_NAME") or "",
                 oss_download_host=os.getenv("OSS_DOWNLOAD_HOST") or "",
-            )
+            )  # type: ignore
         else:
             self.client = IFlyGatewayStorageClient(  # type: ignore[assignment]
                 endpoint=os.getenv("OSS_ENDPOINT", ""),

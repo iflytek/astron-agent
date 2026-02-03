@@ -1006,6 +1006,113 @@ CREATE TABLE `openapi_auth` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='openapi鉴权储存';
 
 
+-- rpa.openai_workflows definition
+
+CREATE TABLE `openai_workflows` (
+  `project_id` varchar(100) NOT NULL COMMENT '项目ID（主键）',
+  `name` varchar(100) NOT NULL COMMENT '工作流名称',
+  `description` varchar(500) DEFAULT NULL COMMENT '工作流描述',
+  `version` int(11) NOT NULL DEFAULT '1' COMMENT '工作流版本号',
+  `status` int(11) NOT NULL DEFAULT '1' COMMENT '工作流状态（1=激活，0=禁用）',
+  `user_id` varchar(50) NOT NULL COMMENT '用户ID',
+  `example_project_id` varchar(100) DEFAULT NULL COMMENT '示例用户账号下的project_id，用于执行时映射',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `english_name` varchar(100) DEFAULT NULL COMMENT '翻译后的英文名称',
+  `parameters` text COMMENT '存储JSON字符串格式的参数',
+  PRIMARY KEY (`project_id`),
+  KEY `idx_name` (`name`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+-- rpa.openai_executions definition
+
+CREATE TABLE `openai_executions` (
+  `id` varchar(36) NOT NULL COMMENT '执行记录ID（UUID）',
+  `project_id` varchar(100) NOT NULL COMMENT '项目ID（关联工作流）',
+  `status` varchar(20) NOT NULL DEFAULT 'PENDING' COMMENT '执行状态（PENDING/RUNNING/COMPLETED/FAILED/CANCELLED）',
+  `parameters` text COMMENT '执行参数（JSON格式）',
+  `result` text COMMENT '执行结果（JSON格式）',
+  `error` text COMMENT '错误信息',
+  `user_id` varchar(50) NOT NULL COMMENT '用户ID',
+  `exec_position` varchar(50) NOT NULL DEFAULT 'EXECUTOR' COMMENT '执行位置',
+  `version` int(11) DEFAULT NULL COMMENT '工作流版本号',
+  `start_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '开始时间',
+  `end_time` datetime DEFAULT NULL COMMENT '结束时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_project_id` (`project_id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_start_time` (`start_time`),
+  CONSTRAINT `openai_executions_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `openai_workflows` (`project_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- rpa.openapi_users definition
+
+CREATE TABLE `openapi_users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `default_api_key` varchar(100) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `user_id` (`user_id`),
+  UNIQUE KEY `phone` (`phone`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_phone` (`phone`)
+) ENGINE=InnoDB AUTO_INCREMENT=1151 DEFAULT CHARSET=utf8mb4;
+
+
+-- rpa.point_allocations definition
+
+CREATE TABLE `point_allocations` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) NOT NULL,
+  `initial_amount` int(11) NOT NULL COMMENT '原始分配数量',
+  `remaining_amount` int(11) NOT NULL COMMENT '当前剩余数量',
+  `allocation_type` varchar(100) NOT NULL COMMENT '积分来源',
+  `priority` int(11) NOT NULL DEFAULT '0' COMMENT '优先级，数值越高优先级越高',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` datetime NOT NULL COMMENT '积分过期时间',
+  `description` varchar(255) DEFAULT NULL COMMENT '描述',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_expires_at` (`expires_at`),
+  KEY `idx_user_expiry` (`user_id`,`expires_at`)
+) ENGINE=InnoDB AUTO_INCREMENT=83 DEFAULT CHARSET=utf8mb4;
+
+
+-- rpa.point_consumptions definition
+
+CREATE TABLE `point_consumptions` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `transaction_id` bigint(20) NOT NULL COMMENT '关联的交易ID',
+  `allocation_id` bigint(20) NOT NULL COMMENT '关联的分配ID',
+  `amount` int(11) NOT NULL COMMENT '从此分配中使用的积分数量',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2809 DEFAULT CHARSET=utf8mb4;
+
+
+-- rpa.point_transactions definition
+
+CREATE TABLE `point_transactions` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(100) NOT NULL,
+  `amount` int(11) NOT NULL COMMENT '交易总金额（正数或负数）',
+  `transaction_type` varchar(50) NOT NULL COMMENT '交易类型',
+  `related_entity_type` varchar(50) DEFAULT NULL COMMENT '关联实体类型',
+  `related_entity_id` bigint(20) DEFAULT NULL COMMENT '关联实体ID',
+  `description` varchar(255) DEFAULT NULL COMMENT '描述',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2891 DEFAULT CHARSET=utf8mb4;
+
 -- rpa.pypi_packages definition
 
 CREATE TABLE `pypi_packages` (

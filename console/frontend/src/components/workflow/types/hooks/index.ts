@@ -2,6 +2,7 @@ import { RpaInfo, RpaNodeParam } from '@/types/rpa';
 import {
   AddNodeType,
   ToolType,
+  McpType,
   FlowType,
   PositionType,
   NewNodeType,
@@ -272,6 +273,10 @@ export interface UseNodeCommonReturn {
     }>;
   }>;
   isThinkModel: boolean;
+  inputLabel: string;
+  outputLabel: string;
+  allowAddInput: boolean;
+  allowAddOutput: boolean;
 }
 
 export interface UseFlowCommonReturn {
@@ -282,6 +287,7 @@ export interface UseFlowCommonReturn {
     position: PositionType
   ) => NewNodeType[] | null;
   handleAddToolNode: (tool: ToolType) => void;
+  handleAddMcpNode: (mcp: McpType) => void;
   handleAddFlowNode: (flow: FlowType) => void;
   handleAddRpaNode: (rpa: RpaNodeParam) => void;
   handleEdgeAddNode: (
@@ -335,6 +341,10 @@ export interface UseAddToolNodeReturn {
   handleAddToolNode: (tool: ToolType) => void;
 }
 
+export interface UseAddMcpNodeReturn {
+  handleAddMcpNode: (mcp: McpType) => void;
+}
+
 export interface UseAddFlowNodeReturn {
   handleAddFlowNode: (flow: FlowType) => void;
 }
@@ -347,6 +357,7 @@ export interface UseAddRpaNodeReturn {
 export type {
   AddNodeType,
   ToolType,
+  McpType,
   FlowType,
   PositionType,
   NewNodeType,

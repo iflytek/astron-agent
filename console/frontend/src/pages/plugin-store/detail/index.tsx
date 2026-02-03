@@ -232,8 +232,7 @@ const PluginStoreDetail: React.FC = (): ReactElement => {
       </div>
       <div className="p-6 pr-0 w-full rounded-2xl bg-[#fff] flex-1 overflow-hidden">
         <div className="w-full h-full pr-6 overflow-scroll">
-          {/* TODO：等吴启提交custom-node */}
-          <MCPDetail currentToolId={id || ''} />
+          <MCPDetail currentTool={toolInfo} />
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@
 
 ## 1. 怎么升级项目？
 
-如果您已经部署了 Astron Agent，想要升级到最新版本，请按照以下步骤操作：
+如果您已经部署了 Astron Agent，想要升级到最新版本，请按照以下步骤操作
 
 ### 升级步骤
 
@@ -39,7 +39,7 @@ docker compose -f docker-compose-with-auth.yaml pull
 
 ## 2. 部署完成后打不开页面怎么办？
 
-请按照以下步骤逐一排查（操作前请务必备份重要数据）：
+请按照以下步骤逐一排查（操作前请务必备份重要数据）
 
 1. 执行 `docker compose -f docker-compose-with-auth.yaml down -v` 清理容器和数据卷，该步骤会删除所有数据。
 2. 运行 `git restore docker` 清理 `docker` 目录下的改动，恢复为仓库版本。

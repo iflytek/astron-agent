@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly CONSOLE_CASDOOR_APP?: string;
   readonly CONSOLE_CASDOOR_ORG?: string;
   readonly SPARK_APP_ID?: string;
+  readonly SPARK_VIRTUAL_MAN_APP_ID?: string;
   readonly VITE_BASE_URL?: string;
   readonly VITE_CASDOOR_CLIENT_ID?: string;
   readonly VITE_CASDOOR_APP_NAME?: string;
@@ -27,6 +28,7 @@ interface AppRuntimeConfig {
   CASDOOR_APP?: string;
   CASDOOR_ORG?: string;
   SPARK_APP_ID?: string;
+  SPARK_VIRTUAL_MAN_APP_ID?: string;
 }
 
 interface Window {

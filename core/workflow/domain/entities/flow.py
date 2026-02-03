@@ -5,9 +5,11 @@ This module defines data models for workflow operations including reading,
 updating, publishing, and authentication of workflows.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
+
+from workflow.engine.entities.workflow_dsl import WorkflowDSL
 
 
 class FlowRead(BaseModel):
@@ -54,29 +56,6 @@ class Edge(BaseModel):
     sourceHandle: str = Field(None, description="The handle of the source node")
 
 
-class Node(BaseModel):
-    """
-    Represents a single node in a workflow.
-
-    :param id: The unique identifier of the node
-    """
-
-    id: str = Field(..., description="The ID of the node")
-    # Add other node properties as needed
-
-
-class Data(BaseModel):
-    """
-    Container for workflow structure data.
-
-    :param nodes: List of workflow nodes (minimum 2 required)
-    :param edges: List of connections between nodes
-    """
-
-    nodes: List[Node] = Field(..., min_length=2, description="List of nodes")
-    edges: List[Edge] = Field(..., description="List of edges")
-
-
 class WorkflowData(BaseModel):
     """
     Complete workflow data structure.
@@ -94,7 +73,7 @@ class WorkflowData(BaseModel):
     version: str = Field(
         ..., pattern=r"^v3(\.\d+)*(\.\d+)$", description="Version of the workflow"
     )
-    data: Data = Field(..., description="Workflow data")
+    data: WorkflowDSL = Field(..., description="Workflow data")
 
 
 class PublishInput(BaseModel):

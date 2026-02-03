@@ -95,7 +95,9 @@ const AnswerModeSection = memo(
                         {
                           schema: {
                             default: '',
-                            description: '该节点的提问内容',
+                            description: t(
+                              'workflow.nodes.questionAnswerNode.nodeQuestionContent'
+                            ),
                             type: 'string',
                           },
                           name: 'query',
@@ -105,7 +107,9 @@ const AnswerModeSection = memo(
                         {
                           schema: {
                             default: '',
-                            description: '用户回复的选项',
+                            description: t(
+                              'workflow.nodes.questionAnswerNode.userReplyOptions'
+                            ),
                             type: 'string',
                           },
                           name: 'id',
@@ -115,7 +119,9 @@ const AnswerModeSection = memo(
                         {
                           schema: {
                             default: '',
-                            description: '用户回复的选项内容',
+                            description: t(
+                              'workflow.nodes.questionAnswerNode.userReplyOptionContent'
+                            ),
                             type: 'string',
                           },
                           name: 'content',
@@ -128,7 +134,9 @@ const AnswerModeSection = memo(
                         {
                           schema: {
                             default: '',
-                            description: '该节点的提问内容',
+                            description: t(
+                              'workflow.nodes.questionAnswerNode.nodeQuestionContent'
+                            ),
                             type: 'string',
                           },
                           name: 'query',
@@ -138,7 +146,9 @@ const AnswerModeSection = memo(
                         {
                           schema: {
                             default: '',
-                            description: '用户回复的选项内容',
+                            description: t(
+                              'workflow.nodes.questionAnswerNode.userReplyOptionContent'
+                            ),
                             type: 'string',
                           },
                           name: 'content',
@@ -301,29 +311,47 @@ export const QuestionAnswerDetail = memo(props => {
 });
 
 const QuestionContent = ({ question }): React.ReactElement => {
+  const { t } = useTranslation();
   const hasContent = question?.trim();
   return (
     <>
-      <div className="text-[#333] text-right">提问内容</div>
+      <div className="text-[#333] text-right">
+        {t('workflow.nodes.questionAnswerNode.questionContent')}
+      </div>
       <span
         className="max-w-[300px] text-overflow"
         style={{ color: hasContent ? '' : '#B3B7C6' }}
-        title={hasContent ? question : '未配置提问内容'}
+        title={
+          hasContent
+            ? question
+            : t('workflow.nodes.questionAnswerNode.questionContentPlaceholder')
+        }
       >
-        {hasContent ? question : '未配置提问内容'}
+        {hasContent
+          ? question
+          : t('workflow.nodes.questionAnswerNode.questionContentPlaceholder')}
       </span>
     </>
   );
 };
 
-const AnswerType = ({ type }): React.ReactElement => (
-  <>
-    <span className="text-[#333] text-right">问答类型</span>
-    <span>{type === 'direct' ? '直接回复' : '选项回复'}</span>
-  </>
-);
-
+const AnswerType = ({ type }): React.ReactElement => {
+  const { t } = useTranslation();
+  return (
+    <>
+      <span className="text-[#333] text-right">
+        {t('workflow.nodes.questionAnswerNode.answerType')}
+      </span>
+      <span>
+        {type === 'direct'
+          ? t('workflow.nodes.questionAnswerNode.directReply')
+          : t('workflow.nodes.questionAnswerNode.optionReply')}
+      </span>
+    </>
+  );
+};
 const OptionAnswers = ({ id, answers, isConnectable }): React.ReactElement => {
+  const { t } = useTranslation();
   if (!answers?.length) return null;
 
   return answers.map(item => (
@@ -341,7 +369,9 @@ const OptionAnswers = ({ id, answers, isConnectable }): React.ReactElement => {
             {item?.content}
           </span>
         ) : (
-          <span className="text-[#B3B7C6]">未配置内容</span>
+          <span className="text-[#B3B7C6]">
+            {t('workflow.nodes.questionAnswerNode.questionContentPlaceholder')}
+          </span>
         )}
         <SourceHandle nodeId={id} id={item.id} isConnectable={isConnectable} />
       </div>
@@ -354,6 +384,7 @@ const DefaultOptionAnswer = ({
   answer,
   isConnectable,
 }): React.ReactElement => {
+  const { t } = useTranslation();
   if (!answer) return null;
 
   return (
@@ -361,9 +392,11 @@ const DefaultOptionAnswer = ({
       <div></div>
       <div className="flex items-center gap-2 relative exception-handle-edge">
         <span className="text-[#000] text-right w-[50px] px-1 py-0.5 rounded text-xs flex items-center justify-center bg-[#eff0f8]">
-          其他
+          {t('workflow.nodes.questionAnswerNode.other')}
         </span>
-        <span className="text-[#353a4a]">用户不可见</span>
+        <span className="text-[#353a4a]">
+          {t('workflow.nodes.questionAnswerNode.userInvisible')}
+        </span>
         <SourceHandle
           nodeId={id}
           id={answer.id}

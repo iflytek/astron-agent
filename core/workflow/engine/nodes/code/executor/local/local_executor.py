@@ -74,7 +74,9 @@ class LocalExecutor(BaseExecutor):
                 proc.terminate()
                 raise CustomException(err_code=CodeEnum.CODE_EXECUTION_TIMEOUT_ERROR)
             if "error" in result_dict:
-                raise Exception(result_dict["error"])
+                raise CustomException(
+                    err_code=CodeEnum.CODE_EXECUTION_ERROR, err_msg=result_dict["error"]
+                )
             return result_dict.get("output", "")
 
     def _safe_exec(self, code: str, result_dict: dict) -> None:

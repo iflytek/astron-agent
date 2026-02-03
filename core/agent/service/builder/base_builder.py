@@ -5,21 +5,19 @@ from dataclasses import dataclass
 from typing import Sequence, Union, cast
 
 import httpx
+from common.otlp.trace.span import Span
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
-from api.schemas.bot_config import BotConfig
-from common_imports import Span
-from domain.models.base import BaseLLMModel
-from engine.nodes.chat.chat_runner import ChatRunner
-from engine.nodes.cot.cot_runner import CotRunner
-from engine.nodes.cot_process.cot_process_runner import CotProcessRunner
-from infra.app_auth import MaasAuth
-from repository.bot_config_client import BotConfigClient
-from service.plugin.base import BasePlugin
-from service.plugin.link import LinkPlugin, LinkPluginFactory
-from service.plugin.mcp import McpPlugin, McpPluginFactory
-from service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
+from agent.domain.models.base import BaseLLMModel
+from agent.engine.nodes.chat.chat_runner import ChatRunner
+from agent.engine.nodes.cot.cot_runner import CotRunner
+from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
+from agent.infra.app_auth import MaasAuth
+from agent.service.plugin.base import BasePlugin
+from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
+from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
+from agent.service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
 
 
 @dataclass
@@ -48,23 +46,6 @@ class BaseApiBuilder(BaseModel):
     app_id: str
     uid: str = Field(default="")
     span: Span
-
-    async def build_bot_config(self, bot_id: str) -> BotConfig:
-
-        with self.span.start("BuildBotConfig") as sp:
-            bot_config_result = await BotConfigClient(
-                app_id=self.app_id, bot_id=bot_id, span=self.span
-            ).pull()
-
-            # Ensure the returned value is a BotConfig object
-            if isinstance(bot_config_result, dict):
-                bot_config = BotConfig(**bot_config_result)
-            else:
-                bot_config = bot_config_result
-
-            sp.add_info_events({"bot-config": bot_config.model_dump_json()})
-
-            return bot_config
 
     async def build_plugins(
         self,
@@ -260,13 +241,11 @@ class BaseApiBuilder(BaseModel):
             sp.add_info_events(
                 {
                     "model": model_name,
-                    "base_url": base_url,
-                    "normalized_base_url": normalized_base_url,
+                    "base_url": normalized_base_url,
                     "api_key": sk,
                     "app_id": app_id,
                 }
             )
-
             # Configure HTTP client with SSL and timeout settings
             # Create SSL context
             ssl_context = ssl.create_default_context()
@@ -275,22 +254,18 @@ class BaseApiBuilder(BaseModel):
             if skip_ssl == "true":
                 ssl_context.check_hostname = False
                 ssl_context.verify_mode = ssl.CERT_NONE
-                sp.add_info_event(
-                    "⚠️  SSL verification disabled for LLM requests"
-                )
+                sp.add_info_event("⚠️  SSL verification disabled for LLM requests")
 
             # Create HTTP client with custom settings
             http_client = httpx.AsyncClient(
                 verify=ssl_context,
                 timeout=httpx.Timeout(
                     connect=60.0,  # Connection timeout: 60 seconds
-                    read=300.0,    # Read timeout: 5 minutes
-                    write=30.0,    # Write timeout: 30 seconds
-                    pool=10.0      # Pool timeout: 10 seconds
+                    read=300.0,  # Read timeout: 5 minutes
+                    write=30.0,  # Write timeout: 30 seconds
+                    pool=10.0,  # Pool timeout: 10 seconds
                 ),
-                limits=httpx.Limits(
-                    max_connections=100, max_keepalive_connections=20
-                ),
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
             )
 
             model = BaseLLMModel(

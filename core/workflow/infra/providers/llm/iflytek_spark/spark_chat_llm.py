@@ -16,6 +16,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt
 
 from workflow.engine.nodes.entities.llm_response import LLMResponse
 from workflow.exception.e import CustomException
+from workflow.exception.errors.code_convert import CodeConvert
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
@@ -71,7 +72,7 @@ class SparkChatAi(ChatAI):
         """
         raise NotImplementedError
 
-    def assemble_url(self, span: Span) -> str:
+    async def assemble_url(self, span: Span) -> str:
         """
         Assemble the authenticated URL for Spark Chat API.
 
@@ -79,7 +80,7 @@ class SparkChatAi(ChatAI):
         :return: Authenticated WebSocket URL
         """
         url_auth = SparkChatHmacAuth(self.model_url, self.api_key, self.api_secret)
-        span.add_info_events({"spark_url": self.model_url})
+        await span.add_info_events_async({"spark_url": self.model_url})
         url = url_auth.create_url()
         return url
 
@@ -130,7 +131,7 @@ class SparkChatAi(ChatAI):
         }
         return json.dumps(payload_data, ensure_ascii=False)
 
-    def decode_message(self, msg: dict) -> Tuple[int, int, str, str, Dict[str, Any]]:
+    def decode_message(self, msg: dict) -> Tuple[int, str, str, Dict[str, Any]]:
         """
         Decode and extract information from Spark API response message.
 
@@ -139,12 +140,17 @@ class SparkChatAi(ChatAI):
         """
         code = msg["header"]["code"]
         status = msg["header"]["status"]
+        if code != 0:
+            raise CustomException(
+                err_code=CodeConvert.sparkCode(code),
+                cause_error=json.dumps(msg, ensure_ascii=False),
+            )
         resp_payload = msg["payload"]
         text = resp_payload.get("choices", {}).get("text", [{}])[0]
         content = text.get("content", "")
         reasoning_content = text.get("reasoning_content", "")
         token_usage = resp_payload.get("usage", {}).get("text", {})
-        return code, status, content, reasoning_content, token_usage
+        return status, content, reasoning_content, token_usage
 
     async def _recv_messages(
         self,
@@ -167,6 +173,9 @@ class SparkChatAi(ChatAI):
                 else:
                     msg_json = await recv_with_retry(ws_handle)
                 yield msg_json
+            except asyncio.exceptions.CancelledError:
+                await ws_handle.close()
+                raise
             except asyncio.TimeoutError as e:
                 raise CustomException(
                     err_code=CodeEnum.SPARK_REQUEST_ERROR,
@@ -207,7 +216,7 @@ class SparkChatAi(ChatAI):
         :param event_log_node_trace: Optional node trace logger
         :return: Async iterator yielding LLM response objects
         """
-        url = self.assemble_url(span)
+        url = await self.assemble_url(span)
         payload = self.assemble_payload(user_message, search_disable=search_disable)
         # Customize quick/slow thinking behavior
         payload = await self._handle_quickly_think_req_body(
@@ -216,7 +225,7 @@ class SparkChatAi(ChatAI):
 
         if event_log_node_trace:
             event_log_node_trace.append_config_data(json.loads(payload))
-        span.add_info_events({"payload": payload})
+        await span.add_info_events_async({"payload": payload})
         llm_first_token_cost: float = -1
         try:
             # TODO: Timeout set to 60s to solve the issue of slow first frame response from LLM
@@ -233,14 +242,16 @@ class SparkChatAi(ChatAI):
                     msg = json.loads(msg_json)
                     if llm_first_token_cost == -1:
                         llm_first_token_cost = round(time.time() - start_time, 2)
-                        span.add_info_events(
+                        await span.add_info_events_async(
                             {"llm first token cost: ": llm_first_token_cost}
                         )
                         if event_log_node_trace:
                             event_log_node_trace.set_node_first_cost_time(
                                 llm_first_token_cost
                             )
-                    span.add_info_events({"recv": json.dumps(msg, ensure_ascii=False)})
+                    await span.add_info_events_async(
+                        {"recv": json.dumps(msg, ensure_ascii=False)}
+                    )
                     if event_log_node_trace:
                         event_log_node_trace.add_info_log(
                             json.dumps(msg, ensure_ascii=False)

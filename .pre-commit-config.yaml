@@ -1,0 +1,323 @@
+# =============================================================================
+# Pre-commit Configuration for Multi-language Project
+# Fast code quality checks for changed files only
+# =============================================================================
+# Install: pip install pre-commit && pre-commit install
+#          pre-commit install --hook-type commit-msg
+#
+# Usage:   pre-commit run --all-files  (check all files)
+#          pre-commit run               (check staged files)
+#          git commit                   (auto trigger)
+#
+# Mode:    CHECK ONLY - Reports issues without auto-fixing
+#          To fix issues manually:
+#          - Python:     black . && isort .
+#          - TypeScript: npm run format
+#          - Go:         gofmt -w . && goimports -w .
+#          - Java:       mvn spotless:apply
+# =============================================================================
+
+default_language_version:
+  python: python3.11
+  node: 20.0.0
+
+repos:
+  # =============================================================================
+  # Common Checks (All Languages) - Check Only Mode
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-yaml
+        exclude: 'console/frontend/node_modules|helm/'
+      - id: check-json
+        exclude: 'console/frontend/node_modules'
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+
+  # =============================================================================
+  # Python Code Quality - Check Only Mode
+  # =============================================================================
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        name: Check Python code format with Black
+        language_version: python3.11
+        args: ['--check']
+        files: ^(core/agent|core/workflow|core/knowledge|core/plugin|core/memory/database)/.*\.py$
+
+  - repo: local
+    hooks:
+      - id: isort-knowledge
+        name: Check Python imports (knowledge)
+        entry: bash -c 'cd core/knowledge && python3 -m isort --check-only --profile black .'
+        language: system
+        files: ^core/knowledge/.*\.py$
+        pass_filenames: false
+
+      - id: isort-workflow
+        name: Check Python imports (workflow)
+        entry: bash -c 'cd core/workflow && python3 -m isort --check-only --profile black .'
+        language: system
+        files: ^core/workflow/.*\.py$
+        pass_filenames: false
+
+      - id: isort-agent
+        name: Check Python imports (agent)
+        entry: bash -c 'cd core/agent && python3 -m isort --check-only --profile black .'
+        language: system
+        files: ^core/agent/.*\.py$
+        pass_filenames: false
+
+      - id: isort-plugin
+        name: Check Python imports (plugin)
+        entry: bash -c 'cd core/plugin/aitools && python3 -m isort --check-only --profile black .'
+        language: system
+        files: ^core/plugin/.*\.py$
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: flake8-agent
+        name: Lint Python with Flake8 (agent)
+        entry: bash -c 'cd core/agent && python3 -m flake8 .'
+        language: system
+        files: ^core/agent/.*\.py$
+        pass_filenames: false
+
+      - id: flake8-workflow
+        name: Lint Python with Flake8 (workflow)
+        entry: bash -c 'cd core/workflow && python3 -m flake8 --max-line-length 88 --ignore=E203,W503,E501 --max-complexity 10 .'
+        language: system
+        files: ^core/workflow/.*\.py$
+        pass_filenames: false
+
+      - id: flake8-knowledge
+        name: Lint Python with Flake8 (knowledge)
+        entry: bash -c 'cd core/knowledge && python3 -m flake8 --max-line-length 88 --ignore=E203,W503,E501 --max-complexity 10 .'
+        language: system
+        files: ^core/knowledge/.*\.py$
+        pass_filenames: false
+
+      - id: flake8-plugin
+        name: Lint Python with Flake8 (plugin)
+        entry: bash -c 'cd core/plugin/rpa && python3 -m flake8 --max-line-length 88 --ignore=E203,W503,E501 --max-complexity 10 .'
+        language: system
+        files: ^core/plugin/rpa/.*\.py$
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: mypy-agent
+        name: Type check Python with mypy (agent)
+        entry: bash -c 'cd core/agent && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/agent/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-workflow
+        name: Type check Python with mypy (workflow)
+        entry: bash -c 'cd core/workflow && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/workflow/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-knowledge
+        name: Type check Python with mypy (knowledge)
+        entry: bash -c 'cd core/knowledge && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/knowledge/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-database
+        name: Type check Python with mypy (database)
+        entry: bash -c 'cd core/memory/database && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/memory/database/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-aitools
+        name: Type check Python with mypy (aitools)
+        entry: bash -c 'cd core/plugin/aitools && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/plugin/aitools/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-link
+        name: Type check Python with mypy (link)
+        entry: bash -c 'cd core/plugin/link && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/plugin/link/.*\.py$
+        pass_filenames: false
+
+      - id: mypy-rpa
+        name: Type check Python with mypy (rpa)
+        entry: bash -c 'cd core/plugin/rpa && python3 -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases .'
+        language: system
+        files: ^core/plugin/rpa/.*\.py$
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: pylint-agent
+        name: Analyze Python with Pylint (agent)
+        entry: bash -c 'cd core/agent && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/agent/.*\.py$
+        pass_filenames: false
+
+      - id: pylint-workflow
+        name: Analyze Python with Pylint (workflow)
+        entry: bash -c 'cd core/workflow && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/workflow/.*\.py$
+        pass_filenames: false
+
+      - id: pylint-knowledge
+        name: Analyze Python with Pylint (knowledge)
+        entry: bash -c 'cd core/knowledge && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/knowledge/.*\.py$
+        pass_filenames: false
+
+      - id: pylint-database
+        name: Analyze Python with Pylint (database)
+        entry: bash -c 'cd core/memory/database && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/memory/database/.*\.py$
+        pass_filenames: false
+
+      - id: pylint-aitools
+        name: Analyze Python with Pylint (aitools)
+        entry: bash -c 'cd core/plugin/aitools && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/plugin/aitools/.*\.py$
+        pass_filenames: false
+
+      - id: pylint-link
+        name: Analyze Python with Pylint (link)
+        entry: bash -c 'cd core/plugin/link && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/plugin/link/.*\.py$
+        pass_filenames: false
+
+      - id: pylint-rpa
+        name: Analyze Python with Pylint (rpa)
+        entry: bash -c 'cd core/plugin/rpa && python3 -m pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0 *.py'
+        language: system
+        files: ^core/plugin/rpa/.*\.py$
+        pass_filenames: false
+
+  # =============================================================================
+  # TypeScript/JavaScript Code Quality - Check Only Mode
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: prettier-check
+        name: Check TypeScript/JavaScript format with Prettier
+        entry: bash -c 'cd console/frontend && npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}" --ignore-path .gitignore'
+        language: system
+        files: ^console/frontend/src/.*\.(ts|tsx|js|jsx|json|md)$
+        pass_filenames: false
+
+      - id: eslint-check
+        name: Lint TypeScript with ESLint
+        entry: bash -c 'cd console/frontend && npx eslint "src/**/*.{ts,tsx}" --quiet'
+        language: system
+        files: ^console/frontend/src/.*\.(ts|tsx)$
+        pass_filenames: false
+
+  # =============================================================================
+  # Go Code Quality - Check Only Mode
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: golangci-lint
+        name: Lint Go with golangci-lint
+        entry: bash -c 'cd core/tenant && golangci-lint run --timeout=5m ./...'
+        language: system
+        files: ^core/tenant/.*\.go$
+        pass_filenames: false
+
+      - id: go-fmt-check
+        name: Check Go code format with gofmt
+        entry: bash -c 'cd core/tenant && gofmt -l . | tee /dev/stderr | test -z "$(cat)"'
+        language: system
+        files: ^core/tenant/.*\.go$
+        pass_filenames: false
+
+      - id: go-imports-check
+        name: Check Go imports with goimports
+        entry: bash -c 'cd core/tenant && goimports -l . | tee /dev/stderr | test -z "$(cat)"'
+        language: system
+        files: ^core/tenant/.*\.go$
+        pass_filenames: false
+
+      - id: go-vet
+        name: Check Go code with go vet
+        entry: bash -c 'cd core/tenant && go vet ./...'
+        language: system
+        files: ^core/tenant/.*\.go$
+        pass_filenames: false
+
+  # =============================================================================
+  # Java Code Quality (requires local Maven)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: spotless-check
+        name: Check Java formatting with Spotless
+        entry: bash -c 'cd console/backend && mvn spotless:check'
+        language: system
+        files: ^console/backend/.*\.java$
+        pass_filenames: false
+
+      - id: checkstyle
+        name: Check Java style with Checkstyle
+        entry: bash -c 'cd console/backend && mvn checkstyle:check'
+        language: system
+        files: ^console/backend/.*\.java$
+        pass_filenames: false
+
+  # =============================================================================
+  # Security Scanning
+  # =============================================================================
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: Detect secrets with gitleaks
+
+  # =============================================================================
+  # Commit Message Validation
+  # =============================================================================
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.1.0
+    hooks:
+      - id: conventional-pre-commit
+        name: Check commit message format
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - docs
+          - style
+          - refactor
+          - perf
+          - test
+          - build
+          - ci
+          - chore
+          - revert
+
+# =============================================================================
+# CI Integration Config
+# =============================================================================
+ci:
+  autofix_commit_msg: 'ci: auto fixes from pre-commit hooks'
+  autofix_prs: true
+  autoupdate_commit_msg: 'ci: pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [spotless-check, checkstyle]

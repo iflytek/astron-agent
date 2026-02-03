@@ -1,4 +1,6 @@
-from typing import Any, List, Literal, Optional
+import json
+import re
+from typing import Any, List, Literal
 
 from pydantic import BaseModel, Field
 
@@ -44,6 +46,13 @@ class Condition(BaseModel):
         "le",
         "null",
         "not_null",
+        "length_ge",
+        "length_le",
+        "length_eq",
+        "length_gt",
+        "length_lt",
+        "regex_contains",
+        "regex_not_contains",
     ]
 
 
@@ -118,7 +127,7 @@ class IFElseNode(BaseNode):
                         node_id=self.node_id, key_name=left_var_name, span=span_context
                     )
 
-                    # Retrieve expected value from variable pool if specified
+                    # Get expected value from variable pool if specified
                     expected_value = None
                     if right_var_name != "":
                         expected_value = variable_pool.get_variable(
@@ -134,15 +143,13 @@ class IFElseNode(BaseNode):
                             "comparison_operator": condition.compareOperator,
                         }
                     )
-
                 node_inputs["conditions"] = input_conditions
 
                 # Evaluate each condition using the appropriate comparison operator
                 for input_condition in input_conditions:
+                    comparison_operator = input_condition["comparison_operator"]
                     actual_value = input_condition["actual_value"]
                     expected_value = input_condition["expected_value"]
-                    comparison_operator = input_condition["comparison_operator"]
-
                     # Apply the specified comparison operator
                     match comparison_operator:
                         case "contains":
@@ -205,6 +212,36 @@ class IFElseNode(BaseNode):
                             compare_result = self._assert_null(actual_value)
                         case "not_null":
                             compare_result = self._assert_not_null(actual_value)
+                        case "length_ge":
+                            compare_result = self._assert_length_ge(
+                                actual_value, expected_value
+                            )
+                        case "length_le":
+                            compare_result = self._assert_length_le(
+                                actual_value, expected_value
+                            )
+                        case "length_eq":
+                            compare_result = self._assert_length_eq(
+                                actual_value, expected_value
+                            )
+                        case "length_gt":
+                            compare_result = self._assert_length_gt(
+                                actual_value, expected_value
+                            )
+                        case "length_lt":
+                            compare_result = self._assert_length_lt(
+                                actual_value, expected_value
+                            )
+                        case "regex_contains":
+                            compare_result = self._assert_regex_contains(
+                                actual_value, expected_value
+                            )
+
+                        case "regex_not_contains":
+                            compare_result = self._assert_regex_not_contains(
+                                actual_value, expected_value
+                            )
+
                         case _:
                             continue
 
@@ -276,7 +313,7 @@ class IFElseNode(BaseNode):
         :param kwargs: Additional parameters including callback methods
         :return: Node execution result from the first matching branch
         """
-        res: NodeRunResult
+        res: NodeRunResult | None = None
         inputs: dict[str, Any] = {}
         errors: dict[str, Any] = {}
         try:
@@ -325,7 +362,7 @@ class IFElseNode(BaseNode):
                 return NodeRunResult(
                     status=WorkflowNodeExecutionStatus.SUCCEEDED,
                     inputs=inputs,
-                    process_datas={},
+                    process_data={},
                     outputs=(
                         {
                             "[warning]: ": "If-else node encountered unknown error, please check!"
@@ -344,7 +381,7 @@ class IFElseNode(BaseNode):
             res = NodeRunResult(
                 status=WorkflowNodeExecutionStatus.SUCCEEDED,
                 inputs=inputs,
-                process_datas={},
+                process_data={},
                 outputs=(
                     {
                         "[warning]: ": "If-else node encountered unknown error, please check!"
@@ -359,53 +396,68 @@ class IFElseNode(BaseNode):
             )
         return res
 
-    def _assert_contains(
-        self, actual_value: Optional[str | list], expected_value: str
+    def _list_contains(
+        self,
+        actual_list: list,
+        expected_value: Any,
     ) -> bool:
+        """
+        Check if a list contains the expected value.
+
+        :param actual_list: The list to check
+        :param actual_source: Source type of the actual list
+        :param expected_value: The expected value to find
+        :param expected_source: Source type of the expected value
+        :return: True if list contains expected value, False otherwise
+        """
+        if isinstance(expected_value, list):
+            try:
+                return set(expected_value).issubset(set(actual_list))
+            except TypeError:
+                return all(item in actual_list for item in expected_value)
+        return expected_value in actual_list
+
+    def _assert_contains(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual value contains the expected value.
 
-        :param actual_value: The value to check (string or list)
+        :param actual_value: The value to check (string or list or dict)
         :param expected_value: The value to search for
         :return: True if actual_value contains expected_value, False otherwise
+        :raises CustomException: If value types are invalid or operation is not supported
         """
-        if actual_value == "" and expected_value == "":
-            return True
         if not actual_value:
             return False
 
-        if not isinstance(actual_value, str | list):
-            return False
+        if not isinstance(actual_value, (str, list, dict)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for contains comparison: expected str, list, dict",
+            )
 
-        if expected_value not in actual_value:
-            return False
-        return True
+        # Handle list type with dedicated method
+        if isinstance(actual_value, list):
+            return self._list_contains(actual_value, expected_value)
 
-    def _assert_not_contains(
-        self, actual_value: Optional[str | list], expected_value: str
-    ) -> bool:
+        # Handle dict type: convert to JSON string
+        if isinstance(actual_value, dict):
+            actual_value = json.dumps(actual_value)
+
+        return expected_value in actual_value
+
+    def _assert_not_contains(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual value does not contain the expected value.
 
-        :param actual_value: The value to check (string or list)
+        :param actual_value: The value to check (string or list or dict)
         :param expected_value: The value to search for
         :return: True if actual_value does not contain expected_value, False otherwise
         """
-        if actual_value == "" and expected_value == "":
-            return False
         if not actual_value:
             return True
+        return not self._assert_contains(actual_value, expected_value)
 
-        if not isinstance(actual_value, str | list):
-            return False
-
-        if expected_value in actual_value:
-            return False
-        return True
-
-    def _assert_start_with(
-        self, actual_value: Optional[str], expected_value: str
-    ) -> bool:
+    def _assert_start_with(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual string starts with the expected value.
 
@@ -423,9 +475,7 @@ class IFElseNode(BaseNode):
             return False
         return True
 
-    def _assert_end_with(
-        self, actual_value: Optional[str], expected_value: str
-    ) -> bool:
+    def _assert_end_with(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual string ends with the expected value.
 
@@ -443,7 +493,7 @@ class IFElseNode(BaseNode):
             return False
         return True
 
-    def _assert_is(self, actual_value: Optional[str], expected_value: str) -> bool:
+    def _assert_is(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual value equals the expected value.
 
@@ -454,17 +504,17 @@ class IFElseNode(BaseNode):
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, str):
-            if isinstance(actual_value, int | float):
-                return self._assert_equal(actual_value, expected_value)
-            else:
-                return False
+        if isinstance(actual_value, bool):
+            if isinstance(expected_value, str):
+                expected_value = self._str_to_bool(expected_value)
+        elif isinstance(actual_value, (int, float)):
+            return self._assert_equal(actual_value, expected_value)
 
         if actual_value != expected_value:
             return False
         return True
 
-    def _assert_is_not(self, actual_value: Optional[str], expected_value: str) -> bool:
+    def _assert_is_not(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual value does not equal the expected value.
 
@@ -475,15 +525,13 @@ class IFElseNode(BaseNode):
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, str):
-            if isinstance(actual_value, int | float):
-                return self._assert_not_equal(actual_value, expected_value)
-            else:
-                return False
+        if isinstance(actual_value, bool):
+            if isinstance(expected_value, str):
+                expected_value = self._str_to_bool(expected_value)
+        elif isinstance(actual_value, (int, float)):
+            return self._assert_not_equal(actual_value, expected_value)
 
-        if actual_value == expected_value:
-            return False
-        return True
+        return actual_value != expected_value
 
     def _assert_empty(self, actual_value: Any, input_condition: dict) -> bool:
         """
@@ -504,7 +552,7 @@ class IFElseNode(BaseNode):
             return actual_value == 0
         elif isinstance(actual_value, str):
             input_condition["expected_value"] = ""
-            return actual_value.strip() == ""
+            return actual_value.strip() == "" or actual_value.strip().lower() == "null"
         elif isinstance(actual_value, dict):
             input_condition["expected_value"] = {}
             return len(actual_value) == 0
@@ -520,37 +568,36 @@ class IFElseNode(BaseNode):
         """
         return not self._assert_empty(actual_value, input_condition)
 
-    def _assert_equal(
-        self, actual_value: Optional[int | float], expected_value: str | int | float
-    ) -> bool:
+    def _assert_equal(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual numeric value equals the expected value.
 
         :param actual_value: The numeric value to compare
         :param expected_value: The value to match against
         :return: True if values are equal, False otherwise
+        :raises CustomException: If value types are invalid
         """
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, int | float):
-            if isinstance(actual_value, str):
-                return self._assert_is(actual_value, expected_value)
-            else:
-                return False
+        if isinstance(actual_value, str):
+            return self._assert_is(actual_value, expected_value)
 
-        if isinstance(actual_value, int):
+        if not isinstance(actual_value, (int, float, bool)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for equal comparison: expected str, number or boolean",
+            )
+
+        if isinstance(actual_value, bool):
+            expected_value = bool(expected_value)
+        elif isinstance(actual_value, int):
             expected_value = int(expected_value)
         else:
             expected_value = float(expected_value)
+        return actual_value == expected_value
 
-        if actual_value != expected_value:
-            return False
-        return True
-
-    def _assert_not_equal(
-        self, actual_value: Optional[int | float], expected_value: str | int | float
-    ) -> bool:
+    def _assert_not_equal(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual numeric value does not equal the expected value.
 
@@ -561,73 +608,59 @@ class IFElseNode(BaseNode):
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, int | float):
-            if isinstance(actual_value, str):
-                return self._assert_is_not(actual_value, expected_value)
-            else:
-                return False
+        return not self._assert_equal(actual_value, expected_value)
 
-        if isinstance(actual_value, int):
-            expected_value = int(expected_value)
-        else:
-            expected_value = float(expected_value)
-
-        if actual_value == expected_value:
-            return False
-        return True
-
-    def _assert_greater_than(
-        self, actual_value: Optional[int | float], expected_value: str | int | float
-    ) -> bool:
+    def _assert_greater_than(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual numeric value is greater than the expected value.
 
         :param actual_value: The numeric value to compare
         :param expected_value: The value to compare against
         :return: True if actual_value > expected_value, False otherwise
+        :raises CustomException: If value types are invalid
         """
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, int | float):
-            return False
+        # Type validation
+        if not isinstance(actual_value, (int, float)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for greater than comparison: expected number",
+            )
 
         if isinstance(actual_value, int):
             expected_value = int(expected_value)
         else:
             expected_value = float(expected_value)
+        return actual_value > expected_value
 
-        if actual_value <= expected_value:
-            return False
-        return True
-
-    def _assert_less_than(
-        self, actual_value: Optional[int | float], expected_value: str | int | float
-    ) -> bool:
+    def _assert_less_than(self, actual_value: Any, expected_value: Any) -> bool:
         """
         Check if the actual numeric value is less than the expected value.
 
         :param actual_value: The numeric value to compare
         :param expected_value: The value to compare against
         :return: True if actual_value < expected_value, False otherwise
+        :raises CustomException: If value types are invalid
         """
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, int | float):
-            return False
+        if not isinstance(actual_value, (int, float)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for less than comparison: expected number",
+            )
 
         if isinstance(actual_value, int):
             expected_value = int(expected_value)
         else:
             expected_value = float(expected_value)
-
-        if actual_value >= expected_value:
-            return False
-        return True
+        return actual_value < expected_value
 
     def _assert_greater_than_or_equal(
-        self, actual_value: Optional[int | float], expected_value: str | int | float
+        self, actual_value: Any, expected_value: Any
     ) -> bool:
         """
         Check if the actual numeric value is greater than or equal to the expected value.
@@ -635,24 +668,24 @@ class IFElseNode(BaseNode):
         :param actual_value: The numeric value to compare
         :param expected_value: The value to compare against
         :return: True if actual_value >= expected_value, False otherwise
+        :raises CustomException: If value types are invalid
         """
         if actual_value is None:
             return False
 
-        if not isinstance(actual_value, int | float):
-            return False
-
+        if not isinstance(actual_value, (int, float)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for greater than or equal comparison: expected number",
+            )
         if isinstance(actual_value, int):
             expected_value = int(expected_value)
         else:
             expected_value = float(expected_value)
-
-        if actual_value < expected_value:
-            return False
-        return True
+        return actual_value >= expected_value
 
     def _assert_less_than_or_equal(
-        self, actual_value: Optional[int | float], expected_value: str | int | float
+        self, actual_value: Any, expected_value: Any
     ) -> bool:
         """
         Check if the actual numeric value is less than or equal to the expected value.
@@ -660,21 +693,21 @@ class IFElseNode(BaseNode):
         :param actual_value: The numeric value to compare
         :param expected_value: The value to compare against
         :return: True if actual_value <= expected_value, False otherwise
+        :raises CustomException: If value types are invalid
         """
         if actual_value is None:
             return False
-
-        if not isinstance(actual_value, int | float):
-            return False
+        if not isinstance(actual_value, (int, float)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for less than or equal comparison: expected number",
+            )
 
         if isinstance(actual_value, int):
             expected_value = int(expected_value)
         else:
             expected_value = float(expected_value)
-
-        if actual_value > expected_value:
-            return False
-        return True
+        return actual_value <= expected_value
 
     def _assert_null(self, actual_value: Any) -> bool:
         """
@@ -697,3 +730,150 @@ class IFElseNode(BaseNode):
         if actual_value is not None:
             return True
         return False
+
+    def _assert_length_ge(self, actual_value: Any, expected_value: Any) -> bool:
+        """
+        Check if the length of actual value is greater than or equal to expected.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if len(actual) >= expected, False otherwise
+        :raises CustomException: If value types are invalid
+        """
+        if actual_value is None:
+            return False
+        if not isinstance(actual_value, (str, list, dict)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for length comparison: expected str, list, dict",
+            )
+
+        expected_value = int(expected_value)
+        return len(actual_value) >= expected_value
+
+    def _assert_length_le(self, actual_value: Any, expected_value: Any) -> bool:
+        """
+        Check if the length of actual value is less than or equal to expected.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if len(actual) <= expected, False otherwise
+        :raises CustomException: If value types are invalid
+        """
+        if actual_value is None:
+            return False
+        if not isinstance(actual_value, (str, list, dict)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for length comparison: expected str, list, dict",
+            )
+
+        expected_value = int(expected_value)
+        return len(actual_value) <= expected_value
+
+    def _assert_length_eq(self, actual_value: Any, expected_value: Any) -> bool:
+        """
+        Check if the length of actual value equals expected.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if len(actual) == expected, False otherwise
+        :raises CustomException: If value types are invalid or cannot be converted
+        """
+        if actual_value is None:
+            return False
+
+        if not isinstance(actual_value, (str, list, dict)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for length comparison: expected str, list, dict",
+            )
+
+        expected_value = int(expected_value)
+        return len(actual_value) == expected_value
+
+    def _assert_length_gt(self, actual_value: Any, expected_value: Any) -> bool:
+        """
+        Check if the length of actual value is greater than expected.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if len(actual) > expected, False otherwise
+        :raises CustomException: If value types are invalid or cannot be converted
+        """
+        if actual_value is None:
+            return False
+
+        if not isinstance(actual_value, (str, list, dict)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for length comparison: expected str or list, dict",
+            )
+
+        expected_value = int(expected_value)
+        return len(actual_value) > expected_value
+
+    def _assert_length_lt(self, actual_value: Any, expected_value: Any) -> bool:
+        """
+        Check if the length of actual value is less than expected.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if len(actual) < expected, False otherwise
+        :raises CustomException: If value types are invalid or cannot be converted
+        """
+        if actual_value is None:
+            return False
+
+        if not isinstance(actual_value, (str, list, dict)):
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg="Invalid actual value type for length comparison: expected str, list, dict",
+            )
+
+        expected_value = int(expected_value)
+        return len(actual_value) < expected_value
+
+    def _assert_regex_contains(self, actual_value: Any, expected_value: Any) -> bool:
+        """
+        Check if the actual value matches the regex pattern.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if actual matches the pattern, False otherwise
+        :raises CustomException: If the regex pattern is invalid
+        """
+        if actual_value is None:
+            return False
+
+        try:
+            return re.search(expected_value, str(actual_value)) is not None
+        except re.error as err:
+            raise CustomException(
+                err_code=CodeEnum.IF_ELSE_NODE_EXECUTION_ERROR,
+                err_msg=f"Invalid regex pattern: '{expected_value}'",
+                cause_error=err,
+            )
+
+    def _assert_regex_not_contains(
+        self, actual_value: Any, expected_value: Any
+    ) -> bool:
+        """
+        Check if the actual value does not match the regex pattern.
+
+        :param actual_value: The value to check
+        :param expected_value: The value to compare against
+        :return: True if actual does not match the pattern, False otherwise
+        """
+        if actual_value is None:
+            return True
+        return not self._assert_regex_contains(actual_value, expected_value)
+
+    def _str_to_bool(self, s: str) -> bool:
+        """
+        Convert a string to a boolean value.
+
+        :param s: The string to convert
+        :return: True if the string is "true", False otherwise
+        """
+        return str(s).strip().lower() in ("true", "1", "yes")

@@ -114,7 +114,7 @@
       right: 0;
       bottom: 0;
       border-radius: 50%;
-      background: #6356EA;
+      background: #6356ea;
       transform: translate(50%, 50%);
     }
 
@@ -251,7 +251,7 @@
       right: 0;
       bottom: 0;
       border-radius: 50%;
-      background: #6356EA;
+      background: #6356ea;
       transform: translate(50%, 50%);
     }
 
@@ -351,7 +351,7 @@
       right: 0;
       bottom: 0;
       border-radius: 50%;
-      background: #6356EA;
+      background: #6356ea;
       transform: translate(50%, 50%);
     }
 
@@ -505,7 +505,7 @@
     }
 
     .card-chat:hover {
-      color: #6356EA;
+      color: #6356ea;
       font-weight: 500;
 
       .chat-icon {
@@ -541,7 +541,7 @@
       }
 
       .go-setting {
-        color: #6356EA;
+        color: #6356ea;
       }
     }
   }
@@ -583,7 +583,7 @@
       right: 0;
       bottom: 0;
       border-radius: 50%;
-      background: #6356EA;
+      background: #6356ea;
       transform: translate(50%, 50%);
     }
 
@@ -799,7 +799,7 @@
   }
 
   .user-chat-input:focus {
-    border: 1px solid #6356EA;
+    border: 1px solid #6356ea;
     box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
     outline: none;
     background: #fff;
@@ -807,7 +807,7 @@
 
   .config-tabs-active {
     background: #f6f6fd;
-    color: #6356EA;
+    color: #6356ea;
     font-weight: 500;
 
     .usermanage-icon {
@@ -986,7 +986,7 @@
 
   .config-tabs-normal:hover {
     background: #f6f6fd;
-    color: #6356EA;
+    color: #6356ea;
 
     .usermanage-icon {
       width: 18px;
@@ -1109,7 +1109,7 @@
     }
 
     &:hover {
-      color: #6356EA;
+      color: #6356ea;
 
       .database-icon {
         width: 18px;
@@ -1149,7 +1149,7 @@
   }
 
   .header-tabs-active {
-    color: #6356EA;
+    color: #6356ea;
 
     .database-icon {
       width: 18px;
@@ -1206,7 +1206,7 @@
   .global-input-area {
     border: 1px solid #e4eaff;
     &:hover {
-      border-color: #6356EA;
+      border-color: #6356ea;
     }
   }
 
@@ -1266,7 +1266,7 @@
 
   .search-select.ant-select-open .ant-select-selector {
     background: #fff !important;
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
     box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
   }
 
@@ -1282,7 +1282,7 @@
   textarea:focus,
   .global-select:focus .ant-select-selector {
     outline: none !important;
-    border: 1px solid #6356EA;
+    border: 1px solid #6356ea;
     border-radius: 4px;
     box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
   }
@@ -1338,7 +1338,7 @@
   }
 
   .search-input:focus {
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
   }
 
   .mcp-input {
@@ -1365,7 +1365,7 @@
   border: 1px solid transparent !important;
 
   &:focus {
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
   }
 }
 
@@ -1374,7 +1374,7 @@
   background: #fff !important;
 
   &.ant-picker-focused {
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
   }
 }
 
@@ -1408,7 +1408,7 @@
 }
 
 .global-checkbox .ant-checkbox-checked .ant-checkbox-inner {
-  background-color: #6356EA;
+  background-color: #6356ea;
 }
 
 .global-textarea,
@@ -1511,7 +1511,7 @@ textarea {
 
   &:focus {
     outline: none !important;
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
     border-radius: 4px;
     box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
   }
@@ -1524,7 +1524,7 @@ textarea {
   &:focus,
   &:focus-within {
     outline: none !important;
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
     border-radius: 4px;
     box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
   }
@@ -1534,7 +1534,7 @@ textarea {
   border-color: #e4eaff;
   &:focus,
   &:focus-within {
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
   }
 }
 .ant-picker-disabled.params-select-time {
@@ -1563,7 +1563,7 @@ textarea {
 
 .params-select:not(.ant-select-disabled):hover .ant-select-selector {
   outline: none !important;
-  border: 1px solid #6356EA !important;
+  border: 1px solid #6356ea !important;
   border-radius: 4px !important;
   box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
 }
@@ -1616,18 +1616,18 @@ textarea {
 }
 
 .chat-bot-active {
-  background: #6356EA;
+  background: #6356ea;
   color: #fff;
   border-radius: 12px;
 }
 
 .chat-history-active {
   background: #dee2f9 !important;
-  color: #6356EA !important;
+  color: #6356ea !important;
 }
 
 .chat-empty-container {
-  background-image: linear-gradient(to bottom, #721bc8, #6356EA);
+  background-image: linear-gradient(to bottom, #721bc8, #6356ea);
   -webkit-background-clip: text;
   color: transparent;
   font-size: 22px;
@@ -1727,7 +1727,7 @@ textarea {
     }
 
     a {
-      color: #6356EA;
+      color: #6356ea;
     }
 
     p {
@@ -1736,7 +1736,7 @@ textarea {
     }
 
     a[target='_blank'] {
-      color: #6356EA !important;
+      color: #6356ea !important;
     }
 
     pre {
@@ -1827,7 +1827,7 @@ textarea {
 
   &.active {
     background: #eff1f9;
-    border: 1px solid #6356EA !important;
+    border: 1px solid #6356ea !important;
     border-radius: 10px;
     box-shadow: 0px 0px 0px 2px rgba(76, 86, 187, 0.2);
   }
@@ -1890,7 +1890,7 @@ textarea {
 
 .home-desc {
   margin-top: 14px;
-  background: linear-gradient(90deg, #8821f0, #6356EA 100%);
+  background: linear-gradient(90deg, #8821f0, #6356ea 100%);
   -webkit-background-clip: text;
   color: transparent;
   font-size: 36px;
@@ -1908,7 +1908,7 @@ textarea {
     PingFang SC,
     PingFang SC-600;
   font-weight: 600;
-  background: linear-gradient(90deg, #8821f0, #6356EA 100%);
+  background: linear-gradient(90deg, #8821f0, #6356ea 100%);
   -webkit-background-clip: text;
   color: transparent;
   height: 66px;
@@ -1985,7 +1985,7 @@ textarea {
   &.create-tool-tab-active,
   &:hover {
     background: #fff;
-    color: #6356EA;
+    color: #6356ea;
 
     .tool {
       width: 18px;
@@ -2047,7 +2047,7 @@ textarea {
 
   &.create-tool-tab-active-child,
   &:hover {
-    color: #6356EA;
+    color: #6356ea;
 
     .offical {
       width: 14px;
@@ -2548,7 +2548,7 @@ textarea {
   }
 }
 /* 复制按钮 */
-.copy-icon {
+.chat-copy-icon {
   svg {
     width: 15px;
     height: 15px;
@@ -2556,14 +2556,28 @@ textarea {
 
   &_active,
   &:hover {
-    color: #5778f6;
-
     svg {
       path {
         stroke: #5778f6;
       }
+    }
+  }
 
-      polygon {
+  span {
+    pointer-events: none;
+  }
+}
+/** 播放按钮 */
+.chat-play-icon {
+  svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  &_active,
+  &:hover {
+    svg {
+      path {
         fill: #5778f6;
       }
     }

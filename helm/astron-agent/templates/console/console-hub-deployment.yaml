@@ -67,9 +67,42 @@ spec:
         {{- else if eq $key "sparkRtasrKey" }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $.Values.global.sparkRtasrApiKey | quote }}
+        {{- else if eq $key "sparkVirtualManAppId" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $.Values.global.sparkVirtualManAppId | quote }}
+        {{- else if eq $key "sparkVirtualManApiKey" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $.Values.global.sparkVirtualManApiKey | quote }}
+        {{- else if eq $key "sparkVirtualManApiSecret" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $.Values.global.sparkVirtualManApiSecret | quote }}
         {{- else if eq $key "botApiMaasBaseUrl" }}
         - name: {{ upper (snakecase $key) }}
           value: {{ printf "%s/workflow/v1/chat/completions" $.Values.global.hostBaseAddress | quote }}
+        {{- else if eq $key "mysqlPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-mysql-secret
+              key: mysql-root-password
+        {{- else if eq $key "redisPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-redis-secret
+              key: redis-password
+        {{- else if eq $key "ossAccessKeyId" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-user
+        {{- else if eq $key "ossAccessKeySecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-password
         {{- else }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $value | quote }}

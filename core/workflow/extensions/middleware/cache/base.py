@@ -176,3 +176,17 @@ class BaseCacheService(abc.ABC):
         Args:
             key: The key of the item to remove.
         """
+
+    @abc.abstractmethod
+    def setnx(self, key: str, value: Any, ex: int = 0) -> bool:
+        """
+        Set key to value if key does not exist, with expiration time.
+
+        Args:
+            key: The key to set.
+            value: The value to set.
+            ex: Expiration time in seconds.
+
+        Returns:
+            True if the key was set, False if the key already exists.
+        """

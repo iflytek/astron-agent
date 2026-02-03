@@ -1,10 +1,10 @@
 import time
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel, Field
 
-from service.plugin.base import BasePlugin
+from agent.service.plugin.base import BasePlugin
 
 
 def cur_timestamp() -> int:
@@ -27,7 +27,7 @@ class AgentResponse(BaseModel):
     typ: Literal[
         "reasoning_content", "content", "cot_step", "log", "knowledge_metadata"
     ]
-    content: str | CotStep | list
+    content: Union[str, CotStep, list]
     model: str
     created: int = Field(default_factory=cur_timestamp)
     usage: Optional[CompletionUsage] = Field(default=None)

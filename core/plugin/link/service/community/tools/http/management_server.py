@@ -332,6 +332,7 @@ def create_version(tools_info: ToolCreateRequest) -> ToolManagerResponse:
         with span.start(func_name="create_tools") as span_context:
             node_trace.sid = span_context.sid
             node_trace.chat_id = span_context.sid
+            node_trace.caller = "create_version"
             m = setup_logging_and_metrics_mgmt(
                 span_context, run_params_list, "create_tools"
             )
@@ -394,7 +395,7 @@ def delete_version(
 ) -> ToolManagerResponse:
     """Delete tool versions."""
     uid = new_uid()
-    caller = ""
+    caller = "delete_version"
     tool_type = ""
     span = Span(
         app_id=app_id if app_id else os.getenv(const.DEFAULT_APPID_KEY),
@@ -474,6 +475,7 @@ def update_version(tools_info: ToolUpdateRequest) -> ToolManagerResponse:
     with span.start(func_name="update_tools") as span_context:
         node_trace.sid = span_context.sid
         node_trace.chat_id = span_context.sid
+        node_trace.caller = "update_tools"
         m = setup_logging_and_metrics_mgmt(
             span_context, run_params_list, "update_tools"
         )
@@ -517,7 +519,7 @@ def read_version(
 ) -> ToolManagerResponse:
     """Read tool versions."""
     uid = new_uid()
-    caller = ""
+    caller = "read_version"
     tool_type = ""
     span = Span(
         app_id=app_id if app_id else os.getenv(const.DEFAULT_APPID_KEY),

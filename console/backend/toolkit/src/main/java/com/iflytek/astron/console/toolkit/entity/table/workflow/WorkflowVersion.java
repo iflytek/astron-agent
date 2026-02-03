@@ -28,12 +28,9 @@ public class WorkflowVersion {
     // Publish data
     String publishResult;
     /**
-     * 高级配置
+     * Advanced configuration
      */
     String advancedConfig;
-    /**
-     *
-     */
     @TableField(exist = false)
     String flowConfig;
 }

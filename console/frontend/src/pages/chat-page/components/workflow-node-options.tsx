@@ -74,7 +74,7 @@ const WorkflowNodeOptions: React.FC<WorkflowNodeOptionsProps> = ({
               key={option?.id}
               className={clsx(
                 // 基础样式
-                'max-w-sm w-full min-w-48 h-auto rounded-lg border leading-10 px-3 mb-2',
+                'max-w-sm w-full min-w-[200px] h-auto rounded-lg border leading-10 px-3 mb-2',
                 'font-sans text-sm text-gray-800 font-normal',
                 {
                   'border-blue-200 bg-blue-50': isSelected,
@@ -116,7 +116,7 @@ const WorkflowNodeOptions: React.FC<WorkflowNodeOptionsProps> = ({
                 // 基础按钮样式
                 'group flex items-center cursor-pointer h-7 pr-3 rounded-lg',
                 'transition-all duration-200 ease-in-out mr-2',
-                'text-gray-500'
+                'text-gray-500 hover:text-blue-700'
               )}
               onClick={() => {
                 onSendMsg({
@@ -148,7 +148,7 @@ const WorkflowNodeOptions: React.FC<WorkflowNodeOptionsProps> = ({
                 'transition-all duration-200 ease-in-out',
                 'bg-cover bg-no-repeat',
                 // 背景图标和文字颜色
-                'text-gray-500'
+                'text-gray-500 hover:text-red-700'
               )}
               onClick={() => {
                 onSendMsg({

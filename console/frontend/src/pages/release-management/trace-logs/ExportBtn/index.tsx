@@ -97,7 +97,7 @@ const ExportBtn: React.FC<ExportBtnProps> = ({ timeRange, record, botId }) => {
       );
       if (match) {
         filename = decodeURIComponent(
-          (match[1] || match[2] || filename).replace(/\"/g, '')
+          (match[1] || match[2] || filename).replace(/"/g, '')
         );
       }
       const dataBlob =

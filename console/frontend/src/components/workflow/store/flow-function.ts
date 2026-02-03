@@ -30,17 +30,13 @@ import {
 import { NodeDataType } from '@/components/workflow/types';
 
 export const initialStatus = {
-  historys: [],
-  sseData: {},
-  nodes: [],
-  edges: [],
-  isBuilding: false,
-  isPending: false,
-  isBuilt: false,
-  lastCopiedSelection: null,
-  zoom: 80,
+  historys: [], //History List
+  nodes: [], //Node List
+  edges: [], //Edge List
+  zoom: 80, //Zoom
 };
 
+// Undo
 const undo = (
   get: () => {
     historys: unknown[];
@@ -58,6 +54,7 @@ const undo = (
   }
 };
 
+// Set Zoom
 const setZoom = (
   zoom: number,
   set: (state: { zoom: number }) => void
@@ -67,6 +64,7 @@ const setZoom = (
   });
 };
 
+// Take Snapshot
 const takeSnapshot = (
   get: () => {
     setHistorys: (callback: (history: unknown[]) => unknown[]) => void;
@@ -81,6 +79,7 @@ const takeSnapshot = (
   get().setHistorys(history => cloneDeep([...history, newState]));
 };
 
+// Set Historys
 const setHistorys = (
   change: unknown,
   get,
@@ -93,6 +92,7 @@ const setHistorys = (
   });
 };
 
+// Move to Position
 const moveToPosition = (viewport: unknown): void => {
   const flowStore = useFlowsManager?.getState?.();
   const currentStore = flowStore?.getCurrentStore?.();
@@ -103,6 +103,7 @@ const moveToPosition = (viewport: unknown): void => {
   }
 };
 
+// Set React Flow Instance
 const setReactFlowInstance = (
   newState: unknown,
   set: (state: { reactFlowInstance: unknown }) => void
@@ -110,12 +111,14 @@ const setReactFlowInstance = (
   set({ reactFlowInstance: newState });
 };
 
+// On Nodes Change
 const onNodesChange = (changes: NodeChange[], get, set): void => {
   set({
     nodes: applyNodeChanges(changes, get().nodes),
   });
 };
 
+// On Edges Change
 const onEdgesChange = (
   changes: EdgeChange[],
   get: () => {
@@ -135,6 +138,7 @@ const onEdgesChange = (
   });
 };
 
+// Set Nodes
 const setNodes = (
   change: unknown,
   get: () => { nodes: Node[]; edges: Edge[] },
@@ -148,6 +152,7 @@ const setNodes = (
   });
 };
 
+// Set Edges
 const setEdges = (
   change: unknown,
   get: () => { edges: Edge[] },
@@ -159,6 +164,7 @@ const setEdges = (
   });
 };
 
+// Set Node
 const setNode = (
   id: string,
   change: Node | ((oldState: Node) => Node),
@@ -183,30 +189,17 @@ const setNode = (
   );
 };
 
+// Delay Check Node
 const delayCheckNode = (
   nodeId: string,
-  get: () => { nodes: Node[]; setNode: (id: string, node: Node) => void },
-  set: (state: unknown) => void
+  get: () => { nodes: Node[]; setNode: (id: string, node: Node) => void }
 ): void => {
   setTimeout(() => {
-    const currentCheckNode = get().nodes.find(node => node.id === nodeId);
-    const inputsFlag = checkedNodeInputData(
-      currentCheckNode?.data?.inputs || [],
-      currentCheckNode
-    );
-    const outputsFlag = checkedNodeOutputData(
-      currentCheckNode?.data?.outputs || [],
-      currentCheckNode
-    );
-    const paramsFlag = checkedNodeParams(currentCheckNode);
-    const repeatedFlag = true;
-    const checkFlag = inputsFlag && outputsFlag && paramsFlag && repeatedFlag;
-    get().setNode(nodeId, cloneDeep(currentCheckNode));
-    useFlowsManager.getState().autoSaveCurrentFlow();
-    return checkFlag;
+    checkNode(nodeId, get);
   }, 500);
 };
 
+// Check Node
 const checkNode = (
   nodeId: string,
   get: () => { nodes: Node[]; setNode: (id: string, node: Node) => void }
@@ -224,9 +217,10 @@ const checkNode = (
   const repeatedFlag = true;
   const checkFlag = inputsFlag && outputsFlag && paramsFlag && repeatedFlag;
   get().setNode(nodeId, cloneDeep(currentCheckNode));
+  useFlowsManager.getState().autoSaveCurrentFlow();
   return checkFlag;
 };
-
+// Copy Node
 const copyNode = (
   nodeId: string,
   get: () => {
@@ -328,6 +322,7 @@ const copyNode = (
   }
 };
 
+// Delete Node
 const deleteNode = (
   nodeId: string,
   get: () => {
@@ -379,6 +374,7 @@ const deleteNode = (
   });
 };
 
+// Update Node Name Status
 const updateNodeNameStatus = (
   nodeId: string,
   labelInputId: string | undefined,
@@ -404,6 +400,7 @@ const updateNodeNameStatus = (
   });
 };
 
+// Re Name Node
 const reNameNode = (
   nodeId: string,
   value: string,
@@ -419,6 +416,7 @@ const reNameNode = (
   });
 };
 
+// Paste
 const paste = async (
   get: () => {
     nodes: Node[];
@@ -538,7 +536,8 @@ const updateNodeRef = (id: string, get): void => {
   state.canPublishSetNot();
   state.autoSaveCurrentFlow();
 };
-
+//
+// Process Input Reference
 function processInputReference(item, input, references): void {
   const node = references?.find(
     ref => ref.value === input.schema.value.content.nodeId
@@ -557,7 +556,7 @@ function processInputReference(item, input, references): void {
     resetContent(input);
   }
 }
-
+// Should Reset Iteration
 function shouldResetIteration(item, input, reference): boolean {
   return (
     item?.nodeType === 'iteration' &&
@@ -566,11 +565,13 @@ function shouldResetIteration(item, input, reference): boolean {
   );
 }
 
+// Reset Content
 function resetContent(input): void {
   input.schema.value.content.name = '';
   input.schema.value.content.nodeId = '';
 }
 
+// Apply Reference
 function applyReference(item, input, reference): void {
   input.schema.value.content.name = reference?.value;
   if (item?.nodeType !== 'plugin' && item?.nodeType !== 'flow') {
@@ -579,6 +580,7 @@ function applyReference(item, input, reference): void {
   }
 }
 
+// Update Iteration Outputs
 function updateIterationOutputs(item, old): void {
   const outputs = item?.data?.inputs?.map(input => ({
     id: input?.id,

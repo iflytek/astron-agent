@@ -43,6 +43,7 @@ const transition = {
     copy: '复制',
     reAnswer: '重新回答',
     textTooLong: '文本过长，最大限制8000字符',
+    unSupportRead: '当前文本暂不支持朗读',
   },
   chatWindow: {
     clearChatHistoryFailed: '清空聊天记录失败',

@@ -1,0 +1,500 @@
+:root {
+    --astron-primary-color: #6356EA;
+    --astron-primary-color-hover: #7771FE;
+    --astron-primary-color-active: #463FA6;
+    --astron-primary-color-disabled: #9395FF;
+    --astron-border-primary-color: #E7E7F0;
+    --astron-color-scrollbar: #E7E7F0;
+    --astron-color-scrollbar-hover: #D2D2D7;
+    --astron-size-0-5: 2px;
+    --astron-size-1: 4px;
+    --astron-size-2: 8px;
+    --astron-size-2-5: 10px;
+    --astron-size-3: 12px;
+    --astron-size-3-5: 14px;
+    --astron-size-4: 16px;
+    --astron-size-5: 20px;
+    --astron-size-6: 24px;
+    --astron-size-7: 28px;
+    --astron-size-8: 32px;
+    --astron-font-weight-400: 400;
+    --astron-font-weight-500: 500;
+    --astron-text-on-primary: #ffffff;
+    --astron-text-on-primary-disabled: #E9EDFF;
+    --astron-default-color: #FFFFFF;
+    --astron-default-color-hover: #DADFFF;
+    --astron-default-color-active: #C8CDFF;
+    --astron-default-color-disabled: #FFFFFF;
+    --astron-transparent-color: transparent;
+    --astron-plain-active-color: #EAEBEE;
+    --astron-breadcrumb-color: #676773;
+    --astron-breadcrumb-color-last: #222529;
+    --astron-white-alpha-50: rgba(255, 255, 255, 0.5);
+    --astron-tertiary-tabs-bg-color: #F7F9FD;
+}
+
+::-webkit-scrollbar {
+    width: var(--astron-size-2);
+    height: var(--astron-size-2);
+}
+
+::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-radius: var(--astron-size-2);
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--astron-color-scrollbar);
+    border-radius: var(--astron-size-2);
+
+    &:hover {
+        background-color: var(--astron-color-scrollbar-hover);
+    }
+}
+
+.astron-primary-btn {
+    height: var(--astron-size-8);
+    line-height: var(--astron-size-8);
+    padding: 0 var(--astron-size-6);
+    background-color: var(--astron-primary-color);
+    color: var(--astron-text-on-primary);
+
+    svg {
+        fill: currentColor;
+    }
+
+    &:hover {
+        background-color: var(--astron-primary-color-hover);
+        opacity: 1;
+    }
+
+    &:active {
+        background-color: var(--astron-primary-color-active);
+        opacity: 1;
+    }
+
+    &:disabled {
+        color: var(--astron-text-on-primary-disabled);
+        background-color: var(--astron-primary-color-disabled);
+        opacity: 1;
+    }
+}
+
+.astron-default-btn {
+    border: 1px solid var(--astron-border-primary-color);
+    color: var(--astron-primary-color);
+    height: var(--astron-size-8);
+    line-height: var(--astron-size-8);
+    padding: 0 var(--astron-size-6);
+
+    &:not(:disabled):not(.ant-btn-disabled):hover {
+        opacity: 1;
+        border: 1px solid transparent;
+        background: var(--astron-default-color-hover);
+    }
+
+    &:not(:disabled):not(.ant-btn-disabled):active {
+        opacity: 1;
+        border: 1px solid transparent;
+        background: var(--astron-default-color-active);
+    }
+
+    &:disabled {
+        opacity: 1;
+        color: var(--astron-primary-color-disabled);
+        background-color: var(--astron-default-color);
+        border: 1px solid var(--astron-border-primary-color);
+    }
+}
+
+.astron-text-btn {
+    color: var(--astron-primary-color);
+
+    svg {
+        fill: currentColor;
+    }
+
+    &:not(:disabled):not(.ant-btn-disabled):hover {
+        color: var(--astron-primary-color-hover);
+        background-color: var(--astron-transparent-color);
+        opacity: 1;
+    }
+
+    &:not(:disabled):not(.ant-btn-disabled):active {
+        color: var(--astron-primary-color-active);
+        background-color: var(--astron-transparent-color);
+        opacity: 1;
+    }
+
+    &:disabled {
+        opacity: 1;
+        color: var(--astron-primary-color-disabled);
+        background-color: var(--astron-transparent-color);
+    }
+}
+
+.astron-plain-btn {
+    color: var(--astron-primary-color);
+    background-color: var(--astron-text-on-primary-disabled);
+    border: none;
+    box-shadow: none;
+
+    &:not(:disabled):not(.ant-btn-disabled):hover {
+        color: var(--astron-primary-color-hover);
+        background-color: var(--astron-default-color-hover);
+        opacity: 1;
+    }
+
+    &:not(:disabled):not(.ant-btn-disabled):active {
+        color: var(--astron-primary-color-active);
+        background-color: var(--astron-plain-active-color);
+        opacity: 1;
+    }
+
+    &:disabled {
+        opacity: 1;
+        color: var(--astron-primary-color-disabled);
+        background-color: var(--astron-primary-color-disabled);
+    }
+}
+
+.astron-breadcrumb {
+    color: var(--astron-breadcrumb-color);
+
+    a {
+        color: var(--astron-breadcrumb-color);
+
+        &:hover {
+            color: var(--astron-primary-color);
+            background-color: var(--astron-transparent-color);
+        }
+    }
+
+    li:last-child {
+        color: var(--astron-breadcrumb-color-last);
+        font-weight: var(--astron-font-weight-500);
+        font-size: var(--astron-size-4);
+    }
+
+    .ant-breadcrumb-separator {
+        align-self: center;
+    }
+}
+
+.astron-back-to-navigation {
+    display: flex;
+    align-items: center;
+    gap: var(--astron-size-2);
+    cursor: pointer;
+    font-size: var(--astron-size-4);
+    color: var(--astron-breadcrumb-color-last);
+    font-weight: var(--astron-font-weight-500);
+
+    &-iconContainer {
+        width: var(--astron-size-7);
+        height: var(--astron-size-7);
+        border: 1px solid var(--astron-border-primary-color);
+        border-radius: 50%;
+        background-color: var(--astron-default-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    &:hover &-iconContainer {
+        background-color: var(--astron-tertiary-tabs-bg-color);
+    }
+}
+
+.astron-table {
+    .ant-table {
+        background: var(--astron-default-color);
+
+        .ant-table-header {
+            border-radius: var(--astron-size-2-5) var(--astron-size-2-5) 0 0;
+        }
+    }
+
+    .ant-table-thead>tr>th {
+        background-color: #f1f0ff;
+        padding: var(--astron-size-3-5) var(--astron-size-5);
+        color: var(--astron-breadcrumb-color);
+    }
+
+    .ant-table-cell {
+        color: var(--astron-breadcrumb-color-last);
+    }
+
+    .ant-table-tbody>tr.ant-table-row:hover>td,
+    .ant-table-tbody>tr>td.ant-table-cell-row-hover {
+        background: #f7f7f9;
+    }
+
+    .ant-table-header,
+    .ant-table-thead {
+        .ant-table-cell {
+            box-sizing: border-box;
+            /* 描边色 */
+            border-width: 0px 0px 1px 0px;
+            border-style: solid;
+            border-color: var(--astron-border-primary-color);
+
+            font-family: PingFang SC;
+            font-size: var(--astron-size-3-5);
+            font-weight: var(--astron-font-weight-400);
+            color: var(--astron-breadcrumb-color);
+            border-bottom: none;
+
+            .froms {
+                display: flex;
+                justify-content: center;
+
+                .imgsReleaseType {
+                    margin-right: var(--astron-size-2-5);
+                }
+            }
+
+            &::before {
+                display: none;
+            }
+        }
+
+        border-bottom: 1px solid var(--astron-border-primary-color);
+        border-radius: var(--astron-size-4) var(--astron-size-4) 0 0;
+    }
+
+    .ant-table-thead {
+        tr {
+            :first-child {
+                padding-left: var(--astron-size-6);
+            }
+        }
+    }
+
+    .ant-table-body {
+        scrollbar-color: #c9cde0 transparent;
+        scrollbar-width: thin;
+
+        tr:not([aria-hidden="true"])>td {
+            padding: var(--astron-size-5);
+            font-family: "PingFang-Sim";
+            font-size: var(--astron-size-3-5);
+            font-weight: var(--astron-font-weight-400);
+            color: var(--astron-breadcrumb-color-last);
+        }
+
+        &::-webkit-scrollbar {
+            width: var(--astron-size-2);
+            height: var(--astron-size-2);
+        }
+
+        &::-webkit-scrollbar-track {
+            background-color: transparent;
+            border-radius: var(--astron-size-2);
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background-color: var(--astron-color-scrollbar);
+            border-radius: var(--astron-size-2);
+
+            &:hover {
+                background-color: var(--astron-color-scrollbar-hover);
+            }
+        }
+    }
+
+    // 固定列样式
+    .ant-table-cell-fix-right {
+        background-color: var(--astron-default-color);
+        box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .ant-table-thead .ant-table-cell-fix-right {
+        background-color: #f1f0ff;
+    }
+
+    &.ant-table-wrapper tr.ant-table-expanded-row >td {
+        background-color: var(--astron-default-color);
+    }
+
+    .ant-pagination-total-text {
+        margin-right: auto;
+        font-size: var(--astron-size-3-5);
+        font-weight: var(--astron-font-weight-400);
+        /* 字体二级颜色 */
+        color: var(--astron-breadcrumb-color);
+    }
+
+    .ant-pagination-options {
+        margin-left: auto;
+
+        .ant-select-selector {
+            border-color: #e7e7f0;
+
+            .ant-select-selection-item {
+                font-family: "PingFang-Sim";
+                font-size: var(--astron-size-3-5);
+                font-weight: var(--astron-font-weight-400);
+                color: var(--astron-breadcrumb-color-last);
+            }
+        }
+
+        .ant-select-arrow {
+            color: var(--astron-breadcrumb-color);
+        }
+    }
+
+    .ant-pagination {
+        padding: 0 var(--astron-size-5);
+        color: #43436b;
+        margin: var(--astron-size-5) 0;
+    }
+
+    .ant-pagination-prev .ant-pagination-item-link,
+    .ant-pagination-next .ant-pagination-item-link {
+        background-color: var(--astron-transparent-color);
+        border-color: var(--astron-transparent-color);
+    }
+
+    .ant-pagination-item {
+        width: var(--astron-size-8);
+        height: var(--astron-size-8);
+        background: var(--astron-default-color);
+        border: none;
+        border-radius: var(--astron-size-1);
+        background: var(--astron-transparent-color);
+
+        a {
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        &.ant-pagination-item-active {
+            background: #efeefc;
+            color: var(--astron-primary-color);
+
+            a {
+                color: var(--astron-primary-color);
+            }
+        }
+    }
+}
+
+.astron-primary-tabs {
+
+    &.ant-tabs-top>div>.ant-tabs-nav .ant-tabs-tab,
+    &.ant-tabs-top>.ant-tabs-nav .ant-tabs-tab {
+        border-radius: var(--astron-size-2-5);
+        background-color: var(--astron-transparent-color);
+        border: none;
+        color: var(--astron-breadcrumb-color);
+
+        &:hover {
+            color: var(--astron-primary-color);
+        }
+    }
+
+    &>.ant-tabs-nav .ant-tabs-tab-active,
+    &.ant-tabs-top>.ant-tabs-nav .ant-tabs-tab-active {
+        color: var(--astron-primary-color);
+        border-radius: var(--astron-size-2-5);
+        background: var(--astron-default-color);
+        box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+    }
+
+    .ant-tabs-nav::before {
+        border-bottom: none;
+    }
+
+    .ant-tabs-ink-bar {
+        display: none;
+    }
+}
+
+.astron-secondary-tabs {
+    .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+        color: var(--astron-primary-color);
+    }
+
+    .ant-tabs-tab:hover {
+        color: var(--astron-primary-color-hover);
+    }
+
+    .ant-tabs-ink-bar {
+        background: var(--astron-primary-color);
+    }
+}
+
+.astron-tertiary-tabs {
+    .ant-tabs-nav {
+        background-color: var(--astron-tertiary-tabs-bg-color);
+        border-radius: var(--astron-size-2-5);
+        padding: var(--astron-size-0-5);
+    }
+}
+
+.astron-steps {
+    &.ant-steps-vertical {
+        gap: 55px;
+    }
+
+    &.ant-steps-vertical>.ant-steps-item>.ant-steps-item-container>.ant-steps-item-tail::after {
+        width: 2px;
+        min-height: 49px;
+        background: var(--astron-border-primary-color);
+    }
+
+    &.ant-steps-vertical>.ant-steps-item>.ant-steps-item-container>.ant-steps-item-tail {
+        padding-top: 42px;
+    }
+
+    .ant-steps-item-wait .ant-steps-item-icon {
+        background: var(--astron-border-primary-color);
+        color: var(--astron-breadcrumb-color);
+    }
+
+    .ant-steps-item-wait>.ant-steps-item-container>.ant-steps-item-content>.ant-steps-item-title {
+        color: var(--astron-breadcrumb-color);
+    }
+
+    .ant-steps-item-process>.ant-steps-item-container>.ant-steps-item-content>.ant-steps-item-title::after {
+        background-color: var(--astron-border-primary-color);
+    }
+
+    .ant-steps-item-finish>.ant-steps-item-container>.ant-steps-item-content>.ant-steps-item-title::after {
+        background-color: var(--astron-primary-color);
+    }
+
+    .ant-steps-item-title::after {
+        height: 2px;
+        background-color: var(--astron-border-primary-color);
+    }
+
+    &.ant-steps-vertical>.ant-steps-item-finish>.ant-steps-item-container>.ant-steps-item-tail::after {
+        background-color: var(--astron-primary-color);
+    }
+
+    .ant-steps-item-process .ant-steps-item-icon {
+        background: var(--astron-primary-color);
+        border-color: var(--astron-primary-color);
+    }
+
+    .ant-steps-item-process>.ant-steps-item-container>.ant-steps-item-content>.ant-steps-item-title {
+        color: var(--astron-primary-color);
+    }
+
+    .ant-steps-item-finish .ant-steps-item-icon {
+        background: var(--astron-text-on-primary-disabled);
+        border-color: var(--astron-text-on-primary-disabled);
+    }
+}
+
+.astron-modal {
+    .ant-modal-content {
+        padding: var(--astron-size-3) var(--astron-size-5) var(--astron-size-4);
+    }
+    .ant-modal-title {
+        font-size: var(--astron-size-4);
+        font-weight: var(--astron-font-weight-500);
+        color: var(--astron-breadcrumb-color-last);
+    }
+}

@@ -1,15 +1,15 @@
 import asyncio
 import json
+import os
 import time
 from typing import Any, cast
 
 import aiohttp
+from common.otlp.trace.span import Span
 from pydantic import BaseModel, Field
 
-from common_imports import Span
-from exceptions.plugin_exc import GetMcpPluginExc, RunMcpPluginExc
-from infra import agent_config
-from service.plugin.base import BasePlugin, PluginResponse
+from agent.exceptions.plugin_exc import GetMcpPluginExc, RunMcpPluginExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
 class McpPlugin(BasePlugin):
@@ -35,16 +35,19 @@ class McpPluginRunner(BaseModel):
             }
             sp.add_info_events(
                 attributes={
-                    "mcp-plugin-run-inputs": json.dumps(
-                        data, ensure_ascii=False
-                    )
+                    "mcp-plugin-run-inputs": json.dumps(data, ensure_ascii=False)
                 }
             )
             try:
+                run_url = os.getenv("RUN_MCP_PLUGIN_URL")
+                if not run_url:
+                    raise RunMcpPluginExc("RUN_MCP_PLUGIN_URL is not set")
                 async with aiohttp.ClientSession() as session:
-                    timeout = aiohttp.ClientTimeout(total=40)
+                    timeout = aiohttp.ClientTimeout(
+                        total=int(os.getenv("MCP_CALL_TIMEOUT", "90"))
+                    )
                     async with session.post(
-                        agent_config.RUN_MCP_PLUGIN_URL,
+                        run_url,
                         json=data,
                         headers={"Content-Type": "application/json"},
                         timeout=timeout,
@@ -145,16 +148,17 @@ class McpPluginFactory(BaseModel):
             }
             sp.add_info_events(
                 attributes={
-                    "mcp-query-servers-inputs": json.dumps(
-                        data, ensure_ascii=False
-                    )
+                    "mcp-query-servers-inputs": json.dumps(data, ensure_ascii=False)
                 }
             )
             try:
+                list_url = os.getenv("LIST_MCP_PLUGIN_URL")
+                if not list_url:
+                    raise GetMcpPluginExc("LIST_MCP_PLUGIN_URL is not set")
                 async with aiohttp.ClientSession() as session:
                     timeout = aiohttp.ClientTimeout(total=40)
                     async with session.post(
-                        agent_config.LIST_MCP_PLUGIN_URL,
+                        list_url,
                         json=data,
                         timeout=timeout,
                     ) as response:
@@ -197,9 +201,7 @@ class McpPluginFactory(BaseModel):
         property_template = json.dumps(
             {
                 "type": "object",
-                "properties": tool.get("inputSchema", {}).get(
-                    "properties", {}
-                ),
+                "properties": tool.get("inputSchema", {}).get("properties", {}),
                 "required": tool.get("inputSchema", {}).get("required", []),
             },
             ensure_ascii=False,

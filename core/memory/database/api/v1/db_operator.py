@@ -141,7 +141,7 @@ async def clone_db(
 
         # Validate database
         _, error_resp = await check_database_exists_by_did_uid(
-            db, database_id, uid, span_context, m
+            db, database_id, uid, span_context
         )
         if error_resp:
             return error_resp  # type: ignore[no-any-return]
@@ -378,7 +378,7 @@ async def drop_db(
                 uid = str(uid)
 
         schema_list, error_resp = await check_database_exists_by_did_uid(
-            db, database_id, uid, span_context, m
+            db, database_id, uid, span_context
         )
         if error_resp:
             return error_resp  # type: ignore[no-any-return]

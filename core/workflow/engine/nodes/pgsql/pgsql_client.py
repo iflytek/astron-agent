@@ -92,8 +92,8 @@ class PGSqlClient:
             func_name="exec_dml_request", add_source_function_name=True
         ) as request_span:
             # Log request details for tracing
-            request_span.add_info_events({"url": url})
-            request_span.add_info_events(
+            await request_span.add_info_events_async({"url": url})
+            await request_span.add_info_events_async(
                 {"request_data": json.dumps(payload, ensure_ascii=False)}
             )
             try:
@@ -105,10 +105,10 @@ class PGSqlClient:
                     async with session.post(url, headers=headers, json=payload) as resp:
                         background_json = await resp.json()
                         # Log execution time and response for monitoring
-                        request_span.add_info_events(
+                        await request_span.add_info_events_async(
                             {"cost_time": f"{(time.time() - start_time) * 1000}"}
                         )
-                        request_span.add_info_events(
+                        await request_span.add_info_events_async(
                             {
                                 "response": json.dumps(
                                     background_json, ensure_ascii=False

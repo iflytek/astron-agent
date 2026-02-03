@@ -57,6 +57,7 @@ const ChatPage = (): ReactElement => {
   const messageList = useChatStore(state => state.messageList); //  消息列表
   const streamId = useChatStore(state => state.streamId); //  流式id
   const isLoading = useChatStore(state => state.isLoading); //  加载状态
+  const workflowOperation = useChatStore(state => state.workflowOperation); //  工作流操作
   const setMessageList = useChatStore(state => state.setMessageList); //  设置消息列表
   const setCurrentChatId = useChatStore(state => state.setCurrentChatId); //  设置当前聊天id
   const initChatStore = useChatStore(state => state.initChatStore); //  初始化聊天store
@@ -185,6 +186,8 @@ const ChatPage = (): ReactElement => {
               );
           }
         }
+      } else {
+        setChatType('text');
       }
       const workflowBotInfo = await getWorkflowBotInfoApi(botId);
       setBotInfo({
@@ -222,6 +225,7 @@ const ChatPage = (): ReactElement => {
     }
     onSendMsg({
       msg: params.item,
+      workflowOperation: (workflowOperation || []).length === 0 ? '' : 'resume',
       onSendCallback: params.callback,
     });
   };
@@ -275,7 +279,6 @@ const ChatPage = (): ReactElement => {
   };
 
   useEffect(() => {
-    console.log('vmsInteractiveRefStatus@@--------', vmsInteractiveRefStatus);
     if (vmsInteractiveRefStatus !== 'init') {
       vmsInter && clearInterval(vmsInter);
       vmsInter = null;
@@ -284,7 +287,6 @@ const ChatPage = (): ReactElement => {
     } else {
       const updatedMessageList = [...messageList];
       const lastMessage = updatedMessageList[updatedMessageList.length - 1];
-      console.log('lastMessage@@--------', lastMessage);
       //如果正在回答中，或者回答内容已经结束，但是虚拟人还未播完的状态
       if ((lastMessage && !lastMessage.sid) || tempAnsBak) {
         vmsInter && clearInterval(vmsInter);

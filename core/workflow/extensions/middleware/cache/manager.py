@@ -56,7 +56,9 @@ class RedisCache(BaseCacheService, Service):
                 host = match.group(1)
                 port = match.group(2)
                 cluster_nodes.append({"host": host, "port": port})
-        return RedisCluster(startup_nodes=cluster_nodes, password=password)
+        return RedisCluster(
+            startup_nodes=cluster_nodes, password=password, health_check_interval=30
+        )
 
     def init_redis(self, addr: str, password: str) -> Any:
         """
@@ -133,12 +135,6 @@ class RedisCache(BaseCacheService, Service):
             if pickled := pickle.dumps(value):
                 result = self._client.hset(name=name, key=key, value=pickled)
                 if result != 1:
-                    if self._client.hexists(name=name, key=key):
-                        logger.error(
-                            f"update hash key {name} field {key} value {value}"
-                        )
-                    else:
-                        logger.error(f"hash set failed, ret {result}")
                     if self._client.exists(name) and expire_time:
                         self._client.expire(name=name, time=expire_time)
                     return
@@ -325,6 +321,20 @@ class RedisCache(BaseCacheService, Service):
         :param key: The key of the item to remove
         """
         self.delete(key)
+
+    def setnx(self, key: str, value: Any, ex: int = 0) -> bool:
+        """
+        Set key to value if key does not exist, with expiration time.
+
+        :param key: The key to set
+        :param value: The value to set
+        :param ex: Expiration time in seconds
+        :return: True if the key was set, False if the key already exists
+        """
+        result = self._client.set(
+            key, value, nx=True, ex=ex if ex != 0 else self.expiration_time
+        )
+        return bool(result)
 
     def __repr__(self) -> str:
         """

@@ -46,8 +46,23 @@ const useFlowContainerEffect = ({
   const setEdges = useFlowStore(state => state.setEdges);
   const edges = useFlowStore(state => state.edges);
   const canPublishSetNot = useFlowsManager(state => state.canPublishSetNot);
-  const lastCopiedSelection = useFlowStore(state => state.lastCopiedSelection);
+  const nodes = useFlowStore(state => state.nodes);
+  const reactFlowInstance = useFlowStore(state => state.reactFlowInstance);
+  const setZoom = useFlowStore(state => state.setZoom);
   const position = useRef({ x: 0, y: 0 });
+  const isMounted = useRef(false);
+
+  useEffect(() => {
+    if (!isMounted.current && nodes?.length > 0) {
+      reactFlowInstance?.fitView();
+      const zoom = reactFlowInstance?.getViewport()?.zoom
+        ? Math.round(reactFlowInstance?.getViewport()?.zoom * 100)
+        : 80;
+      setZoom(zoom);
+      isMounted.current = true;
+    }
+  }, [nodes, reactFlowInstance]);
+
   const handleDelete = useCallback(() => {
     takeSnapshot();
     lastSelection.nodes = lastSelection?.nodes?.filter(
@@ -117,7 +132,7 @@ const useFlowContainerEffect = ({
         window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousemove', handleMouseMove);
     };
-  }, [lastSelection, lastCopiedSelection, startWorkflowKeydownEvent, edges]);
+  }, [lastSelection, startWorkflowKeydownEvent, edges]);
 };
 
 function Index({ zoom, setZoom }: IndexProps): React.ReactElement {

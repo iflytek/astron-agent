@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any
+from typing import Any, cast
 
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
@@ -70,7 +70,7 @@ class SparkLLMNode(BaseLLMNode):
     including prompt processing, history management, and response formatting.
     """
 
-    def resp_format_text_parser(self, res: str, think_contents: str) -> dict:
+    def resp_format_text_parser(self, res: Any, think_contents: str) -> dict:
         """
         Parse text format response from LLM.
 
@@ -78,15 +78,13 @@ class SparkLLMNode(BaseLLMNode):
         :param think_contents: Reasoning/thinking content from LLM
         :return: Dictionary with parsed response data
         """
-        if think_contents:
-            resp = {}
-            for output_key in self.output_identifier:
-                if output_key == "REASONING_CONTENT":
-                    resp["REASONING_CONTENT"] = think_contents
-                else:
-                    resp[output_key] = res
-            return resp
-        return {self.output_identifier[0]: res}
+        resp = {}
+        for output_key in self.output_identifier:
+            if output_key == "REASONING_CONTENT":
+                resp["REASONING_CONTENT"] = think_contents
+            else:
+                resp[output_key] = res
+        return resp
 
     def resp_format_markdown_parser(self, res: str) -> dict:
         """
@@ -139,7 +137,7 @@ class SparkLLMNode(BaseLLMNode):
         :param kwargs: Additional keyword arguments including callbacks and dependencies
         :return: Node execution result with outputs and metadata
         """
-        callbacks: ChatCallBacks = kwargs.get("callbacks", None)
+        callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
         msg_or_end_node_deps = kwargs.get("msg_or_end_node_deps", {})
         try:
             inputs = {}
@@ -231,7 +229,7 @@ class SparkLLMNode(BaseLLMNode):
                     lambda d: (
                         d
                         if isinstance(d, dict)
-                        else self.resp_format_text_parser(str(res), think_contents)
+                        else self.resp_format_text_parser(d, think_contents)
                         or d.update(
                             {
                                 k: variable_pool.get_variable(

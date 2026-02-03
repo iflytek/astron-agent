@@ -419,7 +419,7 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
                 </div>
 
                 {/* NOTE: hide binding wechat for now - 2025.10 */}
-                {/* {(agentType == 'workflow' ||
+                {/* {(agentType === 'workflow' ||
                   window.location.pathname.includes('work_flow')) && (
                   <div
                     className={cls(styles.wx_fabu, {
@@ -514,59 +514,64 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
                     </div>
                   </div>
                 )} */}
-                {(agentType == 'workflow' ||
-                  window.location.pathname.includes('work_flow')) && (
-                  <div
-                    className={cls(styles.spark_fabu, {
-                      [styles.spark_apifabuActive as string]: apifabuActive,
-                    })}
-                    onClick={() => {
-                      if (botInfo) {
-                        navigate(
-                          `/management/bot-api?id=${botInfo.botId}&version=${botInfo.version}`
-                        );
-                      }
-                      // setWxfabuActive(false);
-                      setFabuActive(false);
-                      // setMcpfabuActive(false);
-                      setApifabuActive(true);
-                    }}
-                  >
-                    <div className={styles.text_title}>
-                      <img className={styles.xinghuoImg} src={apiImg} alt="" />
-                      <div>
-                        <div
-                          className={cls(styles.text_sparktop, {
-                            [styles.text_sparktopactive as string]:
-                              apifabuActive,
-                          })}
-                        >
-                          {t('releaseModal.releaseToApi')}
-                        </div>
-                        <div className={styles.text_sparkbottom}>
-                          {t('releaseModal.apiConfigTip')}
-                        </div>
-                      </div>
-                    </div>
+                {!isVirtual &&
+                  (agentType === 'workflow' ||
+                    window.location.pathname.includes('work_flow')) && (
                     <div
-                      className={styles.peizhiApi}
+                      className={cls(styles.spark_fabu, {
+                        [styles.spark_apifabuActive as string]: apifabuActive,
+                      })}
                       onClick={() => {
-                        setIsOpenapi(true);
-                        if (currentNew == 'intro') {
-                          setCurrentNew('api');
+                        if (botInfo) {
+                          navigate(
+                            `/management/bot-api?id=${botInfo.botId}&version=${botInfo.version}`
+                          );
                         }
-                        // onCancel();
+                        // setWxfabuActive(false);
+                        setFabuActive(false);
+                        // setMcpfabuActive(false);
+                        setApifabuActive(true);
                       }}
                     >
-                      {Array.isArray(botInfo?.releaseType) &&
-                      botInfo.releaseType.includes(2)
-                        ? t('releaseModal.updateConfigure')
-                        : t('releaseModal.configure')}
+                      <div className={styles.text_title}>
+                        <img
+                          className={styles.xinghuoImg}
+                          src={apiImg}
+                          alt=""
+                        />
+                        <div>
+                          <div
+                            className={cls(styles.text_sparktop, {
+                              [styles.text_sparktopactive as string]:
+                                apifabuActive,
+                            })}
+                          >
+                            {t('releaseModal.releaseToApi')}
+                          </div>
+                          <div className={styles.text_sparkbottom}>
+                            {t('releaseModal.apiConfigTip')}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        className={styles.peizhiApi}
+                        onClick={() => {
+                          setIsOpenapi(true);
+                          if (currentNew == 'intro') {
+                            setCurrentNew('api');
+                          }
+                          // onCancel();
+                        }}
+                      >
+                        {Array.isArray(botInfo?.releaseType) &&
+                        botInfo.releaseType.includes(2)
+                          ? t('releaseModal.updateConfigure')
+                          : t('releaseModal.configure')}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 {/* NOTE: publishing as mcp is currently not supported - 2025.10 */}
-                {/* {(agentType == 'workflow' ||
+                {/* {(agentType === 'workflow' ||
                     window.location.pathname.includes('work_flow')) && (
                     <div
                       className={cls(styles.mcp_fabu, {

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * 对话Agent场景枚举
+ * Talk Agent Scene Enum
  */
 @Getter
 @AllArgsConstructor

@@ -25,6 +25,7 @@ const ResqBottomButtons = ({
 }: {
   message: MessageListType;
   isLastMessage: boolean;
+  chatType: string;
 }): ReactElement => {
   const { t } = useTranslation();
   const [isPlaying, setIsPlaying] = useState<boolean>(false); // 是否正在播放音频
@@ -102,6 +103,10 @@ const ResqBottomButtons = ({
         AntdMessage.error(t('chatPage.chatBottom.textTooLong'));
         return;
       }
+      if (!isPureText(message?.message)) {
+        AntdMessage.error(t('chatPage.chatBottom.unSupportRead'));
+        return;
+      }
       if (isPlaying) {
         setIsPlaying(false);
         setCurrentPlayingId(null);
@@ -130,11 +135,15 @@ const ResqBottomButtons = ({
         isPlaying={isPlaying}
         setIsPlaying={setIsPlaying}
       />
-      <Tooltip title={t('chatPage.chatBottom.reAnswer')} placement="top">
+      <Tooltip
+        title={t('chatPage.chatBottom.reAnswer')}
+        placement="top"
+        overlayClassName="black-tooltip"
+      >
         {isLastMessage && (
           <div
             onClick={() => handleReAnswer({ requestId: message.reqId || 0 })}
-            className="text-sm cursor-pointer mr-3 copy-icon"
+            className="text-sm cursor-pointer mr-3 chat-copy-icon"
           >
             <ReactSVG
               wrapper="span"
@@ -145,10 +154,14 @@ const ResqBottomButtons = ({
           </div>
         )}
       </Tooltip>
-      <Tooltip title={t('chatPage.chatBottom.copy')} placement="top">
+      <Tooltip
+        title={t('chatPage.chatBottom.copy')}
+        placement="top"
+        overlayClassName="black-tooltip"
+      >
         <div
           onClick={() => copyText({ text: message.message })}
-          className="text-sm cursor-pointer mr-3 copy-icon"
+          className="text-sm cursor-pointer mr-3 chat-copy-icon"
         >
           <ReactSVG wrapper="span" src={copyIcon} />
         </div>
@@ -160,12 +173,13 @@ const ResqBottomButtons = ({
             : t('chatPage.chatBottom.read')
         }
         placement="top"
+        overlayClassName="black-tooltip"
       >
         <div
           onClick={() => handlePlayAudio()}
-          className="text-sm cursor-pointer mr-3 copy-icon"
+          className="text-sm cursor-pointer chat-play-icon"
         >
-          <AudioAnimate isPlaying={isPlaying} />
+          <AudioAnimate isPlaying={isPlaying} type="play" />
         </div>
       </Tooltip>
     </div>

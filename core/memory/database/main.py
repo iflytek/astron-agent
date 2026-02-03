@@ -4,9 +4,13 @@ This module initializes the FastAPI app, sets up middleware,
 configures routes, and handles application lifecycle events.
 """
 
+import asyncio
 import json
 import os
+import platform
+import socket
 import sys
+from asyncio.subprocess import PIPE
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator
 
@@ -23,7 +27,7 @@ from memory.database.exceptions.error_code import CodeEnum
 from starlette.middleware.cors import CORSMiddleware
 
 
-async def initialize_extensions() -> None:
+def initialize_extensions() -> None:
     """Initialize required extensions and services for the application."""
     os.environ["CONFIG_ENV_PATH"] = "./memory/database/config.env"
 
@@ -35,6 +39,10 @@ async def initialize_extensions() -> None:
         "otlp_metric_service",
     ]
     initialize_services(services=need_init_services)
+
+
+async def rep_initialize_extensions() -> None:
+    """Initialize middleware initialize services for the application."""
 
     # pylint: disable=import-outside-toplevel
     from repository.middleware.initialize import (
@@ -55,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         None: After successful initialization.
     """
     try:
-        await initialize_extensions()
+        await rep_initialize_extensions()
         # Execute before application startup
         yield
         # Execute after application startup
@@ -167,9 +175,117 @@ def create_app() -> FastAPI:
     return app
 
 
+async def _get_host_ip_from_hostname_command() -> str | None:
+    """Get host IP using hostname -i command (Linux only)."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "hostname", "-i", stdout=PIPE, stderr=PIPE
+        )
+        out, _ = await proc.communicate()
+        if proc.returncode == 0 and out:
+            ip = out.decode().strip().split()[0]
+            if ip:
+                return ip
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _get_host_ip_from_gethostbyname() -> str | None:
+    """Get host IP using socket.gethostbyname."""
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        if ip and not ip.startswith("127."):
+            return ip
+    except (OSError, socket.gaierror):
+        pass
+    return None
+
+
+def _get_host_ip_from_getaddrinfo() -> str | None:
+    """Get host IP using socket.getaddrinfo."""
+    try:
+        hostname = socket.gethostname()
+        for fam, _, _, _, sockaddr in socket.getaddrinfo(hostname, None):
+            if fam == socket.AF_INET:
+                candidate = sockaddr[0]
+                if isinstance(candidate, str) and not candidate.startswith("127."):
+                    return candidate
+    except (OSError, socket.gaierror):
+        pass
+    return None
+
+
+async def _get_host_ip() -> str:
+    """Get host IP address using multiple fallback strategies."""
+    system = platform.system().lower()
+
+    # Prefer hostname -i on Linux
+    if system == "linux":
+        ip = await _get_host_ip_from_hostname_command()
+        if ip:
+            return ip
+
+    # Cross-platform fallback using socket
+    ip = _get_host_ip_from_gethostbyname()
+    if ip:
+        return ip
+
+    # Last resort: pick first non-loopback from getaddrinfo
+    ip = _get_host_ip_from_getaddrinfo()
+    if ip:
+        return ip
+
+    return "0.0.0.0"  # Fallback to localhost
+
+
+def _write_watchdog_env(host_ip: str) -> None:
+    """Write watchdog environment file for Linux systems."""
+    with open("/etc/watchdog-env", "w", encoding="utf-8") as f:
+        service_port = os.getenv("SERVICE_PORT", "7990")
+        kong_service = os.getenv("KONG_SERVICE_NAME", "upstream-xingchen-db-open")
+        kong_admin = os.getenv(
+            "KONG_ADMIN_API", "http://172.30.209.27:8000/service_find"
+        )
+        f.write(
+            f"""
+export APP_HOST={host_ip}
+export APP_PORT={service_port}
+export KONG_SERVICE_NAME={kong_service}
+export KONG_ADMIN_API={kong_admin}
+"""
+        )
+
+
+def _print_env_vars(host_ip: str) -> None:
+    """Print environment variables for non-Linux systems."""
+    service_port = os.getenv("SERVICE_PORT", "7990")
+    kong_service = os.getenv("KONG_SERVICE_NAME", "upstream-xingchen-db-open")
+    kong_admin = os.getenv("KONG_ADMIN_API", "http://172.30.209.27:8000/service_find")
+    print(f"""export APP_HOST={host_ip}""")
+    print(f"""export APP_PORT={service_port}""")
+    print(f"""export KONG_SERVICE_NAME={kong_service}""")
+    print(f"""export KONG_ADMIN_API={kong_admin}""")
+
+
+async def _log_ready_after_delay() -> None:
+    """Log ready status after delay with host IP information."""
+    host_ip = await _get_host_ip()
+    system = platform.system().lower()
+    # Prefer hostname -i on Linux
+    if system == "linux":
+        _write_watchdog_env(host_ip)
+    else:
+        _print_env_vars(host_ip)
+
+
 if __name__ == "__main__":
     logger.debug(f"current platform {sys.platform}")
     # app = asyncio.run(create_app())
+    initialize_extensions()
+
+    asyncio.run(_log_ready_after_delay())
 
     uvicorn.run(
         app="main:create_app",

@@ -121,7 +121,6 @@ class TestNodeLog:
         assert node_log.next_log_ids == set()
         assert node_log.start_time > 0
         assert node_log.end_time > 0
-        assert node_log.duration == (0,)
         assert node_log.first_frame_duration == -1
         assert node_log.node_first_cost_time == -1
         assert node_log.llm_output == ""

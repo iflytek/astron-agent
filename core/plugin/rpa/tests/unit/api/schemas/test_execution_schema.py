@@ -116,6 +116,7 @@ class TestRPAExecutionRequest:
             "sid": "test-sid",
             "project_id": "test-project",
             "version": None,
+            "phone_number": None,
             "exec_position": "CUSTOM_EXECUTOR",
             "params": {"test_key": "test_value"},
         }

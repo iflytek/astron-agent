@@ -3,14 +3,19 @@ import json
 from dataclasses import dataclass
 from typing import Any, cast
 
-from api.schemas.workflow_agent_inputs import (
+from common.otlp.trace.span import Span
+
+from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
     CustomCompletionPluginKnowledgeInputs,
 )
-from common_imports import Span
-from engine.workflow_agent_runner import WorkflowAgentRunner
-from service.builder.base_builder import BaseApiBuilder, CotRunnerParams, RunnerParams
-from service.plugin.knowledge import KnowledgePluginFactory
+from agent.service.builder.base_builder import (
+    BaseApiBuilder,
+    CotRunnerParams,
+    RunnerParams,
+)
+from agent.service.plugin.knowledge import KnowledgePluginFactory
+from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 
 @dataclass
@@ -121,12 +126,14 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             doc_ids = knowledge.match.doc_ids or []
 
             # 添加调试日志
-            span.add_info_events({
-                "knowledge_name": knowledge.name,
-                "repo_type": knowledge.repo_type,
-                "repo_ids": repo_ids,
-                "doc_ids": doc_ids
-            })
+            span.add_info_events(
+                {
+                    "knowledge_name": knowledge.name,
+                    "repo_type": knowledge.repo_type,
+                    "repo_ids": repo_ids,
+                    "doc_ids": doc_ids,
+                }
+            )
 
             if not (repo_ids or doc_ids):
                 span.add_info_events({"skip_reason": "no repo_ids or doc_ids"})
@@ -141,9 +148,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             )
 
             # 添加映射后的日志
-            span.add_info_events({
-                "mapped_rag_type": repo_type
-            })
+            span.add_info_events({"mapped_rag_type": repo_type})
 
             params = KnowledgeQueryParams(
                 repo_ids=repo_ids,

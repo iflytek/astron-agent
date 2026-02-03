@@ -23,12 +23,14 @@ import {
   AddNodeType,
   ToolType,
   FlowType,
+  McpType,
   PositionType,
   NewNodeType,
   UseAddNodeReturn,
   UseAddToolNodeReturn,
   UseAddFlowNodeReturn,
   UseAddRpaNodeReturn,
+  UseAddMcpNodeReturn,
 } from '@/components/workflow/types/hooks';
 
 import { UseFlowCommonReturn } from '@/components/workflow/types/hooks';
@@ -40,6 +42,7 @@ const useAddNode = (): UseAddNodeReturn => {
   const { spaceId } = useSpaceStore();
   const setWillAddNode = useFlowsManager(state => state.setWillAddNode);
   const setShowToolModal = useFlowsManager(state => state.setToolModalInfo);
+  const setMcpModalInfo = useFlowsManager(state => state.setMcpModalInfo);
   const setFlowModal = useFlowsManager(state => state.setFlowModalInfo);
   const setRpaModal = useFlowsManager(state => state.setRpaModalInfo);
   const currentStore = useFlowsManager(state => state.getCurrentStore());
@@ -55,7 +58,6 @@ const useAddNode = (): UseAddNodeReturn => {
       setWillAddNode(addNode);
       const nodeType = addNode?.idType;
       if (nodeType === 'plugin') {
-        setWillAddNode(addNode);
         setShowToolModal({
           open: true,
         });
@@ -69,6 +71,9 @@ const useAddNode = (): UseAddNodeReturn => {
         setRpaModal({
           open: true,
         });
+        return null;
+      } else if (addNode?.idType === 'mcp') {
+        setMcpModalInfo({ open: true });
         return null;
       } else {
         const currentTypeList = nodes.filter(
@@ -288,6 +293,67 @@ const useAddToolNode = ({ addEdge }): UseAddToolNodeReturn => {
   };
 };
 
+const useAddMcpNode = ({ addEdge }): UseAddMcpNodeReturn => {
+  const willAddNode = useFlowsManager(state => state.willAddNode);
+  const currentStore = useFlowsManager(state => state.getCurrentStore());
+  const nodes = currentStore(state => state.nodes);
+  const takeSnapshot = currentStore(state => state.takeSnapshot);
+  const setNodes = currentStore(state => state.setNodes);
+  const canPublishSetNot = useFlowsManager(state => state.canPublishSetNot);
+  const beforeNode = useFlowsManager(state => state.beforeNode);
+  const reactFlowInstance = currentStore(state => state.reactFlowInstance);
+  const checkNode = currentStore(state => state.checkNode);
+  const handleAddMcpNode = useMemoizedFn((mcpParam: McpType): void => {
+    takeSnapshot();
+    const currentTypeList = nodes.filter(
+      node => node?.data?.nodeParam?.mcpServerId === mcpParam.mcpId
+    );
+    willAddNode.data.nodeParam.toolName = mcpParam.name;
+    willAddNode.data.nodeParam.mcpServerUrl = mcpParam.server_url;
+    willAddNode.data.nodeParam.toolDescription = mcpParam.description;
+    willAddNode.data.inputs = mcpParam?.args?.map(item => ({
+      id: uuid(),
+      name: item.name,
+      type: item.type,
+      required: item?.required,
+      description: item.description,
+      schema: {
+        type: item.type,
+        value: {
+          type: 'ref',
+          content: {},
+        },
+      },
+    }));
+    const newToolNode = {
+      id: getNodeId(willAddNode.idType),
+      type: 'custom',
+      nodeType: willAddNode?.idType,
+      position: generateRandomPosition(reactFlowInstance?.getViewport()),
+      selected: true,
+      data: {
+        icon: willAddNode.icon,
+        ...copyNodeData(willAddNode.data),
+        label: getNextName(currentTypeList, mcpParam.name),
+        labelEdit: false,
+      },
+    };
+    setNodes(nodes => [
+      ...nodes.map(node => ({ ...node, selected: false })),
+      newToolNode,
+    ]);
+    canPublishSetNot();
+    message.success(`${mcpParam.name} 已添加`);
+    if (beforeNode) {
+      addEdge(beforeNode.sourceHandle, beforeNode, newToolNode);
+    }
+    checkNode(newToolNode.id);
+  });
+  return {
+    handleAddMcpNode,
+  };
+};
+
 const useAddFlowNode = ({ addEdge }): UseAddFlowNodeReturn => {
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const nodes = currentStore(state => state.nodes);
@@ -415,6 +481,7 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
     state => state.setVersionManagement
   );
   const showToolModal = useFlowsManager(state => state.toolModalInfo.open);
+  const showMcpModal = useFlowsManager(state => state.mcpModalInfo.open);
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
   const knowledgeModalInfoOpen = useFlowsManager(
     state => state.knowledgeModalInfo.open
@@ -456,6 +523,7 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
   const { handleAddToolNode } = useAddToolNode({ addEdge });
   const { handleAddFlowNode } = useAddFlowNode({ addEdge });
   const { handleAddRpaNode } = useAddRpaNode({ addEdge });
+  const { handleAddMcpNode } = useAddMcpNode({ addEdge });
 
   const handleEdgeAddNode = useMemoizedFn(
     (
@@ -491,12 +559,14 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
   const startWorkflowKeydownEvent = useMemo(() => {
     return (
       !showToolModal &&
+      !showMcpModal &&
       !showIterativeModal &&
       !knowledgeModalInfoOpen &&
       !showKnowledgeDetailModal
     );
   }, [
     showToolModal,
+    showMcpModal,
     showIterativeModal,
     knowledgeModalInfoOpen,
     showKnowledgeDetailModal,
@@ -521,6 +591,7 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
     startIterativeWorkflowKeydownEvent,
     handleAddNode,
     handleAddToolNode,
+    handleAddMcpNode,
     handleAddFlowNode,
     handleAddRpaNode,
     handleEdgeAddNode,

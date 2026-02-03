@@ -341,6 +341,7 @@ class TestEndToEndIntegration:
             access_token="e2e-test-token",
             project_id="e2e-test-project",
             version=None,
+            phone_number=None,
             exec_position="EXECUTOR",
             params={"test_data": "e2e_value"},
         )

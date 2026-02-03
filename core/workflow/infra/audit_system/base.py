@@ -197,5 +197,5 @@ class AuditContext(BaseModel):
         event = f"Content ready for display: {frame_audit_result.content}"
         if frame_audit_result.error:
             event = f"{event}, This display has risks, risk information: {frame_audit_result.error}"
-        span.add_info_event(event)
+        await span.add_info_event_async(event)
         await self.output_queue.put(frame_audit_result)

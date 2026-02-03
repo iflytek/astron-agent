@@ -19,6 +19,12 @@ export interface VCNTrainingText {
   segText: string;
   segTextLan: string;
 }
+const DEFAULT_TRAINING_TEXT: VCNTrainingText = {
+  segId: 0,
+  segText:
+    '请到该地址，开通一句话复刻功能 https://console.xfyun.cn/services/oneSentence',
+  segTextLan: '',
+};
 
 const VoiceTraining: React.FC<VoiceTrainingProps> = ({
   showVoiceTraining,
@@ -105,6 +111,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
         setTrainingText(res.textSegs);
       })
       .catch(err => {
+        message.error(err.message);
         console.log(err);
       });
   };
@@ -141,7 +148,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     );
     // 从筛选结果中随机选择一个
     const randomIndex = Math.floor(Math.random() * filteredTexts.length);
-    const selectedText = filteredTexts[randomIndex];
+    const selectedText = filteredTexts[randomIndex] || DEFAULT_TRAINING_TEXT;
     setCreateStep(2);
     setCurrentTrainingText(selectedText as VCNTrainingText);
   };

@@ -6,21 +6,26 @@ It initializes the FastAPI application with all necessary middleware, routers, a
 extensions including metrics, tracing, and graceful shutdown handling.
 """
 
-import json
 import multiprocessing
 import os
 import sys
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
-from fastapi.routing import APIRoute
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
 
 from workflow.api.v1.router import old_auth_router, sparkflow_router, workflow_router
 from workflow.cache.event_registry import EventRegistry
 from workflow.extensions.fastapi.handler.validation import validation_exception_handler
+from workflow.extensions.fastapi.lifespan.database_migration import (
+    run_database_migration,
+)
+from workflow.extensions.fastapi.lifespan.http_client import HttpClient
+from workflow.extensions.fastapi.lifespan.utils import print_routes
 from workflow.extensions.fastapi.middleware.auth import AuthMiddleware
 from workflow.extensions.fastapi.middleware.otlp import OtlpMiddleware
 from workflow.extensions.graceful_shutdown.graceful_shutdown import GracefulShutdown
@@ -37,11 +42,40 @@ def create_app() -> FastAPI:
 
     :return: Configured FastAPI application instance
     """
-    # Initialize application services and middleware
-    initialize_services()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[Any]:
+
+        # Initialize application services and middleware
+        initialize_services()
+
+        # Run database migration before starting the service
+        run_database_migration()
+
+        # Initialize the http connection pool when the entire service starts
+        await HttpClient.setup()
+
+        await print_routes(app)
+
+        print("🚀 FastAPI service started successfully!")
+
+        yield
+
+        # Destroy the http connection pool when the service stops
+        await HttpClient.close()
+
+        # Exit gracefully
+        async def do_final_shutdown_logic() -> None:
+            print("🧹 Final shutdown hook executed.")
+
+        await GracefulShutdown(
+            event=EventRegistry(),
+            check_interval=int(os.getenv("SHUTDOWN_INTERVAL", "2")),
+            timeout=int(os.getenv("SHUTDOWN_TIMEOUT", "180")),
+        ).run(shutdown_callback=do_final_shutdown_logic)
 
     # Create the FastAPI application instance
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     # Configure CORS middleware to allow cross-origin requests
     origins = ["*"]
@@ -66,67 +100,6 @@ def create_app() -> FastAPI:
         RequestValidationError,
         validation_exception_handler,  # type: ignore[arg-type]
     )
-
-    # Configure graceful shutdown handler
-    shutdown_handler = GracefulShutdown(
-        event=EventRegistry(),
-        check_interval=int(os.getenv("SHUTDOWN_INTERVAL", "2")),
-        timeout=int(os.getenv("SHUTDOWN_TIMEOUT", "180")),
-    )
-
-    # Register startup event handler to log all available routes
-    @app.on_event("startup")
-    async def print_routes() -> None:
-        """
-        Log all registered routes during application startup.
-
-        This function collects information about all registered routes
-        and logs them in JSON format for debugging and monitoring purposes.
-        """
-        route_infos = []
-        for route in app.routes:
-            if isinstance(route, APIRoute):
-                route_infos.append(
-                    {
-                        "path": route.path,
-                        "name": route.name,
-                        "methods": list(route.methods),
-                    }
-                )
-            else:
-                route_infos.append(
-                    {
-                        "path": getattr(route, "path", "unknown"),
-                        "name": getattr(route, "name", "unknown"),
-                        "methods": "N/A",
-                    }
-                )
-        logger.info("Registered routes:")
-        for route_info in route_infos:
-            logger.info(json.dumps(route_info, ensure_ascii=False))
-        logger.info("🚀 FastAPI service started successfully!")
-        print("🚀 FastAPI service started successfully!")
-
-    # Define final shutdown logic callback
-    async def do_final_shutdown_logic() -> None:
-        """
-        Execute final cleanup logic during application shutdown.
-
-        This function is called as part of the graceful shutdown process
-        to perform any necessary cleanup operations.
-        """
-        print("🧹 Final shutdown hook executed.")
-
-    # Register shutdown event handler for graceful shutdown
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        """
-        Handle application shutdown gracefully.
-
-        This function ensures that the application shuts down cleanly
-        by running the graceful shutdown handler with the final cleanup callback.
-        """
-        await shutdown_handler.run(shutdown_callback=do_final_shutdown_logic)
 
     return app
 

@@ -54,7 +54,7 @@ public class BotDebugRequest {
     /**
      * MaaS dataset list
      */
-    private String maasDatasetListStr;
+    private String maasDatasetList;
 
     private Long modelId;
 

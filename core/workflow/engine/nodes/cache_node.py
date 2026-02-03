@@ -26,6 +26,7 @@ from workflow.engine.nodes.iteration.iteration_node import (
 from workflow.engine.nodes.knowledge.knowledge_node import KnowledgeNode
 from workflow.engine.nodes.knowledge_pro.knowledge_pro_node import KnowledgeProNode
 from workflow.engine.nodes.llm.spark_llm_node import SparkLLMNode
+from workflow.engine.nodes.mcp.mcp_node import MCPNode
 from workflow.engine.nodes.message.message_node import MessageNode
 from workflow.engine.nodes.params_extractor.pe_node import ParamsExtractorNode
 from workflow.engine.nodes.pgsql.pgsql_node import PGSqlNode
@@ -62,4 +63,5 @@ tool_classes = {
     "question-answer": QuestionAnswerNode,  # Question-answer node for Q&A processing
     "database": PGSqlNode,  # PostgreSQL database node for data operations
     "rpa": RPANode,
+    "mcp": MCPNode,
 }

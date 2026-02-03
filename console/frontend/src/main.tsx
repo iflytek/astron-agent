@@ -17,7 +17,9 @@ import './styles/applies.scss';
 import './styles/classes.scss';
 import './styles/antd.scss';
 import './styles/flow.scss';
+import './styles/ui.scss';
 import 'reactflow/dist/style.css';
+import 'katex/dist/katex.min.css';
 
 console.log(
   '[main] before bootstrap, window.__APP_CONFIG__ = ',

@@ -8,6 +8,8 @@ It handles authentication, parameter validation, and response processing.
 import base64
 import json
 import os
+import queue
+import threading
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -49,6 +51,73 @@ default_value = {
     " 'integer'": 0,
 }
 
+global_kafka_queue: queue.Queue = queue.Queue(maxsize=10000)
+
+KAFKA_MAX_WORKERS = 10
+KAFKA_WORKER_TIMEOUT = 30
+KAFKA_WATCHDOG_INTERVAL = 5
+
+_worker_threads = []
+_worker_last_active = []
+_worker_lock = threading.Lock()
+
+
+def init_kafka_send_workers() -> None:
+    """Initialize Kafka producer workers"""
+    for idx in range(KAFKA_MAX_WORKERS):
+        thread = threading.Thread(target=_kafka_worker_func, args=(idx,), daemon=True)
+        with _worker_lock:
+            _worker_threads.append(thread)
+            _worker_last_active.append(time.time())
+
+    watchdog_thread = threading.Thread(target=_kafka_watchdog_func, daemon=True)
+    watchdog_thread.start()
+
+
+def _kafka_worker_func(worker_idx: int) -> None:
+    """Kafka worker function"""
+
+    kafka_producer = None
+    while True:
+        try:
+            if not kafka_producer:
+                kafka_producer = get_kafka_producer_service()
+
+            with _worker_lock:
+                _worker_last_active[worker_idx] = time.time()
+            logger.info(f"[Worker {worker_idx}] Waiting for data to send to kafka")
+            data = global_kafka_queue.get(timeout=1)
+            kafka_producer.send(os.getenv(const.KAFKA_TOPIC_KEY), data)
+
+        except queue.Empty:
+            time.sleep(1)
+        except Exception as e:
+            logger.error(f"[Worker {worker_idx}] Failed to send data to kafka: {e}")
+            kafka_producer = None
+        finally:
+            continue
+
+
+def _kafka_watchdog_func() -> None:
+    """Watchdog to monitor worker threads and restart if stuck"""
+
+    while True:
+        time.sleep(KAFKA_WATCHDOG_INTERVAL)
+        now = time.time()
+
+        with _worker_lock:
+            for idx, last_active in enumerate(_worker_last_active):
+                if now - last_active > KAFKA_WORKER_TIMEOUT:
+                    logger.error(f"[Watchdog] Worker {idx} seems stuck, restarting")
+
+                    thread = threading.Thread(
+                        target=_kafka_worker_func, args=(idx,), daemon=True
+                    )
+                    logger.info(f"[Watchdog] Starting worker {idx}")
+                    thread.start()
+                    _worker_threads[idx] = thread
+                    _worker_last_active[idx] = now
+
 
 def extract_request_params(
     run_params_list: Dict[str, Any],
@@ -72,15 +141,18 @@ def extract_request_params(
     return app_id, uid, caller
 
 
-def send_telemetry(node_trace: NodeTraceLog) -> None:
+async def send_telemetry(node_trace: NodeTraceLog) -> None:
     """Send telemetry data to Kafka."""
     if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
-        kafka_service = get_kafka_producer_service()
         node_trace.start_time = int(round(time.time() * 1000))
-        kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
+        try:
+            logger.debug(f"Current kafka queue size: {global_kafka_queue.qsize()}")
+            global_kafka_queue.put(node_trace.to_json(), block=False)
+        except queue.Full:
+            logger.debug("Kafka queue is full, drop telemetry data")
 
 
-def handle_validation_error(
+async def handle_validation_error(
     validate_err: str, span_context: Span, node_trace: NodeTraceLog, m: Meter
 ) -> HttpRunResponse:
     """Handle validation errors with telemetry."""
@@ -91,7 +163,7 @@ def handle_validation_error(
             code=ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
             message=validate_err,
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -103,7 +175,7 @@ def handle_validation_error(
     )
 
 
-def handle_sparklink_error(
+async def handle_sparklink_error(
     err: SparkLinkBaseException,
     span_context: Span,
     node_trace: NodeTraceLog,
@@ -125,7 +197,7 @@ def handle_sparklink_error(
             code=err.code,
             message=err.message,
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -135,7 +207,7 @@ def handle_sparklink_error(
     )
 
 
-def handle_custom_error(
+async def handle_custom_error(
     error_code: Any,
     message: str,
     span_context: Span,
@@ -158,7 +230,7 @@ def handle_custom_error(
             code=error_code.code,
             message=message,
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -170,7 +242,7 @@ def handle_custom_error(
     )
 
 
-def handle_general_exception(
+async def handle_general_exception(
     err: Exception,
     span_context: Span,
     node_trace: NodeTraceLog,
@@ -192,7 +264,7 @@ def handle_general_exception(
             code=ErrCode.COMMON_ERR.code,
             message=f"{ErrCode.COMMON_ERR.msg}: {err}",
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -283,7 +355,7 @@ def validate_response_schema(
     return er_msgs
 
 
-def handle_success_response(
+async def handle_success_response(
     result: str,
     span_context: Span,
     node_trace: NodeTraceLog,
@@ -301,7 +373,7 @@ def handle_success_response(
             code=ErrCode.SUCCESSES.code,
             message=ErrCode.SUCCESSES.msg,
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -317,7 +389,7 @@ def handle_success_response(
     )
 
 
-def handle_debug_validation_error(
+async def handle_debug_validation_error(
     validate_err: str,
     span_context: Span,
     node_trace: NodeTraceLog,
@@ -340,7 +412,7 @@ def handle_debug_validation_error(
             code=ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
             message=validate_err,
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -352,7 +424,7 @@ def handle_debug_validation_error(
     )
 
 
-def handle_debug_success_response(
+async def handle_debug_success_response(
     result: str,
     span_context: Span,
     node_trace: NodeTraceLog,
@@ -370,7 +442,7 @@ def handle_debug_success_response(
             code=ErrCode.SUCCESSES.code,
             message=ErrCode.SUCCESSES.msg,
         )
-        send_telemetry(node_trace)
+        await send_telemetry(node_trace)
 
     return ToolDebugResponse(
         header=ToolDebugResponseHeader(
@@ -433,7 +505,7 @@ def setup_http_request(
     )
 
 
-def process_http_result(
+async def process_http_result(
     result: str,
     open_api_schema: Dict[str, Any],
     span_context: Span,
@@ -455,7 +527,7 @@ def process_http_result(
         detailed_message = (
             f"错误信息：{ErrCode.RESPONSE_SCHEMA_VALIDATE_ERR.msg}, " f"详细信息：{msg}"
         )
-        return handle_custom_error(
+        return await handle_custom_error(
             ErrCode.RESPONSE_SCHEMA_VALIDATE_ERR,
             detailed_message,
             span_context,
@@ -469,7 +541,7 @@ def process_http_result(
     result = json.dumps(result_json, ensure_ascii=False)
     span_context.add_info_events({"after result": result})
 
-    return handle_success_response(
+    return await handle_success_response(
         result, span_context, node_trace, m, tool_id, tool_type
     )
 
@@ -559,7 +631,7 @@ def get_tool_schema(
     return operation_id_schema, tool_type, open_api_schema
 
 
-def validate_and_get_params(
+async def validate_and_get_params(
     run_params_list: Dict[str, Any],
     span_context: Span,
     node_trace: NodeTraceLog,
@@ -568,7 +640,9 @@ def validate_and_get_params(
     """Validate request and extract parameters."""
     validate_err = api_validate(get_http_run_schema(), run_params_list)
     if validate_err:
-        return None, handle_validation_error(validate_err, span_context, node_trace, m)
+        return None, await handle_validation_error(
+            validate_err, span_context, node_trace, m
+        )
 
     tool_id = run_params_list["parameter"]["tool_id"]
     operation_id = run_params_list["parameter"]["operation_id"]
@@ -601,7 +675,7 @@ async def handle_request_execution(
             )
         except Exception as auth_err:
             if "Security type" in str(auth_err):
-                return handle_custom_error(
+                return await handle_custom_error(
                     ErrCode.OPENAPI_AUTH_TYPE_ERR,
                     ErrCode.OPENAPI_AUTH_TYPE_ERR.msg,
                     span_context,
@@ -622,7 +696,7 @@ async def handle_request_execution(
         )
         result = await http_inst.do_call(span_context)
 
-        return process_http_result(
+        return await process_http_result(
             result,
             open_api_schema,
             span_context,
@@ -633,11 +707,11 @@ async def handle_request_execution(
         )
 
     except SparkLinkBaseException as err:
-        return handle_sparklink_error(
+        return await handle_sparklink_error(
             err, span_context, node_trace, m, params["tool_id"], tool_type
         )
     except Exception as err:
-        return handle_general_exception(
+        return await handle_general_exception(
             err, span_context, node_trace, m, params["tool_id"], tool_type
         )
 
@@ -659,14 +733,14 @@ async def execute_http_request(
             span_context,
         )
     except SparkLinkBaseException as err:
-        return handle_sparklink_error(
+        return await handle_sparklink_error(
             err, span_context, node_trace, m, params["tool_id"]
         )
 
     if not operation_id_schema:
         if operation_id_schema is None:
             message = f"{params['tool_id']} does not exist"
-            return handle_custom_error(
+            return await handle_custom_error(
                 ErrCode.TOOL_NOT_EXIST_ERR,
                 message,
                 span_context,
@@ -676,7 +750,7 @@ async def execute_http_request(
             )
         else:
             message = f"operation_id: {params['operation_id']} does not exist"
-            return handle_custom_error(
+            return await handle_custom_error(
                 ErrCode.OPERATION_ID_NOT_EXIST_ERR,
                 message,
                 span_context,
@@ -707,9 +781,10 @@ async def http_run(run_params: HttpRunRequest) -> HttpRunResponse:
     with span.start(func_name="http_run") as span_context:
         node_trace.sid = span_context.sid
         node_trace.chat_id = span_context.sid
+        node_trace.caller = "http_run"
         m = setup_logging_and_metrics(span_context, run_params_list)
 
-        params, error_response = validate_and_get_params(
+        params, error_response = await validate_and_get_params(
             run_params_list, span_context, node_trace, m
         )
         if error_response:
@@ -764,14 +839,14 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
                 uid=span_context.uid,
                 chat_id=span_context.sid,
                 sub="spark-link",
-                caller=caller,
+                caller="tool_debug",
                 log_caller="",
                 question=json.dumps(run_params_list, ensure_ascii=False),
             )
 
             validate_err = api_validate(get_tool_debug_schema(), run_params_list)
             if validate_err:
-                return handle_debug_validation_error(
+                return await handle_debug_validation_error(
                     validate_err, span_context, node_trace, m, tool_id, tool_type or ""
                 )
 
@@ -798,7 +873,7 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
                     f"错误信息：{ErrCode.RESPONSE_SCHEMA_VALIDATE_ERR.msg}, "
                     f"详细信息：{msg}"
                 )
-                return handle_custom_error(
+                return await handle_custom_error(
                     ErrCode.RESPONSE_SCHEMA_VALIDATE_ERR,
                     detailed_message,
                     span_context,
@@ -812,16 +887,16 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
             result = json.dumps(result_json, ensure_ascii=False)
             span_context.add_info_events({"after result": result})
 
-            return handle_debug_success_response(
+            return await handle_debug_success_response(
                 result, span_context, node_trace, m, tool_id, tool_type or ""
             )
 
         except SparkLinkBaseException as err:
-            return handle_sparklink_error(
+            return await handle_sparklink_error(
                 err, span_context, node_trace, m, tool_id, tool_type or ""
             )
         except Exception as err:
-            return handle_general_exception(
+            return await handle_general_exception(
                 err, span_context, node_trace, m, tool_id, tool_type or ""
             )
 

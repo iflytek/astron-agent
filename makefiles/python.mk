@@ -7,7 +7,7 @@ PYTHON := $(shell which python3 || which python)
 BLACK := black
 ISORT := isort --profile black
 FLAKE8 := flake8 --max-line-length 88 --ignore=E203,W503,E501 --max-complexity 10
-MYPY := mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases
+MYPY := mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional
 PYLINT := pylint --disable=import-error --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 --fail-under=8.0
 
 # Get all Python directories from config
@@ -79,7 +79,7 @@ check-python: ## 🔍 Check Python code quality
 				echo "$(YELLOW)    4. Running mypy type checking...$(RESET)" && \
 				$(PYTHON) -m $(MYPY) . && \
 				echo "$(YELLOW)    5. Running pylint code analysis...$(RESET)" && \
-				$(PYTHON) -m $(PYLINT) --max-line-length=88 --max-args=7 --max-locals=15 --max-returns=6 --max-branches=12 --max-statements=50 *.py); then \
+				find . -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT)); then \
 					echo "$(GREEN)    ✅ $$dir passed all checks$(RESET)"; \
 				else \
 					echo "$(RED)    ❌ $$dir failed quality checks$(RESET)"; \

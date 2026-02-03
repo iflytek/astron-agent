@@ -11,7 +11,7 @@ spring:
   application:
     name: astron-console-hub
   datasource:
-    url: ${MYSQL_URL:jdbc:mysql://db:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8}
+    url: ${MYSQL_URL:jdbc:mysql://db:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USER:astron}
     password: ${MYSQL_PASSWORD:astron-dev-env-db}
@@ -75,7 +75,7 @@ spring:
     # Encoding of SQL migration files
     encoding: UTF-8
     # Validate migrations on startup
-    validate-on-migrate: true
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:false}
     # Table name for tracking migrations
     table: flyway_schema_history
     # Allow out of order migrations
@@ -135,6 +135,8 @@ spark:
   image-appId: ${SPARK_IMAGE_APP_ID:xxx}
   image-apiKey: ${SPARK_IMAGE_API_KEY:xxx}
   image-apiSecret: ${SPARK_IMAGE_API_SECRET:xxx}
+  virtual-man-apiKey: ${SPARK_VIRTUAL_MAN_API_KEY:xxx}
+  virtual-man-apiSecret: ${SPARK_VIRTUAL_MAN_API_SECRET:xxx}
 
 # Workflow configuration
 workflow:

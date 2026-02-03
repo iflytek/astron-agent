@@ -179,7 +179,7 @@ pids
 # Configuration files that might contain secrets
 config.local.*
 secrets.yml
-secrets.yaml
+
 
 # =============================================================================
 # Backup & Archive Files

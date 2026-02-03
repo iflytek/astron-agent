@@ -1,6 +1,8 @@
+from typing import Any, Dict, List, Union
+
 from pydantic import BaseModel, Field
 
-from api.schemas.base_inputs import BaseInputs
+from agent.api.schemas.base_inputs import BaseInputs
 
 
 class CustomCompletionModelConfigInputs(BaseModel):
@@ -30,7 +32,7 @@ class CustomCompletionPluginKnowledgeInputs(BaseModel):
 
 
 class CustomCompletionPluginInputs(BaseModel):
-    tools: list[str | dict] = Field(default_factory=list)
+    tools: List[Union[str, Dict[str, Any]]] = Field(default_factory=list)
     mcp_server_ids: list[str] = Field(default_factory=list)
     mcp_server_urls: list[str] = Field(default_factory=list)
     workflow_ids: list[str] = Field(default_factory=list)

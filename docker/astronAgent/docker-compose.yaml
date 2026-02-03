@@ -26,7 +26,7 @@ services:
 
   # MySQL Database
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4.6
     container_name: astron-agent-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
@@ -456,6 +456,10 @@ services:
   nginx:
     image: nginx:1.25-alpine
     container_name: astron-agent-nginx
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
     ports:
       - "${EXPOSE_NGINX_PORT:-80}:80"
     volumes:
@@ -483,6 +487,7 @@ services:
       CONSOLE_CASDOOR_APP: "${CONSOLE_CASDOOR_APP:-}"
       CONSOLE_CASDOOR_ORG: "${CONSOLE_CASDOOR_ORG:-}"
       SPARK_APP_ID: "${SPARK_APP_ID:-}"
+      SPARK_VIRTUAL_MAN_APP_ID: "${SPARK_VIRTUAL_MAN_APP_ID:-}"
     expose:
       - "1881"
     networks:
@@ -502,7 +507,7 @@ services:
       CONSOLE_CASDOOR_APP: "${CONSOLE_CASDOOR_APP:-}"
       CONSOLE_CASDOOR_ORG: "${CONSOLE_CASDOOR_ORG:-}"
       CONSOLE_DOMAIN: "${CONSOLE_DOMAIN:-https://your.deployment.domain}"
-      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console}"
+      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}"
       MYSQL_USER: "${MYSQL_USER:-root}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
       REDIS_HOST: "${REDIS_HOST:-redis}"
@@ -530,6 +535,9 @@ services:
       SPARK_IMAGE_APP_ID: "${SPARK_IMAGE_APP_ID:-your-image-appid}"
       SPARK_IMAGE_API_KEY: "${SPARK_IMAGE_API_KEY:-your-image-api-key}"
       SPARK_IMAGE_API_SECRET: "${SPARK_IMAGE_API_SECRET:-your-image-api-secret}"
+      SPARK_VIRTUAL_MAN_APP_ID: "${SPARK_VIRTUAL_MAN_APP_ID:-your-virtual-man-app-id}"
+      SPARK_VIRTUAL_MAN_API_KEY: "${SPARK_VIRTUAL_MAN_API_KEY:-your-virtual-man-api-key}"
+      SPARK_VIRTUAL_MAN_API_SECRET: "${SPARK_VIRTUAL_MAN_API_SECRET:-your-virtual-man-api-secret}"
       WECHAT_COMPONENT_APPID: "${WECHAT_COMPONENT_APPID:-your-wechat-component-appid}"
       WECHAT_COMPONENT_SECRET: "${WECHAT_COMPONENT_SECRET:-your-wechat-component-secret}"
       WECHAT_TOKEN: "${WECHAT_TOKEN:-your-wechat-token}"

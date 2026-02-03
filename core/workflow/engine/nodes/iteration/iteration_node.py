@@ -78,7 +78,7 @@ class IterationNode(BaseNode):
                         self.node_id
                     ]
                 )
-                built_nodes = copy.deepcopy(iteration_one_engine.engine_ctx.built_nodes)
+                # built_nodes = copy.deepcopy(iteration_one_engine.engine_ctx.built_nodes)
 
                 batch_datas = variable_pool.get_variable(
                     node_id=self.node_id,
@@ -86,12 +86,12 @@ class IterationNode(BaseNode):
                     span=span_context,
                 )
                 inputs = {self.input_identifier[0]: batch_datas}
-                span_context.add_info_events({"inputs": f"{inputs}"})
+                await span_context.add_info_events_async({"inputs": f"{inputs}"})
 
                 batch_result_dict: dict[str, list] = {}
                 temp_variable_pool = copy.deepcopy(variable_pool)
                 for batch_data in batch_datas:
-                    iteration_one_engine.engine_ctx.built_nodes = built_nodes
+                    # iteration_one_engine.engine_ctx.built_nodes = built_nodes
                     res = await self._process_single_batch(
                         batch_data,
                         temp_variable_pool,
@@ -113,7 +113,7 @@ class IterationNode(BaseNode):
                     return_result[out_put_key_name] = batch_result_dict.get(
                         out_put_key_name, []
                     )
-                span_context.add_info_events({"ret": f"{return_result}"})
+                await span_context.add_info_events_async({"ret": f"{return_result}"})
             except CustomException as err:
                 span_context.record_exception(err)
                 return NodeRunResult(

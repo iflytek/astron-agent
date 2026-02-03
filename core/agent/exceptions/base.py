@@ -1,6 +1,6 @@
 class AgentException(Exception):
     """
-    agent 基类异常
+    Base exception for agent
     """
 
     def __init__(self, err_const: tuple, message: str = ""):

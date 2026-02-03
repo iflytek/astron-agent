@@ -38,6 +38,7 @@ export default [
         IFlyCollector: 'readonly',
         fetch: 'readonly',
         NodeJS: 'readonly',
+        self: 'writable',
       },
     },
     plugins: {

@@ -3,10 +3,10 @@
 import time
 from typing import Any, Generic, TypeVar
 
-from pydantic import ConfigDict, Field
-
 # Use unified common package import module
-from common_imports import NodeLog, NodeTraceLog
+from common.otlp.log_trace.node_log import NodeLog
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from pydantic import ConfigDict, Field
 
 T = TypeVar("T", bound=NodeLog)
 
