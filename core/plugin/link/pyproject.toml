@@ -40,4 +40,5 @@ dependencies = [
     "types-pyyaml>=6.0.12.20250915",
     "boto3>=1.40.53",
     "botocore>=1.40.53",
+    "alembic==1.13.1",
 ]
