@@ -472,7 +472,7 @@ consoleHub:
     consoleCasdoorOrg: "built-in"
     consoleDomain: ""
     # MySQL Configuration
-    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console"
+    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true"
     mysqlUser: root
     mysqlPassword: ""
     # Redis Configuration

@@ -5,9 +5,7 @@ This module provides a factory class for creating database service instances
 with configurable connection parameters.
 """
 
-import os
-from typing import Optional
-
+from workflow.configs import workflow_config
 from workflow.extensions.middleware.database.manager import DatabaseService
 from workflow.extensions.middleware.factory import ServiceFactory
 
@@ -29,25 +27,13 @@ class DatabaseServiceFactory(ServiceFactory):
         """
         super().__init__(DatabaseService)
 
-    def create(self, database_url: Optional[str] = None) -> DatabaseService:
+    def create(self) -> DatabaseService:
         """
         Create a new DatabaseService instance.
 
-        If no database URL is provided, the method will construct one from
-        environment variables (MYSQL_HOST, MYSQL_PORT, MYSQL_USER,
-        MYSQL_PASSWORD, MYSQL_DB).
+        The method constructs the database URL from environment variables
+        (MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB).
 
-        :param database_url: Optional database connection URL. If None,
-                            will be constructed from environment variables
         :return: A configured DatabaseService instance
         """
-        if database_url is None:
-            # Extract database connection parameters from environment variables
-            host = os.getenv("MYSQL_HOST")
-            port = os.getenv("MYSQL_PORT")
-            user = os.getenv("MYSQL_USER")
-            password = os.getenv("MYSQL_PASSWORD")
-            db = os.getenv("MYSQL_DB")
-            # Construct MySQL connection URL using PyMySQL driver
-            database_url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}"
-        return DatabaseService(database_url=database_url)
+        return DatabaseService(config=workflow_config.database_config)

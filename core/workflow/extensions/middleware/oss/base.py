@@ -35,3 +35,18 @@ class BaseOSSService(abc.ABC):
         :raises NotImplementedError: This method must be implemented by subclasses
         """
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def upload_file_async(
+        self, filename: str, file_bytes: bytes, bucket_name: Optional[str] = None
+    ) -> str:
+        """
+        Upload a file to the object storage service.
+
+        :param filename: The name of the file to be uploaded
+        :param file_bytes: The binary content of the file to upload
+        :param bucket_name: Optional bucket name, if not provided uses default bucket
+        :return: The URL or path to the uploaded file
+        :raises NotImplementedError: This method must be implemented by subclasses
+        """
+        raise NotImplementedError

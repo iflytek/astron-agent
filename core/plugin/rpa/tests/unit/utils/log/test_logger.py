@@ -141,7 +141,9 @@ class TestSetLog:
     ) -> None:
         """Test set_log using log level from environment variable."""
         # Arrange
-        mock_getenv.side_effect = lambda key: "WARNING" if "LOG_LEVEL" in key else None
+        mock_getenv.side_effect = lambda key, default=None: (
+            "WARNING" if "LOG_LEVEL" in key else default
+        )
         mock_path_instance = MagicMock()
         mock_path_instance.parent.mkdir = MagicMock()
         mock_path.return_value = mock_path_instance

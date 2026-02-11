@@ -52,6 +52,8 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   }): void => set({ knowledgeModalInfo }),
   setToolModalInfo: (toolModalInfo: { open: boolean }): void =>
     set({ toolModalInfo }),
+  setMcpModalInfo: (mcpModalInfo: { open: boolean }): void =>
+    set({ mcpModalInfo }),
   setFlowModalInfo: (flowModalInfo: { open: boolean }): void =>
     set({ flowModalInfo }),
   setRpaModalInfo: (rpaModalInfo: { open: boolean }): void =>

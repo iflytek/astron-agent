@@ -693,6 +693,9 @@ function validateServiceIdParams(currentCheckNode: unknown): boolean {
 }
 
 function validateRetryConfig(currentCheckNode: unknown): boolean {
+  if (!currentCheckNode?.data?.retryConfig?.shouldRetry) {
+    return true;
+  }
   if (currentCheckNode?.data?.retryConfig?.errorStrategy !== 1) {
     return true;
   }

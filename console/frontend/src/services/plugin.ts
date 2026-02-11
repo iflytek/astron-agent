@@ -161,3 +161,8 @@ export async function importPlugin(params: { file: File }): Promise<unknown> {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 }
+
+//mcp列表
+export function mcpServerList(type: string): Promise<unknown> {
+  return http.get(`/workflow/getMcpServerList?type=${type}`);
+}

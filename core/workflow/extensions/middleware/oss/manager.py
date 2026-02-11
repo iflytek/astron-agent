@@ -5,6 +5,7 @@ This module provides concrete implementations of OSS services,
 including S3-compatible storage and iFly Gateway Storage clients.
 """
 
+import asyncio
 import json
 from typing import Optional
 from urllib.parse import urlencode
@@ -16,6 +17,7 @@ from loguru import logger
 
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
+from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.middleware.base import Service
 from workflow.extensions.middleware.oss.base import BaseOSSService
 
@@ -125,6 +127,36 @@ class S3Service(BaseOSSService, Service):
                 CodeEnum.FILE_STORAGE_ERROR, cause_error=str(e)
             ) from e
 
+    async def upload_file_async(
+        self, filename: str, file_bytes: bytes, bucket_name: Optional[str] = None
+    ) -> str:
+        """
+        Upload a file to S3-compatible storage with public read access.
+
+        :param filename: The name of the file to be uploaded
+        :param file_bytes: The binary content of the file to upload
+        :param bucket_name: Optional bucket name, uses default if not provided
+        :return: The public download URL for the uploaded file
+        :raises CustomException: If file upload fails
+        """
+        if not bucket_name:
+            bucket_name = self.bucket_name
+
+        try:
+            # Set public read access
+            await asyncio.to_thread(
+                self.client.put_object,
+                Bucket=bucket_name,
+                Key=filename,
+                Body=file_bytes,
+                ACL="public-read",
+            )
+            return f"{self.oss_download_host}/{bucket_name}/{filename}"
+        except Exception as e:
+            raise CustomException(
+                CodeEnum.FILE_STORAGE_ERROR, cause_error=str(e)
+            ) from e
+
 
 class IFlyGatewayStorageClient(BaseOSSService, Service):
     """
@@ -226,3 +258,78 @@ class IFlyGatewayStorageClient(BaseOSSService, Service):
                 ),
             ) from e
         return link
+
+    async def upload_file_async(
+        self, filename: str, file_bytes: bytes, bucket_name: Optional[str] = None
+    ) -> str:
+        """
+        Upload a file to iFly Gateway Storage with temporary download link.
+
+        :param filename: The name of the file to be uploaded
+        :param file_bytes: The binary content of the file to upload
+        :param bucket_name: Optional bucket name, uses default if not provided
+        :return: Temporary download link for the uploaded file
+        :raises CustomException: If file upload fails or response is invalid
+        """
+        session = HttpClient.get_session()
+        url = f"{self.endpoint}/api/v1/{self.bucket_name}"
+        params = {
+            "get_link": "true",
+            "link_ttl": self.ttl,
+            "filename": filename,
+            "expose": "true",
+        }
+        url = url + "?" + urlencode(params)
+        headers = HMACAuth.build_auth_header(
+            url,
+            method="POST",
+            api_key=self.access_key_id,
+            api_secret=self.access_key_secret,
+        )
+        headers["X-TTL"] = str(self.ttl)
+        headers["Content-Length"] = str(len(file_bytes))
+        try:
+            async with session.post(url, headers=headers, data=file_bytes) as resp:
+                response_text = await resp.text()
+                if resp.status != 200:
+                    raise CustomException(
+                        CodeEnum.FILE_STORAGE_ERROR,
+                        cause_error=(
+                            f"invoke oss error, "
+                            f"status_code: {resp.status}, "
+                            f"message: {response_text}"
+                        ),
+                    )
+
+                ret = json.loads(response_text)
+                if ret["code"] != 0:
+                    raise CustomException(
+                        CodeEnum.FILE_STORAGE_ERROR,
+                        cause_error=(
+                            f"invoke oss error, "
+                            f"status_code: {resp.status}, "
+                            f"message: {response_text}"
+                        ),
+                    )
+
+                try:
+                    link = ret["data"]["link"]
+                except Exception as e:
+                    raise CustomException(
+                        CodeEnum.FILE_STORAGE_ERROR,
+                        cause_error=(
+                            f"invoke oss error, "
+                            f"status_code: {resp.status}, "
+                            f"message: {response_text}, "
+                            f"err: {str(e)}"
+                        ),
+                    ) from e
+
+                return link
+
+        except Exception as e:
+            logger.error(e)
+            raise CustomException(
+                CodeEnum.FILE_STORAGE_ERROR,
+                cause_error=str(e),
+            )

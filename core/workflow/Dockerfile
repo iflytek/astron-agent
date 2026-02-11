@@ -18,13 +18,13 @@ ENV UV_NO_CACHE=1
 #RUN curl -fsSL https://deno.land/install.sh | sh -s v2.3.3
 
 # Install UV package manager using Tsinghua mirror for faster downloads
-RUN pip install uv --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple/
+RUN pip install uv --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/
 
 # Copy dependency files for UV to resolve and install packages
 COPY core/workflow/uv.lock core/workflow/pyproject.toml ./
 
 # Install Python dependencies using UV with Tsinghua mirror
-RUN uv sync -i https://pypi.tuna.tsinghua.edu.cn/simple/
+RUN uv sync -i https://mirrors.aliyun.com/pypi/simple/
 
 # Copy the entire workflow source code to the container
 COPY core/workflow ./workflow

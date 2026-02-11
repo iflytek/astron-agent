@@ -255,7 +255,7 @@ if __name__ == "__main__":
     #             "history_context": [
     #                 {
     #                     "role": "user",
-    #                     "content": "你是谁？"
+    #                     "content": "who are you?"
     #                 }
     #             ],
     #             "input": "xxxxxxxx"

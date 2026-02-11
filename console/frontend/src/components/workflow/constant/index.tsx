@@ -19,6 +19,7 @@ import { AgentDetail } from '@/components/workflow/nodes/agent';
 import { QuestionAnswerDetail } from '@/components/workflow/nodes/question-answer';
 import { NodeCommonProps } from '@/components/workflow/types/hooks';
 import { RpaDetail } from '@/components/workflow/nodes/rpa';
+import { McpDetail } from '@/components/workflow/nodes/mcp';
 
 // 定义输出类型选项的接口（支持嵌套结构）
 interface OriginOutputType {
@@ -52,6 +53,7 @@ export const nodeTypeComponentMap: Record<
   'text-joiner': TextHandleDetail,
   message: MessageDetail,
   rpa: RpaDetail,
+  mcp: McpDetail,
 };
 
 export const originOutputTypeList: OriginOutputType[] = [

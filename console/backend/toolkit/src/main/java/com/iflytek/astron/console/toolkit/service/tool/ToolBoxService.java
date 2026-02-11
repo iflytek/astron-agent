@@ -23,6 +23,7 @@ import com.iflytek.astron.console.toolkit.config.properties.*;
 import com.iflytek.astron.console.toolkit.entity.common.PageData;
 import com.iflytek.astron.console.toolkit.entity.core.openapi.*;
 import com.iflytek.astron.console.toolkit.entity.dto.*;
+import com.iflytek.astron.console.toolkit.entity.vo.ToolBoxExportVo;
 import com.iflytek.astron.console.toolkit.entity.enumVo.ToolboxStatusEnum;
 import com.iflytek.astron.console.toolkit.entity.table.ConfigInfo;
 import com.iflytek.astron.console.toolkit.entity.table.relation.BotToolRel;
@@ -55,13 +56,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * <p>
@@ -2170,5 +2178,91 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
         BeanUtils.copyProperties(toolBoxFeedbackReq, toolBoxFeedback);
         toolBoxFeedback.setUserId(UserInfoManagerHandler.getUserId());
         toolBoxFeedbackMapper.insert(toolBoxFeedback);
+    }
+
+    /**
+     * Export tool to JSON or YAML file
+     *
+     * @param id      Tool ID
+     * @param type    Export type: 1=JSON, 2=YAML
+     * @param response HTTP response
+     */
+    public void exportTool(Long id, Integer type, HttpServletResponse response) {
+        ToolBoxVo detail = getDetail(id, false);
+        ToolBoxExportVo toolBoxExportVo = new ToolBoxExportVo();
+        BeanUtils.copyProperties(detail, toolBoxExportVo);
+
+        // Write to output stream
+        try (OutputStream os = response.getOutputStream()) {
+            byte[] data;
+            String jsonString = JSONObject.toJSONString(toolBoxExportVo);
+
+            // Convert to YAML string
+            if (type != null && type == 2) {
+                // YAML file
+                response.setContentType("application/x-yaml; charset=UTF-8");
+                response.setHeader("Content-Disposition", "attachment; filename=\"export.yaml\"");
+
+                ObjectMapper jsonMapper = new ObjectMapper(); // JSON parser
+                ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory()); // YAML generator
+
+                // Convert JSON string to object tree, then write to YAML
+                JsonNode jsonNode = jsonMapper.readTree(jsonString);
+                String yamlString = yamlMapper.writeValueAsString(jsonNode);
+                data = yamlString.getBytes(StandardCharsets.UTF_8);
+            } else {
+                // JSON file
+                response.setContentType("application/json; charset=UTF-8");
+                response.setHeader("Content-Disposition", "attachment; filename=\"export.json\"");
+                data = JSONObject.toJSONString(toolBoxExportVo).getBytes(StandardCharsets.UTF_8);
+            }
+            // Set content length (important)
+            response.setContentLength(data.length);
+            // Write byte array directly
+            os.write(data);
+            os.flush();
+        } catch (Exception ex) {
+            log.error("Export failed", ex);
+            throw new BusinessException(ResponseEnum.TOOLBOX_EXPORT_ERROR);
+        }
+    }
+
+    /**
+     * Import tool from JSON or YAML file
+     *
+     * @param file Uploaded file
+     * @return ToolBoxExportVo
+     */
+    public Object importTool(org.springframework.web.multipart.MultipartFile file) {
+        try {
+            // Check file type
+            String fileName = file.getOriginalFilename();
+            ObjectMapper jsonMapper = new ObjectMapper();
+            ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+
+            if (fileName == null) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_IMPORT_FILE_NAME_NULL);
+            }
+
+            String lowerName = fileName.toLowerCase();
+
+            ToolBoxExportVo vo;
+            if (lowerName.endsWith(".yaml") || lowerName.endsWith(".yml")) {
+                // YAML -> ToolBoxExportVo
+                vo = yamlMapper.readValue(file.getInputStream(), ToolBoxExportVo.class);
+            } else if (lowerName.endsWith(".json")) {
+                // JSON -> ToolBoxExportVo
+                vo = jsonMapper.readValue(file.getInputStream(), ToolBoxExportVo.class);
+            } else {
+                throw new BusinessException(ResponseEnum.TOOLBOX_IMPORT_FILE_FORMAT_ERROR);
+            }
+            return vo;
+        } catch (Exception ex) {
+            log.error("Import failed", ex);
+            if (ex instanceof BusinessException) {
+                throw (BusinessException) ex;
+            }
+            throw new BusinessException(ResponseEnum.TOOLBOX_IMPORT_ERROR);
+        }
     }
 }

@@ -139,7 +139,7 @@ def _init_workflow_trace(
     return wl
 
 
-def _get_or_build_workflow_engine(
+async def _get_or_build_workflow_engine(
     is_release: bool,
     workflow_dsl: Dict,
     span_context: Span,
@@ -163,11 +163,13 @@ def _get_or_build_workflow_engine(
     sparkflow_engine = WorkflowEngineFactory.create_engine(
         WorkflowDSL.model_validate(workflow_dsl.get("data", {})), span_context
     )
-    span_context.add_info_event("Engine not found in cache, rebuilding from DSL")
+    await span_context.add_info_event_async(
+        "Engine not found in cache, rebuilding from DSL"
+    )
 
     for key in sparkflow_engine.engine_ctx.built_nodes:
         if key.startswith(NodeType.FLOW.value):
-            set_flow_node_output_mode(
+            await set_flow_node_output_mode(
                 variable_pool=sparkflow_engine.engine_ctx.variable_pool,
                 node_instance=sparkflow_engine.engine_ctx.built_nodes[
                     key
@@ -178,7 +180,7 @@ def _get_or_build_workflow_engine(
         ParamKey.IsRelease, is_release
     )
 
-    span_context.add_info_events(
+    await span_context.add_info_events_async(
         {"rebuild_sparkflow_engine_cache_obj": f"{time.time() * 1000 - start_time}"}
     )
 
@@ -266,7 +268,7 @@ async def _validate_file_inputs(
     """
     from workflow.engine.entities.file import File
 
-    file_info_list, has_file = File.has_file_in_dsl(workflow_dsl, span_context)
+    file_info_list, has_file = await File.has_file_in_dsl(workflow_dsl, span_context)
     if not has_file:
         return
 
@@ -292,12 +294,12 @@ async def _validate_file_inputs(
 
         # Validate files based on type
         if file_var_type == "string":
-            File.check_file_var_isvalid(
+            await File.check_file_var_isvalid(
                 param_value, file_info.allowed_file_type, span_context
             )
         elif file_var_type == "array":
             for input_file in param_value:
-                File.check_file_var_isvalid(
+                await File.check_file_var_isvalid(
                     input_file, file_info.allowed_file_type, span_context
                 )
         else:
@@ -339,7 +341,7 @@ async def _get_chat_history(
             uid=uid,
             node_max_token=sparkflow_engine.node_max_token,
         )
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"get_node_history_from_database": f"{time.time() * 1000 - start_time}"}
         )
 
@@ -398,7 +400,9 @@ async def _process_and_report_result(
 
     # Record trace information
     workflow_trace.add_a(json.dumps(outputs_assemble, ensure_ascii=False))
-    span_context.add_info_events({"workflow_output": result.model_dump_json()})
+    await span_context.add_info_events_async(
+        {"workflow_output": result.model_dump_json()}
+    )
 
     # Wait for consumer tasks to complete
     for task in consumer_tasks:
@@ -460,8 +464,8 @@ async def _run(
     with span.start(
         attributes={"flow_id": chat_vo.flow_id},
     ) as span_context:
-        span.add_info_event(f"user input: {chat_vo.json()}")
-        span.add_info_event(
+        await span.add_info_event_async(f"user input: {chat_vo.json()}")
+        await span.add_info_event_async(
             f"spark dsl: {json.dumps(workflow_dsl, ensure_ascii=False)}"
         )
 
@@ -473,11 +477,8 @@ async def _run(
         try:
 
             # Get or build workflow engine
-            sparkflow_engine = await asyncio.to_thread(
-                _get_or_build_workflow_engine,
-                is_release,
-                workflow_dsl,
-                span_context,
+            sparkflow_engine = await _get_or_build_workflow_engine(
+                is_release, workflow_dsl, span_context
             )
             # Initialize streaming processing components
             need_order_stream_result_q: asyncio.Queue[Any] = asyncio.Queue()
@@ -488,6 +489,8 @@ async def _run(
                 ParamKey.FlowId, chat_vo.flow_id
             ).set(ParamKey.ChatId, chat_vo.chat_id).set(ParamKey.Uid, chat_vo.uid).set(
                 ParamKey.AppId, app_alias_id
+            ).set(
+                ParamKey.Ext, {"phone_number": chat_vo.ext.get("phone_number", "")}
             )
             # Initialize model content output queues
             await _init_stream_q(
@@ -937,7 +940,7 @@ async def _chat_response_stream(
 
                 final_content += response.choices[0].delta.content
                 final_reasoning_content += response.choices[0].delta.reasoning_content
-                span_context.add_info_events(
+                await span_context.add_info_events_async(
                     {
                         "llm_resp": json.dumps(
                             response.model_dump(exclude_none=True),
@@ -960,7 +963,7 @@ async def _chat_response_stream(
                 message=CodeEnum.OPEN_API_STREAM_QUEUE_TIMEOUT_ERROR.msg,
                 sid=span_context.sid,
             )
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {
                     "llm_resp": json.dumps(
                         llm_resp.model_dump(exclude_none=True), ensure_ascii=False
@@ -975,7 +978,7 @@ async def _chat_response_stream(
                 message=e.message,
                 sid=span_context.sid,
             )
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {
                     "llm_resp": json.dumps(
                         llm_resp.model_dump(exclude_none=True), ensure_ascii=False
@@ -991,7 +994,7 @@ async def _chat_response_stream(
                 message=CodeEnum.OPEN_API_ERROR.msg,
                 sid=span_context.sid,
             )
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {
                     "llm_resp": json.dumps(
                         llm_resp.model_dump(exclude_none=True), ensure_ascii=False
@@ -1010,7 +1013,7 @@ async def _chat_response_stream(
                 response.event_data
                 or response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value
             ):
-                span.add_info_event(
+                await span.add_info_event_async(
                     f"Workflow output data processed through audit:\n"
                     f"final_content: {final_content}, \n"
                     f"final_reasoning_content: {final_reasoning_content}"
@@ -1196,7 +1199,7 @@ async def chat_resume_response_stream(
             while True:
 
                 src_response: LLMGenerate = await _get_resume_response(event, None)
-                span_context.add_info_events(
+                await span_context.add_info_events_async(
                     {
                         "response": json.dumps(
                             src_response.model_dump(exclude_none=True),
@@ -1227,7 +1230,7 @@ async def chat_resume_response_stream(
                 final_content += response.choices[0].delta.content
                 final_reasoning_content += response.choices[0].delta.reasoning_content
 
-                span_context.add_info_events(
+                await span_context.add_info_events_async(
                     {
                         "llm_resp": json.dumps(
                             response.model_dump(exclude_none=True), ensure_ascii=False
@@ -1238,7 +1241,7 @@ async def chat_resume_response_stream(
                 yield Streaming.generate_data(response.model_dump(exclude_none=True))
 
                 if response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value:
-                    span_context.add_info_event(
+                    await span_context.add_info_event_async(
                         f"Workflow output data processed through audit:\n"
                         f"final_content: {final_content}, \n"
                         f"final_reasoning_content: {final_reasoning_content}"
@@ -1259,7 +1262,7 @@ async def chat_resume_response_stream(
                 message=message,
                 sid=span_context.sid,
             )
-            span_context.add_info_events(
+            await span_context.add_info_events_async(
                 {
                     "llm_resp": json.dumps(
                         llm_resp.model_dump(exclude_none=True), ensure_ascii=False

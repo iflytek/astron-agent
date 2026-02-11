@@ -64,6 +64,10 @@ export type FlowsManagerStoreType = {
     open: boolean;
   };
   setToolModalInfo: (toolModalInfo: { open: boolean }) => void;
+  mcpModalInfo: {
+    open: boolean;
+  };
+  setMcpModalInfo: (mcpModalInfo: { open: boolean }) => void;
   flowModalInfo: {
     open: boolean;
   };

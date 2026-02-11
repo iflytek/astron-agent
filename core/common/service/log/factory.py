@@ -1,4 +1,5 @@
 import os
+import sys
 
 from loguru import logger
 
@@ -41,6 +42,15 @@ class LogServiceFactory(ServiceFactory):
         logger.debug(
             f"Loguru initialized successfully. Log file: {log_path}, Log level: {log_level}"
         )
+
+        # Add console handler for local environment
+        if os.getenv("LOG_STDOUT_ENABLE", "0") == "1":
+            logger.add(
+                sys.stdout,
+                level=log_level,
+                colorize=True,
+            )
+
         return LogService()
 
 

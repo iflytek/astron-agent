@@ -19,6 +19,7 @@ import {
   ToolArg,
   UseMcpDetailProps,
 } from '@/types/plugin-store';
+import { McpItem } from '@/components/workflow/types/modal/add-mcp';
 import toolArrowLeft from '@/assets/imgs/workflow/tool-arrow-left.png';
 import publishIcon from '@/assets/imgs/workflow/publish-icon.png';
 import trialRunIcon from '@/assets/imgs/workflow/trial-run-icon.png';
@@ -26,10 +27,10 @@ import mcpArrowDown from '@/assets/imgs/mcp/mcp-arrow-down.svg';
 import mcpArrowUp from '@/assets/imgs/mcp/mcp-arrow-up.svg';
 
 function MCPDetailWrapper({
-  currentToolId,
+  currentTool,
   handleClearMCPToolDetail,
 }: {
-  currentToolId: string;
+  currentTool: McpItem;
   handleClearMCPToolDetail: () => void;
 }): React.ReactElement {
   const { t } = useTranslation();
@@ -65,7 +66,7 @@ function MCPDetailWrapper({
             width: '90%',
           }}
         >
-          <MCPDetail currentToolId={currentToolId} />
+          <MCPDetail currentTool={currentTool} />
         </div>
       </div>
     </div>
@@ -255,10 +256,12 @@ const useMCPDetail = ({
 };
 
 export function MCPDetail({
-  currentToolId,
+  currentTool,
 }: {
-  currentToolId: string;
+  currentTool: McpItem;
 }): React.ReactElement {
+  const currentToolId = currentTool?.id;
+  const childName = currentTool?.childName;
   const { t } = useTranslation();
   const [currentTab, setCurrentTab] = useState('content');
   const [currentMcp, setCurrentMcp] = useState<MCPToolDetail>(
@@ -266,8 +269,10 @@ export function MCPDetail({
   );
 
   const tools = useMemo(() => {
-    return currentMcp?.tools || [];
-  }, [currentMcp]);
+    return childName
+      ? currentMcp?.tools?.filter(item => item.name === childName)
+      : currentMcp?.tools || [];
+  }, [currentMcp, childName]);
 
   const { renderInput, handleOpenTool, handleDebugServerMCP } = useMCPDetail({
     setCurrentMcp,
@@ -281,6 +286,7 @@ export function MCPDetail({
       getServerToolDetailAPI(currentToolId).then((data: MCPToolDetail) => {
         data.tools = data.tools?.map(item => ({
           ...item,
+          childName: childName,
           args: item.inputSchema
             ? transformSchemaToArray(item.inputSchema)
             : [],
@@ -288,7 +294,7 @@ export function MCPDetail({
         setCurrentMcp(data);
       });
     }
-  }, [currentToolId]);
+  }, [currentToolId, childName]);
 
   return (
     <div>

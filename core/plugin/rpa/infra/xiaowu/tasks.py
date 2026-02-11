@@ -48,7 +48,9 @@ async def create_task(
     async with httpx.AsyncClient() as client:
         try:
             assert task_create_url is not None
-            logger.info(f"create_task_url:{task_create_url} header:{header}, body:{body}")
+            logger.info(
+                f"create_task_url:{task_create_url} header:{header}, body:{body}"
+            )
             response = await client.post(task_create_url, headers=header, json=body)
             response.raise_for_status()
 

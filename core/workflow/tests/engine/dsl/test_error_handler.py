@@ -266,7 +266,7 @@ class TestRetryableErrorHandler:
             return_value=False
         )
         self.mock_ctx.variable_pool.get_variable = Mock(return_value="test_value")
-        self.mock_ctx.variable_pool.add_variable = Mock()
+        self.mock_ctx.variable_pool.add_variable = AsyncMock()
         self.mock_ctx.callback = Mock()
         self.mock_ctx.callback.on_node_end = AsyncMock()
 

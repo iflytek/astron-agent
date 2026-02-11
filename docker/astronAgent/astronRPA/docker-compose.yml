@@ -16,17 +16,36 @@ services:
     # ports:
     #   - "${DATABASE_PORT}:3306"
     volumes:
+      - rpa_mysql_data:/var/lib/mysql
       - ./volumes/mysql/my.cnf:/etc/mysql/conf.d/my.cnf:ro
-      # - ./data/mysql:/var/lib/mysql
       - ./volumes/mysql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./volumes/mysql/init_app_market_dict_data.sql:/docker-entrypoint-initdb.d/02-init_data.sql
-      - ./volumes/mysql/init_c_atom_meta_data.sql:/docker-entrypoint-initdb.d/03-init_data.sql
       - ./volumes/mysql/init_his_data_enum_data.sql:/docker-entrypoint-initdb.d/04-init_data.sql
       - ./volumes/mysql/init_sample_template_data.sql:/docker-entrypoint-initdb.d/05-init_data.sql
+      - ./volumes/mysql/init_c_atom_meta_new_data.sql:/docker-entrypoint-initdb.d/06-init_data.sql
     command: |
       bash -c "
-        cp /etc/mysql/conf.d/my.cnf /etc/mysql/conf.d/my1.cnf
-        docker-entrypoint.sh mysqld
+      cp /etc/mysql/conf.d/my.cnf /etc/mysql/conf.d/my1.cnf &&
+      
+      (
+        echo 'Wait for MySQL to start...';
+        until mysqladmin ping -h localhost -u root -p'${RPASERVER_DATABASE_PASSWORD}' --silent; do
+          sleep 5;
+        done;
+        
+        echo 'MySQL is up! Running incremental scripts...';
+        
+        for f in /docker-entrypoint-initdb.d/*.sql; do
+          if [[ \"\$$f\" != *\"01-schema.sql\" ]]; then
+            echo \"Running \$$f ...\";
+            mysql -u root -p'${RPASERVER_DATABASE_PASSWORD}' ${RPASERVER_DATABASE_NAME} < \"\$$f\";
+          fi
+        done;
+        
+        echo 'All scripts finished.';
+      ) &
+      
+      docker-entrypoint.sh mysqld
       "
     healthcheck:
       test:
@@ -45,6 +64,28 @@ services:
       start_period: 30s
     networks:
       - astron-agent-network
+
+  rpa-atlas:
+    image: arigaio/atlas:latest
+    container_name: rpa-opensource-atlas
+    volumes:
+      - ./volumes/atlas:/data/atlas
+    networks:
+      - astron-agent-network
+    environment:
+      MYSQL_ROOT_PASSWORD: ${RPASERVER_DATABASE_PASSWORD}
+      MYSQL_DATABASE: ${RPASERVER_DATABASE_NAME}
+      DATABASE_USERNAME: ${RPASERVER_DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${RPASERVER_DATABASE_PASSWORD}
+      DATABASE_HOST: ${RPASERVER_DATABASE_HOST}
+      DATABASE_PORT: ${RPASERVER_DATABASE_PORT}
+      DATABASE_NAME: ${RPASERVER_DATABASE_NAME}
+      ATLAS_URL: ${RPASERVER_ATLAS_URL}
+      ATLAS_HOST_URL: ${RPASERVER_ATLAS_HOST_URL}
+    depends_on:
+      rpa-mysql:
+        condition: service_healthy
+    command: schema apply --url "${RPASERVER_ATLAS_URL}" --to "file:///data/atlas/schema.hcl" --auto-approve
 
   rpa-redis:
     image: bitnami/redis:latest
@@ -150,6 +191,7 @@ services:
       - robot-service
       - ai-service
       - openapi-service
+      - rpa-auth
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1/health"]
       interval: 30s
@@ -168,6 +210,8 @@ services:
       - REDIS_URL=redis://rpa-redis:6379/${RPASERVER_REDIS_DB}
       - AICHAT_BASE_URL=${RPASERVER_AICHAT_BASE_URL}
       - AICHAT_API_KEY=${RPASERVER_AICHAT_API_KEY}
+      - CUA_BASE_URL=${RPASERVER_CUA_BASE_URL}
+      - CUA_API_KEY=${RPASERVER_CUA_API_KEY}
       - LOG_LEVEL=${RPASERVER_LOG_LEVEL}
       - LOG_DIR=${RPASERVER_LOG_DIR}
       - MONTHLY_GRANT_AMOUNT=${RPASERVER_MONTHLY_GRANT_AMOUNT}
@@ -373,6 +417,66 @@ services:
     networks:
       - astron-agent-network
 
+  rpa-auth:
+    image: ghcr.io/iflytek/astron-rpa/rpa-auth:latest
+    # build:
+    #  context: ..
+    #  dockerfile: backend/rpa-auth/Dockerfile
+    container_name: rpa-opensource-rpa-auth
+    restart: always
+    environment:
+      - LOG_LEVEL=${RPASERVER_LOG_LEVEL}
+      - LOG_DIR=${RPASERVER_LOG_DIR}
+      - MONTHLY_GRANT_AMOUNT=${RPASERVER_MONTHLY_GRANT_AMOUNT}
+      - AICHAT_POINTS_COST=${RPASERVER_AICHAT_POINTS_COST}
+      - OCR_GENERAL_POINTS_COST=${RPASERVER_OCR_GENERAL_POINTS_COST}
+      - JFBYM_POINTS_COST=${RPASERVER_JFBYM_POINTS_COST}
+      - AICHAT_BASE_URL=${RPASERVER_AICHAT_BASE_URL}
+      - AICHAT_API_KEY=${RPASERVER_AICHAT_API_KEY}
+      - XFYUN_APP_ID=${RPASERVER_XFYUN_APP_ID}
+      - XFYUN_API_SECRET=${RPASERVER_XFYUN_API_SECRET}
+      - XFYUN_API_KEY=${RPASERVER_XFYUN_API_KEY}
+      - JFBYM_ENDPOINT=${RPASERVER_JFBYM_ENDPOINT}
+      - JFBYM_API_TOKEN=${RPASERVER_JFBYM_API_TOKEN}
+      - DATABASE_USERNAME=${RPASERVER_DATABASE_USERNAME}
+      - DATABASE_PASSWORD=${RPASERVER_DATABASE_PASSWORD}
+      - DATABASE_HOST=${RPASERVER_DATABASE_HOST}
+      - DATABASE_PORT=${RPASERVER_DATABASE_PORT}
+      - DATABASE_NAME=${RPASERVER_DATABASE_NAME}
+      - ATLAS_URL=${RPASERVER_ATLAS_URL}
+      - REDIS_HOST=${RPASERVER_REDIS_HOST}
+      - REDIS_PORT=${RPASERVER_REDIS_PORT}
+      - REDIS_DB=${RPASERVER_REDIS_DB}
+      - REDIS_PASSWORD=${RPASERVER_REDIS_PASSWORD}
+      - MINIO_URL=${RPASERVER_MINIO_URL}
+      - MINIO_BUCKET=${RPASERVER_MINIO_BUCKET}
+      - MINIO_AK=${RPASERVER_MINIO_AK}
+      - MINIO_SK=${RPASERVER_MINIO_SK}
+      - CASDOOR_ENDPOINT=${RPASERVER_CASDOOR_ENDPOINT}
+      - CASDOOR_CLIENT_ID=${RPASERVER_CASDOOR_CLIENT_ID}
+      - CASDOOR_CLIENT_SECRET=${RPASERVER_CASDOOR_CLIENT_SECRET}
+      - CASDOOR_ORGANIZATION_NAME=${RPASERVER_CASDOOR_ORGANIZATION_NAME}
+      - CASDOOR_APPLICATION_NAME=${RPASERVER_CASDOOR_APPLICATION_NAME}
+      - CASDOOR_REDIRECT_URL=${RPASERVER_CASDOOR_REDIRECT_URL}
+      - CASDOOR_EXTERNAL_ENDPOINT=${CONSOLE_CASDOOR_URL}
+    # ports:
+    #   - "10251:10251"
+    volumes:
+      - ./logs/rpa-auth:/app/logs
+    depends_on:
+      rpa-mysql:
+        condition: service_healthy
+      rpa-redis:
+        condition: service_healthy
+      casdoor:
+        condition: service_started
+    networks:
+      - astron-agent-network
+
 networks:
   astron-agent-network:
     driver: bridge
+
+volumes:
+  rpa_mysql_data:
+    driver: local

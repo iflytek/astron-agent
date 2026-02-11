@@ -10,6 +10,7 @@ import com.iflytek.astron.console.hub.entity.personality.PersonalityConfig;
 import com.iflytek.astron.console.hub.enums.ConfigTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.hub.entity.personality.PersonalityRole;
+import com.iflytek.astron.console.hub.enums.PersonalitySceneTypeEnum;
 import com.iflytek.astron.console.hub.mapper.personality.PersonalityCategoryMapper;
 import com.iflytek.astron.console.hub.mapper.personality.PersonalityConfigMapper;
 import com.iflytek.astron.console.commons.util.I18nUtil;
@@ -122,7 +123,7 @@ public class PersonalityConfigServiceImpl implements PersonalityConfigService {
         }
 
         if (personalityConfigDto.getSceneType() != null) {
-            return ConfigTypeEnum.fromValue(personalityConfigDto.getSceneType()) == null
+            return PersonalitySceneTypeEnum.getByCode(personalityConfigDto.getSceneType()) == null
                     || StringUtils.isBlank(personalityConfigDto.getSceneInfo()) || personalityConfigDto.getSceneInfo().length() > 1000;
         } else {
             // scene type is null, scene info must be null

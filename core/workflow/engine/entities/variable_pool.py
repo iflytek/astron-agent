@@ -167,6 +167,7 @@ class ParamKey(str, Enum):
     ChatId = "chat_id"
     Uid = "uid"
     AppId = "app_id"
+    Ext = "ext"
 
 
 class SystemParams:
@@ -756,7 +757,7 @@ class VariablePool:
         if er_msgs:
             raise Exception(f"{';'.join(er_msgs)}")
 
-    def add_variable(
+    async def add_variable(
         self,
         node_id: str,
         key_name_list: list[str],
@@ -785,7 +786,7 @@ class VariablePool:
                     {"value": output_value.get(key)}
                 )
             else:
-                span.add_info_event(
+                await span.add_info_event_async(
                     f"variable_pool add_variable: {key} not in {output_value}"
                 )
         # Special handling: add error results

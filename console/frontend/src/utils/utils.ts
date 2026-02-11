@@ -201,7 +201,7 @@ export const transformJsonToArray = (
     };
 
     if (Array.isArray(data)) {
-      const children = data.map(item => {
+      const children = [data?.[0]].map(item => {
         const type = getValueType(item);
 
         if (type !== 'object' && type !== 'array') {
@@ -361,7 +361,7 @@ export const convertToDesiredFormat = (
 
     if (isComplexType) {
       if (type === 'array') {
-        baseItem.children = (value as JsonArray)?.map(item => ({
+        baseItem.children = [(value as JsonArray)?.[0]]?.map(item => ({
           id: uuid(),
           name: '[Array Item]',
           description: typeof item === 'object' ? '' : item,

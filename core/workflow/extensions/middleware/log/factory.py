@@ -1,8 +1,8 @@
 import os
+import sys
 
 from loguru import logger
 
-from workflow.consts.runtime_env import RuntimeEnv
 from workflow.extensions.middleware.factory import ServiceFactory
 from workflow.extensions.middleware.log.manager import LogService
 
@@ -63,9 +63,9 @@ class LogServiceFactory(ServiceFactory):
         )
 
         # Add console handler for local environment
-        if os.getenv("RUNTIME_ENV", "") == RuntimeEnv.Local.value:
+        if os.getenv("LOG_STDOUT_ENABLE", "0") == "1":
             logger.add(
-                lambda msg: print(msg, end=""),
+                sys.stdout,
                 level=log_level,
                 colorize=True,
             )

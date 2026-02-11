@@ -175,6 +175,9 @@ const translation = {
       outputParameterEnableDescription:
         '当设为不可见时，该参数将不会被返回给大模型',
     },
+    mcpNode: {
+      officalMcp: '官方MCP',
+    },
     knowledgeNode: {
       type: '知识库',
       knowledgeBase: '知识库',
@@ -420,6 +423,7 @@ const translation = {
       // 使用common中的input, output
     },
     common: {
+      back: '返回',
       undefined: '未定义',
       selectPlaceholder: '请选择',
       inputPlaceholder: '请输入',

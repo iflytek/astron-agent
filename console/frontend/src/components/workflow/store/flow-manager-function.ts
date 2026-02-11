@@ -92,6 +92,9 @@ export const initialStatus = {
   toolModalInfo: {
     open: false,
   }, //Tool Node Add Tool Modal
+  mcpModalInfo: {
+    open: false,
+  }, //MCP Node Add MCP Modal
   flowModalInfo: {
     open: false,
   }, //Flow Node Add Flow Modal

@@ -7,7 +7,7 @@ from aiohttp import ClientTimeout
 from pydantic import BaseModel, Field, PrivateAttr
 
 from workflow.engine.entities.private_config import PrivateConfig
-from workflow.engine.entities.variable_pool import VariablePool
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.base_node import BaseNode
 from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
@@ -50,17 +50,22 @@ class RPANode(BaseNode):
                 inputs[identifier] = variable_pool.get_variable(
                     node_id=self.node_id, key_name=identifier, span=span
                 )
-            span.add_info_events({"rpa_input": f"{inputs}"})
+            await span.add_info_events_async({"rpa_input": f"{inputs}"})
             status = WorkflowNodeExecutionStatus.SUCCEEDED
             url = f"{os.getenv('RPA_BASE_URL')}/rpa/v1/exec"
+            variable_ext: dict = variable_pool.system_params.get(
+                ParamKey.Ext, default={}
+            )
+            phone_number = variable_ext.get("phone_number", "")
             req_body = {
                 "project_id": self.projectId,
                 "sid": span.sid,
                 "exec_position": self.rpaParams.get("execPosition", "EXECUTOR"),
                 "params": inputs,
+                **({"version": self.version} if self.version else {}),
+                **({"phone_number": phone_number} if phone_number else {}),
             }
-            if self.version:
-                req_body.update({"version": self.version})
+            await span.add_info_event_async(f"req_body: {req_body}")
 
             headers = {
                 "Content-Type": "application/json",
@@ -86,7 +91,7 @@ class RPANode(BaseNode):
                         msg = line.decode("utf-8")
                         if not msg.startswith("data:"):
                             continue
-                        span.add_info_event(f"recv: {msg}")
+                        await span.add_info_event_async(f"recv: {msg}")
                         frame = _StreamResponse.model_validate_json(
                             msg.removeprefix("data:")
                         )

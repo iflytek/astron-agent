@@ -198,6 +198,37 @@ class CodeExecutorConfig(BaseSettings):
         return self
 
 
+class DatabaseConfig(BaseSettings):
+    """
+    Database connection configuration.
+
+    Loads MySQL connection parameters from environment variables
+    (MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB).
+    """
+
+    model_config = {"env_prefix": "", "case_sensitive": False}
+
+    host: str = Field(default="", alias="MYSQL_HOST")
+    port: str = Field(default="", alias="MYSQL_PORT")
+    user: str = Field(default="", alias="MYSQL_USER")
+    password: str = Field(default="", alias="MYSQL_PASSWORD")
+    database: str = Field(default="", alias="MYSQL_DB")
+
+
+class KnowledgeNodeLLMConfig(BaseSettings):
+    """
+    KnowledgeNode LLM configuration model for adaptive knowledge search.
+    """
+
+    model_config = {"env_prefix": "", "case_sensitive": False}
+    base_url: str = Field(default="", alias="KNOWLEDGE_NODE_LLM_BASE_URL")
+    model: str = Field(default="", alias="KNOWLEDGE_NODE_LLM_MODEL")
+    api_key: str = Field(default="", alias="KNOWLEDGE_NODE_LLM_API_KEY")
+    temperature: float = Field(default=1.0, alias="KNOWLEDGE_NODE_LLM_TEMPERATURE")
+    max_tokens: int = Field(default=2048, alias="KNOWLEDGE_NODE_LLM_MAX_TOKENS")
+    top_k: int = Field(default=3, alias="KNOWLEDGE_NODE_LLM_TOP_K")
+
+
 class WorkflowConfig(BaseModel):
     """
     Workflow configuration model.
@@ -206,3 +237,7 @@ class WorkflowConfig(BaseModel):
     file_config: FileConfig = Field(default_factory=FileConfig)
     pgsql_config: PgsqlConfig = Field(default_factory=PgsqlConfig)
     code_executor_config: CodeExecutorConfig = Field(default_factory=CodeExecutorConfig)
+    database_config: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    knowledge_node_llm_config: KnowledgeNodeLLMConfig = Field(
+        default_factory=KnowledgeNodeLLMConfig
+    )

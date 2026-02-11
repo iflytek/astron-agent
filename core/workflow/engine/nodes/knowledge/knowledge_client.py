@@ -4,6 +4,7 @@ from typing import Any
 from workflow.domain.entities.chat import HistoryItem
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
+from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.otlp.trace.span import Span
 
 
@@ -84,39 +85,37 @@ class KnowledgeClient:
         """
         url = self.config.url
         payload = self.payload()
-        request_span.add_info_events({"url": url})
-        request_span.add_info_events({"request_data": payload})
+        await request_span.add_info_events_async({"url": url})
+        await request_span.add_info_events_async({"request_data": payload})
         try:
             event_log_node_trace = kwargs.get("event_log_node_trace")
             if event_log_node_trace:
                 event_log_node_trace.append_config_data(
                     {"url": url, "req_headers": self.headers, "req_body": payload}
                 )
-            from aiohttp import ClientSession
-
-            async with ClientSession() as session:
-                async with session.post(
-                    url, headers=self.headers, json=json.loads(payload)
-                ) as resp:
-                    background_json = json.loads(await resp.text())
-                    # background_json = requests.request("POST", url, headers=self.headers, data=payload).json()
-                    if background_json.get("code") != 0:
-                        msg = (
-                            f"err code {background_json.get('code')}, "
-                            f"reason {background_json.get('message')}, sid {background_json.get('sid')}"
-                        )
-                        request_span.add_error_event(msg)
-                        raise CustomException(
-                            err_code=CodeEnum.KNOWLEDGE_REQUEST_ERROR,
-                            err_msg=f"{msg}",
-                            cause_error=f"{msg}",
-                        )
-                    request_span.add_info_events(
-                        {"response": json.dumps(background_json, ensure_ascii=False)}
+            session = HttpClient.get_session()
+            async with session.post(
+                url, headers=self.headers, json=json.loads(payload)
+            ) as resp:
+                background_json = json.loads(await resp.text())
+                # background_json = requests.request("POST", url, headers=self.headers, data=payload).json()
+                if background_json.get("code") != 0:
+                    msg = (
+                        f"err code {background_json.get('code')}, "
+                        f"reason {background_json.get('message')}, sid {background_json.get('sid')}"
                     )
-                    recall_contents = background_json.get("data", {})
-                    recalls = json.dumps(recall_contents, ensure_ascii=False)
-                    return recalls
+                    request_span.add_error_event(msg)
+                    raise CustomException(
+                        err_code=CodeEnum.KNOWLEDGE_REQUEST_ERROR,
+                        err_msg=f"{msg}",
+                        cause_error=f"{msg}",
+                    )
+                await request_span.add_info_events_async(
+                    {"response": json.dumps(background_json, ensure_ascii=False)}
+                )
+                recall_contents = background_json.get("data", {})
+                recalls = json.dumps(recall_contents, ensure_ascii=False)
+                return recalls
         except Exception as e:
             err = str(e)
             request_span.add_error_event(err)

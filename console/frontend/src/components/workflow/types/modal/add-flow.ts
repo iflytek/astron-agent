@@ -52,9 +52,6 @@ export interface FlowNode {
   [key: string]: unknown;
 }
 
-// 排序类型
-export type OrderByType = 'create_time' | 'update_time';
-
 // Modal 组件的 Props 接口（如果需要的话）
 export interface AddFlowModalProps {
   // 可以为空，因为组件目前没有 props

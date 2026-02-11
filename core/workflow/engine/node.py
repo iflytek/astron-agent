@@ -1,4 +1,3 @@
-import asyncio
 import copy
 import json
 from abc import ABC, abstractmethod
@@ -153,12 +152,16 @@ class NodeExecutionTemplate:
             for next_engine_node in engine_nodes:
                 self.node.node_log.set_next_node_id(next_engine_node.node_log.id)
 
-            span_context.add_info_event(f"async execute node {self.node.id}")
+            await span_context.add_info_event_async(
+                f"async execute node {self.node.id}"
+            )
 
             try:
                 parameters = self._build_execution_parameters(span_context, **kwargs)
                 # Execute node logic
-                span_context.add_info_events({"config": str(self.node.node_instance)})
+                await span_context.add_info_events_async(
+                    {"config": str(self.node.node_instance)}
+                )
                 result = await self.node.node_instance.async_execute(**parameters)
                 self.node.gather_node_event_log(result)
 
@@ -206,7 +209,7 @@ class NodeExecutionTemplate:
         :param kwargs: Additional parameters for result handling
         """
         if result.status == WorkflowNodeExecutionStatus.CANCELLED:
-            self._handle_cancelled_result(
+            await self._handle_cancelled_result(
                 result, span_context, cast(WorkflowLog, kwargs.get("event_log_trace"))
             )
             return
@@ -219,7 +222,7 @@ class NodeExecutionTemplate:
 
         await self._handle_successful_result(result, span_context, **kwargs)
 
-    def _handle_cancelled_result(
+    async def _handle_cancelled_result(
         self, result: NodeRunResult, span_context: Span, event_log_trace: WorkflowLog
     ) -> None:
         """Handle cancelled execution result.
@@ -230,7 +233,7 @@ class NodeExecutionTemplate:
         """
         event_log_trace.add_node_log([self.node.node_log])
         self.node.node_log.running_status = False
-        span_context.add_info_event(f"node {result.node_id} run cancelled.")
+        await span_context.add_info_event_async(f"node {result.node_id} run cancelled.")
 
     def _handle_failed_result(
         self, result: NodeRunResult, span_context: Span, event_log_trace: WorkflowLog
@@ -273,8 +276,8 @@ class NodeExecutionTemplate:
         callbacks = cast(ChatCallBacks, kwargs.get("callbacks"))
 
         self._add_chat_history_if_needed(result, event_log_trace, variable_pool)
-        self._add_variable_to_pool(result, variable_pool, span_context)
-        await asyncio.to_thread(self._log_success_result, result, span_context)
+        await self._add_variable_to_pool(result, variable_pool, span_context)
+        await self._log_success_result(result, span_context)
         await self._handle_node_end_callback(result, callbacks)
 
         if event_log_trace:
@@ -327,7 +330,7 @@ class NodeExecutionTemplate:
         node_type = result.node_id.split(":")[0]
         return node_type in [NodeType.LLM.value, NodeType.DECISION_MAKING.value]
 
-    def _add_variable_to_pool(
+    async def _add_variable_to_pool(
         self, result: NodeRunResult, variable_pool: VariablePool, span_context: Span
     ) -> None:
         """Add execution result to variable pool based on node type.
@@ -339,13 +342,13 @@ class NodeExecutionTemplate:
         node_type = result.node_id.split(":")[0]
 
         if node_type == NodeType.START.value:
-            self._add_start_node_variables(result, variable_pool, span_context)
+            await self._add_start_node_variables(result, variable_pool, span_context)
         elif node_type == NodeType.END.value:
-            self._add_end_node_variables(result, variable_pool, span_context)
+            await self._add_end_node_variables(result, variable_pool, span_context)
         else:
-            self._add_default_node_variables(result, variable_pool, span_context)
+            await self._add_default_node_variables(result, variable_pool, span_context)
 
-    def _add_start_node_variables(
+    async def _add_start_node_variables(
         self, result: NodeRunResult, variable_pool: VariablePool, span_context: Span
     ) -> None:
         """Add start node variables to variable pool.
@@ -360,7 +363,7 @@ class NodeExecutionTemplate:
         output_keys = list(res_bak.outputs.keys())
 
         try:
-            variable_pool.add_variable(
+            await variable_pool.add_variable(
                 result.node_id, output_keys, res_bak, span=span_context
             )
         except Exception as err:
@@ -369,7 +372,7 @@ class NodeExecutionTemplate:
                 err_msg=f"Node name: {self.node.node_id}, error message: {err}",
             ) from err
 
-    def _add_end_node_variables(
+    async def _add_end_node_variables(
         self, result: NodeRunResult, variable_pool: VariablePool, span_context: Span
     ) -> None:
         """Add end node variables to variable pool.
@@ -384,7 +387,7 @@ class NodeExecutionTemplate:
         output_keys = list(res_bak.outputs.keys())
 
         try:
-            variable_pool.add_variable(
+            await variable_pool.add_variable(
                 result.node_id, output_keys, res_bak, span=span_context
             )
         except Exception as err:
@@ -393,7 +396,7 @@ class NodeExecutionTemplate:
                 err_msg=f"Node name: {self.node.node_id}, error message: {err}",
             ) from err
 
-    def _add_default_node_variables(
+    async def _add_default_node_variables(
         self, result: NodeRunResult, variable_pool: VariablePool, span_context: Span
     ) -> None:
         """Add default node variables to variable pool.
@@ -406,7 +409,7 @@ class NodeExecutionTemplate:
         output_keys = list(result.outputs.keys())
 
         try:
-            variable_pool.add_variable(
+            await variable_pool.add_variable(
                 result.node_id, output_keys, result, span=span_context
             )
         except Exception as err:
@@ -415,7 +418,9 @@ class NodeExecutionTemplate:
                 err_msg=f"Node name: {self.node.node_id}, error message: {err}",
             ) from err
 
-    def _log_success_result(self, result: NodeRunResult, span_context: Span) -> None:
+    async def _log_success_result(
+        self, result: NodeRunResult, span_context: Span
+    ) -> None:
         """Log successful execution result.
 
         :param result: Successful node execution result
@@ -423,7 +428,7 @@ class NodeExecutionTemplate:
         """
         res_wb = result.dict()
         res_wb.update({"status": "succeed"})
-        span_context.add_info_events(
+        await span_context.add_info_events_async(
             {"node_result": json.dumps(res_wb, ensure_ascii=False)}
         )
 

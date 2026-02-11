@@ -3,13 +3,13 @@ import json
 from typing import Any
 
 import httpx
-from aiohttp import ClientSession
 
 from workflow.configs import workflow_config
 from workflow.engine.nodes.code.executor.base_executor import BaseExecutor
 from workflow.exception.e import CustomException, CustomExceptionCD
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.exception.errors.third_api_code import ThirdApiCodeEnum
+from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.otlp.trace.span import Span
 
 # Maximum number of retry attempts for failed requests
@@ -58,7 +58,9 @@ class IFlyExecutor(BaseExecutor):
                 f"{workflow_config.code_executor_config.api_secret}"
             )
 
-        span.add_info_events({"request_body": json.dumps(body, ensure_ascii=False)})
+        await span.add_info_events_async(
+            {"request_body": json.dumps(body, ensure_ascii=False)}
+        )
 
         try:
             return await self._execute_with_retry(
@@ -89,7 +91,7 @@ class IFlyExecutor(BaseExecutor):
             status, resp_json = await self._do_request(url, body, params, headers, span)
 
             if status == httpx.codes.OK:
-                span.add_info_events(
+                await span.add_info_events_async(
                     {"code execute result": json.dumps(resp_json, ensure_ascii=False)}
                 )
                 runner_result = resp_json.get("data", {}).get("stdout", "")
@@ -161,24 +163,24 @@ class IFlyExecutor(BaseExecutor):
         :raises CustomExceptionCD: If request fails with non-retryable error
         """
         try:
-            async with ClientSession() as session:
-                async with session.post(
-                    url, json=body, params=params, headers=headers
-                ) as resp:
-                    resp_text = await resp.text()
-                    resp_json = json.loads(resp_text)
-                    if resp.status in (
-                        httpx.codes.OK,
-                        httpx.codes.INTERNAL_SERVER_ERROR,
-                        httpx.codes.SERVICE_UNAVAILABLE,
-                    ):
-                        return resp.status, resp_json
-                    else:
-                        span.add_error_event(f"{resp_text}")
-                        raise CustomExceptionCD(
-                            err_code=CodeEnum.CODE_REQUEST_ERROR.code,
-                            err_msg=resp_text,
-                        )
+            session = HttpClient.get_session()
+            async with session.post(
+                url, json=body, params=params, headers=headers
+            ) as resp:
+                resp_text = await resp.text()
+                resp_json = json.loads(resp_text)
+                if resp.status in (
+                    httpx.codes.OK,
+                    httpx.codes.INTERNAL_SERVER_ERROR,
+                    httpx.codes.SERVICE_UNAVAILABLE,
+                ):
+                    return resp.status, resp_json
+                else:
+                    span.add_error_event(f"{resp_text}")
+                    raise CustomExceptionCD(
+                        err_code=CodeEnum.CODE_REQUEST_ERROR.code,
+                        err_msg=resp_text,
+                    )
         except Exception as err:
             raise CustomExceptionCD(
                 err_code=CodeEnum.CODE_REQUEST_ERROR.code,

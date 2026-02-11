@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -72,6 +73,14 @@ def configure(log_level: Optional[str] = None, log_file: Optional[Path] = None) 
         format=log_format,
         rotation="10 MB",  # Log rotation based on file size
     )
+
+    # Add console handler for local environment
+    if os.getenv("LOG_STDOUT_ENABLE", "0") == "1":
+        logger.add(
+            sys.stdout,
+            level=log_level.upper(),
+            colorize=True,
+        )
 
     logger.debug(f"Logger set up with log level: {log_level}")
     if log_file:

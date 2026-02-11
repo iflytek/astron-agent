@@ -67,7 +67,7 @@ def get_factories_and_deps() -> List[Tuple[Any, List[ServiceType]]]:
     ]
 
     try:
-        from workflow_business.extensions.middleware.watchdog import (
+        from workflow_business.extensions.middleware.watchdog import (  # type: ignore[import-not-found]  # isort: skip
             factory as watchdog_factory,
         )
 
@@ -77,7 +77,7 @@ def get_factories_and_deps() -> List[Tuple[Any, List[ServiceType]]]:
                 [ServiceType.WATCHDOG_SERVICE],
             )
         )
-    except Exception:
+    except ImportError:
         pass
 
     return factories

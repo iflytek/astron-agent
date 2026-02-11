@@ -2,6 +2,7 @@
 ISE speech evaluation client module providing intelligent speech assessment services.
 """
 
+# # pylint: disable=broad-exception-caught,line-too-long,too-few-public-methods,too-many-arguments,too-many-locals,import-outside-toplevel
 import _thread as thread
 import base64
 import hashlib
@@ -18,41 +19,40 @@ from urllib.parse import urlencode
 from wsgiref.handlers import format_date_time
 
 import websocket
-from pydub import AudioSegment
+from pydub import AudioSegment  # type: ignore[import-untyped]
 
 
 class AudioConverter:
-    """音频格式转换器"""
+    """Audio converter for ISE speech evaluation"""
 
     @staticmethod
     def detect_audio_format(audio_data: bytes) -> str:
-        """检测音频格式"""
-        # 检查文件头标识
+        """Check the audio format of the given audio data."""
+        # Check the magic number of the audio data.
         if audio_data.startswith(b"RIFF") and b"WAVE" in audio_data[:12]:
             return "wav"
-        elif (
+        if (
             audio_data.startswith(b"ID3")
             or audio_data.startswith(b"\xff\xfb")
             or audio_data.startswith(b"\xff\xf3")
         ):
             return "mp3"
-        elif audio_data.startswith(b"OggS"):
+        if audio_data.startswith(b"OggS"):
             return "ogg"
-        elif audio_data.startswith(b"fLaC"):
+        if audio_data.startswith(b"fLaC"):
             return "flac"
-        elif audio_data.startswith(b"#!AMR"):
+        if audio_data.startswith(b"#!AMR"):
             return "amr"
-        else:
-            return "unknown"
+        return "unknown"
 
     @staticmethod
     def get_audio_properties(audio_data: bytes) -> Dict[str, Any]:
-        """获取音频属性（采样率、位深、声道数等）"""
+        """Get the properties of the given audio data."""
 
         try:
             format_type = AudioConverter.detect_audio_format(audio_data)
 
-            # 加载音频文件
+            # Load the audio file.
             if format_type == "mp3":
                 audio = AudioSegment.from_mp3(io.BytesIO(audio_data))
             elif format_type == "wav":
@@ -62,14 +62,14 @@ class AudioConverter:
             elif format_type == "flac":
                 audio = AudioSegment.from_file(io.BytesIO(audio_data), format="flac")
             else:
-                # 尝试自动识别格式
+                # Try to auto-detect the format.
                 audio = AudioSegment.from_file(io.BytesIO(audio_data))
 
             return {
                 "sample_rate": audio.frame_rate,
                 "channels": audio.channels,
                 "sample_width": audio.sample_width,
-                "duration": len(audio) / 1000.0,  # 转换为秒
+                "duration": len(audio) / 1000.0,  # Convert to seconds.
                 "format": format_type,
                 "bit_depth": audio.sample_width * 8,
             }
@@ -88,28 +88,28 @@ class AudioConverter:
     def convert_to_wav(
         audio_data: bytes, source_format: str | None = None
     ) -> Tuple[bytes, Dict[str, Any]]:
-        """将音频转换为WAV格式（16kHz, 16bit, 单声道），返回转换后的数据和原始属性"""
+        """Convert the given audio data to WAV format."""
 
-        # 获取原始音频属性
+        # Get the original audio properties.
         original_properties = AudioConverter.get_audio_properties(audio_data)
 
         try:
-            # 如果没有指定格式，自动检测
+            # Check the source format.
             if source_format is None:
                 source_format = AudioConverter.detect_audio_format(audio_data)
 
-            # 如果已经是WAV格式，检查是否符合要求
+            # If the audio is already in WAV format, check if it meets the requirements.
             if source_format == "wav":
-                # 检查WAV格式参数
+                # Check the WAV format parameters.
                 audio = AudioSegment.from_wav(io.BytesIO(audio_data))
                 if (
                     audio.frame_rate == 16000
                     and audio.sample_width == 2
                     and audio.channels == 1
                 ):
-                    return audio_data, original_properties  # 已经符合要求，直接返回
+                    return audio_data, original_properties
 
-            # 加载音频文件
+            # Load the audio file.
             if source_format == "mp3":
                 audio = AudioSegment.from_mp3(io.BytesIO(audio_data))
             elif source_format == "wav":
@@ -119,15 +119,15 @@ class AudioConverter:
             elif source_format == "flac":
                 audio = AudioSegment.from_file(io.BytesIO(audio_data), format="flac")
             else:
-                # 尝试自动识别格式
+                # Try to auto-detect the format.
                 audio = AudioSegment.from_file(io.BytesIO(audio_data))
 
-            # 转换为目标格式: 16kHz, 16bit, 单声道
-            audio = audio.set_frame_rate(16000)  # 设置采样率为16kHz
-            audio = audio.set_sample_width(2)  # 设置为16bit
-            audio = audio.set_channels(1)  # 设置为单声道
+            # Convert the audio to the target format: 16kHz, 16bit, 1 channel.
+            audio = audio.set_frame_rate(16000)  # Set the sample rate to 16kHz.
+            audio = audio.set_sample_width(2)  # Set the sample width to 16bit.
+            audio = audio.set_channels(1)  # Set the number of channels to 1.
 
-            # 导出为WAV格式
+            # Export the audio as WAV format.
             wav_io = io.BytesIO()
             audio.export(wav_io, format="wav")
             wav_data = wav_io.getvalue()
@@ -136,11 +136,11 @@ class AudioConverter:
             return wav_data, original_properties
 
         except Exception as e:
-            raise ValueError(f"音频转换失败: {str(e)}")
+            raise ValueError(f"音频转换失败: {e}") from e
 
     @staticmethod
     def validate_audio_format(audio_data: bytes) -> Tuple[bool, str]:
-        """验证音频格式是否符合ISE要求"""
+        """Validate the audio format."""
         try:
             format_type = AudioConverter.detect_audio_format(audio_data)
             if format_type == "wav":
@@ -151,33 +151,31 @@ class AudioConverter:
                     and audio.channels == 1
                 ):
                     return True, "音频格式符合要求"
-                else:
-                    return (
-                        False,
-                        f"WAV格式不符合要求: {audio.frame_rate}Hz,\
-                              {audio.sample_width*8}bit, {audio.channels}声道",
-                    )
-            else:
-                return False, f"音频格式为{format_type}，需要转换为WAV"
+                return (
+                    False,
+                    f"WAV格式不符合要求: {audio.frame_rate}Hz,\
+                            {audio.sample_width*8}bit, {audio.channels}声道",
+                )
+            return False, f"音频格式为{format_type}，需要转换为WAV"
 
         except Exception as e:
             return False, f"音频验证失败: {str(e)}"
 
 
 class ISEResultParser:
-    """ISE评测结果解析器 - 将XML转换为AI友好的JSON格式"""
+    """ISE speech evaluation result parser"""
 
     @staticmethod
     def parse_xml_result(xml_string: str, _group: str = "adult") -> Dict[str, Any]:
         """
-        解析ISE返回的XML结果，转换为结构化JSON格式
-        仅提取任务层级的整体评测结果，处理异常情况
+        Parse the XML result of ISE speech evaluation.
 
         Args:
-            xml_string: ISE返回的XML格式评测结果
+            xml_string: The XML string of the ISE speech evaluation result.
+            _group: The group of the ISE speech evaluation.
 
         Returns:
-            Dict: AI友好的结构化评测结果
+            Dict: The structured JSON format of the ISE speech evaluation result.
         """
         try:
             root = ET.fromstring(xml_string)
@@ -190,16 +188,16 @@ class ISEResultParser:
                 "raw_xml": xml_string,
             }
 
-            # 查找评测节点
+            # Find the evaluation node
             task_node = ISEResultParser._find_evaluation_node(root, xml_string)
             if isinstance(task_node, dict):  # Error case
                 return task_node
 
-            # 处理异常状态
+            # Process exception status
             ISEResultParser._process_exception_info(task_node, result)
             ISEResultParser._process_rejection_status(task_node, result)
 
-            # 提取评分数据
+            # Extract the task scores
             task_scores = ISEResultParser._extract_score_fields(task_node)
             result["detailed_scores"] = task_scores
             result["overall_score"] = task_scores.get("total_score", 0)
@@ -216,7 +214,7 @@ class ISEResultParser:
 
     @staticmethod
     def _find_evaluation_node(root: Any, xml_string: str) -> Any:
-        """查找包含评分数据的评测节点"""
+        """Find the evaluation node that contains the score data."""
         rec_paper = root.find(".//rec_paper")
         if rec_paper is None:
             return {
@@ -239,7 +237,7 @@ class ISEResultParser:
 
     @staticmethod
     def _process_exception_info(task_node: Any, result: Dict[str, Any]) -> None:
-        """处理except_info异常情况"""
+        """Process the exception information of the task node."""
         except_info = task_node.get("except_info", "0")
         if except_info == "0":
             return
@@ -263,7 +261,7 @@ class ISEResultParser:
 
     @staticmethod
     def _process_rejection_status(task_node: Any, result: Dict[str, Any]) -> None:
-        """处理is_rejected字段"""
+        """Process the rejection status of the task node."""
         is_rejected = task_node.get("is_rejected", "false")
         if is_rejected == "true":
             result["status"] = "rejected"
@@ -271,7 +269,7 @@ class ISEResultParser:
 
     @staticmethod
     def _extract_score_fields(task_node: Any) -> Dict[str, Any]:
-        """提取任务层级的所有评分指标"""
+        """Extract the score fields from the task node."""
         task_scores = {}
         score_fields = [
             "total_score",
@@ -293,17 +291,20 @@ class ISEResultParser:
 
         return task_scores
 
-    # 移除了 _generate_summary 和 _generate_recommendations 方法，因为已不需要
-
     @staticmethod
     def check_low_score_warning(
         result: Dict[str, Any], original_audio_properties: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """检查低分预警机制，添加音频质量相关的警告"""
+        """
+        Check the low score warning mechanism,
+        and add audio quality related warnings
+        """
         score = result.get("overall_score", 0)
         original_sample_rate = original_audio_properties.get("sample_rate")
 
-        # 如果分数低于5分且原始采样率不是16kHz，添加警告信息
+        # If the score is less than 5
+        # and the original sample rate is not 16kHz,
+        # add a warning message.
         if score < 5 and original_sample_rate and original_sample_rate != 16000:
             warning_msg = (
                 f"低分预警：检测到您的音频原始采样率为 {original_sample_rate}Hz，"
@@ -311,7 +312,7 @@ class ISEResultParser:
                 f"建议使用16kHz采样率的高质量音频重新评测。"
             )
 
-            # 将音频质量警告插入到警告列表中
+            # Insert the audio quality warning message to the warning list.
             if "warnings" not in result:
                 result["warnings"] = []
             result["warnings"].insert(0, warning_msg)
@@ -320,7 +321,7 @@ class ISEResultParser:
 
 
 class ISEParam:
-    """ISE WebSocket参数类"""
+    """ISE WebSocket Param Class"""
 
     def __init__(
         self,
@@ -339,42 +340,42 @@ class ISEParam:
         self.audio_data = audio_data
         self.text = text
 
-        # 验证年龄组参数
+        # Validate the age group parameter.
         valid_groups = ["pupil", "youth", "adult"]
         if group not in valid_groups:
             raise ValueError(f"无效的年龄组参数: {group}，有效选项: {valid_groups}")
 
-        # 根据语言设置引擎类型
+        # Set up the engine type parameter.
         ent = "cn_vip" if language == "cn" else "en_vip"
 
-        # 公共参数
+        # Set up the public parameters.
         self.common_args = {"app_id": self.app_id}
 
-        # 业务参数 - 按照官方文档格式
+        # Business parameters - according to the official document format
         self.business_args = {
-            "category": category,  # 评测题型
-            "sub": "ise",  # 服务类型
-            "ent": ent,  # 引擎类型
-            "cmd": "ssb",  # 命令字
-            "auf": "audio/L16;rate=16000",  # 音频格式
-            "aue": "raw",  # 音频编码
-            "text": self._encode_text() if text else "",  # 评测文本
-            "tte": "utf-8",  # 文本编码
-            "rstcd": "utf8",  # 结果编码
-            "group": group,  # 年龄组: pupil/youth/adult
+            "category": category,  # Evaluation category
+            "sub": "ise",  # Service type
+            "ent": ent,  # Engine type
+            "cmd": "ssb",  # Command
+            "auf": "audio/L16;rate=16000",  # Audio format
+            "aue": "raw",  # Audio encoding
+            "text": self._encode_text() if text else "",  # Evaluation text
+            "tte": "utf-8",  # Text encoding
+            "rstcd": "utf8",  # Result encoding
+            "group": group,  # Age group: pupil/youth/adult
         }
 
     def _encode_text(self) -> str:
-        """编码评测文本"""
+        """Encode the evaluation text according to the official document format."""
         if not self.text:
             return ""
-        # 添加BOM和content标记，按照官方格式
+        # Add BOM and content marker according to the official document format
         formatted_text = f"\ufeff[content]\n{self.text}"
         return formatted_text
 
 
 class ISEClient:
-    """讯飞星辰智能语音评测(ISE)客户端"""
+    """Xunfei ISE Speech Evaluation Client"""
 
     def __init__(self, app_id: str, api_key: str, api_secret: str) -> None:
         self.app_id = app_id
@@ -395,33 +396,33 @@ class ISEClient:
         group: str = "adult",
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
-        语音评测
+        Audio evaluation
 
         Args:
-            audio_data: 音频数据(支持MP3, WAV, OGG, FLAC等格式)
-            text: 评测文本(可选，某些评测模式需要)
-            language: 语言类型，cn(中文)/en(英文)
-            category: 评测类型，read_syllable/read_word/read_sentence等
-            auto_convert: 是否自动转换音频格式为WAV
-            group: 年龄组类型，pupil(小学)/youth(中学)/adult(成人)，默认adult
+            audio_data: Audio data(Support MP3, WAV, OGG, FLAC...)
+            text: Evaluation text(Optional, some evaluation modes require)
+            language: Language type, cn(Chinese)/en(English)
+            category: Evaluation type, read_syllable/read_word/read_sentence...
+            auto_convert: Whether to automatically convert the audio format to WAV
+            group: Age group type, pupil(Primary School)/youth(Middle School)/adult(High School), default adult
 
         Returns:
-            Tuple[bool, str, Dict]: (是否成功, 消息, 评测结果)
+            Tuple[bool, str, Dict]: (Whether the evaluation is successful, Message, Result)
         """
         try:
-            # 音频格式处理
+            # Audio format processing
             processed_audio_data = audio_data
             original_audio_properties: Dict[str, Any] = {}
 
             if auto_convert:
-                # 检测和验证音频格式
+                # Check and validate the audio format
                 is_valid, validation_msg = AudioConverter.validate_audio_format(
                     audio_data
                 )
 
                 if not is_valid:
                     try:
-                        # 自动转换为WAV格式，同时获取原始音频属性
+                        # Auto-convert the audio format to WAV and get the original audio properties.
                         processed_audio_data, original_audio_properties = (
                             AudioConverter.convert_to_wav(audio_data)
                         )
@@ -442,12 +443,12 @@ class ISEClient:
                         return False, f"音频转换失败: {str(e)}", {}
                 else:
                     print(f"音频格式验证: {validation_msg}")
-                    # 即使格式符合要求，也获取音频属性用于后续分析
+                    # Even if the format is valid, get the audio properties for later analysis
                     original_audio_properties = AudioConverter.get_audio_properties(
                         audio_data
                     )
             else:
-                # 不自动转换时，仍然获取音频属性
+                # Without auto-conversion, we still need to get the audio properties for later analysis
                 original_audio_properties = AudioConverter.get_audio_properties(
                     audio_data
                 )
@@ -463,10 +464,10 @@ class ISEClient:
                 group,
             )
 
-            # 创建WebSocket连接
+            # Create WebSocket connection
             auth_url = self._create_auth_url()
 
-            # 使用同步WebSocket
+            # Use synchronous WebSocket
             import asyncio
 
             loop = asyncio.get_event_loop()
@@ -476,24 +477,23 @@ class ISEClient:
                 return False, self.error_msg, {}
 
             if self.result:
-                # 检查低分预警机制
+                # Low score warning mechanism
                 self.result = ISEResultParser.check_low_score_warning(
                     self.result, original_audio_properties
                 )
                 return True, "评测成功", self.result
-            else:
-                return False, "评测失败，未获取到结果", {}
+            return False, "评测失败，未获取到结果", {}
 
         except Exception as e:
             return False, f"评测过程中发生错误: {str(e)}", {}
 
     def _sync_evaluate(self, ise_param: ISEParam, auth_url: str) -> None:
-        """同步评测方法 - 采用官方分帧传输模式"""
+        """Synchronous evaluation method - using the official frame-by-frame transport mode"""
         self.result = None
         self.error_msg = None
         self.evaluation_complete = False
 
-        # 创建WebSocket连接
+        # Create WebSocket connection
         websocket.enableTrace(False)
         ws = websocket.WebSocketApp(
             auth_url,
@@ -506,14 +506,14 @@ class ISEClient:
         ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
 
     def _create_message_handler(self, ise_param: ISEParam) -> Callable:
-        """创建WebSocket消息处理器"""
+        """Create WebSocket message handler"""
 
         def on_message(ws: Any, message: str) -> None:
             try:
                 print(f"Received message: {message}")
                 data = json.loads(message)
 
-                # 检查错误码
+                # Check error code
                 if "code" in data and data["code"] != 0:
                     self.error_msg = data.get(
                         "message", f"评测失败，错误码: {data['code']}"
@@ -521,7 +521,7 @@ class ISEClient:
                     ws.close()
                     return
 
-                # 解析评测结果
+                # Handle evaluation response
                 if "data" in data:
                     self._handle_evaluation_response(data["data"], ise_param, ws)
 
@@ -534,15 +534,15 @@ class ISEClient:
     def _handle_evaluation_response(
         self, data_info: Dict[str, Any], ise_param: ISEParam, ws: Any
     ) -> None:
-        """处理评测响应数据"""
+        """Handle evaluation response data"""
         status = data_info.get("status", 0)
 
-        if status == 2:  # 评测完成
+        if status == 2:  # Evaluation complete
             if "data" in data_info and data_info["data"]:
-                # Base64解码结果
+                # Base64 decode the result data and parse it as XML
                 result_data = base64.b64decode(data_info["data"])
                 result_str = result_data.decode("utf-8")
-                # 使用ISEResultParser解析XML结果为AI友好的JSON格式
+
                 self.result = ISEResultParser.parse_xml_result(
                     result_str,
                     ise_param.business_args.get("group", "adult"),
@@ -557,7 +557,7 @@ class ISEClient:
             ws.close()
 
     def _create_error_handler(self) -> Callable:
-        """创建WebSocket错误处理器"""
+        """Create WebSocket error handler"""
 
         def on_error(_ws: Any, error: Exception) -> None:
             self.error_msg = f"WebSocket连接错误: {str(error)}"
@@ -565,7 +565,7 @@ class ISEClient:
         return on_error
 
     def _create_close_handler(self) -> Callable:
-        """创建WebSocket关闭处理器"""
+        """Create WebSocket close handler"""
 
         def on_close(_ws: Any, _close_status_code: Any, _close_msg: Any) -> None:
             pass
@@ -573,7 +573,7 @@ class ISEClient:
         return on_close
 
     def _create_open_handler(self, ise_param: ISEParam) -> Callable:
-        """创建WebSocket连接开启处理器"""
+        """Create WebSocket connection open handler"""
 
         def on_open(ws: Any) -> None:
             def run() -> None:
@@ -589,19 +589,19 @@ class ISEClient:
         return on_open
 
     def _send_initial_frame(self, ws: Any, ise_param: ISEParam) -> None:
-        """发送首帧数据"""
+        """Send the initial frame data"""
         first_frame = {
             "common": ise_param.common_args,
             "business": ise_param.business_args,
-            "data": {"status": 0, "data": ""},  # 首帧
+            "data": {"status": 0, "data": ""},  # First frame status 0
         }
         ws.send(json.dumps(first_frame))
         print("发送首帧完成")
 
     def _send_audio_frames(self, ws: Any, ise_param: ISEParam) -> None:
-        """分帧发送音频数据"""
+        """Send the audio frames data"""
         audio_data = ise_param.audio_data
-        frame_size = 1280  # 每帧1280字节，与官方示例保持一致
+        frame_size = 1280  # frame size, same as the official document
 
         for i in range(0, len(audio_data), frame_size):
             chunk = audio_data[i : i + frame_size]
@@ -610,15 +610,14 @@ class ISEClient:
             if is_last_frame:
                 self._send_final_frame(ws, chunk)
                 break
-            else:
-                self._send_middle_frame(ws, chunk)
+            self._send_middle_frame(ws, chunk)
 
     def _send_final_frame(self, ws: Any, chunk: bytes) -> None:
-        """发送最后一帧数据"""
+        """Sending the final frame data"""
         frame_data = {
             "business": {"cmd": "auw", "aus": 4},
             "data": {
-                "status": 2,  # 结束
+                "status": 2,  # Completed
                 "data": base64.b64encode(chunk).decode(),
             },
         }
@@ -626,11 +625,11 @@ class ISEClient:
         print("发送最后一帧")
 
     def _send_middle_frame(self, ws: Any, chunk: bytes) -> None:
-        """发送中间帧数据"""
+        """Sending the middle frame data"""
         frame_data = {
             "business": {"cmd": "auw", "aus": 1},
             "data": {
-                "status": 1,  # 继续
+                "status": 1,  # Continue
                 "data": base64.b64encode(chunk).decode(),
                 "data_type": 1,
                 "encoding": "raw",
@@ -639,17 +638,17 @@ class ISEClient:
         ws.send(json.dumps(frame_data))
 
     def _create_auth_url(self) -> str:
-        """创建鉴权URL - 按照官方方法实现"""
-        # 生成时间戳
+        """Create the WebSocket authentication URL"""
+        # Generate date string
         now = datetime.now()
         date = format_date_time(mktime(now.timetuple()))
 
-        # 构造签名原始字符串
+        # Generate signature string
         signature_origin = "host: ise-api.xfyun.cn\n"
         signature_origin += f"date: {date}\n"
         signature_origin += "GET /v2/open-ise HTTP/1.1"
 
-        # 生成签名
+        # Generate signature
         signature_sha = hmac.new(
             self.api_secret.encode("utf-8"),
             signature_origin.encode("utf-8"),
@@ -657,7 +656,7 @@ class ISEClient:
         ).digest()
         signature_sha_base64 = base64.b64encode(signature_sha).decode(encoding="utf-8")
 
-        # 构造authorization字符串
+        # Generate authorization string
         authorization_origin = (
             f'api_key="{self.api_key}", algorithm="hmac-sha256", '
             f'headers="host date request-line", signature="{signature_sha_base64}"'
@@ -666,7 +665,7 @@ class ISEClient:
             encoding="utf-8"
         )
 
-        # 构造最终URL
+        # Generate authentication URL
         auth_params = urlencode(
             {"authorization": authorization, "date": date, "host": "ise-api.xfyun.cn"}
         )
@@ -682,17 +681,17 @@ class ISEClient:
         group: str = "adult",
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
-        发音评测(同步版本，用于简单调用)
+        Pronunciation evaluation(Synchronous type)
 
         Args:
-            audio_data: 音频数据(支持多种格式)
-            text: 评测文本
-            language: 语言类型
-            auto_convert: 是否自动转换音频格式
-            group: 年龄组类型，pupil(小学)/youth(中学)/adult(成人)，默认adult
+            audio_data: Audio data(Support multiple formats)
+            text: Evaluation text
+            language: Language type
+            auto_convert: Whether to automatically convert the audio format to WAV
+            group: Age group type, pupil(Primary School)/youth(Middle School)/adult(High School), default adult
 
         Returns:
-            Tuple[bool, str, Dict]: (是否成功, 消息, 评测结果)
+            Tuple[bool, str, Dict]: (Whether the evaluation is successful, Message, Result)
         """
         import asyncio
 

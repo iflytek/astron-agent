@@ -7,6 +7,7 @@ import effectEvaluation from './effectEvaluation';
 import database from './database';
 import openPlatformEnModule from './openPlatformEnModule';
 import rpa from './rpa';
+import mcp from './mcp';
 
 export default {
   ...openPlatformEnModule,
@@ -18,4 +19,5 @@ export default {
   effectEvaluation,
   database,
   rpa,
+  mcp,
 };

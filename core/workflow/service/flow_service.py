@@ -280,7 +280,7 @@ async def node_debug(
     """
     # Record start time for performance measurement
     time_start = time.time() * 1000
-    span.add_info_event(f"node debug dsl: {workflow_dsl.dict()}")
+    await span.add_info_event_async(f"node debug dsl: {workflow_dsl.dict()}")
 
     # Perform input audit for security and compliance
     await audit_service.node_debug_input_audit(workflow_dsl.dict(), span)
@@ -295,7 +295,7 @@ async def node_debug(
     variable_pool.system_params.set(ParamKey.FlowId, flow_id)
 
     if node_instance.node_id.startswith(NodeType.FLOW.value):
-        set_flow_node_output_mode(
+        await set_flow_node_output_mode(
             variable_pool=variable_pool, node_instance=node_instance, span=span
         )
 
@@ -390,7 +390,7 @@ def build(
         ops_service.kafka_report(span=span, workflow_log=workflow_trace)
 
 
-def set_flow_node_output_mode(
+async def set_flow_node_output_mode(
     variable_pool: VariablePool,
     node_instance: BaseNode,
     span: Span,
@@ -441,4 +441,6 @@ def set_flow_node_output_mode(
                     variable_pool.system_params.set(
                         ParamKey.FlowOutputMode, output_mode, node_id=node_id
                     )
-                    span.add_info_events({"output_mode": f"{node_id}: {output_mode}"})
+                    await span.add_info_events_async(
+                        {"output_mode": f"{node_id}: {output_mode}"}
+                    )

@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-print = functools.partial(print, flush=True)
+print = functools.partial(print, flush=True)  # pylint: disable=redefined-builtin
 
 
 def setup_python_path() -> None:
