@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import copy from 'copy-to-clipboard';
-import JSONPretty from 'react-json-view';
+import JsonView from 'react18-json-view';
+import 'react18-json-view/src/style.css';
 import MarkdownRender from '@/components/markdown-render';
 import { ResultNodeData, FlowResultType } from '@/components/workflow/types';
 import { Icons } from '@/components/workflow/icons';
@@ -44,7 +45,7 @@ const InputBlock = ({
   <div className="flex flex-col rounded-lg bg-[#F7F7F7]">
     <BlockHeader title="Input" onCopy={onCopy} />
     <div className="p-3.5">
-      <JSONPretty name={false} src={data} theme="rjv-default" />
+      <JsonView src={data} collapsed={2} />
     </div>
   </div>
 );
@@ -60,7 +61,7 @@ const OutputBlock = ({
   <div className="flex flex-col rounded-lg bg-[#F7F7F7]">
     <BlockHeader title="Output" onCopy={onCopy} />
     <div className="p-3.5">
-      <JSONPretty name={false} src={data} theme="rjv-default" />
+      <JsonView src={data} collapsed={2} />
     </div>
   </div>
 );

@@ -73,7 +73,7 @@
     "react-error-boundary": "^5.0.0",
     "react-i18next": "^14.1.0",
     "react-intl": "^7.1.11",
-    "react-json-view": "1.21.3",
+    "react18-json-view": "^0.2.9",
     "react-markdown": "^9.0.1",
     "react-qr-code": "^2.0.18",
     "react-router": "^7.7.0",

@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, memo } from 'react';
-import JSONPretty from 'react-json-view';
+import JsonView from 'react18-json-view';
+import 'react18-json-view/src/style.css';
 import { cloneDeep } from 'lodash';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { message } from 'antd';
@@ -196,7 +197,7 @@ function InputResult({ input, copyData }): React.ReactElement {
         />
       </div>
       <div className="p-4">
-        <JSONPretty name={false} src={input} theme="rjv-default" />
+        <JsonView src={input} collapsed={2} />
       </div>
     </div>
   );
@@ -223,7 +224,7 @@ function OutputResult({ output, copyData }): React.ReactElement {
       onCopy={() => copyData(JSON.stringify(output))}
     >
       <div className="p-4">
-        <JSONPretty name={false} src={output} theme="rjv-default" />
+        <JsonView src={output} collapsed={2} />
       </div>
     </ResultBlock>
   );
@@ -277,7 +278,7 @@ function ErrorOutputsResult({ errorOutputs, copyData }): React.ReactElement {
       onCopy={() => copyData(JSON.stringify(errorOutputs))}
     >
       <div className="p-4">
-        <JSONPretty name={false} src={errorOutputs} theme="rjv-default" />
+        <JsonView src={errorOutputs} collapsed={2} />
       </div>
     </ResultBlock>
   );

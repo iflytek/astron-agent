@@ -10,7 +10,8 @@ import { Image, message } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { isJSON } from '@/utils';
 import MarkdownRender from '@/components/markdown-render';
-import JSONPretty from 'react-json-view';
+import JsonView from 'react18-json-view';
+import 'react18-json-view/src/style.css';
 import copy from 'copy-to-clipboard';
 import { useSearchParams } from 'react-router-dom';
 import { useMemoizedFn } from 'ahooks';
@@ -177,10 +178,9 @@ const MessageReplyContent = ({
             )}
             {isJSON(chat?.content || '') ? (
               <div onClick={e => e.stopPropagation()}>
-                <JSONPretty
-                  name={false}
+                <JsonView
                   src={JSON.parse(chat?.content || '{}')}
-                  theme="rjv-default"
+                  collapsed={2}
                 />
               </div>
             ) : (
