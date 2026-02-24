@@ -24,6 +24,8 @@ class ErrCode(Enum):
     )
     SERVER_VALIDATE_ERR = (30203, "Tool request hostname is blacklisted")
     APP_ID_VALIDATE_ERR = (30204, "App ID validation failed")
+    OAUTH2_TOKEN_ERR = (30205, "OAuth2 token retrieval failed")
+    JWT_VALIDATE_ERR = (30206, "JWT validation failed")
 
     OPENAPI_SCHEMA_VALIDATE_ERR = (30300, "OpenAPI protocol parsing failed")
     OPENAPI_SCHEMA_BODY_TYPE_ERR = (30301, "Body type not supported")

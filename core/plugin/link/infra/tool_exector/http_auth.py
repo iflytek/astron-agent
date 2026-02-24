@@ -5,6 +5,7 @@ HTTP Authentication utilities for API access.
 This module provides functions and classes for generating authentication
 tokens, signatures, and headers for HTTP and WebSocket API requests.
 """
+
 import base64
 import hashlib
 import hmac

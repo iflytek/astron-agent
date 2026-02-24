@@ -93,10 +93,11 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             }
 
             // 3. Check if version already exists
-//            if (isVersionExists(botId, versionName)) {
-//                log.info("Version already exists, skipping publish: botId={}, versionName={}", botId, versionName);
-//                return createSuccessResponse(null, versionName);
-//            }
+            // if (isVersionExists(botId, versionName)) {
+            // log.info("Version already exists, skipping publish: botId={}, versionName={}", botId,
+            // versionName);
+            // return createSuccessResponse(null, versionName);
+            // }
 
             // 4. Create workflow version record
             WorkflowReleaseRequestDto request = new WorkflowReleaseRequestDto();

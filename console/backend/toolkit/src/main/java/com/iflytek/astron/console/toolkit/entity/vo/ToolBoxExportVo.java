@@ -5,8 +5,7 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * ToolBox Export/Import VO
- * Used for plugin export and import functionality
+ * ToolBox Export/Import VO Used for plugin export and import functionality
  */
 @Data
 public class ToolBoxExportVo implements Serializable {

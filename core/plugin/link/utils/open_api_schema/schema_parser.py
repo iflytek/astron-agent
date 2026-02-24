@@ -245,12 +245,15 @@ class OpenapiSchemaParser:
         request_body_schema = None
         security_info = None
         security_type = None
+        security_scopes = []
 
         # Process security
         if "security" in interface["operation"]:
             security_info = api_key_info
-            for k, _ in interface["operation"]["security"][0].items():
+            for k, v in interface["operation"]["security"][0].items():
                 security_type = k
+                if isinstance(v, list):
+                    security_scopes = [str(scope) for scope in v]
 
         # Process parameters
         if "parameters" in interface["operation"]:
@@ -283,6 +286,7 @@ class OpenapiSchemaParser:
             "request_body_schema": request_body_schema,
             "security_info": security_info,
             "security_type": security_type,
+            "security_scopes": security_scopes,
         }
 
     def _build_operation_bundle(
@@ -329,6 +333,7 @@ class OpenapiSchemaParser:
             ),
             "security": schemas["security_info"],
             "security_type": schemas["security_type"],
+            "security_scopes": schemas["security_scopes"],
         }
 
         return operation_id, operation_bundle

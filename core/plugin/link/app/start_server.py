@@ -21,6 +21,7 @@ from plugin.link.utils.json_schemas.read_json_schemas import (
     load_update_tool_schema,
 )
 from plugin.link.utils.log.logger import configure
+from plugin.link.utils.security.jwt_auth_middleware import register_jwt_auth_middleware
 from plugin.link.utils.sid.sid_generator2 import spark_link_init_sid
 
 print = functools.partial(print, flush=True)
@@ -156,6 +157,7 @@ def spark_link_app() -> FastAPI:
     spark_link_init_sid()
     init_kafka_send_workers()
     app = FastAPI()
+    register_jwt_auth_middleware(app)
     app.include_router(router)
     logger.error("init success")
     return app

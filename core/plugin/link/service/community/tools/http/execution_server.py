@@ -33,6 +33,11 @@ from plugin.link.domain.models.manager import get_db_engine
 from plugin.link.exceptions.sparklink_exceptions import SparkLinkBaseException
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
 from plugin.link.infra.tool_exector.process import HttpRun
+from plugin.link.utils.auth.oauth2_client import (
+    OAuth2ClientConfig,
+    OAuth2TokenError,
+    get_client_credentials_token,
+)
 from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.json_schemas.read_json_schemas import (
     get_http_run_schema,
@@ -276,32 +281,232 @@ async def handle_general_exception(
     )
 
 
-def process_authentication(
+def _resolve_auth_config_value(
+    api_key_info: Dict[str, Any],
+    direct_key: str,
+    env_key_name: str,
+    fallback: str,
+    fallback_env_key: str = "",
+) -> str:
+    """Resolve auth config value from direct schema value and env fallbacks."""
+    direct_value = api_key_info.get(direct_key)
+    if direct_value:
+        return str(direct_value)
+
+    dynamic_env_name = api_key_info.get(env_key_name)
+    if dynamic_env_name:
+        dynamic_value = os.getenv(str(dynamic_env_name), "")
+        if dynamic_value:
+            return dynamic_value
+
+    if fallback_env_key:
+        global_env_name = os.getenv(fallback_env_key, "")
+        if global_env_name:
+            global_dynamic_value = os.getenv(global_env_name, "")
+            if global_dynamic_value:
+                return global_dynamic_value
+
+    return os.getenv(fallback, "")
+
+
+def _apply_api_key_auth(
+    api_key_info: Dict[str, Any],
+    message_header: Dict[str, Any],
+    message_query: Dict[str, Any],
+) -> None:
+    """Apply apiKey auth information into request header/query."""
+    auth_name = api_key_info.get("name", None)
+    auth_value = api_key_info.get("x-value", None)
+    if not auth_name or not auth_value:
+        raise SparkLinkBaseException(
+            code=ErrCode.OPENAPI_AUTH_TYPE_ERR.code,
+            err_pre=ErrCode.OPENAPI_AUTH_TYPE_ERR.msg,
+            err=f"Invalid apiKey configuration: auth name:{auth_name}, auth value:{auth_value}",
+        )
+
+    api_key_dict = {auth_name: auth_value}
+    location = api_key_info.get("in")
+    if location == "header":
+        message_header.update(api_key_dict)
+    elif location == "query":
+        message_query.update(api_key_dict)
+
+
+def _build_oauth2_runtime_values(
+    operation_id_schema: Dict[str, Any], api_key_info: Dict[str, Any]
+) -> Tuple[OAuth2ClientConfig, str, str, str]:
+    """Build OAuth2 runtime values from schema and env fallbacks."""
+    flows = api_key_info.get("flows", {})
+    client_credentials = flows.get("clientCredentials", {})
+
+    token_url = _resolve_auth_config_value(
+        api_key_info,
+        "x-token-url",
+        "x-token-url-env",
+        const.OAUTH2_TOKEN_URL_KEY,
+        const.OAUTH2_TOKEN_URL_ENV_KEY,
+    ) or str(client_credentials.get("tokenUrl", ""))
+    client_id = _resolve_auth_config_value(
+        api_key_info,
+        "x-client-id",
+        "x-client-id-env",
+        const.OAUTH2_CLIENT_ID_KEY,
+        const.OAUTH2_CLIENT_ID_ENV_KEY,
+    )
+    client_secret = _resolve_auth_config_value(
+        api_key_info,
+        "x-client-secret",
+        "x-client-secret-env",
+        const.OAUTH2_CLIENT_SECRET_KEY,
+        const.OAUTH2_CLIENT_SECRET_ENV_KEY,
+    )
+    audience = _resolve_auth_config_value(
+        api_key_info,
+        "x-audience",
+        "x-audience-env",
+        const.OAUTH2_AUDIENCE_KEY,
+        const.OAUTH2_AUDIENCE_ENV_KEY,
+    )
+    access_token = _resolve_auth_config_value(
+        api_key_info,
+        "x-access-token",
+        "x-access-token-env",
+        "",
+    )
+    token_type = (
+        _resolve_auth_config_value(
+            api_key_info,
+            "x-token-type",
+            "x-token-type-env",
+            "",
+        )
+        or "Bearer"
+    )
+    grant_type = (
+        _resolve_auth_config_value(
+            api_key_info,
+            "x-grant-type",
+            "x-grant-type-env",
+            "",
+        )
+        or "client_credentials"
+    )
+    token_endpoint_auth_method = (
+        _resolve_auth_config_value(
+            api_key_info,
+            "x-token-endpoint-auth-method",
+            "x-token-endpoint-auth-method-env",
+            "",
+        )
+        or "client_secret_post"
+    )
+    scope = _resolve_auth_config_value(
+        api_key_info,
+        "x-scope",
+        "x-scope-env",
+        const.OAUTH2_SCOPE_KEY,
+        const.OAUTH2_SCOPE_ENV_KEY,
+    )
+    if not scope:
+        required_scopes = operation_id_schema.get("security_scopes", [])
+        if required_scopes:
+            scope = " ".join(required_scopes)
+
+    oauth2_config = OAuth2ClientConfig(
+        token_url=token_url,
+        client_id=client_id,
+        client_secret=client_secret,
+        audience=audience,
+        scope=scope,
+        grant_type=grant_type,
+        token_endpoint_auth_method=token_endpoint_auth_method,
+    )
+    return oauth2_config, access_token, token_type, grant_type
+
+
+async def _apply_oauth2_auth(
+    operation_id_schema: Dict[str, Any],
+    api_key_info: Dict[str, Any],
+    message_header: Dict[str, Any],
+    tool_id: str,
+) -> None:
+    """Apply OAuth2 auth information into request header."""
+    oauth2_config, access_token, token_type, grant_type = _build_oauth2_runtime_values(
+        operation_id_schema, api_key_info
+    )
+
+    if access_token:
+        message_header.update({"Authorization": f"{token_type} {access_token}"})
+        return
+
+    if grant_type != "client_credentials":
+        raise SparkLinkBaseException(
+            code=ErrCode.OAUTH2_TOKEN_ERR.code,
+            err_pre=ErrCode.OAUTH2_TOKEN_ERR.msg,
+            err=(
+                "Only client_credentials is supported for token acquisition, "
+                "please provide x-access-token/x-access-token-env for other grant types"
+            ),
+        )
+
+    try:
+        access_token = await get_client_credentials_token(oauth2_config)
+    except OAuth2TokenError as err:
+        raise SparkLinkBaseException(
+            code=ErrCode.OAUTH2_TOKEN_ERR.code,
+            err_pre=ErrCode.OAUTH2_TOKEN_ERR.msg,
+            err=f"tool_id={tool_id}, detail={err}",
+        )
+
+    message_header.update({"Authorization": f"{token_type} {access_token}"})
+
+
+async def process_authentication(
     operation_id_schema: Dict[str, Any],
     message_header: Dict[str, Any],
     message_query: Dict[str, Any],
     tool_id: str,
 ) -> None:
-    """Process authentication for the request."""
-    if not operation_id_schema["security"]:
+    """Process authentication for an HTTP tool request."""
+    security_schema = operation_id_schema.get("security") or {}
+    if not security_schema:
         return
 
-    security_type = operation_id_schema["security_type"]
-    if security_type not in operation_id_schema["security"]:
-        raise Exception(f"Security type {security_type} not found in security schema")
+    security_type = operation_id_schema.get("security_type")
+    if not security_type or security_type not in security_schema:
+        raise SparkLinkBaseException(
+            code=ErrCode.OPENAPI_AUTH_TYPE_ERR.code,
+            err_pre=ErrCode.OPENAPI_AUTH_TYPE_ERR.msg,
+            err=f"Security type {security_type} not found in security schema",
+        )
 
-    api_key_info = operation_id_schema["security"].get(security_type)
-    auth_name = api_key_info.get("name", None)
-    auth_value = api_key_info.get("x-value", None)
-    if not auth_name or not auth_value:
-        raise Exception(f"auth name:{auth_name}, auth value:{auth_value}")
+    api_key_info = security_schema.get(security_type) or {}
+    auth_type = str(api_key_info.get("type", "")).strip()
 
-    if api_key_info.get("type") == "apiKey":
-        api_key_dict = {auth_name: auth_value}
-        if api_key_info.get("in") == "header":
-            message_header.update(api_key_dict)
-        elif api_key_info.get("in") == "query":
-            message_query.update(api_key_dict)
+    if not auth_type:
+        raise SparkLinkBaseException(
+            code=ErrCode.OPENAPI_AUTH_TYPE_ERR.code,
+            err_pre=ErrCode.OPENAPI_AUTH_TYPE_ERR.msg,
+            err=(
+                f"Security type {security_type} missing field 'type' in security schema"
+            ),
+        )
+
+    if auth_type == "apiKey":
+        _apply_api_key_auth(api_key_info, message_header, message_query)
+        return
+
+    if auth_type == "oauth2":
+        await _apply_oauth2_auth(
+            operation_id_schema, api_key_info, message_header, tool_id
+        )
+        return
+
+    raise SparkLinkBaseException(
+        code=ErrCode.OPENAPI_AUTH_TYPE_ERR.code,
+        err_pre=ErrCode.OPENAPI_AUTH_TYPE_ERR.msg,
+        err=f"Unsupported auth type {auth_type} in security schema",
+    )
 
 
 def validate_response_schema(
@@ -669,22 +874,9 @@ async def handle_request_execution(
         message = run_params_list["payload"]["message"]
         message_header, message_query, path, body = process_message_params(message)
 
-        try:
-            process_authentication(
-                operation_id_schema, message_header, message_query, params["tool_id"]
-            )
-        except Exception as auth_err:
-            if "Security type" in str(auth_err):
-                return await handle_custom_error(
-                    ErrCode.OPENAPI_AUTH_TYPE_ERR,
-                    ErrCode.OPENAPI_AUTH_TYPE_ERR.msg,
-                    span_context,
-                    node_trace,
-                    m,
-                    params["tool_id"],
-                    tool_type,
-                )
-            raise
+        await process_authentication(
+            operation_id_schema, message_header, message_query, params["tool_id"]
+        )
 
         http_inst = setup_http_request(
             operation_id_schema,
