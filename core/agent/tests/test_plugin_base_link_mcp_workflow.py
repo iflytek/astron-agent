@@ -127,6 +127,348 @@ class TestLinkPluginRunner:
         # Empty payload returns empty string
         assert LinkPluginRunner.dumps({}) == ""
 
+    def test_collect_hidden_json_paths(self, runner: LinkPluginRunner) -> None:
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "visible": {"type": "string", "x-display": True},
+                "hidden": {"type": "string", "x-display": False},
+                "nested": {
+                    "type": "object",
+                    "properties": {
+                        "inner_hidden": {"type": "string", "x-display": False},
+                        "inner_visible": {"type": "number", "x-display": True},
+                    },
+                },
+            },
+        }
+
+        hidden_paths = runner.collect_hidden_json_paths(response_schema)
+        assert ["hidden"] in hidden_paths
+        assert ["nested", "inner_hidden"] in hidden_paths
+
+    def test_pop_hidden_fields_supports_array_path(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        payload = {
+            "items": [
+                {"id": 1, "secret": "a"},
+                {"id": 2, "secret": "b"},
+            ],
+            "secret": "root",
+        }
+        filtered = runner.pop_hidden_fields(
+            payload,
+            [["secret"], ["items", "*", "secret"]],
+        )
+
+        assert "secret" not in filtered
+        assert filtered["items"][0] == {"id": 1}
+        assert filtered["items"][1] == {"id": 2}
+
+    def test_filter_response_by_schema_validate_and_filter(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "x-display": True},
+                "secret": {"type": "string", "x-display": False},
+            },
+            "required": ["name"],
+            "additionalProperties": True,
+        }
+
+        payload = {"name": "ok", "secret": "hidden", "not_declared": "keep"}
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert filtered == {"name": "ok", "not_declared": "keep"}
+
+    def test_filter_response_by_schema_on_validation_failure(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "must": {"type": "string", "x-display": True},
+                "secret": {"type": "string", "x-display": False},
+            },
+            "required": ["must"],
+            "additionalProperties": True,
+        }
+
+        payload = {"secret": "hidden", "legacy_field": "keep"}
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert filtered == {"legacy_field": "keep"}
+
+    def test_get_response_json_schema(self, runner: LinkPluginRunner) -> None:
+        runner.method_schema = {
+            "responses": {
+                "200": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string", "x-display": True}
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        schema = runner.get_response_json_schema()
+        assert schema.get("type") == "object"
+        assert "name" in schema.get("properties", {})
+
+    def test_filter_object_becomes_empty_dict_when_all_children_hidden(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "x-display": True},
+                "profile": {
+                    "type": "object",
+                    "properties": {
+                        "private_a": {"type": "string", "x-display": False},
+                        "private_b": {"type": "string", "x-display": False},
+                    },
+                },
+            },
+            "additionalProperties": True,
+        }
+
+        payload = {
+            "name": "ok",
+            "profile": {"private_a": "a", "private_b": "b"},
+        }
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert "profile" in filtered
+        assert filtered["profile"] == {}
+
+    def test_filter_array_item_becomes_empty_dict_when_all_children_hidden(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "private": {"type": "string", "x-display": False}
+                        },
+                    },
+                }
+            },
+            "additionalProperties": True,
+        }
+
+        payload = {
+            "items": [
+                {"private": "a"},
+                {"private": "b"},
+            ]
+        }
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert filtered["items"] == [{}, {}]
+
+    def test_filter_remove_primitive_field_but_keep_container_empty_value(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "secret": {"type": "string", "x-display": False},
+                "obj": {
+                    "type": "object",
+                    "properties": {"hidden": {"type": "string", "x-display": False}},
+                },
+                "arr": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "hidden": {"type": "string", "x-display": False}
+                        },
+                    },
+                },
+            },
+            "additionalProperties": True,
+        }
+
+        payload = {
+            "secret": "x",
+            "obj": {"hidden": "x"},
+            "arr": [{"hidden": "a"}, {"hidden": "b"}],
+        }
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert "secret" not in filtered
+        assert filtered["obj"] == {}
+        assert filtered["arr"] == [{}, {}]
+
+    def test_filter_deep_nested_array_object_single_pass_behavior(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "x-display": True},
+                            "members": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "public": {
+                                            "type": "string",
+                                            "x-display": True,
+                                        },
+                                        "private": {
+                                            "type": "string",
+                                            "x-display": False,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                }
+            },
+            "additionalProperties": True,
+        }
+
+        payload = {
+            "groups": [
+                {
+                    "name": "g1",
+                    "members": [
+                        {"public": "p1", "private": "s1"},
+                        {"private": "s2"},
+                    ],
+                }
+            ]
+        }
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert filtered["groups"][0]["members"][0] == {"public": "p1"}
+        assert filtered["groups"][0]["members"][1] == {}
+
+    def test_filter_parent_hidden_object_removed_even_if_child_visible(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "object",
+                    "properties": {
+                        "geo": {
+                            "type": "object",
+                            "x-display": False,
+                            "properties": {
+                                "lat": {"type": "string", "x-display": True},
+                                "lng": {"type": "string", "x-display": False},
+                            },
+                        }
+                    },
+                }
+            },
+            "additionalProperties": True,
+        }
+
+        payload = {"address": {"geo": {"lat": "-37.3159", "lng": "81.1496"}}}
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert filtered == {"address": {}}
+
+    def test_filter_parent_hidden_array_removed_even_if_items_visible(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "object",
+                    "properties": {
+                        "tags": {
+                            "type": "array",
+                            "x-display": False,
+                            "items": {"type": "string", "x-display": True},
+                        }
+                    },
+                }
+            },
+            "additionalProperties": True,
+        }
+
+        payload = {"address": {"tags": ["a", "b"]}}
+        filtered = runner.filter_response_by_schema(payload, response_schema, span)
+
+        assert filtered == {"address": {}}
+
+    def test_filter_can_restore_field_after_toggle_to_visible(
+        self, runner: LinkPluginRunner
+    ) -> None:
+        span = Span(app_id="app", uid="u")
+        payload = {"address": {"geo": {"lat": "-37.3159", "lng": "81.1496"}}}
+
+        hidden_schema = {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "object",
+                    "properties": {"geo": {"type": "object", "x-display": False}},
+                }
+            },
+            "additionalProperties": True,
+        }
+        visible_schema = {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "object",
+                    "properties": {
+                        "geo": {
+                            "type": "object",
+                            "x-display": True,
+                            "properties": {
+                                "lat": {"type": "string", "x-display": True},
+                                "lng": {"type": "string", "x-display": True},
+                            },
+                        }
+                    },
+                }
+            },
+            "additionalProperties": True,
+        }
+
+        first = runner.filter_response_by_schema(payload, hidden_schema, span)
+        second = runner.filter_response_by_schema(payload, visible_schema, span)
+
+        assert first == {"address": {}}
+        assert second["address"]["geo"] == {"lat": "-37.3159", "lng": "81.1496"}
+
 
 class TestLinkPluginFactoryParseSchemas:
     """Test LinkPluginFactory schema parsing logic (without real link service request)"""

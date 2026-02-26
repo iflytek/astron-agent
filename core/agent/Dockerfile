@@ -14,6 +14,7 @@ COPY core/agent/uv.lock ./
 RUN uv sync -i https://pypi.tuna.tsinghua.edu.cn/simple/
 
 COPY core/common ./common
+COPY core/plugin ./plugin
 COPY core/agent ./agent
 
 CMD ["uv", "run", "agent/main.py"]

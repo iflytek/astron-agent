@@ -252,7 +252,10 @@ services:
 
   # Link Plugin Service
   core-link:
-    image: ghcr.io/iflytek/astron-agent/core-link:${ASTRON_AGENT_VERSION:-latest}
+    image: astron-agent/core-link:local
+    build:
+      context: ../..
+      dockerfile: core/plugin/link/Dockerfile
     container_name: astron-agent-core-link
     environment:
       SERVICE_PORT: "${CORE_LINK_PORT:-18888}"
@@ -321,7 +324,10 @@ services:
 
   # Agent Service
   core-agent:
-    image: ghcr.io/iflytek/astron-agent/core-agent:${ASTRON_AGENT_VERSION:-latest}
+    image: astron-agent/core-agent:local
+    build:
+      context: ../..
+      dockerfile: core/agent/Dockerfile
     container_name: astron-agent-core-agent
     environment:
       SERVICE_LOCATION: "${SERVICE_LOCATION:-hf}"
@@ -417,7 +423,10 @@ services:
 
   # Workflow Service
   core-workflow:
-    image: ghcr.io/iflytek/astron-agent/core-workflow:${ASTRON_AGENT_VERSION:-latest}
+    image: astron-agent/core-workflow:local
+    build:
+      context: ../..
+      dockerfile: core/workflow/Dockerfile
     container_name: astron-agent-core-workflow
     environment:
       RUNTIME_ENV: "${RUNTIME_ENV:-dev}"

@@ -29,6 +29,7 @@ RUN uv sync -i https://mirrors.aliyun.com/pypi/simple/
 # Copy the entire workflow source code to the container
 COPY core/workflow ./workflow
 COPY core/common ./common
+COPY core/plugin ./plugin
 
 # Set the default command to run the main application using UV
 CMD ["uv", "run", "workflow/main.py"]

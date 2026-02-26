@@ -1,8 +1,10 @@
 import asyncio
 import json
 import os
+import sys
 import time
 from base64 import b64encode
+from pathlib import Path
 from typing import Any, List, Optional, Union
 
 import aiohttp
@@ -11,6 +13,14 @@ from pydantic import BaseModel, Field
 
 from agent.exceptions.plugin_exc import GetToolSchemaExc, RunToolExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
+
+try:
+    from plugin.link.utils.open_api_schema.response_filter import ResponseSchemaFilter
+except ModuleNotFoundError:
+    CORE_DIR = Path(__file__).resolve().parents[3]
+    if str(CORE_DIR) not in sys.path:
+        sys.path.insert(0, str(CORE_DIR))
+    from plugin.link.utils.open_api_schema.response_filter import ResponseSchemaFilter
 
 
 class LinkPluginRunner(BaseModel):
@@ -99,6 +109,56 @@ class LinkPluginRunner(BaseModel):
             return b64encode(json.dumps(payload, ensure_ascii=True).encode()).decode()
         return ""
 
+    def get_response_json_schema(self) -> dict[str, Any]:
+        return ResponseSchemaFilter.extract_response_json_schema(self.method_schema)
+
+    @classmethod
+    def collect_hidden_json_paths(
+        cls,
+        schema: dict[str, Any],
+        current_path: Optional[list[str]] = None,
+    ) -> list[list[str]]:
+        return ResponseSchemaFilter.collect_hidden_json_paths(schema, current_path)
+
+    @classmethod
+    def pop_hidden_fields(
+        cls, payload: Any, need_be_poped_list: list[list[str]]
+    ) -> Any:
+        return ResponseSchemaFilter.pop_hidden_fields(payload, need_be_poped_list)
+
+    @staticmethod
+    def validate_response(payload: Any, response_schema: dict[str, Any]) -> bool:
+        return ResponseSchemaFilter.validate_response(payload, response_schema)
+
+    def filter_response_by_schema(
+        self, payload: Any, response_schema: dict[str, Any], span: Span
+    ) -> Any:
+        """Filter tool response by OpenAPI schema `x-display` configuration.
+
+        Flow:
+        1. Collect hidden field paths from response schema.
+        2. Validate original payload and record warning on failure.
+        3. Remove hidden fields by json path and return filtered payload.
+        """
+        if not response_schema:
+            return payload
+
+        hidden_json_paths = self.collect_hidden_json_paths(response_schema)
+        if not hidden_json_paths:
+            return payload
+
+        is_valid = self.validate_response(payload, response_schema)
+        if not is_valid:
+            span.add_info_events(
+                attributes={
+                    "link-plugin-run-filter-warning": (
+                        "response validation failed, continue filtering by x-display"
+                    )
+                }
+            )
+
+        return self.pop_hidden_fields(payload, hidden_json_paths)
+
     async def run(self, action_input: dict[str, Any], span: Span) -> PluginResponse:
         """Call link"""
         with span.start("Run") as sp:
@@ -162,6 +222,12 @@ class LinkPluginRunner(BaseModel):
                         response.raise_for_status()
                         if response.status == 200:
                             result = await response.json()
+                            response_schema = self.get_response_json_schema()
+                            result = self.filter_response_by_schema(
+                                result,
+                                response_schema,
+                                sp,
+                            )
                             sp.add_info_events(
                                 attributes={
                                     "link-plugin-run-outputs": json.dumps(

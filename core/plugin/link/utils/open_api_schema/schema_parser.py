@@ -154,6 +154,83 @@ class OpenapiSchemaParser:
         return properties
 
     @classmethod
+    def extract_response_json_schema(
+        cls, method_schema: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract response JSON schema from OpenAPI method schema.
+
+        Priority: 200/201/202/203/204/default -> remaining status codes.
+        Prefer `application/json`; fallback to first media type with schema.
+        """
+        responses = cls._get_responses_map(method_schema)
+        if responses is None:
+            return {}
+
+        candidates = cls._ordered_response_candidates(responses)
+        for response_schema in candidates:
+            schema = cls._extract_schema_from_response(response_schema)
+            if schema is not None:
+                return schema
+
+        return {}
+
+    @classmethod
+    def _get_responses_map(
+        cls, method_schema: Dict[str, Any] | Any
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(method_schema, dict):
+            return None
+
+        responses = method_schema.get("responses", {})
+        if not isinstance(responses, dict):
+            return None
+
+        return responses
+
+    @classmethod
+    def _ordered_response_candidates(
+        cls, responses: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        preferred_status_codes = ["200", "201", "202", "203", "204", "default"]
+        response_candidates: List[Dict[str, Any]] = []
+
+        for status_code in preferred_status_codes:
+            response_schema = responses.get(status_code)
+            if isinstance(response_schema, dict):
+                response_candidates.append(response_schema)
+
+        for status_code, response_schema in responses.items():
+            if status_code in preferred_status_codes:
+                continue
+            if isinstance(response_schema, dict):
+                response_candidates.append(response_schema)
+
+        return response_candidates
+
+    @classmethod
+    def _extract_schema_from_response(
+        cls, response_schema: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        content = response_schema.get("content", {})
+        if not isinstance(content, dict):
+            return None
+
+        app_json_content = content.get("application/json")
+        if isinstance(app_json_content, dict):
+            app_json_schema = app_json_content.get("schema")
+            if isinstance(app_json_schema, dict):
+                return app_json_schema
+
+        for media_schema in content.values():
+            if not isinstance(media_schema, dict):
+                continue
+            schema = media_schema.get("schema")
+            if isinstance(schema, dict):
+                return schema
+
+        return None
+
+    @classmethod
     def schema_body_json_parser(
         cls, body: Dict[str, Any], span: Optional[Span]
     ) -> Optional[Dict[str, Any]]:

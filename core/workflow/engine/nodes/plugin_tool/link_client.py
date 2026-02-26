@@ -1,12 +1,22 @@
 import json
+import sys
 import time
 from base64 import b64encode
+from pathlib import Path
 from typing import Any, Dict, List, Set, Tuple
 
 from workflow.exception.e import CustomException
 from workflow.exception.errors.code_convert import CodeConvert
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.trace.span import Span
+
+try:
+    from plugin.link.utils.open_api_schema.response_filter import ResponseSchemaFilter
+except ModuleNotFoundError:
+    CORE_DIR = Path(__file__).resolve().parents[4]
+    if str(CORE_DIR) not in sys.path:
+        sys.path.insert(0, str(CORE_DIR))
+    from plugin.link.utils.open_api_schema.response_filter import ResponseSchemaFilter
 
 
 class Tool:
@@ -168,6 +178,41 @@ class Tool:
             return b64encode(json.dumps(payload, ensure_ascii=True).encode()).decode()
         return payload
 
+    def get_response_json_schema(self) -> dict[str, Any]:
+        return ResponseSchemaFilter.extract_response_json_schema(self.method_schema)
+
+    @staticmethod
+    def validate_response(payload: Any, response_schema: dict[str, Any]) -> bool:
+        return ResponseSchemaFilter.validate_response(payload, response_schema)
+
+    async def filter_response_by_schema(
+        self,
+        payload: Any,
+        response_schema: dict[str, Any],
+        span: Span,
+    ) -> Any:
+        """Filter tool response payload by OpenAPI schema `x-display`."""
+        if not response_schema:
+            return payload
+
+        hidden_json_paths = ResponseSchemaFilter.collect_hidden_json_paths(
+            response_schema
+        )
+        if not hidden_json_paths:
+            return payload
+
+        is_valid = self.validate_response(payload, response_schema)
+        if not is_valid:
+            await span.add_info_events_async(
+                {
+                    "link-plugin-run-filter-warning": (
+                        "response validation failed, continue filtering by x-display"
+                    )
+                }
+            )
+
+        return ResponseSchemaFilter.pop_hidden_fields(payload, hidden_json_paths)
+
     async def run(
         self, action_input: dict, business_input: dict, span: Span, **kwargs: Any
     ) -> Dict[str, Any]:
@@ -316,7 +361,13 @@ class Tool:
             else:
                 # Extract and parse successful response
                 tool_response_text = link_response["payload"]["text"]["text"]
-                return json.loads(tool_response_text)
+                tool_response = json.loads(tool_response_text)
+                response_schema = self.get_response_json_schema()
+                return await self.filter_response_by_schema(
+                    tool_response,
+                    response_schema,
+                    link_tool_span,
+                )
 
 
 class Link:
