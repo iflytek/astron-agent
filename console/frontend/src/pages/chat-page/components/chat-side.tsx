@@ -95,11 +95,28 @@ const ChatSide: React.FC<ChatSideProps> = ({ botInfo }) => {
       };
     }
 
+    // 处理自定义模型：尝试从 advancedConfig 中获取模型名称
+    try {
+      if (botInfo?.advancedConfig) {
+        const advancedConfig = JSON.parse(botInfo.advancedConfig);
+        const modelName = advancedConfig?.model?.modelName;
+        if (modelName) {
+          return {
+            name: `${modelName} · ${t('chatPage.chatSide.toolCalling')}`,
+            tooltip: modelName,
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Failed to parse advancedConfig:', error);
+    }
+
+    // 如果无法获取自定义模型名称，默认显示星火大模型
     return {
       name: `${t('chatPage.chatSide.sparkModel')} · ${t('chatPage.chatSide.toolCalling')}`,
       tooltip: t('chatPage.chatSide.sparkModel'),
     };
-  }, [botInfo?.config, t]);
+  }, [botInfo?.config, botInfo?.advancedConfig, t]);
 
   // 获取唯一的工具配置
   const uniqueTools = useMemo((): ModelConfig[] => {
