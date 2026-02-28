@@ -252,7 +252,10 @@ services:
 
   # Link Plugin Service
   core-link:
-    image: ghcr.io/iflytek/astron-agent/core-link:${ASTRON_AGENT_VERSION:-latest}
+    build:
+      context: ../..
+      dockerfile: core/plugin/link/Dockerfile
+    image: astron-agent-core-link:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-core-link
     environment:
       SERVICE_PORT: "${CORE_LINK_PORT:-18888}"

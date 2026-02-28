@@ -36,6 +36,10 @@ from plugin.link.utils.json_schemas.read_json_schemas import (
     get_tool_debug_schema,
 )
 from plugin.link.utils.json_schemas.schema_validate import api_validate
+from plugin.link.utils.open_api_schema.response_filter import (
+    filter_response_by_x_display,
+    should_ignore_validation_error_by_x_display,
+)
 from plugin.link.utils.open_api_schema.schema_parser import OpenapiSchemaParser
 from plugin.link.utils.uid.generate_uid import new_uid
 
@@ -233,6 +237,9 @@ def validate_response_schema(
     errs = list(jsonschema.Draft7Validator(response_schema).iter_errors(result_json))
     er_msgs = []
     for err in errs:
+        if should_ignore_validation_error_by_x_display(err, response_schema):
+            continue
+
         err_msg = err.message
         if err_msg.startswith("None is not of type"):
             key_type = err_msg.split("None is not of type")[1]
@@ -614,6 +621,12 @@ async def handle_request_execution(
             open_api_schema,
         )
         result = await http_inst.do_call(span_context)
+        try:
+            result_json = json.loads(result)
+        except Exception:
+            result_json = result
+        result_json = filter_response_by_x_display(result_json, open_api_schema)
+        result = json.dumps(result_json, ensure_ascii=False)
 
         return await process_http_result(
             result,
@@ -801,6 +814,8 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
                     tool_id,
                     tool_type or "",
                 )
+
+            result_json = filter_response_by_x_display(result_json, openapi_schema)
 
             span_context.add_info_events({"before result": result})
             result = json.dumps(result_json, ensure_ascii=False)
