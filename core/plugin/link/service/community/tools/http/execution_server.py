@@ -463,6 +463,8 @@ async def process_http_result(
             tool_type,
         )
 
+    result_json = filter_response_by_x_display(result_json, open_api_schema)
+
     span_context.add_info_events({"before result": result})
     result = json.dumps(result_json, ensure_ascii=False)
     span_context.add_info_events({"after result": result})
@@ -625,8 +627,6 @@ async def handle_request_execution(
             result_json = json.loads(result)
         except Exception:
             result_json = result
-        result_json = filter_response_by_x_display(result_json, open_api_schema)
-        result = json.dumps(result_json, ensure_ascii=False)
 
         return await process_http_result(
             result,

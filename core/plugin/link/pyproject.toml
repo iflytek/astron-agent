@@ -41,5 +41,5 @@ dependencies = [
     "boto3>=1.40.53",
     "botocore>=1.40.53",
     "alembic==1.13.1",
-    "jsonpath-rw>=1.4.0",
+    "jsonpath-ng>=1.7.0",
 ]
