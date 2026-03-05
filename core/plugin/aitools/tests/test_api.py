@@ -8,12 +8,13 @@ This module tests API functionality including:
 """
 
 from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from plugin.aitools.api.decorators.api_meta import ApiMeta
-from plugin.aitools.api.middlewares.otlp_middleware import OTLPMiddleware
+from plugin.aitools.api.middlewares.otlp_middleware import OTLPMiddleware, get_host_ip
 from plugin.aitools.api.routes.register import register_api_services
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
@@ -48,6 +49,115 @@ def make_fake_service(
 ) -> FakeService:
     """Make a fake service with given path and method."""
     return FakeService(path=path, method=method)
+
+
+class TestGetHostIP:
+    """Test cases for get_host_ip function."""
+
+    @patch("socket.socket")
+    def test_get_host_ip_success(self, mock_socket: MagicMock) -> None:
+        """Test get_host_ip returns IP successfully."""
+        mock_sock = MagicMock()
+        mock_sock.getsockname.return_value = ("192.168.1.1", 12345)
+        mock_socket.return_value = mock_sock
+
+        result = get_host_ip()
+        assert result == "192.168.1.1"
+        mock_sock.connect.assert_called_once_with(("8.8.8.8", 80))
+        mock_sock.close.assert_called_once()
+
+    @patch("socket.socket")
+    def test_get_host_ip_exception(self, mock_socket: MagicMock) -> None:
+        """Test get_host_ip raises exception on error."""
+        mock_socket.side_effect = Exception("socket error")
+
+        with pytest.raises(Exception) as exc_info:
+            get_host_ip()
+        assert "failed to get local ip" in str(exc_info.value)
+
+
+class TestOTLPMiddleware:
+    """Test cases for OTLPMiddleware class."""
+
+    def test_middleware_init_default(self) -> None:
+        """Test middleware initialization with defaults."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(app)
+
+        assert middleware.enabled == "1"
+        assert middleware.sample_rate == 1.0
+        assert middleware.include_paths == ["/aitools/v1"]
+
+    def test_middleware_init_custom(self) -> None:
+        """Test middleware initialization with custom values."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(
+            app,
+            enabled="0",
+            sample_rate=0.5,
+            include_paths=["/custom"],
+        )
+
+        assert middleware.enabled == "0"
+        assert middleware.sample_rate == 0.5
+        assert middleware.include_paths == ["/custom"]
+
+    def test_should_skip_when_disabled(self) -> None:
+        """Test should_skip returns True when disabled."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(app, enabled="0")
+
+        mock_request = MagicMock()
+        mock_request.url.path = "/aitools/v1/test"
+
+        assert middleware._should_skip(mock_request) is True
+
+    def test_should_skip_with_sampling(self) -> None:
+        """Test should_skip with sampling."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(app, sample_rate=0.0)
+
+        mock_request = MagicMock()
+        mock_request.url.path = "/aitools/v1/test"
+
+        # With sample_rate=0, should always skip
+        result = middleware._should_skip(mock_request)
+        assert result is True
+
+    def test_should_skip_path_not_matching(self) -> None:
+        """Test should_skip when path doesn't match include_paths."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(app, include_paths=["/aitools/v1"])
+
+        mock_request = MagicMock()
+        mock_request.url.path = "/other/path"
+
+        assert middleware._should_skip(mock_request) is True
+
+    def test_should_skip_path_matching(self) -> None:
+        """Test should_skip when path matches include_paths."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(app, include_paths=["/aitools/v1"])
+
+        mock_request = MagicMock()
+        mock_request.url.path = "/aitools/v1/test"
+
+        assert middleware._should_skip(mock_request) is False
+
+    def test_build_span_attributes(self) -> None:
+        """Test _build_span_attributes builds correct attributes."""
+        app = MagicMock()
+        middleware = OTLPMiddleware(app)
+
+        mock_request = MagicMock()
+        mock_request.method = "POST"
+        mock_request.url = MagicMock()
+        mock_request.url.__str__ = MagicMock(return_value="http://test.com/path")
+
+        attrs = middleware._build_span_attributes(mock_request)
+
+        assert attrs["http.method"] == "POST"
+        assert "http.url" in attrs
 
 
 class TestOTLPMiddlewareWithDynamicRoutes:
@@ -157,4 +267,11 @@ class TestOTLPMiddlewareWithDynamicRoutes:
     def test_invalid_dynamic_route_returns_404(self, client: TestClient) -> None:
         """Invalid dynamic route returns 404"""
         resp = client.get("/aitools/v1/not-exist")
+        assert resp.status_code == 404
+
+    def test_http_exception_propagates(self, client: TestClient) -> None:
+        """HTTP exception propagates to FastAPI"""
+        # Note: HTTPException is not caught by OTLPMiddleware's exception handlers
+        # It propagates as a 404 response
+        resp = client.get("/http_error")
         assert resp.status_code == 404

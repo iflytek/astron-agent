@@ -3,96 +3,36 @@ Server startup module responsible for FastAPI application initialization and sta
 """
 
 import functools
-import json
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 import uvicorn
-from common.initialize.initialize import initialize_services
-from common.settings.polaris import ConfigFilter, Polaris
+from common.service.base import ServiceType
 from fastapi import APIRouter, FastAPI
 from plugin.aitools.api.middlewares.otlp_middleware import OTLPMiddleware
-
-# from plugin.aitools.api.route import app
 from plugin.aitools.api.routes.register import register_api_services
 from plugin.aitools.common.clients.aiohttp_client import close_aiohttp_session
-from plugin.aitools.common.log.logger import init_uvicorn_logger, log
+from plugin.aitools.common.log.logger import init_uvicorn_logger
 from plugin.aitools.const.const import OTLP_ENABLE_KEY, SERVICE_PORT_KEY
-from plugin.aitools.utils.otlp_utils import (
-    init_kafka_send_workers,
-    shutdown_kafka_workers,
-)
+from plugin.aitools.utils import aitools_service_manager, get_kafka_producer_service
+from plugin.aitools.utils.initialize import initialize_services
+from plugin.aitools.utils.polaris_utils import AIToolsPolaris
 
 print = functools.partial(print, flush=True)
+global_polaris = None
 
 
 class AIToolsServer:
 
     def start(self) -> None:
         init_uvicorn_logger()
-        self.load_polaris()
-        self.setup_server()
+        self.setup_watchdog()
         self.start_uvicorn()
 
     @staticmethod
-    def load_polaris() -> None:
-        """
-        Load remote configuration and override environment variables
-        """
-        use_polaris = os.getenv("USE_POLARIS", "false").lower()
-        print(f"🔧 Config: USE_POLARIS :{use_polaris}")
-        if use_polaris == "false":
-            return
-
-        base_url = os.getenv("POLARIS_URL")
-        project_name = os.getenv("PROJECT_NAME", "hy-spark-agent-builder")
-        cluster_group = os.getenv("POLARIS_CLUSTER", "")
-        service_name = os.getenv("SERVICE_NAME", "aitools")
-        version = os.getenv("VERSION", "1.0.0")
-        config_file = os.getenv("CONFIG_FILE", "config.env")
-        config_filter = ConfigFilter(
-            project_name=project_name,
-            cluster_group=cluster_group,
-            service_name=service_name,
-            version=version,
-            config_file=config_file,
-        )
-        username = os.getenv("POLARIS_USERNAME")
-        password = os.getenv("POLARIS_PASSWORD")
-
-        # Ensure required parameters are not None
-        if not base_url or not username or not password or not cluster_group:
-            return  # Skip polaris config if required params are missing
-
-        polaris = Polaris(base_url=base_url, username=username, password=password)
-        try:
-            _ = polaris.pull(
-                config_filter=config_filter,
-                retry_count=3,
-                retry_interval=5,
-                set_env=True,
-            )
-            log.info(f"Polaris config added: {json.dumps(_)}")
-        except (ConnectionError, TimeoutError, ValueError) as e:
-            print(
-                f"⚠️ Polaris configuration loading failed, "
-                f"continuing with local configuration: {e}"
-            )
-
-    @staticmethod
-    def setup_server() -> None:
+    def setup_watchdog() -> None:
         """Initialize service suite"""
-        need_init_services = [
-            "settings_service",
-            "oss_service",
-            "kafka_producer_service",
-            "otlp_sid_service",
-            "otlp_span_service",
-            "otlp_metric_service",
-        ]
-        initialize_services(services=need_init_services)
-
         try:
             import asyncio
 
@@ -108,6 +48,12 @@ class AIToolsServer:
 
     @staticmethod
     def start_uvicorn() -> None:
+        global global_polaris
+        if os.getenv("USE_POLARIS", "false").lower() == "true":
+            print("🔍 Polaris configuration watching enabled")
+            global_polaris = AIToolsPolaris()
+            global_polaris.pull_once()
+
         if not (service_port := os.getenv(SERVICE_PORT_KEY)):
             raise ValueError(f"Missing {SERVICE_PORT_KEY} environment variable")
 
@@ -129,13 +75,23 @@ class AIToolsServer:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
-        if os.getenv("KAFKA_ENABLE") == "1":
-            init_kafka_send_workers()
+        if global_polaris:
+            global_polaris.register_callback(aitools_service_manager.hot_load_callback)
+            global_polaris.start_watch()
+
+        initialize_services()
         yield
     finally:
         await close_aiohttp_session()
-        if os.getenv("KAFKA_ENABLE") == "1":
-            shutdown_kafka_workers()
+
+        if ServiceType.KAFKA_PRODUCER_SERVICE in aitools_service_manager.services:
+            kafka_service = get_kafka_producer_service()
+
+            if kafka_service:
+                await kafka_service.stop()
+
+        if global_polaris:
+            global_polaris.stop_watch()
 
 
 def aitools_app() -> FastAPI:
@@ -160,12 +116,6 @@ def aitools_app() -> FastAPI:
         sample_rate=sample_rate,
         include_paths=include_paths,
     )
-
-    # main_app = OTLPMiddleware(
-    #     app=main_app,
-    #     enabled=os.getenv(OTLP_ENABLE_KEY, "0"),
-    # )
-    # main_app.include_router(app)
 
     return main_app
 
