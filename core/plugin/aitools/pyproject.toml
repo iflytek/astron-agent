@@ -54,4 +54,16 @@ dependencies = [
     "boto3>=1.40.53",
     "anyio>=4.10.0",
     "pytest-asyncio>=1.2.0",
+    "aiokafka>=0.13.0",
+]
+
+[dependency-groups]
+dev = [
+    "black>=26.1.0",
+    "flake8>=7.3.0",
+    "isort>=8.0.0",
+    "mypy>=1.19.1",
+    "pylint>=4.0.5",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
 ]

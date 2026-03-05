@@ -6,9 +6,9 @@ from typing import Optional
 
 from common.otlp.trace.span import Span
 from common.otlp.trace.span_instance import SpanInstance
-from common.service import get_oss_service
 from plugin.aitools.common.clients.adapters import SpanLike
 from plugin.aitools.common.log.logger import log
+from plugin.aitools.utils import get_oss_service
 from starlette.concurrency import run_in_threadpool
 
 

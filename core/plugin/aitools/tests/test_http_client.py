@@ -210,3 +210,152 @@ class TestHttpClient:
 
         async with client.start() as c:
             assert c is client
+
+
+class TestAiohttpSession:
+    """Test cases for aiohttp session management."""
+
+    @pytest.mark.asyncio
+    async def test_get_aiohttp_session_creates_new(self) -> None:
+        """Test get_aiohttp_session creates new session."""
+        from plugin.aitools.common.clients import aiohttp_client
+
+        # Reset the global session
+        aiohttp_client._aiohttp_session = None
+
+        with patch("aiohttp.ClientSession") as mock_session_class:
+            mock_session = MagicMock()
+            mock_session.closed = False
+            mock_session_class.return_value = mock_session
+
+            session = await aiohttp_client.get_aiohttp_session()
+
+            assert session is mock_session
+            mock_session_class.assert_called_once()
+
+        # Cleanup
+        aiohttp_client._aiohttp_session = None
+
+    @pytest.mark.asyncio
+    async def test_get_aiohttp_session_reuses_existing(self) -> None:
+        """Test get_aiohttp_session reuses existing session."""
+        from plugin.aitools.common.clients import aiohttp_client
+
+        # Set up existing session
+        mock_session = MagicMock()
+        mock_session.closed = False
+        aiohttp_client._aiohttp_session = mock_session
+
+        session = await aiohttp_client.get_aiohttp_session()
+
+        assert session is mock_session
+
+        # Cleanup
+        aiohttp_client._aiohttp_session = None
+
+    @pytest.mark.asyncio
+    async def test_get_aiohttp_session_creates_new_when_closed(self) -> None:
+        """Test get_aiohttp_session creates new session when closed."""
+        from plugin.aitools.common.clients import aiohttp_client
+
+        # Set up closed session
+        mock_session = MagicMock()
+        mock_session.closed = True
+        aiohttp_client._aiohttp_session = mock_session
+
+        with patch("aiohttp.ClientSession") as mock_session_class:
+            new_session = MagicMock()
+            new_session.closed = False
+            mock_session_class.return_value = new_session
+
+            session = await aiohttp_client.get_aiohttp_session()
+
+            assert session is new_session
+
+        # Cleanup
+        aiohttp_client._aiohttp_session = None
+
+    @pytest.mark.asyncio
+    async def test_close_aiohttp_session(self) -> None:
+        """Test close_aiohttp_session closes session."""
+        from plugin.aitools.common.clients import aiohttp_client
+
+        # Set up existing session
+        mock_session = MagicMock()
+        mock_session.closed = False
+        mock_session.close = AsyncMock()
+        aiohttp_client._aiohttp_session = mock_session
+
+        await aiohttp_client.close_aiohttp_session()
+
+        mock_session.close.assert_called_once()
+        assert aiohttp_client._aiohttp_session is None
+
+    @pytest.mark.asyncio
+    async def test_close_aiohttp_session_already_closed(self) -> None:
+        """Test close_aiohttp_session when already closed."""
+        from plugin.aitools.common.clients import aiohttp_client
+
+        # Set up already closed session
+        mock_session = MagicMock()
+        mock_session.closed = True
+        aiohttp_client._aiohttp_session = mock_session
+
+        await aiohttp_client.close_aiohttp_session()
+
+        mock_session.close.assert_not_called()
+        assert aiohttp_client._aiohttp_session is None
+
+    @pytest.mark.asyncio
+    async def test_close_aiohttp_session_none(self) -> None:
+        """Test close_aiohttp_session when session is None."""
+        from plugin.aitools.common.clients import aiohttp_client
+
+        aiohttp_client._aiohttp_session = None
+
+        # Should not raise
+        await aiohttp_client.close_aiohttp_session()
+
+
+class TestHttpClientAuth:
+    """Test cases for HttpClient authentication."""
+
+    @pytest.mark.asyncio
+    async def test_auth_ase_success(self) -> None:
+        """Test ASE authentication builds URL successfully."""
+        from common.utils.hmac_auth import HMACAuth
+
+        with patch.object(HMACAuth, "build_auth_request_url") as mock_build:
+            mock_build.return_value = "http://authenticated.example.com"
+
+            client = HttpClient(
+                "GET",
+                "http://example.com",
+                auth="ASE",
+                api_key="key",
+                api_secret="secret",
+            )
+
+            # Access the private _auth method
+            client._auth()
+
+            mock_build.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_auth_ase_failure(self) -> None:
+        """Test ASE authentication failure."""
+        from common.utils.hmac_auth import HMACAuth
+
+        with patch.object(HMACAuth, "build_auth_request_url") as mock_build:
+            mock_build.return_value = None
+
+            client = HttpClient(
+                "GET",
+                "http://example.com",
+                auth="ASE",
+                api_key="key",
+                api_secret="secret",
+            )
+
+            with pytest.raises(ServiceException):
+                client._auth()
