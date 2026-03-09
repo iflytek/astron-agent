@@ -638,7 +638,10 @@ def change_dsl_triplets(
                 .get("nodeParam", {})
                 .get("source", ModelProviderEnum.XINGHUO.value)
             )
-            if model_source != ModelProviderEnum.OPENAI.value:
+            if model_source not in (
+                ModelProviderEnum.OPENAI.value,
+                ModelProviderEnum.MINIMAX.value,
+            ):
                 dsl["data"]["nodes"][index]["data"]["nodeParam"]["appId"] = app_id
                 dsl["data"]["nodes"][index]["data"]["nodeParam"]["apiKey"] = api_key
                 dsl["data"]["nodes"][index]["data"]["nodeParam"][

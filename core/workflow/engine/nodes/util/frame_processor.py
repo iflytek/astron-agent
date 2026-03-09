@@ -295,6 +295,7 @@ class FrameProcessorEnum(Enum):
 
     XINGHUO = ModelProviderEnum.XINGHUO.value
     OPENAI = ModelProviderEnum.OPENAI.value
+    MINIMAX = ModelProviderEnum.MINIMAX.value
     AGENT = NodeType.AGENT.value
     KNOWLEDGE_PRO = NodeType.KNOWLEDGE_PRO.value
     FLOW = NodeType.FLOW.value
@@ -312,6 +313,7 @@ class FrameProcessorFactory:
         FrameProcessorEnum.XINGHUO.value: AIPaaSFrameProcessor,
         FrameProcessorEnum.AGENT.value: AgentFrameProcessor,
         FrameProcessorEnum.OPENAI.value: OpenAIFrameProcessor,
+        FrameProcessorEnum.MINIMAX.value: OpenAIFrameProcessor,
         FrameProcessorEnum.KNOWLEDGE_PRO.value: KnowledgeProFrameProcessor,
         FrameProcessorEnum.FLOW.value: FlowFrameProcessor,
     }

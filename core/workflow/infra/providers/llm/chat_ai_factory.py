@@ -37,5 +37,7 @@ class ChatAIFactory:
             return SparkChatAi(**kwargs)
         elif model_source == ModelProviderEnum.OPENAI.value:
             return OpenAIChatAI(**kwargs)
+        elif model_source == ModelProviderEnum.MINIMAX.value:
+            return OpenAIChatAI(**kwargs)
         else:
             raise ValueError(f"Unsupported model source: {model_source}")

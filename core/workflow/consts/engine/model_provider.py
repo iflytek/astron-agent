@@ -17,3 +17,4 @@ class ModelProviderEnum(Enum):
 
     XINGHUO = "xinghuo"
     OPENAI = "openai"
+    MINIMAX = "minimax"
