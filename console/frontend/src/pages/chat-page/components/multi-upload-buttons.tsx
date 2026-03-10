@@ -79,6 +79,9 @@ const MultiUploadButtons: React.FC<MultiUploadButtonsProps> = ({
     isPopover?: boolean
   ): JSX.Element => {
     const { accept, limit, type, icon, name } = config;
+    if (!name || !icon || !type || !limit) {
+      return <></>;
+    }
     const currentCount = fileTypeCounts[name || type] || 0;
     const uploadMaxMB = icon === 'image' ? 20 : icon === 'video' ? 500 : 50;
     const isDisabled = currentCount >= (limit || 1);
