@@ -31,15 +31,15 @@ def setup_python_path() -> None:
     for directory in [project_root, parent_dir, grandparent_dir]:
         if Path(directory).exists() and str(directory) not in python_path:
             new_paths.append(str(directory))
+        if Path(directory).exists() and str(directory) not in sys.path:
+            sys.path.insert(0, str(directory))
 
     # If there is a path that needs to be added, update the PYTHONPATH.
     if new_paths:
         new_paths_str = os.pathsep.join(new_paths)
         if python_path:
-            os.environ["PYTHONPATH"] = (
-                f"{new_paths_str} \
+            os.environ["PYTHONPATH"] = f"{new_paths_str} \
                 {os.pathsep}{python_path}"
-            )
         else:
             os.environ["PYTHONPATH"] = new_paths_str
         print(f"🔧 PYTHONPATH: {os.environ['PYTHONPATH']}")
@@ -106,6 +106,10 @@ def main() -> None:
     # Load environment configuration
     config_file = Path(__file__).parent / "config.env"
     load_env_file(str(config_file))
+
+    # # Run database migration before starting the service
+    # from extensions.database_migration import run_database_migration
+    # run_database_migration()
 
     # Start service
     start_service()

@@ -4,27 +4,15 @@ from pathlib import Path
 from typing import Literal
 
 from loguru import logger
+from plugin.link.domain.entity.tool_schema import Tools  # noqa: F401
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.sql.schema import SchemaItem
 from sqlmodel import SQLModel
 
-from alembic import context  # type: ignore[attr-defined]
+from alembic import context
 
-alembic_env_path = Path(__file__).resolve()
-alembic_dir = alembic_env_path.parent
-link_dir = alembic_dir.parent
-plugin_dir = link_dir.parent
-project_root = plugin_dir.parent
-
-sys.path.append(str(project_root))
-
-try:
-    from plugin.link.domain.entity.tool_schema import Tools  # noqa: F401
-
-    print("✅ SQLModel and models load success!")
-except ImportError as e:
-    print(f"❌ load failed: {e}")
-    sys.exit(1)
+project_root = Path(__file__).parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -37,8 +25,24 @@ def get_database_url() -> str:
     user = os.getenv("MYSQL_USER")
     password = os.getenv("MYSQL_PASSWORD")
     db = os.getenv("MYSQL_DB")
-    database_url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}"
-    return database_url
+
+    missing = [
+        key
+        for key, value in [
+            ("MYSQL_HOST", host),
+            ("MYSQL_PORT", port),
+            ("MYSQL_USER", user),
+            ("MYSQL_PASSWORD", password),
+            ("MYSQL_DB", db),
+        ]
+        if not value
+    ]
+    if missing:
+        raise ValueError(
+            "Missing required environment variables for Alembic: " + ", ".join(missing)
+        )
+
+    return f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}"
 
 
 config.set_main_option("sqlalchemy.url", get_database_url())
@@ -62,32 +66,12 @@ def include_object(
     reflected: bool,
     compare_to: SchemaItem | None,
 ) -> bool:
-    """
-    Determine whether to include a schema object in migration.
-
-    :param object: The schema object
-    :param name: The name of the object
-    :param type_: The type of schema object
-    :param reflected: Whether the object was reflected from the database
-    :param compare_to: The object to compare to (if any)
-    :return: True if the object should be included, False otherwise
-    """
     if type_ == "foreign_key_constraint":
         return False
     return True
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -95,6 +79,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_object=include_object,
+        transaction_per_migration=False,
     )
 
     with context.begin_transaction():
@@ -102,16 +87,9 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-    """
-
-    # this callback is used to prevent an auto-migration from being generated
-    # when there are no changes to the schema
-    # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
-    def process_revision_directives(context: object, revision: object, directives: list) -> None:  # type: ignore[no-untyped-def]
+    def process_revision_directives(
+        context: object, revision: object, directives: list
+    ) -> None:  # type: ignore[no-untyped-def]
         if getattr(config.cmd_opts, "autogenerate", False):
             script = directives[0]
             if script.upgrade_ops.is_empty():
@@ -134,6 +112,7 @@ def run_migrations_online() -> None:
             include_object=include_object,
             compare_type=True,
             compare_server_default=True,
+            transaction_per_migration=False,
         )
         with context.begin_transaction():
             context.run_migrations()
