@@ -30,6 +30,8 @@ The platform supports **high-availability** deployment, enabling organizations t
 
 ### 🔄 Ongoing
 
+- **[Astron Agent & RPA · Hefei Meetup](https://mp.weixin.qq.com/s/tDJaoOLUrjBlgMLDurvHCw)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/doctorbruce"><img src="https://github.com/doctorbruce.png" width="20" align="center" /> @doctorbruce</a>
+
 ### 📅 Past
 
 - **[Astron Hackathon @ 2025 iFLYTEK Global 1024 Developer Festival](https://luma.com/9zmbc6xb)**  🎤 <a href="https://github.com/mklong"><img src="https://github.com/mklong.png" width="20" align="center" /> @mklong</a>
