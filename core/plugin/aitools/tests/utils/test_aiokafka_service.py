@@ -1,5 +1,7 @@
 """Unit tests for aiokafka_service module."""
 
+# pylint: disable=line-too-long,missing-function-docstring,import-outside-toplevel
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 

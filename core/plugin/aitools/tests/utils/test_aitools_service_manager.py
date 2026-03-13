@@ -1,5 +1,7 @@
 """Unit tests for AitoolsServiceManager hot-reload behavior."""
 
+# pylint: disable=protected-access,wrong-import-order
+
 from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest

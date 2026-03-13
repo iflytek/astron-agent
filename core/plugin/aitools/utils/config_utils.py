@@ -1,11 +1,15 @@
-"""Polaris utility class for AITools plugin, providing configuration management and change detection."""
+"""Polaris utilities for config loading, watching, and change callbacks."""
+
+# pylint: disable=duplicate-code
 
 import asyncio
+import fcntl
 import hashlib
 import inspect
 import os
 from io import StringIO
-from typing import Any, Callable, Dict, Optional, Tuple
+from pathlib import Path
+from typing import IO, Any, Callable, Dict, Optional, Tuple
 
 import aiohttp
 from common.settings.polaris import ConfigFilter, LoginPayload
@@ -28,7 +32,7 @@ from plugin.aitools.const.const import (
 from plugin.aitools.utils.env_utils import safe_get_bool_env, safe_get_int_env
 
 
-class PolarisClient:
+class PolarisClient:  # pylint: disable=too-few-public-methods
     """Polaris client for AITools plugin."""
 
     def __init__(
@@ -84,7 +88,8 @@ class PolarisClient:
             raise
 
 
-class EnvFileLoader:
+class EnvFileLoader:  # pylint: disable=too-few-public-methods
+    """Load key/value configuration from an env file path."""
 
     def __init__(self, env_file_path: str) -> None:
         self.env_file_path = env_file_path
@@ -99,7 +104,8 @@ class EnvFileLoader:
         return dict(config_dict)
 
 
-class ConfigWatcher:
+class ConfigWatcher:  # pylint: disable=too-many-instance-attributes
+    """Watch remote config and refresh environment on changes."""
 
     def __init__(self) -> None:
         self.enable_polaris: bool = False
@@ -118,6 +124,8 @@ class ConfigWatcher:
 
         self._callbacks: list[Callable[..., None]] = []
         self._watch_task: Optional[asyncio.Task] = None
+        self._lock_file: IO[str] | None = None
+        self._owns_lock = False
 
         self._initialize()
 
@@ -178,11 +186,47 @@ class ConfigWatcher:
         return hashlib.md5(config_str.encode()).hexdigest()
 
     def register_callback(self, callback: Callable[..., None]) -> None:
-        """Register a callback function to be invoked when configuration changes are detected."""
+        """Register callback invoked after config changes are applied."""
         self._callbacks.append(callback)
 
+    def _acquire_process_lock(self) -> bool:
+        """Acquire cross-process lock so only one worker watches polaris."""
+        if not self.env_loader:
+            log.error("Env loader is not initialized; skip config watcher lock.")
+            return False
+
+        lock_path = (
+            Path(self.env_loader.env_file_path).resolve().parent
+            / ".config_watcher.pid.lock"
+        )
+        # Keep file descriptor open for lock lifetime.
+        # pylint: disable=consider-using-with
+        lock_file = open(lock_path, "w", encoding="utf-8")
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self._lock_file = lock_file
+            self._owns_lock = True
+            return True
+        except BlockingIOError:
+            lock_file.close()
+            return False
+
+    def _release_process_lock(self) -> None:
+        """Release process lock if held by current worker."""
+        if not self._lock_file:
+            return
+
+        if self._owns_lock:
+            try:
+                fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
+        self._lock_file.close()
+        self._lock_file = None
+        self._owns_lock = False
+
     async def _trigger_callbacks(self) -> None:
-        """Invoke registered callbacks when configuration changes are detected, supporting both sync and async functions."""
+        """Invoke registered callbacks, supporting sync and async callables."""
         tasks = []
 
         for cb in self._callbacks:
@@ -195,7 +239,7 @@ class ConfigWatcher:
             await asyncio.gather(*tasks)
 
     async def watch_polaris(self) -> None:
-        """Watch for configuration changes and invoke the callback when a change is detected."""
+        """Poll Polaris config and trigger callbacks on content hash change."""
         while True:
             try:
                 if not self.polaris_client:
@@ -216,7 +260,7 @@ class ConfigWatcher:
                     load_dotenv(stream=StringIO(config_content), override=True)
                     await self._trigger_callbacks()
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 log.exception(f"Error watching config: {e}")
             finally:
                 await asyncio.sleep(self.interval)
@@ -225,7 +269,18 @@ class ConfigWatcher:
         """Start watching for configuration changes."""
         if self.enable_hot_reload:
             if self.enable_polaris:
+                if not self._acquire_process_lock():
+                    log.info(
+                        "Config watcher lock is held by another worker; "
+                        "skip watch. pid={}",
+                        os.getpid(),
+                    )
+                    return
                 self._watch_task = asyncio.create_task(self.watch_polaris())
+                log.info(
+                    "Config watcher started with singleton lock. pid={}",
+                    os.getpid(),
+                )
 
     async def stop_watch(self) -> None:
         """Stop watching for configuration changes."""
@@ -235,3 +290,6 @@ class ConfigWatcher:
                 await self._watch_task
             except asyncio.CancelledError:
                 pass
+            finally:
+                self._watch_task = None
+        self._release_process_lock()

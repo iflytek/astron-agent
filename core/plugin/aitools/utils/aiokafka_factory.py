@@ -35,6 +35,7 @@ class AioKafkaProducerServiceFactory(ServiceFactory):
 
     @staticmethod
     def parse_acks_env() -> str | int:
+        """Parse and validate Kafka ACK mode from environment."""
         acks_env = os.getenv(KAFKA_ACKS_KEY, "1")
         if acks_env == "all":
             return "all"
@@ -47,7 +48,9 @@ class AioKafkaProducerServiceFactory(ServiceFactory):
 
         if acks not in (-1, 0, 1):
             log.warning(
-                f"Unsupported KAFKA_ACKS value '{acks_env}', expected one of all/-1/0/1, defaulting to 1"
+                "Unsupported KAFKA_ACKS value '%s', expected one of "
+                "all/-1/0/1, defaulting to 1",
+                acks_env,
             )
             return 1
 
@@ -55,6 +58,7 @@ class AioKafkaProducerServiceFactory(ServiceFactory):
 
     @staticmethod
     def is_kafka_enabled() -> bool:
+        """Check whether Kafka integration is enabled in environment."""
         return safe_get_bool_env(KAFKA_ENABLE_KEY, False)
 
     async def start(self) -> None:

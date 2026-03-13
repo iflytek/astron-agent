@@ -1,5 +1,7 @@
 """Unit tests for hooks module."""
 
+# pylint: disable=import-outside-toplevel
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

@@ -27,5 +27,5 @@ def initialize_services() -> None:
     for factory, dependencies in FACTORY_AND_DEPS:
         try:
             aitools_service_manager.register_factory(factory, dependencies=dependencies)
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             log.exception(exc)

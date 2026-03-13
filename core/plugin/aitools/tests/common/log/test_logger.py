@@ -1,5 +1,7 @@
 """Unit tests for logger module."""
 
+# pylint: disable=import-outside-toplevel,too-few-public-methods
+
 import logging
 
 from plugin.aitools.common.log.logger import (

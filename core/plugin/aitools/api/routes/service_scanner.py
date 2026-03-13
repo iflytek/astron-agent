@@ -4,12 +4,13 @@ ServiceScanner module for scanning and loading API services.
 
 import importlib
 import pkgutil
+import sys
 from typing import Callable, Iterable
 
 import plugin.aitools.service as service_pkg
 
 
-def iter_api_services() -> Iterable[Callable]:
+def iter_api_services(*, force_reload: bool = False) -> Iterable[Callable]:
     """
     Scan Service directory and yield all API services.
     """
@@ -20,7 +21,10 @@ def iter_api_services() -> Iterable[Callable]:
         prefix=base_pkg_name + ".",
     ):
         try:
-            module = importlib.import_module(module_info.name)
+            if force_reload and module_info.name in sys.modules:
+                module = importlib.reload(sys.modules[module_info.name])
+            else:
+                module = importlib.import_module(module_info.name)
         except Exception:
             raise
 

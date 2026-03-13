@@ -1,6 +1,6 @@
 """Unit tests for WebSocketClient class."""
 
-# pylint: disable=unnecessary-lambda
+# pylint: disable=unnecessary-lambda,line-too-long
 import asyncio
 from typing import Any, Coroutine, Iterable, List, Optional, TypeVar
 from unittest.mock import AsyncMock, MagicMock, patch

@@ -1,5 +1,7 @@
 """Unit tests for constants module."""
 
+# pylint: disable=line-too-long
+
 # pylint: disable=import-outside-toplevel,import-error,no-name-in-module
 import os
 import sys

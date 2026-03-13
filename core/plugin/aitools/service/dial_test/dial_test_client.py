@@ -8,7 +8,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
-import requests
+import requests  # type: ignore[import-untyped]
 from plugin.aitools.const.const import (
     INTERFACE_CALL_FREQUENCY_SUFFIX,
     INTERFACE_HEADERS_SUFFIX,

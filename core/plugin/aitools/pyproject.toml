@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "定制工具平台服务"
 authors = ["iflytek"]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<=3.13"
 dependencies = [
     "fastapi>=0.110.2",
     "requests>=2.31.0",
@@ -49,21 +49,10 @@ dependencies = [
     "toml>=0.10.2",
     "redis==3.5.3",
     "redis-py-cluster==2.1.3",
-    "confluent-kafka>=2.12.0",
     "botocore>=1.40.53",
     "boto3>=1.40.53",
     "anyio>=4.10.0",
     "pytest-asyncio>=1.2.0",
     "aiokafka>=0.13.0",
-]
-
-[dependency-groups]
-dev = [
-    "black>=26.1.0",
-    "flake8>=7.3.0",
-    "isort>=8.0.0",
-    "mypy>=1.19.1",
-    "pylint>=4.0.5",
-    "pytest>=8.4.2",
-    "pytest-cov>=7.0.0",
+    "watchdog>=6.0.0",
 ]
