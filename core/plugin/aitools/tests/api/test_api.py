@@ -7,6 +7,8 @@ This module tests API functionality including:
 - Dynamic API route registration
 """
 
+# pylint: disable=protected-access
+
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
@@ -181,7 +183,7 @@ class TestOTLPMiddlewareWithDynamicRoutes:
 
         monkeypatch.setattr(
             "plugin.aitools.api.routes.register.iter_api_services",
-            lambda: fake_services,
+            lambda *, force_reload=False: fake_services,
         )
 
         app = FastAPI()

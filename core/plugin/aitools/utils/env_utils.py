@@ -1,3 +1,5 @@
+"""Environment variable helpers with safe fallback values."""
+
 import os
 from typing import List
 
@@ -11,7 +13,8 @@ def safe_get_float_env(key: str, default: float) -> float:
         return float(value_str)
     except ValueError:
         print(
-            f"Environment variable {key}='{value_str}' is not a valid float. Using default={default}."
+            f"Environment variable {key}='{value_str}' is not a valid float. "
+            f"Using default={default}."
         )
         return default
 
@@ -25,7 +28,8 @@ def safe_get_int_env(key: str, default: int) -> int:
         return int(value_str)
     except ValueError:
         print(
-            f"Environment variable {key}='{value_str}' is not a valid integer. Using default={default}."
+            f"Environment variable {key}='{value_str}' is not a valid integer. "
+            f"Using default={default}."
         )
         return default
 
@@ -35,13 +39,14 @@ def safe_get_bool_env(key: str, default: bool) -> bool:
     value_str = os.getenv(key, str(default)).lower()
     if value_str in ("true", "1", "yes"):
         return True
-    elif value_str in ("false", "0", "no"):
+    if value_str in ("false", "0", "no"):
         return False
-    else:
-        print(
-            f"Environment variable {key}='{value_str}' is not a valid boolean. Using default={default}."
-        )
-        return default
+
+    print(
+        f"Environment variable {key}='{value_str}' is not a valid boolean. "
+        f"Using default={default}."
+    )
+    return default
 
 
 def safe_get_list_env(key: str, default: List[str], separator: str = ",") -> list:

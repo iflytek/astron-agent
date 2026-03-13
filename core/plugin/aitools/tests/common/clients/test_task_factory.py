@@ -1,5 +1,7 @@
 """Unit tests for task_factory module."""
 
+# pylint: disable=condition-evals-to-constant
+
 import asyncio
 
 import pytest

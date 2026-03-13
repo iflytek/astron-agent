@@ -12,7 +12,7 @@ import logging
 import os
 from typing import Any, Dict, Set, Tuple
 
-import requests
+import requests  # type: ignore[import-untyped]
 from common.utils.hmac_auth import HMACAuth
 from plugin.aitools.const.const import TRANSLATION_URL_KEY
 

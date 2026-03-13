@@ -1,5 +1,7 @@
 """Unit tests for endpoint_factory module."""
 
+# pylint: disable=unused-argument,missing-class-docstring,no-member
+
 from typing import Any, Dict
 
 import pytest

@@ -1,6 +1,6 @@
 """Unit tests for HttpClient class."""
 
-# pylint: disable=redefined-builtin
+# pylint: disable=redefined-builtin,import-outside-toplevel,protected-access
 import os
 import sys
 from typing import Any

@@ -1,5 +1,7 @@
 """Unit tests for aiokafka_factory module."""
 
+# pylint: disable=missing-function-docstring,protected-access
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

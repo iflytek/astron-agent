@@ -1,5 +1,7 @@
 """Unit tests for config_utils module."""
 
+# pylint: disable=missing-function-docstring,redefined-outer-name,protected-access
+
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -92,6 +94,30 @@ async def test_start_watch_no_task_when_polaris_disabled(
 
 
 @pytest.mark.asyncio
+async def test_start_watch_skips_when_lock_not_acquired(
+    polaris_env: dict[str, str],
+) -> None:
+    with patch.dict("os.environ", polaris_env, clear=False):
+        with (
+            patch(
+                "plugin.aitools.utils.config_utils.EnvFileLoader.load_env_file",
+                return_value={"A": "0"},
+            ),
+            patch("plugin.aitools.utils.config_utils.load_dotenv"),
+            patch("plugin.aitools.utils.config_utils.init_uvicorn_logger"),
+        ):
+            watcher = ConfigWatcher()
+
+    watcher.enable_hot_reload = True
+    watcher.enable_polaris = True
+    watcher._acquire_process_lock = MagicMock(return_value=False)
+
+    await watcher.start_watch()
+
+    assert watcher._watch_task is None
+
+
+@pytest.mark.asyncio
 async def test_watch_polaris_triggers_on_hash_change(
     polaris_env: dict[str, str],
 ) -> None:
@@ -148,3 +174,26 @@ async def test_start_and_stop_watch(polaris_env: dict[str, str]) -> None:
         await watcher.stop_watch()
         await asyncio.sleep(0)
         assert task.cancelled() or task.done()
+
+
+@pytest.mark.asyncio
+async def test_stop_watch_releases_process_lock(
+    polaris_env: dict[str, str],
+) -> None:
+    with patch.dict("os.environ", polaris_env, clear=False):
+        with (
+            patch(
+                "plugin.aitools.utils.config_utils.EnvFileLoader.load_env_file",
+                return_value={"A": "1"},
+            ),
+            patch("plugin.aitools.utils.config_utils.load_dotenv"),
+            patch("plugin.aitools.utils.config_utils.init_uvicorn_logger"),
+        ):
+            watcher = ConfigWatcher()
+
+    release_mock = MagicMock()
+    watcher._release_process_lock = release_mock
+
+    await watcher.stop_watch()
+
+    release_mock.assert_called_once()

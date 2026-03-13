@@ -1,5 +1,7 @@
 """Unit tests for env_utils helpers."""
 
+# pylint: disable=missing-function-docstring
+
 import pytest
 from plugin.aitools.utils.env_utils import (
     safe_get_bool_env,

@@ -1,5 +1,7 @@
 """Unit tests for api_service decorator."""
 
+# pylint: disable=unused-argument,cell-var-from-loop
+
 import pytest
 from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums

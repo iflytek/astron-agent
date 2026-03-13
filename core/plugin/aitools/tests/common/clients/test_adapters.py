@@ -1,5 +1,7 @@
 """Unit tests for adapters module."""
 
+# pylint: disable=import-outside-toplevel,too-few-public-methods
+
 from unittest.mock import MagicMock
 
 from plugin.aitools.common.clients.adapters import (

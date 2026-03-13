@@ -8,13 +8,10 @@ from plugin.aitools.utils.aiokafka_service import AioKafkaProducerService
 
 
 class AitoolsServiceManager(ServiceManager):
-
-    def __init__(self) -> None:
-        """Initialize the AitoolsServiceManager."""
-        super().__init__()
+    """Service manager extensions for AITools runtime hot reload."""
 
     async def hot_load_callback(self) -> None:
-        """"""
+        """Hot-reload selected runtime services after config changes."""
         for name in self.services:
             if name == ServiceType.KAFKA_PRODUCER_SERVICE:
                 kafka_factory: AioKafkaProducerServiceFactory = self.factories.get(name)
