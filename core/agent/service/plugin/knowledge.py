@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 import aiohttp
 from common.otlp.trace.span import Span
+from loguru import logger
 from openai import BaseModel
 
 from agent.exceptions.plugin_exc import KnowledgeQueryExc, PluginExc
@@ -46,10 +47,14 @@ class KnowledgePluginFactory(BaseModel):
                 data["match"]["docIds"] = self.doc_ids
 
             sp.add_info_events({"request-data": json.dumps(data, ensure_ascii=False)})
+            logger.info({"request-data": json.dumps(data, ensure_ascii=False)})
 
             if not self.repo_ids:
                 empty_resp: Dict[str, Any] = {}
                 sp.add_info_events(
+                    {"response-data": json.dumps(empty_resp, ensure_ascii=False)}
+                )
+                logger.info(
                     {"response-data": json.dumps(empty_resp, ensure_ascii=False)}
                 )
                 return empty_resp
@@ -69,11 +74,15 @@ class KnowledgePluginFactory(BaseModel):
                         sp.add_info_events(
                             {"response-data": str(await response.read())}
                         )
+                        logger.info({"response-data": str(await response.read())})
 
                         response.raise_for_status()
                         if response.status == 200:
                             resp: Dict[str, Any] = await response.json()
                             sp.add_info_events(
+                                {"response-data": json.dumps(resp, ensure_ascii=False)}
+                            )
+                            logger.info(
                                 {"response-data": json.dumps(resp, ensure_ascii=False)}
                             )
                             return resp

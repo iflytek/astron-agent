@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from common.otlp.trace.span import Span
+from loguru import logger
 
 from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
@@ -107,6 +108,12 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     "backgrounds": backgrounds,
                 }
             )
+            logger.info(
+                {
+                    "metadata-list": json.dumps(metadata_list, ensure_ascii=False),
+                    "backgrounds": backgrounds,
+                }
+            )
 
             return metadata_list, backgrounds
 
@@ -134,9 +141,18 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     "doc_ids": doc_ids,
                 }
             )
+            logger.info(
+                {
+                    "knowledge_name": knowledge.name,
+                    "repo_type": knowledge.repo_type,
+                    "repo_ids": repo_ids,
+                    "doc_ids": doc_ids,
+                }
+            )
 
             if not (repo_ids or doc_ids):
                 span.add_info_events({"skip_reason": "no repo_ids or doc_ids"})
+                logger.info({"skip_reason": "no repo_ids or doc_ids"})
                 continue
 
             top_k = knowledge.top_k or 3
@@ -149,6 +165,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
 
             # 添加映射后的日志
             span.add_info_events({"mapped_rag_type": repo_type})
+            logger.info({"mapped_rag_type": repo_type})
 
             params = KnowledgeQueryParams(
                 repo_ids=repo_ids,

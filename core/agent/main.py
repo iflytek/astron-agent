@@ -237,9 +237,7 @@ def _write_watchdog_env(host_ip: str) -> None:
     with open("/etc/watchdog-env", "w", encoding="utf-8") as f:
         service_port = os.getenv("SERVICE_PORT", "")
         kong_service = os.getenv("KONG_SERVICE_NAME", "")
-        kong_admin = os.getenv(
-            "KONG_ADMIN_API", ""
-        )
+        kong_admin = os.getenv("KONG_ADMIN_API", "")
         f.write(
             f"""
 export APP_HOST={host_ip}

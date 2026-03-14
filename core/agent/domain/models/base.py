@@ -2,6 +2,7 @@ import os
 from typing import Any, AsyncIterator, Optional
 
 from common.otlp.trace.span import Span
+from loguru import logger
 from openai import APIError, APITimeoutError, AsyncOpenAI
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel, ConfigDict
@@ -37,11 +38,14 @@ class BaseLLMModel(BaseModel):
         """Log messages to span"""
         for message in messages:
             sp.add_info_events({message.get("role"): message.get("content")})
+            logger.info({message.get("role"): message.get("content")})
 
     def _log_request_info_to_span(self, sp: Span, stream: bool) -> None:
         """Log request information to span"""
         sp.add_info_events({"model": self.name})
+        logger.info({"model": self.name})
         sp.add_info_events({"stream": stream})
+        logger.info({"stream": stream})
 
     def _handle_api_timeout_error(self, error: APITimeoutError) -> None:
         """Handle API timeout error"""
@@ -51,20 +55,28 @@ class BaseLLMModel(BaseModel):
         """Handle API error"""
         if sp is not None:
             sp.add_info_events({"code": error.code or "null"})
+            logger.info({"code": error.code or "null"})
             sp.add_info_events({"message": error.message})
+            logger.info({"message": error.message})
             sp.add_info_events(
                 {"converted-code": str(getattr(error, "code", "unknown"))}
             )
+            logger.info({"converted-code": str(getattr(error, "code", "unknown"))})
             sp.add_info_events({"converted-message": error.message})
+            logger.info({"converted-message": error.message})
         llm_plugin_error(error.code, error.message)
 
     def _handle_general_error(self, error: Exception, sp: Optional[Span]) -> None:
         """Handle general error (ValueError, TypeError, KeyError)"""
         if sp is not None:
             sp.add_info_events({"code": ""})
+            logger.info({"code": ""})
             sp.add_info_events({"message": str(error)})
+            logger.info({"message": str(error)})
             sp.add_info_events({"converted-code": "-1"})
+            logger.info({"converted-code": "-1"})
             sp.add_info_events({"converted-message": str(error)})
+            logger.info({"converted-message": str(error)})
         llm_plugin_error("-1", str(error))
 
     def _get_error_message_for_exception(self, error: Exception) -> str:
@@ -116,6 +128,7 @@ class BaseLLMModel(BaseModel):
 
                 if sp is not None:
                     sp.add_info_events({"llm-chunk": chunk.model_dump_json()})
+                    logger.info({"llm-chunk": chunk.model_dump_json()})
 
                 if chunk_dict.get("code", 0) != 0:
                     llm_plugin_error(chunk_dict.get("code"), chunk_dict.get("message"))

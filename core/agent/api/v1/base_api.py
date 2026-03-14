@@ -11,6 +11,7 @@ from common.exceptions.base import BaseExc
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
 from agent.api.schemas.base_inputs import BaseInputs
@@ -69,6 +70,7 @@ class CompletionBase(BaseModel, ABC):
             node_trace.record_start()
 
             sp.add_info_events({"node-trace": node_trace.model_dump_json()})
+            logger.info({"node-trace": node_trace.model_dump_json()})
 
             return node_trace
 
@@ -76,6 +78,7 @@ class CompletionBase(BaseModel, ABC):
 
         with span.start("BuildMeter") as sp:
             sp.add_info_events({"app-id": self.app_id, "func": self.log_caller})
+            logger.info({"app-id": self.app_id, "func": self.log_caller})
 
             meter = Meter(app_id=self.app_id, func=self.log_caller)
             return meter
@@ -173,6 +176,7 @@ class CompletionBase(BaseModel, ABC):
 
                 for chunk_log in context.chunk_logs:
                     context.span.add_info_events({"response-chunk": chunk_log})
+                    logger.info({"response-chunk": chunk_log})
 
                 yield await self.create_chunk(stop_chunk)
                 yield await self.create_done()
@@ -184,6 +188,7 @@ class CompletionBase(BaseModel, ABC):
                     # )
                 context.span.set_attributes(attributes={"code": context.error.c})
                 context.span.add_info_events({"message": context.error.m})
+                logger.info({"message": context.error.m})
                 context.node_trace_log.record_end()
                 if os.getenv("UPLOAD_NODE_TRACE"):
                     node_trace_log = context.node_trace_log.upload(
@@ -192,6 +197,15 @@ class CompletionBase(BaseModel, ABC):
                         span=context.span,
                     )
                     context.span.add_info_events(
+                        {
+                            "node-trace": json.dumps(
+                                node_trace_log,
+                                ensure_ascii=False,
+                                default=json_serializer,
+                            )
+                        }
+                    )
+                    logger.info(
                         {
                             "node-trace": json.dumps(
                                 node_trace_log,

@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator
 import aiohttp
 import httpx
 from common.otlp.trace.span import Span
+from loguru import logger
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
@@ -121,6 +122,9 @@ class WorkflowPluginRunner(BaseModel):
                     "workflow-plugin-run-inputs": json.dumps(params, ensure_ascii=False)
                 }
             )
+            logger.info(
+                {"workflow-plugin-run-inputs": json.dumps(params, ensure_ascii=False)}
+            )
 
             flow_client = AsyncOpenAI(
                 base_url=agent_config.WORKFLOW_SSE_BASE_URL, api_key="no_need"
@@ -134,6 +138,13 @@ class WorkflowPluginRunner(BaseModel):
                     chunk_data = chunk.model_dump()
                     sp.add_info_events(
                         attributes={
+                            "workflow-plugin-run-outputs": json.dumps(
+                                chunk_data, ensure_ascii=False
+                            )
+                        }
+                    )
+                    logger.info(
+                        {
                             "workflow-plugin-run-outputs": json.dumps(
                                 chunk_data, ensure_ascii=False
                             )
@@ -193,6 +204,13 @@ class WorkflowPluginFactory(BaseModel):
                     )
                 }
             )
+            logger.info(
+                {
+                    "workflow-plugin-do-query-workflow-schema-inputs": json.dumps(
+                        {"flow_id": workflow_id}, ensure_ascii=False
+                    )
+                }
+            )
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     agent_config.GET_WORKFLOWS_URL, json={"flow_id": workflow_id}
@@ -201,6 +219,13 @@ class WorkflowPluginFactory(BaseModel):
                     result = await response.json()
                     sp.add_info_events(
                         attributes={
+                            "workflow-plugin-do-query-workflow-schema-outputs": (
+                                json.dumps(result, ensure_ascii=False)
+                            )
+                        }
+                    )
+                    logger.info(
+                        {
                             "workflow-plugin-do-query-workflow-schema-outputs": (
                                 json.dumps(result, ensure_ascii=False)
                             )

@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import aiohttp
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from agent.exceptions.plugin_exc import GetMcpPluginExc, RunMcpPluginExc
@@ -38,6 +39,7 @@ class McpPluginRunner(BaseModel):
                     "mcp-plugin-run-inputs": json.dumps(data, ensure_ascii=False)
                 }
             )
+            logger.info({"mcp-plugin-run-inputs": json.dumps(data, ensure_ascii=False)})
             try:
                 run_url = os.getenv("RUN_MCP_PLUGIN_URL")
                 if not run_url:
@@ -62,12 +64,24 @@ class McpPluginRunner(BaseModel):
                                     )
                                 }
                             )
+                            logger.info(
+                                {
+                                    "mcp-plugin-run-outputs": json.dumps(
+                                        resp, ensure_ascii=False
+                                    )
+                                }
+                            )
                         else:
                             sp.add_info_events(
                                 attributes={
                                     "mcp-plugin-run-outputs": (
                                         f"response code is {response.status}"
                                     )
+                                }
+                            )
+                            logger.info(
+                                {
+                                    "mcp-plugin-run-outputs": f"response code is {response.status}"
                                 }
                             )
                             raise RunMcpPluginExc
@@ -119,6 +133,19 @@ class McpPluginFactory(BaseModel):
                         )
                     }
                 )
+                logger.info(
+                    {
+                        "mcp-server-error": json.dumps(
+                            {
+                                "server_id": server_id,
+                                "server_url": server_url,
+                                "status": server_status,
+                                "message": server_message,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                )
                 continue
 
             for tool in server.get("tools", []):
@@ -151,6 +178,9 @@ class McpPluginFactory(BaseModel):
                     "mcp-query-servers-inputs": json.dumps(data, ensure_ascii=False)
                 }
             )
+            logger.info(
+                {"mcp-query-servers-inputs": json.dumps(data, ensure_ascii=False)}
+            )
             try:
                 list_url = os.getenv("LIST_MCP_PLUGIN_URL")
                 if not list_url:
@@ -174,12 +204,24 @@ class McpPluginFactory(BaseModel):
                                     )
                                 }
                             )
+                            logger.info(
+                                {
+                                    "mcp-plugin-list-outputs": json.dumps(
+                                        resp, ensure_ascii=False
+                                    )
+                                }
+                            )
                         else:
                             sp.add_info_events(
                                 attributes={
                                     "mcp-plugin-list-outputs": (
                                         f"response code is {response.status}"
                                     )
+                                }
+                            )
+                            logger.info(
+                                {
+                                    "mcp-plugin-list-outputs": f"response code is {response.status}"
                                 }
                             )
                             raise GetMcpPluginExc

@@ -8,6 +8,7 @@ from common.otlp.log_trace.base import Usage
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import Field
 
 from agent.api.schemas.agent_response import AgentResponse, CotStep
@@ -246,7 +247,9 @@ class CotRunner(RunnerBase):
             )
 
             sp.add_info_events({"step-think": thinks})
+            logger.info({"step-think": thinks})
             sp.add_info_events({"step-content": answers})
+            logger.info({"step-content": answers})
 
             if not final_answer:
                 # 解析 step_content
@@ -374,6 +377,7 @@ class CotRunner(RunnerBase):
 
                 if plugin.name.strip() == cot_step.action.strip():
                     sp.add_info_events({"plugin-type": plugin.typ})
+                    logger.info({"plugin-type": plugin.typ})
                     plugin_response = await plugin.run(cot_step.action_input, sp)
                     break
 
@@ -397,6 +401,7 @@ class CotRunner(RunnerBase):
                 )
 
             sp.add_info_events({"plugin-result": plugin_response.model_dump_json()})
+            logger.info({"plugin-result": plugin_response.model_dump_json()})
 
             return plugin_response
 
@@ -409,6 +414,7 @@ class CotRunner(RunnerBase):
             cot_step.tool_type = "workflow"
 
             sp.add_info_events({"plugin-type": "workflow"})
+            logger.info({"plugin-type": "workflow"})
             first_frame = True
             async for plugin_response in plugin.run(
                 action_input=cot_step.action_input, span=sp
@@ -421,6 +427,7 @@ class CotRunner(RunnerBase):
                         typ="cot_step", content=cot_step, model=self.model.name
                     )
                 sp.add_info_events({"flow-chunk": plugin_response.model_dump_json()})
+                logger.info({"flow-chunk": plugin_response.model_dump_json()})
 
                 if plugin_response.code != 0:
                     cot_step.action_output = plugin_response.result

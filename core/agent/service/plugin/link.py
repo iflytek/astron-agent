@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Union
 
 import aiohttp
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from agent.exceptions.plugin_exc import GetToolSchemaExc, RunToolExc
@@ -143,6 +144,13 @@ class LinkPluginRunner(BaseModel):
                     )
                 }
             )
+            logger.info(
+                {
+                    "link-plugin-run-inputs": json.dumps(
+                        run_link_payload, ensure_ascii=False
+                    )
+                }
+            )
             # Finished parsing parameters, start calling link
             result: dict[str, Any] = {}
             try:
@@ -169,9 +177,23 @@ class LinkPluginRunner(BaseModel):
                                     )
                                 }
                             )
+                            logger.info(
+                                {
+                                    "link-plugin-run-outputs": json.dumps(
+                                        result, ensure_ascii=False
+                                    )
+                                }
+                            )
                         else:
                             sp.add_info_events(
                                 attributes={
+                                    "link-plugin-run-outputs": (
+                                        f"response code is {response.status}"
+                                    )
+                                }
+                            )
+                            logger.info(
+                                {
                                     "link-plugin-run-outputs": (
                                         f"response code is {response.status}"
                                     )
@@ -237,6 +259,7 @@ class LinkPluginFactory(BaseModel):
                     tl_version = tool_id.get("version", "")
                     url += "&tool_ids=" + tl_id + "&versions=" + tl_version
             sp.add_info_events(attributes={"link-plugin-tool-schema-list-inputs": url})
+            logger.info("link-plugin-tool-schema-list-inputs: %s", url)
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     response.raise_for_status()
@@ -249,6 +272,13 @@ class LinkPluginFactory(BaseModel):
                                 )
                             }
                         )
+                        logger.info(
+                            {
+                                "link-plugin-tool-schema-list-outputs": (
+                                    json.dumps(result, ensure_ascii=False)
+                                )
+                            }
+                        )
                         if result.get("code") != 0:
                             raise GetToolSchemaExc
                         tools_data = result.get("data", {}).get("tools", [])
@@ -256,6 +286,13 @@ class LinkPluginFactory(BaseModel):
 
                     sp.add_info_events(
                         attributes={
+                            "link-plugin-tool-schema-list-outputs": (
+                                f"response code is {response.status}"
+                            )
+                        }
+                    )
+                    logger.info(
+                        {
                             "link-plugin-tool-schema-list-outputs": (
                                 f"response code is {response.status}"
                             )

@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from agent.exceptions.middleware_exc import AppAuthFailedExc
@@ -150,6 +151,7 @@ class MaasAuth(BaseModel):
             sp.add_info_events(
                 {"kong-app-detail": json.dumps(app_detail, ensure_ascii=False)}
             )
+            logger.info({"kong-app-detail": json.dumps(app_detail, ensure_ascii=False)})
 
             if app_detail is None:
                 raise AppAuthFailedExc(self.app_id_not_found_msg)
@@ -171,5 +173,6 @@ class MaasAuth(BaseModel):
             kong_sk = f"{api_key}:{api_secret}"
 
             sp.add_info_events({"kong-sk": kong_sk})
+            logger.info({"kong-sk": kong_sk})
 
             return kong_sk

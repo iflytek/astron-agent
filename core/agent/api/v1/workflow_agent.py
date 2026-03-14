@@ -4,6 +4,7 @@ from typing import Annotated, Any, AsyncGenerator, cast
 
 from common.otlp.trace.span import Span
 from fastapi import APIRouter, Header
+from loguru import logger
 from pydantic import ConfigDict
 from starlette.responses import StreamingResponse
 
@@ -51,6 +52,9 @@ class CustomChatCompletion(CompletionBase):
                 }
             )
             sp.add_info_events(
+                {"workflow-agent-inputs": self.inputs.model_dump_json(by_alias=True)}
+            )
+            logger.info(
                 {"workflow-agent-inputs": self.inputs.model_dump_json(by_alias=True)}
             )
             node_trace = await self.build_node_trace(bot_id=self.bot_id, span=sp)

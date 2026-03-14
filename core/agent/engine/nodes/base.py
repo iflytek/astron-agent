@@ -9,6 +9,7 @@ from common.otlp.log_trace.base import Usage
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import BaseModel, Field
 
 from agent.api.schemas.agent_response import AgentResponse, CotStep
@@ -102,6 +103,18 @@ class RunnerBase(BaseModel):
                     )
                 }
             )
+            logger.info(
+                {
+                    "accumulated_usage": json.dumps(
+                        {
+                            "completion_tokens": node_data_usage.completion_tokens,
+                            "prompt_tokens": node_data_usage.prompt_tokens,
+                            "total_tokens": node_data_usage.total_tokens,
+                        },
+                        ensure_ascii=False,
+                    )
+                }
+            )
 
             node_end_time = int(round(time.time() * 1000))
             data_llm_output = answers
@@ -127,7 +140,9 @@ class RunnerBase(BaseModel):
             )
 
             sp.add_info_events({"model-think": thinks})
+            logger.info({"model-think": thinks})
             sp.add_info_events({"model-answer": answers})
+            logger.info({"model-answer": answers})
 
             # yield AgentResponse(
             #     typ="log",

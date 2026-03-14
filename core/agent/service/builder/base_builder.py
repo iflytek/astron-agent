@@ -6,6 +6,7 @@ from typing import Sequence, Union, cast
 
 import httpx
 from common.otlp.trace.span import Span
+from loguru import logger
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
@@ -104,6 +105,21 @@ class BaseApiBuilder(BaseModel):
                     ),
                 }
             )
+            logger.info(
+                {
+                    "link-tool-ids": str(tool_ids),
+                    "mcp-server-ids": mcp_server_ids,
+                    "mcp-server-urls": mcp_server_urls,
+                    "workflow-ids": workflow_ids,
+                    "built-plugins": json.dumps(
+                        [
+                            f"{plugin.typ}\n{plugin.schema_template}"
+                            for plugin in plugins
+                        ],
+                        ensure_ascii=False,
+                    ),
+                }
+            )
 
             return plugins
 
@@ -113,6 +129,18 @@ class BaseApiBuilder(BaseModel):
     ) -> ChatRunner:
         with self.span.start("BuildChatRunner") as sp:
             sp.add_info_events(
+                {
+                    "model": params.model.name,
+                    "chat-history": json.dumps(
+                        [history.model_dump() for history in params.chat_history],
+                        ensure_ascii=False,
+                    ),
+                    "instruct": params.instruct,
+                    "knowledge": params.knowledge,
+                    "question": params.question,
+                }
+            )
+            logger.info(
                 {
                     "model": params.model.name,
                     "chat-history": json.dumps(
@@ -140,6 +168,25 @@ class BaseApiBuilder(BaseModel):
     ) -> CotRunner:
         with self.span.start("BuildCotRunner") as sp:
             sp.add_info_events(
+                {
+                    "model": params.model.name,
+                    "plugins": json.dumps(
+                        [
+                            f"{plugin.typ}\n{plugin.schema_template}"
+                            for plugin in params.plugins
+                        ],
+                        ensure_ascii=False,
+                    ),
+                    "chat-history": json.dumps(
+                        [history.model_dump() for history in params.chat_history],
+                        ensure_ascii=False,
+                    ),
+                    "instruct": params.instruct,
+                    "knowledge": params.knowledge,
+                    "question": params.question,
+                }
+            )
+            logger.info(
                 {
                     "model": params.model.name,
                     "plugins": json.dumps(
@@ -192,6 +239,18 @@ class BaseApiBuilder(BaseModel):
                     "question": params.question,
                 }
             )
+            logger.info(
+                {
+                    "model": params.model.name,
+                    "chat-history": json.dumps(
+                        [history.model_dump() for history in params.chat_history],
+                        ensure_ascii=False,
+                    ),
+                    "instruct": params.instruct,
+                    "knowledge": params.knowledge,
+                    "question": params.question,
+                }
+            )
 
             cot_runner = CotProcessRunner(
                 model=params.model,
@@ -208,6 +267,7 @@ class BaseApiBuilder(BaseModel):
             app_id = app_id or self.app_id
 
             sp.add_info_events({"app_id": app_id})
+            logger.info({"app_id": app_id})
 
             maas_auth = MaasAuth(app_id=app_id, model_name=model_name)
             sk = await maas_auth.sk(span=sp)
@@ -239,6 +299,14 @@ class BaseApiBuilder(BaseModel):
                 )
 
             sp.add_info_events(
+                {
+                    "model": model_name,
+                    "base_url": normalized_base_url,
+                    "api_key": sk,
+                    "app_id": app_id,
+                }
+            )
+            logger.info(
                 {
                     "model": model_name,
                     "base_url": normalized_base_url,
