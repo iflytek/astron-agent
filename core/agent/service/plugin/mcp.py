@@ -156,7 +156,9 @@ class McpPluginFactory(BaseModel):
                 if not list_url:
                     raise GetMcpPluginExc("LIST_MCP_PLUGIN_URL is not set")
                 async with aiohttp.ClientSession() as session:
-                    timeout = aiohttp.ClientTimeout(total=40)
+                    timeout = aiohttp.ClientTimeout(
+                        total=int(os.getenv("MCP_CALL_TIMEOUT", "90"))
+                    )
                     async with session.post(
                         list_url,
                         json=data,

@@ -161,6 +161,7 @@ class CotRunner(RunnerBase):
 
             step_content = ""
             final_answer = False
+            first_only_one = False
 
             # node赋值
             node_id = ""
@@ -208,13 +209,14 @@ class CotRunner(RunnerBase):
 
                 step_content += content
                 if first_loop:
-                    if "Final Answer:" in step_content:
+                    if "Final Answer:" in step_content and not first_only_one:
                         yield AgentResponse(
                             typ="content",
                             content=step_content.split("Final Answer:")[1],
                             model=self.model.name,
                         )
                         final_answer = True
+                        first_only_one = True
                         continue
 
                 if "Observation:" in step_content or "Final Answer:" in step_content:
@@ -333,7 +335,7 @@ class CotRunner(RunnerBase):
                     step,
                     answer_flag,
                 ) in self._process_agent_responses(
-                    msgs, loop_count == 1, sp, node_trace_log
+                    msgs, True if loop_count == 1 else False, sp, node_trace_log
                 ):
                     if agent_response is not None:
                         yield agent_response

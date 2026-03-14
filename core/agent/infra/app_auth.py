@@ -118,7 +118,9 @@ class APPAuth:
     async def app_detail(self, app_id: str) -> Optional[Dict[str, Any]]:
         headers = self.init_header("")
         async with aiohttp.ClientSession() as session:
-            timeout = aiohttp.ClientTimeout(total=3)
+            timeout = aiohttp.ClientTimeout(
+                total=int(os.getenv("APP_AUTH_CALL_TIMEOUT", "90"))
+            )
             async with session.get(
                 self.config.url,
                 params={"app_ids": app_id + ","},

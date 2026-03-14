@@ -104,9 +104,7 @@ class BaseLLMModel(BaseModel):
     async def stream(
         self, messages: list, stream: bool, span: Optional[Span] = None
     ) -> AsyncIterator[ChatCompletionChunk]:
-
         sp = span
-
         if sp is not None:
             self._log_messages_to_span(sp, messages)
             self._log_request_info_to_span(sp, stream)

@@ -249,7 +249,6 @@ class LinkPluginFactory(BaseModel):
                                 )
                             }
                         )
-                        print(result)
                         if result.get("code") != 0:
                             raise GetToolSchemaExc
                         tools_data = result.get("data", {}).get("tools", [])

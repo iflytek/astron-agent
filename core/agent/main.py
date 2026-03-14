@@ -12,6 +12,8 @@ import socket
 import sys
 import time
 from asyncio.subprocess import PIPE
+from datetime import datetime
+from typing import Awaitable, Callable
 
 import uvicorn
 from common.initialize.initialize import initialize_services
@@ -21,6 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import Response
 
 from agent.api import router
 from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
@@ -65,6 +68,24 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def log_incoming_requests(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        """Record each inbound request: request time, route (method + path)"""
+        path = request.url.path
+        # Skip logging for monitoring endpoints to avoid log spam
+        if path == "/monitor/runtime":
+            return await call_next(request)
+        request_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        method = request.method
+        msg = f"incoming request | time={request_time} | method={method} | path={path}"
+        logger.info(msg)
+        # print(msg)
+        return await call_next(request)
+
     app.include_router(router.router_v1)
 
     @app.exception_handler(AgentExc)  # type: ignore[misc]
@@ -214,10 +235,10 @@ async def _get_host_ip() -> str:
 def _write_watchdog_env(host_ip: str) -> None:
     """Write watchdog environment file for Linux systems."""
     with open("/etc/watchdog-env", "w", encoding="utf-8") as f:
-        service_port = os.getenv("SERVICE_PORT", "8700")
-        kong_service = os.getenv("KONG_SERVICE_NAME", "upstream-astron-agent")
+        service_port = os.getenv("SERVICE_PORT", "")
+        kong_service = os.getenv("KONG_SERVICE_NAME", "")
         kong_admin = os.getenv(
-            "KONG_ADMIN_API", "http://172.30.209.27:8000/service_find"
+            "KONG_ADMIN_API", ""
         )
         f.write(
             f"""
@@ -231,9 +252,9 @@ export KONG_ADMIN_API={kong_admin}
 
 def _print_env_vars(host_ip: str) -> None:
     """Print environment variables for non-Linux systems."""
-    service_port = os.getenv("SERVICE_PORT", "8700")
-    kong_service = os.getenv("KONG_SERVICE_NAME", "upstream-astron-agent")
-    kong_admin = os.getenv("KONG_ADMIN_API", "http://172.30.209.27:8000/service_find")
+    service_port = os.getenv("SERVICE_PORT", "")
+    kong_service = os.getenv("KONG_SERVICE_NAME", "")
+    kong_admin = os.getenv("KONG_ADMIN_API", "")
     print(f"""export APP_HOST={host_ip}""")
     print(f"""export APP_PORT={service_port}""")
     print(f"""export KONG_SERVICE_NAME={kong_service}""")
@@ -256,7 +277,8 @@ if __name__ == "__main__":
     # app = asyncio.run(create_app())
     initialize_extensions()
 
-    asyncio.run(_log_ready_after_delay())
+    if os.getenv("KONG_SERVICE_NAME", "") and os.getenv("KONG_ADMIN_API", ""):
+        asyncio.run(_log_ready_after_delay())
 
     uvicorn.run(
         app="main:create_app",
