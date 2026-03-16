@@ -520,7 +520,7 @@ function index() {
                                       )
                                   ) {
                                     return message.info(
-                                      t('agentPage.agentPage.notSupported')
+                                      t('agentPage.agentPage.notSupportedChat')
                                     );
                                   }
                                   handleToChat(k.botId);

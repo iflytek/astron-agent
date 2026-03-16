@@ -20,6 +20,7 @@ const transition = {
     needsModification: '该智能体被人工下架，需修改后才可重新发布，下架原因：',
     goToEdit: '去编辑',
     notSupported: '当前智能体不支持对话',
+    notSupportedChat: '工作流存在多个输入 参数，无法发起对话',
     chat: '对话',
     share: '分享',
     copy: '复制',
