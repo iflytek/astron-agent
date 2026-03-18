@@ -51,6 +51,20 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
     if (flag) {
       req['maasId'] = item.maasId;
       req['name'] = item.title + Date.now();
+      const coreScenarios = item?.coreScenarios as any;
+      const botTemplateFromTemplate =
+        coreScenarios?.botTemplate ??
+        coreScenarios?.bot_template ??
+        coreScenarios?.inputTemplate ??
+        coreScenarios?.input_template ??
+        coreScenarios?.description;
+
+      if (
+        typeof botTemplateFromTemplate === 'string' &&
+        botTemplateFromTemplate.trim()
+      ) {
+        req['botTemplate'] = botTemplateFromTemplate;
+      }
       await createFromTemplate(req)
         .then((res: any) => {
           navigate(`/work_flow/${res.flowId}/arrange`);

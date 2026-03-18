@@ -57,6 +57,19 @@ public class BotMaasServiceImpl implements BotMaasService {
         Long spaceId = SpaceInfoUtil.getSpaceId();
         // Create an event, consumed by /maasCopySynchronize
         Long maasId = maasDuplicate.getMaasId();
+        // Ensure botTemplate is present; it is used to populate chat_bot_base.bot_template.
+        // Some workflow template create flows don't provide botTemplate in request payload.
+        if (maasDuplicate.getBotTemplate() == null || maasDuplicate.getBotTemplate().trim().isEmpty()) {
+            MaasTemplate template = maasTemplateMapper.selectOne(
+                new LambdaQueryWrapper<MaasTemplate>().eq(MaasTemplate::getMaasId, maasId)
+            );
+            String resolved = resolveBotTemplateFromCoreScenarios(
+                template != null ? template.getCoreScenarios() : null
+            );
+            if (resolved != null && !resolved.trim().isEmpty()) {
+                maasDuplicate.setBotTemplate(resolved);
+            }
+        }
         UserLangChainInfo userLangChainInfo = userLangChainDataService.selectByMaasId(maasId);
         if (Objects.isNull(userLangChainInfo)) {
             log.info("----- Xinghuo did not find Astron workflow: {}", JSONObject.toJSONString(userLangChainInfo));
@@ -77,6 +90,27 @@ public class BotMaasServiceImpl implements BotMaasService {
         botService.addMaasInfo(uid, res, botId, spaceId);
         botInfoDto.setFlowId(res.getJSONObject("data").getLong("id"));
         return botInfoDto;
+    }
+
+    private String resolveBotTemplateFromCoreScenarios(JSONObject coreScenarios) {
+        if (coreScenarios == null) {
+            return null;
+        }
+        // Try common key names from template scenario config.
+        String[] keys = new String[] {
+            "botTemplate",
+            "bot_template",
+            "inputTemplate",
+            "input_template",
+            "description"
+        };
+        for (String key : keys) {
+            String value = coreScenarios.getString(key);
+            if (value != null && !value.trim().isEmpty()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     @Override
