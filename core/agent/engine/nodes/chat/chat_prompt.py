@@ -1,3 +1,5 @@
+"""Chat prompt templates for the chat runner."""
+
 CHAT_SYSTEM_TEMPLATE = (
     "你是一个问答助手，你将会得到用户的一段对话历史(Previous chat history)"
     "和一个新的问题(Follow up question)，你需要按照提示和要求回答用户的问题。\n\n"

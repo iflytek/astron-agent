@@ -1,5 +1,7 @@
 """Test API router and schema data models"""
 
+# pylint: disable=missing-function-docstring,too-few-public-methods
+
 import time
 
 import pytest
@@ -137,7 +139,7 @@ class TestNodeTracePatch:
         trace.record_end()
 
     def test_upload_sets_status_and_returns_dump(self) -> None:
-        class DummyStatus:
+        class DummyStatus:  # pylint: disable=missing-class-docstring
             def __init__(self, code: int, message: str) -> None:
                 self.code = code
                 self.message = message

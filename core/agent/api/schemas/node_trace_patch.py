@@ -3,7 +3,6 @@
 import time
 from typing import Any, Generic, TypeVar
 
-# Use unified common package import module
 from common.otlp.log_trace.node_log import NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from pydantic import ConfigDict, Field

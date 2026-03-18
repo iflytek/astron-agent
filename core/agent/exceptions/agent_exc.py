@@ -1,10 +1,11 @@
-# Use unified common package import module
+"""Agent exception definitions."""
+
 from agent.exceptions.codes import c_0, c_40500
 from common.exceptions.base import BaseExc
 
 
 class AgentExc(BaseExc):
-    pass
+    """Exception class for general agent errors."""
 
 
 AgentNormalExc = AgentExc(*c_0)

@@ -1,5 +1,7 @@
 """Test WorkflowAgentRunner class"""
 
+# pylint: disable=protected-access
+
 from dataclasses import dataclass
 from typing import AsyncIterator
 from unittest.mock import MagicMock
@@ -21,7 +23,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -29,9 +32,9 @@ class _DummySidGen:
 def _setup_test_environment() -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
+    - Ensure ``sid_generator2`` is initialized.
     """
-    # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
@@ -103,7 +106,7 @@ class TestWorkflowAgentRunner:
 
         mock_response = AgentResponse(typ="content", content="test", model="test_model")
 
-        async def mock_run(
+        async def mock_run(  # pylint: disable=unused-argument
             span: Span, node_trace: NodeTraceLog
         ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
             yield mock_response
@@ -125,7 +128,7 @@ class TestWorkflowAgentRunner:
 
         mock_response = AgentResponse(typ="content", content="test", model="test_model")
 
-        async def mock_chat_run(
+        async def mock_chat_run(  # pylint: disable=unused-argument
             span: Span, node_trace: NodeTraceLog
         ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
             yield mock_response
@@ -147,7 +150,7 @@ class TestWorkflowAgentRunner:
             typ="cot_step", content=CotStep(empty=True), model="test_model"
         )
 
-        async def mock_cot_run(
+        async def mock_cot_run(  # pylint: disable=unused-argument
             span: Span, node_trace: NodeTraceLog
         ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
             yield mock_response

@@ -1,3 +1,5 @@
+"""Application authentication and MaaS authorization utilities."""
+
 import base64
 import datetime
 import hashlib
@@ -44,6 +46,7 @@ def http_date(dt: datetime.datetime) -> str:
 
 
 def hashlib_256(res: str) -> str:
+    """Compute SHA-256 digest and return a base64-encoded string."""
     m = hashlib.sha256(bytes(res.encode(encoding="utf-8"))).digest()
     result = "SHA256=" + base64.b64encode(m).decode(encoding="utf-8")
     return result
@@ -64,10 +67,12 @@ class AuthConfig:  # pylint: disable=too-many-instance-attributes
 
     @property
     def url(self) -> str:
+        """Return the full URL from protocol, host, and route."""
         return f"{self.prot}://{self.host}{self.route}"
 
 
 class APPAuth:
+    """Handles application-level HMAC authentication for API requests."""
 
     def __init__(self) -> None:
         self.config = AuthConfig(
@@ -81,6 +86,7 @@ class APPAuth:
         self.date = http_date(datetime.datetime.utcnow())
 
     def generate_signature(self, digest: str) -> str:
+        """Generate an HMAC-SHA256 signature for the request."""
         signature_str = "host: " + self.config.host + "\n"
         signature_str += "date: " + self.date + "\n"
         signature_str += (
@@ -96,6 +102,7 @@ class APPAuth:
         return result.decode(encoding="utf-8")
 
     def init_header(self, data: str) -> Dict[str, str]:
+        """Build authenticated HTTP headers for the given request data."""
         digest = hashlib_256(data)
         sign = self.generate_signature(digest)
         auth_header = (
@@ -116,6 +123,7 @@ class APPAuth:
         return headers
 
     async def app_detail(self, app_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch application detail information by app ID."""
         headers = self.init_header("")
         async with aiohttp.ClientSession() as session:
             timeout = aiohttp.ClientTimeout(
@@ -136,6 +144,8 @@ class APPAuth:
 
 
 class MaasAuth(BaseModel):
+    """Model-as-a-Service authentication helper."""
+
     app_id: str
     model_name: str
 
@@ -144,6 +154,7 @@ class MaasAuth(BaseModel):
     )
 
     async def sk(self, span: Span) -> str:
+        """Retrieve the secret key for the configured app ID."""
         with span.start("QueryAppIdSk") as sp:
             app_detail = await APPAuth().app_detail(self.app_id)
 

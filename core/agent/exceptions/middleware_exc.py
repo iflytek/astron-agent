@@ -1,9 +1,11 @@
+"""Middleware exception definitions."""
+
 from agent.exceptions.codes import c_40040, c_40041
 from common.exceptions.base import BaseExc
 
 
 class MiddlewareExc(BaseExc):
-    pass
+    """Exception class for middleware-related errors."""
 
 
 AppAuthFailedExc = MiddlewareExc(*c_40040)

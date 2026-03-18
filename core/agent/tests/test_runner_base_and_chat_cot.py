@@ -1,4 +1,8 @@
-"""Test engine.nodes.base / chat_runner / cot_runner / cot_process_runner"""
+"""Test engine.nodes.base / chat / cot / cot_process runners"""
+
+# pylint: disable=missing-function-docstring,redefined-outer-name
+# pylint: disable=too-few-public-methods,reimported
+# pylint: disable=import-outside-toplevel
 
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Optional
@@ -25,7 +29,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -35,7 +40,7 @@ class _TestCotFormatIncorrectExc(cot_exc.CotExc):
     def __init__(
         self,
         c: int = 40022,
-        m: str = "Model returned reasoning content format is incorrect",
+        m: str = "Model returned reasoning format incorrect",
         **kwargs: dict
     ) -> None:
         """Initialize test exception with default c and m parameters."""
@@ -46,14 +51,14 @@ class _TestCotFormatIncorrectExc(cot_exc.CotExc):
 def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
-    - Replace `CotFormatIncorrectExc` with a real exception class.
+    - Ensure ``sid_generator2`` is initialized.
+    - Replace ``CotFormatIncorrectExc`` with a real exception.
     """
-    # 1) Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # 1) Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
-    # 2) Fix CotFormatIncorrectExc: in source code it's an instance, here replace with a real exception type
+    # 2) Fix CotFormatIncorrectExc: replace with real type
     monkeypatch.setattr(
         cot_exc, "CotFormatIncorrectExc", _TestCotFormatIncorrectExc, raising=False
     )
@@ -127,7 +132,7 @@ class TestRunnerBase:
     async def test_model_general_stream(
         self, runner_base: RunnerBase, span: Span, node_trace: NodeTraceLog
     ) -> None:
-        # Replace with DummyLLM instance (also use model_construct to avoid validation errors)
+        # Replace with DummyLLM instance
         runner_base.model = DummyLLM.model_construct(name="m", llm=MagicMock())
 
         results: list[AgentResponse] = []
@@ -184,8 +189,8 @@ class TestChatRunner:
         assert results
 
 
-class DummyPlugin(BasePlugin):
-    pass
+class DummyPlugin(BasePlugin):  # pylint: disable=too-few-public-methods
+    """Dummy plugin for testing."""
 
 
 class TestCotRunnerParseStep:
@@ -201,7 +206,8 @@ class TestCotRunnerParseStep:
             typ="tool",
             run=AsyncMock(),
         )
-        # Use real CotProcessRunner to avoid Pydantic type validation failure for process_runner
+        # Use real CotProcessRunner
+        # pylint: disable-next=import-outside-toplevel
         from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 
         process_runner = CotProcessRunner(

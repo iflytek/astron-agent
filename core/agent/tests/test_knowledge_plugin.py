@@ -1,5 +1,7 @@
 """Test KnowledgePlugin and KnowledgePluginFactory"""
 
+# pylint: disable=unused-argument
+
 import asyncio
 import os
 from dataclasses import dataclass
@@ -20,7 +22,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -28,9 +31,9 @@ class _DummySidGen:
 def _setup_test_environment() -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
+    - Ensure ``sid_generator2`` is initialized.
     """
-    # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
@@ -215,7 +218,7 @@ class TestKnowledgePluginFactory:
                 assert captured_data["ragType"] == "AIUI-RAG2"
 
 
-class TestKnowledgePlugin:
+class TestKnowledgePlugin:  # pylint: disable=too-few-public-methods
     """Test KnowledgePlugin class"""
 
     def test_knowledge_plugin_creation(self) -> None:

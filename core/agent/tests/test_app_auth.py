@@ -1,5 +1,7 @@
 """Test authentication functionality of app_auth module"""
 
+# pylint: disable=redefined-outer-name
+
 import base64
 import datetime
 import os
@@ -7,10 +9,10 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import agent.infra.app_auth as app_auth
 import aiohttp
 import pytest
 from agent.exceptions import middleware_exc
+from agent.infra import app_auth
 from agent.infra.app_auth import APPAuth, AuthConfig, MaasAuth, hashlib_256, http_date
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
@@ -22,7 +24,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -34,14 +37,14 @@ class _TestAppAuthFailedExc(Exception):
 def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
-    - Replace `AppAuthFailedExc` used everywhere with a real exception class.
+    - Ensure ``sid_generator2`` is initialized.
+    - Replace ``AppAuthFailedExc`` with a real exception class.
     """
-    # 1) Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # 1) Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
-    # 2) Fix AppAuthFailedExc: in source code it's an instance, here replace with a real exception type
+    # 2) Fix AppAuthFailedExc: replace with a real exception type
     monkeypatch.setattr(
         app_auth, "AppAuthFailedExc", _TestAppAuthFailedExc, raising=False
     )
@@ -147,7 +150,7 @@ class TestAPPAuth:
         # Verify signature format (base64)
         try:
             base64.b64decode(signature)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             pytest.fail("Signature should be valid base64 encoded")
 
     def test_init_header(self, app_auth: APPAuth) -> None:
@@ -172,8 +175,10 @@ class TestAPPAuth:
             "data": [{"auth_list": [{"api_key": "key1", "api_secret": "secret1"}]}],
         }
 
-        def mock_get(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN001, D401
-            """Synchronous mock, returns response object supporting async context manager protocol."""
+        def mock_get(  # pylint: disable=unused-argument
+            *args: Any, **kwargs: Any
+        ) -> AsyncMock:  # noqa: ANN001, D401
+            """Mock returning response with async CM."""
             mock_resp = AsyncMock()
             mock_resp.status = 200
             mock_resp.json = AsyncMock(return_value=mock_response_data)
@@ -193,8 +198,10 @@ class TestAPPAuth:
     async def test_app_detail_failure_status(self, app_auth: APPAuth) -> None:
         """Test failure to retrieve app details (non-200 status code)"""
 
-        def mock_get(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN001, D401
-            """Synchronous mock, returns 404 response object."""
+        def mock_get(  # pylint: disable=unused-argument
+            *args: Any, **kwargs: Any
+        ) -> AsyncMock:  # noqa: ANN001, D401
+            """Mock returning 404 response object."""
             mock_resp = AsyncMock()
             mock_resp.status = 404
             mock_resp.raise_for_status = MagicMock()
@@ -203,7 +210,7 @@ class TestAPPAuth:
             return mock_resp
 
         with patch("aiohttp.ClientSession.get", new=mock_get):
-            # In source code, the actual exception thrown is the replaced exception class instance in conftest, here catch as base exception
+            # Catch as base exception
             with pytest.raises(Exception):
                 await app_auth.app_detail("test_app_id")
 
@@ -211,7 +218,7 @@ class TestAPPAuth:
     async def test_app_detail_timeout(self, app_auth: APPAuth) -> None:
         """Test timeout when retrieving app details"""
 
-        async def mock_get(
+        async def mock_get(  # pylint: disable=unused-argument
             *args: Any, **kwargs: Any
         ) -> AsyncMock:  # noqa: ANN001, D401
             raise aiohttp.ClientError("timeout")

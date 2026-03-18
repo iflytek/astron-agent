@@ -1,3 +1,5 @@
+"""Base LLM model definitions and provider-specific implementations."""
+
 import json
 import os
 from typing import Any, AsyncIterator, Optional
@@ -12,12 +14,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class BaseLLMModel(BaseModel):
+    """Base model for OpenAI-compatible LLM interactions."""
+
     name: str
     llm: Any = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def create_completion(self, messages: list, stream: bool) -> Any:
+        """Create an LLM chat completion request."""
         llm_object = await self.llm.chat.completions.create(
             messages=messages,
             stream=stream,
@@ -110,6 +115,7 @@ class BaseLLMModel(BaseModel):
     async def stream(
         self, messages: list, stream: bool, span: Optional[Span] = None
     ) -> AsyncIterator[Any]:
+        """Stream LLM responses with error handling."""
 
         sp = span
 
@@ -139,38 +145,53 @@ class BaseLLMModel(BaseModel):
 
 
 class CompatUsage(BaseModel):
+    """Compatible usage statistics model."""
+
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
 
 
 class CompatDelta(BaseModel):
+    """Compatible choice delta model."""
+
     content: str = ""
     reasoning_content: str = ""
 
 
 class CompatChoice(BaseModel):
+    """Compatible choice model."""
+
     delta: CompatDelta = Field(default_factory=CompatDelta)
     finish_reason: Optional[str] = None
 
 
 class CompatChunk(BaseModel):
+    """Compatible completion chunk model."""
+
     choices: list[CompatChoice]
     usage: Optional[CompatUsage] = None
 
 
 class ProviderLLMModel(BaseLLMModel):
+    """Base model for custom provider LLM interactions via HTTP."""
+
     model_url: str
     api_key: str
     http_client: httpx.AsyncClient
 
     def build_request_url(self) -> str:
+        """Build the API request URL."""
         return self.model_url
 
-    def build_headers(self) -> dict[str, str]:
+    def build_headers(
+        self,
+    ) -> dict[str, str]:
+        """Build request headers."""
         raise NotImplementedError
 
     def build_payload(self, messages: list, stream: bool) -> dict[str, Any]:
+        """Build the request payload."""
         raise NotImplementedError
 
     def _build_compat_chunk(self, payload: dict[str, Any]) -> CompatChunk:
@@ -224,6 +245,8 @@ class ProviderLLMModel(BaseLLMModel):
 
 
 class AnthropicLLMModel(ProviderLLMModel):
+    """Anthropic Claude API model implementation."""
+
     def build_request_url(self) -> str:
         if self.model_url.endswith("/v1/messages"):
             return self.model_url
@@ -354,6 +377,8 @@ class AnthropicLLMModel(ProviderLLMModel):
 
 
 class GoogleLLMModel(ProviderLLMModel):
+    """Google Gemini API model implementation."""
+
     def build_request_url(self) -> str:
         model_url = self.model_url
         if ":generateContent" not in model_url:

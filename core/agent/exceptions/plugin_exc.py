@@ -1,3 +1,5 @@
+"""Plugin exception definitions."""
+
 from typing import Any, NoReturn
 
 from agent.exceptions.codes import (
@@ -14,7 +16,7 @@ from common.exceptions.base import BaseExc
 
 
 class PluginExc(BaseExc):
-    pass
+    """Exception class for plugin-related errors."""
 
 
 GetToolSchemaExc = PluginExc(*c_40023)
@@ -27,5 +29,6 @@ CallLlmPluginExc = PluginExc(*c_40029)
 
 
 def llm_plugin_error(code: Any, message: str) -> NoReturn:
+    """Convert an LLM error code and raise a PluginExc."""
     c, m = ify_code_convert(code)
     raise PluginExc(c, m, om=message)

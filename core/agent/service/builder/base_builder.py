@@ -1,3 +1,5 @@
+"""Base builder for constructing agent runners."""
+
 import json
 import os
 import ssl
@@ -41,6 +43,8 @@ class CotRunnerParams(RunnerParams):
 
 
 class BaseApiBuilder(BaseModel):
+    """Base class for building agent API runners."""
+
     model_config = {"arbitrary_types_allowed": True}
     OPENAI_COMPATIBLE_PROVIDERS: ClassVar[set[str]] = {
         "",
@@ -84,7 +88,7 @@ class BaseApiBuilder(BaseModel):
         mcp_server_urls: list,
         workflow_ids: list,
     ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]]:
-
+        """Build all configured plugins concurrently."""
         with self.span.start("BuildPlugins") as sp:
             # Filter out empty strings from mcp_server_urls
             mcp_server_urls = [url for url in mcp_server_urls if url and url.strip()]
@@ -156,6 +160,7 @@ class BaseApiBuilder(BaseModel):
         self,
         params: RunnerParams,
     ) -> ChatRunner:
+        """Build a chat runner instance."""
         with self.span.start("BuildChatRunner") as sp:
             sp.add_info_events(
                 {
@@ -195,6 +200,7 @@ class BaseApiBuilder(BaseModel):
         self,
         params: CotRunnerParams,
     ) -> CotRunner:
+        """Build a chain-of-thought runner instance."""
         with self.span.start("BuildCotRunner") as sp:
             sp.add_info_events(
                 {
@@ -255,6 +261,7 @@ class BaseApiBuilder(BaseModel):
         self,
         params: RunnerParams,
     ) -> CotProcessRunner:
+        """Build a CoT process runner instance."""
         with self.span.start("BuildProcessRunner") as sp:
             sp.add_info_events(
                 {
@@ -291,7 +298,7 @@ class BaseApiBuilder(BaseModel):
             return cot_runner
 
     async def query_maas_sk(self, app_id: str, model_name: str) -> str:
-
+        """Query the MaaS secret key for the given app ID."""
         with self.span.start("BuildSk") as sp:
             app_id = app_id or self.app_id
 
@@ -311,7 +318,7 @@ class BaseApiBuilder(BaseModel):
         provider: str = "",
         api_key: str = "",
     ) -> BaseLLMModel:
-
+        """Create an LLM model instance for the given provider."""
         with self.span.start("BuildModel") as sp:
             if api_key:
                 sk = api_key

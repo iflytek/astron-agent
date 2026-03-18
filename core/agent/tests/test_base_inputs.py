@@ -1,3 +1,7 @@
+"""Test module for BaseInputs validation and helpers."""
+
+# pylint: disable=missing-function-docstring
+
 from typing import Any
 
 import pytest
@@ -8,8 +12,10 @@ from pydantic import ValidationError
 
 
 class TestBaseInputsValidation:
+    """Test BaseInputs validation logic."""
+
     def test_empty_messages_removed(self) -> None:
-        """In current implementation, empty messages are treated as missing required fields, triggering validation error."""
+        """Empty messages trigger validation error."""
         data = {"uid": "u1", "messages": []}
         with pytest.raises(ValidationError):
             BaseInputs(**data)
@@ -45,7 +51,7 @@ class TestBaseInputsValidation:
                 "messages role order must alternate between user and assistant",
             ),
             (
-                # Starts with user, ends with assistant, satisfies order but violates "last message must be user"
+                # Starts with user, ends with assistant
                 [
                     {"role": "user", "content": "q"},
                     {"role": "assistant", "content": "a"},
@@ -56,9 +62,11 @@ class TestBaseInputsValidation:
         ],
     )
     def test_invalid_messages_raise_validation_error(
-        self, messages: list[dict[str, Any]], expected_loc: tuple, expected_msg: str
+        self,
+        messages: list[dict[str, Any]],
+        expected_loc: tuple,
+        expected_msg: str,
     ) -> None:
-        # Use raw dictionary data, go through BaseInputs pre-validation logic
         with pytest.raises(RequestValidationError) as exc:
             BaseInputs.model_validate({"uid": "u1", "messages": messages})
 
@@ -70,6 +78,8 @@ class TestBaseInputsValidation:
 
 
 class TestBaseInputsHelpers:
+    """Test BaseInputs helper methods."""
+
     def make_inputs(self) -> BaseInputs:
         return BaseInputs(
             uid="u1",
@@ -85,8 +95,10 @@ class TestBaseInputsHelpers:
         inputs = self.make_inputs()
         assert inputs.get_last_message_content() == "q2"
 
-    def test_get_last_message_content_empty_raises(self) -> None:
-        # Use model_construct to bypass validation, construct empty messages scenario
+    def test_get_last_message_content_empty_raises(
+        self,
+    ) -> None:
+        # pylint: disable=import-outside-toplevel
         from agent.exceptions.agent_exc import AgentExc
 
         inputs = BaseInputs.model_construct(uid="u1", messages=[])
@@ -103,5 +115,8 @@ class TestBaseInputsHelpers:
         assert [m.content for m in history] == ["q1", "a1"]
 
     def test_get_chat_history_single_message(self) -> None:
-        inputs = BaseInputs(uid="u1", messages=[LLMMessage(role="user", content="q1")])
+        inputs = BaseInputs(
+            uid="u1",
+            messages=[LLMMessage(role="user", content="q1")],
+        )
         assert inputs.get_chat_history() == []

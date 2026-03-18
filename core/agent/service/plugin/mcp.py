@@ -1,3 +1,5 @@
+"""MCP (Model Context Protocol) plugin for external tool servers."""
+
 import asyncio
 import json
 import os
@@ -13,17 +15,22 @@ from pydantic import BaseModel, Field
 
 
 class McpPlugin(BasePlugin):
+    """MCP plugin entity."""
+
     server_id: str = Field(default="")
     server_url: str = Field(default="")
 
 
 class McpPluginRunner(BaseModel):
+    """Executes MCP plugin tool calls."""
+
     server_id: str
     server_url: str
     sid: str
     name: str
 
     async def run(self, action_input: dict, span: Span) -> Any:
+        """Execute MCP tool call and return response."""
         with span.start("Run") as sp:
             start_time = int(round(time.time() * 1000))
             data = {
@@ -80,7 +87,9 @@ class McpPluginRunner(BaseModel):
                             )
                             logger.info(
                                 {
-                                    "mcp-plugin-run-outputs": f"response code is {response.status}"
+                                    "mcp-plugin-run-outputs": (
+                                        f"response code is {response.status}"
+                                    )
                                 }
                             )
                             raise RunMcpPluginExc
@@ -101,14 +110,18 @@ class McpPluginRunner(BaseModel):
 
 
 class McpPluginFactory(BaseModel):
+    """Factory for building MCP plugins from server configurations."""
+
     app_id: str
     mcp_server_ids: list
     mcp_server_urls: list
 
     async def gen(self, span: Span) -> list[McpPlugin]:
+        """Generate MCP plugins from server configurations."""
         return await self.build_tools(span)
 
     async def build_tools(self, span: Span) -> list[McpPlugin]:
+        """Build MCP plugin tools from queried servers."""
         mcp_plugins: list[McpPlugin] = []
         servers_list = await self.query_servers(span)
         for server in servers_list:
@@ -166,6 +179,7 @@ class McpPluginFactory(BaseModel):
         return mcp_plugins
 
     async def query_servers(self, span: Span) -> list[dict]:
+        """Query MCP server configurations and tools."""
         with span.start("QueryServers") as sp:
             data = {
                 "sid": sp.sid,
@@ -220,7 +234,9 @@ class McpPluginFactory(BaseModel):
                             )
                             logger.info(
                                 {
-                                    "mcp-plugin-list-outputs": f"response code is {response.status}"
+                                    "mcp-plugin-list-outputs": (
+                                        f"response code is {response.status}"
+                                    )
                                 }
                             )
                             raise GetMcpPluginExc
@@ -240,7 +256,10 @@ class McpPluginFactory(BaseModel):
             )
 
     @staticmethod
-    async def convert_tool(tool: dict) -> str:
+    async def convert_tool(
+        tool: dict,
+    ) -> str:
+        """Convert MCP tool definition to schema template string."""
         property_template = json.dumps(
             {
                 "type": "object",

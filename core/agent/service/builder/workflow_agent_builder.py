@@ -1,3 +1,5 @@
+"""Workflow agent runner builder module."""
+
 import asyncio
 import json
 from dataclasses import dataclass
@@ -30,6 +32,8 @@ class KnowledgeQueryParams:
 
 
 class WorkflowAgentRunnerBuilder(BaseApiBuilder):
+    """Builder for constructing WorkflowAgentRunner instances."""
+
     inputs: CustomCompletionInputs
 
     async def build(self) -> WorkflowAgentRunner:
@@ -238,6 +242,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
         params: KnowledgeQueryParams,
         span: Span,
     ) -> dict[str, Any]:
+        """Execute a knowledge query and return results."""
         knowledge_plugin = KnowledgePluginFactory(
             query=self.inputs.get_last_message_content(),
             top_k=params.top_k,

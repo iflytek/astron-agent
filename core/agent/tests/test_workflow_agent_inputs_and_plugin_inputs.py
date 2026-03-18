@@ -1,5 +1,7 @@
 """Test various input models in workflow_agent_inputs"""
 
+# pylint: disable=missing-function-docstring,no-member
+
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,

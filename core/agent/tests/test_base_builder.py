@@ -1,5 +1,7 @@
 """Test BaseApiBuilder class"""
 
+# pylint: disable=too-few-public-methods,reimported
+
 import os
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -28,7 +30,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -36,9 +39,9 @@ class _DummySidGen:
 def _setup_test_environment() -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
+    - Ensure ``sid_generator2`` is initialized.
     """
-    # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
@@ -233,7 +236,9 @@ class TestBaseApiBuilder:
         assert model.llm.api_key == "provided_key"
 
     @pytest.mark.asyncio
-    async def test_create_anthropic_model(self, builder: BaseApiBuilder) -> None:
+    async def test_create_anthropic_model(  # pylint: disable=missing-function-docstring
+        self, builder: BaseApiBuilder
+    ) -> None:
         model = await builder.create_model(
             app_id="test_app",
             model_name="claude-3-5-haiku-latest",
@@ -246,7 +251,9 @@ class TestBaseApiBuilder:
         assert model.build_request_url() == "https://api.anthropic.com/v1/messages"
 
     @pytest.mark.asyncio
-    async def test_create_google_model(self, builder: BaseApiBuilder) -> None:
+    async def test_create_google_model(  # pylint: disable=missing-function-docstring
+        self, builder: BaseApiBuilder
+    ) -> None:
         model = await builder.create_model(
             app_id="test_app",
             model_name="gemini-2.5-flash",
@@ -256,17 +263,19 @@ class TestBaseApiBuilder:
         )
 
         assert isinstance(model, GoogleLLMModel)
-        assert (
-            model.build_request_url()
-            == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse"
+        expected_url = (
+            "https://generativelanguage.googleapis.com"
+            "/v1beta/models/gemini-2.5-flash"
+            ":streamGenerateContent?alt=sse"
         )
+        assert model.build_request_url() == expected_url
 
     @pytest.mark.asyncio
     async def test_create_model_without_api_key(self, builder: BaseApiBuilder) -> None:
         """Test creating model (no API key, needs to query)"""
         mock_sk = "queried_key:queried_secret"
 
-        # Patching instance method triggers Pydantic __setattr__ restrictions, here patch class method
+        # Patch class method to avoid Pydantic restrictions
         with patch.object(BaseApiBuilder, "query_maas_sk", return_value=mock_sk):
             model = await builder.create_model(
                 app_id="test_app",
@@ -361,7 +370,7 @@ class TestRunnerParams:
         )
 
         assert params.model == mock_model
-        assert params.chat_history == []
+        assert not params.chat_history
         assert params.instruct == "instruction"
         assert params.knowledge == "knowledge"
         assert params.question == "question"

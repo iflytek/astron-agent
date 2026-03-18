@@ -1,3 +1,5 @@
+"""Chain-of-thought prompt templates for the CoT runner."""
+
 COT_SYSTEM_TEMPLATE = """# 1. 核心能力
 能够基于用户的对话历史(Previous chat history)和一个新的问题(Question)，按照提示和要求回答用户的问题或完成复杂任务。
 

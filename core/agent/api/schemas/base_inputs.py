@@ -1,3 +1,5 @@
+"""Base input schema definitions for API requests."""
+
 from typing import Any
 
 from agent.api.schemas.llm_message import LLMMessage
@@ -14,6 +16,8 @@ class MetaDataInputs(BaseModel):
 
 
 class BaseInputs(BaseModel):
+    """Base inputs with message validation."""
+
     uid: str = Field(default="", description="uid", max_length=64)
     messages: list[LLMMessage]
     stream: bool = Field(default=False)
@@ -22,6 +26,7 @@ class BaseInputs(BaseModel):
     @model_validator(mode="before")  # type: ignore[misc]
     @classmethod
     def validate_messages_params(cls, values: Any) -> Any:
+        """Validate message list ordering and content."""
         if not isinstance(values, dict):
             return values
         messages = values.get("messages", [])

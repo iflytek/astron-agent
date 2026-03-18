@@ -1,3 +1,5 @@
+"""Knowledge plugin for RAG-based knowledge retrieval."""
+
 import asyncio
 import json
 import os
@@ -12,10 +14,12 @@ from openai import BaseModel
 
 
 class KnowledgePlugin(BasePlugin):
-    pass
+    """Knowledge retrieval plugin entity."""
 
 
 class KnowledgePluginFactory(BaseModel):
+    """Factory for building knowledge retrieval plugins."""
+
     query: str
     top_k: int
     repo_ids: List[str]
@@ -24,6 +28,7 @@ class KnowledgePluginFactory(BaseModel):
     rag_type: str
 
     def gen(self) -> KnowledgePlugin:
+        """Generate a knowledge plugin instance."""
         return KnowledgePlugin(
             name="knowledge",
             description="knowledge plugin",
@@ -33,6 +38,7 @@ class KnowledgePluginFactory(BaseModel):
         )
 
     async def retrieve(self, span: Span) -> Dict[str, Any]:
+        """Retrieve knowledge chunks from the knowledge service."""
         with span.start("retrieve") as sp:
             data: Dict[str, Any] = {
                 "query": self.query,

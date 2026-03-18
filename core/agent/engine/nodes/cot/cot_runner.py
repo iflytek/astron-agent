@@ -1,3 +1,5 @@
+"""Chain-of-thought runner for tool-using agent interactions."""
+
 import json
 import time
 from typing import Any, AsyncIterator, Union
@@ -19,8 +21,6 @@ from agent.service.plugin.link import LinkPlugin
 from agent.service.plugin.mcp import McpPlugin
 from agent.service.plugin.workflow import WorkflowPlugin
 from common.otlp.log_trace.base import Usage
-
-# Use unified common package import module
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
@@ -30,7 +30,9 @@ from pydantic import Field
 default_cot_step = CotStep(empty=True)
 
 
-class CotRunner(RunnerBase):
+class CotRunner(RunnerBase):  # pylint: disable=no-member
+    """Runner for chain-of-thought reasoning with tool execution."""
+
     model: BaseLLMModel
     scratchpad: Scratchpad = Field(default_factory=Scratchpad)
     # plugins: list[BasePlugin]
@@ -41,7 +43,10 @@ class CotRunner(RunnerBase):
     process_runner: CotProcessRunner
     max_loop: int = Field(default=30)
 
-    async def create_system_prompt(self) -> str:
+    async def create_system_prompt(
+        self,
+    ) -> str:
+        """Create system prompt with tools and instructions."""
         system_prompt = COT_SYSTEM_TEMPLATE.replace("{now}", self.cur_time())
         system_prompt = system_prompt.replace("{instruct}", self.instruct or "无")
         system_prompt = system_prompt.replace("{knowledge}", self.knowledge or "无")
@@ -61,7 +66,10 @@ class CotRunner(RunnerBase):
         )
         return system_prompt
 
-    async def create_user_prompt(self) -> str:
+    async def create_user_prompt(
+        self,
+    ) -> str:
+        """Create user prompt with chat history and question."""
         user_prompt = COT_USER_TEMPLATE.replace(
             "{chat_history}", await self.create_history_prompt()
         )
@@ -72,10 +80,10 @@ class CotRunner(RunnerBase):
         """解析并验证 action_input JSON 格式"""
         try:
             return json.loads(action_input_raw.strip())
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError as exc:
             raise cot_exc.CotFormatIncorrectExc(
                 f"无效的插件参数JSON格式: {action_input_raw}"
-            )
+            ) from exc
 
     async def _parse_action_and_input(
         self, step_content: str, has_thought: bool = False
@@ -99,8 +107,9 @@ class CotRunner(RunnerBase):
         return thought, action, action_input
 
     async def parse_cot_step(self, step_content: str) -> CotStep:
+        """Parse step content into a CotStep."""
         # 处理包含 Thought 和 Final Answer 的情况
-        if all([k in step_content for k in ("Thought:", "Final Answer:")]):
+        if all(k in step_content for k in ("Thought:", "Final Answer:")):
             thought = step_content.split("Final Answer:")[0].split("Thought:")[1]
             return CotStep(thought=thought, finished_cot=True)
 
@@ -110,10 +119,8 @@ class CotRunner(RunnerBase):
 
         # 处理包含 Thought、Action、Action Input 和 Observation 的情况
         if all(
-            [
-                k in step_content
-                for k in ("Thought:", "Action:", "Action Input:", "Observation:")
-            ]
+            k in step_content
+            for k in ("Thought:", "Action:", "Action Input:", "Observation:")
         ):
             thought, action, action_input = await self._parse_action_and_input(
                 step_content, has_thought=True
@@ -121,23 +128,21 @@ class CotRunner(RunnerBase):
             return CotStep(thought=thought, action=action, action_input=action_input)
 
         # 处理包含 Thought、Action 和 Action Input 的情况
-        if all([k in step_content for k in ("Thought:", "Action:", "Action Input:")]):
+        if all(k in step_content for k in ("Thought:", "Action:", "Action Input:")):
             thought, action, action_input = await self._parse_action_and_input(
                 step_content, has_thought=True
             )
             return CotStep(thought=thought, action=action, action_input=action_input)
 
         # 处理包含 Action、Action Input 和 Observation 的情况
-        if all(
-            [k in step_content for k in ("Action:", "Action Input:", "Observation:")]
-        ):
+        if all(k in step_content for k in ("Action:", "Action Input:", "Observation:")):
             thought, action, action_input = await self._parse_action_and_input(
                 step_content, has_thought=False
             )
             return CotStep(thought=thought, action=action, action_input=action_input)
 
         # 处理包含 Action 和 Action Input 的情况
-        if all([k in step_content for k in ("Action:", "Action Input:")]):
+        if all(k in step_content for k in ("Action:", "Action Input:")):
             thought, action, action_input = await self._parse_action_and_input(
                 step_content, has_thought=False
             )
@@ -146,13 +151,14 @@ class CotRunner(RunnerBase):
         # 其他情况都视为无效格式
         raise cot_exc.CotFormatIncorrectExc("无效的推理格式，缺少必要的标识字段")
 
-    async def read_response(
+    async def read_response(  # pylint: disable=too-many-locals,too-many-statements
         self,
         messages: LLMMessages,
         first_loop: bool,
         span: Span,
         node_trace_log: NodeTraceLog,
     ) -> AsyncIterator[AgentResponse]:
+        """Read and process streaming LLM response."""
 
         with span.start("MakingStep") as sp:
 
@@ -337,7 +343,7 @@ class CotRunner(RunnerBase):
                     step,
                     answer_flag,
                 ) in self._process_agent_responses(
-                    msgs, True if loop_count == 1 else False, sp, node_trace_log
+                    msgs, loop_count == 1, sp, node_trace_log
                 ):
                     if agent_response is not None:
                         yield agent_response
@@ -369,6 +375,7 @@ class CotRunner(RunnerBase):
                 yield agent_response
 
     async def run_plugin(self, cot_step: CotStep, span: Span) -> PluginResponse:
+        """Execute the matching plugin for the given cot step."""
 
         with span.start("RunPlugin") as sp:
 
@@ -407,6 +414,7 @@ class CotRunner(RunnerBase):
     async def run_workflow_plugin(
         self, plugin: BasePlugin, cot_step: CotStep, span: Span
     ) -> AsyncIterator[AgentResponse]:
+        """Execute a workflow plugin and stream responses."""
 
         with span.start("RunWorkflowPlugin") as sp:
 
@@ -431,7 +439,7 @@ class CotRunner(RunnerBase):
                 if plugin_response.code != 0:
                     cot_step.action_output = plugin_response.result
                     return
-                # yield AgentResponse(typ="log", content=plugin_response.log, model=self.model.name)
+                # skip log response for workflow plugin
                 if plugin_response.result.get("reasoning_content"):
                     yield AgentResponse(
                         typ="reasoning_content",
@@ -446,12 +454,14 @@ class CotRunner(RunnerBase):
                     )
 
     async def is_valid_plugin(self, plugin_name: str) -> bool:
+        """Check if the plugin name matches any registered plugin."""
         for plugin in self.plugins:
             if plugin.name.strip() == plugin_name.strip():
                 return True
         return False
 
     async def get_plugin(self, co_step: CotStep) -> BasePlugin | None:
+        """Get the plugin matching the cot step action."""
         for plugin in self.plugins:
             if plugin.name.strip() == co_step.action.strip():
                 return plugin

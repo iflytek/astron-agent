@@ -1,3 +1,5 @@
+"""Agent response schema definitions."""
+
 import time
 from typing import Any, Literal, Optional, Union
 
@@ -7,10 +9,13 @@ from pydantic import BaseModel, Field
 
 
 def cur_timestamp() -> int:
+    """Return current timestamp in milliseconds."""
     return int(time.time() * 1000)
 
 
 class CotStep(BaseModel):
+    """Represents a single chain-of-thought reasoning step."""
+
     thought: str = Field(default="")
     action: str = Field(default="")
     action_input: dict[str, Any] = Field(default_factory=dict)
@@ -23,6 +28,8 @@ class CotStep(BaseModel):
 
 
 class AgentResponse(BaseModel):
+    """Response from the agent engine."""
+
     typ: Literal[
         "reasoning_content", "content", "cot_step", "log", "knowledge_metadata"
     ]

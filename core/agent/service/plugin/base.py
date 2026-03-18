@@ -1,9 +1,13 @@
+"""Base plugin definitions for the agent service."""
+
 from typing import Any, Callable, Optional
 
 from pydantic import BaseModel, Field
 
 
 class PluginResponse(BaseModel):
+    """Response from plugin execution."""
+
     code: int = Field(default=0)
     sid: str = Field(default="")
     start_time: int = Field(default=0)
@@ -13,6 +17,8 @@ class PluginResponse(BaseModel):
 
 
 class BasePlugin(BaseModel):
+    """Base class for all agent plugins."""
+
     name: str
     description: str
     schema_template: str

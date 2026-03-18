@@ -1,5 +1,7 @@
 """Test CompletionBase class and its methods in base_api module"""
 
+# pylint: disable=protected-access
+
 import time
 from dataclasses import dataclass
 from typing import AsyncIterator
@@ -23,7 +25,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -31,9 +34,9 @@ class _DummySidGen:
 def _setup_test_environment() -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
+    - Ensure ``sid_generator2`` is initialized.
     """
-    # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
@@ -204,7 +207,7 @@ class TestCompletionBase:
 
         mock_runner.run = AsyncMock(return_value=mock_run_generator())
 
-        # Patching instance triggers Pydantic restrictions, here patch class method instead
+        # Patch class method instead of instance
         with patch.object(ConcreteCompletion, "build_runner", return_value=mock_runner):
             results = []
             async for result in completion.run_runner(
@@ -271,6 +274,7 @@ class TestCompletionBase:
         self, completion: ConcreteCompletion, span: Span, node_trace: NodeTrace
     ) -> None:
         """Test usage statistics aggregation from node_trace"""
+        # pylint: disable=import-outside-toplevel
         from common.otlp.log_trace.base import Usage
         from common.otlp.log_trace.node_log import Data, NodeLog
 
@@ -301,7 +305,7 @@ class TestCompletionBase:
 
         async def mock_run_generator() -> AsyncIterator[MagicMock]:
             # Empty generator - no chunks, just to trigger cleanup
-            if False:  # pragma: no cover
+            if False:  # pragma: no cover  # pylint: disable=using-constant-test
                 yield
 
         mock_runner.run = AsyncMock(return_value=mock_run_generator())
@@ -347,7 +351,7 @@ class TestCompletionBase:
 
         async def mock_run_generator() -> AsyncIterator[MagicMock]:
             # Empty generator
-            if False:  # pragma: no cover
+            if False:  # pragma: no cover  # pylint: disable=using-constant-test
                 yield
 
         mock_runner.run = AsyncMock(return_value=mock_run_generator())

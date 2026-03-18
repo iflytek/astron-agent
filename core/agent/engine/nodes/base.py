@@ -1,3 +1,5 @@
+"""Base runner and scratchpad definitions for agent engine nodes."""
+
 import datetime
 import json
 import time
@@ -7,8 +9,6 @@ from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.llm_message import LLMMessage
 from agent.domain.models.base import BaseLLMModel
 from common.otlp.log_trace.base import Usage
-
-# Use unified common package import module
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
@@ -17,15 +17,19 @@ from pydantic import BaseModel, Field
 
 
 class RunnerBase(BaseModel):
+    """Base class for engine runners with common LLM stream logic."""
+
     model: BaseLLMModel
     chat_history: list[LLMMessage]
 
     @staticmethod
     def cur_time() -> str:
+        """Return current time as formatted string."""
         now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return now
 
     async def create_history_prompt(self) -> str:
+        """Create a formatted chat history prompt string."""
         history_lines = [
             f"{history.role.title()}: {history.content}"
             for history in self.chat_history
@@ -33,10 +37,10 @@ class RunnerBase(BaseModel):
 
         return "\n".join(history_lines) or "无"
 
-    async def model_general_stream(
+    async def model_general_stream(  # pylint: disable=too-many-locals
         self, messages: list, span: Span, node_trace_log: NodeTraceLog
     ) -> AsyncIterator[AgentResponse]:
-
+        """Stream LLM responses and collect trace data."""
         with span.start("RunModelStream") as sp:
 
             thinks = ""
@@ -151,9 +155,12 @@ class RunnerBase(BaseModel):
 
 
 class Scratchpad(BaseModel):
+    """Maintains reasoning steps for chain-of-thought execution."""
+
     steps: List[CotStep] = Field(default_factory=list)
 
     async def template(self) -> str:
+        """Render all steps as a formatted prompt template."""
         step_templates = []
         for step in self.steps:
             action_input_text = json.dumps(step.action_input, ensure_ascii=False)

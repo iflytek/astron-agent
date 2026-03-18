@@ -1,3 +1,5 @@
+"""Agent error code constants."""
+
 c_0 = (0, "success")
 
 c_10000 = (10000, "Error occurred during WebSocket upgrade")

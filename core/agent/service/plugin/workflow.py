@@ -1,3 +1,5 @@
+"""Workflow plugin for executing sub-workflow agents."""
+
 import asyncio
 import json
 import os
@@ -18,7 +20,8 @@ from pydantic import BaseModel, Field
 class _AgentConfig(BaseModel):
     """Workflow-related configuration loaded from environment.
 
-    Tests may monkeypatch this object on the module (see test_plugin_base_link_mcp_workflow),
+    Tests may monkeypatch this object on the module
+    (see test_plugin_base_link_mcp_workflow),
     so keep the name `agent_config` stable.
     """
 
@@ -45,6 +48,8 @@ class ResponseContext:
 
 
 class WorkflowPluginRunner(BaseModel):
+    """Executes workflow plugin operations via SSE streaming."""
+
     app_id: str
     uid: str
     flow_id: str
@@ -112,6 +117,7 @@ class WorkflowPluginRunner(BaseModel):
     async def run(
         self, action_input: dict, span: Span
     ) -> AsyncIterator[PluginResponse]:
+        """Execute the workflow plugin and stream responses."""
         with span.start("Run") as sp:
             start_time = int(round(time.time() * 1000))
             params = self._build_request_params(action_input)
@@ -177,15 +183,20 @@ class WorkflowPluginRunner(BaseModel):
 
 
 class WorkflowPlugin(BasePlugin):
+    """Workflow plugin entity."""
+
     flow_id: str
 
 
 class WorkflowPluginFactory(BaseModel):
+    """Factory for building workflow plugins."""
+
     app_id: str
     uid: str
     workflow_ids: list
 
     async def gen(self, span: Span) -> list[WorkflowPlugin]:
+        """Generate workflow plugins from schema list."""
         schema_list = await self.query_workflows_schema_list(span)
         plugins = []
         for schema in schema_list:
@@ -195,6 +206,7 @@ class WorkflowPluginFactory(BaseModel):
 
     @staticmethod
     async def do_query_workflow_schema(workflow_id: str, span: Span) -> dict[str, Any]:
+        """Query a single workflow schema by ID."""
         with span.start("DoQueryWorkflowsSchema") as sp:
             sp.add_info_events(
                 attributes={
@@ -233,6 +245,7 @@ class WorkflowPluginFactory(BaseModel):
                     return dict(result)
 
     async def query_workflows_schema_list(self, span: Span) -> list:
+        """Query all workflow schemas concurrently."""
         with span.start("QueryWorkflowsSchemaList") as sp:
             query_tasks = [
                 self.do_query_workflow_schema(flow_id, sp)
@@ -242,6 +255,7 @@ class WorkflowPluginFactory(BaseModel):
             return results
 
     async def create_workflow_plugin(self, workflow_schema: dict) -> WorkflowPlugin:
+        """Create a workflow plugin from schema data."""
         flow_id = workflow_schema.get("data", {}).get("data", {}).get("id", "")
         flow_name = workflow_schema.get("data", {}).get("data", {}).get("name", "")
         flow_description = (

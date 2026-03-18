@@ -1,3 +1,5 @@
+"""Workflow agent input schema definitions."""
+
 from typing import Any, Dict, List, Union
 
 from agent.api.schemas.base_inputs import BaseInputs
@@ -5,6 +7,8 @@ from pydantic import BaseModel, Field
 
 
 class CustomCompletionModelConfigInputs(BaseModel):
+    """Model configuration inputs for custom completion."""
+
     domain: str
     api: str
     provider: str = Field(default="")
@@ -12,16 +16,22 @@ class CustomCompletionModelConfigInputs(BaseModel):
 
 
 class CustomCompletionInstructionInputs(BaseModel):
+    """Instruction inputs for custom completion."""
+
     reasoning: str = Field(default="")
     answer: str = Field(default="")
 
 
 class CustomCompletionPluginKnowledgeMatchInputs(BaseModel):
+    """Knowledge match configuration inputs."""
+
     repo_ids: list[str] = Field(default_factory=list[str])
     doc_ids: list[str] = Field(default_factory=list[str])
 
 
 class CustomCompletionPluginKnowledgeInputs(BaseModel):
+    """Knowledge plugin configuration inputs."""
+
     name: str = Field(..., min_length=1, max_length=128)
     description: str = Field(..., min_length=0, max_length=1024)
     top_k: int = Field(..., ge=1, le=5)
@@ -32,6 +42,8 @@ class CustomCompletionPluginKnowledgeInputs(BaseModel):
 
 
 class CustomCompletionPluginInputs(BaseModel):
+    """Plugin configuration inputs."""
+
     tools: List[Union[str, Dict[str, Any]]] = Field(default_factory=list)
     mcp_server_ids: list[str] = Field(default_factory=list)
     mcp_server_urls: list[str] = Field(default_factory=list)
@@ -42,6 +54,8 @@ class CustomCompletionPluginInputs(BaseModel):
 
 
 class CustomCompletionInputs(BaseInputs):
+    """Custom completion request inputs."""
+
     model_config_inputs: CustomCompletionModelConfigInputs = Field(alias="model_config")
     instruction: CustomCompletionInstructionInputs = Field(
         default_factory=CustomCompletionInstructionInputs

@@ -1,3 +1,5 @@
+"""Link plugin for calling external tool services."""
+
 import asyncio
 import json
 import os
@@ -14,6 +16,8 @@ from pydantic import BaseModel, Field
 
 
 class LinkPluginRunner(BaseModel):
+    """Executes a single link plugin operation."""
+
     app_id: str
     uid: str
     tool_id: str
@@ -24,6 +28,7 @@ class LinkPluginRunner(BaseModel):
     def assemble_parameters(
         self, action_input: dict[str, Any], business_input: dict[str, Any]
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Assemble header and query parameters from schema."""
         header: dict[str, Any] = {}
         query: dict[str, Any] = {}
         parameters_schema = self.method_schema.get("parameters", [])
@@ -64,6 +69,7 @@ class LinkPluginRunner(BaseModel):
         action_input: dict[str, Any],
         business_input: dict[str, Any],
     ) -> dict[str, Any]:
+        """Assemble request body from schema and inputs."""
         properties = {}
         body_properties = body_schema.get("properties", {})
         for parameter_name, parameter_detail in body_properties.items():
@@ -95,11 +101,14 @@ class LinkPluginRunner(BaseModel):
 
     @staticmethod
     def dumps(payload: dict[str, Any]) -> str:
+        """Base64-encode a JSON payload."""
         if payload:
             return b64encode(json.dumps(payload, ensure_ascii=True).encode()).decode()
         return ""
 
-    async def run(self, action_input: dict[str, Any], span: Span) -> PluginResponse:
+    async def run(  # pylint: disable=too-many-locals
+        self, action_input: dict[str, Any], span: Span
+    ) -> PluginResponse:
         """Call link"""
         with span.start("Run") as sp:
             start_time = int(round(time.time() * 1000))
@@ -222,10 +231,14 @@ class LinkPluginRunner(BaseModel):
 
 
 class LinkPlugin(BasePlugin):
+    """Link plugin entity."""
+
     tool_id: str
 
 
 class LinkPluginFactory(BaseModel):
+    """Factory for building link plugins from tool schemas."""
+
     app_id: str
     uid: str
     tool_ids: List[Union[str, dict[str, Any]]]
@@ -233,11 +246,13 @@ class LinkPluginFactory(BaseModel):
     const_headers: dict[str, str] = Field(default={"Content-Type": "application/json"})
 
     async def gen(self, span: Span) -> list[LinkPlugin]:
+        """Generate link plugins from tool schemas."""
         return await self.parse_react_schema_list(span)
 
     async def run(
         self, _operation_id: str, _action_input: dict[str, Any], _span: Span
     ) -> Optional[PluginResponse]:
+        """Run a link plugin operation."""
         # This method appears to be incomplete in the original, return None
         return None
 
@@ -374,7 +389,9 @@ class LinkPluginFactory(BaseModel):
         request_body_required = body_schema.get("required", [])
         required_set.update(request_body_required)
 
-    async def parse_react_schema_list(self, span: Span) -> list[LinkPlugin]:
+    async def parse_react_schema_list(  # pylint: disable=too-many-locals
+        self, span: Span
+    ) -> list[LinkPlugin]:
         """Generate tools and tool_names for ReAct"""
         with span.start("ParseReactSchemaList") as sp:
             tools: list[LinkPlugin] = []

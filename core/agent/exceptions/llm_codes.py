@@ -1,3 +1,5 @@
+"""LLM error code definitions and mapping utilities."""
+
 from typing import Union
 
 from agent.exceptions.codes import (
@@ -60,7 +62,9 @@ from agent.exceptions.codes import (
 )
 
 
-class IfyTekLLMCodes:
+class IfyTekLLMCodes:  # pylint: disable=too-few-public-methods
+    """Error codes for IFlyTek Spark LLM service."""
+
     # Spark errors
     SparkWSError = c_10000
     SparkWSReadError = c_10001
@@ -91,7 +95,9 @@ class IfyTekLLMCodes:
     SparkConcurrencyLimitError = c_11203
 
 
-class WorkflowLLMCodes:
+class WorkflowLLMCodes:  # pylint: disable=too-few-public-methods
+    """Error codes for workflow LLM operations."""
+
     # Spark exceptions
     SparkFunctionNotChoiceError = c_40301
     SparkRequestError = c_40303
@@ -138,7 +144,9 @@ _CODE_MAPPING: dict[Union[str, int, tuple[int, str]], tuple[int, str]] = {
     IfyTekLLMCodes.SparkConcurrencyError: WorkflowLLMCodes.SparkConcurrencyError,
     IfyTekLLMCodes.SparkTrafficLimitError: WorkflowLLMCodes.SparkTrafficLimitError,
     IfyTekLLMCodes.SparkCapacityError: WorkflowLLMCodes.SparkCapacityError,
-    IfyTekLLMCodes.SparkEngineConnectionError: WorkflowLLMCodes.SparkEngineConnectionError,
+    IfyTekLLMCodes.SparkEngineConnectionError: (
+        WorkflowLLMCodes.SparkEngineConnectionError
+    ),
     IfyTekLLMCodes.SparkEngineReceiveError: WorkflowLLMCodes.SparkEngineReceiveError,
     IfyTekLLMCodes.SparkEngineSendError: WorkflowLLMCodes.SparkEngineSendError,
     IfyTekLLMCodes.SparkEngineInternalError: WorkflowLLMCodes.SparkEngineInternalError,
@@ -155,7 +163,9 @@ _CODE_MAPPING: dict[Union[str, int, tuple[int, str]], tuple[int, str]] = {
     IfyTekLLMCodes.SparkAuthError: WorkflowLLMCodes.SparkAuthError,
     IfyTekLLMCodes.SparkDailyLimitError: WorkflowLLMCodes.SparkDailyLimitError,
     IfyTekLLMCodes.SparkSecondLimitError: WorkflowLLMCodes.SparkSecondLimitError,
-    IfyTekLLMCodes.SparkConcurrencyLimitError: WorkflowLLMCodes.SparkConcurrencyLimitError,
+    IfyTekLLMCodes.SparkConcurrencyLimitError: (
+        WorkflowLLMCodes.SparkConcurrencyLimitError
+    ),
 }
 
 

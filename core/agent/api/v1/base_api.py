@@ -1,3 +1,5 @@
+"""Base API completion handlers."""
+
 import json
 import os
 import time
@@ -14,8 +16,6 @@ from agent.api.schemas.completion_chunk import (
 )
 from agent.api.schemas.node_trace_patch import NodeTracePatch
 from agent.exceptions.agent_exc import AgentInternalExc, AgentNormalExc
-
-# Use unified common package import module
 from common.exceptions.base import BaseExc
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -44,6 +44,8 @@ class RunContext:
 
 
 class CompletionBase(BaseModel, ABC):
+    """Base class for chat completion endpoints."""
+
     app_id: str
     inputs: BaseInputs
     log_caller: str
@@ -55,6 +57,7 @@ class CompletionBase(BaseModel, ABC):
         """Subclasses need to implement the logic for building runner"""
 
     async def build_node_trace(self, bot_id: str, span: Span) -> NodeTracePatch:
+        """Build and initialize node trace for request tracking."""
         with span.start("BuildNodeTrace") as sp:
             node_trace: NodeTracePatch = NodeTracePatch(
                 service_id=bot_id,  # Use bot_id as service_id
@@ -75,7 +78,7 @@ class CompletionBase(BaseModel, ABC):
             return node_trace
 
     async def build_meter(self, span: Span) -> Meter:
-
+        """Build metrics meter for the request."""
         with span.start("BuildMeter") as sp:
             sp.add_info_events({"app-id": self.app_id, "func": self.log_caller})
             logger.info({"app-id": self.app_id, "func": self.log_caller})
@@ -105,10 +108,10 @@ class CompletionBase(BaseModel, ABC):
             chunk_logs.append(chunk.model_dump_json())
             yield await self.create_chunk(chunk)
 
-    async def run_runner(
+    async def run_runner(  # pylint: disable=too-many-locals,too-many-statements
         self, node_trace_log: NodeTraceLog, meter: Meter, span: Span
     ) -> AsyncGenerator[str, None]:
-
+        """Execute the runner and stream response chunks."""
         with span.start("RunRunner") as sp:
             error: BaseExc = AgentNormalExc()
             error_log: str = ""
@@ -140,7 +143,7 @@ class CompletionBase(BaseModel, ABC):
                     node_trace_log=node_trace_log,
                     meter=meter,
                 )
-                """Cleanup work after completing the run"""
+                # Cleanup work after completing the run
                 if context.error.c != 0:
                     context.error.m += f",{context.span.sid}"
                     context.span.add_error_events({"traceback": context.error_log})
@@ -148,7 +151,9 @@ class CompletionBase(BaseModel, ABC):
                 stop_chunk = await self.create_stop(context.span, context.error)
                 # Attach usage from node_trace if available
                 if context.node_trace_log.trace:
-                    from openai.types.completion_usage import CompletionUsage
+                    from openai.types.completion_usage import (  # isort: skip  # pylint: disable=import-outside-toplevel
+                        CompletionUsage,
+                    )
 
                     total_usage = {
                         "completion_tokens": 0,
@@ -217,10 +222,12 @@ class CompletionBase(BaseModel, ABC):
 
     @staticmethod
     async def create_chunk(chunk: Any) -> str:
+        """Serialize a chunk to SSE data format."""
         return f"data: {chunk.model_dump_json()}\n\n"
 
     @staticmethod
     async def create_stop(span: Span, e: BaseExc) -> ReasonChatCompletionChunk:
+        """Create a stop chunk with error info."""
         chunk = ReasonChatCompletionChunk(
             id=span.sid,
             code=e.c,
@@ -236,4 +243,5 @@ class CompletionBase(BaseModel, ABC):
 
     @staticmethod
     async def create_done() -> str:
+        """Create the SSE done marker."""
         return "data: [DONE]\n\n"

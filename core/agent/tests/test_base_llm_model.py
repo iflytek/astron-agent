@@ -1,5 +1,7 @@
 """Test BaseLLMModel class"""
 
+# pylint: disable=protected-access
+
 from dataclasses import dataclass
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
@@ -18,7 +20,8 @@ class _DummySidGen:
 
     value: str = "test-sid"
 
-    def gen(self) -> str:  # pragma: no cover - only for testing environment
+    def gen(self) -> str:  # pragma: no cover
+        """Generate a test sid value."""
         return self.value
 
 
@@ -26,9 +29,9 @@ class _DummySidGen:
 def _setup_test_environment() -> None:
     """Automatically inject environment fixes for all tests.
 
-    - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
+    - Ensure ``sid_generator2`` is initialized.
     """
-    # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
+    # Initialize sid generator
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
 
@@ -39,7 +42,7 @@ class TestBaseLLMModel:
     @pytest.fixture
     def mock_llm(self) -> AsyncOpenAI:
         """Create mock AsyncOpenAI client"""
-        # Only needs chat.completions.create interface, doesn't depend on real AsyncOpenAI implementation
+        # Only needs chat.completions.create interface
         return MagicMock()
 
     @pytest.fixture
@@ -87,9 +90,13 @@ class TestBaseLLMModel:
     def test_handle_api_timeout_error(self, model: BaseLLMModel) -> None:
         """Test handling API timeout error"""
 
-        # Use simple Dummy error object to avoid depending on openai package's specific constructor signature
+        # Simple Dummy error object for testing
         class DummyTimeoutError(APITimeoutError):  # type: ignore[misc]
-            def __init__(self, message: str) -> None:
+            """Test timeout error."""
+
+            def __init__(  # pylint: disable=super-init-not-called
+                self, message: str
+            ) -> None:
                 self.message = message
 
         error = DummyTimeoutError("timeout")
@@ -100,7 +107,11 @@ class TestBaseLLMModel:
         """Test handling API error (with span)"""
 
         class DummyAPIError(APIError):  # type: ignore[misc]
-            def __init__(self, message: str, code: str) -> None:
+            """Test API error."""
+
+            def __init__(  # pylint: disable=super-init-not-called
+                self, message: str, code: str
+            ) -> None:
                 self.message = message
                 self.code = code
 
@@ -112,7 +123,11 @@ class TestBaseLLMModel:
         """Test handling API error (without span)"""
 
         class DummyAPIError(APIError):  # type: ignore[misc]
-            def __init__(self, message: str, code: str) -> None:
+            """Test API error."""
+
+            def __init__(  # pylint: disable=super-init-not-called
+                self, message: str, code: str
+            ) -> None:
                 self.message = message
                 self.code = code
 
@@ -203,7 +218,11 @@ class TestBaseLLMModel:
         """Test streaming response timeout error"""
 
         class DummyTimeoutError(APITimeoutError):  # type: ignore[misc]
-            def __init__(self, message: str) -> None:
+            """Test timeout error."""
+
+            def __init__(  # pylint: disable=super-init-not-called
+                self, message: str
+            ) -> None:
                 self.message = message
 
         error = DummyTimeoutError("timeout")
@@ -219,7 +238,11 @@ class TestBaseLLMModel:
         """Test streaming response API error"""
 
         class DummyAPIError(APIError):  # type: ignore[misc]
-            def __init__(self, message: str, code: str) -> None:
+            """Test API error."""
+
+            def __init__(  # pylint: disable=super-init-not-called
+                self, message: str, code: str
+            ) -> None:
                 self.message = message
                 self.code = code
 

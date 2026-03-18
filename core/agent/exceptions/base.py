@@ -1,3 +1,6 @@
+"""Base exception module for the agent service."""
+
+
 class AgentException(Exception):
     """
     Base exception for agent
