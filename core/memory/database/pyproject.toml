@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "alembic==1.13.1",
     "asyncpg>=0.30.0",
     "black==24.4.2",
     "confluent-kafka>=2.11.1",
@@ -25,6 +26,7 @@ dependencies = [
     "opentelemetry-semantic-conventions==0.46b0",
     "orjson>=3.10.18",
     "pandas>=2.3.0",
+    "psycopg2-binary>=2.9.11",
     "pydantic-settings>=2.10.1",
     "pylint==3.1.0",
     "pytest-asyncio>=1.2.0",

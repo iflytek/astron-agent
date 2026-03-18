@@ -1,5 +1,6 @@
 package com.iflytek.astron.console.hub.service;
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.service.ChatRecordModelService;
@@ -135,6 +136,32 @@ class PromptChatServiceTest {
             return true;
         }));
         verify(call).enqueue(any(Callback.class));
+    }
+
+    @Test
+    void testChatStream_GoogleRequest_UsesGoogApiKeyHeader() {
+        request.put("provider", "google");
+        request.put("model", "gemini-3.1-pro");
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"Hello"}
+                ]
+                """));
+        request.put("url", "https://example.com/v1beta/models/gemini-3.1-pro:generateContent");
+
+        when(httpClient.newCall(any(Request.class))).thenReturn(call);
+        doNothing().when(call).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, chatReqRecords, false, false);
+
+        verify(httpClient).newCall(argThat(req -> {
+            assertNotNull(req);
+            assertEquals("https://example.com/v1beta/models/gemini-3.1-pro:streamGenerateContent?alt=sse", req.url().toString());
+            assertEquals("test-api-key", req.header("x-goog-api-key"));
+            assertNull(req.header("Authorization"));
+            return true;
+        }));
     }
 
     @Test

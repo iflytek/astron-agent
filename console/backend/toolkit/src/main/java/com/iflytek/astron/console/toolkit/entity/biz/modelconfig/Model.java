@@ -14,5 +14,6 @@ public class Model {
     Long llmId;
     Integer llmSource;
     String api;
+    String provider;
     Long modelId;
 }

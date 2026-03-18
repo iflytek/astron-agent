@@ -360,8 +360,48 @@ class BotChatServiceImplUnitTest {
             botChatService.debugChatMessageBot(request, sseEmitter, sseId);
 
             verify(modelService).getDetail(eq(0), eq(1L), isNull());
-            verify(promptChatService).chatStream(any(JSONObject.class), eq(sseEmitter), eq(sseId), isNull(), eq(false), eq(true));
+            verify(promptChatService).chatStream(argThat(json -> "openai".equals(json.getString("provider"))), eq(sseEmitter), eq(sseId), isNull(), eq(false), eq(true));
             verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        }
+    }
+
+    @Test
+    void testDebugChatMessageBot_WithGoogleModelId_PropagatesProvider() {
+        DebugChatBotReqDto request = new DebugChatBotReqDto();
+        request.setText("test message");
+        request.setPrompt("test prompt");
+        request.setMessages(Arrays.asList("message1", "message2"));
+        request.setUid("test-uid");
+        request.setModel("gemini-3.1-pro");
+        request.setModelId(1L);
+
+        SseEmitter sseEmitter = new SseEmitter();
+        String sseId = "test-sse-id";
+
+        LLMInfoVo llmInfoVo = createLLMInfoVo();
+        llmInfoVo.setProvider("google");
+        llmInfoVo.setDomain("gemini-3.1-pro");
+        llmInfoVo.setUrl("https://example.com/v1beta/models/gemini-3.1-pro:generateContent");
+        llmInfoVo.setLlmId(100L);
+        llmInfoVo.setServiceId("test-service-id");
+
+        when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
+
+        try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
+            mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
+
+            botChatService.debugChatMessageBot(request, sseEmitter, sseId);
+
+            verify(promptChatService).chatStream(
+                    argThat(json -> "google".equals(json.getString("provider"))),
+                    eq(sseEmitter),
+                    eq(sseId),
+                    isNull(),
+                    eq(false),
+                    eq(true));
         }
     }
 
@@ -529,6 +569,7 @@ class BotChatServiceImplUnitTest {
         llmInfoVo.setUrl("http://test.com");
         llmInfoVo.setApiKey("test-api-key");
         llmInfoVo.setDomain("test-domain");
+        llmInfoVo.setProvider("openai");
         llmInfoVo.setConfig("[]");
 
         List<CategoryTreeVO> categoryTree = new ArrayList<>();

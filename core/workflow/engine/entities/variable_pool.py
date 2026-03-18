@@ -65,13 +65,16 @@ def assemble_mapping_key(node_id: str, val: str) -> str:
     return f"{node_id}-{val}"
 
 
-def iteration_array(content: Any, schemas: dict, key_list: list) -> Any:
+def iteration_array(
+    content: Any, schemas: dict, key_list: list, *, first_only: bool = False
+) -> Any:
     """
     Iterate through nested array/object structures based on key list and schema.
 
     :param content: Content to iterate through
     :param schemas: Schema definition for the content
     :param key_list: List of keys to navigate through
+    :param first_only: If True, extract only the first element for array object types
     :return: Extracted value based on key navigation
     """
     mapping_value: Any = content
@@ -93,15 +96,24 @@ def iteration_array(content: Any, schemas: dict, key_list: list) -> Any:
                 mapping_schema = cast(dict, mapping_schema[key])
                 key_type = mapping_schema.get("type", "")
 
-                # Ensure mapping_value is iterable list
                 mapping_value = cast(list, mapping_value)
-                # Only take first element and continue processing
-                if len(mapping_value) > 0:
-                    mapping_value = mapping_value[0].get(
-                        key, schema_type_default_value.get(key_type)
-                    )
+                if first_only:
+                    if mapping_value:
+                        mapping_value = mapping_value[0].get(
+                            key, schema_type_default_value.get(key_type)
+                        )
+                    else:
+                        mapping_value = schema_type_default_value.get(key_type)
                 else:
-                    mapping_value = schema_type_default_value.get(key_type)
+                    return [
+                        iteration_array(
+                            value.get(key, schema_type_default_value.get(key_type)),
+                            mapping_schema,
+                            key_list[key_i:],
+                            first_only=first_only,
+                        )
+                        for value in mapping_value
+                    ]
             else:
                 return mapping_value
         elif key_type == "object":
@@ -522,13 +534,55 @@ class VariablePool:
         value_schema = mapping_value.get("schema")
         return value_schema
 
-    def get_output_variable(self, node_id: str, key_name: str, span: Span) -> Any:
+    def _extract_array_value(
+        self,
+        mapping_value: list,
+        key: str,
+        key_type: str,
+        mapping_schema: Dict[str, Any],
+        remaining_keys: list,
+        first_only: bool,
+    ) -> Any:
+        """
+        Extract value(s) from an array-of-objects node.
+
+        :param mapping_value: The list to extract from
+        :param key: Property key to read from each element
+        :param key_type: Schema type of the property
+        :param mapping_schema: Schema of the property
+        :param remaining_keys: Keys still to be resolved via iteration_array
+        :param first_only: If True, return only the first element's value
+        :return: Single value (first_only=True) or list of values
+        """
+        default = schema_type_default_value.get(key_type)
+        if first_only:
+            if not mapping_value:
+                return default
+            return iteration_array(
+                cast(dict, mapping_value[0]).get(key, default),
+                mapping_schema,
+                remaining_keys,
+                first_only=True,
+            )
+        return [
+            iteration_array(
+                cast(dict, value).get(key, default),
+                mapping_schema,
+                remaining_keys,
+            )
+            for value in mapping_value
+        ]
+
+    def get_output_variable(
+        self, node_id: str, key_name: str, span: Span, *, first_only: bool = False
+    ) -> Any:
         """
         Get output variable value for a specific node and variable name.
 
         :param node_id: ID of the node
         :param key_name: Name of the variable (supports nested access with dot notation)
         :param span: Span object for tracing
+        :param first_only: If True, extract only the first element for array object
         :return: Value of the output variable
         """
         key_name_list = key_name.split(".")
@@ -576,16 +630,13 @@ class VariablePool:
                     key_type = cast(str, mapping_schema.get("type", ""))
 
                     mapping_value = cast(list, mapping_value)
-                    if not mapping_value:
-                        return schema_type_default_value.get(key_type)
-
-                    first_value = mapping_value[0]
-                    return iteration_array(
-                        cast(dict, first_value).get(
-                            key, schema_type_default_value.get(key_type)
-                        ),
+                    return self._extract_array_value(
+                        mapping_value,
+                        key,
+                        key_type,
                         mapping_schema,
                         key_name_list[key_i:],
+                        first_only,
                     )
                 else:
                     return mapping_value
@@ -668,13 +719,16 @@ class VariablePool:
             llm_resp_format=llm_resp_format or 0,
         )
 
-    def get_variable(self, node_id: str, key_name: str, span: Span) -> Any:
+    def get_variable(
+        self, node_id: str, key_name: str, span: Span, *, first_only: bool = False
+    ) -> Any:
         """
         Get variable value by mapping key.
 
         :param node_id: ID of the node
         :param key_name: Name of the variable
         :param span: Span object for tracing
+        :param first_only: If True, extract only the first element for array object
         :return: Variable value
         """
         try:
@@ -694,16 +748,32 @@ class VariablePool:
                         ref_content.name if isinstance(ref_content, NodeRef) else ""
                     )
                     return self.get_output_variable(
-                        node_id=node_id, key_name=node_value, span=span
+                        node_id=node_id,
+                        key_name=node_value,
+                        span=span,
+                        first_only=first_only,
                     )
             if mapping_key in self.output_variable_mapping:
                 # Support nested access like input.iii.yyy
-                output_value = self.get_output_variable(
-                    node_id=node_id, key_name=key_name, span=span
+                return self.get_output_variable(
+                    node_id=node_id,
+                    key_name=key_name,
+                    span=span,
+                    first_only=first_only,
                 )
-                return output_value
         except Exception as e:
             raise Exception(f"get variable error: {e}")
+
+    def get_variable_first(self, node_id: str, key_name: str, span: Span) -> Any:
+        """
+        Get variable value, extracting only the first element for array object.
+
+        :param node_id: ID of the node
+        :param key_name: Name of the variable
+        :param span: Span object for tracing
+        :return: Variable value (first element for arrays object)
+        """
+        return self.get_variable(node_id, key_name, span, first_only=True)
 
     def add_end_node_variable(
         self, node_id: str, key_name_list: list[str], value: NodeRunResult

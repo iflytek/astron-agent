@@ -9,6 +9,7 @@ from typing import Any, AsyncIterator, Optional
 
 import aiohttp
 from common.utils.hmac_auth import HMACAuth
+from loguru import logger as log
 from plugin.aitools.api.schemas.types import (
     BaseResponse,
     ErrorResponse,
@@ -22,19 +23,21 @@ from plugin.aitools.common.clients.adapters import (
 from plugin.aitools.common.clients.hooks import HttpSpanHooks
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import HTTPClientException
-from plugin.aitools.common.log.logger import log
-
-TOTAL_TIMEOUT = 300
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 60
-
-LIMIT_CONNECTOR = 200
-LIMIT_PER_HOST_CONNECTOR = 50
-TTL_DNS_CACHE_CONNECTOR = 300
-ENABLE_CLEANUP_CLOSED_CONNECTOR = True
-
-TRUST_ENV = True
-
+from plugin.aitools.const.const import (
+    AIOHTTP_CLIENT_CONNECT_TIMEOUT_KEY,
+    AIOHTTP_CLIENT_ENABLE_CLEANUP_CLOSED_CONNECTOR_KEY,
+    AIOHTTP_CLIENT_LIMIT_CONNECTOR_KEY,
+    AIOHTTP_CLIENT_LIMIT_PER_HOST_CONNECTOR_KEY,
+    AIOHTTP_CLIENT_READ_TIMEOUT_KEY,
+    AIOHTTP_CLIENT_TOTAL_TIMEOUT_KEY,
+    AIOHTTP_CLIENT_TRUST_ENV_KEY,
+    AIOHTTP_CLIENT_TTL_DNS_CACHE_CONNECTOR_KEY,
+)
+from plugin.aitools.utils.env_utils import (
+    safe_get_bool_env,
+    safe_get_float_env,
+    safe_get_int_env,
+)
 
 _aiohttp_session: Optional[aiohttp.ClientSession] = None
 
@@ -48,22 +51,38 @@ async def get_aiohttp_session() -> aiohttp.ClientSession:
 
     if _aiohttp_session is None or _aiohttp_session.closed:
         timeout = aiohttp.ClientTimeout(
-            total=TOTAL_TIMEOUT,  # total request timeout
-            connect=CONNECT_TIMEOUT,
-            sock_read=READ_TIMEOUT,
+            total=safe_get_float_env(
+                AIOHTTP_CLIENT_TOTAL_TIMEOUT_KEY, 300.0
+            ),  # total request timeout
+            connect=safe_get_float_env(
+                AIOHTTP_CLIENT_CONNECT_TIMEOUT_KEY, 10.0
+            ),  # connection timeout
+            sock_read=safe_get_float_env(
+                AIOHTTP_CLIENT_READ_TIMEOUT_KEY, 60.0
+            ),  # read timeout
         )
 
         connector = aiohttp.TCPConnector(
-            limit=LIMIT_CONNECTOR,  # max total connections
-            limit_per_host=LIMIT_PER_HOST_CONNECTOR,  # max per host
-            ttl_dns_cache=TTL_DNS_CACHE_CONNECTOR,
-            enable_cleanup_closed=ENABLE_CLEANUP_CLOSED_CONNECTOR,
+            limit=safe_get_int_env(
+                AIOHTTP_CLIENT_LIMIT_CONNECTOR_KEY, 200
+            ),  # max total connections
+            limit_per_host=safe_get_int_env(
+                AIOHTTP_CLIENT_LIMIT_PER_HOST_CONNECTOR_KEY, 50
+            ),  # max per host
+            ttl_dns_cache=safe_get_int_env(
+                AIOHTTP_CLIENT_TTL_DNS_CACHE_CONNECTOR_KEY, 300
+            ),
+            enable_cleanup_closed=safe_get_bool_env(
+                AIOHTTP_CLIENT_ENABLE_CLEANUP_CLOSED_CONNECTOR_KEY, True
+            ),
         )
 
         _aiohttp_session = aiohttp.ClientSession(
             timeout=timeout,
             connector=connector,
-            trust_env=TRUST_ENV,  # respect proxy env
+            trust_env=safe_get_bool_env(
+                AIOHTTP_CLIENT_TRUST_ENV_KEY, True
+            ),  # respect proxy env
         )
 
         log.info("aiohttp ClientSession initialized")
@@ -83,6 +102,15 @@ async def close_aiohttp_session() -> None:
         log.info("aiohttp ClientSession closed")
 
     _aiohttp_session = None
+
+
+async def reset_aiohttp_session() -> None:
+    """
+    Reset the global aiohttp session.
+    Closes existing session and creates a new one on next get_aiohttp_session call.
+    """
+    await close_aiohttp_session()
+    await get_aiohttp_session()
 
 
 class HttpClient(InstrumentedClient):

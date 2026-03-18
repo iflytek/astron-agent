@@ -244,6 +244,9 @@
 | PLATFORM_APP_ID | 用户必填 | string | 讯飞开放平台应用 ID | your-app-id |
 | PLATFORM_API_KEY | 用户必填 | string | 讯飞开放平台 API Key | your-api-key |
 | PLATFORM_API_SECRET | 用户必填 | string | 讯飞开放平台 API Secret | your-api-secret |
+| AI_ABILITY_CHAT_BASE_URL | 可选 | url | 文本模型服务地址(OpenAI 兼容接口)(默认从 PLATFORM_API_KEY 获取)           | ${PLATFORM_API_KEY} |
+| AI_ABILITY_CHAT_MODEL | 可选 | string | 文本模型名称                                             |${AI_ABILITY_CHAT_MODEL}|
+| AI_ABILITY_CHAT_API_KEY | 可选 | string |文本模型 API Key                                          | ${AI_ABILITY_CHAT_API_KEY} |
 | SPARK_RTASR_API_KEY | 用户必填 | string | 星火实时语音转写 API Key | your-rtasr-api-key |
 | SPARK_API_PASSWORD | 用户必填 | string | 星火大模型 API 密码 | your-api-password |
 | SPARK_APP_ID | 必填 | string | 星火服务应用 ID(默认从 PLATFORM_APP_ID 获取) | ${PLATFORM_APP_ID} |

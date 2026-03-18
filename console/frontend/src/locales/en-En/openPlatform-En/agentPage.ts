@@ -24,6 +24,8 @@ const transition = {
 
     goToEdit: 'Edit',
     notSupported: 'This agent does not support chat',
+    notSupportedChat:
+      'The Workflow has multiple input parameters, so it does not support chat',
     chat: 'Chat',
     share: 'Share',
     copy: 'Copy',

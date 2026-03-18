@@ -8,15 +8,11 @@ It handles authentication, parameter validation, and response processing.
 import base64
 import json
 import os
-import queue
-import threading
-import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
-from common.service import get_kafka_producer_service
 from loguru import logger
 from opentelemetry.trace import Status as OTelStatus
 from opentelemetry.trace import StatusCode
@@ -31,6 +27,7 @@ from plugin.link.api.schemas.community.tools.http.execution_schema import (
 from plugin.link.consts import const
 from plugin.link.domain.models.manager import get_db_engine
 from plugin.link.exceptions.sparklink_exceptions import SparkLinkBaseException
+from plugin.link.infra.kafka_telemetry import send_telemetry_sync
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
 from plugin.link.infra.tool_exector.process import HttpRun
 from plugin.link.utils.errors.code import ErrCode
@@ -39,6 +36,10 @@ from plugin.link.utils.json_schemas.read_json_schemas import (
     get_tool_debug_schema,
 )
 from plugin.link.utils.json_schemas.schema_validate import api_validate
+from plugin.link.utils.open_api_schema.response_filter import (
+    filter_response_by_x_display,
+    should_ignore_validation_error_by_x_display,
+)
 from plugin.link.utils.open_api_schema.schema_parser import OpenapiSchemaParser
 from plugin.link.utils.uid.generate_uid import new_uid
 
@@ -50,73 +51,6 @@ default_value = {
     " 'boolean'": False,
     " 'integer'": 0,
 }
-
-global_kafka_queue: queue.Queue = queue.Queue(maxsize=10000)
-
-KAFKA_MAX_WORKERS = 10
-KAFKA_WORKER_TIMEOUT = 30
-KAFKA_WATCHDOG_INTERVAL = 5
-
-_worker_threads = []
-_worker_last_active = []
-_worker_lock = threading.Lock()
-
-
-def init_kafka_send_workers() -> None:
-    """Initialize Kafka producer workers"""
-    for idx in range(KAFKA_MAX_WORKERS):
-        thread = threading.Thread(target=_kafka_worker_func, args=(idx,), daemon=True)
-        with _worker_lock:
-            _worker_threads.append(thread)
-            _worker_last_active.append(time.time())
-
-    watchdog_thread = threading.Thread(target=_kafka_watchdog_func, daemon=True)
-    watchdog_thread.start()
-
-
-def _kafka_worker_func(worker_idx: int) -> None:
-    """Kafka worker function"""
-
-    kafka_producer = None
-    while True:
-        try:
-            if not kafka_producer:
-                kafka_producer = get_kafka_producer_service()
-
-            with _worker_lock:
-                _worker_last_active[worker_idx] = time.time()
-            logger.info(f"[Worker {worker_idx}] Waiting for data to send to kafka")
-            data = global_kafka_queue.get(timeout=1)
-            kafka_producer.send(os.getenv(const.KAFKA_TOPIC_KEY), data)
-
-        except queue.Empty:
-            time.sleep(1)
-        except Exception as e:
-            logger.error(f"[Worker {worker_idx}] Failed to send data to kafka: {e}")
-            kafka_producer = None
-        finally:
-            continue
-
-
-def _kafka_watchdog_func() -> None:
-    """Watchdog to monitor worker threads and restart if stuck"""
-
-    while True:
-        time.sleep(KAFKA_WATCHDOG_INTERVAL)
-        now = time.time()
-
-        with _worker_lock:
-            for idx, last_active in enumerate(_worker_last_active):
-                if now - last_active > KAFKA_WORKER_TIMEOUT:
-                    logger.error(f"[Watchdog] Worker {idx} seems stuck, restarting")
-
-                    thread = threading.Thread(
-                        target=_kafka_worker_func, args=(idx,), daemon=True
-                    )
-                    logger.info(f"[Watchdog] Starting worker {idx}")
-                    thread.start()
-                    _worker_threads[idx] = thread
-                    _worker_last_active[idx] = now
 
 
 def extract_request_params(
@@ -141,17 +75,6 @@ def extract_request_params(
     return app_id, uid, caller
 
 
-async def send_telemetry(node_trace: NodeTraceLog) -> None:
-    """Send telemetry data to Kafka."""
-    if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
-        node_trace.start_time = int(round(time.time() * 1000))
-        try:
-            logger.debug(f"Current kafka queue size: {global_kafka_queue.qsize()}")
-            global_kafka_queue.put(node_trace.to_json(), block=False)
-        except queue.Full:
-            logger.debug("Kafka queue is full, drop telemetry data")
-
-
 async def handle_validation_error(
     validate_err: str, span_context: Span, node_trace: NodeTraceLog, m: Meter
 ) -> HttpRunResponse:
@@ -163,7 +86,7 @@ async def handle_validation_error(
             code=ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
             message=validate_err,
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -197,7 +120,7 @@ async def handle_sparklink_error(
             code=err.code,
             message=err.message,
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -230,7 +153,7 @@ async def handle_custom_error(
             code=error_code.code,
             message=message,
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -264,7 +187,7 @@ async def handle_general_exception(
             code=ErrCode.COMMON_ERR.code,
             message=f"{ErrCode.COMMON_ERR.msg}: {err}",
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -304,18 +227,35 @@ def process_authentication(
             message_query.update(api_key_dict)
 
 
-def validate_response_schema(
+def validate_response_schema(  # noqa: C901
     result_json: Any, open_api_schema: Dict[str, Any]
 ) -> List[str]:
     """Validate response against schema and return error messages."""
     response_schema = get_response_schema(open_api_schema)
+    er_msgs: List[str] = []
+
     import jsonschema
 
     errs = list(jsonschema.Draft7Validator(response_schema).iter_errors(result_json))
-    er_msgs = []
     for err in errs:
+        try:
+            if should_ignore_validation_error_by_x_display(
+                err,
+                response_schema,
+                open_api_schema,
+            ):
+                continue
+        except Exception as ex:
+            logger.exception(
+                "should_ignore_validation_error_by_x_display failed, "
+                f"fallback to not ignore: {ex}"
+            )
+
         err_msg = err.message
         if err_msg.startswith("None is not of type"):
+            # Legacy compatibility behavior:
+            # when a field is null but schema expects a concrete type,
+            # patch the response in-place with a default value if possible.
             key_type = err_msg.split("None is not of type")[1]
             key_type = key_type.strip("")
             path = err.json_path
@@ -328,6 +268,7 @@ def validate_response_schema(
                     break
                 path_ = path_list[i]
                 if "[" in path_ and "]" in path_:
+                    # Navigate array segment like users[0].
                     array_name, array_index = process_array(path_)
                     root = root.get(array_name)
                     root = root[array_index]
@@ -373,7 +314,7 @@ async def handle_success_response(
             code=ErrCode.SUCCESSES.code,
             message=ErrCode.SUCCESSES.msg,
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -412,7 +353,7 @@ async def handle_debug_validation_error(
             code=ErrCode.JSON_PROTOCOL_PARSER_ERR.code,
             message=validate_err,
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return HttpRunResponse(
         header=HttpRunResponseHeader(
@@ -442,7 +383,7 @@ async def handle_debug_success_response(
             code=ErrCode.SUCCESSES.code,
             message=ErrCode.SUCCESSES.msg,
         )
-        await send_telemetry(node_trace)
+        send_telemetry_sync(node_trace)
 
     return ToolDebugResponse(
         header=ToolDebugResponseHeader(
@@ -535,6 +476,13 @@ async def process_http_result(
             m,
             tool_id,
             tool_type,
+        )
+
+    try:
+        result_json = filter_response_by_x_display(result_json, open_api_schema)
+    except Exception as err:
+        logger.exception(
+            f"filter_response_by_x_display failed, fallback to original result: {err}"
         )
 
     span_context.add_info_events({"before result": result})
@@ -795,7 +743,9 @@ async def http_run(run_params: HttpRunRequest) -> HttpRunResponse:
         )
 
 
-async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
+async def tool_debug(  # noqa: C901
+    tool_debug_params: ToolDebugRequest,
+) -> ToolDebugResponse:
     """Tool debugging interface."""
     run_params_list = tool_debug_params.dict()
     app_id, uid, caller = extract_request_params(run_params_list)
@@ -881,6 +831,13 @@ async def tool_debug(tool_debug_params: ToolDebugRequest) -> ToolDebugResponse:
                     m,
                     tool_id,
                     tool_type or "",
+                )
+
+            try:
+                result_json = filter_response_by_x_display(result_json, openapi_schema)
+            except Exception as err:
+                logger.exception(
+                    f"filter_response_by_x_display failed, fallback to original result: {err}"
                 )
 
             span_context.add_info_events({"before result": result})

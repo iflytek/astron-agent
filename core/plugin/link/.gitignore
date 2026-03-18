@@ -12,3 +12,4 @@ coverage.xml
 htmlcov
 tests/example/
 logs
+CLAUDE.md

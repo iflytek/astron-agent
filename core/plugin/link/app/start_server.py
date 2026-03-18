@@ -10,9 +10,7 @@ from loguru import logger
 from plugin.link.api.router import router
 from plugin.link.consts import const
 from plugin.link.domain.models.manager import init_data_base
-from plugin.link.service.community.tools.http.execution_server import (
-    init_kafka_send_workers,
-)
+from plugin.link.infra.kafka_telemetry import init_kafka_send_workers
 from plugin.link.utils.json_schemas.read_json_schemas import (
     load_create_tool_schema,
     load_http_run_schema,
@@ -147,7 +145,14 @@ def spark_link_app() -> FastAPI:
         os.getenv(const.LOG_LEVEL_KEY),
         Path(__file__).parent.parent / log_path,
     )
+
     init_data_base()
+
+    # Run database migration before starting the service
+    from extensions.database_migration import run_database_migration
+
+    run_database_migration()
+
     load_create_tool_schema()
     load_update_tool_schema()
     load_http_run_schema()

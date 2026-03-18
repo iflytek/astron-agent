@@ -22,6 +22,7 @@ public class ModelValidationRequest {
     private List<String> tag;
     private String icon;
     private String color;
+    private String provider;
     private String uid;
     private Long id;
     /**
@@ -33,5 +34,6 @@ public class ModelValidationRequest {
      *
      */
     private Boolean apiKeyMasked = false;
+    private Boolean isThink = false;
     ModelCategoryReq modelCategoryReq;
 }

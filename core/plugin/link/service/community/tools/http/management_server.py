@@ -17,13 +17,11 @@ The module handles:
 import json
 import os
 import re
-import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
-from common.service import get_kafka_producer_service
 from fastapi import Query
 from loguru import logger
 from opentelemetry.trace import Status as OTelStatus
@@ -36,6 +34,7 @@ from plugin.link.api.schemas.community.tools.http.management_schema import (
 from plugin.link.consts import const
 from plugin.link.domain.models.manager import get_db_engine
 from plugin.link.exceptions.sparklink_exceptions import SparkLinkBaseException
+from plugin.link.infra.kafka_telemetry import send_telemetry_sync
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
 from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.json_schemas.read_json_schemas import (
@@ -105,10 +104,7 @@ def setup_span_and_trace_mgmt(
 
 def send_telemetry_mgmt(node_trace: NodeTraceLog) -> None:
     """Send telemetry data to Kafka."""
-    if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
-        kafka_service = get_kafka_producer_service()
-        node_trace.start_time = int(round(time.time() * 1000))
-        kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
+    send_telemetry_sync(node_trace)
 
 
 def setup_logging_and_metrics_mgmt(

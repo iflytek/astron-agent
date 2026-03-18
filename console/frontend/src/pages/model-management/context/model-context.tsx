@@ -21,6 +21,7 @@ interface ModelState {
   contextMaxLength?: number;
   searchInput: string;
   filterType: number;
+  providerFilter: string;
   showShelfOnly: boolean;
 
   // UI状态
@@ -40,6 +41,7 @@ type ModelAction =
   | { type: 'SET_CONTEXT_MAX_LENGTH'; payload: number }
   | { type: 'SET_SEARCH_INPUT'; payload: string }
   | { type: 'SET_FILTER_TYPE'; payload: number }
+  | { type: 'SET_PROVIDER_FILTER'; payload: string }
   | { type: 'SET_SHOW_SHELF_ONLY'; payload: boolean }
   | { type: 'SET_CREATE_MODAL'; payload: boolean }
   | { type: 'SET_DELETE_MODAL'; payload: boolean }
@@ -57,6 +59,7 @@ const initialState: ModelState = {
   contextMaxLength: 100,
   searchInput: '',
   filterType: 0,
+  providerFilter: '',
   showShelfOnly: false,
   createModalOpen: false,
   deleteModalOpen: false,
@@ -84,6 +87,8 @@ const modelReducer = (state: ModelState, action: ModelAction): ModelState => {
       return { ...state, searchInput: action.payload };
     case 'SET_FILTER_TYPE':
       return { ...state, filterType: action.payload };
+    case 'SET_PROVIDER_FILTER':
+      return { ...state, providerFilter: action.payload };
     case 'SET_SHOW_SHELF_ONLY':
       return { ...state, showShelfOnly: action.payload };
     case 'SET_CREATE_MODAL':
@@ -112,6 +117,7 @@ interface ModelContextValue {
     setContextMaxLength: (length: number) => void;
     setSearchInput: (input: string) => void;
     setFilterType: (type: number) => void;
+    setProviderFilter: (provider: string) => void;
     setShowShelfOnly: (show: boolean) => void;
     setCreateModal: (open: boolean) => void;
     setDeleteModal: (open: boolean) => void;
@@ -152,6 +158,8 @@ export const ModelProvider: React.FC<ModelProviderProps> = ({ children }) => {
         dispatch({ type: 'SET_SEARCH_INPUT', payload: input }),
       setFilterType: (type: number): void =>
         dispatch({ type: 'SET_FILTER_TYPE', payload: type }),
+      setProviderFilter: (provider: string): void =>
+        dispatch({ type: 'SET_PROVIDER_FILTER', payload: provider }),
       setShowShelfOnly: (show: boolean): void =>
         dispatch({ type: 'SET_SHOW_SHELF_ONLY', payload: show }),
       setCreateModal: (open: boolean): void =>

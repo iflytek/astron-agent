@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 print = functools.partial(print, flush=True)  # pylint: disable=redefined-builtin
+os.environ["PYTHONWARNINGS"] = "ignore:pkg_resources is deprecated"
 
 
 def setup_python_path() -> None:
@@ -41,36 +42,6 @@ def setup_python_path() -> None:
         print(f"🔧 PYTHONPATH: {os.environ['PYTHONPATH']}")
 
 
-def load_env_file(env_file: str) -> None:
-    """Load environment variables from .env file"""
-    if not os.path.exists(env_file):
-        print(f"❌ Configuration file {env_file} does not exist")
-        return
-
-    print(f"📋 Loading configuration file: {env_file}")
-
-    os.environ["CONFIG_ENV_PATH"] = env_file
-    with open(env_file, "r", encoding="utf-8") as f:
-        for line_num, line in enumerate(f, 1):
-            line = line.strip()
-
-            # Skip empty lines and comments
-            if not line or line.startswith("#"):
-                continue
-
-            # Parse environment variables
-            if "=" in line:
-                key, value = line.split("=", 1)
-                # Set CONFIG_ENV_PATH, common to load
-                if os.environ.get(key.strip()):
-                    print(f"ENV  ✅ {key.strip()}={os.environ.get(key.strip())}")
-                else:
-                    print(f"CFG  ✅ {key.strip()}={value.strip()}")
-
-            else:
-                print(f"  ⚠️  Line {line_num} format error: {line}")
-
-
 def start_service() -> None:
     """Start FastAPI service"""
     print("\n🚀 Starting AITools service...")
@@ -101,7 +72,7 @@ def main() -> None:
 
     # Load environment configuration
     config_file = Path(__file__).parent / "config.env"
-    load_env_file(str(config_file))
+    os.environ["CONFIG_FILE"] = str(config_file)
 
     # Start service
     start_service()

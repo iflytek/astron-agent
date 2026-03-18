@@ -68,13 +68,16 @@ def _find_session_from_args(args: tuple, kwargs: dict) -> Any:
 async def _restore_search_path(session: Any) -> None:
     """Restore search_path if it was previously set.
 
-    Always restore search_path if it was previously set, regardless of cache clearing method.
+    Always restore search_path if it was previously set,
+    regardless of cache clearing method.
     This ensures search_path is correct in all scenarios:
-    1. If DISCARD PLANS was used: search_path should still be set, but we restore it anyway
-       for safety and consistency (minimal overhead, maximum reliability)
-    2. If invalidate() was used: search_path is definitely lost and must be restored
-    This defensive approach guarantees search_path correctness regardless of internal
-    implementation details or potential edge cases.
+    1. If DISCARD PLANS was used: search_path should still be set,
+       but we restore it anyway for safety and consistency
+       (minimal overhead, maximum reliability)
+    2. If invalidate() was used: search_path is definitely lost
+       and must be restored
+    This defensive approach guarantees search_path correctness
+    regardless of internal implementation details or potential edge cases.
 
     Args:
         session: Database session object
@@ -145,13 +148,16 @@ def retry_on_invalid_cached_statement(
 
     When InvalidCachedStatementError is detected, this decorator will:
     1. Execute PostgreSQL's DISCARD PLANS command to clear cached query plans
-       (Official PostgreSQL method per https://www.postgresql.org/docs/current/sql-discard.html)
-    2. If DISCARD PLANS fails, invalidate the session connection using SQLAlchemy's
-       official invalidate() method to force a fresh connection from the pool
+       (Official PostgreSQL method per
+       https://www.postgresql.org/docs/current/sql-discard.html)
+    2. If DISCARD PLANS fails, invalidate the session connection using
+       SQLAlchemy's official invalidate() method to force a fresh connection
+       from the pool
     3. Wait a short delay to allow the connection pool to refresh
     4. Retry the operation with cleared cache or fresh connection
 
-    This approach follows PostgreSQL and SQLAlchemy official documentation and best practices.
+    This approach follows PostgreSQL and SQLAlchemy official documentation
+    and best practices.
     """
 
     def decorator(func: F) -> F:
@@ -166,14 +172,16 @@ def retry_on_invalid_cached_statement(
                     ):
                         if attempt < max_retries - 1:
                             logger.info(
-                                f"[{func.__name__}] InvalidCachedStatementError detected, "
-                                f"invalidating cache and retrying ({attempt + 1}/{max_retries})..."
+                                f"[{func.__name__}] InvalidCachedStatementError "
+                                f"detected, invalidating cache and retrying "
+                                f"({attempt + 1}/{max_retries})..."
                             )
 
                             # Find session from function arguments
                             session = _find_session_from_args(args, kwargs)
 
-                            # Clear prepared statement cache and restore search_path if session found
+                            # Clear prepared statement cache and restore search_path
+                            # if session found
                             if session is not None:
                                 await _clear_prepared_statement_cache(session)
                                 await _restore_search_path(session)

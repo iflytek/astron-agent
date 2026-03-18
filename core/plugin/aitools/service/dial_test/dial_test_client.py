@@ -9,6 +9,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional, TypedDict, Union
 
 import requests
+from plugin.aitools.const.const import (
+    INTERFACE_CALL_FREQUENCY_SUFFIX,
+    INTERFACE_HEADERS_SUFFIX,
+    INTERFACE_LIST_STR_KEY,
+    INTERFACE_METHOD_SUFFIX,
+    INTERFACE_PARAMS_SUFFIX,
+    INTERFACE_PAYLOAD_SUFFIX,
+    INTERFACE_SUCCESS_CODE_SUFFIX,
+    INTERFACE_URL_SUFFIX,
+)
 
 
 class ErrorResponse(TypedDict):
@@ -104,8 +114,8 @@ class MainRunner:
         """Get list of interfaces to test."""
         # int_list = ["TTS", "SMARTTS"]
 
-        # print('("INTERFACE_LIST_STR"):',os.getenv("INTERFACE_LIST_STR"))
-        int_list_str = os.getenv("INTERFACE_LIST_STR")
+        # print(f'("{INTERFACE_LIST_STR_KEY}"):', os.getenv(INTERFACE_LIST_STR_KEY))
+        int_list_str = os.getenv(INTERFACE_LIST_STR_KEY)
         if int_list_str:
             int_list = int_list_str.split(",")
         else:
@@ -118,13 +128,23 @@ class MainRunner:
         for prefix in self.interface_list():
             configs.append(
                 APIConfiguration(
-                    target_url=os.getenv(f"{prefix}_URL", ""),
-                    method=os.getenv(f"{prefix}_METHOD", "GET"),
-                    headers=json.loads(os.getenv(f"{prefix}_HEADERS", "{}")),
-                    params=json.loads(os.getenv(f"{prefix}_PARAMS", "{}")),
-                    payload=json.loads(os.getenv(f"{prefix}_PAYLOAD", "{}")),
-                    success_code=int(os.getenv(f"{prefix}_SUCCESS_CODE", "-1")),
-                    call_frequency=int(os.getenv(f"{prefix}_CALL_FREQUENCY", "1")),
+                    target_url=os.getenv(f"{prefix}{INTERFACE_URL_SUFFIX}", ""),
+                    method=os.getenv(f"{prefix}{INTERFACE_METHOD_SUFFIX}", "GET"),
+                    headers=json.loads(
+                        os.getenv(f"{prefix}{INTERFACE_HEADERS_SUFFIX}", "{}")
+                    ),
+                    params=json.loads(
+                        os.getenv(f"{prefix}{INTERFACE_PARAMS_SUFFIX}", "{}")
+                    ),
+                    payload=json.loads(
+                        os.getenv(f"{prefix}{INTERFACE_PAYLOAD_SUFFIX}", "{}")
+                    ),
+                    success_code=int(
+                        os.getenv(f"{prefix}{INTERFACE_SUCCESS_CODE_SUFFIX}", "-1")
+                    ),
+                    call_frequency=int(
+                        os.getenv(f"{prefix}{INTERFACE_CALL_FREQUENCY_SUFFIX}", "1")
+                    ),
                 )
             )
 

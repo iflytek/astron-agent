@@ -365,6 +365,17 @@ const translation = {
       variableType: 'Parameters Type',
       add: 'Add',
     },
+    variableAggregationNode: {
+      type: 'Variable Aggregation',
+      output: 'Output',
+      candidates: 'Candidate Variables',
+      priority: 'Priority',
+      candidateLabel: 'Candidate {{index}}',
+      fallback: 'Fallback',
+      enableFallback: 'Use fallback value when all candidates are empty',
+      moveUp: 'Up',
+      moveDown: 'Down',
+    },
     databaseNode: {
       type: 'Database',
       customSQL: 'Custom SQL',
@@ -670,6 +681,10 @@ const translation = {
       codeCannotBeEmpty: 'Code cannot be empty',
       separatorCannotBeEmpty: 'Separator cannot be empty',
       invalidJSONFormat: 'Invalid JSON format',
+      variableAggregationTypeMismatch:
+        'Candidate variable type must match the output type',
+      variableAggregationFallbackInvalid:
+        'Fallback value does not match the selected output type',
     },
     addFlow: {
       selectWorkflow: 'Select Workflow',

@@ -144,16 +144,16 @@ public class ToolBoxController {
 
     @Operation(summary = "Export tool")
     @GetMapping("/export")
-//    @SpacePreAuth(key = "ToolBoxController_exportTool_GET")
+    // @SpacePreAuth(key = "ToolBoxController_exportTool_GET")
     public void exportTool(@RequestParam("id") Long id,
-                          @RequestParam(value = "type", required = false) Integer type,
-                          HttpServletResponse response) {
+            @RequestParam(value = "type", required = false) Integer type,
+            HttpServletResponse response) {
         toolBoxService.exportTool(id, type, response);
     }
 
     @Operation(summary = "Import tool")
     @PostMapping("/import")
-//    @SpacePreAuth(key = "ToolBoxController_importTool_POST")
+    // @SpacePreAuth(key = "ToolBoxController_importTool_POST")
     public Object importTool(@RequestParam("file") MultipartFile file) {
         return toolBoxService.importTool(file);
     }

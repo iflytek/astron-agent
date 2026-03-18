@@ -1177,7 +1177,12 @@ class BaseLLMNode(BaseNode):
             payload_comp_history = processed_history.copy()
             # Handle images in history
             if payload_comp_history and payload_comp_history[0].content_type == "image":
-                if self.source == ModelProviderEnum.OPENAI.value:
+                if self.source in {
+                    ModelProviderEnum.OPENAI.value,
+                    ModelProviderEnum.DEEPSEEK.value,
+                    ModelProviderEnum.ANTHROPIC.value,
+                    ModelProviderEnum.GOOGLE.value,
+                }:
                     payload_comp_history.pop(0)
                 if self.source == ModelProviderEnum.XINGHUO.value:
                     image_models = os.getenv(
@@ -1311,7 +1316,12 @@ class BaseLLMNode(BaseNode):
                     token_usage = token_usage
                     break
                 if (
-                    self.source == ModelProviderEnum.OPENAI.value
+                    self.source in {
+                        ModelProviderEnum.OPENAI.value,
+                        ModelProviderEnum.DEEPSEEK.value,
+                        ModelProviderEnum.ANTHROPIC.value,
+                        ModelProviderEnum.GOOGLE.value,
+                    }
                     and status
                     and status
                     not in [

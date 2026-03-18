@@ -186,6 +186,11 @@ SPARK_RTASR_API_KEY=your-rtasr-api-key
 SPARK_VIRTUAL_MAN_APP_ID=your-virtual-man-app-id
 SPARK_VIRTUAL_MAN_API_KEY=your-virtual-man-api-key
 SPARK_VIRTUAL_MAN_API_SECRET=your-virtual-man-api-secret
+
+# 用于配置平台 AI 生成相关能力(兼容openai协议), 如提示词优化、一句话创建智能体等。
+AI_ABILITY_CHAT_BASE_URL=your-model-url
+AI_ABILITY_CHAT_MODEL=your-model-id
+AI_ABILITY_CHAT_API_KEY=your-api-key
 ```
 
 #### 4.2 如果您想使用星火RAG云服务，请按照如下配置（可选）

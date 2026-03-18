@@ -244,6 +244,9 @@ Configuration items in this document are marked as follows:
 | PLATFORM_APP_ID | User Required | string | iFlytek Open Platform application ID | your-app-id |
 | PLATFORM_API_KEY | User Required | string | iFlytek Open Platform API Key | your-api-key |
 | PLATFORM_API_SECRET | User Required | string | iFlytek Open Platform API Secret | your-api-secret |
+| AI_ABILITY_CHAT_BASE_URL | Optional | url | Text model service address (OpenAI-compatible API) (defaults from PLATFORM_API_KEY) | ${PLATFORM_API_KEY} |
+| AI_ABILITY_CHAT_MODEL | Optional | string | Text model name | ${AI_ABILITY_CHAT_MODEL} |
+| AI_ABILITY_CHAT_API_KEY | Optional | string | Text model API Key | ${AI_ABILITY_CHAT_API_KEY} |
 | SPARK_RTASR_API_KEY | User Required | string | Spark real-time speech-to-text API Key | your-rtasr-api-key |
 | SPARK_API_PASSWORD | User Required | string | Spark large model API password | your-api-password |
 | SPARK_APP_ID | Required | string | Spark service application ID (defaults from PLATFORM_APP_ID) | ${PLATFORM_APP_ID} |

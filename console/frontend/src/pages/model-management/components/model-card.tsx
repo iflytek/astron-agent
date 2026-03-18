@@ -26,6 +26,7 @@ import { ResponseBusinessError } from '@/types/global';
 import i18next from 'i18next';
 import styles from './model-card.module.scss';
 import classNames from 'classnames';
+import { getModelProviderLabel } from '../utils/provider';
 
 // 加密API密钥工具函数
 const encryptApiKey = (publicKey: string, apiKey: string): string => {
@@ -90,6 +91,7 @@ const republishModel = async (
         apiKeyMasked: false, // 因为重新发布，不需要掩码
         modelName: modelDetail.name,
         description: modelDetail.desc,
+        provider: modelDetail.provider,
         domain: modelDetail.domain,
         tag: modelDetail.tag || [],
         icon: modelDetail.icon,
@@ -167,11 +169,13 @@ function ModelCardHeader({
   model,
   modelCategoryTags,
   modelScenarioTags,
+  providerLabel,
   getModels,
 }: {
   model: ModelInfo;
   modelCategoryTags: string[];
   modelScenarioTags: string[];
+  providerLabel: string;
   getModels: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
@@ -212,6 +216,9 @@ function ModelCardHeader({
             })()} */}
           <StatusTag status={model.shelfStatus} />
           <p className="text-sm text-gray-500 flex flex-wrap gap-x-2 gap-2 mt-2">
+            <span className={classNames(styles.modelTag, styles.category)}>
+              {providerLabel}
+            </span>
             {modelCategoryTags
               .filter(name => name !== t('model.other'))
               .map(name => (
@@ -442,6 +449,11 @@ function ModelCard({
     [getTags]
   );
   const modelProvider = useMemo(() => getTags(['modelProvider']), [getTags]);
+  const providerLabel = useMemo(() => {
+    return model.provider
+      ? getModelProviderLabel(model.provider)
+      : getModelProviderLabel(modelProvider?.[0]);
+  }, [model.provider, modelProvider]);
   const languageSupport = useMemo(
     () => getTags(['languageSupport']),
     [getTags]
@@ -461,7 +473,7 @@ function ModelCard({
   const bottomTexts = [
     model.type === ModelCreateType.LOCAL && t('model.localUploadModel'),
     model.type === ModelCreateType.THIRD_PARTY && t('model.thirdPartyModel'),
-    modelProvider?.[0],
+    providerLabel,
     languageSupport?.[0] && `${t('model.language')}${languageSupport[0]}`,
     contextLengthTag?.[0] &&
       `${t('model.contextLengthLabel')}${contextLengthTag[0]}`,
@@ -485,6 +497,7 @@ function ModelCard({
         model={model}
         modelCategoryTags={modelCategoryTags}
         modelScenarioTags={modelScenarioTags}
+        providerLabel={providerLabel}
         getModels={getModels}
       />
 

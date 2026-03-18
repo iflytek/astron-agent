@@ -1,6 +1,7 @@
 package com.iflytek.astron.console.hub.service;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
@@ -9,6 +10,7 @@ import com.iflytek.astron.console.commons.entity.chat.ChatTraceSource;
 import com.iflytek.astron.console.commons.service.ChatRecordModelService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import okhttp3.*;
 import okio.BufferedSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
  * @author mingsuiyongheng
@@ -24,6 +28,9 @@ import java.io.IOException;
 @Service
 @RequiredArgsConstructor
 public class PromptChatService {
+    private static final String PROVIDER_GOOGLE = "google";
+    private static final String PROVIDER_ANTHROPIC = "anthropic";
+    private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
 
     private final OkHttpClient httpClient;
 
@@ -67,16 +74,25 @@ public class PromptChatService {
      * @throws IOException If HTTP request fails
      */
     private void performChatRequest(JSONObject request, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug) throws IOException {
-        request.put("stream", true);
-        String requestBody = JSON.toJSONString(request);
+        String provider = normalizeProvider(request.getString("provider"));
+        PreparedRequest preparedRequest = buildPreparedRequest(request, provider);
 
-        Request httpRequest = new Request.Builder()
-                .url(request.getString("url"))
-                .post(RequestBody.create(requestBody, MediaType.get("application/json; charset=utf-8")))
-                .addHeader("Authorization", "Bearer " + request.getString("apiKey"))
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(preparedRequest.url())
+                .post(RequestBody.create(preparedRequest.body(), JSON_MEDIA_TYPE))
                 .addHeader("Content-Type", "application/json")
-                .addHeader("Accept", "text/event-stream")
-                .build();
+                .addHeader("Accept", preparedRequest.accept());
+
+        if (PROVIDER_GOOGLE.equals(provider)) {
+            requestBuilder.addHeader("x-goog-api-key", request.getString("apiKey"));
+        } else if (PROVIDER_ANTHROPIC.equals(provider)) {
+            requestBuilder.addHeader("x-api-key", request.getString("apiKey"));
+            requestBuilder.addHeader("anthropic-version", "2023-06-01");
+        } else {
+            requestBuilder.addHeader("Authorization", "Bearer " + request.getString("apiKey"));
+        }
+
+        Request httpRequest = requestBuilder.build();
 
         Call call = httpClient.newCall(httpRequest);
         log.info("request:{}", request);
@@ -110,7 +126,7 @@ public class PromptChatService {
 
                 ResponseBody body = response.body();
                 if (body != null) {
-                    processSSEStream(body, emitter, streamId, chatReqRecords, edit, isDebug);
+                    processSSEStream(body, emitter, streamId, chatReqRecords, edit, isDebug, provider);
                 } else {
                     SseEmitterUtil.completeWithError(emitter, "Response body is empty");
                 }
@@ -126,41 +142,57 @@ public class PromptChatService {
      * @param streamId Unique identifier of the stream being processed
      * @param chatReqRecords Chat request records object
      */
-    private void processSSEStream(ResponseBody body, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug) {
+    private void processSSEStream(ResponseBody body, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug, String provider) {
         BufferedSource source = body.source();
         StringBuffer finalResult = new StringBuffer();
         StringBuffer thinkingResult = new StringBuffer();
         StringBuffer sid = new StringBuffer();
         StringBuffer traceResult = new StringBuffer();
+        boolean streamEnded = false;
 
         try (body) {
             try {
+                String contentType = body.contentType() != null ? body.contentType().toString() : "";
+                if (!contentType.contains("text/event-stream")) {
+                    String payload = body.string();
+                    if (StringUtils.isNotBlank(payload)) {
+                        parseSSEContent(payload, emitter, streamId, finalResult, thinkingResult, sid, traceResult, provider);
+                    }
+                    handleStreamComplete(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
+                    return;
+                }
+
                 while (true) {
                     // Check if stop signal is received
                     if (SseEmitterUtil.isStreamStopped(streamId)) {
                         log.info("Stop signal detected, saving collected data, streamId: {}", streamId);
                         handleStreamInterrupted(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
+                        streamEnded = true;
                         break;
                     }
 
                     String line = source.readUtf8Line();
                     if (line == null) {
+                        handleStreamComplete(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
+                        streamEnded = true;
                         break;
                     }
 
                     if (line.startsWith("data:")) {
                         if (line.contains("[DONE]")) {
                             handleStreamComplete(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
+                            streamEnded = true;
                             break;
                         }
 
                         String data = line.substring(5).trim();
-                        parseSSEContent(data, emitter, streamId, finalResult, thinkingResult, sid, traceResult);
+                        parseSSEContent(data, emitter, streamId, finalResult, thinkingResult, sid, traceResult, provider);
 
                         // Check stop signal again after processing each data
                         if (SseEmitterUtil.isStreamStopped(streamId)) {
                             log.info("Stop signal detected after processing data, saving collected data, streamId: {}", streamId);
                             handleStreamInterrupted(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
+                            streamEnded = true;
                             break;
                         }
                     }
@@ -170,11 +202,17 @@ public class PromptChatService {
                 // Save collected data even when exception occurs
                 handleStreamInterrupted(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
                 SseEmitterUtil.completeWithError(emitter, "Data reading exception: " + e.getMessage());
+                streamEnded = true;
             }
         } catch (Exception e) {
             log.warn("Exception closing response body, streamId: {}", streamId, e);
             // Save collected data when exception occurs
             handleStreamInterrupted(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
+            streamEnded = true;
+        }
+
+        if (!streamEnded) {
+            handleStreamComplete(emitter, streamId, finalResult, thinkingResult, chatReqRecords, sid, traceResult, edit, isDebug);
         }
     }
 
@@ -189,25 +227,30 @@ public class PromptChatService {
      * @param sid Session identifier StringBuffer object
      * @param traceResult Trace result StringBuffer object
      */
-    private void parseSSEContent(String data, SseEmitter emitter, String streamId, StringBuffer finalResult, StringBuffer thinkingResult, StringBuffer sid, StringBuffer traceResult) {
+    private void parseSSEContent(String data, SseEmitter emitter, String streamId, StringBuffer finalResult, StringBuffer thinkingResult, StringBuffer sid, StringBuffer traceResult, String provider) {
         log.debug("SSE data streamId: {} ==> {}", streamId, data);
 
         try {
             JSONObject dataObj = JSON.parseObject(data);
+            JSONObject normalizedData = normalizeResponsePayload(dataObj, provider);
 
-            if (dataObj.containsKey("error")) {
-                JSONObject error = dataObj.getJSONObject("error");
+            if (normalizedData == null) {
+                return;
+            }
+
+            if (normalizedData.containsKey("error")) {
+                JSONObject error = normalizedData.getJSONObject("error");
                 String errorMessage = error.getString("message");
                 log.error("SSE data contains error, streamId: {}, message: {}", streamId, errorMessage);
                 finalResult.append(errorMessage);
             }
 
             // Try to send data, continue processing data even if client disconnects
-            boolean clientConnected = tryServeSSEData(emitter, dataObj, streamId);
+            boolean clientConnected = tryServeSSEData(emitter, normalizedData, streamId);
 
             // Process and save data regardless of client connection status
-            processSidValue(dataObj, sid, streamId);
-            processChoicesData(dataObj, finalResult, thinkingResult, traceResult, streamId);
+            processSidValue(normalizedData, sid, streamId);
+            processChoicesData(normalizedData, finalResult, thinkingResult, traceResult, streamId);
 
             if (!clientConnected) {
                 log.info("Client disconnected, but continue processing data to ensure completeness, streamId: {}", streamId);
@@ -310,6 +353,268 @@ public class PromptChatService {
             thinkingResult.append(delta.getString("reasoning_content"));
         }
     }
+
+    private PreparedRequest buildPreparedRequest(JSONObject request, String provider) {
+        if (PROVIDER_GOOGLE.equals(provider)) {
+            return new PreparedRequest(
+                    normalizeGoogleStreamUrl(request.getString("url"), request.getString("model")),
+                    JSON.toJSONString(buildGoogleRequestBody(request)),
+                    "text/event-stream");
+        }
+        if (PROVIDER_ANTHROPIC.equals(provider)) {
+            return new PreparedRequest(
+                    normalizeAnthropicUrl(request.getString("url")),
+                    JSON.toJSONString(buildAnthropicRequestBody(request)),
+                    "text/event-stream");
+        }
+        request.put("stream", true);
+        return new PreparedRequest(
+                request.getString("url"),
+                JSON.toJSONString(request),
+                "text/event-stream");
+    }
+
+    private JSONObject buildGoogleRequestBody(JSONObject request) {
+        JSONObject body = new JSONObject();
+        JSONArray messages = request.getJSONArray("messages");
+        JSONArray contents = new JSONArray();
+        String systemPrompt = null;
+
+        if (messages != null) {
+            for (int i = 0; i < messages.size(); i++) {
+                JSONObject message = messages.getJSONObject(i);
+                if (message == null) {
+                    continue;
+                }
+                String role = normalizeMessageRole(message.getString("role"));
+                String content = message.getString("content");
+                if (StringUtils.isBlank(content)) {
+                    continue;
+                }
+                if ("system".equals(role)) {
+                    systemPrompt = appendPrompt(systemPrompt, content);
+                    continue;
+                }
+                JSONObject contentItem = new JSONObject();
+                contentItem.put("role", "assistant".equals(role) ? "model" : "user");
+                JSONArray parts = new JSONArray();
+                parts.add(new JSONObject().fluentPut("text", content));
+                contentItem.put("parts", parts);
+                contents.add(contentItem);
+            }
+        }
+
+        body.put("contents", contents);
+        if (StringUtils.isNotBlank(systemPrompt)) {
+            JSONArray systemParts = new JSONArray();
+            systemParts.add(new JSONObject().fluentPut("text", systemPrompt));
+            body.put("systemInstruction", new JSONObject().fluentPut("parts", systemParts));
+        }
+        return body;
+    }
+
+    private JSONObject buildAnthropicRequestBody(JSONObject request) {
+        JSONObject body = new JSONObject();
+        body.put("model", request.getString("model"));
+        body.put("max_tokens", resolvePositiveInteger(request.getInteger("max_tokens"), 1024));
+        body.put("stream", true);
+
+        JSONArray messages = request.getJSONArray("messages");
+        JSONArray anthropicMessages = new JSONArray();
+        String systemPrompt = null;
+
+        if (messages != null) {
+            for (int i = 0; i < messages.size(); i++) {
+                JSONObject message = messages.getJSONObject(i);
+                if (message == null) {
+                    continue;
+                }
+                String role = normalizeMessageRole(message.getString("role"));
+                String content = message.getString("content");
+                if (StringUtils.isBlank(content)) {
+                    continue;
+                }
+                if ("system".equals(role)) {
+                    systemPrompt = appendPrompt(systemPrompt, content);
+                    continue;
+                }
+                anthropicMessages.add(new JSONObject()
+                        .fluentPut("role", "assistant".equals(role) ? "assistant" : "user")
+                        .fluentPut("content", content));
+            }
+        }
+
+        if (StringUtils.isNotBlank(systemPrompt)) {
+            body.put("system", systemPrompt);
+        }
+        body.put("messages", anthropicMessages);
+        return body;
+    }
+
+    private JSONObject normalizeResponsePayload(JSONObject dataObj, String provider) {
+        if (dataObj == null) {
+            return null;
+        }
+        if (PROVIDER_GOOGLE.equals(provider)) {
+            return normalizeGoogleResponse(dataObj);
+        }
+        if (PROVIDER_ANTHROPIC.equals(provider)) {
+            return normalizeAnthropicResponse(dataObj);
+        }
+        return dataObj;
+    }
+
+    private JSONObject normalizeGoogleResponse(JSONObject dataObj) {
+        if (dataObj.containsKey("error")) {
+            return dataObj;
+        }
+        JSONObject promptFeedback = dataObj.getJSONObject("promptFeedback");
+        if (promptFeedback != null && StringUtils.isNotBlank(promptFeedback.getString("blockReason"))) {
+            JSONObject error = new JSONObject();
+            error.put("message", "Google prompt blocked: " + promptFeedback.getString("blockReason"));
+            return new JSONObject().fluentPut("error", error);
+        }
+
+        JSONObject normalized = new JSONObject();
+        if (StringUtils.isNotBlank(dataObj.getString("responseId"))) {
+            normalized.put("id", dataObj.getString("responseId"));
+        }
+
+        JSONArray candidates = dataObj.getJSONArray("candidates");
+        String text = "";
+        if (candidates != null && !candidates.isEmpty()) {
+            JSONObject candidate = candidates.getJSONObject(0);
+            if (candidate != null) {
+                JSONObject content = candidate.getJSONObject("content");
+                if (content != null) {
+                    JSONArray parts = content.getJSONArray("parts");
+                    if (parts != null) {
+                        StringBuilder builder = new StringBuilder();
+                        for (int i = 0; i < parts.size(); i++) {
+                            JSONObject part = parts.getJSONObject(i);
+                            if (part != null && StringUtils.isNotBlank(part.getString("text"))) {
+                                builder.append(part.getString("text"));
+                            }
+                        }
+                        text = builder.toString();
+                    }
+                }
+            }
+        }
+
+        JSONArray choices = new JSONArray();
+        JSONObject choice = new JSONObject();
+        JSONObject delta = new JSONObject();
+        delta.put("content", text);
+        choice.put("delta", delta);
+        choices.add(choice);
+        normalized.put("choices", choices);
+        return normalized;
+    }
+
+    private JSONObject normalizeAnthropicResponse(JSONObject dataObj) {
+        if (dataObj.containsKey("error")) {
+            return dataObj;
+        }
+
+        String type = dataObj.getString("type");
+        if (StringUtils.equalsAny(type,
+                "message_start",
+                "content_block_start",
+                "content_block_stop",
+                "message_delta",
+                "ping")) {
+            JSONObject normalized = new JSONObject();
+            String id = dataObj.getString("id");
+            if (StringUtils.isBlank(id)) {
+                JSONObject message = dataObj.getJSONObject("message");
+                if (message != null) {
+                    id = message.getString("id");
+                }
+            }
+            if (StringUtils.isNotBlank(id)) {
+                normalized.put("id", id);
+            }
+            return normalized;
+        }
+
+        if (!Objects.equals(type, "content_block_delta")) {
+            return dataObj;
+        }
+
+        JSONObject normalized = new JSONObject();
+        if (StringUtils.isNotBlank(dataObj.getString("id"))) {
+            normalized.put("id", dataObj.getString("id"));
+        }
+        JSONObject deltaObj = dataObj.getJSONObject("delta");
+        String text = deltaObj != null ? deltaObj.getString("text") : "";
+        JSONArray choices = new JSONArray();
+        JSONObject choice = new JSONObject();
+        JSONObject delta = new JSONObject();
+        delta.put("content", text);
+        choice.put("delta", delta);
+        choices.add(choice);
+        normalized.put("choices", choices);
+        return normalized;
+    }
+
+    private String normalizeProvider(String provider) {
+        if (StringUtils.isBlank(provider)) {
+            return "";
+        }
+        return provider.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String normalizeGoogleStreamUrl(String rawUrl, String model) {
+        String url = StringUtils.trimToEmpty(rawUrl);
+        if (url.contains(":streamGenerateContent")) {
+            return appendAltSse(url);
+        }
+        if (url.contains(":generateContent")) {
+            return appendAltSse(url.replace(":generateContent", ":streamGenerateContent"));
+        }
+        String base = StringUtils.removeEnd(url, "/");
+        String modelName = StringUtils.defaultIfBlank(model, "gemini-2.5-flash");
+        return appendAltSse(base + "/v1beta/models/" + modelName + ":streamGenerateContent");
+    }
+
+    private String appendAltSse(String url) {
+        return url.contains("?") ? url + "&alt=sse" : url + "?alt=sse";
+    }
+
+    private String normalizeAnthropicUrl(String rawUrl) {
+        String url = StringUtils.trimToEmpty(rawUrl);
+        if (url.endsWith("/v1/messages")) {
+            return url;
+        }
+        if (url.endsWith("/")) {
+            url = StringUtils.removeEnd(url, "/");
+        }
+        if (url.endsWith("/v1")) {
+            return url + "/messages";
+        }
+        return url + "/v1/messages";
+    }
+
+    private String normalizeMessageRole(String role) {
+        return StringUtils.defaultIfBlank(role, "user").trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String appendPrompt(String existing, String next) {
+        if (StringUtils.isBlank(existing)) {
+            return next;
+        }
+        return existing + "\n\n" + next;
+    }
+
+    private int resolvePositiveInteger(Integer value, int defaultValue) {
+        if (value == null || value <= 0) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private record PreparedRequest(String url, String body, String accept) {}
 
     /**
      * Method to handle parsing errors
@@ -419,8 +724,13 @@ public class PromptChatService {
 
         try {
             // Try to send end signal and complete connection
-            String endData = "{\"end\":true,\"timestamp\":" + System.currentTimeMillis() + "}";
-            emitter.send(SseEmitter.event().name("end").data(endData));
+            JSONObject endData = new JSONObject();
+            endData.put("end", true);
+            endData.put("timestamp", System.currentTimeMillis());
+            if (completeData != null) {
+                endData.put("message", completeData.getString("message"));
+            }
+            emitter.send(SseEmitter.event().name("end").data(endData.toJSONString()));
             emitter.complete();
             log.debug("SSE connection ended normally, streamId: {}", streamId);
         } catch (org.springframework.web.context.request.async.AsyncRequestNotUsableException e) {
@@ -444,6 +754,7 @@ public class PromptChatService {
     private JSONObject buildCompleteData(StringBuffer finalResult, StringBuffer thinkingResult, StringBuffer traceResult, ChatReqRecords chatReqRecords) {
         JSONObject completeData = new JSONObject();
         completeData.put("finalResult", finalResult.toString());
+        completeData.put("message", finalResult.toString());
         completeData.put("thinkingResult", thinkingResult.toString());
         completeData.put("traceResult", traceResult.toString());
         completeData.put("timestamp", System.currentTimeMillis());

@@ -134,6 +134,7 @@ public enum ResponseEnum {
     SPARK_API_IMAGE_PARAM_VALUE_ERROR(60074, "error.spark.api.image.param.value.error"),
     SPARK_API_IMAGE_CAPACITY_INSUFFICIENT(60075, "error.spark.api.image.capacity.insufficient"),
     SPARK_API_IMAGE_INPUT_AUDIT_FAILED(60076, "error.spark.api.image.input.audit.failed"),
+    OPEN_AI_API_ERROR(60077, "error.open.ai.api.error"),
 
     // Space application related errors
     SPACE_APPLICATION_PLEASE_JOIN_ENTERPRISE_FIRST(61001, "space.application.please.join.enterprise.first"),

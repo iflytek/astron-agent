@@ -19,14 +19,21 @@ from common.otlp.metrics.meter import Meter
 from common.otlp.sid import SidGenerator2, SidInfo
 from common.otlp.trace.span import SPAN_SIZE_LIMIT, Span
 from common.otlp.trace.span_instance import SpanInstance
-from fastapi import Request
-from plugin.aitools.common.clients.adapters import adapt_span
-from plugin.aitools.common.log.logger import log
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
+from loguru import logger as log
+from plugin.aitools.api.schemas.types import ErrorResponse
+from plugin.aitools.common.clients.adapters import SpanLike, adapt_span
+from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
+from plugin.aitools.common.exceptions.exceptions import ServiceException
 from plugin.aitools.const.const import (
+    AI_APP_ID_KEY,
     SERVICE_LOCATION_KEY,
     SERVICE_PORT_KEY,
     SERVICE_SUB_KEY,
 )
+from plugin.aitools.utils.otlp_utils import update_span, upload_trace
+from starlette import status as http_status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
@@ -56,54 +63,34 @@ class OTLPMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
         app: ASGIApp,
-        enabled: str = "1",
+        enabled: bool = False,
         sample_rate: float = 1.0,
-        exclude_paths: list | None = None,
+        include_paths: list | None = None,
     ):
         super().__init__(app)
         self.enabled = enabled
         self.sample_rate = sample_rate
-        self.exclude_paths = exclude_paths or [
-            "/docs",
-            "/redoc",
-            "/openapi.json",
-            "/health",
-            "/metrics",
-            "/favicon.ico",
-            "/robots.txt",
-        ]
+        self.include_paths = include_paths or ["/aitools/v1"]
 
-        self.app_id = os.getenv("AI_APP_ID", "")
+        self.app_id = os.getenv(AI_APP_ID_KEY, "")
         self.uid = str(uuid.uuid1())
         self.sid_info = SidInfo(
             sub=os.getenv(SERVICE_SUB_KEY, "aitools"),
             location=os.getenv(SERVICE_LOCATION_KEY, "default"),
             index=0,
             local_ip=get_host_ip(),
-            local_port=os.getenv(SERVICE_PORT_KEY, "18668"),
+            local_port=os.getenv(SERVICE_PORT_KEY, "18667"),
         )
         self.sid = SidGenerator2(self.sid_info).gen()
 
     async def dispatch(self, request: Request, call_next: Callable) -> Any:
         """Dispatch the request to the next middleware or the app"""
         span, meter, node_trace = None, None, None
-        request.state.sid = self.sid
+        setattr(request.state, "sid", self.sid)
 
         try:
             if self._should_skip(request):
                 return await call_next(request)
-
-            # with self._init_span(request) as span:
-
-            #     usr_input_str = await self._capture_user_input(request, span)
-            #     node_trace, meter = self._init_node_trace(request, usr_input_str)
-
-            #     request.state.span = span
-            #     request.state.meter = meter
-            #     request.state.node_trace = node_trace
-            #     response = await call_next(request)
-
-            #     return response
 
             span = self._init_span_instance(request)
 
@@ -117,15 +104,18 @@ class OTLPMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             return response
 
-        except Exception:
-            raise
-
+        except ServiceException as e:
+            return await self._service_exception_handler(request, e)
+        except HTTPException as e:
+            return await self._http_exception_handler(request, e)
+        except Exception as e:
+            return await self._generic_exception_handler(request, e)
         finally:
             self._clean(span)
 
     def _should_skip(self, request: Request) -> bool:
         """Should skip logging for this request?"""
-        if self.enabled.lower() == "0":
+        if not self.enabled:
             return True
 
         if random.random() > self.sample_rate:
@@ -133,7 +123,11 @@ class OTLPMiddleware(BaseHTTPMiddleware):
             return True
 
         path = request.url.path
-        return any(path.startswith(exclude) for exclude in self.exclude_paths)
+
+        if self.include_paths:
+            return not any(path.startswith(include) for include in self.include_paths)
+
+        return False
 
     @contextmanager
     def _init_span(self, request: Request) -> Iterator[Span]:
@@ -174,7 +168,7 @@ class OTLPMiddleware(BaseHTTPMiddleware):
         )
 
         sid = span_instance.sid
-        request.state.sid = sid
+        setattr(request.state, "sid", sid)
 
         return span_instance
 
@@ -239,6 +233,78 @@ class OTLPMiddleware(BaseHTTPMiddleware):
         }
 
         return attributes
+
+    async def _service_exception_handler(
+        self, request: Request, exc: BaseException
+    ) -> JSONResponse:
+        """Handle API exceptions and log them with tracing"""
+        assert isinstance(exc, ServiceException)
+        span: Optional[SpanLike] = getattr(request.state, "span", None)
+        node_trace: Optional[NodeTraceLog] = getattr(request.state, "node_trace", None)
+        meter: Optional[Meter] = getattr(request.state, "meter", None)
+
+        content = exc.convert_to_response()
+        if not content.sid:
+            content.sid = getattr(request.state, "sid", None)
+
+        update_span(content, span)
+        upload_trace(content, meter, node_trace)
+
+        return JSONResponse(
+            status_code=http_status.HTTP_200_OK,
+            content=content.model_dump(),
+        )
+
+    async def _http_exception_handler(
+        self, request: Request, exc: BaseException
+    ) -> JSONResponse:
+        """Handle HTTP client exceptions and log them with tracing"""
+        assert isinstance(exc, HTTPException)
+        span: Optional[SpanLike] = getattr(request.state, "span", None)
+        node_trace: Optional[NodeTraceLog] = getattr(request.state, "node_trace", None)
+        meter: Optional[Meter] = getattr(request.state, "meter", None)
+
+        if span:
+            span.set_attribute("error.code", exc.status_code)
+            span.record_exception(exc)
+
+        content = ErrorResponse(
+            code=exc.status_code,
+            message=exc.detail,
+            sid=getattr(request.state, "sid", None),
+        )
+
+        upload_trace(content, meter, node_trace)
+
+        return JSONResponse(
+            status_code=http_status.HTTP_200_OK,
+            content=content.model_dump(),
+        )
+
+    async def _generic_exception_handler(
+        self, request: Request, exc: Exception
+    ) -> JSONResponse:
+        """Handle generic exceptions and log them with tracing"""
+        span: Optional[SpanLike] = getattr(request.state, "span", None)
+        node_trace: Optional[NodeTraceLog] = getattr(request.state, "node_trace", None)
+        meter: Optional[Meter] = getattr(request.state, "meter", None)
+
+        content = ErrorResponse.from_enum(
+            CodeEnums.ServiceInernalError,
+            sid=getattr(request.state, "sid", None),
+            extra_message=str(exc),
+        )
+
+        if span:
+            span.set_attribute("error.code", content.code)
+            span.record_exception(exc)
+
+        upload_trace(content, meter, node_trace)
+
+        return JSONResponse(
+            status_code=http_status.HTTP_200_OK,
+            content=content.model_dump(),
+        )
 
     def _clean(self, span_instance: Optional[SpanInstance] = None) -> None:
         """Clean up span instance"""

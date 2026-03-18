@@ -86,6 +86,7 @@ class BotChainServiceImplTest {
         assertNull(captured.getId());
         assertEquals(Math.toIntExact(targetId), captured.getBotId());
         assertNull(captured.getFlowId());
+        assertEquals(uid, captured.getUid());
         assertEquals(spaceId, captured.getSpaceId());
         assertNotNull(captured.getUpdateTime());
 
@@ -165,6 +166,7 @@ class BotChainServiceImplTest {
         assertEquals(Math.toIntExact(targetId), captured.getBotId());
         assertEquals(111L, captured.getMaasId());
         assertEquals("newFlow123", captured.getFlowId());
+        assertEquals(uid, captured.getUid());
         assertEquals(spaceId, captured.getSpaceId());
         assertNotNull(captured.getUpdateTime());
     }

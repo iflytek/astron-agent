@@ -308,6 +308,13 @@ class RedisService:
         value = self._client.get(key)
         return json.loads(value.decode("utf-8")) if value else None
 
+    def setnx(self, key: str, value: Any, ex: Optional[int] = None) -> bool:
+        """Set key only if it does not exist."""
+        if ex is not None:
+            result = self._client.set(name=key, value=value, nx=True, ex=ex)
+            return bool(result)
+        return bool(self._client.setnx(key, value))
+
     def hash_get(self, name: str, key: str) -> Any:
         """Get a field value from a Redis hash.
 

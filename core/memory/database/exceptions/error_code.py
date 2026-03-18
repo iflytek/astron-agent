@@ -1,7 +1,15 @@
+"""Error code enumeration module for database operations."""
+
 from enum import Enum
 
 
 class CodeEnum(Enum):
+    """Error code enumeration for database operations.
+
+    This enum defines all error codes used in the database module,
+    including success codes, parameter errors, database errors, and more.
+    """
+
     Successes = (0, "success")
     HttpError = (25500, "Server error")
 
@@ -33,8 +41,10 @@ class CodeEnum(Enum):
 
     @property
     def code(self) -> int:
+        """Get the error code number."""
         return self.value[0]
 
     @property
     def msg(self) -> str:
+        """Get the error message."""
         return self.value[1]

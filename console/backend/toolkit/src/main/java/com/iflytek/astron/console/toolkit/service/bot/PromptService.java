@@ -41,6 +41,9 @@ public class PromptService {
     @Resource
     WorkflowMapper workflowMapper;
 
+    @Resource
+    OpenAiModelProcessService openAiModelProcessService;
+
     /**
      * Enhance a given prompt by applying a configured template.
      *
@@ -51,7 +54,7 @@ public class PromptService {
     public SseEmitter enhance(String name, String prompt) {
         String template = configInfoMapper.getByCategoryAndCode("TEMPLATE", "prompt-enhance").getValue();
         String question = template.replace("{assistant_name}", name).replace("{assistant_description}", prompt);
-        return sparkApiTool.onceChatReturnSseByWs(question);
+        return openAiModelProcessService.processStreaming(question);
     }
 
     /**
@@ -65,7 +68,7 @@ public class PromptService {
         String template = configInfoMapper.getByCategoryAndCode("TEMPLATE", "next-question-advice").getValue();
         String msg = template.replace("{q}", question);
         try {
-            String threeAdvice = sparkApiTool.onceChatReturnWholeByWs(msg);
+            String threeAdvice = openAiModelProcessService.processNonStreaming(msg);
             if (JSONValidator.from(threeAdvice).validate()) {
                 return JSON.parseArray(threeAdvice);
             } else {
@@ -103,7 +106,7 @@ public class PromptService {
                 prompt = prompt.replace("{name}", workflow.getName()).replace("{desc}", workflow.getDescription());
             }
         }
-        return sparkApiTool.onceChatReturnSseByWs(prompt);
+        return openAiModelProcessService.processStreaming(prompt);
     }
 
     /**
@@ -151,23 +154,6 @@ public class PromptService {
                 break;
             default:
         }
-
-        // Retrieve URL and domain from config, fallback to defaults if not found
-        String codeUrl;
-        String codeDomain;
-        ConfigInfo url = configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_url");
-        ConfigInfo domain = configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_domain");
-
-        if (url == null) {
-            codeUrl = SparkApiTool.sparkCodeUrl;
-        } else {
-            codeUrl = url.getValue();
-        }
-        if (domain == null) {
-            codeDomain = SparkApiTool.CODE_DOMAIN;
-        } else {
-            codeDomain = domain.getValue();
-        }
-        return sparkApiTool.onceChatReturnSseByWs(codeUrl, codeDomain, message);
+        return openAiModelProcessService.processStreaming(message);
     }
 }

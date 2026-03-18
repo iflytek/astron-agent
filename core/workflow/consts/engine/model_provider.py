@@ -17,3 +17,12 @@ class ModelProviderEnum(Enum):
 
     XINGHUO = "xinghuo"
     OPENAI = "openai"
+    DEEPSEEK = "deepseek"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
+    MINIMAX = "minimax"
+    ZHIPU = "zhipu"
+    QWEN = "qwen"
+    MOONSHOT = "moonshot"
+    CHATGPT = "chatgpt"
+    DOUBAO = "doubao"

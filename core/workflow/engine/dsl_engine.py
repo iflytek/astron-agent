@@ -525,7 +525,12 @@ class RetryableErrorHandler(ExceptionHandlerBase):
                     },
                     "payload": {"choices": {"text": [{}]}},
                 }
-            elif model_source == ModelProviderEnum.OPENAI.value:
+            elif model_source in {
+                ModelProviderEnum.OPENAI.value,
+                ModelProviderEnum.DEEPSEEK.value,
+                ModelProviderEnum.ANTHROPIC.value,
+                ModelProviderEnum.GOOGLE.value,
+            }:
                 return {
                     "code": -1,
                     "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
@@ -1552,7 +1557,12 @@ class WorkflowEngine(BaseModel):
                             },
                             "payload": {"choices": {"text": [{}]}},
                         }
-                    case ModelProviderEnum.OPENAI.value:
+                    case (
+                        ModelProviderEnum.OPENAI.value
+                        | ModelProviderEnum.DEEPSEEK.value
+                        | ModelProviderEnum.ANTHROPIC.value
+                        | ModelProviderEnum.GOOGLE.value
+                    ):
                         return {
                             "code": -1,
                             "choices": [

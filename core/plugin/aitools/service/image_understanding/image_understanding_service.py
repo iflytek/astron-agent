@@ -17,6 +17,12 @@ from plugin.aitools.common.clients.aiohttp_client import HttpClient
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
+from plugin.aitools.const.const import (
+    AI_API_KEY_KEY,
+    AI_API_SECRET_KEY,
+    AI_APP_ID_KEY,
+    IMAGE_UNDERSTANDING_URL_KEY,
+)
 from pydantic import BaseModel
 
 
@@ -72,10 +78,10 @@ async def image_understanding_service(
     meter: Optional[Meter] = None,
     node_trace: Optional[NodeTraceLog] = None,
 ) -> BaseResponse:
-    imageunderstanding_url = os.getenv("IMAGE_UNDERSTANDING_URL", "")
+    imageunderstanding_url = os.getenv(IMAGE_UNDERSTANDING_URL_KEY, "")
 
     params = await gen_params(
-        app_id=os.getenv("AI_APP_ID"),
+        app_id=os.getenv(AI_APP_ID_KEY),
         question=body.question,
         image_url=body.image_url,
         span=span,
@@ -85,8 +91,8 @@ async def image_understanding_service(
         url=imageunderstanding_url,
         span=span,
         auth="ASE",
-        api_key=os.getenv("AI_API_KEY"),
-        api_secret=os.getenv("AI_API_SECRET"),
+        api_key=os.getenv(AI_API_KEY_KEY),
+        api_secret=os.getenv(AI_API_SECRET_KEY),
     ).start() as client:
 
         await client.send(params)

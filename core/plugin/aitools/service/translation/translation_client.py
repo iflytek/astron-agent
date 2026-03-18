@@ -14,6 +14,7 @@ from typing import Any, Dict, Set, Tuple
 
 import requests
 from common.utils.hmac_auth import HMACAuth
+from plugin.aitools.const.const import TRANSLATION_URL_KEY
 
 # Complete language code mapping (44 languages + Chinese)
 SUPPORTED_LANGUAGES: Dict[str, str] = {
@@ -97,7 +98,7 @@ class TranslationClient:
         self.app_id = app_id
         self.api_key = api_key
         self.api_secret = api_secret
-        self.base_url = os.getenv("TRANSLATION_URL")
+        self.base_url = os.getenv(TRANSLATION_URL_KEY)
 
     def _validate_input(
         self, text: str, source_language: str, target_language: str

@@ -58,6 +58,7 @@ class TestWorkflowAgentRunnerBuilder:
             model_config=CustomCompletionModelConfigInputs(
                 domain="test_model",
                 api="https://api.test.com",
+                provider="anthropic",
                 api_key="test_key",
             ),
             instruction=CustomCompletionInstructionInputs(

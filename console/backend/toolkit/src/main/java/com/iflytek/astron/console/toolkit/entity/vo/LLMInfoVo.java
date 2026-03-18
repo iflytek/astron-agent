@@ -21,6 +21,7 @@ public class LLMInfoVo extends LLMServerInfo {
     String pretrainedModel;
     Integer modelType;
     String color;
+    String provider;
     /**
      * Whether it is a thinking model
      */

@@ -2,26 +2,26 @@ package com.iflytek.astron.console.hub.service.bot.impl;
 
 import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
-import com.iflytek.astron.console.hub.dto.PageResponse;
 import com.iflytek.astron.console.commons.dto.bot.PersonalityConfigDto;
+import com.iflytek.astron.console.commons.exception.BusinessException;
+import com.iflytek.astron.console.commons.util.I18nUtil;
+import com.iflytek.astron.console.hub.dto.PageResponse;
 import com.iflytek.astron.console.hub.entity.personality.PersonalityCategory;
 import com.iflytek.astron.console.hub.entity.personality.PersonalityConfig;
-import com.iflytek.astron.console.hub.enums.ConfigTypeEnum;
-import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.hub.entity.personality.PersonalityRole;
+import com.iflytek.astron.console.hub.enums.ConfigTypeEnum;
 import com.iflytek.astron.console.hub.enums.PersonalitySceneTypeEnum;
 import com.iflytek.astron.console.hub.mapper.personality.PersonalityCategoryMapper;
 import com.iflytek.astron.console.hub.mapper.personality.PersonalityConfigMapper;
-import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.hub.mapper.personality.PersonalityRoleMapper;
 import com.iflytek.astron.console.hub.service.bot.PersonalityConfigService;
-import com.iflytek.astron.console.hub.util.BotAIServiceClient;
+import com.iflytek.astron.console.toolkit.service.bot.OpenAiModelProcessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.cache.annotation.Cacheable;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -38,8 +38,7 @@ public class PersonalityConfigServiceImpl implements PersonalityConfigService {
 
     private final PersonalityRoleMapper personalityRoleMapper;
 
-    private final BotAIServiceClient aiServiceClient;
-
+    private final OpenAiModelProcessService openAiModelProcessService;
 
     @Override
     public String aiGeneratedPersonality(String botName, String category, String info, String prompt) {
@@ -50,7 +49,7 @@ public class PersonalityConfigServiceImpl implements PersonalityConfigService {
         String answer;
         try {
             String format = smartFormat(I18nUtil.getMessage("personality.ai.generated"), botName, category, info, prompt);
-            answer = aiServiceClient.generateText(format, "4.0Ultra", 60);
+            answer = openAiModelProcessService.processNonStreaming(format);
         } catch (Exception e) {
             log.error("aiGeneratedPersonality error, botName: {}, category: {}, info: {}, prompt: {}", botName, category, info, prompt, e);
             throw new BusinessException(ResponseEnum.PERSONALITY_AI_GENERATE_ERROR);
@@ -70,7 +69,7 @@ public class PersonalityConfigServiceImpl implements PersonalityConfigService {
         String answer;
         try {
             String format = smartFormat(I18nUtil.getMessage("personality.ai.polishing"), botName, category, info, prompt, personality);
-            answer = aiServiceClient.generateText(format, "4.0Ultra", 60);
+            answer = openAiModelProcessService.processNonStreaming(format);
         } catch (Exception e) {
             log.error("aiPolishing error, botName: {}, category: {}, info: {}, prompt: {}, personality: {}", botName, category, info, prompt, personality, e);
             throw new BusinessException(ResponseEnum.PERSONALITY_AI_GENERATE_ERROR);

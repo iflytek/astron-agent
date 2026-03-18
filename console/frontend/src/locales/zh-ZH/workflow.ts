@@ -355,6 +355,17 @@ const translation = {
       variableType: '变量类型',
       add: '添加',
     },
+    variableAggregationNode: {
+      type: '变量聚合',
+      output: '输出',
+      candidates: '候选变量',
+      priority: '优先级',
+      candidateLabel: '候选{{index}}',
+      fallback: '兜底值',
+      enableFallback: '当所有候选变量都为空时使用兜底值',
+      moveUp: '上移',
+      moveDown: '下移',
+    },
     databaseNode: {
       type: '数据库',
       customSQL: '自定义SQL',
@@ -645,6 +656,8 @@ const translation = {
       codeCannotBeEmpty: '代码不可为空',
       separatorCannotBeEmpty: '分隔符不可为空',
       invalidJSONFormat: '无效的JSON格式',
+      variableAggregationTypeMismatch: '候选变量类型必须与输出类型一致',
+      variableAggregationFallbackInvalid: '兜底值与当前输出类型不匹配',
     },
     addFlow: {
       selectWorkflow: '选择工作流',

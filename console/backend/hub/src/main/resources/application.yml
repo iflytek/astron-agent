@@ -138,6 +138,17 @@ spark:
   virtual-man-apiKey: ${SPARK_VIRTUAL_MAN_API_KEY:xxx}
   virtual-man-apiSecret: ${SPARK_VIRTUAL_MAN_API_SECRET:xxx}
 
+# AI Ability configuration
+# Note: base-url should NOT include /chat/completions path
+# OpenAI SDK will automatically append the endpoint path
+# Compatible with openai models
+ai-ability:
+  chat:
+    base-url: ${AI_ABILITY_CHAT_BASE_URL:https://spark-api-open.xf-yun.com/v1}
+    model: ${AI_ABILITY_CHAT_MODEL:xxx}
+    api-key: ${AI_ABILITY_CHAT_API_KEY:xxx}
+  
+  
 # Workflow configuration
 workflow:
   chatUrl: ${WORKFLOW_CHAT_URL:http://}

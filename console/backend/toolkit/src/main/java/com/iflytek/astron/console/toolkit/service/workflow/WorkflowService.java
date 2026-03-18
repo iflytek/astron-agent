@@ -1401,7 +1401,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     buidKeyInfo(bizNodeData);
                 }
                 String source = bizNodeData.getNodeParam().getString("source");
-                if ("openai".equals(source)) {
+                if (requiresCustomModelCredentialInjection(source)) {
                     Long modelId = bizNodeData.getNodeParam().getLong("modelId");
                     if (modelId != null) {
                         Model model = modelService.getById(modelId);
@@ -2239,7 +2239,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
                 }
                 String source = bizNodeData.getNodeParam().getString("source");
-                if ("openai".equals(source)) {
+                if (requiresCustomModelCredentialInjection(source)) {
                     Long modelId = bizNodeData.getNodeParam().getLong("modelId");
                     if (modelId != null) {
                         Model model = modelService.getById(modelId);
@@ -2385,6 +2385,20 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 mcpServerUrls.add(server);
             }
         }
+    }
+
+    private boolean requiresCustomModelCredentialInjection(String source) {
+        return StringUtils.equalsAny(source,
+                "openai",
+                "deepseek",
+                "anthropic",
+                "google",
+                "minimax",
+                "zhipu",
+                "qwen",
+                "moonshot",
+                "chatgpt",
+                "doubao");
     }
 
     /** Knowledge: fill docIds for each knowledge.match section */

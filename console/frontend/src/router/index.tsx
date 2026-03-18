@@ -75,7 +75,7 @@ const routes = [
         path: '/management/model',
         element: (
           <Suspense fallback={<Loading />}>
-            <PersonalModel />
+            <OfficialModel />
           </Suspense>
         ),
       },

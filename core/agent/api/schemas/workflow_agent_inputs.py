@@ -8,6 +8,7 @@ from agent.api.schemas.base_inputs import BaseInputs
 class CustomCompletionModelConfigInputs(BaseModel):
     domain: str
     api: str
+    provider: str = Field(default="")
     api_key: str = Field(default="")
 
 

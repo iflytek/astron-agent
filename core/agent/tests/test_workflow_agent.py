@@ -52,6 +52,7 @@ class TestCustomChatCompletion:
             model_config=CustomCompletionModelConfigInputs(
                 domain="test_model",
                 api="https://api.test.com",
+                provider="anthropic",
                 api_key="test_key",
             ),
             instruction=CustomCompletionInstructionInputs(
@@ -141,6 +142,7 @@ class TestCustomChatCompletionsEndpoint:
             model_config=CustomCompletionModelConfigInputs(
                 domain="test_model",
                 api="https://api.test.com",
+                provider="google",
                 api_key="test_key",
             ),
             instruction=CustomCompletionInstructionInputs(),

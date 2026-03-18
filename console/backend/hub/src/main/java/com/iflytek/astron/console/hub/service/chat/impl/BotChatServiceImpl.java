@@ -626,6 +626,7 @@ public class BotChatServiceImpl implements BotChatService {
         jsonObject.put("url", llmInfoVo.getUrl());
         jsonObject.put("apiKey", llmInfoVo.getApiKey());
         jsonObject.put("model", llmInfoVo.getDomain());
+        jsonObject.put("provider", llmInfoVo.getProvider());
         jsonObject.put("messages", messages);
         // Convert Object to JSONArray type
         Object configObj = llmInfoVo.getConfig();

@@ -181,6 +181,11 @@ PLATFORM_API_SECRET=your-api-secret
 
 SPARK_API_PASSWORD=your-api-password
 SPARK_RTASR_API_KEY=your-rtasr-api-key
+
+# For configuring platform AI generation capabilities (compatible with OpenAI protocols), such as prompt optimization and one-sentence agent creation.
+AI_ABILITY_CHAT_BASE_URL=your-model-url
+AI_ABILITY_CHAT_MODEL=your-model-id
+AI_ABILITY_CHAT_API_KEY=your-api-key
 ```
 
 #### 4.2 If You Want to Use Spark RAG Cloud Service, Configure as Follows (Optional)

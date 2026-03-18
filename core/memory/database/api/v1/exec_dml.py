@@ -17,6 +17,8 @@ from memory.database.api.schemas.exec_dml_types import ExecDMLInput
 from memory.database.api.v1.common import (
     check_database_exists_by_did,
     check_space_id_and_get_uid,
+    validate_reserved_functions,
+    validate_reserved_keywords,
 )
 from memory.database.domain.entity.general import exec_sql_statement, parse_and_exec_sql
 from memory.database.domain.entity.schema import set_search_path_by_schema
@@ -32,109 +34,6 @@ from starlette.responses import JSONResponse
 exec_dml_router = APIRouter(tags=["EXEC_DML"])
 
 INSERT_EXTRA_COLUMNS = ["id", "uid", "create_time", "update_time"]
-
-PGSQL_INVALID_KEY = [
-    "all",
-    "analyse",
-    "analyze",
-    "and",
-    "any",
-    "array",
-    "as",
-    "asc",
-    "asymmetric",
-    "authorization",
-    "binary",
-    "both",
-    "case",
-    "cast",
-    "check",
-    "collate",
-    "collation",
-    "column",
-    "concurrently",
-    "constraint",
-    "create",
-    "cross",
-    "current_catalog",
-    "current_date",
-    "current_role",
-    "current_schema",
-    "current_time",
-    "current_timestamp",
-    "current_user",
-    "default",
-    "deferrable",
-    "desc",
-    "distinct",
-    "do",
-    "else",
-    "end",
-    "except",
-    "false",
-    "fetch",
-    "for",
-    "foreign",
-    "freeze",
-    "from",
-    "full",
-    "grant",
-    "group",
-    "having",
-    "ilike",
-    "in",
-    "initially",
-    "inner",
-    "intersect",
-    "into",
-    "is",
-    "isnull",
-    "join",
-    "lateral",
-    "leading",
-    "left",
-    "like",
-    "limit",
-    "localtime",
-    "localtimestamp",
-    "natural",
-    "not",
-    "notnull",
-    "null",
-    "offset",
-    "on",
-    "only",
-    "or",
-    "order",
-    "outer",
-    "overlaps",
-    "placing",
-    "primary",
-    "references",
-    "returning",
-    "right",
-    "select",
-    "session_user",
-    "similar",
-    "some",
-    "symmetric",
-    "table",
-    "tablesample",
-    "then",
-    "to",
-    "trailing",
-    "true",
-    "union",
-    "unique",
-    "user",
-    "using",
-    "variadic",
-    "verbose",
-    "when",
-    "where",
-    "window",
-    "with",
-]
 
 
 def _build_insert_literal_map(
@@ -461,7 +360,8 @@ def rewrite_dml_with_uid_and_limit(
     # Build mapping from Literal nodes to column names (only when needed)
     literal_column_map: Dict[int, str] = {}
     if column_types and tables:
-        # Use first table as default, but functions will get actual table name from Column nodes
+        # Use first table as default, but functions will get actual table name
+        # from Column nodes
         default_table_name = tables[0]
         # Build alias map to resolve table aliases to actual table names
         alias_map = _build_table_alias_map(parsed)
@@ -559,6 +459,42 @@ def to_jsonable(obj: Any) -> Any:
     return obj
 
 
+def _collect_functions_names(parsed: Any) -> list:
+    """
+    Collect function names from parsed SQL AST.
+    """
+    functions_to_validate = []
+    sqlglot_func_key_map = {
+        "currentuser": "current_user",
+        "sessionuser": "session_user",
+        "currentdate": "current_date",
+        "currenttime": "current_time",
+        "currenttimestamp": "current_timestamp",
+        "currentschema": "current_schema",
+        "currentcatalog": "current_catalog",
+        "currentdatabase": "current_database",
+        "currentrole": "current_role",
+        "localtime": "localtime",
+        "localtimestamp": "localtimestamp",
+        "user": "user",
+        "systemuser": "system_user",
+    }
+
+    for node in parsed.walk():
+        if not isinstance(node, exp.Func):
+            continue
+
+        func_name = node.name
+        if not func_name:
+            key = getattr(node, "key", None) or type(node).__name__.lower()
+            func_name = sqlglot_func_key_map.get(key, "")
+
+        if func_name:
+            functions_to_validate.append(func_name)
+
+    return functions_to_validate
+
+
 def _collect_column_names(parsed: Any) -> list:
     """Collect column names."""
     columns_to_validate = []
@@ -611,13 +547,14 @@ def _collect_update_keys(parsed: Any) -> list:
     return keys_to_validate
 
 
-def _collect_columns_and_keys(parsed: Any) -> tuple[list, list]:
+def _collect_columns_and_keys(parsed: Any) -> tuple[list, list, list]:
     """Collect column names and key names that need validation."""
+    functions_to_validate = _collect_functions_names(parsed)
     columns_to_validate = _collect_column_names(parsed)
     insert_keys = _collect_insert_keys(parsed)
     update_keys = _collect_update_keys(parsed)
     keys_to_validate = insert_keys + update_keys
-    return columns_to_validate, keys_to_validate
+    return functions_to_validate, columns_to_validate, keys_to_validate
 
 
 def _validate_comparison_nodes(parsed: Any, uid: str, span_context: Any) -> Any:
@@ -672,45 +609,37 @@ def _validate_name_pattern(names: list, name_type: str, span_context: Any) -> An
     """
     # Allowed characters for DML identifiers (column names, etc.)
     # Business rule: Only ASCII letters and underscores are allowed (no digits)
-    # This is intentionally more restrictive than standard SQL but is a deliberate design choice
-    # DO NOT modify this validation to allow digits - it violates business requirements
-    # Using string.ascii_letters constant instead of regex to avoid code scanning false positives
+    # This is intentionally more restrictive than standard SQL but is a
+    # deliberate design choice
+    # DO NOT modify this validation to allow digits - it violates business
+    # requirements
+    # Using string.ascii_letters constant instead of regex to avoid code
+    # scanning false positives
     allow_chars = string.ascii_letters + "_"
     for name in names:
         # Check if name is empty
         if not name:
-            span_context.add_error_event(
-                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
+            error_msg = (
+                f"{name_type}: '{name}' does not conform to rules, "
+                "only letters and underscores are supported"
             )
+            span_context.add_error_event(error_msg)
             return format_response(
                 code=CodeEnum.DMLNotAllowed.code,
-                message=f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported",
+                message=error_msg,
                 sid=span_context.sid,
             )
 
         # Validate using column name
         if not all(c in allow_chars for c in name):
-            span_context.add_error_event(
-                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
+            error_msg = (
+                f"{name_type}: '{name}' does not conform to rules, "
+                "only letters and underscores are supported"
             )
+            span_context.add_error_event(error_msg)
             return format_response(
                 code=CodeEnum.DMLNotAllowed.code,
-                message=f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported",
-                sid=span_context.sid,
-            )
-    return None
-
-
-def _validate_reserved_keywords(keys: list, span_context: Any) -> Any:
-    """Validate reserved keywords."""
-    for key_name in keys:
-        if key_name.lower() in PGSQL_INVALID_KEY:
-            span_context.add_error_event(
-                f"Key name '{key_name}' is a reserved keyword and is not allowed"
-            )
-            return format_response(
-                code=CodeEnum.DMLNotAllowed.code,
-                message=f"Key name '{key_name}' is a reserved keyword and is not allowed",
+                message=error_msg,
                 sid=span_context.sid,
             )
     return None
@@ -726,7 +655,15 @@ async def _validate_dml_legality(dml: str, uid: str, span_context: Any) -> Any:
             return error_result
 
         # Collect column names and keys that need validation
-        columns_to_validate, keys_to_validate = _collect_columns_and_keys(parsed)
+        functions_to_validate, columns_to_validate, keys_to_validate = (
+            _collect_columns_and_keys(parsed)
+        )
+        # Validate reserved function
+        error_result = await validate_reserved_functions(
+            functions_to_validate, span_context
+        )
+        if error_result:
+            return error_result
 
         # Validate column names
         error_result = _validate_name_pattern(
@@ -734,7 +671,12 @@ async def _validate_dml_legality(dml: str, uid: str, span_context: Any) -> Any:
         )
         if error_result:
             return error_result
-
+        # Validate reserved column
+        error_result = await validate_reserved_keywords(
+            columns_to_validate, span_context
+        )
+        if error_result:
+            return error_result
         # Validate key names
         error_result = _validate_name_pattern(
             keys_to_validate, "Key name", span_context
@@ -743,7 +685,7 @@ async def _validate_dml_legality(dml: str, uid: str, span_context: Any) -> Any:
             return error_result
 
         # Validate reserved keywords
-        error_result = _validate_reserved_keywords(keys_to_validate, span_context)
+        error_result = await validate_reserved_keywords(keys_to_validate, span_context)
         if error_result:
             return error_result
 
@@ -807,7 +749,8 @@ async def _get_table_column_types(
         tables: List of table names
 
     Returns:
-        dict: Column type mapping, key is "table.column", value is data type (e.g., 'timestamp without time zone', 'character varying', etc.)
+        dict: Column type mapping, key is "table.column", value is data type
+        (e.g., 'timestamp without time zone', 'character varying', etc.)
     """
     column_types: Dict[str, str] = {}
     for table in tables:
@@ -821,12 +764,11 @@ async def _get_table_column_types(
         )
         for row in result.fetchall():
             col_name = row[0]
-            data_type = row[
-                1
-            ]  # Standard data type, such as 'timestamp without time zone', 'character varying'
-            udt_name = row[
-                2
-            ]  # PostgreSQL specific type, such as 'timestamp', 'varchar'
+            # Standard data type, such as 'timestamp without time zone',
+            # 'character varying'
+            data_type = row[1]
+            # PostgreSQL specific type, such as 'timestamp', 'varchar'
+            udt_name = row[2]
             key = f"{table}.{col_name}"
             # Use udt_name for more accuracy, use data_type if empty
             column_types[key] = udt_name if udt_name else data_type
@@ -860,7 +802,8 @@ async def _process_dml_statements(
                     f"Column types for tables {tables}: {column_types}"
                 )
         except Exception as col_type_error:  # pylint: disable=broad-except
-            # If querying column types fails, log error but don't interrupt processing (backward compatibility)
+            # If querying column types fails, log error but don't interrupt
+            # processing (backward compatibility)
             span_context.add_error_event(
                 f"Failed to get column types: {str(col_type_error)}"
             )
@@ -986,7 +929,8 @@ async def _exec_dml_sql(
             insert_ids = dml_info["insert_ids"]
             params = dml_info.get("params", {})
 
-            # If there are parameters, use parameterized query, otherwise execute directly
+            # If there are parameters, use parameterized query,
+            # otherwise execute directly
             if params:
                 result = await parse_and_exec_sql(db, rewrite_dml, params)
             else:

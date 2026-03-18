@@ -9,7 +9,7 @@ import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
 
-from agent.domain.models.base import BaseLLMModel
+from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
@@ -232,6 +232,35 @@ class TestBaseApiBuilder:
         assert model.name == "test_model"
         # Verify provided API key is used
         assert model.llm.api_key == "provided_key"
+
+    @pytest.mark.asyncio
+    async def test_create_anthropic_model(self, builder: BaseApiBuilder) -> None:
+        model = await builder.create_model(
+            app_id="test_app",
+            model_name="claude-3-5-haiku-latest",
+            base_url="https://api.anthropic.com",
+            provider="anthropic",
+            api_key="provided_key",
+        )
+
+        assert isinstance(model, AnthropicLLMModel)
+        assert model.build_request_url() == "https://api.anthropic.com/v1/messages"
+
+    @pytest.mark.asyncio
+    async def test_create_google_model(self, builder: BaseApiBuilder) -> None:
+        model = await builder.create_model(
+            app_id="test_app",
+            model_name="gemini-2.5-flash",
+            base_url="https://generativelanguage.googleapis.com",
+            provider="google",
+            api_key="provided_key",
+        )
+
+        assert isinstance(model, GoogleLLMModel)
+        assert (
+            model.build_request_url()
+            == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse"
+        )
 
     @pytest.mark.asyncio
     async def test_create_model_without_api_key(self, builder: BaseApiBuilder) -> None:

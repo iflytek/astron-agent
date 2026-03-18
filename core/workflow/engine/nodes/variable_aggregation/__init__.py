@@ -1,0 +1,1 @@
+# Variable aggregation node package.

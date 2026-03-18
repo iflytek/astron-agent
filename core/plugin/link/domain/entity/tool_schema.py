@@ -9,7 +9,7 @@ from datetime import datetime
 
 import sqlalchemy as sa
 from plugin.link.consts import const
-from sqlmodel import BigInteger, Column, Field, SQLModel, String, Text
+from sqlmodel import BigInteger, Column, Field, SQLModel, String, Text, UniqueConstraint
 
 # Ignore schema name warnings
 warnings.filterwarnings(
@@ -25,13 +25,16 @@ class Tools(SQLModel, table=True):
     """
 
     __tablename__ = "tools_schema"
+    __table_args__ = (
+        UniqueConstraint(
+            "tool_id", "version", "is_deleted", name="unique_tool_version"
+        ),
+    )
     id: int = Field(sa_column=Column(BigInteger, primary_key=True, autoincrement=True))
     app_id: str = Field(
         sa_column=Column(String(32), nullable=True, comment="Application ID")
     )
-    tool_id: str = Field(
-        sa_column=Column(String(32), nullable=True, unique=True, comment="Tool ID")
-    )
+    tool_id: str = Field(sa_column=Column(String(32), nullable=True, comment="Tool ID"))
     name: str = Field(sa_column=Column(String(128), nullable=True, comment="Tool name"))
     description: str = Field(
         sa_column=Column(String(512), nullable=True, comment="Tool description")

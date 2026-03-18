@@ -51,6 +51,9 @@ public class BotAIServiceImpl implements BotAIService {
     private AiPromptTemplateMapper promptTemplateMapper;
 
     @Autowired
+    private com.iflytek.astron.console.toolkit.service.bot.OpenAiModelProcessService openAiModelProcessService;
+
+    @Autowired
     private RedisUtil redisUtil;
 
     /**
@@ -329,7 +332,7 @@ public class BotAIServiceImpl implements BotAIService {
         log.info("Starting one-sentence assistant generation, input: {}", sentence);
 
         // Call AI service to generate response
-        String aiResponse = aiServiceClient.generateText(prompt, "4.0Ultra", 120);
+        String aiResponse = openAiModelProcessService.processNonStreaming(prompt);
 
         if (StringUtils.isBlank(aiResponse)) {
             log.error("AI service returned empty response");
@@ -609,7 +612,7 @@ public class BotAIServiceImpl implements BotAIService {
 
         try {
             String question = formatPrompt("prologue_generation", botName);
-            String prologue = String.valueOf(aiServiceClient.generateText(question, "4.0Ultra", 60));
+            String prologue = String.valueOf(openAiModelProcessService.processNonStreaming(question));
 
             if (StringUtils.isBlank(prologue)) {
                 log.error("Failed to generate prologue: AI returned empty content");
@@ -796,7 +799,7 @@ public class BotAIServiceImpl implements BotAIService {
 
         try {
             String question = formatPrompt("input_example_generation", botName, botDesc, prompt);
-            String answer = aiServiceClient.generateText(question, "4.0Ultra", 60);
+            String answer = openAiModelProcessService.processNonStreaming(question);
             List<String> examples = parseNumberedExamples(answer);
             return examples.size() > 3 ? examples.subList(0, 3) : examples;
         } catch (BusinessException e) {

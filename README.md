@@ -28,12 +28,20 @@ The platform supports **high-availability** deployment, enabling organizations t
 
 ## 📰 News
 
+### 🔄 Ongoing
+
+- **[Astron Industrial Intelligence Hackathon](https://awesome-astron-workflow.dev/activities/astron-industrial-intelligence-hackathon)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/horizon220222"><img src="https://github.com/horizon220222.png" width="20" align="center" /> @horizon220222</a>
+- **[Astron Agent & RPA · Hefei Meetup](https://mp.weixin.qq.com/s/tDJaoOLUrjBlgMLDurvHCw)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/doctorbruce"><img src="https://github.com/doctorbruce.png" width="20" align="center" /> @doctorbruce</a>
+
+### 📅 Past
+
 - **[Astron Hackathon @ 2025 iFLYTEK Global 1024 Developer Festival](https://luma.com/9zmbc6xb)**  🎤 <a href="https://github.com/mklong"><img src="https://github.com/mklong.png" width="20" align="center" /> @mklong</a>
 - **[Astron Agent Zhengzhou Meetup](https://github.com/iflytek/astron-agent/discussions/672)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/wowo-zZ"><img src="https://github.com/wowo-zZ.png" width="20" align="center" /> @wowo-zZ</a>
 - **[Astron on Campus @ Zhejiang University of Finance and Economics](https://mp.weixin.qq.com/s/oim_Z0ckgpFwf5jOskoJuA)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a>
 - **[Astron Agent & RPA · Qingdao Meetup Brings Agentic AI!](https://github.com/iflytek/astron-agent/discussions/740)**  🎤 <a href="https://github.com/vsxd"><img src="https://github.com/vsxd.png" width="20" align="center" /> @vsxd</a> <a href="https://github.com/doctorbruce"><img src="https://github.com/doctorbruce.png" width="20" align="center" /> @doctorbruce</a> <a href="https://github.com/MaxwellJean"><img src="https://github.com/MaxwellJean.png" width="20" align="center" /> @MaxwellJean</a>
-- **[Astron Training Camp · Cohort #1](https://www.aidaxue.com/astronCamp)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a>
+- **[Astron Training Camp · Cohort #1](https://www.aidaxue.com/astronCamp)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/Thomas1024-Astron"><img src="https://github.com/Thomas1024-Astron.png" width="20" align="center" /> @Thomas1024-Astron</a> <a href="https://github.com/abelzha"><img src="https://github.com/abelzha.png" width="20" align="center" /> @abelzha</a>
 - **[Astron Talk @ Chongqing Mini Tech Fest](https://mp.weixin.qq.com/s/HROf1zZpkPVDSsCQrv2jRg)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a>
+- **[Astron Agent @ MWC Barcelona 2026](https://www.iflytek.com/en/news-events/mwc2026.html)**
 
 ## 🚀 Quick Start
 
@@ -45,7 +53,7 @@ We offer two deployment methods to meet different scenarios:
 # Clone the repository
 git clone https://github.com/iflytek/astron-agent.git
 
-# Navigate to astronAgent directory
+# Navigate to the Docker deployment directory
 cd docker/astronAgent
 
 # Copy environment configuration
@@ -91,7 +99,7 @@ After startup, you can access the services at the following addresses:
 
 ## 📖 Using Astron Cloud
 
-**Try Astron**：Astron Cloud provides a ready-to-use environment for creating and managing Agents.Free quick access [https://agent.xfyun.cn](https://agent.xfyun.cn).
+**Try Astron**：Astron Cloud provides a ready-to-use environment for creating and managing Agents. Get quick access at [https://agent.xfyun.cn](https://agent.xfyun.cn).
 
 **Using Guide**：For detailed usage instructions, please refer to [Quick Start Guide](https://www.xfyun.cn/doc/spark/Agent03-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.html).
 
@@ -128,4 +136,3 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](CONTR
 ## 📄 Open Source License
 
 This project is licensed under the [Apache 2.0 License](LICENSE), allowing free use, modification, distribution, and commercial use without any restrictions.
-

@@ -189,7 +189,9 @@ const useSelectPrompt = (): useSelectPromptType => {
       data.nodeParam.modelId = value?.id;
       data.nodeParam.isThink = value?.isThink;
       data.nodeParam.maxLoopCount = currentTemplate?.maxLoopCount;
-      if (value.llmSource === 0) {
+      if (value.provider) {
+        data.nodeParam.source = value.provider;
+      } else if (value.llmSource === 0) {
         data.nodeParam.source = 'openai';
       } else {
         delete data.nodeParam.source;

@@ -15,6 +15,7 @@ import {
   canPublishSetNotAPI,
 } from '@/services/flow';
 import { getModelConfigDetail } from '@/services/common';
+import { appendVariableAggregationNodeTemplate } from '../utils/variable-aggregation';
 import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
 import { FlowStoreType } from '../types/zustand/flow';
@@ -286,7 +287,7 @@ export const initFlowData = async (id: string, set): Promise<void> => {
       originData: flow?.data,
     },
     isLoading: false,
-    nodeList: nodeTemplate,
+    nodeList: appendVariableAggregationNodeTemplate(nodeTemplate),
     textNodeConfigList,
     agentStrategy,
     knowledgeProStrategy,

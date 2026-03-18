@@ -15,9 +15,12 @@ class TestWorkflowAgentInputsModels:
     """Test fields and default values of various input models"""
 
     def test_model_config_inputs(self) -> None:
-        cfg = CustomCompletionModelConfigInputs(domain="d", api="url", api_key="k")
+        cfg = CustomCompletionModelConfigInputs(
+            domain="d", api="url", provider="anthropic", api_key="k"
+        )
         assert cfg.domain == "d"
         assert cfg.api == "url"
+        assert cfg.provider == "anthropic"
         assert cfg.api_key == "k"
 
     def test_instruction_inputs_defaults(self) -> None:
@@ -56,9 +59,15 @@ class TestWorkflowAgentInputsModels:
         inputs = CustomCompletionInputs(
             uid="u",
             messages=[LLMMessage(role="user", content="q")],
-            model_config={"domain": "d", "api": "url", "api_key": "k"},
+            model_config={
+                "domain": "d",
+                "api": "url",
+                "provider": "google",
+                "api_key": "k",
+            },
             max_loop_count=5,
         )
         assert inputs.model_config_inputs.domain == "d"
+        assert inputs.model_config_inputs.provider == "google"
         assert inputs.plugin.tools == []
         assert inputs.max_loop_count == 5

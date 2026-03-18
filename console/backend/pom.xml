@@ -65,6 +65,7 @@
         <google-java-format.version>1.28.0</google-java-format.version>
         <mockito.version>5.12.0</mockito.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <openai-java.version>4.23.0</openai-java.version>
     </properties>
 
     <dependencyManagement>
@@ -262,6 +263,12 @@
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-mysql</artifactId>
                 <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.openai</groupId>
+                <artifactId>openai-java</artifactId>
+                <version>${openai-java.version}</version>
+                <scope>compile</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

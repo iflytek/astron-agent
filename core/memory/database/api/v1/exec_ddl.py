@@ -12,6 +12,8 @@ from memory.database.api.schemas.exec_ddl_types import ExecDDLInput
 from memory.database.api.v1.common import (
     check_database_exists_by_did_uid,
     check_space_id_and_get_uid,
+    validate_reserved_functions,
+    validate_reserved_keywords,
 )
 from memory.database.domain.entity.general import exec_sql_statement
 from memory.database.domain.entity.schema import set_search_path_by_schema
@@ -19,6 +21,7 @@ from memory.database.domain.entity.views.http_resp import format_response
 from memory.database.exceptions.e import CustomException
 from memory.database.exceptions.error_code import CodeEnum
 from memory.database.repository.middleware.getters import get_session
+from sqlglot import exp
 from sqlglot.errors import ParseError
 from sqlglot.expressions import Alter, ColumnDef, Command, Create, Drop
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -132,6 +135,42 @@ def _extract_ddl_statement_info(parsed_ast: Any) -> Union[tuple[str, str], None]
         return "COMMENT", ""
 
     return None
+
+
+def _collect_functions_names(parsed: Any) -> list:
+    """
+    Collect function names from parsed SQL AST.
+    """
+    functions_to_validate = []
+    sqlglot_func_key_map = {
+        "currentuser": "current_user",
+        "sessionuser": "session_user",
+        "currentdate": "current_date",
+        "currenttime": "current_time",
+        "currenttimestamp": "current_timestamp",
+        "currentschema": "current_schema",
+        "currentcatalog": "current_catalog",
+        "currentdatabase": "current_database",
+        "currentrole": "current_role",
+        "localtime": "localtime",
+        "localtimestamp": "localtimestamp",
+        "user": "user",
+        "systemuser": "system_user",
+    }
+
+    for node in parsed.walk():
+        if not isinstance(node, exp.Func):
+            continue
+
+        func_name = node.name
+        if not func_name:
+            key = getattr(node, "key", None) or type(node).__name__.lower()
+            func_name = sqlglot_func_key_map.get(key, "")
+
+        if func_name:
+            functions_to_validate.append(func_name)
+
+    return functions_to_validate
 
 
 def _collect_ddl_identifiers(parsed: Any) -> list:
@@ -249,14 +288,28 @@ async def _validate_ddl_legality(ddl: str, uid: str, span_context: Any) -> Any:
     try:
         parsed = sqlglot.parse_one(ddl, dialect="postgres")
 
+        # Collect table names and function names that need validation
+        function_names = _collect_functions_names(parsed)
+        # Validate function names
+        if function_names:
+            # Validate reserved function
+            error_result = await validate_reserved_functions(
+                function_names, span_context
+            )
+            if error_result:
+                return error_result
+
         # Collect table names and column names that need validation
         column_names = _collect_ddl_identifiers(parsed)
-
         # Validate column names
         if column_names:
             error_result = _validate_name_pattern_ddl(
                 column_names, "Column name", uid, span_context
             )
+            if error_result:
+                return error_result
+            # Validate reserved column
+            error_result = await validate_reserved_keywords(column_names, span_context)
             if error_result:
                 return error_result
 

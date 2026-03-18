@@ -176,50 +176,38 @@ class TestManagementServerUtils:
         )
 
     @patch(
-        "plugin.link.service.community.tools.http.management_server.get_kafka_producer_service"
+        "plugin.link.service.community.tools.http.management_server.send_telemetry_sync"
     )
     @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    @patch("plugin.link.service.community.tools.http.management_server.time.time")
     def test_send_telemetry_mgmt_enabled(
-        self, mock_time: Any, mock_getenv: Any, mock_kafka_service: Any
+        self, mock_getenv: Any, mock_send_telemetry_sync: Any
     ) -> None:
         """Test send_telemetry_mgmt when OTLP is enabled"""
-        mock_time.return_value = 1234567890.123
         mock_getenv.side_effect = lambda key, default=None: {
             const.OTLP_ENABLE_KEY: "1",
             const.KAFKA_TOPIC_KEY: "test_topic",
         }.get(key, default)
-
-        mock_kafka_producer = Mock()
-        mock_kafka_service.return_value = mock_kafka_producer
 
         mock_node_trace = Mock()
         mock_node_trace.to_json.return_value = '{"test": "data"}'
 
         send_telemetry_mgmt(mock_node_trace)
 
-        # Verify start_time was set
-        expected_start_time = int(round(1234567890.123 * 1000))
-        assert mock_node_trace.start_time == expected_start_time
+        # Verify send_telemetry_sync was called with the node_trace
+        mock_send_telemetry_sync.assert_called_once_with(mock_node_trace)
 
-        # Verify Kafka send was called
-        mock_kafka_producer.send.assert_called_once_with(
-            "test_topic", '{"test": "data"}'
-        )
-
-    @patch("plugin.link.service.community.tools.http.management_server.os.getenv")
-    def test_send_telemetry_mgmt_disabled(self, mock_getenv: Any) -> None:
-        """Test send_telemetry_mgmt when OTLP is disabled"""
-        mock_getenv.return_value = "false"
+    @patch(
+        "plugin.link.service.community.tools.http.management_server.send_telemetry_sync"
+    )
+    def test_send_telemetry_mgmt_disabled(self, mock_send_telemetry_sync: Any) -> None:
+        """Test send_telemetry_mgmt always delegates to send_telemetry_sync"""
 
         mock_node_trace = Mock()
 
-        # Should not raise any errors and not call Kafka
         send_telemetry_mgmt(mock_node_trace)
 
-        # Verify start_time was not set (Mock creates attributes on access, so we check it wasn't modified)
-        # We can check that start_time wasn't explicitly assigned by checking if it's still a Mock
-        assert isinstance(mock_node_trace.start_time, Mock)
+        # Verify send_telemetry_sync was called (OTLP check is inside send_telemetry_sync)
+        mock_send_telemetry_sync.assert_called_once_with(mock_node_trace)
 
     @patch("plugin.link.service.community.tools.http.management_server.logger")
     @patch("plugin.link.service.community.tools.http.management_server.Meter")

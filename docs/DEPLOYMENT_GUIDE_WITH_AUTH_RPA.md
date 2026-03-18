@@ -62,22 +62,22 @@ docker compose logs -f ragflow
 
 ### Step 2: Configure AstronAgent Environment Variables
 
-Before starting the AstronAgent service, you need to configure the relevant connection information.
+Before starting AstronAgent services, you need to configure the relevant connection information.
 
 ```bash
-# Navigate to the astronAgent directory
+# Navigate to astronAgent directory
 cd docker/astronAgent
 
 # Copy environment variable configuration
 cp .env.example .env
 ```
 
-#### 2.1 Configure Knowledge Base Service Connection (if RagFlow is deployed)
+#### 2.1 Configure Knowledge Base Service Connection (Optional,If RagFlow is deployed)
 
 Edit the docker/astronAgent/.env file to configure RagFlow connection information:
 
 ```bash
-# Navigate to the astronAgent directory
+# Navigate to astronAgent directory
 cd docker/astronAgent
 
 # Edit environment variable configuration
@@ -87,28 +87,27 @@ vim .env
 **Key Configuration Items:**
 
 ```env
-# RAGFlow configuration
+# RAGFlow Configuration
 RAGFLOW_BASE_URL=http://localhost:18080
 RAGFLOW_API_TOKEN=ragflow-your-api-token-here
 RAGFLOW_TIMEOUT=60
 RAGFLOW_DEFAULT_GROUP=星辰知识库
 ```
 
-**Get RagFlow API Token:**
-1. Visit the RagFlow Web interface: http://localhost:18080
+**Obtaining RagFlow API Token:**
+1. Visit RagFlow Web Interface: http://localhost:18080
 2. Log in and click on your avatar to enter user settings
 3. Click API to generate an API KEY
-4. Update the generated API KEY to the RAGFLOW_API_TOKEN in the .env file
+4. Update the generated API KEY to RAGFLOW_API_TOKEN in the .env file
 
-#### 2.2 Configure iFlytek Open Platform APP_ID, API_KEY, and other information
+#### 2.2 Configure iFLYTEK Open Platform APP_ID, API_KEY, and Related Information (Optional, some built-in features require the use of capabilities from the Open Platform)
 
-Documentation available at: https://www.xfyun.cn/doc/platform/quickguide.html
+For documentation, see: https://www.xfyun.cn/doc/platform/quickguide.html
 
-After creating an application, you may need to purchase or claim API authorization service quotas for the corresponding capabilities:
+After creating your application, you may need to purchase or claim API authorization service quotas for the corresponding capabilities:
 - Spark LLM API: https://xinghuo.xfyun.cn/sparkapi
-  (For LLM API, there's an additional SPARK_API_PASSWORD that needs to be obtained from the page)
-  (The text AI generation/optimization function for instructional assistants requires enabling the Spark Ultra capability, page address: https://console.xfyun.cn/services/bm4)
-- Real-time Speech Transcription API: https://console.xfyun.cn/services/rta
+  (For the LLM API, you'll need an additional SPARK_API_PASSWORD available on the page : https://console.xfyun.cn/services/bm4)
+- Real-time Speech Recognition API: https://console.xfyun.cn/services/rta
 - Image Generation API: https://www.xfyun.cn/services/wtop
 
 Edit the docker/astronAgent/.env file and update the relevant environment variables:
@@ -121,16 +120,25 @@ SPARK_API_PASSWORD=your-api-password
 SPARK_RTASR_API_KEY=your-rtasr-api-key
 ```
 
-#### 2.3 Configure Spark RAG Cloud Service (Optional)
+#### 2.3 Configure the default model interface (OpenAI protocol) for the Agent
+
+Edit the docker/astronAgent/.env file and update the relevant environment variables:
+```env
+AI_ABILITY_CHAT_BASE_URL=https://spark-api-open.xf-yun.com/v1
+AI_ABILITY_CHAT_MODEL=your-model-id
+AI_ABILITY_CHAT_API_KEY=your-api-key
+```
+
+#### 2.4 Configure Spark RAG Cloud Service (Optional)
 
 Spark RAG cloud service provides two usage methods:
 
-##### Method 1: Obtain from the webpage
+##### Method 1: Obtain from the Web Interface
 
-1. Use the APP_ID and API_SECRET created on the iFlytek Open Platform
-2. Obtain the Spark dataset ID directly from the page, see: [xinghuo_rag_tool.html](/docs/xinghuo_rag_tool.html)
+1. Use the APP_ID and API_SECRET created on the iFLYTEK Open Platform
+2. Directly obtain the Spark dataset ID from the web interface, see: [xinghuo_rag_tool.html](/docs/xinghuo_rag_tool.html)
 
-##### Method 2: Use cURL command-line method
+##### Method 2: Using cURL Command Line
 
 If you prefer using command-line tools, you can create a dataset with the following cURL command:
 
@@ -145,25 +153,25 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 ```
 
 **Notes:**
-- Replace `your_app_id` with your actual APP ID
-- Replace `your_api_secret` with your actual API Secret
+- Please replace `your_app_id` with your actual APP ID
+- Please replace `your_api_secret` with your actual API Secret
 
-After obtaining the dataset ID, update it in the docker/astronAgent/.env file:
+After obtaining the dataset ID, please update it in the docker/astronAgent/.env file:
 ```env
 XINGHUO_DATASET_ID=
 ```
 
-#### 2.4 Configure Service Host Address
+#### 2.5 Configure Service Host Address
 
-Edit the docker/astronAgent/.env file to configure the host address for the AstronAgent service:
+Edit the docker/astronAgent/.env file to configure the AstronAgent service host address:
 
 ```env
 HOST_BASE_ADDRESS=http://localhost
 ```
 
-**Notes:**
-- If you're using domain access, replace `localhost` with your domain name
-- Ensure that nginx and minio ports are properly opened
+**Note:**
+- If you're using a domain name for access, replace `localhost` with your domain name
+- Ensure nginx and minio ports are properly exposed
 
 ### Step 3: Start AstronAgent Core Services (includes Casdoor authentication service, RPA backend service)
 

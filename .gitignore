@@ -99,6 +99,7 @@ tmp/
 
 # Claude Code (user-specific)
 .claude/
+!console/.claude/
 
 # Serena MCP cache
 .serena/
@@ -243,3 +244,5 @@ coverage.xml
 docker-compose.override.yml
 .dockerignore.local
 *.dockerignore.local
+.codex/
+openspec/

@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from memory.database.api.schemas.exec_ddl_types import ExecDDLInput
+from memory.database.api.v1.common import validate_reserved_keywords
 from memory.database.api.v1.exec_ddl import (
+    _collect_ddl_identifiers,
+    _collect_functions_names,
     _ddl_split,
     _extract_alter_info,
     _extract_create_info,
@@ -46,7 +49,6 @@ async def test_reset_uid_with_valid_space_id_reset_success() -> None:
     """Test _reset_uid with valid space_id resets to new uid."""
     mock_db = AsyncMock(spec=AsyncSession)
     mock_span_context = MagicMock()
-    mock_meter = MagicMock()
 
     # Use non-string type to test type conversion
     mock_new_uid = 123
@@ -78,15 +80,11 @@ async def test_reset_uid_with_valid_space_id_reset_success() -> None:
             mock_db, database_id, space_id, mock_span_context
         )
 
-        # Verify meter was not called incorrectly
-        mock_meter.in_error_count.assert_not_called()
-
 
 @pytest.mark.asyncio
 async def test_ddl_split_success() -> None:
     """Test successful DDL splitting (multiple valid statements)."""
     mock_span_context = MagicMock()
-    mock_meter = MagicMock()
 
     with patch("memory.database.api.v1.exec_ddl.is_ddl_allowed", return_value=True):
         raw_ddl = """
@@ -100,7 +98,7 @@ async def test_ddl_split_success() -> None:
 
         assert error_resp is None
         assert len(ddls) == 3
-        # The DDL statements are reconstructed with PostgreSQL formatting (pretty=True)
+        # The DDL statements are reconstructed with PostgreSQL dialect (pretty=False)
         # so we need to check the normalized content instead of exact string match
         assert (
             "CREATE TABLE" in ddls[0]
@@ -119,7 +117,6 @@ async def test_ddl_split_success() -> None:
 
         # Verify that logging functions were called (the exact format may vary)
         assert mock_span_context.add_info_event.called
-        mock_meter.in_error_count.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -198,7 +195,7 @@ async def test_exec_ddl_success() -> None:
 
                                 # Mock span service and instance
                                 mock_span_instance = MagicMock()
-                                mock_span_instance.start.return_value.__enter__.return_value = (
+                                mock_span_instance.start.return_value.__enter__.return_value = (  # noqa: E501
                                     fake_span_context
                                 )
                                 mock_span_service = MagicMock()
@@ -330,17 +327,81 @@ def test_rebuild_ddl_from_ast() -> None:
         assert "TABLE" in rebuilt_drop.upper()
 
 
+def test_collect_functions_names() -> None:
+    """Test collecting function names from DDL statements."""
+    from sqlglot import parse_one
+
+    # DDL with default function - e.g. DEFAULT current_user
+    ddl = "CREATE TABLE users (id INT, created_by TEXT DEFAULT current_user)"
+    parsed = parse_one(ddl)
+    func_names = _collect_functions_names(parsed)
+    assert "current_user" in func_names
+
+    # DDL without functions - should return empty
+    ddl_no_func = "CREATE TABLE users (id INT, name TEXT)"
+    parsed_no_func = parse_one(ddl_no_func)
+    func_names_empty = _collect_functions_names(parsed_no_func)
+    assert not func_names_empty
+
+
+def test_collect_ddl_identifiers() -> None:
+    """Test collecting column identifiers from DDL statements."""
+    from sqlglot import parse_one
+
+    # CREATE TABLE - should collect column names
+    create_sql = "CREATE TABLE users (id INT, name TEXT, email VARCHAR(255))"
+    parsed = parse_one(create_sql)
+    column_names = _collect_ddl_identifiers(parsed)
+    assert "id" in column_names
+    assert "name" in column_names
+    assert "email" in column_names
+
+    # ALTER TABLE ADD COLUMN - should collect new column name
+    alter_sql = "ALTER TABLE users ADD COLUMN age INT"
+    parsed_alter = parse_one(alter_sql)
+    alter_columns = _collect_ddl_identifiers(parsed_alter)
+    assert "age" in alter_columns
+
+    # DROP TABLE - no column definitions, should return empty
+    drop_sql = "DROP TABLE users"
+    parsed_drop = parse_one(drop_sql)
+    drop_columns = _collect_ddl_identifiers(parsed_drop)
+    assert not drop_columns
+
+
+@pytest.mark.asyncio
+async def test_validate_reserved_keywords_ddl() -> None:
+    """Test reserved keyword validation in DDL context."""
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+    span_context.add_error_event = MagicMock()
+
+    # Valid keys - should pass
+    result = await validate_reserved_keywords(
+        ["user_name", "age", "email"], span_context
+    )
+    assert result is None
+
+    # Reserved keyword - should fail with DMLNotAllowed
+    result = await validate_reserved_keywords(["select", "user_name"], span_context)
+    assert result is not None
+    body = json.loads(result.body)
+    assert body["code"] == CodeEnum.DMLNotAllowed.code
+    # Fix: The actual error message is "Key name 'select' is not allowed"
+    # rather than mentioning "reserved keyword"
+    assert "key name" in body["message"].lower()
+    assert "select" in body["message"]
+
+
 def test_validate_name_pattern_ddl_valid() -> None:
     """Test name pattern validation with valid names (letters and underscores only)."""
     names = ["user_name", "age", "email_address", "first_name", "last_name"]
     span_context = MagicMock()
     span_context.sid = "test-sid"
-    mock_meter = MagicMock()
     uid = "u1"
 
     result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
     assert result is None
-    mock_meter.in_error_count.assert_not_called()
 
 
 def test_validate_name_pattern_ddl_invalid_with_digits() -> None:
@@ -351,8 +412,6 @@ def test_validate_name_pattern_ddl_invalid_with_digits() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    mock_meter = MagicMock()
-    mock_meter.in_error_count = MagicMock()
     uid = "u1"
 
     result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
@@ -370,8 +429,6 @@ def test_validate_name_pattern_ddl_invalid_with_special_chars() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    mock_meter = MagicMock()
-    mock_meter.in_error_count = MagicMock()
     uid = "u1"
 
     result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
@@ -387,8 +444,6 @@ def test_validate_name_pattern_ddl_invalid_empty_name() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    mock_meter = MagicMock()
-    mock_meter.in_error_count = MagicMock()
     uid = "u1"
 
     result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
@@ -404,25 +459,22 @@ async def test_validate_ddl_legality_valid() -> None:
     ddl = "CREATE TABLE users (id INT, name TEXT)"
     span_context = MagicMock()
     span_context.sid = "test-sid"
-    mock_meter = MagicMock()
     uid = "u1"
 
     result = await _validate_ddl_legality(ddl, uid, span_context)
     assert result is None
-    mock_meter.in_error_count.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_validate_ddl_legality_invalid_column_name_with_digits() -> None:
     """Test DDL legality validation with invalid column name containing digits."""
     # This test case specifically addresses the code scanning issue:
-    # CREATE TABLE users_v2 (id INT) would have caught the overly restrictive regex pattern
+    # CREATE TABLE users_v2 (id INT) would have caught the overly restrictive
+    # regex pattern
     ddl = "CREATE TABLE users (id INT, users_v2 TEXT)"
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    mock_meter = MagicMock()
-    mock_meter.in_error_count = MagicMock()
     uid = "u1"
 
     result = await _validate_ddl_legality(ddl, uid, span_context)
@@ -440,8 +492,6 @@ async def test_validate_ddl_legality_invalid_column_name_alter() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    mock_meter = MagicMock()
-    mock_meter.in_error_count = MagicMock()
     uid = "u1"
 
     result = await _validate_ddl_legality(ddl, uid, span_context)
@@ -451,14 +501,52 @@ async def test_validate_ddl_legality_invalid_column_name_alter() -> None:
 
 
 @pytest.mark.asyncio
+async def test_validate_ddl_legality_reserved_keyword() -> None:
+    """Test DDL legality validation with reserved keyword as column name."""
+    ddl = "CREATE TABLE users (id INT, select TEXT)"
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+    span_context.add_error_event = MagicMock()
+    uid = "u1"
+
+    result = await _validate_ddl_legality(ddl, uid, span_context)
+    assert result is not None
+    body = json.loads(result.body)
+    # Reserved keyword may be rejected by parser (SQLParseError)
+    # or validation (DMLNotAllowed)
+    assert body["code"] in (
+        CodeEnum.SQLParseError.code,
+        CodeEnum.DMLNotAllowed.code,
+    )
+
+
+@pytest.mark.asyncio
+async def test_validate_ddl_legality_function_reserved_keyword() -> None:
+    """Test DDL legality validation with reserved function name."""
+    # current_user is in PGSQL_INVALID_KEY, used as function in DEFAULT
+    ddl = "CREATE TABLE users (id INT, created_at TEXT DEFAULT current_user)"
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+    span_context.add_error_event = MagicMock()
+    uid = "u1"
+
+    result = await _validate_ddl_legality(ddl, uid, span_context)
+    assert result is not None
+    body = json.loads(result.body)
+    assert body["code"] == CodeEnum.DMLNotAllowed.code
+    # Fix: The actual error message is "Function name 'current_user' is not allowed"
+    # rather than mentioning "reserved keyword"
+    assert "function name" in body["message"].lower()
+    assert "current_user" in body["message"]
+
+
+@pytest.mark.asyncio
 async def test_validate_ddl_legality_invalid_sql() -> None:
     """Test DDL legality validation with invalid SQL syntax."""
     ddl = "CREATE TABLE WHERE INVALID SQL"
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    mock_meter = MagicMock()
-    mock_meter.in_error_count = MagicMock()
     uid = "u1"
 
     result = await _validate_ddl_legality(ddl, uid, span_context)
@@ -466,4 +554,32 @@ async def test_validate_ddl_legality_invalid_sql() -> None:
     # Parse JSONResponse body to get code
     body = json.loads(result.body)
     assert body["code"] == CodeEnum.SQLParseError.code
-    span_context.add_error_event.assert_called_once()
+    span_context.add_error_event.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_ddl_split_reconstruction_fails() -> None:
+    """Test DDL split when AST reconstruction fails (returns empty string)."""
+    mock_span_context = MagicMock()
+    mock_span_context.sid = "test-sid"
+    mock_span_context.add_error_event = MagicMock()
+    uid = "u1"
+
+    with patch("memory.database.api.v1.exec_ddl.is_ddl_allowed", return_value=True):
+        with patch(
+            "memory.database.api.v1.exec_ddl._validate_ddl_legality",
+            new_callable=AsyncMock,
+            return_value=None,
+        ):
+            with patch(
+                "memory.database.api.v1.exec_ddl._rebuild_ddl_from_ast",
+                return_value="",  # Simulate reconstruction failure
+            ):
+                raw_ddl = "CREATE TABLE users (id INT);"
+                ddls, error_resp = await _ddl_split(raw_ddl, uid, mock_span_context)
+
+                assert error_resp is not None
+                assert ddls is None
+                body = json.loads(error_resp.body)
+                assert body["code"] == CodeEnum.DDLNotAllowed.code
+                assert "security reconstruction" in body["message"].lower()

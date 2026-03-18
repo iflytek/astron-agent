@@ -8,6 +8,7 @@ import {
 } from '@/types/model';
 import React from 'react';
 import i18next from 'i18next';
+import { getModelProviderLabel } from '../../utils/provider';
 
 interface ModelInfoDisplayProps {
   modelDetail: ModelInfo | null;
@@ -94,6 +95,10 @@ const ModelInfoDisplay: React.FC<ModelInfoDisplayProps> = ({
   bottomTexts,
 }) => {
   const { t } = useTranslation();
+  const providerLabel =
+    modelDetail?.llmSource === LLMSource.CUSTOM
+      ? getModelProviderLabel(modelDetail?.provider)
+      : null;
 
   return (
     <>
@@ -125,6 +130,11 @@ const ModelInfoDisplay: React.FC<ModelInfoDisplayProps> = ({
             </div>
 
             <p className="text-sm text-gray-500 flex flex-wrap gap-x-2 gap-2">
+              {providerLabel && (
+                <span className="px-1.5 py-0.5 text-xs rounded-sm bg-[#E4EAFF] opacity-60">
+                  {providerLabel}
+                </span>
+              )}
               {renderTags(modelCategoryTags, 'bg-[#E4EAFF]', {
                 color: '#000000',
               })}

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - bugfix/superteam
   workflow_dispatch:
     inputs:
       push_images:
@@ -46,14 +47,19 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          # Version is always latest
+          # Mainline branches publish latest, bugfix branch publishes fix
           VERSION="latest"
+          if [[ "${{ github.ref }}" == "refs/heads/bugfix/superteam" ]]; then
+            VERSION="fix"
+          fi
 
-          # Determine if should push (only main/master branches or manual dispatch)
+          # Determine if should push (main/master/bugfix branch or manual dispatch)
           SHOULD_PUSH="false"
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             SHOULD_PUSH="true"
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]]; then
+            SHOULD_PUSH="true"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/bugfix/superteam" ]]; then
             SHOULD_PUSH="true"
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.push_images }}" == "true" ]]; then
             SHOULD_PUSH="true"
@@ -102,7 +108,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-tenant
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core Tenant image
         uses: docker/build-push-action@v5
@@ -148,7 +154,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-database
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core Database image
         uses: docker/build-push-action@v5
@@ -194,7 +200,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-rpa
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core RPA image
         uses: docker/build-push-action@v5
@@ -240,7 +246,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-link
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core Link image
         uses: docker/build-push-action@v5
@@ -286,7 +292,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-aitools
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core AI Tools image
         uses: docker/build-push-action@v5
@@ -332,7 +338,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-agent
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core Agent image
         uses: docker/build-push-action@v5
@@ -378,7 +384,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-knowledge
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core Knowledge image
         uses: docker/build-push-action@v5
@@ -424,7 +430,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-workflow
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Core Workflow image
         uses: docker/build-push-action@v5
@@ -472,7 +478,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/console-frontend
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Console Frontend image
         uses: docker/build-push-action@v5
@@ -518,7 +524,7 @@ jobs:
           images: |
             ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/console-hub
           tags: |
-            type=raw,value=latest
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
 
       - name: Build and push Console Hub image
         uses: docker/build-push-action@v5

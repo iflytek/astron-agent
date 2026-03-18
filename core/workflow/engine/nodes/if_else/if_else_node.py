@@ -123,14 +123,14 @@ class IFElseNode(BaseNode):
                     right_var_name = self.input_identifier[0].get(right_var_index, "")
 
                     # Retrieve actual value from variable pool
-                    actual_value = variable_pool.get_variable(
+                    actual_value = variable_pool.get_variable_first(
                         node_id=self.node_id, key_name=left_var_name, span=span_context
                     )
 
                     # Get expected value from variable pool if specified
                     expected_value = None
                     if right_var_name != "":
-                        expected_value = variable_pool.get_variable(
+                        expected_value = variable_pool.get_variable_first(
                             node_id=self.node_id,
                             key_name=right_var_name,
                             span=span_context,

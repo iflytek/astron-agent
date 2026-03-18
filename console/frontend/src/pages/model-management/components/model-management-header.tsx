@@ -110,9 +110,9 @@ const ModelManagementHeader: React.FC<ModelManagementHeaderProps> = ({
         {/* Tab 切换 + 右侧控件 */}
         <div className="flex items-center mt-4">
           {/* 左侧 Tab */}
-          {/* <div className="flex items-center bg-[#f6f9ff] rounded-xl h-10 p-1 gap-1">
+          <div className="flex items-center bg-[#F6F7FB] rounded-xl h-10 p-1 gap-1">
             <div
-              className={`min-w-[70px] h-8 px-3 rounded-lg text-sm flex items-center justify-center cursor-pointer transition-colors
+              className={`min-w-[86px] h-8 px-4 rounded-lg text-sm flex items-center justify-center cursor-pointer transition-colors
             ${
               pathname === '/management/model'
                 ? 'bg-white text-[#6356EA] shadow'
@@ -123,7 +123,7 @@ const ModelManagementHeader: React.FC<ModelManagementHeaderProps> = ({
               {t('model.officialModel')}
             </div>
             <div
-              className={`min-w-[70px] h-8 px-3 rounded-lg text-sm flex items-center justify-center cursor-pointer transition-colors
+              className={`min-w-[86px] h-8 px-4 rounded-lg text-sm flex items-center justify-center cursor-pointer transition-colors
             ${
               pathname === '/management/model/personalModel'
                 ? 'bg-white text-[#6356EA] shadow'
@@ -133,7 +133,7 @@ const ModelManagementHeader: React.FC<ModelManagementHeaderProps> = ({
             >
               {t('model.personalModel')}
             </div>
-          </div> */}
+          </div>
 
           {/* 右侧控件 */}
           <div className="ml-auto flex items-center gap-2">

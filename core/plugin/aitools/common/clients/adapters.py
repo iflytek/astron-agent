@@ -16,7 +16,7 @@ from typing import (
 
 from common.otlp.trace.span import Span
 from common.otlp.trace.span_instance import SpanInstance
-from plugin.aitools.common.log.logger import log
+from loguru import logger as log
 
 
 @runtime_checkable

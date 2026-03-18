@@ -6,13 +6,11 @@ error handling, observability tracing, and security validations.
 """
 
 import os
-import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
-from common.service import get_kafka_producer_service
 from fastapi import Body
 from loguru import logger
 from mcp import ClientSession
@@ -33,6 +31,7 @@ from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import (
 )
 from plugin.link.consts import const
 from plugin.link.domain.models.manager import get_db_engine
+from plugin.link.infra.kafka_telemetry import send_telemetry_sync
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
 from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.security.access_interceptor import is_in_blacklist, is_local_url
@@ -226,9 +225,7 @@ async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListRespon
                 code=success.code,
                 message=success.msg,
             )
-            kafka_service = get_kafka_producer_service()
-            node_trace.start_time = int(round(time.time() * 1000))
-            kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
+            send_telemetry_sync(node_trace)
         return result
 
 
@@ -254,9 +251,7 @@ def _log_error_to_kafka(
             code=err.code,
             message=err.msg,
         )
-        kafka_service = get_kafka_producer_service()
-        node_trace.start_time = int(round(time.time() * 1000))
-        kafka_service.send(os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json())
+        send_telemetry_sync(node_trace)
 
 
 async def _initialize_session(
@@ -474,11 +469,7 @@ async def call_tool(call_info: MCPCallToolRequest = Body()) -> MCPCallToolRespon
                     code=ErrCode.SUCCESSES.code,
                     message=ErrCode.SUCCESSES.msg,
                 )
-                kafka_service = get_kafka_producer_service()
-                node_trace.start_time = int(round(time.time() * 1000))
-                kafka_service.send(
-                    os.getenv(const.KAFKA_TOPIC_KEY), node_trace.to_json()
-                )
+                send_telemetry_sync(node_trace)
 
         return result
 

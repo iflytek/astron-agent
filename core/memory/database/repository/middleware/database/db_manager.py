@@ -7,6 +7,7 @@ from typing import AsyncGenerator, Optional
 from loguru import logger
 from memory.database.repository.middleware.base import Service
 from memory.database.repository.middleware.mid_utils import ServiceType
+from sqlalchemy import text
 from sqlalchemy.exc import InterfaceError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.orm import sessionmaker
@@ -77,6 +78,7 @@ class DatabaseService(Service):
             Initialized DatabaseService instance
         """
         self = cls(database_url, connect_timeout, pool_size, max_overflow, pool_recycle)
+        await self._create_database_if_not_exists()
         self.engine = await self._create_engine()
         self._async_session = sessionmaker(  # type: ignore[call-overload]
             self.engine, class_=AsyncSession, expire_on_commit=False
@@ -99,6 +101,50 @@ class DatabaseService(Service):
             pool_pre_ping=True,
             connect_args={"statement_cache_size": 0},  # Disable asyncpg statement cache
         )
+
+    async def _create_database_if_not_exists(self) -> None:
+        """
+        Create the database if it doesn't exist.
+        Connects to the 'postgres' system database to check and create
+        the target database.
+        """
+        # Split database_url into base_url and db_name
+        base_url, db_name = self.database_url.rsplit("/", 1)
+        # Connect to the 'postgres' system database to perform admin operations
+        engine = create_async_engine(
+            f"{base_url}/postgres", isolation_level="AUTOCOMMIT"
+        )
+        try:
+            async with engine.connect() as conn:
+                result = await conn.execute(
+                    text("SELECT 1 FROM pg_database WHERE datname = :db_name"),
+                    {"db_name": db_name},
+                )
+                exists = result.scalar()
+                if not exists:
+                    await conn.execute(text(f'CREATE DATABASE "{db_name}"'))
+                    logger.info(f"Database '{db_name}' created successfully")
+        except RuntimeError as e:
+            logger.error(f"Failed to create database '{db_name}': {e}")
+        finally:
+            await engine.dispose()
+
+        # Connect to the target database and create the schema if it doesn't exist
+        schema_engine = create_async_engine(
+            self.database_url, isolation_level="AUTOCOMMIT"
+        )
+        try:
+            async with schema_engine.connect() as conn:
+                await conn.execute(text("CREATE SCHEMA IF NOT EXISTS sparkdb_manager"))
+                logger.info(
+                    "Schema 'sparkdb_manager' ensured in database '%s'", db_name
+                )
+        except RuntimeError as e:
+            logger.error(
+                f"Failed to create schema 'sparkdb_manager' in '{db_name}': {e}"
+            )
+        finally:
+            await schema_engine.dispose()
 
     async def init_db(self) -> None:
         """Initialize database by creating all tables."""

@@ -40,6 +40,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 app_id=self.app_id,
                 model_name=self.inputs.model_config_inputs.domain,
                 base_url=self.inputs.model_config_inputs.api,
+                provider=self.inputs.model_config_inputs.provider,
                 api_key=self.inputs.model_config_inputs.api_key,
             )
 

@@ -5,6 +5,7 @@ ASE OCR LLM Service
 # pylint: disable=line-too-long,too-few-public-methods,too-many-instance-attributes,too-many-arguments
 import asyncio
 import base64
+import io
 import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -14,6 +15,7 @@ from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.metrics.meter import Meter
 from common.utils.hmac_auth import HMACAuth
 from fastapi import Request
+from loguru import logger as log
 from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.clients.adapters import SpanLike
@@ -21,11 +23,33 @@ from plugin.aitools.common.clients.aiohttp_client import HttpClient
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.common.log.logger import log
+from plugin.aitools.const.const import (
+    AI_API_KEY_KEY,
+    AI_API_SECRET_KEY,
+    AI_APP_ID_KEY,
+    OCR_LLM_HTTP_URL_KEY,
+)
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 DOCUMENT_PAGE_UNLIMITED = -1
+
+
+class LoguruWriter(io.TextIOBase):
+    """"""
+
+    def write(self, s: str) -> int:
+        s = s.strip()
+        if s:
+            log.warning(f"MuPDF: {s}")
+        return len(s)
+
+    def flush(self) -> None:
+        pass
+
+
+fitz.set_messages(stream=LoguruWriter())
+fitz.set_log(stream=LoguruWriter())
 
 
 class OCRLLM(BaseModel):
@@ -507,11 +531,12 @@ async def req_ase_ability_ocr_service(
             image_byte_arrays.append(await response.data["content"].read())  # type: ignore[index]
 
     url = os.getenv(
-        "OCR_LLM_HTTP_URL", "https://cbm01.cn-huabei-1.xf-yun.com/v1/private/se75ocrbm"
+        OCR_LLM_HTTP_URL_KEY,
+        "https://cbm01.cn-huabei-1.xf-yun.com/v1/private/se75ocrbm",
     )
-    app_id = os.getenv("AI_APP_ID")
-    api_key = os.getenv("AI_API_KEY")
-    api_secret = os.getenv("AI_API_SECRET")
+    app_id = os.getenv(AI_APP_ID_KEY)
+    api_key = os.getenv(AI_API_KEY_KEY)
+    api_secret = os.getenv(AI_API_SECRET_KEY)
 
     pngs_list = []
     texts_list = []

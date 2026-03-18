@@ -8,10 +8,10 @@ from typing import Any, Callable, Dict, Literal, Optional
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.metrics.meter import Meter
 from fastapi import Body, Header, Query, Request
+from loguru import logger as log
 from plugin.aitools.api.decorators.api_meta import ApiMeta
 from plugin.aitools.api.schemas.types import BaseResponse
 from plugin.aitools.common.clients.adapters import SpanLike
-from plugin.aitools.common.log.logger import log
 from plugin.aitools.utils.otlp_utils import update_span, upload_trace
 
 

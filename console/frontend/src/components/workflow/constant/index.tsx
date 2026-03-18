@@ -14,6 +14,7 @@ import { IteratorDetail } from '@/components/workflow/nodes/iterator';
 import { TextHandleDetail } from '@/components/workflow/nodes/text-handle';
 import { ExtractorParameterDetail } from '@/components/workflow/nodes/extractor-parameterNode';
 import { VariableMemoryDetail } from '@/components/workflow/nodes/variable-memory';
+import { VariableAggregationDetail } from '@/components/workflow/nodes/variable-aggregation';
 import { FlowDetail } from '@/components/workflow/nodes/flow';
 import { AgentDetail } from '@/components/workflow/nodes/agent';
 import { QuestionAnswerDetail } from '@/components/workflow/nodes/question-answer';
@@ -49,6 +50,7 @@ export const nodeTypeComponentMap: Record<
   iteration: IteratorDetail,
   agent: AgentDetail,
   'node-variable': VariableMemoryDetail,
+  'variable-aggregation': VariableAggregationDetail,
   'extractor-parameter': ExtractorParameterDetail,
   'text-joiner': TextHandleDetail,
   message: MessageDetail,

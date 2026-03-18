@@ -11,6 +11,8 @@ import java.util.List;
 public class ModelProperty implements Serializable {
     String api;
 
+    String provider;
+
     @JSONField(name = "patch_id")
     @JsonProperty("patch_id")
     List<String> patchId;

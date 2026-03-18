@@ -99,14 +99,13 @@ RAGFLOW_DEFAULT_GROUP=星辰知识库
 3. Click API to generate an API KEY
 4. Update the generated API KEY to RAGFLOW_API_TOKEN in the .env file
 
-#### 2.2 Configure iFLYTEK Open Platform APP_ID, API_KEY, and Related Information
+#### 2.2 Configure iFLYTEK Open Platform APP_ID, API_KEY, and Related Information (Optional, some built-in features require the use of capabilities from the Open Platform)
 
 For documentation, see: https://www.xfyun.cn/doc/platform/quickguide.html
 
 After creating your application, you may need to purchase or claim API authorization service quotas for the corresponding capabilities:
 - Spark LLM API: https://xinghuo.xfyun.cn/sparkapi
-  (For the LLM API, you'll need an additional SPARK_API_PASSWORD available on the page)
-  (The text AI generation/optimization feature for instructional assistants requires enabling Spark Ultra capability at https://console.xfyun.cn/services/bm4)
+  (For the LLM API, you'll need an additional SPARK_API_PASSWORD available on the page : https://console.xfyun.cn/services/bm4)
 - Real-time Speech Recognition API: https://console.xfyun.cn/services/rta
 - Image Generation API: https://www.xfyun.cn/services/wtop
 
@@ -120,7 +119,16 @@ SPARK_API_PASSWORD=your-api-password
 SPARK_RTASR_API_KEY=your-rtasr-api-key
 ```
 
-#### 2.3 Configure Spark RAG Cloud Service (Optional)
+#### 2.3 Configure the default model interface (OpenAI protocol) for the Agent
+
+Edit the docker/astronAgent/.env file and update the relevant environment variables:
+```env
+AI_ABILITY_CHAT_BASE_URL=https://spark-api-open.xf-yun.com/v1
+AI_ABILITY_CHAT_MODEL=your-model-id
+AI_ABILITY_CHAT_API_KEY=your-api-key
+```
+
+#### 2.4 Configure Spark RAG Cloud Service (Optional)
 
 Spark RAG cloud service provides two usage methods:
 
@@ -152,7 +160,7 @@ After obtaining the dataset ID, please update it in the docker/astronAgent/.env 
 XINGHUO_DATASET_ID=
 ```
 
-#### 2.4 Configure Service Host Address
+#### 2.5 Configure Service Host Address
 
 Edit the docker/astronAgent/.env file to configure the AstronAgent service host address:
 

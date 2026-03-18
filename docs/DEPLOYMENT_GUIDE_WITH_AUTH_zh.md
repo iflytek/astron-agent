@@ -99,14 +99,13 @@ RAGFLOW_DEFAULT_GROUP=星辰知识库
 3. 点击API生成 API KEY
 4. 将生成的 API KEY 更新到.env文件中的RAGFLOW_API_TOKEN
 
-#### 2.2 配置 讯飞开放平台 相关 APP_ID API_KEY 等信息
+#### 2.2 配置 讯飞开放平台 相关 APP_ID API_KEY 等信息（可选，内置的部分功能需要使用开放平台的能力）
 
 获取文档详见：https://www.xfyun.cn/doc/platform/quickguide.html
 
 创建应用完成后可能需要购买或领取相应能力的API授权服务量
 - 星火大模型API: https://xinghuo.xfyun.cn/sparkapi
-  (对于大模型API会有额外的SPARK_API_PASSWORD需要在页面上获取)
-  (指令型助手对应的文本AI生成/优化功能需要开通Spark Ultra能力，页面地址为https://console.xfyun.cn/services/bm4)
+  (对于大模型API会有额外的SPARK_API_PASSWORD需要在页面上获取，页面地址为https://console.xfyun.cn/services/bm4)
 - 实时语音转写API: https://console.xfyun.cn/services/rta
 - 图片生成API: https://www.xfyun.cn/services/wtop
 
@@ -120,7 +119,16 @@ SPARK_API_PASSWORD=your-api-password
 SPARK_RTASR_API_KEY=your-rtasr-api-key
 ```
 
-#### 2.3 配置星火 RAG 云服务（可选）
+#### 2.3 配置 Agent 内部默认模型接口（OpenAI协议）
+
+编辑 docker/astronAgent/.env 文件，更新相关环境变量：
+```env
+AI_ABILITY_CHAT_BASE_URL=https://spark-api-open.xf-yun.com/v1
+AI_ABILITY_CHAT_MODEL=your-model-id
+AI_ABILITY_CHAT_API_KEY=your-api-key
+```
+
+#### 2.4 配置星火 RAG 云服务（可选）
 
 星火RAG云服务提供两种使用方式：
 
@@ -152,7 +160,7 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 XINGHUO_DATASET_ID=
 ```
 
-#### 2.4 配置服务主机地址
+#### 2.5 配置服务主机地址
 
 编辑 docker/astronAgent/.env 文件，配置 AstronAgent 服务的主机地址：
 

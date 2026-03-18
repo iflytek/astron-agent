@@ -7,6 +7,7 @@ import React, {
   useEffect,
 } from 'react';
 import { Spin } from 'antd';
+import { useTranslation } from 'react-i18next';
 import IntegerStep from './integer-step';
 import {
   CategoryNode,
@@ -14,8 +15,7 @@ import {
   CategoryAsideProps,
   CategorySource,
 } from '@/types/model';
-import { useTranslation } from 'react-i18next';
-// 提取渲染节点函数参数接口
+
 interface RenderNodeParams {
   node: CategoryNode;
   depth: number;
@@ -90,15 +90,17 @@ const CategoryAside = forwardRef<CategoryAsideRef, CategoryAsideProps>(
       defaultContextLength,
       setContextMaxLength,
       loading = false,
+      providerFilter,
+      providerOptions = [],
+      onProviderChange,
+      showContextLength = true,
+      showModelStatus = true,
     },
     ref
   ) => {
     const { t } = useTranslation();
-
-    // 用一个 ref 记录是否已经渲染过统一的 IntegerStep
     const sliderRenderedRef = useRef(false);
 
-    /* ---------- 叶子节点勾选状态 ---------- */
     const [checkedLeafMap, setCheckedLeafMap] = useState<
       Map<number, CategoryNode>
     >(() => {
@@ -111,14 +113,12 @@ const CategoryAside = forwardRef<CategoryAsideRef, CategoryAsideProps>(
       defaultContextLength
     );
 
-    /* ---------- 供父组件调用的方法 ---------- */
     useImperativeHandle(ref, () => ({
       getCheckedLeafNodes: (): CategoryNode[] =>
         Array.from(checkedLeafMap.values()),
-      getContextLengthValue: (): number | undefined => sliderValue, // 暴露给父组件
+      getContextLengthValue: (): number | undefined => sliderValue,
     }));
 
-    /* ---------- 勾选 / 取消勾选 ---------- */
     const handleCheck = (node: CategoryNode, checked: boolean): void => {
       const newMap = new Map(checkedLeafMap);
       if (checked) {
@@ -132,7 +132,7 @@ const CategoryAside = forwardRef<CategoryAsideRef, CategoryAsideProps>(
     };
 
     const oneLevelNameStyle = {
-      fontFamily: 'PingFang SC, -apple-system, BlinkMacSystemFont, sans-serif', // 苹方
+      fontFamily: 'PingFang SC, -apple-system, BlinkMacSystemFont, sans-serif',
       fontSize: 14,
       fontWeight: 700,
       lineHeight: '16px',
@@ -149,7 +149,6 @@ const CategoryAside = forwardRef<CategoryAsideRef, CategoryAsideProps>(
       color: '#333333',
     };
 
-    // 找出所有 contextLengthTag 叶子，并提取最大数字
     const contextLengthLeaves = useMemo((): CategoryNode[] => {
       const leaves: CategoryNode[] = [];
       function dfs(list: CategoryNode[]): void {
@@ -166,21 +165,19 @@ const CategoryAside = forwardRef<CategoryAsideRef, CategoryAsideProps>(
 
     const contextMax = useMemo((): number => {
       const num = contextLengthLeaves.map((n): number => {
-        const m = String(n.name).match(/(\d+)/);
-        return m ? Number(m[1]) : 0;
+        const match = String(n.name).match(/(\d+)/);
+        return match ? Number(match[1]) : 0;
       });
-      return num.length ? Math.max(...num) : 100; // 兜底 100
+      return num.length ? Math.max(...num) : 100;
     }, [contextLengthLeaves]);
 
     useEffect(() => {
       setContextMaxLength?.(contextMax);
     }, [contextMax, setContextMaxLength]);
 
-    /* ---------- 递归渲染 ---------- */
-    /* ---------- 渲染 ---------- */
     return (
       <Spin spinning={loading} size="default">
-        <div className="p-4 ">
+        <div className="p-4">
           <div>
             {tree.map(node =>
               renderCategoryNode({
@@ -192,72 +189,101 @@ const CategoryAside = forwardRef<CategoryAsideRef, CategoryAsideProps>(
               })
             )}
 
-            <span className=" flex pl-7 pt-1" style={oneLevelNameStyle}>
-              {t('model.contextLength')}
-            </span>
-            {contextLengthLeaves.length > 0 && (
-              <div className="flex items-center py-2 px-3">
-                <span style={{ width: 15 }} />
-                <IntegerStep
-                  value={sliderValue}
-                  max={contextMax}
-                  onChange={(val): void => {
-                    setSliderValue(val);
-                    onContextLengthChange?.(val);
-                  }}
-                  defaultValue={0}
-                />
-              </div>
+            {showContextLength && (
+              <>
+                <span className="flex pl-7 pt-1" style={oneLevelNameStyle}>
+                  {t('model.contextLength')}
+                </span>
+                {contextLengthLeaves.length > 0 && (
+                  <div className="flex items-center py-2 px-3">
+                    <span style={{ width: 15 }} />
+                    <IntegerStep
+                      value={sliderValue}
+                      max={contextMax}
+                      onChange={(val): void => {
+                        setSliderValue(val);
+                        onContextLengthChange?.(val);
+                      }}
+                      defaultValue={0}
+                    />
+                  </div>
+                )}
+              </>
             )}
 
-            {/* -------------- 模型状态-------------- */}
-            <span className="flex pl-7 pt-1" style={oneLevelNameStyle}>
-              {t('model.modelStatus')}
-            </span>
+            {providerOptions.length > 0 && (
+              <>
+                <span className="flex pl-7 pt-1" style={oneLevelNameStyle}>
+                  {t('model.providerFilter')}
+                </span>
+                {providerOptions.map(option => (
+                  <div
+                    key={option.value}
+                    className="flex items-center py-2 pl-8"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mr-2 h-4 w-4 rounded-[3px] bg-white border border-[#E4EAFF] accent-[#6356EA] focus:ring-2 focus:ring-blue-500/20"
+                      checked={providerFilter === option.value}
+                      onChange={(e): void => {
+                        onProviderChange?.(
+                          e.target.checked ? option.value : undefined
+                        );
+                      }}
+                    />
+                    <span style={childNameStyle}>{option.label}</span>
+                  </div>
+                ))}
+              </>
+            )}
 
-            {/* "已下架" */}
-            <div className="flex items-center py-2 pl-8">
-              <input
-                type="checkbox"
-                className="mr-2 h-4 w-4 rounded-[3px] bg-white border border-[#E4EAFF] accent-[#6356EA] focus:ring-2 focus:ring-blue-500/20"
-                onChange={(e): void => {
-                  const checked = e.target.checked;
-                  // 这里把"已下架"当作一个特殊节点 id = -1
-                  const dummy: CategoryNode = {
-                    id: -1,
-                    key: 'offShelf',
-                    name: t('model.offShelf'),
-                    sortOrder: 0,
-                    children: [],
-                    source: CategorySource.SYSTEM,
-                  };
-                  handleCheck(dummy, checked);
-                }}
-              />
-              <span style={childNameStyle}>{t('model.offShelf')}</span>
-            </div>
+            {showModelStatus && (
+              <>
+                <span className="flex pl-7 pt-1" style={oneLevelNameStyle}>
+                  {t('model.modelStatus')}
+                </span>
 
-            {/* "即将下架" */}
-            <div className="flex items-center py-2 pl-8">
-              <input
-                type="checkbox"
-                className="mr-2 h-4 w-4 rounded-[3px] bg-white border border-[#E4EAFF] accent-[#6356EA] focus:ring-2 focus:ring-blue-500/20"
-                onChange={(e): void => {
-                  const checked = e.target.checked;
-                  // 把"即将下架"当作一个特殊节点 id = -2
-                  const dummy: CategoryNode = {
-                    id: -2,
-                    key: 'toBeOffShelf',
-                    name: t('model.toBeOffShelf'),
-                    sortOrder: 0,
-                    children: [],
-                    source: CategorySource.SYSTEM,
-                  };
-                  handleCheck(dummy, checked);
-                }}
-              />
-              <span style={childNameStyle}>{t('model.toBeOffShelf')}</span>
-            </div>
+                <div className="flex items-center py-2 pl-8">
+                  <input
+                    type="checkbox"
+                    className="mr-2 h-4 w-4 rounded-[3px] bg-white border border-[#E4EAFF] accent-[#6356EA] focus:ring-2 focus:ring-blue-500/20"
+                    onChange={(e): void => {
+                      const checked = e.target.checked;
+                      const dummy: CategoryNode = {
+                        id: -1,
+                        key: 'offShelf',
+                        name: t('model.offShelf'),
+                        sortOrder: 0,
+                        children: [],
+                        source: CategorySource.SYSTEM,
+                      };
+                      handleCheck(dummy, checked);
+                    }}
+                  />
+                  <span style={childNameStyle}>{t('model.offShelf')}</span>
+                </div>
+
+                <div className="flex items-center py-2 pl-8">
+                  <input
+                    type="checkbox"
+                    className="mr-2 h-4 w-4 rounded-[3px] bg-white border border-[#E4EAFF] accent-[#6356EA] focus:ring-2 focus:ring-blue-500/20"
+                    onChange={(e): void => {
+                      const checked = e.target.checked;
+                      const dummy: CategoryNode = {
+                        id: -2,
+                        key: 'toBeOffShelf',
+                        name: t('model.toBeOffShelf'),
+                        sortOrder: 0,
+                        children: [],
+                        source: CategorySource.SYSTEM,
+                      };
+                      handleCheck(dummy, checked);
+                    }}
+                  />
+                  <span style={childNameStyle}>{t('model.toBeOffShelf')}</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </Spin>

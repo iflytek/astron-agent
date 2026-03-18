@@ -2,7 +2,7 @@ import json
 import os
 import ssl
 from dataclasses import dataclass
-from typing import Sequence, Union, cast
+from typing import ClassVar, Sequence, Union, cast
 
 import httpx
 from common.otlp.trace.span import Span
@@ -10,7 +10,11 @@ from loguru import logger
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
-from agent.domain.models.base import BaseLLMModel
+from agent.domain.models.base import (
+    AnthropicLLMModel,
+    BaseLLMModel,
+    GoogleLLMModel,
+)
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
@@ -43,10 +47,40 @@ class CotRunnerParams(RunnerParams):
 
 class BaseApiBuilder(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
+    OPENAI_COMPATIBLE_PROVIDERS: ClassVar[set[str]] = {
+        "",
+        "openai",
+        "chatgpt",
+        "deepseek",
+        "doubao",
+        "minimax",
+        "moonshot",
+        "qwen",
+        "zhipu",
+    }
 
     app_id: str
     uid: str = Field(default="")
     span: Span
+
+    def _create_http_client(self, sp: Span) -> httpx.AsyncClient:
+        ssl_context = ssl.create_default_context()
+        skip_ssl = os.getenv("SKIP_SSL_VERIFY", "false").lower()
+        if skip_ssl == "true":
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            sp.add_info_event("鈿狅笍  SSL verification disabled for LLM requests")
+
+        return httpx.AsyncClient(
+            verify=ssl_context,
+            timeout=httpx.Timeout(
+                connect=60.0,
+                read=300.0,
+                write=30.0,
+                pool=10.0,
+            ),
+            limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+        )
 
     async def build_plugins(
         self,
@@ -275,7 +309,12 @@ class BaseApiBuilder(BaseModel):
             return sk
 
     async def create_model(
-        self, app_id: str, model_name: str, base_url: str, api_key: str = ""
+        self,
+        app_id: str,
+        model_name: str,
+        base_url: str,
+        provider: str = "",
+        api_key: str = "",
     ) -> BaseLLMModel:
 
         with self.span.start("BuildModel") as sp:
@@ -284,15 +323,20 @@ class BaseApiBuilder(BaseModel):
             else:
                 sk = await self.query_maas_sk(app_id, model_name)
 
-            # Normalize base_url: remove /chat/completions if present
-            # OpenAI SDK automatically appends this path
+            normalized_provider = (provider or "").strip().lower()
             normalized_base_url = base_url
-            if base_url.endswith("/chat/completions"):
+            if (
+                normalized_provider in self.OPENAI_COMPATIBLE_PROVIDERS
+                and base_url.endswith("/chat/completions")
+            ):
                 normalized_base_url = base_url.rsplit("/chat/completions", 1)[0]
                 sp.add_info_event(
                     f"Normalized base_url: {base_url} -> {normalized_base_url}"
                 )
-            elif base_url.endswith("/completions"):
+            elif (
+                normalized_provider in self.OPENAI_COMPATIBLE_PROVIDERS
+                and base_url.endswith("/completions")
+            ):
                 normalized_base_url = base_url.rsplit("/completions", 1)[0]
                 sp.add_info_event(
                     f"Normalized base_url: {base_url} -> {normalized_base_url}"
@@ -310,40 +354,36 @@ class BaseApiBuilder(BaseModel):
                 {
                     "model": model_name,
                     "base_url": normalized_base_url,
+                    "provider": normalized_provider or "openai",
                     "api_key": sk,
                     "app_id": app_id,
                 }
             )
-            # Configure HTTP client with SSL and timeout settings
-            # Create SSL context
-            ssl_context = ssl.create_default_context()
-            # Allow skipping SSL verification for development/testing
-            skip_ssl = os.getenv("SKIP_SSL_VERIFY", "false").lower()
-            if skip_ssl == "true":
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-                sp.add_info_event("⚠️  SSL verification disabled for LLM requests")
+            http_client = self._create_http_client(sp)
 
-            # Create HTTP client with custom settings
-            http_client = httpx.AsyncClient(
-                verify=ssl_context,
-                timeout=httpx.Timeout(
-                    connect=60.0,  # Connection timeout: 60 seconds
-                    read=300.0,  # Read timeout: 5 minutes
-                    write=30.0,  # Write timeout: 30 seconds
-                    pool=10.0,  # Pool timeout: 10 seconds
-                ),
-                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
-            )
+            if normalized_provider == "anthropic":
+                return AnthropicLLMModel(
+                    name=model_name,
+                    model_url=normalized_base_url,
+                    api_key=sk,
+                    http_client=http_client,
+                )
 
-            model = BaseLLMModel(
+            if normalized_provider == "google":
+                return GoogleLLMModel(
+                    name=model_name,
+                    model_url=normalized_base_url,
+                    api_key=sk,
+                    http_client=http_client,
+                )
+
+            return BaseLLMModel(
                 name=model_name,
                 llm=AsyncOpenAI(
                     api_key=sk,
                     base_url=normalized_base_url,
                     http_client=http_client,
-                    timeout=300.0,  # Overall timeout: 5 minutes
-                    max_retries=2,  # Retry failed requests twice
+                    timeout=300.0,
+                    max_retries=2,
                 ),
             )
-            return model

@@ -11,6 +11,7 @@ from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.exceptions.error.code_enums import BaseCodeEnum
 from plugin.aitools.common.exceptions.exceptions import ServiceException
+from plugin.aitools.const.const import AI_API_KEY_KEY, AI_API_SECRET_KEY, AI_APP_ID_KEY
 from plugin.aitools.service.ise.ise_client import ISEClient
 from pydantic import BaseModel, field_validator
 
@@ -69,9 +70,9 @@ class ISEInput(BaseModel):
 )
 async def ise_evaluate_service(body: ISEInput, request: Request) -> BaseResponse:
     """ISE Evaluation Service"""
-    app_id = os.getenv("AI_APP_ID", "")
-    app_key = os.getenv("AI_API_KEY", "")
-    app_secret = os.getenv("AI_API_SECRET", "")
+    app_id = os.getenv(AI_APP_ID_KEY, "")
+    app_key = os.getenv(AI_API_KEY_KEY, "")
+    app_secret = os.getenv(AI_API_SECRET_KEY, "")
 
     audio_bytes = base64.b64decode(body.audio_data)
     ise_client = ISEClient(app_id, app_key, app_secret)

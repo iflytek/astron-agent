@@ -42,6 +42,7 @@ public class Model {
     private String domain;
     private String url;
     private String color;
+    private String provider;
     private String config;
     private Long spaceId;
     /**
@@ -60,4 +61,9 @@ public class Model {
     private Integer replicaCount;
 
     private String modelPath;
+
+    /**
+     * Whether has thinking capability
+     */
+    private Boolean isThink;
 }

@@ -50,6 +50,19 @@ export enum ModelCreateType {
   LOCAL = 2, // 本地模型
 }
 
+export enum ModelProviderType {
+  OPENAI = 'openai',
+  ANTHROPIC = 'anthropic',
+  GOOGLE = 'google',
+  DEEPSEEK = 'deepseek',
+  MINIMAX = 'minimax',
+  ZHIPU = 'zhipu',
+  QWEN = 'qwen',
+  MOONSHOT = 'moonshot',
+  CHATGPT = 'chatgpt',
+  DOUBAO = 'doubao',
+}
+
 export enum LocalModelStatus {
   RUNNING = 1, // 运行中
   PENDING = 2, // 待发布
@@ -109,6 +122,7 @@ export type CategoryTreeResponse = CategoryNode[];
 export interface ModelInfo {
   id: number;
   name: string;
+  provider?: ModelProviderType | string | null;
   serviceId: string;
   serverId: string;
   domain: string;
@@ -170,6 +184,7 @@ export interface ModelFormData {
   interfaceAddress: string;
   apiKEY: string;
   domain: string;
+  provider?: ModelProviderType | string;
   currentTag?: string;
   tags?: string[];
   categorySystemIds?: number[];
@@ -180,6 +195,7 @@ export interface ModelFormData {
   sceneCustom?: CategoryNode[];
   pid?: number;
   customName?: string;
+  isThink?: boolean;
 }
 
 // 模型卡片组件属性
@@ -212,6 +228,11 @@ export interface CategoryAsideProps {
   defaultContextLength?: number;
   setContextMaxLength?: (val: number) => void;
   loading?: boolean;
+  providerFilter?: string;
+  providerOptions?: Array<{ label: string; value: string }>;
+  onProviderChange?: (provider?: string) => void;
+  showContextLength?: boolean;
+  showModelStatus?: boolean;
 }
 
 // 分类侧边栏组件引用
@@ -303,6 +324,7 @@ export interface ModelCreateParams {
   id?: number; // 更新模型的时候必传
   apiKeyMasked?: boolean; // apikey是否更改，更新模型的时候必传
   modelCategoryReq?: ModelCategoryReq; // 模型分类请求参数
+  isThink?: boolean; // 是否开启思考内容
 }
 
 // 模型详情查询参数

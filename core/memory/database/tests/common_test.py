@@ -9,6 +9,8 @@ from memory.database.api.v1.common import (
     check_database_exists_by_did,
     check_database_exists_by_did_uid,
     check_space_id_and_get_uid,
+    validate_reserved_functions,
+    validate_reserved_keywords,
 )
 from memory.database.exceptions.error_code import CodeEnum
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -481,3 +483,69 @@ async def test_check_space_id_and_get_uid_edge_cases() -> None:
             f"space_id: {space_id}"
         )
         mock_get_uid.assert_called_once_with(mock_db, database_id, space_id)
+
+
+@pytest.mark.asyncio
+async def test_validate_reserved_keywords_valid() -> None:
+    """Test validate_reserved_keywords with non-reserved keywords."""
+    keys = ["user_name", "age", "email", "created_at"]
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+
+    result = await validate_reserved_keywords(keys, span_context)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_validate_reserved_keywords_invalid() -> None:
+    """Test validate_reserved_keywords with reserved keywords."""
+    keys = ["select", "user_name", "where"]  # 'select' is reserved
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+    span_context.add_error_event = MagicMock()
+
+    result = await validate_reserved_keywords(keys, span_context)
+    assert result is not None
+
+    # Parse the response
+    response_body = json.loads(result.body)
+    assert response_body["code"] == CodeEnum.DMLNotAllowed.code
+    assert "select" in response_body["message"]
+    assert "not allowed" in response_body["message"]
+
+    # Verify error event was logged
+    span_context.add_error_event.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_validate_reserved_functions_valid() -> None:
+    """Test validate_reserved_functions with non-reserved functions."""
+    keys = ["lower", "upper", "substring", "length"]
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+
+    result = await validate_reserved_functions(keys, span_context)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_validate_reserved_functions_invalid() -> None:
+    """Test validate_reserved_functions with reserved functions."""
+    keys = ["current_user", "pg_backend_pid", "inet_server_addr"]  # These are reserved
+    span_context = MagicMock()
+    span_context.sid = "test-sid"
+    span_context.add_error_event = MagicMock()
+
+    result = await validate_reserved_functions(keys, span_context)
+    assert result is not None
+
+    # Parse the response
+    response_body = json.loads(result.body)
+    assert response_body["code"] == CodeEnum.DMLNotAllowed.code
+    assert (
+        "current_user" in response_body["message"]
+        or "pg_backend_pid" in response_body["message"]
+    )
+
+    # Verify error event was logged
+    span_context.add_error_event.assert_called_once()

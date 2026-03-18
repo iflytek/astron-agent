@@ -282,8 +282,7 @@ const ChatSide: React.FC<ChatSideProps> = ({ botInfo }) => {
               </>
             )}
 
-            {(!botInfo?.model ||
-              !['xdeepseekr1', 'xdeepseekv3'].includes(botInfo.model)) && (
+            {!botInfo?.model && (
               <>
                 <Tooltip
                   title={t('chatPage.chatSide.sparkModel')}
@@ -303,6 +302,21 @@ const ChatSide: React.FC<ChatSideProps> = ({ botInfo }) => {
                 </Tooltip>
               </>
             )}
+
+            {botInfo?.model &&
+              !['xdeepseekr1', 'xdeepseekv3'].includes(botInfo.model) && (
+                <>
+                  <Tooltip
+                    title={botInfo.model}
+                    placement="top"
+                    overlayClassName="black-tooltip"
+                  >
+                    <span className="text-sm text-gray-800 font-normal whitespace-nowrap overflow-hidden text-ellipsis">
+                      {botInfo.model}
+                    </span>
+                  </Tooltip>
+                </>
+              )}
           </>
         )}
 

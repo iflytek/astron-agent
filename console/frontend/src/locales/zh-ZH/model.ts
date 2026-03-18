@@ -137,6 +137,79 @@ const translation = {
   republishFailed: '重新发布失败',
   localUploadModel: '本地上传模型',
   noDocument: '暂无文档，待后续更新',
+  providerLabel: '模型供应商',
+  providerFilter: '供应商筛选',
+  allProviders: '全部供应商',
+  providerDeepSeek: 'DeepSeek',
+  providerOpenAI: 'OpenAI 兼容',
+  providerAnthropic: 'Anthropic',
+  providerGoogle: 'Google',
+  providerMiniMax: 'MiniMax',
+  providerZhipu: '智谱',
+  providerQwen: '千问',
+  providerMoonshot: '月之暗面',
+  providerChatGPT: 'ChatGPT',
+  providerDoubao: '豆包',
+  providerHintOpenAI: '使用 OpenAI 兼容接口地址，例如 /v1/chat/completions。',
+  providerHintMiniMax:
+    '使用 MiniMax 官方接口地址，并填写 MiniMax-Text-01 等模型名称。',
+  providerHintZhipu:
+    '使用智谱官方接口地址，并填写 glm-4.5、glm-4-flash 等模型名称。',
+  providerHintQwen:
+    '使用千问官方兼容接口地址，并填写 qwen-max、qwen-plus 等模型名称。',
+  providerHintMoonshot:
+    '使用月之暗面官方接口地址，并填写 moonshot-v1-8k 等模型名称。',
+  providerHintChatGPT:
+    '使用 OpenAI 官方接口地址，并填写 gpt-4o、gpt-4.1-mini 等模型名称。',
+  providerHintDoubao:
+    '使用豆包官方接口地址，并填写 doubao-pro-32k 等推理接入点模型名称。',
+  providerHintDeepSeek:
+    '使用 DeepSeek 官方兼容 OpenAI 的地址，并填写 deepseek-chat 或 deepseek-reasoner 等模型名。',
+  providerHintAnthropic:
+    '使用 Anthropic Messages API 地址，并填写 Claude Sonnet / Opus 等模型名。',
+  providerHintGoogle:
+    '使用 Gemini API 地址，并填写 gemini-2.5-flash 等模型名。',
+  minimaxModelPlaceholder: '例如 MiniMax-Text-01',
+  minimaxEndpointPlaceholder: '请输入 MiniMax API 地址',
+  zhipuModelPlaceholder: '例如 glm-4.5 或 glm-4-flash',
+  zhipuEndpointPlaceholder: '请输入智谱 API 地址',
+  qwenModelPlaceholder: '例如 qwen-max 或 qwen-plus',
+  qwenEndpointPlaceholder: '请输入千问 API 地址',
+  moonshotModelPlaceholder: '例如 moonshot-v1-8k',
+  moonshotEndpointPlaceholder: '请输入月之暗面 API 地址',
+  chatgptModelPlaceholder: '例如 gpt-4o 或 gpt-4.1-mini',
+  chatgptEndpointPlaceholder: '请输入 OpenAI API 地址',
+  doubaoModelPlaceholder: '例如 doubao-pro-32k',
+  doubaoEndpointPlaceholder: '请输入豆包 API 地址',
+  deepseekModelPlaceholder: '例如 deepseek-chat 或 deepseek-reasoner',
+  deepseekEndpointPlaceholder: '请输入 DeepSeek API 地址',
+  anthropicModelPlaceholder: '例如 claude-3-7-sonnet-latest',
+  anthropicEndpointPlaceholder: '请输入 Anthropic API 地址',
+  googleModelPlaceholder: '例如 gemini-2.5-flash',
+  googleEndpointPlaceholder: '请输入 Gemini API 地址',
+  addProviderModel: '添加{{provider}}模型',
+  officialProviderIntro: '官方供应商',
+  configureProvider: '去配置',
+  providerCardChatGPTDesc:
+    '接入 GPT-4o、GPT-4.1 等 OpenAI 官方模型，适合通用对话、工具调用与多模态场景。',
+  providerCardAnthropicDesc:
+    '接入 Claude Sonnet、Opus 等 Anthropic 模型，适合高质量对话与长文本生成。',
+  providerCardGoogleDesc:
+    '接入 Gemini 系列模型，适合多模态理解、轻量生成与快速响应场景。',
+  providerCardMiniMaxDesc:
+    '接入 MiniMax 官方模型，适合高性价比对话、文案生成与轻助手工作流。',
+  providerCardZhipuDesc:
+    '接入 GLM 系列模型，适合中文能力、Agent 规划与通用生成任务。',
+  providerCardQwenDesc:
+    '接入千问系列模型，适合中英文生成、推理与代码任务。',
+  providerCardMoonshotDesc:
+    '接入月之暗面官方模型，适合长上下文对话、文档理解与知识问答。',
+  providerCardDoubaoDesc:
+    '接入豆包官方模型，适合企业助手、对话生成与工具编排场景。',
+  providerCardDeepSeekDesc:
+    '接入 DeepSeek-V3、DeepSeek-R1 等模型，适合通用生成、推理与工作流问答。',
+  thinkingCapability: '思维能力',
+  enableThinkingCapability: '启用思考内容输出',
 };
 
 export default translation;

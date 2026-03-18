@@ -1,9 +1,17 @@
+"""Custom exception module for database operations."""
+
 from typing import Optional
 
 from memory.database.exceptions.error_code import CodeEnum
 
 
 class CustomException(Exception):
+    """Custom exception class for database operations.
+
+    This exception class provides structured error handling with error codes,
+    messages, and root cause information.
+    """
+
     code: int
     message: str
     cause_error: str

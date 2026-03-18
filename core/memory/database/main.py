@@ -24,6 +24,9 @@ from memory.database.api import router
 from memory.database.domain.entity.views.http_resp import format_response
 from memory.database.exceptions.e import CustomException
 from memory.database.exceptions.error_code import CodeEnum
+from memory.database.repository.middleware.database.database_migration import (
+    run_database_migration,
+)
 from starlette.middleware.cors import CORSMiddleware
 
 
@@ -34,6 +37,7 @@ def initialize_extensions() -> None:
     need_init_services = [
         "settings_service",
         "log_service",
+        "cache_service",
         "otlp_sid_service",
         "otlp_span_service",
         "otlp_metric_service",
@@ -63,7 +67,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         None: After successful initialization.
     """
     try:
-        await rep_initialize_extensions()
         # Execute before application startup
         yield
         # Execute after application startup
@@ -243,11 +246,9 @@ async def _get_host_ip() -> str:
 def _write_watchdog_env(host_ip: str) -> None:
     """Write watchdog environment file for Linux systems."""
     with open("/etc/watchdog-env", "w", encoding="utf-8") as f:
-        service_port = os.getenv("SERVICE_PORT", "7990")
-        kong_service = os.getenv("KONG_SERVICE_NAME", "upstream-xingchen-db-open")
-        kong_admin = os.getenv(
-            "KONG_ADMIN_API", "http://172.30.209.27:8000/service_find"
-        )
+        service_port = os.getenv("SERVICE_PORT", "")
+        kong_service = os.getenv("KONG_SERVICE_NAME", "")
+        kong_admin = os.getenv("KONG_ADMIN_API", "")
         f.write(
             f"""
 export APP_HOST={host_ip}
@@ -260,9 +261,9 @@ export KONG_ADMIN_API={kong_admin}
 
 def _print_env_vars(host_ip: str) -> None:
     """Print environment variables for non-Linux systems."""
-    service_port = os.getenv("SERVICE_PORT", "7990")
-    kong_service = os.getenv("KONG_SERVICE_NAME", "upstream-xingchen-db-open")
-    kong_admin = os.getenv("KONG_ADMIN_API", "http://172.30.209.27:8000/service_find")
+    service_port = os.getenv("SERVICE_PORT", "")
+    kong_service = os.getenv("KONG_SERVICE_NAME", "")
+    kong_admin = os.getenv("KONG_ADMIN_API", "")
     print(f"""export APP_HOST={host_ip}""")
     print(f"""export APP_PORT={service_port}""")
     print(f"""export KONG_SERVICE_NAME={kong_service}""")
@@ -283,9 +284,14 @@ async def _log_ready_after_delay() -> None:
 if __name__ == "__main__":
     logger.debug(f"current platform {sys.platform}")
     # app = asyncio.run(create_app())
+    # common init
     initialize_extensions()
-
+    # postgresql init
+    asyncio.run(rep_initialize_extensions())
+    # kong init
     asyncio.run(_log_ready_after_delay())
+    # alembic init
+    run_database_migration()
 
     uvicorn.run(
         app="main:create_app",
@@ -297,7 +303,7 @@ if __name__ == "__main__":
             else int(os.getenv("WORKERS", "1"))
         ),
         reload=False,
-        log_level="error",
+        log_level=os.getenv("LOG_LEVEL", "error").lower(),
         ws_ping_interval=None,
         ws_ping_timeout=None,
     )

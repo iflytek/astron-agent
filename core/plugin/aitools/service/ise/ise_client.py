@@ -19,6 +19,7 @@ from urllib.parse import urlencode
 from wsgiref.handlers import format_date_time
 
 import websocket
+from plugin.aitools.const.const import ISE_URL_KEY
 from pydub import AudioSegment  # type: ignore[import-untyped]
 
 
@@ -381,7 +382,7 @@ class ISEClient:
         self.app_id = app_id
         self.api_key = api_key
         self.api_secret = api_secret
-        self.base_url = os.getenv("ISE_URL")
+        self.base_url = os.getenv(ISE_URL_KEY)
         self.evaluation_complete = False
         self.error_msg: Optional[str] = None
         self.result: Optional[Dict[str, Any]] = None

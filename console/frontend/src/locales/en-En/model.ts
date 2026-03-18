@@ -141,6 +141,80 @@ const translation = {
   republishFailed: 'Republish Failed',
   localUploadModel: 'Local Upload Model',
   noDocument: 'No document, coming soon',
+  providerLabel: 'Provider',
+  providerFilter: 'Provider',
+  allProviders: 'All Providers',
+  providerDeepSeek: 'DeepSeek',
+  providerOpenAI: 'OpenAI Compatible',
+  providerAnthropic: 'Anthropic',
+  providerGoogle: 'Google',
+  providerMiniMax: 'MiniMax',
+  providerZhipu: 'Zhipu AI',
+  providerQwen: 'Qwen',
+  providerMoonshot: 'Moonshot',
+  providerChatGPT: 'ChatGPT',
+  providerDoubao: 'Doubao',
+  providerHintOpenAI:
+    'Use an OpenAI-compatible endpoint such as /v1/chat/completions.',
+  providerHintMiniMax:
+    'Use the MiniMax official endpoint and a model such as MiniMax-Text-01.',
+  providerHintZhipu:
+    'Use the Zhipu AI official endpoint and a model such as glm-4.5 or glm-4-flash.',
+  providerHintQwen:
+    'Use the Qwen official compatible endpoint and a model such as qwen-max or qwen-plus.',
+  providerHintMoonshot:
+    'Use the Moonshot official endpoint and a model such as moonshot-v1-8k.',
+  providerHintChatGPT:
+    'Use the OpenAI official endpoint and a model such as gpt-4o or gpt-4.1-mini.',
+  providerHintDoubao:
+    'Use the Doubao official endpoint and an endpoint model such as doubao-pro-32k.',
+  providerHintDeepSeek:
+    'Use the DeepSeek OpenAI-compatible endpoint and a model such as deepseek-chat or deepseek-reasoner.',
+  providerHintAnthropic:
+    'Use an Anthropic Messages API endpoint and a Claude model such as Sonnet or Opus.',
+  providerHintGoogle:
+    'Use a Gemini API endpoint and a Gemini model such as gemini-2.5-flash.',
+  minimaxModelPlaceholder: 'e.g. MiniMax-Text-01',
+  minimaxEndpointPlaceholder: 'Please enter the MiniMax API endpoint',
+  zhipuModelPlaceholder: 'e.g. glm-4.5 or glm-4-flash',
+  zhipuEndpointPlaceholder: 'Please enter the Zhipu AI API endpoint',
+  qwenModelPlaceholder: 'e.g. qwen-max or qwen-plus',
+  qwenEndpointPlaceholder: 'Please enter the Qwen API endpoint',
+  moonshotModelPlaceholder: 'e.g. moonshot-v1-8k',
+  moonshotEndpointPlaceholder: 'Please enter the Moonshot API endpoint',
+  chatgptModelPlaceholder: 'e.g. gpt-4o or gpt-4.1-mini',
+  chatgptEndpointPlaceholder: 'Please enter the OpenAI API endpoint',
+  doubaoModelPlaceholder: 'e.g. doubao-pro-32k',
+  doubaoEndpointPlaceholder: 'Please enter the Doubao API endpoint',
+  deepseekModelPlaceholder: 'e.g. deepseek-chat or deepseek-reasoner',
+  deepseekEndpointPlaceholder: 'Please enter the DeepSeek API endpoint',
+  anthropicModelPlaceholder: 'e.g. claude-3-7-sonnet-latest',
+  anthropicEndpointPlaceholder: 'Please enter the Anthropic API endpoint',
+  googleModelPlaceholder: 'e.g. gemini-2.5-flash',
+  googleEndpointPlaceholder: 'Please enter the Gemini API endpoint',
+  addProviderModel: 'Add {{provider}} Model',
+  officialProviderIntro: 'Official Providers',
+  configureProvider: 'Configure',
+  providerCardChatGPTDesc:
+    'Connect GPT-4o, GPT-4.1 and other OpenAI models for general chat, tool use and multimodal scenarios.',
+  providerCardAnthropicDesc:
+    'Connect Claude Sonnet, Opus and other Anthropic models for high-quality chat and long-form generation.',
+  providerCardGoogleDesc:
+    'Connect Gemini models for multimodal understanding, lightweight generation and fast response scenarios.',
+  providerCardMiniMaxDesc:
+    'Connect MiniMax official models for cost-effective conversation, copywriting and assistant workflows.',
+  providerCardZhipuDesc:
+    'Connect GLM series models for Chinese capabilities, agent planning and general generation tasks.',
+  providerCardQwenDesc:
+    'Connect Qwen series models for Chinese and multilingual generation, reasoning and coding tasks.',
+  providerCardMoonshotDesc:
+    'Connect Moonshot official models for long-context conversation, document understanding and knowledge Q&A.',
+  providerCardDoubaoDesc:
+    'Connect Doubao official models for enterprise assistant, conversation and tool orchestration scenarios.',
+  providerCardDeepSeekDesc:
+    'Connect DeepSeek-V3, DeepSeek-R1 and other models for general generation, reasoning and workflow Q&A.',
+  thinkingCapability: 'Thinking Capability',
+  enableThinkingCapability: 'Enable thinking content output',
 };
 
 export default translation;

@@ -18,6 +18,12 @@ from plugin.aitools.common.clients.adapters import SpanLike
 from plugin.aitools.common.clients.aiohttp_client import HttpClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
+from plugin.aitools.const.const import (
+    AI_API_KEY_KEY,
+    AI_API_SECRET_KEY,
+    AI_APP_ID_KEY,
+    IMAGE_GENERATE_URL_KEY,
+)
 from plugin.aitools.utils.oss_utils import upload_file
 from pydantic import BaseModel
 
@@ -83,10 +89,10 @@ async def req_ase_ability_image_generate_service(
     meter: Optional[Meter] = None,
     node_trace: Optional[NodeTraceLog] = None,
 ) -> BaseResponse:
-    url = os.getenv("IMAGE_GENERATE_URL", "")
-    app_id = os.getenv("AI_APP_ID", "")
-    api_key = os.getenv("AI_API_KEY", "")
-    api_secret = os.getenv("AI_API_SECRET", "")
+    url = os.getenv(IMAGE_GENERATE_URL_KEY, "")
+    app_id = os.getenv(AI_APP_ID_KEY, "")
+    api_key = os.getenv(AI_API_KEY_KEY, "")
+    api_secret = os.getenv(AI_API_SECRET_KEY, "")
 
     data, params = gen_params(
         body.prompt, body.width, body.height, url, app_id, api_key, api_secret
