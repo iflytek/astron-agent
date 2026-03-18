@@ -5,9 +5,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
@@ -23,6 +20,8 @@ from agent.service.builder.workflow_agent_builder import (
 )
 from agent.service.plugin.base import BasePlugin
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
 
 
 @dataclass

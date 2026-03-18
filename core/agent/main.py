@@ -16,6 +16,9 @@ from datetime import datetime
 from typing import Awaitable, Callable
 
 import uvicorn
+from agent.api import router
+from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
+from agent.exceptions.agent_exc import AgentExc
 from common.initialize.initialize import initialize_services
 from common.otlp.sid import sid_generator2
 from fastapi import FastAPI, Request
@@ -24,10 +27,6 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response
-
-from agent.api import router
-from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
-from agent.exceptions.agent_exc import AgentExc
 
 
 def initialize_extensions() -> None:

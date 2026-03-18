@@ -1,12 +1,6 @@
 import json
 from typing import Any, AsyncGenerator, Sequence
 
-# Use unified common package import module
-from common.otlp.log_trace.node_log import Data, NodeLog
-from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.span import Span
-from pydantic import BaseModel, ConfigDict, Field
-
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.completion_chunk import (
     ReasonChatCompletionChunk,
@@ -18,6 +12,12 @@ from agent.api.schemas.completion_chunk import (
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.service.plugin.base import BasePlugin
+
+# Use unified common package import module
+from common.otlp.log_trace.node_log import Data, NodeLog
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WorkflowAgentRunner(BaseModel):

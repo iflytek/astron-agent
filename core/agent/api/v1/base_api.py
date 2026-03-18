@@ -6,14 +6,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, List
 
-# Use unified common package import module
-from common.exceptions.base import BaseExc
-from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
-from common.otlp.metrics.meter import Meter
-from common.otlp.trace.span import Span
-from loguru import logger
-from pydantic import BaseModel, ConfigDict
-
 from agent.api.schemas.base_inputs import BaseInputs
 from agent.api.schemas.completion_chunk import (
     ReasonChatCompletionChunk,
@@ -22,6 +14,14 @@ from agent.api.schemas.completion_chunk import (
 )
 from agent.api.schemas.node_trace_patch import NodeTracePatch
 from agent.exceptions.agent_exc import AgentInternalExc, AgentNormalExc
+
+# Use unified common package import module
+from common.exceptions.base import BaseExc
+from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
+from common.otlp.metrics.meter import Meter
+from common.otlp.trace.span import Span
+from loguru import logger
+from pydantic import BaseModel, ConfigDict
 
 
 def json_serializer(obj: Any) -> Any:

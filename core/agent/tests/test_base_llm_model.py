@@ -5,12 +5,11 @@ from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from agent.domain.models.base import BaseLLMModel
+from agent.exceptions.plugin_exc import PluginExc
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
 from openai import APIError, APITimeoutError, AsyncOpenAI
-
-from agent.domain.models.base import BaseLLMModel
-from agent.exceptions.plugin_exc import PluginExc
 
 
 @dataclass

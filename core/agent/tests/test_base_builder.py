@@ -6,9 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import urlparse
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-
 from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
@@ -21,6 +18,8 @@ from agent.service.builder.base_builder import (
 )
 from agent.service.plugin.base import BasePlugin
 from agent.service.plugin.base import BasePlugin as RealBasePlugin
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
 
 
 @dataclass

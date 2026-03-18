@@ -1,11 +1,6 @@
 import json
 from typing import AsyncIterator
 
-# Use unified common package import module
-from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.span import Span
-from pydantic import Field
-
 from agent.api.schemas.agent_response import AgentResponse
 from agent.domain.models.base import BaseLLMModel
 from agent.engine.nodes.base import RunnerBase, Scratchpad
@@ -15,6 +10,11 @@ from agent.engine.nodes.cot_process.cot_process_prompt import (
     COT_PROCESS_USER_STEP_TEMPLATE,
     COT_PROCESS_USER_TEMPLATE,
 )
+
+# Use unified common package import module
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
+from pydantic import Field
 
 
 class CotProcessRunner(RunnerBase):

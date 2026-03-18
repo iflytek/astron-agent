@@ -6,16 +6,15 @@ from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.metrics.meter import Meter
-from common.otlp.trace.span import Span
-
 from agent.api.schemas.base_inputs import BaseInputs, MetaDataInputs
 from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.node_trace_patch import NodeTracePatch as NodeTrace
 from agent.api.v1.base_api import CompletionBase, json_serializer
 from agent.exceptions.agent_exc import AgentInternalExc, AgentNormalExc
+from common.otlp import sid as sid_module
+from common.otlp.metrics.meter import Meter
+from common.otlp.trace.span import Span
 
 
 @dataclass

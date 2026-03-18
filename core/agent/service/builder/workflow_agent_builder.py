@@ -3,9 +3,6 @@ import json
 from dataclasses import dataclass
 from typing import Any, cast
 
-from common.otlp.trace.span import Span
-from loguru import logger
-
 from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
     CustomCompletionPluginKnowledgeInputs,
@@ -17,6 +14,8 @@ from agent.service.builder.base_builder import (
 )
 from agent.service.plugin.knowledge import KnowledgePluginFactory
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
+from common.otlp.trace.span import Span
+from loguru import logger
 
 
 @dataclass

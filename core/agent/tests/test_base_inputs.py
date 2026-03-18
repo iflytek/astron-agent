@@ -1,11 +1,10 @@
 from typing import Any
 
 import pytest
-from fastapi.exceptions import RequestValidationError
-from pydantic import ValidationError
-
 from agent.api.schemas.base_inputs import BaseInputs, MetaDataInputs
 from agent.api.schemas.llm_message import LLMMessage
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 
 class TestBaseInputsValidation:

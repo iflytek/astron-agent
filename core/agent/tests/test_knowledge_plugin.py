@@ -8,11 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.knowledge import KnowledgePlugin, KnowledgePluginFactory
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
 
 
 @dataclass

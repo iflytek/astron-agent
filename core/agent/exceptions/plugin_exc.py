@@ -1,7 +1,5 @@
 from typing import Any, NoReturn
 
-from common.exceptions.base import BaseExc
-
 from agent.exceptions.codes import (
     c_40023,
     c_40024,
@@ -12,6 +10,7 @@ from agent.exceptions.codes import (
     c_40029,
 )
 from agent.exceptions.llm_codes import ify_code_convert
+from common.exceptions.base import BaseExc
 
 
 class PluginExc(BaseExc):

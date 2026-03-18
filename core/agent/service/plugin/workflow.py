@@ -7,13 +7,12 @@ from typing import Any, AsyncIterator
 
 import aiohttp
 import httpx
+from agent.exceptions.plugin_exc import RunWorkflowExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
 from common.otlp.trace.span import Span
 from loguru import logger
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
-
-from agent.exceptions.plugin_exc import RunWorkflowExc
-from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
 class _AgentConfig(BaseModel):

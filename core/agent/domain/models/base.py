@@ -4,13 +4,11 @@ from typing import Any, AsyncIterator, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
+from agent.exceptions.plugin_exc import PluginExc, llm_plugin_error
 from common.otlp.trace.span import Span
 from loguru import logger
-from openai import APIError, APITimeoutError, AsyncOpenAI
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from openai import APIError, APITimeoutError
 from pydantic import BaseModel, ConfigDict, Field
-
-from agent.exceptions.plugin_exc import PluginExc, llm_plugin_error
 
 
 class BaseLLMModel(BaseModel):
@@ -111,7 +109,7 @@ class BaseLLMModel(BaseModel):
 
     async def stream(
         self, messages: list, stream: bool, span: Optional[Span] = None
-    ) -> AsyncIterator[ChatCompletionChunk]:
+    ) -> AsyncIterator[Any]:
 
         sp = span
 
@@ -188,7 +186,7 @@ class ProviderLLMModel(BaseLLMModel):
             usage=CompatUsage(**usage_data) if usage_data else None,
         )
 
-    async def _yield_normalized_chunks(
+    def _yield_normalized_chunks(  # noqa: C901
         self, response: httpx.Response
     ) -> AsyncIterator[CompatChunk]:
         raise NotImplementedError
@@ -264,54 +262,84 @@ class AnthropicLLMModel(ProviderLLMModel):
             payload["system"] = "\n".join(system_parts)
         return payload
 
-    async def _yield_normalized_chunks(
+    def _yield_normalized_chunks(  # noqa: C901
         self, response: httpx.Response
     ) -> AsyncIterator[CompatChunk]:
-        event_type = ""
-        data_lines: list[str] = []
-        usage: dict[str, Any] = {}
-        emitted_stop = False
+        async def generator() -> AsyncIterator[CompatChunk]:
+            event_type = ""
+            data_lines: list[str] = []
+            usage: dict[str, Any] = {}
+            emitted_stop = False
 
-        async for line in response.aiter_lines():
-            if not line:
-                if not data_lines:
+            async for line in response.aiter_lines():
+                if not line:
+                    if not data_lines:
+                        event_type = ""
+                        continue
+                    payload = json.loads("\n".join(data_lines))
+                    data_lines = []
+                    usage = payload.get("usage") or usage
+                    normalized: dict[str, Any] | None = None
+
+                    if event_type == "content_block_delta":
+                        delta = payload.get("delta", {})
+                        normalized = {
+                            "choices": [
+                                {
+                                    "delta": {
+                                        "content": delta.get("text", ""),
+                                        "reasoning_content": delta.get("thinking", ""),
+                                    },
+                                    "finish_reason": None,
+                                }
+                            ],
+                            "usage": usage,
+                        }
+                    elif event_type == "message_delta":
+                        normalized = {
+                            "choices": [
+                                {
+                                    "delta": {"content": "", "reasoning_content": ""},
+                                    "finish_reason": payload.get("delta", {}).get(
+                                        "stop_reason"
+                                    )
+                                    or "stop",
+                                }
+                            ],
+                            "usage": payload.get("usage") or usage,
+                        }
+                        emitted_stop = True
+                    elif event_type == "message_stop":
+                        normalized = {
+                            "choices": [
+                                {
+                                    "delta": {"content": "", "reasoning_content": ""},
+                                    "finish_reason": "stop",
+                                }
+                            ],
+                            "usage": usage,
+                        }
+                        emitted_stop = True
+                    elif event_type == "error":
+                        error = payload.get("error", {})
+                        llm_plugin_error(
+                            str(error.get("type", "-1")),
+                            str(error.get("message", "Anthropic request failed")),
+                        )
+
                     event_type = ""
+                    if normalized:
+                        yield self._build_compat_chunk(normalized)
                     continue
-                payload = json.loads("\n".join(data_lines))
-                data_lines = []
-                usage = payload.get("usage") or usage
-                normalized: dict[str, Any] | None = None
 
-                if event_type == "content_block_delta":
-                    delta = payload.get("delta", {})
-                    normalized = {
-                        "choices": [
-                            {
-                                "delta": {
-                                    "content": delta.get("text", ""),
-                                    "reasoning_content": delta.get("thinking", ""),
-                                },
-                                "finish_reason": None,
-                            }
-                        ],
-                        "usage": usage,
-                    }
-                elif event_type == "message_delta":
-                    normalized = {
-                        "choices": [
-                            {
-                                "delta": {"content": "", "reasoning_content": ""},
-                                "finish_reason": payload.get("delta", {}).get(
-                                    "stop_reason"
-                                )
-                                or "stop",
-                            }
-                        ],
-                        "usage": payload.get("usage") or usage,
-                    }
-                    emitted_stop = True
-                elif event_type == "message_stop":
-                    normalized = {
+                if line.startswith("event:"):
+                    event_type = line.split(":", 1)[1].strip()
+                elif line.startswith("data:"):
+                    data_lines.append(line.split(":", 1)[1].strip())
+
+            if not emitted_stop:
+                yield self._build_compat_chunk(
+                    {
                         "choices": [
                             {
                                 "delta": {"content": "", "reasoning_content": ""},
@@ -320,36 +348,9 @@ class AnthropicLLMModel(ProviderLLMModel):
                         ],
                         "usage": usage,
                     }
-                    emitted_stop = True
-                elif event_type == "error":
-                    error = payload.get("error", {})
-                    llm_plugin_error(
-                        str(error.get("type", "-1")),
-                        str(error.get("message", "Anthropic request failed")),
-                    )
+                )
 
-                event_type = ""
-                if normalized:
-                    yield self._build_compat_chunk(normalized)
-                continue
-
-            if line.startswith("event:"):
-                event_type = line.split(":", 1)[1].strip()
-            elif line.startswith("data:"):
-                data_lines.append(line.split(":", 1)[1].strip())
-
-        if not emitted_stop:
-            yield self._build_compat_chunk(
-                {
-                    "choices": [
-                        {
-                            "delta": {"content": "", "reasoning_content": ""},
-                            "finish_reason": "stop",
-                        }
-                    ],
-                    "usage": usage,
-                }
-            )
+        return generator()
 
 
 class GoogleLLMModel(ProviderLLMModel):
@@ -357,8 +358,7 @@ class GoogleLLMModel(ProviderLLMModel):
         model_url = self.model_url
         if ":generateContent" not in model_url:
             model_url = (
-                model_url.rstrip("/")
-                + f"/v1beta/models/{self.name}:generateContent"
+                model_url.rstrip("/") + f"/v1beta/models/{self.name}:generateContent"
             )
         model_url = model_url.replace(":generateContent", ":streamGenerateContent")
         parsed = urlsplit(model_url)
@@ -453,49 +453,54 @@ class GoogleLLMModel(ProviderLLMModel):
         }
         return self._build_compat_chunk(normalized)
 
-    async def _yield_normalized_chunks(
+    def _yield_normalized_chunks(  # noqa: C901
         self, response: httpx.Response
     ) -> AsyncIterator[CompatChunk]:
-        content_type = response.headers.get("content-type", "").lower()
-        if "text/event-stream" not in content_type:
-            payload = json.loads((await response.aread()).decode("utf-8"))
-            yield self._normalize_payload_to_chunk(payload)
-            return
+        async def generator() -> AsyncIterator[CompatChunk]:
+            content_type = response.headers.get("content-type", "").lower()
+            if "text/event-stream" not in content_type:
+                payload = json.loads((await response.aread()).decode("utf-8"))
+                yield self._normalize_payload_to_chunk(payload)
+                return
 
-        data_lines: list[str] = []
-        emitted_stop = False
+            data_lines: list[str] = []
+            emitted_stop = False
 
-        async for line in response.aiter_lines():
-            if not line:
-                if not data_lines:
+            async for line in response.aiter_lines():
+                if not line:
+                    if not data_lines:
+                        continue
+                    raw_data = "\n".join(data_lines)
+                    data_lines = []
+                    if raw_data == "[DONE]":
+                        break
+                    chunk = self._normalize_payload_to_chunk(json.loads(raw_data))
+                    if chunk.choices[0].finish_reason:
+                        emitted_stop = True
+                    yield chunk
                     continue
-                raw_data = "\n".join(data_lines)
-                data_lines = []
-                if raw_data == "[DONE]":
-                    break
-                chunk = self._normalize_payload_to_chunk(json.loads(raw_data))
+
+                if line.startswith("data:"):
+                    data_lines.append(line.split(":", 1)[1].strip())
+
+            if data_lines:
+                chunk = self._normalize_payload_to_chunk(
+                    json.loads("\n".join(data_lines))
+                )
                 if chunk.choices[0].finish_reason:
                     emitted_stop = True
                 yield chunk
-                continue
 
-            if line.startswith("data:"):
-                data_lines.append(line.split(":", 1)[1].strip())
+            if not emitted_stop:
+                yield self._build_compat_chunk(
+                    {
+                        "choices": [
+                            {
+                                "delta": {"content": "", "reasoning_content": ""},
+                                "finish_reason": "stop",
+                            }
+                        ]
+                    }
+                )
 
-        if data_lines:
-            chunk = self._normalize_payload_to_chunk(json.loads("\n".join(data_lines)))
-            if chunk.choices[0].finish_reason:
-                emitted_stop = True
-            yield chunk
-
-        if not emitted_stop:
-            yield self._build_compat_chunk(
-                {
-                    "choices": [
-                        {
-                            "delta": {"content": "", "reasoning_content": ""},
-                            "finish_reason": "stop",
-                        }
-                    ]
-                }
-            )
+        return generator()

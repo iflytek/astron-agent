@@ -8,11 +8,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import aiohttp
+from agent.exceptions.middleware_exc import AppAuthFailedExc
 from common.otlp.trace.span import Span
 from loguru import logger
 from pydantic import BaseModel, Field
-
-from agent.exceptions.middleware_exc import AppAuthFailedExc
 
 
 def http_date(dt: datetime.datetime) -> str:

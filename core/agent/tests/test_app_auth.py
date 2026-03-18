@@ -7,14 +7,13 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import agent.infra.app_auth as app_auth
 import aiohttp
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-
-import agent.infra.app_auth as app_auth
 from agent.exceptions import middleware_exc
 from agent.infra.app_auth import APPAuth, AuthConfig, MaasAuth, hashlib_256, http_date
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
 
 
 @dataclass

@@ -2,16 +2,15 @@
 
 from typing import Annotated, Any, AsyncGenerator, cast
 
+from agent.api.schemas.workflow_agent_inputs import CustomCompletionInputs
+from agent.api.v1.base_api import CompletionBase
+from agent.service.builder.workflow_agent_builder import WorkflowAgentRunnerBuilder
+from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 from common.otlp.trace.span import Span
 from fastapi import APIRouter, Header
 from loguru import logger
 from pydantic import ConfigDict
 from starlette.responses import StreamingResponse
-
-from agent.api.schemas.workflow_agent_inputs import CustomCompletionInputs
-from agent.api.v1.base_api import CompletionBase
-from agent.service.builder.workflow_agent_builder import WorkflowAgentRunnerBuilder
-from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 workflow_agent_router = APIRouter()
 

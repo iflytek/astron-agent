@@ -5,15 +5,14 @@ from typing import AsyncIterator
 from unittest.mock import MagicMock
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.span import Span
-
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.service.plugin.base import BasePlugin
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
+from common.otlp import sid as sid_module
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
 
 
 @dataclass

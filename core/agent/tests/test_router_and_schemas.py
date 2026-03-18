@@ -3,8 +3,6 @@
 import time
 
 import pytest
-from fastapi import APIRouter
-
 from agent.api import router as api_router
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.completion_chunk import (
@@ -16,6 +14,7 @@ from agent.api.schemas.completion_chunk import (
 )
 from agent.api.schemas.llm_message import LLMMessage, LLMMessages
 from agent.api.schemas.node_trace_patch import NodeTracePatch
+from fastapi import APIRouter
 
 
 class TestRouterModule:

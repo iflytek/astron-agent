@@ -5,10 +5,6 @@ from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-from starlette.responses import StreamingResponse
-
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
@@ -17,6 +13,9 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionPluginInputs,
 )
 from agent.api.v1.workflow_agent import CustomChatCompletion, custom_chat_completions
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
+from starlette.responses import StreamingResponse
 
 
 @dataclass

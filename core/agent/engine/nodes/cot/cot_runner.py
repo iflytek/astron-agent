@@ -2,15 +2,6 @@ import json
 import time
 from typing import Any, AsyncIterator, Union
 
-from common.otlp.log_trace.base import Usage
-
-# Use unified common package import module
-from common.otlp.log_trace.node_log import Data, NodeLog
-from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.span import Span
-from loguru import logger
-from pydantic import Field
-
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.llm_message import LLMMessage, LLMMessages
 from agent.domain.models.base import BaseLLMModel
@@ -27,6 +18,14 @@ from agent.service.plugin.base import BasePlugin, PluginResponse
 from agent.service.plugin.link import LinkPlugin
 from agent.service.plugin.mcp import McpPlugin
 from agent.service.plugin.workflow import WorkflowPlugin
+from common.otlp.log_trace.base import Usage
+
+# Use unified common package import module
+from common.otlp.log_trace.node_log import Data, NodeLog
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
+from loguru import logger
+from pydantic import Field
 
 default_cot_step = CotStep(empty=True)
 

@@ -5,10 +5,6 @@ from typing import Any, AsyncIterator, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.span import Span
-
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.llm_message import LLMMessage
 from agent.domain.models.base import BaseLLMModel
@@ -18,6 +14,9 @@ from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 from agent.exceptions import cot_exc
 from agent.service.plugin.base import BasePlugin
+from common.otlp import sid as sid_module
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.span import Span
 
 
 @dataclass

@@ -4,12 +4,11 @@ import os
 from typing import Any, Dict, List
 
 import aiohttp
+from agent.exceptions.plugin_exc import KnowledgeQueryExc, PluginExc
+from agent.service.plugin.base import BasePlugin
 from common.otlp.trace.span import Span
 from loguru import logger
 from openai import BaseModel
-
-from agent.exceptions.plugin_exc import KnowledgeQueryExc, PluginExc
-from agent.service.plugin.base import BasePlugin
 
 
 class KnowledgePlugin(BasePlugin):

@@ -4,9 +4,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
 from agent.service.plugin.link import LinkPluginFactory, LinkPluginRunner
@@ -15,6 +12,8 @@ from agent.service.plugin.workflow import (
     WorkflowPluginFactory,
     WorkflowPluginRunner,
 )
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
 
 
 @dataclass
@@ -261,9 +260,8 @@ class TestWorkflowPluginRunnerAndFactory:
         span = Span(app_id="app", uid="u")
 
         # mock AsyncOpenAI.chat.completions.create to raise timeout
-        import httpx
-
         import agent.service.plugin.workflow as wf_mod
+        import httpx
 
         # Create mock object supporting chat.completions.create structure
         class DummyCompletions:

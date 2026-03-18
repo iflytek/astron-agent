@@ -1,10 +1,9 @@
 import time
 from typing import Any, Literal, Optional, Union
 
+from agent.service.plugin.base import BasePlugin
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel, Field
-
-from agent.service.plugin.base import BasePlugin
 
 
 def cur_timestamp() -> int:
