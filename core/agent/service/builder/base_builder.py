@@ -346,6 +346,7 @@ class BaseApiBuilder(BaseModel):
                 {
                     "model": model_name,
                     "base_url": normalized_base_url,
+                    "provider": normalized_provider or "openai",
                     "api_key": sk,
                     "app_id": app_id,
                 }
