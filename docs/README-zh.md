@@ -32,7 +32,6 @@
 ### 🔄 进行中
 
 - **[Astron 产业智变黑客松](https://awesome-astron-workflow.dev/activities/astron-industrial-intelligence-hackathon)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/horizon220222"><img src="https://github.com/horizon220222.png" width="20" align="center" /> @horizon220222</a>
-- **[Astron Agent & RPA 合肥城市行](https://mp.weixin.qq.com/s/tDJaoOLUrjBlgMLDurvHCw)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/doctorbruce"><img src="https://github.com/doctorbruce.png" width="20" align="center" /> @doctorbruce</a>
 
 ### 📅 往期
 
@@ -43,6 +42,7 @@
 - **[Astron训练营·第一期](https://www.aidaxue.com/astronCamp)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/Thomas1024-Astron"><img src="https://github.com/Thomas1024-Astron.png" width="20" align="center" /> @Thomas1024-Astron</a> <a href="https://github.com/abelzha"><img src="https://github.com/abelzha.png" width="20" align="center" /> @abelzha</a>
 - **[Astron Talk @ 重庆 Mini Tech Fest](https://mp.weixin.qq.com/s/HROf1zZpkPVDSsCQrv2jRg)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a>
 - **[Astron Agent 亮相 MWC Barcelona 2026](https://www.iflytek.com/en/news-events/mwc2026.html)**
+- **[Astron Agent & RPA 合肥城市行](https://mp.weixin.qq.com/s/tDJaoOLUrjBlgMLDurvHCw)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/doctorbruce"><img src="https://github.com/doctorbruce.png" width="20" align="center" /> @doctorbruce</a>
 
 ## 🚀 快速开始
 
