@@ -6,7 +6,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/iflytek/astron-agent?style=social)](https://github.com/iflytek/astron-agent/stargazers)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/iflytek/astron-agent)
 
-English | [简体中文](docs/README-zh.md)
+English | [简体中文](docs/README-zh.md) | [日本語](docs/README-ja.md)
 
 </div>
 
