@@ -113,6 +113,7 @@ docker compose -f docker-compose-with-auth.yaml up -d
 - [💡 最佳实践](https://www.xfyun.cn/doc/spark/AgentNew-%E6%8A%80%E6%9C%AF%E5%AE%9E%E8%B7%B5%E6%A1%88%E4%BE%8B.html)
 - [📱 应用案例](https://www.xfyun.cn/doc/spark/Agent05-%E5%BA%94%E7%94%A8%E6%A1%88%E4%BE%8B.html)
 - [❓ FAQ](https://www.xfyun.cn/doc/spark/Agent06-FAQ.html)
+- [🌐 开源工作流](https://awesome-astron-workflow.dev/#workflows)
 
 ## 🤝 参与贡献
 

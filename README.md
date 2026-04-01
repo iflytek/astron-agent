@@ -112,6 +112,7 @@ After startup, you can access the services at the following addresses:
 - [💡 Best Practices](https://www.xfyun.cn/doc/spark/AgentNew-%E6%8A%80%E6%9C%AF%E5%AE%9E%E8%B7%B5%E6%A1%88%E4%BE%8B.html)
 - [📱 Use Cases](https://www.xfyun.cn/doc/spark/Agent05-%E5%BA%94%E7%94%A8%E6%A1%88%E4%BE%8B.html)
 - [❓ FAQ](https://www.xfyun.cn/doc/spark/Agent06-FAQ.html)
+- [🌐 Open Source Workflows](https://awesome-astron-workflow.dev/#workflows)
 
 ## 🤝 Contributing
 
