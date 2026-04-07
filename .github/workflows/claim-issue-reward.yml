@@ -1,0 +1,47 @@
+name: Claim Issue Reward
+on:
+  issues:
+    types:
+      - closed
+
+concurrency:
+  group: claim-issue-reward-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  claim-issue-reward:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'reward')
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
+        with:
+          deno-version: v2.x
+
+      - name: Get Issue details
+        id: parse_issue
+        uses: stefanbuck/github-issue-parser@10dcc54158ba4c137713d9d69d70a2da63b6bda3 # v3.2.3
+        with:
+          template-path: ".github/ISSUE_TEMPLATE/reward-task.yml"
+
+      - name: Calculate & Save Reward
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deno --allow-run --allow-sys --allow-env --allow-read --allow-net=api.github.com \
+            .github/scripts/share-reward.ts \
+            "${{ github.repository_owner }}" \
+            "${{ github.event.repository.name }}" \
+            "${{ github.event.issue.number }}" \
+            "${{ steps.parse_issue.outputs.issueparser_payer || github.event.issue.user.login }}" \
+            "${{ steps.parse_issue.outputs.issueparser_currency }}" \
+            "${{ steps.parse_issue.outputs.issueparser_amount }}" \
+            "${{ steps.parse_issue.outputs.issueparser_source || '' }}"
