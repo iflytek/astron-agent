@@ -1377,6 +1377,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     // 人设相关字段
                     enablePersonality: personalityData.enablePersonality,
                     personalityConfig: personalityData.personalityConfig,
+                    botTemplate: botTemplateInfoValue?.botTemplate || '',
                   };
 
                   insertBot(obj)
@@ -1426,6 +1427,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     // 人设相关字段
                     enablePersonality: personalityData.enablePersonality,
                     personalityConfig: personalityData.personalityConfig,
+                    botTemplate: botTemplateInfoValue?.botTemplate || '',
                   };
 
                   insertBot(obj)
