@@ -11,6 +11,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 # Import Google GenAI SDK (new package name)
 from google.genai import Client
 from google.genai.types import Content, GenerateContentConfig, Part
+from pydantic import Field
 
 from workflow.consts.engine.chat_status import ChatStatus
 from workflow.engine.nodes.entities.llm_response import LLMResponse
@@ -30,6 +31,9 @@ class GoogleChatAI(ChatAI):
     """
 
     model_config = {"arbitrary_types_allowed": True, "protected_namespaces": ()}
+
+    # Google GenAI client instance (declared as field for Pydantic compatibility)
+    client: Optional[Client] = Field(default=None)
 
     def __init__(self, **data: Any) -> None:
         """

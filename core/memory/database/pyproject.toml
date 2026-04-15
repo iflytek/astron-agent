@@ -47,3 +47,6 @@ dependencies = [
     "types-requests>=2.32.4.20250913",
     "uvicorn>=0.34.2",
 ]
+
+[tool.isort]
+profile = "black"

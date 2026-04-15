@@ -109,3 +109,6 @@ dependencies = [
     "yarl==1.16.0 ; python_full_version >= '3.11' and python_full_version < '4.0'",
     "zipp==3.19.2 ; python_full_version >= '3.11' and python_full_version < '4.0'",
 ]
+
+[tool.isort]
+profile = "black"
