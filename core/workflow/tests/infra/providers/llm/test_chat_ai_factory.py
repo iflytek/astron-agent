@@ -71,8 +71,14 @@ sys.modules["google.genai.types"] = fake_google_genai_types_module
 
 # Force reload chat_ai_factory to ensure it picks up our fake OpenAI module
 # (it may have been imported by other tests before this file was loaded)
-if "workflow.infra.providers.llm.chat_ai_factory" in sys.modules:
-    importlib.reload(sys.modules["workflow.infra.providers.llm.chat_ai_factory"])
+for module_name in [
+    "workflow.infra.providers.llm.google.google_chat_llm",
+    "workflow.infra.providers.llm.openai.openai_chat_llm",
+    "workflow.infra.providers.llm.iflytek_spark.spark_chat_llm",
+    "workflow.infra.providers.llm.chat_ai_factory",
+]:
+    if module_name in sys.modules:
+        importlib.reload(sys.modules[module_name])
 
 # Now import the real modules (which will use our fakes)
 from workflow.consts.engine.model_provider import ModelProviderEnum  # noqa: E402
