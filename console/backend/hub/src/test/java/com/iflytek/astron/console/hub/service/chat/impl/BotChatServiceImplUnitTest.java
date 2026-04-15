@@ -436,7 +436,14 @@ class BotChatServiceImplUnitTest {
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
         when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(new ArrayList<>());
+        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(new ArrayList<>());
+        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
+        SparkChatRequest.MessageDto msg = new SparkChatRequest.MessageDto();
+        msg.setRole("user");
+        msg.setContent("test question");
+        historyMessages.add(msg);
+        lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
         when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
         doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
 
@@ -470,7 +477,14 @@ class BotChatServiceImplUnitTest {
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
         when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(new ArrayList<>());
+        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(new ArrayList<>());
+        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
+        SparkChatRequest.MessageDto msg = new SparkChatRequest.MessageDto();
+        msg.setRole("user");
+        msg.setContent("test question");
+        historyMessages.add(msg);
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
         when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
         doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
 

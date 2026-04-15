@@ -79,6 +79,10 @@ public class PromptChatService {
      */
     private void performChatRequest(JSONObject request, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug) throws IOException {
         String provider = normalizeProvider(request.getString("provider"));
+        // Handle managed web search directly (when managedWebSearch=true without tools array)
+        if (request.getBooleanValue("managedWebSearch") && !hasOpenAiSearchTool(request.getJSONArray("tools"))) {
+            applyManagedWebSearch(request, chatReqRecords);
+        }
         if (shouldHandleOpenAiFunctionToolCall(provider, request)
                 && handleOpenAiFunctionToolCall(request, emitter, streamId, chatReqRecords, edit, isDebug, provider)) {
             return;
@@ -378,6 +382,42 @@ public class PromptChatService {
             return new ManagedToolResult("实时联网搜索失败：" + errorMessage, "");
         }
         return new ManagedToolResult(augmentation.summary(), augmentation.traceJson());
+    }
+
+    /**
+     * Apply managed web search directly when managedWebSearch=true without tools array. Executes search
+     * and injects results into system message, then removes the flag.
+     */
+    private void applyManagedWebSearch(JSONObject request, ChatReqRecords chatReqRecords) {
+        String query = request.getString("managedSearchQuery");
+        if (StringUtils.isBlank(query)) {
+            request.remove("managedWebSearch");
+            return;
+        }
+        String userId = StringUtils.defaultIfBlank(
+                chatReqRecords == null ? request.getString("userId") : chatReqRecords.getUid(),
+                "managed-web-search");
+        ManagedWebSearchService.SearchAugmentation augmentation = managedWebSearchService.search(query, userId);
+        if (augmentation.failed()) {
+            request.remove("managedWebSearch");
+            return;
+        }
+        // Inject search summary into first message's content
+        JSONArray messages = request.getJSONArray("messages");
+        if (messages != null && !messages.isEmpty()) {
+            JSONObject firstMessage = messages.getJSONObject(0);
+            if (firstMessage != null) {
+                String existingContent = firstMessage.getString("content");
+                String augmentedContent = "[managed real-time web search results: " + augmentation.summary() + "]\n" + StringUtils.defaultString(existingContent);
+                firstMessage.put("content", augmentedContent);
+            }
+        }
+        // Remove managed web search fields so they don't trigger function tool call flow
+        request.remove("managedWebSearch");
+        request.remove("managedSearchQuery");
+        if (StringUtils.isNotBlank(augmentation.traceJson())) {
+            request.put("managedSearchTrace", augmentation.traceJson());
+        }
     }
 
     private String resolveSearchQueryFromToolCalls(JSONArray toolCalls, JSONObject request) {

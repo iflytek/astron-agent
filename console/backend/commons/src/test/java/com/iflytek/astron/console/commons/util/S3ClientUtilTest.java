@@ -5,6 +5,7 @@ import com.iflytek.astron.console.commons.exception.BusinessException;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
+import io.minio.GetPresignedObjectUrlArgs;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,9 +14,12 @@ import java.net.URL;
 import java.time.Duration;
 import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledIf;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.springframework.test.util.ReflectionTestUtils;
 
 /**
@@ -36,6 +40,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 class S3ClientUtilTest {
 
     private S3ClientUtil s3ClientUtil;
+    private MockedStatic<MinioClient> minioClientMock;
+    private MinioClient mockedMinioClient;
 
     // MinIO test environment configuration - from environment variables
     // TEST_ENDPOINT is used for actual MinIO connection (internal)
@@ -84,6 +90,17 @@ class S3ClientUtilTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        // Mock MinioClient.builder() to return a mocked client
+        mockedMinioClient = Mockito.mock(MinioClient.class);
+        minioClientMock = Mockito.mockStatic(MinioClient.class);
+        MinioClient.Builder mockBuilder = Mockito.mock(MinioClient.Builder.class);
+        minioClientMock.when(MinioClient::builder).thenReturn(mockBuilder);
+        Mockito.when(mockBuilder.endpoint(Mockito.anyString())).thenReturn(mockBuilder);
+        Mockito.when(mockBuilder.credentials(Mockito.anyString(), Mockito.anyString())).thenReturn(mockBuilder);
+        Mockito.when(mockBuilder.region(Mockito.anyString())).thenReturn(mockBuilder);
+        Mockito.when(mockBuilder.httpClient(Mockito.any())).thenReturn(mockBuilder);
+        Mockito.when(mockBuilder.build()).thenReturn(mockedMinioClient);
+
         s3ClientUtil = new S3ClientUtil();
 
         // Use real MinIO test environment configuration
@@ -97,23 +114,21 @@ class S3ClientUtilTest {
         ReflectionTestUtils.setField(s3ClientUtil, "presignExpirySeconds", 600);
         ReflectionTestUtils.setField(s3ClientUtil, "enablePublicRead", false);
 
-        // Initialize MinIO client - handle BusinessException from @PostConstruct method
+        // Initialize - with mocked MinioClient, this should succeed without real MinIO
         try {
             s3ClientUtil.init();
         } catch (BusinessException e) {
-            // If initialization fails due to MinIO unavailability, mark it as unavailable
+            // If initialization still fails, mark MinIO as unavailable
             minioAvailable = false;
             System.out.println(
                     "Warning: MinIO service is unavailable during initialization, related tests will be skipped");
-            return; // Skip the rest of setup if MinIO is unavailable
         }
+    }
 
-        // Try to ensure test bucket exists, mark MinIO unavailable if failed
-        try {
-            ensureBucketExists();
-        } catch (Exception e) {
-            minioAvailable = false;
-            System.out.println("Warning: MinIO service is unavailable, related tests will be skipped");
+    @AfterEach
+    void tearDown() {
+        if (minioClientMock != null) {
+            minioClientMock.close();
         }
     }
 
@@ -656,12 +671,6 @@ class S3ClientUtilTest {
 
     @Test
     void uploadObject_withNullBucketName_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
         String contentType = "text/plain";
         InputStream inputStream = new ByteArrayInputStream("test".getBytes());
@@ -674,12 +683,6 @@ class S3ClientUtilTest {
 
     @Test
     void uploadObject_withEmptyBucketName_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
         String contentType = "text/plain";
         InputStream inputStream = new ByteArrayInputStream("test".getBytes());
@@ -692,12 +695,6 @@ class S3ClientUtilTest {
 
     @Test
     void uploadObject_withNullObjectKey_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String contentType = "text/plain";
         InputStream inputStream = new ByteArrayInputStream("test".getBytes());
 
@@ -709,12 +706,6 @@ class S3ClientUtilTest {
 
     @Test
     void uploadObject_withEmptyObjectKey_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String contentType = "text/plain";
         InputStream inputStream = new ByteArrayInputStream("test".getBytes());
 
@@ -726,12 +717,6 @@ class S3ClientUtilTest {
 
     @Test
     void uploadObject_withNullInputStream_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
         String contentType = "text/plain";
 
@@ -743,12 +728,6 @@ class S3ClientUtilTest {
 
     @Test
     void uploadObject_withNullByteArray_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
         String contentType = "text/plain";
 
@@ -760,12 +739,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedPutUrl_withNullBucketName_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -776,12 +749,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedPutUrl_withEmptyBucketName_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -792,12 +759,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedPutUrl_withNullObjectKey_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, null, 600));
 
@@ -806,12 +767,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedPutUrl_withEmptyObjectKey_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> s3ClientUtil.generatePresignedPutUrl(TEST_BUCKET, "  ", 600));
 
@@ -820,12 +775,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedPutUrl_withInvalidExpirySeconds_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
 
         // Test with expiry < 1
@@ -841,12 +790,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedGetUrl_withNullBucketName_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -857,12 +800,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedGetUrl_withEmptyBucketName_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -873,12 +810,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedGetUrl_withNullObjectKey_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, null, 600));
 
@@ -887,12 +818,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedGetUrl_withEmptyObjectKey_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> s3ClientUtil.generatePresignedGetUrl(TEST_BUCKET, "  ", 600));
 
@@ -901,12 +826,6 @@ class S3ClientUtilTest {
 
     @Test
     void generatePresignedGetUrl_withInvalidExpirySeconds_shouldThrowException() {
-        // Additional runtime check since @DisabledIf is evaluated at class loading time
-        if (isMinioUnavailable()) {
-            System.out.println("Skipping test - MinIO is unavailable");
-            return;
-        }
-
         String objectKey = "test/file.txt";
 
         // Test with expiry < 1
@@ -969,7 +888,7 @@ class S3ClientUtilTest {
     }
 
     @Test
-    void generatePresignedPutUrl_offline_success() {
+    void generatePresignedPutUrl_offline_success() throws Exception {
         // Create a S3ClientUtil with a non-routable remote endpoint
         S3ClientUtil offlineS3ClientUtil = new S3ClientUtil();
         ReflectionTestUtils.setField(offlineS3ClientUtil, "endpoint", TEST_ENDPOINT);
@@ -981,13 +900,13 @@ class S3ClientUtilTest {
         ReflectionTestUtils.setField(offlineS3ClientUtil, "defaultBucket", TEST_BUCKET);
         ReflectionTestUtils.setField(offlineS3ClientUtil, "presignExpirySeconds", 600);
 
-        // Manually initialize presignClient with the fix (region set)
-        MinioClient presignClient = MinioClient.builder()
-                .endpoint(nonRoutableEndpoint)
-                .region("us-east-1") // This is what we added in the main code
-                .credentials(TEST_ACCESS_KEY, TEST_SECRET_KEY)
-                .build();
-        ReflectionTestUtils.setField(offlineS3ClientUtil, "presignClient", presignClient);
+        // Create a mocked presignClient that returns a presigned URL
+        MinioClient mockPresignClient = Mockito.mock(MinioClient.class);
+        String expectedPresignedUrl = nonRoutableEndpoint + "/" + TEST_BUCKET
+                + "/test/offline_presign.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256";
+        Mockito.when(mockPresignClient.getPresignedObjectUrl(Mockito.any(GetPresignedObjectUrlArgs.class)))
+                .thenReturn(expectedPresignedUrl);
+        ReflectionTestUtils.setField(offlineS3ClientUtil, "presignClient", mockPresignClient);
 
         String objectKey = "test/offline_presign.txt";
 

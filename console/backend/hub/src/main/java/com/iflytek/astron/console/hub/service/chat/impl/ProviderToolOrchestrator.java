@@ -60,7 +60,10 @@ final class ProviderToolOrchestrator {
                 request.put("tools", buildAnthropicTools());
                 request.put("anthropicBeta", "web-search-2025-03-05");
             }
-            case OPENAI_FUNCTION -> request.put("tools", buildOpenAiCompatibleSearchTools());
+            case OPENAI_FUNCTION -> {
+                request.put("managedWebSearch", true);
+                request.put("tools", buildOpenAiCompatibleSearchTools());
+            }
             case SPARK_NATIVE -> {
             }
             default -> {
