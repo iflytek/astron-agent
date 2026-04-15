@@ -36,8 +36,7 @@ def setup_python_path() -> None:
     if new_paths:
         new_paths_str = os.pathsep.join(new_paths)
         if python_path:
-            os.environ["PYTHONPATH"] = f"{new_paths_str} \
-                {os.pathsep}{python_path}"
+            os.environ["PYTHONPATH"] = f"{new_paths_str}{os.pathsep}{python_path}"
         else:
             os.environ["PYTHONPATH"] = new_paths_str
         print(f"🔧 PYTHONPATH: {os.environ['PYTHONPATH']}")

@@ -31,7 +31,11 @@ class TestManager:
     @patch("plugin.link.domain.models.manager.DatabaseService")
     @patch("plugin.link.domain.models.manager.RedisService")
     def test_init_data_base_with_cluster_addr(
-        self, mock_redis_service: Any, mock_db_service: Any, mock_getenv: Any, mock_create_engine: Any
+        self,
+        mock_redis_service: Any,
+        mock_db_service: Any,
+        mock_getenv: Any,
+        mock_create_engine: Any,
     ) -> None:
         """Test init_data_base with Redis cluster address"""
         # Mock environment variables
@@ -68,7 +72,11 @@ class TestManager:
     @patch("plugin.link.domain.models.manager.DatabaseService")
     @patch("plugin.link.domain.models.manager.RedisService")
     def test_init_data_base_fallback_to_single_redis(
-        self, mock_redis_service: Any, mock_db_service: Any, mock_getenv: Any, mock_create_engine: Any
+        self,
+        mock_redis_service: Any,
+        mock_db_service: Any,
+        mock_getenv: Any,
+        mock_create_engine: Any,
     ) -> None:
         """Test init_data_base falls back to single Redis address when cluster not available"""
         # Mock environment variables without cluster address
