@@ -264,12 +264,14 @@ def _write_watchdog_env(host_ip: str) -> None:
         service_port = os.getenv("SERVICE_PORT", "")
         kong_service = os.getenv("KONG_SERVICE_NAME", "")
         kong_admin = os.getenv("KONG_ADMIN_API", "")
-        f.write(f"""
+        f.write(
+            f"""
 export APP_HOST={host_ip}
 export APP_PORT={service_port}
 export KONG_SERVICE_NAME={kong_service}
 export KONG_ADMIN_API={kong_admin}
-""")
+"""
+        )
 
 
 def _print_env_vars(host_ip: str) -> None:

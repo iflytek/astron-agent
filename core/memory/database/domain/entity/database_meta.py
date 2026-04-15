@@ -22,10 +22,12 @@ async def get_id_by_did_uid(
         List of matching database IDs
     """
     db_id = await session.execute(
-        text("""
+        text(
+            """
             SELECT id FROM database_meta
             WHERE id=:id AND uid=:uid
-            """),
+            """
+        ),
         {"id": database_id, "uid": uid},
     )
     return db_id.all()
@@ -43,10 +45,12 @@ async def get_id_by_did(session: AsyncSession, database_id: int) -> Sequence[Row
         List of matching database IDs
     """
     db_id = await session.execute(
-        text("""
+        text(
+            """
             SELECT id FROM database_meta
             WHERE id=:id
-            """),
+            """
+        ),
         {"id": database_id},
     )
     return db_id.all()
@@ -61,9 +65,11 @@ async def del_database_meta_by_did(session: AsyncSession, database_id: int) -> N
         database_id: Database ID to delete
     """
     await session.execute(
-        text("""
+        text(
+            """
             DELETE FROM database_meta WHERE id=:database_id;
-            """),
+            """
+        ),
         {"database_id": database_id},
     )
 
@@ -81,11 +87,13 @@ async def update_database_meta_by_did_uid(
         description: New description to set
     """
     await session.execute(
-        text("""
+        text(
+            """
             UPDATE database_meta
             SET description=:description
             WHERE id=:database_id AND uid=:uid
-            """),
+            """
+        ),
         {"description": description, "database_id": database_id, "uid": uid},
     )
 
@@ -105,10 +113,12 @@ async def get_uid_by_did_space_id(
         List of matching user IDs
     """
     uid = await session.execute(
-        text("""
+        text(
+            """
             SELECT uid FROM database_meta
             WHERE id=:id AND space_id=:space_id
-            """),
+            """
+        ),
         {"id": database_id, "space_id": space_id},
     )
     return uid.all()
@@ -126,10 +136,12 @@ async def get_uid_by_space_id(session: AsyncSession, space_id: str) -> Optional[
         First matching user ID or None
     """
     uid = await session.execute(
-        text("""
+        text(
+            """
             SELECT uid FROM database_meta
             WHERE space_id=:space_id
-            """),
+            """
+        ),
         {"space_id": space_id},
     )
     return uid.first()

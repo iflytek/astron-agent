@@ -21,10 +21,12 @@ async def get_schema_name_by_did(
         List of schema names associated with the database
     """
     prod_test_schemas = await session.execute(
-        text("""
+        text(
+            """
             SELECT schema_name FROM schema_meta
             WHERE database_id=:database_id
-            """),
+            """
+        ),
         {"database_id": database_id},
     )
     return prod_test_schemas.all()
@@ -39,8 +41,10 @@ async def del_schema_meta_by_did(session: AsyncSession, database_id: int) -> Non
         database_id: ID of the database whose schemas should be deleted
     """
     await session.execute(
-        text("""
+        text(
+            """
             DELETE FROM schema_meta WHERE database_id=:database_id;
-            """),
+            """
+        ),
         {"database_id": database_id},
     )

@@ -516,7 +516,7 @@ class TestRedisService:
                 )
 
                 mock_redis.assert_called_with(
-                    host="localhost", port="6379", password="password"
+                    host="localhost", port=6379, password="password"
                 )
                 assert redis_service._client == mock_client
 

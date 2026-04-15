@@ -35,7 +35,8 @@ def get_latest_published_flow_by(
         sql_where += "AND version = :version"
 
     # Construct SQL query with semantic version ordering
-    stmt = text(f"""
+    stmt = text(
+        f"""
         SELECT *
         FROM flow
         WHERE {sql_where}
@@ -47,7 +48,8 @@ def get_latest_published_flow_by(
             -- Minor version number
             CAST(SUBSTRING_INDEX(version, '.', -1) AS SIGNED) DESC
         LIMIT 1;
-    """)
+    """
+    )
 
     # Set query parameters (release_status: 1|4 = published status)
     params: Dict[str, Any] = {"group_id": flow_group_id, "release_status": 1 | 4}

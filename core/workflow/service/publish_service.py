@@ -285,11 +285,13 @@ def _handle_version(
 
     # Update release_status for all workflows with the same group_id
     session.execute(
-        text("""
+        text(
+            """
                 UPDATE flow
                 SET release_status = :release_status
                 WHERE group_id = :group_id
-            """),
+            """
+        ),
         {
             "release_status": db_flow.release_status,
             "group_id": db_flow.group_id,

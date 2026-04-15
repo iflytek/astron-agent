@@ -69,12 +69,12 @@ fake_google_genai_types_module.Part = FakePart  # type: ignore[attr-defined]
 sys.modules["google.genai"] = fake_google_genai_module
 sys.modules["google.genai.types"] = fake_google_genai_types_module
 
-# Force reload chat_ai_factory to ensure it picks up our fake OpenAI module
+# Force reload chat_ai_factory to ensure it picks up our fake modules
 # (it may have been imported by other tests before this file was loaded)
+# Note: we only reload chat_ai_factory, NOT the fake modules themselves,
+# because fake modules created with types.ModuleType don't have __spec__
+# and can't be properly reloaded.
 for module_name in [
-    "workflow.infra.providers.llm.google.google_chat_llm",
-    "workflow.infra.providers.llm.openai.openai_chat_llm",
-    "workflow.infra.providers.llm.iflytek_spark.spark_chat_llm",
     "workflow.infra.providers.llm.chat_ai_factory",
 ]:
     if module_name in sys.modules:

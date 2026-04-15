@@ -25,13 +25,15 @@ def get_by(flow_group_id: int, app_alias_id: str, session: Session) -> License |
     """
     # Execute JOIN query to find license by app alias and flow group
     result = session.execute(
-        text("""
+        text(
+            """
                 SELECT license.*
                 FROM app
                 JOIN license ON app.id = license.app_id
                 WHERE app.alias_id = :alias_id AND license.group_id = :group_id
                 LIMIT 1;
-            """),
+            """
+        ),
         {"alias_id": app_alias_id, "group_id": flow_group_id},
     )
 
