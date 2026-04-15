@@ -33,7 +33,7 @@ class GoogleChatAI(ChatAI):
     model_config = {"arbitrary_types_allowed": True, "protected_namespaces": ()}
 
     # Google GenAI client instance (declared as field for Pydantic compatibility)
-    client: Optional[Client] = Field(default=None)
+    client: Optional[Client] = Field(default=None, exclude=True)
 
     def __init__(self, **data: Any) -> None:
         """
