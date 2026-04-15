@@ -170,7 +170,7 @@ class ProviderLLMModel(BaseLLMModel):
     ) -> AsyncIterator[CompatChunk]:
         raise NotImplementedError
 
-    async def stream(
+    async def stream(  # type: ignore[override]
         self, messages: list, stream: bool, span: Optional[Span] = None
     ) -> AsyncIterator[CompatChunk]:
         sp = span

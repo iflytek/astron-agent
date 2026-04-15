@@ -70,7 +70,7 @@ class OutputItem(BaseModel):
 
     id: str = Field(default="")
     name: str = Field(..., min_length=1)
-    output_schema: Dict[str, Any] = Field(..., default_factory=dict, alias="schema")
+    output_schema: Dict[str, Any] = Field(default_factory=dict, alias="schema")
     required: bool = Field(default=False)
 
 

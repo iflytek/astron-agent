@@ -31,7 +31,7 @@ from workflow.infra.providers.llm.iflytek_spark.spark_chat_auth import SparkChat
         websockets.ConnectionClosed
     ),  # Retry only on connection closed
 )
-async def recv_with_retry(ws_handle: websockets.WebSocketClientProtocol) -> str | bytes:
+async def recv_with_retry(ws_handle: "websockets.WebSocketClientProtocol") -> str | bytes:  # type: ignore[name-defined]
     """
     Receive message from WebSocket with retry mechanism.
 
@@ -154,7 +154,7 @@ class SparkChatAi(ChatAI):
 
     async def _recv_messages(
         self,
-        ws_handle: websockets.WebSocketClientProtocol,
+        ws_handle: "websockets.WebSocketClientProtocol",  # type: ignore[name-defined]
         timeout: float | None = None,
     ) -> AsyncIterator[Any]:
         """

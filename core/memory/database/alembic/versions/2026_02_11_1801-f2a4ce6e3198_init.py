@@ -7,6 +7,9 @@ Create Date: 2026-02-11 18:01:05.510121
 
 """
 
+# mypy: ignore-errors
+# Alembic migrations are generated code and not type-checked
+
 import os
 from typing import Sequence, Union
 

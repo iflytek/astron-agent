@@ -197,7 +197,7 @@ class AnthropicChatAI(ChatAI):
 
         # Content delta event - contains the actual text being streamed
         elif isinstance(event, RawContentBlockDeltaEvent):
-            text = event.delta.get("text", "")
+            text = event.delta.text if hasattr(event.delta, "text") else ""  # type: ignore[union-attr]
             return {
                 "choices": [
                     {
@@ -213,8 +213,8 @@ class AnthropicChatAI(ChatAI):
 
         # Message delta event - contains usage information
         elif isinstance(event, RawMessageDeltaEvent):
-            input_tokens = event.message.get("usage", {}).get("input_tokens", 0)
-            output_tokens = event.message.get("usage", {}).get("output_tokens", 0)
+            input_tokens = event.delta.usage.input_tokens  # type: ignore[attr-defined]
+            output_tokens = event.delta.usage.output_tokens  # type: ignore[attr-defined]
             return {
                 "choices": [
                     {
@@ -327,7 +327,7 @@ class AnthropicChatAI(ChatAI):
             async with client.messages.stream(**api_params) as stream:
                 async for event in stream:
                     # Normalize the event to our standard format
-                    normalized = self._normalize_event(event, usage)
+                    normalized = self._normalize_event(event, usage)  # type: ignore[arg-type]
 
                     if normalized is None:
                         continue

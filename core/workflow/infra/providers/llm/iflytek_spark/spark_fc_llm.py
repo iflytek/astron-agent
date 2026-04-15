@@ -86,7 +86,9 @@ class SparkFunctionCallAi(BaseModel):
         return json.dumps(payload_data, ensure_ascii=False)
 
     async def _recv_messages(
-        self, ws_handle: websockets.WebSocketClientProtocol, span: Span
+        self,
+        ws_handle: "websockets.WebSocketClientProtocol",  # type: ignore[name-defined]
+        span: Span,
     ) -> tuple[str, dict, str]:
         """
         Receive and process function call messages from WebSocket.

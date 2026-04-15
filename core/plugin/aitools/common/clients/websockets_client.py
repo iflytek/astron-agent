@@ -52,7 +52,7 @@ class WebSocketClient(InstrumentedClient):
         self.parent_span = span or NoOpSpanAdapter()
         self.task_factory = task_factory or AsyncIOTaskFactory()
 
-        self.ws: websockets.WebSocketClientProtocol
+        self.ws: "websockets.WebSocketClientProtocol"  # type: ignore[name-defined]
         self.send_queue: asyncio.Queue[Any] = asyncio.Queue()
         self.recv_queue: asyncio.Queue[Any] = asyncio.Queue()
         self.send_data_list: List = []

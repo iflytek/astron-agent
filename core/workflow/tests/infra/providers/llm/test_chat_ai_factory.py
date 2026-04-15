@@ -79,10 +79,10 @@ from workflow.consts.engine.model_provider import ModelProviderEnum  # noqa: E40
 from workflow.infra.providers.llm.anthropic.anthropic_chat_llm import (  # noqa: E402
     AnthropicChatAI,
 )
+from workflow.infra.providers.llm.chat_ai_factory import ChatAIFactory  # noqa: E402
 from workflow.infra.providers.llm.google.google_chat_llm import (  # noqa: E402
     GoogleChatAI,
 )
-from workflow.infra.providers.llm.chat_ai_factory import ChatAIFactory  # noqa: E402
 
 
 def build_chat_ai(provider: str) -> object:

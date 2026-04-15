@@ -112,7 +112,7 @@ class GoogleChatAI(ChatAI):
                     {
                         "role": "user",
                         "parts": [
-                            Part.from_data(
+                            Part.from_data(  # type: ignore[attr-defined]
                                 mime_type="image/jpeg", data=item.get("content", "")
                             ),
                         ],
@@ -198,7 +198,9 @@ class GoogleChatAI(ChatAI):
                 if isinstance(image_data, str):
                     # Assuming it's base64 encoded image data
                     try:
-                        part = Part.from_data(mime_type="image/jpeg", data=image_data)
+                        part = Part.from_data(  # type: ignore[attr-defined]
+                            mime_type="image/jpeg", data=image_data
+                        )
                         contents.append(Content(role="user", parts=[part]))
                     except Exception as e:
                         # Log error but continue
@@ -290,7 +292,7 @@ class GoogleChatAI(ChatAI):
             usage = {}  # Initialize usage dict
 
             # Use the async streaming method from the client
-            async for chunk in self.client.aio.models.generate_content_stream(
+            async for chunk in self.client.aio.models.generate_content_stream(  # type: ignore[union-attr]
                 model=self.model_name,
                 contents=contents,
                 config=generation_config,
