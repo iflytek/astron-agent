@@ -143,9 +143,26 @@ public class SpaceBizServiceImpl implements SpaceBizService {
         if (space == null) {
             return ApiResult.error(ResponseEnum.SPACE_NOT_EXISTS);
         }
+        String uid = RequestContextUtil.getUID();
+        // Enterprise space: verify user is enterprise admin via DB query (not header)
+        if (space.getEnterpriseId() != null) {
+            EnterpriseUser enterpriseUser = enterpriseUserService.getEnterpriseUserByUid(space.getEnterpriseId(), uid);
+            if (enterpriseUser == null) {
+                return ApiResult.error(ResponseEnum.SPACE_USER_NOT_ENTERPRISE_USER);
+            }
+            if (!(Objects.equals(enterpriseUser.getRole(), EnterpriseRoleEnum.OFFICER.getCode()) ||
+                    Objects.equals(enterpriseUser.getRole(), EnterpriseRoleEnum.GOVERNOR.getCode()))) {
+                return ApiResult.error(ResponseEnum.SPACE_USER_NOT_ENTERPRISE_ADMIN);
+            }
+        } else {
+            // Personal space: verify current user is the owner
+            SpaceUser spaceUser = spaceUserService.getSpaceUserByUid(spaceId, uid);
+            if (spaceUser == null || !Objects.equals(spaceUser.getRole(), SpaceRoleEnum.OWNER.getCode())) {
+                return ApiResult.error(ResponseEnum.SPACE_USER_NOT_OWNER);
+            }
+        }
         if (spaceService.removeById(spaceId)) {
             try {
-                String uid = RequestContextUtil.getUID();
                 HttpServletRequest request = RequestContextUtil.getCurrentRequest();
                 log.debug("Deleting space related assistants, space ID: {}, uid: {}", spaceId, uid);
                 chatBotDataService.deleteBotForDeleteSpace(uid, spaceId, request);
@@ -167,10 +184,31 @@ public class SpaceBizServiceImpl implements SpaceBizService {
     @Override
     @Transactional
     public ApiResult<String> updateSpace(SpaceUpdateDTO spaceUpdateDTO) {
-        if (!Objects.equals(SpaceInfoUtil.getSpaceId(), spaceUpdateDTO.getId())) {
-            return ApiResult.error(ResponseEnum.SPACE_APPLICATION_CURRENT_SPACE_INCONSISTENT);
-        }
         Space space = spaceService.getById(spaceUpdateDTO.getId());
+        if (space == null) {
+            return ApiResult.error(ResponseEnum.SPACE_NOT_EXISTS);
+        }
+        String uid = RequestContextUtil.getUID();
+        // Personal space: verify current user is the owner, then check header consistency
+        if (space.getEnterpriseId() == null) {
+            SpaceUser spaceUser = spaceUserService.getSpaceUserByUid(space.getId(), uid);
+            if (spaceUser == null || !Objects.equals(spaceUser.getRole(), SpaceRoleEnum.OWNER.getCode())) {
+                return ApiResult.error(ResponseEnum.SPACE_USER_NOT_OWNER);
+            }
+            if (!Objects.equals(SpaceInfoUtil.getSpaceId(), spaceUpdateDTO.getId())) {
+                return ApiResult.error(ResponseEnum.SPACE_APPLICATION_CURRENT_SPACE_INCONSISTENT);
+            }
+        } else {
+            // Enterprise space: verify user is enterprise admin via DB query (not header)
+            EnterpriseUser enterpriseUser = enterpriseUserService.getEnterpriseUserByUid(space.getEnterpriseId(), uid);
+            if (enterpriseUser == null) {
+                return ApiResult.error(ResponseEnum.SPACE_USER_NOT_ENTERPRISE_USER);
+            }
+            if (!(Objects.equals(enterpriseUser.getRole(), EnterpriseRoleEnum.OFFICER.getCode()) ||
+                    Objects.equals(enterpriseUser.getRole(), EnterpriseRoleEnum.GOVERNOR.getCode()))) {
+                return ApiResult.error(ResponseEnum.SPACE_USER_NOT_ENTERPRISE_ADMIN);
+            }
+        }
         if (spaceService.checkExistByName(spaceUpdateDTO.getName(), spaceUpdateDTO.getId())) {
             return ApiResult.error(ResponseEnum.SPACE_NAME_DUPLICATE);
         }
