@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Astron Agent | 企业级 Agentic Workflow 平台</title>
+  <meta
+    name="description"
+    content="Astron Agent 是企业级、商业友好的 Agentic Workflow 开发平台，融合 AI 工作流编排、模型管理、MCP 与工具集成、RPA 自动化与团队协作能力。"
+  >
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="hero">
+    <nav class="nav container">
+      <a class="brand" href="#top">
+        <img src="./assets/logo.svg" alt="Astron Agent logo">
+        <span>Astron Agent</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">能力亮点</a>
+        <a href="#architecture">平台架构</a>
+        <a href="#quickstart">快速开始</a>
+        <a href="#resources">资源入口</a>
+        <a class="nav-cta" href="https://github.com/iflytek/astron-agent" target="_blank" rel="noreferrer">GitHub</a>
+      </div>
+    </nav>
+
+    <section class="hero-main container" id="top">
+      <div class="hero-copy">
+        <span class="eyebrow">Open Source · Apache 2.0 · Enterprise Ready</span>
+        <h1>构建面向企业落地的<br>Agentic Workflow 平台</h1>
+        <p class="hero-text">
+          Astron Agent 聚合 AI 工作流编排、模型管理、MCP 与工具集成、RPA 自动化以及多团队协作能力，
+          帮助企业以更低成本快速构建高可用、可扩展、可运营的智能体应用。
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/iflytek/astron-agent" target="_blank" rel="noreferrer">查看源码</a>
+          <a class="button button-secondary" href="https://agent.xfyun.cn" target="_blank" rel="noreferrer">体验 Astron Cloud</a>
+        </div>
+        <ul class="hero-metrics">
+          <li>
+            <strong>企业级高可用</strong>
+            <span>支持面向生产环境的部署与运维</span>
+          </li>
+          <li>
+            <strong>MCP + RPA</strong>
+            <span>实现从决策到动作的执行闭环</span>
+          </li>
+          <li>
+            <strong>多语言微服务</strong>
+            <span>覆盖前端、Java、Python、Go 核心能力</span>
+          </li>
+        </ul>
+      </div>
+      <div class="hero-visual">
+        <div class="hero-card">
+          <img src="./assets/astron-readme.png" alt="Astron Agent preview">
+        </div>
+      </div>
+    </section>
+  </header>
+
+  <main>
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-heading">
+          <span class="eyebrow">Why Astron Agent</span>
+          <h2>围绕企业生产场景设计</h2>
+          <p>面向高可靠部署、跨系统连接与业务落地，提供从平台底座到业务编排的完整能力。</p>
+        </div>
+        <div class="feature-grid">
+          <article class="card">
+            <h3>企业级高可用</h3>
+            <p>覆盖开发、构建、配置、部署与治理流程，适用于企业内外网及复杂运行环境。</p>
+          </article>
+          <article class="card">
+            <h3>灵活模型接入</h3>
+            <p>支持从 API 快速验证到企业级 MaaS 与私有化模型集群部署的多种接入方式。</p>
+          </article>
+          <article class="card">
+            <h3>工具与 MCP 生态</h3>
+            <p>兼容多类 AI 能力与工具调用模式，帮助 Agent 高效调用外部能力与业务系统。</p>
+          </article>
+          <article class="card">
+            <h3>原生 RPA 融合</h3>
+            <p>让 Agent 不止能分析和决策，还能跨系统执行流程，实现自动化闭环。</p>
+          </article>
+          <article class="card">
+            <h3>商业友好开源</h3>
+            <p>采用 Apache 2.0 协议发布，可自由修改、分发和商用，便于企业长期演进。</p>
+          </article>
+          <article class="card">
+            <h3>多模块协同架构</h3>
+            <p>控制台、核心服务、知识、记忆、租户、插件与部署配置解耦，便于扩展和维护。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-accent" id="architecture">
+      <div class="container">
+        <div class="section-heading">
+          <span class="eyebrow">Architecture</span>
+          <h2>统一控制台 + 核心服务集群</h2>
+          <p>前端、控制台后端、Agent / Workflow / Knowledge / Memory / Tenant 等服务职责清晰，适合多团队协作开发。</p>
+        </div>
+        <div class="architecture-grid">
+          <article class="media-card">
+            <img src="./assets/arch.png" alt="Astron Agent architecture diagram">
+            <div>
+              <h3>总体架构</h3>
+              <p>控制台前后端、核心执行引擎与插件系统协同工作，形成端到端的智能体平台能力。</p>
+            </div>
+          </article>
+          <article class="media-card">
+            <img src="./assets/structure-zh.png" alt="Astron Agent structure diagram">
+            <div>
+              <h3>模块结构</h3>
+              <p>仓库涵盖 React + TypeScript、Java Spring Boot、Python FastAPI 与 Go 服务，支持模块化演进。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="quickstart">
+      <div class="container">
+        <div class="section-heading">
+          <span class="eyebrow">Quick Start</span>
+          <h2>两步开始本地体验</h2>
+          <p>推荐先使用 Docker Compose 快速拉起整套环境，后续再根据需要切换到 Helm 与 Kubernetes。</p>
+        </div>
+        <div class="quickstart-grid">
+          <article class="code-card">
+            <h3>1. 克隆并准备配置</h3>
+            <pre><code>git clone https://github.com/iflytek/astron-agent.git
+cd astron-agent/docker/astronAgent
+cp .env.example .env</code></pre>
+          </article>
+          <article class="code-card">
+            <h3>2. 启动服务</h3>
+            <pre><code>docker compose -f docker-compose-with-auth.yaml up -d</code></pre>
+            <p>默认可访问 `http://localhost/`，Casdoor 管理界面位于 `http://localhost:8000`。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section-accent" id="resources">
+      <div class="container">
+        <div class="section-heading">
+          <span class="eyebrow">Resources</span>
+          <h2>文档、社区与部署入口</h2>
+          <p>快速跳转到部署文档、配置文档、FAQ 与社区支持渠道。</p>
+        </div>
+        <div class="resource-grid">
+          <a class="resource-card" href="https://github.com/iflytek/astron-agent/blob/main/docs/DEPLOYMENT_GUIDE_zh.md" target="_blank" rel="noreferrer">
+            <h3>部署指南</h3>
+            <p>查看 Docker、Helm 与环境配置说明。</p>
+          </a>
+          <a class="resource-card" href="https://github.com/iflytek/astron-agent/blob/main/docs/CONFIGURATION_zh.md" target="_blank" rel="noreferrer">
+            <h3>配置说明</h3>
+            <p>了解核心环境变量、鉴权与基础设施配置。</p>
+          </a>
+          <a class="resource-card" href="https://github.com/iflytek/astron-agent/blob/main/FAQ.md" target="_blank" rel="noreferrer">
+            <h3>FAQ</h3>
+            <p>排查常见问题并查看使用建议。</p>
+          </a>
+          <a class="resource-card" href="https://github.com/iflytek/astron-agent/discussions" target="_blank" rel="noreferrer">
+            <h3>社区讨论</h3>
+            <p>参与 GitHub Discussions，交流实践经验与需求。</p>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container community">
+        <div class="community-copy">
+          <span class="eyebrow">Community</span>
+          <h2>加入社区，共建 Astron Agent</h2>
+          <p>欢迎通过 GitHub Issues、Discussions 与企业微信群参与反馈、共建与协作。</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/iflytek/astron-agent/issues" target="_blank" rel="noreferrer">提交 Issue</a>
+            <a class="button button-secondary" href="https://github.com/iflytek/astron-agent/discussions" target="_blank" rel="noreferrer">参与讨论</a>
+          </div>
+        </div>
+        <div class="community-card">
+          <img src="./assets/wecom-group.png" alt="Astron Agent community group">
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>Astron Agent</strong>
+        <p>企业级、商业友好的 Agentic Workflow 开发平台。</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/iflytek/astron-agent" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://agent.xfyun.cn" target="_blank" rel="noreferrer">Astron Cloud</a>
+        <a href="https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html" target="_blank" rel="noreferrer">官方文档</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./script.js"></script>
+</body>
+</html>
