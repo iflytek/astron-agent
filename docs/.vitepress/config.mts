@@ -19,7 +19,7 @@ export default defineConfig({
       title: "Astron Agent",
       description: "企业级、商业友好的 Agentic Workflow 开发平台文档站。",
       themeConfig: {
-        logo: "/logo.svg",
+        logo: "/logo-square.png",
         siteTitle: "Astron Agent",
         nav: [
           { text: "首页", link: "/" },
@@ -92,7 +92,7 @@ export default defineConfig({
       title: "Astron Agent",
       description: "Documentation for the enterprise-grade, commercially-friendly Agentic Workflow platform.",
       themeConfig: {
-        logo: "/logo.svg",
+        logo: "/logo-square.png",
         siteTitle: "Astron Agent",
         nav: [
           { text: "Home", link: "/en/" },

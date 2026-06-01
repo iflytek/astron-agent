@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
     <header class="astron-home__hero">
       <nav class="astron-home__nav astron-container">
         <a class="astron-home__brand" :href="withBase('/')">
-          <img :src="withBase('/logo.svg')" alt="Astron Agent logo">
+          <img :src="withBase('/logo-square.png')" alt="Astron Agent logo">
           <span>Astron Agent</span>
         </a>
         <div class="astron-home__nav-links">
