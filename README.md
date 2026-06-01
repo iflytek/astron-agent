@@ -1,6 +1,8 @@
-[![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
-
 <div align="center">
+
+[![Astron Agent Logo](./logo.svg)](https://iflytek.github.io/astron-agent/)
+
+[![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
 
 [![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/iflytek/astron-agent?style=social)](https://github.com/iflytek/astron-agent/stargazers)

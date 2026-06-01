@@ -264,6 +264,8 @@ const enContent = {
 
 const isEnglish = computed(() => lang.value === "en-US");
 const content = computed(() => (isEnglish.value ? enContent : zhContent));
+const localeSwitchLabel = computed(() => (isEnglish.value ? "简体中文" : "English"));
+const localeSwitchHref = computed(() => withBase(isEnglish.value ? "/" : "/en/"));
 
 const localizePath = (path: string) => {
   const localePrefix = isEnglish.value ? "/en" : "";
@@ -306,6 +308,7 @@ onBeforeUnmount(() => {
           <a :href="localizePath('/guide/deploy')">{{ content.nav.deploy }}</a>
           <a :href="localizePath('/guide/config')">{{ content.nav.config }}</a>
           <a :href="localizePath('/faq')">FAQ</a>
+          <a class="astron-home__nav-locale" :href="localeSwitchHref">{{ localeSwitchLabel }}</a>
           <a class="astron-home__nav-cta" href="https://github.com/iflytek/astron-agent" target="_blank" rel="noreferrer">{{ content.nav.github }}</a>
         </div>
       </nav>

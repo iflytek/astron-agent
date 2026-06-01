@@ -76,14 +76,23 @@
 }
 
 .astron-home__nav-cta,
+.astron-home__nav-locale,
 .astron-home__button--secondary {
   border: 1px solid var(--astron-line);
   background: rgba(255, 255, 255, 0.02);
 }
 
+.astron-home__nav-locale,
 .astron-home__nav-cta {
   padding: 10px 16px;
   border-radius: 999px;
+}
+
+.astron-home__nav-locale {
+  color: var(--astron-muted);
+}
+
+.astron-home__nav-cta {
   color: var(--astron-text);
 }
 
