@@ -6,7 +6,7 @@ on:
       - main
       - master
     paths:
-      - "website/**"
+      - "docs/**"
       - ".github/workflows/deploy-pages.yml"
   workflow_dispatch:
 
@@ -29,13 +29,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
+
+      - name: Install dependencies
+        working-directory: docs
+        run: npm install
+
+      - name: Build docs site
+        working-directory: docs
+        env:
+          DOCS_BASE: /astron-agent/
+        run: npm run docs:build
+
+      - name: Add .nojekyll
+        run: touch docs/.vitepress/dist/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./website
+          path: ./docs/.vitepress/dist
 
       - name: Deploy to GitHub Pages
         id: deployment

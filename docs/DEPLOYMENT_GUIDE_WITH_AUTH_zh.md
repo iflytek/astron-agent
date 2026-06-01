@@ -71,9 +71,9 @@ cd docker/astronAgent
 cp .env.example .env
 ```
 
-`.env` 文件只用于配置服务启动、访问地址、认证、数据库、Redis、对象存储等基础设施参数。RAGFlow、讯飞开放平台、AI Ability Chat、虚拟人能力、星火知识库等业务能力账号不再写入 `.env`，请在 AstronAgent 启动后登录控制台，通过 **平台账号管理** 页面配置。
+#### 2.1 配置知识库服务连接（可选,如已部署 RagFlow）
 
-#### 2.1 配置服务主机地址
+编辑 docker/astronAgent/.env 文件，配置 RagFlow 连接信息：
 
 ```bash
 # 进入 astronAgent 目录
@@ -83,21 +83,23 @@ cd docker/astronAgent
 vim .env
 ```
 
-配置 AstronAgent 服务的主机地址：
+**关键配置项：**
 
 ```env
-HOST_BASE_ADDRESS=http://localhost
+# RAGFlow配置
+RAGFLOW_BASE_URL=http://localhost:18080
+RAGFLOW_API_TOKEN=ragflow-your-api-token-here
+RAGFLOW_TIMEOUT=60
+RAGFLOW_DEFAULT_GROUP=星辰知识库
 ```
 
-**说明：**
-- 如果您使用域名访问，请将 `localhost` 替换为您的域名
-- 确保 nginx 和 minio 的端口已正确开放
+**获取 RagFlow API Token：**
+1. 访问 RagFlow Web界面：http://localhost:18080
+2. 登录并点击头像进入用户设置
+3. 点击API生成 API KEY
+4. 将生成的 API KEY 更新到.env文件中的RAGFLOW_API_TOKEN
 
-#### 2.2 准备业务能力账号信息（启动后在页面配置）
-
-以下配置不需要写入 `.env` 文件。启动 AstronAgent 后，登录控制台，在左侧菜单进入 **平台账号管理**，按卡片填写即可；保存后全局生效，不需要重启容器。如果某个功能依赖对应能力但尚未配置，系统会提示前往平台账号管理配置，不会阻塞系统启动。
-
-**讯飞开放平台**（内置星火模型、实时语音转写、图片生成等能力会使用）：
+#### 2.2 配置 讯飞开放平台 相关 APP_ID API_KEY 等信息（可选，内置的部分功能需要使用开放平台的能力）
 
 获取文档详见：https://www.xfyun.cn/doc/platform/quickguide.html
 
@@ -107,36 +109,26 @@ HOST_BASE_ADDRESS=http://localhost
 - 实时语音转写API: https://console.xfyun.cn/services/rta
 - 图片生成API: https://www.xfyun.cn/services/wtop
 
-需要准备并在页面中填写：
-- `PLATFORM_APP_ID`
-- `PLATFORM_API_KEY`
-- `PLATFORM_API_SECRET`
-- `SPARK_API_PASSWORD`
-- `SPARK_RTASR_API_KEY`
+编辑 docker/astronAgent/.env 文件，更新相关环境变量：
+```env
+PLATFORM_APP_ID=your-app-id
+PLATFORM_API_KEY=your-api-key
+PLATFORM_API_SECRET=your-api-secret
 
-**AI Ability Chat**（Agent 内部默认模型接口，OpenAI 协议）：
-- `AI_ABILITY_CHAT_BASE_URL`
-- `AI_ABILITY_CHAT_MODEL`
-- `AI_ABILITY_CHAT_API_KEY`
+SPARK_API_PASSWORD=your-api-password
+SPARK_RTASR_API_KEY=your-rtasr-api-key
+```
 
-**虚拟人能力**：
-- `SPARK_VIRTUAL_MAN_APP_ID`
-- `SPARK_VIRTUAL_MAN_API_KEY`
-- `SPARK_VIRTUAL_MAN_API_SECRET`
+#### 2.3 配置 Agent 内部默认模型接口（OpenAI协议）
 
-**知识库平台**：
-- RAGFlow：`RAGFLOW_BASE_URL`、`RAGFLOW_API_TOKEN`、`RAGFLOW_TIMEOUT`、`RAGFLOW_DEFAULT_GROUP`
-- 星火知识库：`XINGHUO_DATASET_ID`
+编辑 docker/astronAgent/.env 文件，更新相关环境变量：
+```env
+AI_ABILITY_CHAT_BASE_URL=https://spark-api-open.xf-yun.com/v1
+AI_ABILITY_CHAT_MODEL=your-model-id
+AI_ABILITY_CHAT_API_KEY=your-api-key
+```
 
-创建知识库时会选择使用 **RAGFlow** 或 **星火知识库**，只需要配置实际使用的平台。
-
-**获取 RagFlow API Token：**
-1. 访问 RagFlow Web界面：http://localhost:18080
-2. 登录并点击头像进入用户设置
-3. 点击API生成 API KEY
-4. 在 **平台账号管理 - 知识库平台** 中填写到 `RAGFLOW_API_TOKEN`
-
-**获取星火知识库数据集ID：**
+#### 2.4 配置星火 RAG 云服务（可选）
 
 星火RAG云服务提供两种使用方式：
 
@@ -163,7 +155,22 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 - 请将 `your_app_id` 替换为您的实际 APP ID
 - 请将 `your_api_secret` 替换为您的实际 API Secret
 
-获取到数据集ID后，请在 **平台账号管理 - 知识库平台** 中填写到 `XINGHUO_DATASET_ID`。
+获取到数据集ID后，请将数据集ID更新到 docker/astronAgent/.env 文件中：
+```env
+XINGHUO_DATASET_ID=
+```
+
+#### 2.5 配置服务主机地址
+
+编辑 docker/astronAgent/.env 文件，配置 AstronAgent 服务的主机地址：
+
+```env
+HOST_BASE_ADDRESS=http://localhost
+```
+
+**说明：**
+- 如果您使用域名访问，请将 `localhost` 替换为您的域名
+- 确保 nginx 和 minio 的端口已正确开放
 
 ### 第三步：启动 AstronAgent 核心服务（包含 Casdoor 认证服务）
 
@@ -180,22 +187,11 @@ docker compose -f docker-compose-with-auth.yaml up -d
 **说明：**
 - Casdoor默认的登录账户名：`admin`，密码：`123`
 
-### 第四步：配置平台账号管理（可选，按需配置业务能力）
-
-AstronAgent 启动后，访问控制台并登录，在左侧菜单进入 **平台账号管理**。平台账号管理与 **应用管理**、**资源管理** 等菜单同级，包含以下四个配置卡片：
-
-1. **讯飞开放平台**：填写 `PLATFORM_APP_ID`、`PLATFORM_API_KEY`、`PLATFORM_API_SECRET`、`SPARK_API_PASSWORD`、`SPARK_RTASR_API_KEY`
-2. **AI Ability Chat**：填写 `AI_ABILITY_CHAT_BASE_URL`、`AI_ABILITY_CHAT_MODEL`、`AI_ABILITY_CHAT_API_KEY`
-3. **虚拟人能力**：填写 `SPARK_VIRTUAL_MAN_APP_ID`、`SPARK_VIRTUAL_MAN_API_KEY`、`SPARK_VIRTUAL_MAN_API_SECRET`
-4. **知识库平台**：分别填写 RAGFlow 的 `RAGFLOW_BASE_URL`、`RAGFLOW_API_TOKEN`、`RAGFLOW_TIMEOUT`、`RAGFLOW_DEFAULT_GROUP`，以及星火知识库的 `XINGHUO_DATASET_ID`
-
-保存配置后会立即全局生效，系统会自动刷新缓存，不需要重启 AstronAgent 容器。
-
-### 第五步：修改 Casdoor 认证（可选）
+### 第四步：修改 Casdoor 认证（可选）
 
 您可以根据需要在 Casdoor 中创建新的应用和组织，并将配置信息更新到 `.env` 文件中（已存在默认组织和应用）。
 
-#### 5.1 配置 Casdoor 应用
+#### 4.1 配置 Casdoor 应用
 
 **获取 Casdoor 配置信息：**
 1. 访问 Casdoor 管理控制台： [http://localhost:8000](http://localhost:8000)

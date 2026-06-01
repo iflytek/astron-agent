@@ -107,6 +107,9 @@ docker compose -f docker-compose-with-auth.yaml up -d
 
 - [🚀 部署指南](DEPLOYMENT_GUIDE_zh.md)
 - [🔧 配置说明](CONFIGURATION_zh.md)
+- [🏗️ 模块说明](PROJECT_MODULES_zh.md)
+- [🤝 贡献指南](CONTRIBUTING_CN.md)
+- [✅ Pre-commit 使用指南](PRE-COMMIT_zh.md)
 - [🚀 快速开始](https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html)
 - [📘 开发指南](https://www.xfyun.cn/doc/spark/Agent03-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.html#_1-%E6%8C%87%E4%BB%A4%E5%9E%8B%E6%99%BA%E8%83%BD%E4%BD%93%E5%BC%80%E5%8F%91)
 - [📖 教程](https://scn5s6198j3j.feishu.cn/wiki/VefnwvPbridJBikCUb1cYXO9nYb)
@@ -114,6 +117,41 @@ docker compose -f docker-compose-with-auth.yaml up -d
 - [📱 应用案例](https://www.xfyun.cn/doc/spark/Agent05-%E5%BA%94%E7%94%A8%E6%A1%88%E4%BE%8B.html)
 - [❓ FAQ](https://www.xfyun.cn/doc/spark/Agent06-FAQ.html)
 - [🌐 开源工作流](https://awesome-astron-workflow.dev/#workflows)
+
+## 🖥️ 文档站本地预览
+
+如果要预览当前 GitHub Pages 文档站，请在仓库根目录下进入 `docs/` 执行：
+
+```bash
+cd docs
+npm install
+npm run docs:dev
+```
+
+本地开发服务器启动后，可在浏览器访问终端输出的本地地址进行预览。
+
+如果只想验证构建结果，可执行：
+
+```bash
+cd docs
+npm run docs:build
+```
+
+## ✅ 提交前检查清单
+
+提交文档站或仓库文档改动前，建议至少完成以下检查：
+
+- [ ] 本地能打开文档站预览，确认首页、导航和侧边栏跳转正常
+- [ ] 文档页面中的站内链接和外链可访问，没有明显失效链接
+- [ ] 新增或修改的命令、路径、环境变量名称与仓库实际内容一致
+- [ ] 如涉及贡献流程，已对照 [贡献指南](CONTRIBUTING_CN.md) 和 [Pre-commit 使用指南](PRE-COMMIT_zh.md) 核对
+- [ ] 如本机已安装相关工具，已运行必要检查，例如 `pre-commit run --all-files`
+- [ ] 没有误提交密钥、令牌、账户信息或其他敏感内容
+
+如果本次改动包含文档站配置，建议额外确认：
+
+- [ ] `docs/.vitepress/config.mts` 中新增导航项和文档文件路径保持一致
+- [ ] GitHub Pages 与 Vercel 的构建输出目录仍然指向 `docs/.vitepress/dist`
 
 ## 🤝 参与贡献
 
