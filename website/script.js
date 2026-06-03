@@ -1,5 +1,5 @@
 const revealTargets = document.querySelectorAll(
-  ".section-heading, .card, .media-card, .code-card, .resource-card, .community-card, .hero-metrics li"
+  ".section-heading, .card, .media-card, .code-card, .resource-card, .community-card, .hero-metrics li, .landscape-highlights li, .landscape-image"
 );
 
 revealTargets.forEach((element) => {
