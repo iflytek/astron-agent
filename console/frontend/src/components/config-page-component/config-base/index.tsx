@@ -78,6 +78,10 @@ import {
   Knowledge,
 } from './types';
 import { getEffectiveToolConfig, serializeOpenedTool } from './tool-config';
+import {
+  hasInvalidMcpServerUrls,
+  normalizeMcpServerUrls,
+} from './mcp-url-config';
 import { VcnItem } from '@/components/speaker-modal';
 import { getVcnList } from '@/services/chat';
 import type { MessageListType } from '@/types/chat';
@@ -245,6 +249,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     text_to_image: false,
     codeinterpreter: false,
   });
+  const [mcpServerUrls, setMcpServerUrls] = useState<string[]>([]);
   const effectiveToolConfig = useMemo(
     () => getEffectiveToolConfig(choosedAlltool, isNewWorkbench),
     [choosedAlltool, isNewWorkbench]
@@ -529,6 +534,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
       isSentence: 0,
       openedTool: effectiveOpenedTool,
+      mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
       prologue: prologue,
       ...getModelConfig(model),
       prompt: prompt,
@@ -559,6 +565,14 @@ const BaseConfig: React.FC<ChatProps> = ({
     return true;
   };
 
+  const validateMcpServerUrls = (): boolean => {
+    if (hasInvalidMcpServerUrls(mcpServerUrls)) {
+      message.warning('请先修正 MCP Server URL');
+      return false;
+    }
+    return true;
+  };
+
   const savebot = (e: any) => {
     if (!coverUrl) {
       return message.warning(t('configBase.defaultAvatar'));
@@ -570,6 +584,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     ) {
       return message.warning(t('configBase.requiredInfoNotFilled'));
     }
+    if (!validateMcpServerUrls()) return;
 
     const isRag = selectSource[0]?.tag === 'SparkDesk-RAG';
     const useFormValues = !(
@@ -599,6 +614,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (!baseinfo?.botName || !baseinfo?.botType || !baseinfo?.botDesc) {
       return message.warning(t('configBase.requiredInfoNotFilled'));
     }
+    if (!validateMcpServerUrls()) return;
     closeModal();
     setPublishModalShow(true);
     const botId = searchParams.get('botId');
@@ -797,6 +813,10 @@ const BaseConfig: React.FC<ChatProps> = ({
           } else {
             obj.codeinterpreter = false;
           }
+          const currentConfigData = save == 'true' ? configPageData : res;
+          setMcpServerUrls(
+            normalizeMcpServerUrls(currentConfigData?.mcpServerUrls)
+          );
           setSupportContextFlag(
             save == 'true'
               ? configPageData?.supportContext == 1
@@ -836,7 +856,7 @@ const BaseConfig: React.FC<ChatProps> = ({
           });
 
           // 处理模型回显逻辑
-          const currentModelData = save == 'true' ? configPageData : res;
+          const currentModelData = currentConfigData;
           const modelId = currentModelData?.modelId;
           const modelDomain = currentModelData?.model;
 
@@ -924,7 +944,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (sentence) {
       setSentence(1);
     }
-  }, [searchParams, configPageData?.openedTool]);
+  }, [searchParams, configPageData?.openedTool, configPageData?.mcpServerUrls]);
 
   useEffect(() => {
     setInputExampleTip('');
@@ -986,6 +1006,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     feedback,
     repoConfig,
     tools,
+    mcpServerUrls,
     flows,
   ]);
 
@@ -1019,6 +1040,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         name: item.name,
         description: item.description,
       })),
+      mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
       flows,
     };
     setConfig(params);
@@ -1378,6 +1400,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     sentence,
     choosedAlltool,
     effectiveOpenedTool,
+    mcpServerUrls,
   ]);
 
   /** 提示词对比 */
@@ -1453,6 +1476,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       message.warning(t('configBase.requiredInfoNotFilled'));
       return;
     }
+    if (!validateMcpServerUrls()) return;
     if (!validatePersonality()) return;
 
     const isRag = selectSource[0]?.tag === 'SparkDesk-RAG';
@@ -1568,6 +1592,7 @@ const BaseConfig: React.FC<ChatProps> = ({
               message.warning(t('configBase.createAgentBeforePublish'));
               return;
             }
+            if (!validateMcpServerUrls()) return;
             setOpenWxmol(true);
           }}
         >
@@ -1626,6 +1651,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 promptText={promptNow}
                 supportContext={supportContextFlag ? 1 : 0}
                 choosedAlltool={effectiveToolConfig}
+                mcpServerUrls={mcpServerUrls}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1685,6 +1711,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 promptText={promptNow}
                 supportContext={supportContextFlag ? 1 : 0}
                 choosedAlltool={effectiveToolConfig}
+                mcpServerUrls={mcpServerUrls}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1717,6 +1744,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         promptText={promptNow}
         supportContext={supportContextFlag ? 1 : 0}
         choosedAlltool={effectiveToolConfig}
+        mcpServerUrls={mcpServerUrls}
         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
         personalityConfig={
           personalityData.enablePersonality
@@ -1778,7 +1806,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   );
 
   const renderCapabilityDevelopment = (
-    viewMode: 'full' | 'personalization' | 'knowledge' = 'full'
+    viewMode: 'full' | 'personalization' | 'knowledge' | 'capability' = 'full'
   ) => (
     <CapabilityDevelopment
       viewMode={viewMode}
@@ -1802,6 +1830,8 @@ const BaseConfig: React.FC<ChatProps> = ({
       setTree={setTree}
       tools={tools}
       setTools={setTools}
+      mcpServerUrls={mcpServerUrls}
+      setMcpServerUrls={setMcpServerUrls}
       conversation={conversation}
       setConversation={setConversation}
       multiModelDebugging={multiModelDebugging}
@@ -1915,7 +1945,7 @@ const BaseConfig: React.FC<ChatProps> = ({
 
   const renderCapabilityWorkspace = () => (
     <div className={styles.workbenchCapabilityShell}>
-      {renderCapabilityDevelopment('knowledge')}
+      {renderCapabilityDevelopment('capability')}
     </div>
   );
 
@@ -2185,6 +2215,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     message.warning(t('configBase.requiredInfoNotFilled'));
                     return;
                   }
+                  if (!validateMcpServerUrls()) return;
 
                   if (selectSource[0]?.tag == 'SparkDesk-RAG') {
                     const datasetList: string[] = [];
@@ -2219,6 +2250,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                       isSentence: 0,
                       openedTool: effectiveOpenedTool,
+                      mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2267,6 +2299,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                       isSentence: 0,
                       openedTool: effectiveOpenedTool,
+                      mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2313,6 +2346,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                   message.warning(t('configBase.requiredInfoNotFilled'));
                   return;
                 }
+                if (!validateMcpServerUrls()) return;
                 if (selectSource[0]?.tag == 'SparkDesk-RAG') {
                   const datasetList: string[] = [];
                   (selectSource || []).forEach((item: any) => {
@@ -2345,6 +2379,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                     isSentence: sentence,
                     openedTool: effectiveOpenedTool,
+                    mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2392,6 +2427,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     vcnCn: botCreateActiveV?.cn || vcnList[0]?.voiceType,
                     isSentence: sentence,
                     openedTool: effectiveOpenedTool,
+                    mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2456,6 +2492,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     message.warning(t('configBase.createAgentBeforePublish'));
                     return;
                   }
+                  if (!validateMcpServerUrls()) return;
                   setOpenWxmol(true);
                   return;
                 }}
@@ -2710,6 +2747,8 @@ const BaseConfig: React.FC<ChatProps> = ({
                           setTree={setTree}
                           tools={tools}
                           setTools={setTools}
+                          mcpServerUrls={mcpServerUrls}
+                          setMcpServerUrls={setMcpServerUrls}
                           conversation={conversation}
                           setConversation={setConversation}
                           multiModelDebugging={multiModelDebugging}
@@ -2838,6 +2877,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       promptText={promptNow}
                       supportContext={supportContextFlag ? 1 : 0}
                       choosedAlltool={effectiveToolConfig}
+                      mcpServerUrls={mcpServerUrls}
                       findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                       personalityConfig={
                         personalityData.enablePersonality
@@ -2881,6 +2921,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           promptText={promptNow}
                           supportContext={supportContextFlag ? 1 : 0}
                           choosedAlltool={effectiveToolConfig}
+                          mcpServerUrls={mcpServerUrls}
                           findModelOptionByUniqueKey={
                             findModelOptionByUniqueKey
                           }
@@ -2954,6 +2995,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         promptText={promptNow}
                         supportContext={supportContextFlag ? 1 : 0}
                         choosedAlltool={effectiveToolConfig}
+                        mcpServerUrls={mcpServerUrls}
                         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                         personalityConfig={
                           personalityData.enablePersonality

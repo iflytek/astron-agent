@@ -22,7 +22,13 @@ import { useLocaleStore } from '@/store/spark-store/locale-store';
 import SpeakerModal, { MyVCNItem, VcnItem } from '@/components/speaker-modal';
 import UploadBackgroundModal from '@/components/upload-background';
 import Personality from './personality-component';
-import { RightOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import {
+  DeleteOutlined,
+  LinkOutlined,
+  PlusOutlined,
+  RightOutlined,
+  QuestionCircleOutlined,
+} from '@ant-design/icons';
 
 import settingFile from '@/assets/imgs/sparkImg/icon_bot_setting_file.png';
 import settingKaichangbai from '@/assets/imgs/sparkImg/icon_bot_setting_kaichangbai.png';
@@ -41,11 +47,12 @@ import { useTranslation } from 'react-i18next';
 import styles from './CapabilityDevelopment.module.scss';
 import cls from 'classnames';
 import { CheckboxChangeEvent } from 'antd/es/checkbox';
+import { isValidMcpServerUrl } from '../mcp-url-config';
 
 const { TextArea } = Input;
 
 interface CapabilityDevelopmentProps {
-  viewMode?: 'full' | 'personalization' | 'knowledge';
+  viewMode?: 'full' | 'personalization' | 'knowledge' | 'capability';
   botCreateActiveV: any;
   setBotCreateActiveV: (v: any) => void;
   baseinfo: any;
@@ -63,6 +70,8 @@ interface CapabilityDevelopmentProps {
   setSupportContextFlag: (v: boolean) => void;
   tools: any[];
   setTools: (v: any[]) => void;
+  mcpServerUrls: string[];
+  setMcpServerUrls: (v: string[]) => void;
   files: any[];
   tree: any[];
   setTree: (v: any[]) => void;
@@ -97,6 +106,8 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
     setSupportContextFlag,
     tools,
     setTools,
+    mcpServerUrls,
+    setMcpServerUrls,
     files,
     tree,
     setTree,
@@ -324,11 +335,35 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   }, [dataSource]);
 
   const showCapabilitySection = viewMode === 'full';
-  const showKnowledgeSection = viewMode === 'full' || viewMode === 'knowledge';
+  const showKnowledgeSection =
+    viewMode === 'full' ||
+    viewMode === 'knowledge' ||
+    viewMode === 'capability';
+  const showMcpSection = viewMode === 'full' || viewMode === 'capability';
   const showPersonalizationSection =
     viewMode === 'full' || viewMode === 'personalization';
   const showSupportContextSwitch = viewMode === 'full';
   const isScopedMode = viewMode !== 'full';
+
+  const displayedMcpServerUrls =
+    mcpServerUrls.length > 0 ? mcpServerUrls : [''];
+
+  const updateMcpServerUrl = (index: number, value: string) => {
+    const nextUrls = [...displayedMcpServerUrls];
+    nextUrls[index] = value;
+    setMcpServerUrls(nextUrls);
+  };
+
+  const addMcpServerUrl = () => {
+    setMcpServerUrls([...displayedMcpServerUrls, '']);
+  };
+
+  const removeMcpServerUrl = (index: number) => {
+    const nextUrls = displayedMcpServerUrls.filter((_, itemIndex) => {
+      return itemIndex !== index;
+    });
+    setMcpServerUrls(nextUrls.length > 0 ? nextUrls : []);
+  };
 
   return (
     <div
@@ -770,6 +805,60 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {showMcpSection && (
+        <div className={showKnowledgeSection ? 'mt-[52px]' : ''}>
+          <div className="w-full font-medium text-second">
+            <div
+              className="flex items-center"
+              style={{ marginBottom: '20px', justifyContent: 'space-between' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <LinkOutlined
+                  style={{ fontSize: 22, color: '#6356EA', marginRight: 8 }}
+                />
+                <span className="text-[#6356EA] font-medium">MCP</span>
+              </div>
+              <Button
+                type="link"
+                icon={<PlusOutlined />}
+                className={styles.mcpAddButton}
+                onClick={addMcpServerUrl}
+              >
+                添加 MCP Server URL
+              </Button>
+            </div>
+            <div className={styles.mcpServerList}>
+              {displayedMcpServerUrls.map((url, index) => {
+                const invalidUrl = !isValidMcpServerUrl(url);
+
+                return (
+                  <div className={styles.mcpServerRow} key={index}>
+                    <Input
+                      value={url}
+                      status={invalidUrl ? 'error' : undefined}
+                      placeholder="https://example.com/mcp"
+                      onChange={event =>
+                        updateMcpServerUrl(index, event.target.value)
+                      }
+                    />
+                    <Tooltip title="删除">
+                      <Button
+                        icon={<DeleteOutlined />}
+                        onClick={() => removeMcpServerUrl(index)}
+                      />
+                    </Tooltip>
+                    {invalidUrl && (
+                      <div className={styles.mcpErrorText}>
+                        请输入 http 或 https 开头的 MCP Server URL
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
       {showPersonalizationSection && (

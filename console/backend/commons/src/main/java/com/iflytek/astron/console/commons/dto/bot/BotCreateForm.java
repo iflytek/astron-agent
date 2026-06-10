@@ -105,6 +105,9 @@ public class BotCreateForm {
     @Schema(description = "Enabled tools, joined by comma, e.g.: web_search,text_to_image,codeinterpreter")
     private String openedTool;
 
+    @Schema(description = "Custom MCP server URL list")
+    private List<String> mcpServerUrls;
+
     @Schema(description = "Background image color scheme: 0 Light, 1 Dark")
     private Integer backgroundColor;
 

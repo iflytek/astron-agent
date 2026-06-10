@@ -99,6 +99,53 @@
     }
   }
 }
+
+.mcpAddButton {
+  color: #6356ea;
+  padding-right: 0;
+
+  &:hover {
+    color: #4f46d8;
+  }
+}
+
+.mcpServerList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 20px 4px;
+}
+
+.mcpServerRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: start;
+
+  :global {
+    .ant-input {
+      height: 40px;
+      border-radius: 8px;
+    }
+
+    .ant-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      color: #5f6f86;
+    }
+  }
+}
+
+.mcpErrorText {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #f53f3f;
+}
+
 .datasetModalWrap {
   :global {
     .ant-modal-content {

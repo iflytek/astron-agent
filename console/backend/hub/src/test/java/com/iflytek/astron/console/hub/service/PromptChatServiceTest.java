@@ -19,6 +19,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,6 +40,9 @@ class PromptChatServiceTest {
 
     @Mock
     private ManagedWebSearchService managedWebSearchService;
+
+    @Mock
+    private McpRuntimeToolService mcpRuntimeToolService;
 
     @Mock
     private SseEmitter emitter;
@@ -64,6 +68,7 @@ class PromptChatServiceTest {
         ReflectionTestUtils.setField(promptChatService, "chatDataService", chatDataService);
         ReflectionTestUtils.setField(promptChatService, "chatRecordModelService", chatRecordModelService);
         ReflectionTestUtils.setField(promptChatService, "managedWebSearchService", managedWebSearchService);
+        ReflectionTestUtils.setField(promptChatService, "mcpRuntimeToolService", mcpRuntimeToolService);
 
         streamId = "test-stream-id";
         request = new JSONObject();
@@ -894,6 +899,84 @@ class PromptChatServiceTest {
         verify(httpClient, times(4)).newCall(any(Request.class));
         verify(finalStreamCall).enqueue(any(Callback.class));
         verify(managedWebSearchService).search("2026年6月9日 今日热点新闻", "debug-user");
+    }
+
+    @Test
+    void testChatStream_OpenAiMcpToolCall_ExecutesConfiguredServerTool() throws Exception {
+        String mcpServerUrl = "https://mcp.example.com/sse";
+        request.put("provider", "openai");
+        request.put("model", "deepseek-chat");
+        request.put("userId", "debug-user");
+        request.put("mcpServerUrls", "[\"" + mcpServerUrl + "\"]");
+        request.put("messages", JSON.parseArray("""
+                [
+                  {"role":"system","content":"You are helpful."},
+                  {"role":"user","content":"查一下北京天气"}
+                ]
+                """));
+        JSONObject inputSchema = JSON.parseObject("""
+                {
+                  "type": "object",
+                  "properties": {
+                    "city": {"type": "string", "description": "城市名称"}
+                  },
+                  "required": ["city"]
+                }
+                """);
+        McpRuntimeToolService.McpRuntimeTool weatherTool = new McpRuntimeToolService.McpRuntimeTool(
+                "mcp_weather_get_weather",
+                "",
+                mcpServerUrl,
+                "get_weather",
+                "Get weather for a city.",
+                inputSchema);
+        when(mcpRuntimeToolService.listTools(List.of(mcpServerUrl))).thenReturn(List.of(weatherTool));
+        when(mcpRuntimeToolService.callTool(eq(weatherTool), argThat(args -> "北京".equals(args.getString("city")))))
+                .thenReturn("北京今天晴。");
+
+        Call planningCall = mock(Call.class);
+        Call finalPlanningCall = mock(Call.class);
+        Call finalStreamCall = mock(Call.class);
+        Response planningResponse = mock(Response.class);
+        Response finalPlanningResponse = mock(Response.class);
+        when(httpClient.newCall(any(Request.class))).thenReturn(planningCall, finalPlanningCall, finalStreamCall);
+        when(planningCall.execute()).thenReturn(planningResponse);
+        when(finalPlanningCall.execute()).thenReturn(finalPlanningResponse);
+        when(planningResponse.isSuccessful()).thenReturn(true);
+        when(finalPlanningResponse.isSuccessful()).thenReturn(true);
+        when(planningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-mcp","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_weather","type":"function","function":{"name":"mcp_weather_get_weather","arguments":"{\\"city\\":\\"北京\\"}"}}]}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
+                """
+                {"id":"plan-final","choices":[{"message":{"role":"assistant","content":"北京今天晴。"}}]}
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+        doNothing().when(finalStreamCall).enqueue(any(Callback.class));
+
+        promptChatService.chatStream(request, emitter, streamId, null, false, true);
+
+        ArgumentCaptor<Request> requestCaptor = ArgumentCaptor.forClass(Request.class);
+        verify(httpClient, times(3)).newCall(requestCaptor.capture());
+        JSONObject planningBody = parseRequestBody(requestCaptor.getAllValues().get(0));
+        JSONObject secondRoundBody = parseRequestBody(requestCaptor.getAllValues().get(1));
+        JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
+        JSONArray tools = planningBody.getJSONArray("tools");
+        assertNotNull(tools);
+        assertTrue(tools.toJSONString().contains("mcp_weather_get_weather"));
+        assertFalse(planningBody.containsKey("mcpServerUrls"));
+        assertFalse(planningBody.containsKey("managedMcpTools"));
+        JSONObject toolMessage = secondRoundBody.getJSONArray("messages").getJSONObject(3);
+        assertEquals("tool", toolMessage.getString("role"));
+        assertEquals("call_weather", toolMessage.getString("tool_call_id"));
+        assertTrue(toolMessage.getString("content").contains("北京今天晴"));
+        assertFalse(finalBody.containsKey("mcpServerUrls"));
+        assertFalse(finalBody.containsKey("managedMcpTools"));
+        verify(mcpRuntimeToolService).listTools(List.of(mcpServerUrl));
+        verify(mcpRuntimeToolService).callTool(eq(weatherTool), any(JSONObject.class));
+        verify(managedWebSearchService, never()).search(anyString(), anyString());
     }
 
     @Test

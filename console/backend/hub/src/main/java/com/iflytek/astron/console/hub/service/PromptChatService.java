@@ -19,9 +19,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -37,6 +39,7 @@ public class PromptChatService {
     private static final String OPENAI_SEARCH_TOOL_NAME = "web_search";
     private static final String LEGACY_OPENAI_SEARCH_TOOL_NAME = "ifly_search";
     private static final String CURRENT_TIME_TOOL_NAME = CurrentTimeTool.TOOL_NAME;
+    private static final String MANAGED_MCP_TOOLS_FIELD = "managedMcpTools";
     private static final int MAX_OPENAI_TOOL_ROUNDS = 15;
     private static final int MAX_OPENAI_TOOL_CALLS = 15;
     private static final String WEB_SEARCH_DECISION_INSTRUCTION = """
@@ -55,6 +58,11 @@ public class PromptChatService {
             Use web_search for questions that require current or recently changed external information, including latest news, prices, policies, schedules, releases, rankings, or status.
             For static knowledge that does not need tools, answer directly without using a tool.
             """;
+    private static final String MCP_TOOL_DECISION_INSTRUCTION = """
+            You have access to configured MCP tools from external servers. Decide whether to call them.
+            Use an MCP tool when its name, description, and parameters match the user's request.
+            For requests that do not need these external tools, answer directly without using them.
+            """;
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
 
     private final OkHttpClient httpClient;
@@ -67,6 +75,9 @@ public class PromptChatService {
 
     @Autowired
     private ManagedWebSearchService managedWebSearchService;
+
+    @Autowired
+    private McpRuntimeToolService mcpRuntimeToolService;
 
     /**
      * Function to handle chat stream requests
@@ -104,6 +115,7 @@ public class PromptChatService {
     private void performChatRequest(JSONObject request, SseEmitter emitter, String streamId, ChatReqRecords chatReqRecords, boolean edit, boolean isDebug) throws IOException {
         String provider = normalizeProvider(request.getString("provider"));
         ensureManagedToolsForOpenAiCompatibleProvider(provider, request);
+        ensureMcpToolsForOpenAiCompatibleProvider(provider, request);
         boolean shouldHandleOpenAiFunctionTools = shouldHandleOpenAiFunctionToolCall(provider, request);
         JSONObject fallbackRequest = null;
         if (shouldHandleOpenAiFunctionTools) {
@@ -261,7 +273,7 @@ public class PromptChatService {
         if (PROVIDER_GOOGLE.equals(provider) || PROVIDER_ANTHROPIC.equals(provider)) {
             return false;
         }
-        return hasOpenAiManagedTool(request.getJSONArray("tools"));
+        return hasOpenAiManagedTool(request.getJSONArray("tools")) || hasMcpRuntimeTool(request);
     }
 
     private boolean hasOpenAiManagedTool(JSONArray tools) {
@@ -306,6 +318,11 @@ public class PromptChatService {
         return false;
     }
 
+    private boolean hasMcpRuntimeTool(JSONObject request) {
+        JSONArray mcpTools = request == null ? null : request.getJSONArray(MANAGED_MCP_TOOLS_FIELD);
+        return mcpTools != null && !mcpTools.isEmpty();
+    }
+
     private void ensureManagedToolsForOpenAiCompatibleProvider(String provider, JSONObject request) {
         if (!request.getBooleanValue("managedWebSearch")
                 || PROVIDER_GOOGLE.equals(provider)
@@ -326,6 +343,49 @@ public class PromptChatService {
         if (StringUtils.isBlank(request.getString("tool_choice"))
                 && StringUtils.isBlank(request.getString("toolChoice"))) {
             request.put("tool_choice", "auto");
+        }
+    }
+
+    private void ensureMcpToolsForOpenAiCompatibleProvider(String provider, JSONObject request) throws IOException {
+        if (PROVIDER_GOOGLE.equals(provider) || PROVIDER_ANTHROPIC.equals(provider)) {
+            return;
+        }
+        List<String> mcpServerUrls = parseMcpServerUrls(request.get("mcpServerUrls"));
+        if (mcpServerUrls.isEmpty()) {
+            return;
+        }
+        if (mcpRuntimeToolService == null) {
+            throw new IOException("MCP runtime tool service is unavailable");
+        }
+        List<McpRuntimeToolService.McpRuntimeTool> mcpTools = mcpRuntimeToolService.listTools(mcpServerUrls);
+        if (mcpTools.isEmpty()) {
+            log.warn("No MCP tools available from configured server URLs: {}", mcpServerUrls);
+            return;
+        }
+        JSONArray tools = request.getJSONArray("tools");
+        if (tools == null) {
+            tools = new JSONArray();
+            request.put("tools", tools);
+        }
+        JSONArray registry = new JSONArray();
+        for (McpRuntimeToolService.McpRuntimeTool mcpTool : mcpTools) {
+            if (mcpTool == null || StringUtils.isBlank(mcpTool.functionName())) {
+                continue;
+            }
+            tools.add(new JSONObject()
+                    .fluentPut("type", "function")
+                    .fluentPut("function", new JSONObject()
+                            .fluentPut("name", mcpTool.functionName())
+                            .fluentPut("description", mcpTool.description())
+                            .fluentPut("parameters", mcpTool.inputSchema())));
+            registry.add(mcpTool.toJson());
+        }
+        if (!registry.isEmpty()) {
+            request.put(MANAGED_MCP_TOOLS_FIELD, registry);
+            if (StringUtils.isBlank(request.getString("tool_choice"))
+                    && StringUtils.isBlank(request.getString("toolChoice"))) {
+                request.put("tool_choice", "auto");
+            }
         }
     }
 
@@ -415,12 +475,16 @@ public class PromptChatService {
         JSONArray tools = request.getJSONArray("tools");
         boolean hasSearchTool = hasOpenAiSearchTool(tools);
         boolean hasCurrentTimeTool = hasOpenAiCurrentTimeTool(tools);
+        boolean hasMcpTool = hasMcpRuntimeTool(request);
         if (hasSearchTool && hasCurrentTimeTool) {
             applyDecisionInstruction(request, OPENAI_TOOL_DECISION_INSTRUCTION, "current_time and web_search tools");
         } else if (hasCurrentTimeTool) {
             applyDecisionInstruction(request, CURRENT_TIME_DECISION_INSTRUCTION, "current_time tool");
         } else if (hasSearchTool) {
             applyDecisionInstruction(request, WEB_SEARCH_DECISION_INSTRUCTION, "web_search tool");
+        }
+        if (hasMcpTool) {
+            applyDecisionInstruction(request, MCP_TOOL_DECISION_INSTRUCTION, "configured MCP tools");
         }
     }
 
@@ -509,7 +573,8 @@ public class PromptChatService {
                     chatReqRecords,
                     seenToolCalls,
                     MAX_OPENAI_TOOL_CALLS - executedToolCalls,
-                    resolveAllowedManagedToolNames(loopRequest.getJSONArray("tools")));
+                    resolveAllowedManagedToolNames(loopRequest),
+                    resolveMcpRuntimeTools(loopRequest));
             appendTraceEntries(managedSearchTrace, batchResult.traceEntries());
             appendToolMessages(loopRequest, extractAssistantMessage(planningResponse), toolCalls, batchResult.outputs());
             executedToolCalls += batchResult.executedToolCalls();
@@ -759,10 +824,13 @@ public class PromptChatService {
         request.remove("tools");
         request.remove("toolChoice");
         request.remove("tool_choice");
+        request.remove("mcpServerUrls");
+        request.remove(MANAGED_MCP_TOOLS_FIELD);
     }
 
     private ManagedToolBatchResult executeManagedTools(JSONArray toolCalls, JSONObject request, ChatReqRecords chatReqRecords,
-            Set<String> seenToolCalls, int remainingToolCallBudget, Set<String> allowedToolNames) {
+            Set<String> seenToolCalls, int remainingToolCallBudget, Set<String> allowedToolNames,
+            Map<String, McpRuntimeToolService.McpRuntimeTool> mcpRuntimeTools) {
         List<ManagedToolOutput> outputs = new ArrayList<>();
         JSONArray traceEntries = new JSONArray();
         boolean limitExceeded = false;
@@ -784,7 +852,8 @@ public class PromptChatService {
                 continue;
             }
 
-            if (!isManagedToolName(toolName)) {
+            McpRuntimeToolService.McpRuntimeTool mcpRuntimeTool = mcpRuntimeTools.get(toolName);
+            if (!isManagedToolName(toolName) && mcpRuntimeTool == null) {
                 outputs.add(new ManagedToolOutput(toolCallId, buildToolErrorContent("UNSUPPORTED_TOOL", "Unsupported tool: " + toolName)));
                 continue;
             }
@@ -813,14 +882,17 @@ public class PromptChatService {
                 outputs.add(output);
             } else if (isCurrentTimeToolName(toolName)) {
                 outputs.add(new ManagedToolOutput(toolCallId, CurrentTimeTool.execute(arguments.getString("timezone"))));
+            } else if (mcpRuntimeTool != null) {
+                outputs.add(executeMcpTool(toolCallId, mcpRuntimeTool, arguments, traceEntries));
             }
         }
 
         return new ManagedToolBatchResult(outputs, traceEntries, executedToolCalls, limitExceeded, duplicateDetected);
     }
 
-    private Set<String> resolveAllowedManagedToolNames(JSONArray tools) {
+    private Set<String> resolveAllowedManagedToolNames(JSONObject request) {
         Set<String> allowedToolNames = new HashSet<>();
+        JSONArray tools = request.getJSONArray("tools");
         if (tools == null || tools.isEmpty()) {
             return allowedToolNames;
         }
@@ -835,7 +907,23 @@ public class PromptChatService {
                 allowedToolNames.add(name);
             }
         }
+        allowedToolNames.addAll(resolveMcpRuntimeTools(request).keySet());
         return allowedToolNames;
+    }
+
+    private Map<String, McpRuntimeToolService.McpRuntimeTool> resolveMcpRuntimeTools(JSONObject request) {
+        Map<String, McpRuntimeToolService.McpRuntimeTool> runtimeTools = new LinkedHashMap<>();
+        JSONArray registry = request == null ? null : request.getJSONArray(MANAGED_MCP_TOOLS_FIELD);
+        if (registry == null || registry.isEmpty()) {
+            return runtimeTools;
+        }
+        for (int i = 0; i < registry.size(); i++) {
+            McpRuntimeToolService.McpRuntimeTool tool = McpRuntimeToolService.McpRuntimeTool.fromJson(registry.getJSONObject(i));
+            if (tool != null && StringUtils.isNotBlank(tool.functionName())) {
+                runtimeTools.put(tool.functionName(), tool);
+            }
+        }
+        return runtimeTools;
     }
 
     private ManagedToolOutput executeSearchTool(String toolCallId, JSONObject arguments, JSONObject request,
@@ -853,6 +941,32 @@ public class PromptChatService {
         return new ManagedToolOutput(toolCallId, augmentation.summary());
     }
 
+    private ManagedToolOutput executeMcpTool(String toolCallId, McpRuntimeToolService.McpRuntimeTool tool,
+            JSONObject arguments, JSONArray traceEntries) {
+        try {
+            String result = mcpRuntimeToolService.callTool(tool, arguments);
+            appendMcpTraceEntry(traceEntries, tool, arguments, result);
+            return new ManagedToolOutput(toolCallId, result);
+        } catch (Exception e) {
+            log.warn("MCP tool call failed, tool: {}, error: {}", tool.toolName(), e.getMessage());
+            return new ManagedToolOutput(toolCallId, buildToolErrorContent("MCP_TOOL_CALL_FAILED", e.getMessage()));
+        }
+    }
+
+    private void appendMcpTraceEntry(JSONArray traceEntries, McpRuntimeToolService.McpRuntimeTool tool,
+            JSONObject arguments, String result) {
+        if (traceEntries == null || tool == null) {
+            return;
+        }
+        traceEntries.add(new JSONObject()
+                .fluentPut("type", "mcp")
+                .fluentPut("deskToolName", "MCP: " + tool.toolName())
+                .fluentPut("toolName", tool.toolName())
+                .fluentPut("serverUrl", tool.serverUrl())
+                .fluentPut("arguments", arguments)
+                .fluentPut("content", StringUtils.abbreviate(StringUtils.defaultString(result), 2000)));
+    }
+
     private JSONObject parseToolArguments(String arguments) {
         if (StringUtils.isBlank(arguments)) {
             return new JSONObject();
@@ -864,6 +978,35 @@ public class PromptChatService {
             log.warn("Failed to parse tool arguments: {}", arguments, e);
             return new JSONObject();
         }
+    }
+
+    private List<String> parseMcpServerUrls(Object value) {
+        if (value == null) {
+            return List.of();
+        }
+        JSONArray parsedUrls = null;
+        if (value instanceof JSONArray urls) {
+            parsedUrls = urls;
+        } else if (value instanceof List<?> urls) {
+            parsedUrls = new JSONArray(urls);
+        } else if (value instanceof String text && StringUtils.isNotBlank(text)) {
+            try {
+                parsedUrls = JSON.parseArray(text);
+            } catch (Exception e) {
+                log.warn("Failed to parse mcpServerUrls: {}", text, e);
+            }
+        }
+        if (parsedUrls == null || parsedUrls.isEmpty()) {
+            return List.of();
+        }
+        List<String> urls = new ArrayList<>();
+        for (int i = 0; i < parsedUrls.size(); i++) {
+            String url = parsedUrls.getString(i);
+            if (StringUtils.isNotBlank(url) && !urls.contains(url.trim())) {
+                urls.add(url.trim());
+            }
+        }
+        return urls;
     }
 
     private String buildToolErrorContent(String code, String message) {
@@ -1201,6 +1344,8 @@ public class PromptChatService {
                     "managedWebSearch",
                     "managedSearchQuery",
                     "managedSearchTrace",
+                    "mcpServerUrls",
+                    MANAGED_MCP_TOOLS_FIELD,
                     "anthropicBeta")) {
                 return;
             }

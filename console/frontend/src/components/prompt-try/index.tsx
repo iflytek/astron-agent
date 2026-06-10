@@ -15,6 +15,10 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import eventBus from '@/utils/event-bus';
 import { baseURL } from '@/utils/http';
 import { ModelListData } from '@/services/spark-common';
+import {
+  hasInvalidMcpServerUrls,
+  normalizeMcpServerUrls,
+} from '@/components/config-page-component/config-base/mcp-url-config';
 
 // PromptTry组件暴露的方法接口
 export interface PromptTryRef {
@@ -60,6 +64,7 @@ const PromptTry = forwardRef<
     choosedAlltool?: {
       [key: string]: boolean;
     };
+    mcpServerUrls?: string[];
     findModelOptionByUniqueKey: (
       uniqueKey: string
     ) => ModelListData | undefined;
@@ -81,6 +86,7 @@ const PromptTry = forwardRef<
       model,
       supportContext,
       choosedAlltool,
+      mcpServerUrls,
       initialMessages,
       onMessagesChange,
       showHeaderAndRecommend = true,
@@ -179,6 +185,10 @@ const PromptTry = forwardRef<
 
     // 获取答案
     const getAnswer = (question: string) => {
+      if (hasInvalidMcpServerUrls(mcpServerUrls)) {
+        message.warning('请先修正 MCP Server URL');
+        return;
+      }
       const esURL = `${baseURL}/chat-message/bot-debug`;
       const form = new FormData();
       const useModel = findModelOptionByUniqueKey(model || '');
@@ -211,6 +221,10 @@ const PromptTry = forwardRef<
             .filter((key: string) => choosedAlltool[key])
             .join(',')
         );
+      }
+      const normalizedMcpServerUrls = normalizeMcpServerUrls(mcpServerUrls);
+      if (normalizedMcpServerUrls.length > 0) {
+        form.append('mcpServerUrls', JSON.stringify(normalizedMcpServerUrls));
       }
 
       // 添加人设配置信息

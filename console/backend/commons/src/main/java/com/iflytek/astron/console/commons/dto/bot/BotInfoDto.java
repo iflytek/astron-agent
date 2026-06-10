@@ -109,6 +109,8 @@ public class BotInfoDto {
 
     private Long modelId;
 
+    private String mcpServerUrls;
+
     private String vcnCn;
 
     private String vcnEn;

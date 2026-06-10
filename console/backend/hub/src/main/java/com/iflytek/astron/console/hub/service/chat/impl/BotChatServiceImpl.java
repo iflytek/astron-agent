@@ -148,7 +148,8 @@ public class BotChatServiceImpl implements BotChatService {
                             messages,
                             toolPlan,
                             chatBotReqDto.getAsk(),
-                            chatBotReqDto.getUid());
+                            chatBotReqDto.getUid(),
+                            botConfig.mcpServerUrls);
                     promptChatService.chatStream(jsonObject, sseEmitter, sseId, chatReqRecords, false, false);
                 }
             }
@@ -196,7 +197,8 @@ public class BotChatServiceImpl implements BotChatService {
                         messages,
                         toolPlan,
                         chatBotReqDto.getAsk(),
-                        chatBotReqDto.getUid());
+                        chatBotReqDto.getUid(),
+                        botConfig.mcpServerUrls);
                 promptChatService.chatStream(jsonObject, sseEmitter, sseId, chatReqRecords, false, false);
             }
         } catch (Exception e) {
@@ -247,7 +249,8 @@ public class BotChatServiceImpl implements BotChatService {
                         messageList,
                         toolPlan,
                         request.getText(),
-                        request.getUid());
+                        request.getUid(),
+                        request.getMcpServerUrls());
                 promptChatService.chatStream(jsonObject, sseEmitter, sseId, null, false, true);
             }
         } catch (Exception e) {
@@ -413,7 +416,8 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotMarket.getOpenedTool(),
                     chatBotMarket.getVersion(),
                     chatBotMarket.getModelId(),
-                    chatBotMarket.getSupportDocument() == 1);
+                    chatBotMarket.getSupportDocument() == 1,
+                    resolveBaseMcpServerUrls(botId));
         } else {
             ChatBotBase chatBotBase = chatBotDataService.findById(botId)
                     .orElseThrow(() -> new BusinessException(ResponseEnum.BOT_NOT_EXISTS));
@@ -424,8 +428,17 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotBase.getOpenedTool(),
                     chatBotBase.getVersion(),
                     chatBotBase.getModelId(),
-                    chatBotBase.getSupportDocument() == 1);
+                    chatBotBase.getSupportDocument() == 1,
+                    chatBotBase.getMcpServerUrls());
         }
+    }
+
+    private String resolveBaseMcpServerUrls(Integer botId) {
+        if (botId == null) {
+            return null;
+        }
+        var botBase = chatBotDataService.findById(botId);
+        return botBase == null ? null : botBase.map(ChatBotBase::getMcpServerUrls).orElse(null);
     }
 
     /**
@@ -744,7 +757,8 @@ public class BotChatServiceImpl implements BotChatService {
             List<SparkChatRequest.MessageDto> messages,
             ProviderToolOrchestrator.ToolExecutionPlan toolPlan,
             String managedSearchQuery,
-            String userId) {
+            String userId,
+            String mcpServerUrls) {
         JSONObject jsonObject = new JSONObject();
         jsonObject.put("url", llmInfoVo.getUrl());
         jsonObject.put("apiKey", llmInfoVo.getApiKey());
@@ -752,6 +766,9 @@ public class BotChatServiceImpl implements BotChatService {
         jsonObject.put("provider", ProviderToolOrchestrator.normalizeProvider(llmInfoVo.getProvider()));
         jsonObject.put("userId", userId);
         jsonObject.put("managedSearchQuery", managedSearchQuery);
+        if (StringUtils.isNotBlank(mcpServerUrls)) {
+            jsonObject.put("mcpServerUrls", mcpServerUrls);
+        }
         jsonObject.put("messages", messages);
         // Convert Object to JSONArray type
         Object configObj = llmInfoVo.getConfig();
@@ -790,7 +807,7 @@ public class BotChatServiceImpl implements BotChatService {
     }
 
     private record BotConfiguration(String prompt, boolean supportContext, String model, String openedTool,
-            Integer version, Long modelId, boolean supportDocument) {}
+            Integer version, Long modelId, boolean supportDocument, String mcpServerUrls) {}
 
     private record TokenStatistics(int systemTokens, int currentUserTokens, int reservedTokens, int availableTokens) {}
 

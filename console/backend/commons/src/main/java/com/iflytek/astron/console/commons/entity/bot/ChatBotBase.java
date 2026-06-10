@@ -118,6 +118,9 @@ public class ChatBotBase {
     @Schema(description = "Enabled tools, separated by commas")
     private String openedTool;
 
+    @Schema(description = "Custom MCP server URL list")
+    private String mcpServerUrls;
+
     @Schema(description = "Hidden on certain clients")
     private String clientHide;
 

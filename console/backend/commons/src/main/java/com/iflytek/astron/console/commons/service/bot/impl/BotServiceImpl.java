@@ -44,6 +44,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -355,6 +356,7 @@ public class BotServiceImpl implements BotService {
         botBase.setModel(bot.getModel());
         botBase.setIsSentence(bot.getIsSentence());
         botBase.setOpenedTool(bot.getOpenedTool());
+        botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
         botBase.setClientType(bot.getClientType());
         botBase.setSpaceId(spaceId);
         setInputExamples(botBase, bot.getInputExample(), null);
@@ -389,6 +391,7 @@ public class BotServiceImpl implements BotService {
         botBase.setVcnSpeed(bot.getVcnSpeed());
         botBase.setIsSentence(bot.getIsSentence());
         botBase.setOpenedTool(bot.getOpenedTool());
+        botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
         botBase.setClientType(bot.getClientType());
         botBase.setBotNameEn(bot.getBotNameEn());
         botBase.setBotDescEn(bot.getBotDescEn());
@@ -414,6 +417,30 @@ public class BotServiceImpl implements BotService {
         }
         if (inputExampleEn != null && !inputExampleEn.isEmpty()) {
             botBase.setInputExampleEn(String.join(BOT_INPUT_EXAMPLE_SPLIT, inputExampleEn));
+        }
+    }
+
+    private String serializeMcpServerUrls(List<String> mcpServerUrls) {
+        if (mcpServerUrls == null) {
+            return null;
+        }
+        List<String> normalizedUrls = mcpServerUrls.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .filter(this::isValidMcpServerUrl)
+                .distinct()
+                .collect(Collectors.toList());
+        return JSON.toJSONString(normalizedUrls);
+    }
+
+    private boolean isValidMcpServerUrl(String mcpServerUrl) {
+        try {
+            URI uri = URI.create(mcpServerUrl);
+            String scheme = uri.getScheme();
+            return StringUtils.isNotBlank(uri.getHost())
+                    && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 
@@ -455,6 +482,7 @@ public class BotServiceImpl implements BotService {
                     .model(bot.getModel())
                     .isSentence(bot.getIsSentence())
                     .openedTool(bot.getOpenedTool())
+                    .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
                     .clientType(bot.getClientType())
                     .inputExample(bot.getInputExample() != null && bot.getInputExample().size() > 0 ? String.join(BOT_INPUT_EXAMPLE_SPLIT, bot.getInputExample()) : null)
                     .modelId(bot.getModelId())
@@ -519,6 +547,7 @@ public class BotServiceImpl implements BotService {
                 .vcnSpeed(bot.getVcnSpeed())
                 .isSentence(bot.getIsSentence())
                 .openedTool(bot.getOpenedTool())
+                .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
                 .clientType(bot.getClientType())
                 .botNameEn(bot.getBotNameEn())
                 .botDescEn(bot.getBotDescEn())

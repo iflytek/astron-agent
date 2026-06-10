@@ -42,6 +42,11 @@ public class DebugChatBotReqDto {
     private String openedTool;
 
     /**
+     * Custom MCP server URL list
+     */
+    private String mcpServerUrls;
+
+    /**
      * Model name
      */
     private String model;

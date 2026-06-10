@@ -507,6 +507,83 @@ class BotChatServiceImplUnitTest {
     }
 
     @Test
+    void testDebugChatMessageBot_WithModelIdPassesMcpServerUrlsToPromptRequest() {
+        DebugChatBotReqDto request = new DebugChatBotReqDto();
+        request.setText("test message");
+        request.setPrompt("test prompt");
+        request.setMessages(Arrays.asList("message1", "message2"));
+        request.setUid("test-uid");
+        request.setOpenedTool("");
+        request.setModel("test-model");
+        request.setModelId(1L);
+        request.setMcpServerUrls("[\"https://mcp.example.com/sse\"]");
+        request.setPersonalityConfig(null);
+
+        SseEmitter sseEmitter = new SseEmitter();
+        String sseId = "test-sse-id";
+
+        LLMInfoVo llmInfoVo = createLLMInfoVo();
+        llmInfoVo.setLlmId(100L);
+        llmInfoVo.setServiceId("test-service-id");
+        when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
+
+        try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
+            mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
+
+            botChatService.debugChatMessageBot(request, sseEmitter, sseId);
+
+            verify(promptChatService).chatStream(
+                    argThat(json -> "[\"https://mcp.example.com/sse\"]".equals(json.getString("mcpServerUrls"))),
+                    eq(sseEmitter),
+                    eq(sseId),
+                    isNull(),
+                    eq(false),
+                    eq(true));
+        }
+    }
+
+    @Test
+    void testChatMessageBot_BaseBotPassesSavedMcpServerUrlsToPromptRequest() {
+        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
+        SseEmitter sseEmitter = new SseEmitter();
+        String sseId = "test-sse-id";
+
+        ChatBotBase chatBotBase = createChatBotBase();
+        chatBotBase.setModelId(1L);
+        chatBotBase.setModel("test-model");
+        chatBotBase.setOpenedTool("");
+        chatBotBase.setMcpServerUrls("[\"https://mcp.example.com/sse\"]");
+
+        ChatReqRecords createdRecord = createChatReqRecords();
+        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
+        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
+        currentAskMessage.setRole("user");
+        currentAskMessage.setContent("test question");
+        historyMessages.add(currentAskMessage);
+        LLMInfoVo llmInfoVo = createLLMInfoVo();
+
+        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(null);
+        when(chatBotDataService.findById(anyInt())).thenReturn(Optional.of(chatBotBase));
+        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
+
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+
+        verify(promptChatService).chatStream(
+                argThat(json -> "[\"https://mcp.example.com/sse\"]".equals(json.getString("mcpServerUrls"))),
+                eq(sseEmitter),
+                eq(sseId),
+                any(),
+                eq(false),
+                eq(false));
+    }
+
+    @Test
     void testDebugChatMessageBot_WithGoogleModelId_PropagatesProvider() {
         DebugChatBotReqDto request = new DebugChatBotReqDto();
         request.setText("test message");

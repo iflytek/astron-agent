@@ -2198,6 +2198,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
         boolean fixedAppEnv = CommonConst.FIXED_APPID_ENV.contains(env);
         Workflow workflow = getOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
+        List<String> configuredMcpServerUrls = resolveBotMcpServerUrls(saveDto, workflow);
         try {
             if (workflow == null) {
                 appId = commonConfig.getAppId();
@@ -2226,7 +2227,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 configs = Arrays.asList(configInfo.getValue().split(","));
             }
             // check and fix node
-            checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret);
+            checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret, configuredMcpServerUrls);
             injectScriptSandboxIntoCodeNodes(nodes, flowId);
 
             // Update core system flow
@@ -2246,7 +2247,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return protocol;
     }
 
-    private void checkAndFixNode(List<BizWorkflowNode> nodes, boolean fixedAppEnv, List<String> configs, String appId, String apiKey, String apiSecret) {
+    private void checkAndFixNode(List<BizWorkflowNode> nodes, boolean fixedAppEnv, List<String> configs, String appId,
+            String apiKey, String apiSecret, List<String> configuredMcpServerUrls) {
         for (BizWorkflowNode node : nodes) {
             boolean notFlowNode = !node.getId().startsWith(WorkflowConst.NodeType.FLOW);
             BizNodeData bizNodeData = node.getData();
@@ -2275,7 +2277,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     }
                 }
                 // Agent node changes
-                checkAndEditData(bizNodeData, prefix);
+                checkAndEditData(bizNodeData, prefix, configuredMcpServerUrls);
                 // Knowledge base node new parameter passing logic
                 fixOnRepoNode(type, bizNodeData, prefix);
                 // Handle retry strategy information
@@ -2352,8 +2354,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void checkAndEditData(BizNodeData bizNodeData, String prefix) {
+        checkAndEditData(bizNodeData, prefix, List.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkAndEditData(BizNodeData bizNodeData, String prefix, List<String> configuredMcpServerUrls) {
         if (!isAgentNode(bizNodeData, prefix)) {
             return;
         }
@@ -2371,6 +2377,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
         // (2.1) MCP: copy mcpServerIds to mcpServerUrls
         copyMcpServerIdsToUrls(plugin);
+        mergeConfiguredMcpServerUrls(plugin, configuredMcpServerUrls);
 
         // (2.2) Skills: inject stable metadata and on-demand download urls
         enrichSkills(plugin);
@@ -2448,6 +2455,49 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         }
     }
 
+    private List<String> resolveBotMcpServerUrls(WorkflowReq saveDto, Workflow workflow) {
+        Integer botId = resolveWorkflowBotId(saveDto, workflow);
+        if (botId == null || chatBotBaseMapper == null) {
+            return List.of();
+        }
+        ChatBotBase botBase = chatBotBaseMapper.selectById(botId);
+        return botBase == null ? List.of() : parseMcpServerUrls(botBase.getMcpServerUrls());
+    }
+
+    private Integer resolveWorkflowBotId(WorkflowReq saveDto, Workflow workflow) {
+        JSONObject ext = saveDto == null ? null : saveDto.getExt();
+        Integer botId = ext == null ? null : ext.getInteger("botId");
+        if (botId != null) {
+            return botId;
+        }
+        String workflowExt = workflow == null ? null : workflow.getExt();
+        if (StringUtils.isBlank(workflowExt)) {
+            return null;
+        }
+        try {
+            return JSON.parseObject(workflowExt).getInteger("botId");
+        } catch (Exception e) {
+            log.warn("Failed to parse workflow ext while resolving MCP config, ext={}", workflowExt, e);
+            return null;
+        }
+    }
+
+    private void mergeConfiguredMcpServerUrls(JSONObject plugin, List<String> configuredMcpServerUrls) {
+        if (plugin == null || configuredMcpServerUrls == null || configuredMcpServerUrls.isEmpty()) {
+            return;
+        }
+        JSONArray mcpServerUrls = plugin.getJSONArray("mcpServerUrls");
+        if (mcpServerUrls == null) {
+            mcpServerUrls = new JSONArray();
+            plugin.put("mcpServerUrls", mcpServerUrls);
+        }
+        for (String serverUrl : configuredMcpServerUrls) {
+            if (StringUtils.isNotBlank(serverUrl) && !mcpServerUrls.contains(serverUrl)) {
+                mcpServerUrls.add(serverUrl);
+            }
+        }
+    }
+
     /** Check whether it is an AGENT node and has valid metadata */
     private boolean isAgentNode(BizNodeData bizNodeData, String prefix) {
         if (bizNodeData == null || bizNodeData.getNodeMeta() == null) {
@@ -2483,6 +2533,29 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             if (StringUtils.isNotBlank(server)) {
                 mcpServerUrls.add(server);
             }
+        }
+    }
+
+    private List<String> parseMcpServerUrls(String mcpServerUrls) {
+        if (StringUtils.isBlank(mcpServerUrls)) {
+            return List.of();
+        }
+        try {
+            JSONArray urls = JSON.parseArray(mcpServerUrls);
+            if (urls == null || urls.isEmpty()) {
+                return List.of();
+            }
+            List<String> result = new ArrayList<>();
+            for (int i = 0; i < urls.size(); i++) {
+                String url = urls.getString(i);
+                if (StringUtils.isNotBlank(url) && !result.contains(url.trim())) {
+                    result.add(url.trim());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to parse bot MCP server urls: {}", mcpServerUrls, e);
+            return List.of();
         }
     }
 
@@ -4156,7 +4229,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
             return false;
         }
-        if (!containsSkillConfiguration(bizWorkflowData)) {
+        if (!containsRuntimePluginConfiguration(bizWorkflowData) && !hasConfiguredBotMcpServerUrls(workflow)) {
             return false;
         }
 
@@ -4164,7 +4237,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return true;
     }
 
-    private boolean containsSkillConfiguration(BizWorkflowData bizWorkflowData) {
+    private boolean hasConfiguredBotMcpServerUrls(Workflow workflow) {
+        return !resolveBotMcpServerUrls(null, workflow).isEmpty();
+    }
+
+    private boolean containsRuntimePluginConfiguration(BizWorkflowData bizWorkflowData) {
         if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
             return false;
         }
@@ -4180,6 +4257,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             JSONObject plugin = nodeParam == null ? null : nodeParam.getJSONObject("plugin");
             JSONArray skills = plugin == null ? null : plugin.getJSONArray("skills");
             if (skills != null && !skills.isEmpty()) {
+                return true;
+            }
+            JSONArray mcpServerUrls = plugin == null ? null : plugin.getJSONArray("mcpServerUrls");
+            if (mcpServerUrls != null && !mcpServerUrls.isEmpty()) {
                 return true;
             }
         }
