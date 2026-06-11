@@ -31,6 +31,8 @@ public class McpRuntimeToolService {
     private static final String MCP_TOOL_LIST_PATH = "/api/v1/mcp/tool_list";
     private static final String MCP_CALL_TOOL_PATH = "/api/v1/mcp/call_tool";
     private static final int MAX_FUNCTION_NAME_LENGTH = 64;
+    private static final String MCP_FUNCTION_PREFIX = "mcp_";
+    private static final Set<String> RESERVED_FUNCTION_NAMES = Set.of("web_search", "ifly_search", "current_time");
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
 
     private final OkHttpClient httpClient;
@@ -175,22 +177,34 @@ public class McpRuntimeToolService {
     }
 
     private String buildFunctionName(String serverId, String serverUrl, String toolName, Set<String> usedFunctionNames) {
-        String hash = shortHash(serverId + "|" + serverUrl + "|" + toolName);
         String safeToolName = sanitizeFunctionNamePart(toolName);
-        int maxToolNameLength = Math.max(1, MAX_FUNCTION_NAME_LENGTH - "mcp_".length() - hash.length() - 1);
+        if (canUseOriginalToolName(toolName, safeToolName, usedFunctionNames)) {
+            usedFunctionNames.add(safeToolName);
+            return safeToolName;
+        }
+
+        String hash = shortHash(serverId + "|" + serverUrl + "|" + toolName);
+        int maxToolNameLength = Math.max(1, MAX_FUNCTION_NAME_LENGTH - MCP_FUNCTION_PREFIX.length() - hash.length() - 1);
         if (safeToolName.length() > maxToolNameLength) {
             safeToolName = safeToolName.substring(0, maxToolNameLength);
         }
-        String base = "mcp_" + hash + "_" + safeToolName;
+        String base = MCP_FUNCTION_PREFIX + hash + "_" + safeToolName;
         String candidate = base;
         int suffix = 2;
-        while (usedFunctionNames.contains(candidate)) {
+        while (usedFunctionNames.contains(candidate) || RESERVED_FUNCTION_NAMES.contains(candidate)) {
             String suffixText = "_" + suffix++;
             int maxBaseLength = MAX_FUNCTION_NAME_LENGTH - suffixText.length();
             candidate = base.length() > maxBaseLength ? base.substring(0, maxBaseLength) + suffixText : base + suffixText;
         }
         usedFunctionNames.add(candidate);
         return candidate;
+    }
+
+    private boolean canUseOriginalToolName(String toolName, String safeToolName, Set<String> usedFunctionNames) {
+        return StringUtils.equals(toolName, safeToolName)
+                && safeToolName.length() <= MAX_FUNCTION_NAME_LENGTH
+                && !RESERVED_FUNCTION_NAMES.contains(safeToolName)
+                && !usedFunctionNames.contains(safeToolName);
     }
 
     private String sanitizeFunctionNamePart(String value) {

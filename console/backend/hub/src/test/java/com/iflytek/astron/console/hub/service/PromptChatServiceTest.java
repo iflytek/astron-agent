@@ -924,10 +924,10 @@ class PromptChatServiceTest {
                 }
                 """);
         McpRuntimeToolService.McpRuntimeTool weatherTool = new McpRuntimeToolService.McpRuntimeTool(
-                "mcp_weather_get_weather",
+                "maps_weather",
                 "",
                 mcpServerUrl,
-                "get_weather",
+                "maps_weather",
                 "Get weather for a city.",
                 inputSchema);
         when(mcpRuntimeToolService.listTools(List.of(mcpServerUrl))).thenReturn(List.of(weatherTool));
@@ -946,7 +946,7 @@ class PromptChatServiceTest {
         when(finalPlanningResponse.isSuccessful()).thenReturn(true);
         when(planningResponse.body()).thenReturn(ResponseBody.create(
                 """
-                {"id":"plan-mcp","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_weather","type":"function","function":{"name":"mcp_weather_get_weather","arguments":"{\\"city\\":\\"北京\\"}"}}]}}]}
+                {"id":"plan-mcp","choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"call_weather","type":"function","function":{"name":"maps_weather","arguments":"{\\"city\\":\\"北京\\"}"}}]}}]}
                 """,
                 MediaType.get("application/json; charset=utf-8")));
         when(finalPlanningResponse.body()).thenReturn(ResponseBody.create(
@@ -965,7 +965,7 @@ class PromptChatServiceTest {
         JSONObject finalBody = parseRequestBody(requestCaptor.getAllValues().get(2));
         JSONArray tools = planningBody.getJSONArray("tools");
         assertNotNull(tools);
-        assertTrue(tools.toJSONString().contains("mcp_weather_get_weather"));
+        assertTrue(tools.toJSONString().contains("maps_weather"));
         assertFalse(planningBody.containsKey("mcpServerUrls"));
         assertFalse(planningBody.containsKey("managedMcpTools"));
         JSONObject toolMessage = secondRoundBody.getJSONArray("messages").getJSONObject(3);

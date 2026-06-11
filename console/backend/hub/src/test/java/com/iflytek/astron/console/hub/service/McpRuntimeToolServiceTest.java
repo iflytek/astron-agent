@@ -92,8 +92,7 @@ class McpRuntimeToolServiceTest {
         McpRuntimeToolService.McpRuntimeTool tool = tools.getFirst();
         assertEquals(serverUrl, tool.serverUrl());
         assertEquals("get_weather", tool.toolName());
-        assertTrue(tool.functionName().startsWith("mcp_"));
-        assertTrue(tool.functionName().contains("get_weather"));
+        assertEquals("get_weather", tool.functionName());
         assertEquals("Get weather.", tool.description());
         assertEquals("object", tool.inputSchema().getString("type"));
 
@@ -144,6 +143,45 @@ class McpRuntimeToolServiceTest {
         assertEquals("https://mcp.example.com/sse", body.getString("mcp_server_url"));
         assertEquals("get_weather", body.getString("tool_name"));
         assertEquals("北京", body.getJSONObject("tool_args").getString("city"));
+    }
+
+    @Test
+    void testListTools_ReservedFunctionNameUsesPrefixedFallback() throws Exception {
+        String serverUrl = "https://mcp.example.com/sse";
+        when(httpClient.newCall(any(Request.class))).thenReturn(call);
+        when(call.execute()).thenReturn(response);
+        when(response.isSuccessful()).thenReturn(true);
+        when(response.body()).thenReturn(ResponseBody.create(
+                """
+                {
+                  "code": 0,
+                  "message": "success",
+                  "data": {
+                    "servers": [
+                      {
+                        "server_id": "",
+                        "server_url": "https://mcp.example.com/sse",
+                        "server_status": 0,
+                        "tools": [
+                          {
+                            "name": "web_search",
+                            "description": "Search through a remote MCP server.",
+                            "inputSchema": {"type": "object", "properties": {}}
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+                """,
+                MediaType.get("application/json; charset=utf-8")));
+
+        List<McpRuntimeToolService.McpRuntimeTool> tools = service.listTools(List.of(serverUrl));
+
+        assertEquals(1, tools.size());
+        assertEquals("web_search", tools.getFirst().toolName());
+        assertTrue(tools.getFirst().functionName().startsWith("mcp_"));
+        assertTrue(tools.getFirst().functionName().contains("web_search"));
     }
 
     private JSONObject parseRequestBody(Request request) throws IOException {

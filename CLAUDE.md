@@ -1,4 +1,4 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Project Overview
 
@@ -139,3 +139,4 @@ These guidelines are working if there are fewer unnecessary changes in diffs, fe
 ## Key Workflow Expectations
 
 1. After the feature work and testing are completed, ask the user whether the local branch needs to be pushed. If the user requires a push, start a new subagent to execute the .claude\skills\astron-agent-pr-publish skill. After the push is completed, then ask the user whether the project needs to be redeployed. If the user confirms redeployment is needed, start a new subagent to execute the .claude\skills\astron-agent-server-deploy skill.
+2. After the project deployment is completed, ask the user whether acceptance testing needs to be performed. If the user requires it, execute the .claude\skills\astron-agent-e2e-acceptanceskill to run the acceptance testing.
