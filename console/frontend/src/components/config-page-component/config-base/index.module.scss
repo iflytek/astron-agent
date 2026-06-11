@@ -782,6 +782,12 @@
   min-height: max-content;
 }
 
+.workbenchCapabilityShell {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .workbenchSectionTitle {
   display: flex;
   align-items: center;
