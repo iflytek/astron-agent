@@ -17,7 +17,12 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
-from workflow.api.v1.router import old_auth_router, sparkflow_router, workflow_router
+from workflow.api.v1.router import (
+    old_auth_router,
+    root_a2a_router,
+    sparkflow_router,
+    workflow_router,
+)
 from workflow.cache.event_registry import EventRegistry
 from workflow.extensions.fastapi.handler.validation import validation_exception_handler
 from workflow.extensions.fastapi.lifespan.database_migration import (
@@ -105,6 +110,7 @@ def create_app() -> FastAPI:
 
     # Include API routers for different endpoints
     app.include_router(create_health_router("core-workflow", service_manager))
+    app.include_router(root_a2a_router)
     app.include_router(sparkflow_router)
     app.include_router(workflow_router)
     app.include_router(old_auth_router)

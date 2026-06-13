@@ -8,6 +8,8 @@ for different API endpoints including chat, flow management, and debugging.
 from fastapi import APIRouter
 
 from workflow.api.v1.chat import (
+    a2a_discovery_router,
+    a2a_router,
     node_debug_router,
     sse_debug_chat_router,
     sse_openapi_router,
@@ -22,8 +24,13 @@ workflow_router.include_router(layout_router)
 workflow_router.include_router(auth_router)
 workflow_router.include_router(node_debug_router)
 workflow_router.include_router(file_router)
+workflow_router.include_router(a2a_router)
 workflow_router.include_router(sse_debug_chat_router)
 workflow_router.include_router(sse_openapi_router)
+
+
+root_a2a_router = APIRouter()
+root_a2a_router.include_router(a2a_discovery_router)
 
 
 # Legacy interface compatibility router

@@ -11,6 +11,7 @@ AUTH_OPEN_API_PATHS = [
     "/v1/auth",
     "/workflow/v1/publish",
     "/workflow/v1/auth",
+    "/workflow/v1/a2a/message:send",
 ]
 
 """
