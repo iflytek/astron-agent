@@ -13,7 +13,9 @@ import java.util.List;
 @Builder
 public class AgentChatTask {
 
-    /** Non-Spark custom model config; {@code null} means a Spark model (use {@link #sparkModelName}). */
+    /**
+     * Non-Spark custom model config; {@code null} means a Spark model (use {@link #sparkModelName}).
+     */
     private LLMInfoVo llmInfoVo;
 
     /** Stored Spark model name, used when {@link #llmInfoVo} is {@code null}. */

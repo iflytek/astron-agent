@@ -370,7 +370,9 @@ class BotChatServiceImplUnitTest {
         return captor.getValue();
     }
 
-    /** History always includes the current ask (and a prior Q&A) — mirrors ChatHistoryService output. */
+    /**
+     * History always includes the current ask (and a prior Q&A) — mirrors ChatHistoryService output.
+     */
     private List<SparkChatRequest.MessageDto> historyMessages() {
         List<SparkChatRequest.MessageDto> list = new ArrayList<>();
         String[][] roleContents = {{"user", "previous question"}, {"assistant", "previous answer"}, {"user", "test question"}};

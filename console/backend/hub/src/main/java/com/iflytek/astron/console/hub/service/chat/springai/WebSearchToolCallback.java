@@ -10,8 +10,9 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 
 /**
- * Spring AI tool wrapping the managed web search (Spark X1 deep web search). Returns the summarized,
- * citation-tagged answer as the tool result and records the search trace into {@link ChatToolContext}.
+ * Spring AI tool wrapping the managed web search (Spark X1 deep web search). Returns the
+ * summarized, citation-tagged answer as the tool result and records the search trace into
+ * {@link ChatToolContext}.
  */
 public class WebSearchToolCallback implements ToolCallback {
 

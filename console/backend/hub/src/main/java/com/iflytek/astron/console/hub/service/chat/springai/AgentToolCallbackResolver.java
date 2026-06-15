@@ -61,7 +61,8 @@ public class AgentToolCallbackResolver {
         }
         String trimmed = mcpServerUrls.trim();
         if (trimmed.startsWith("[")) {
-            return JSON.parseArray(trimmed, String.class).stream()
+            return JSON.parseArray(trimmed, String.class)
+                    .stream()
                     .filter(StringUtils::isNotBlank)
                     .map(String::trim)
                     .distinct()
