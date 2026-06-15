@@ -28,6 +28,7 @@ export default defineConfig({
           { text: "Quick Start", link: "/guide/quick-start" },
           { text: "Deployment", link: "/guide/deploy" },
           { text: "Case Studies", link: "/cases/" },
+          { text: "Examples", link: "/examples" },
           { text: "Architecture & Dev", link: "/PROJECT_MODULES" },
           { text: "Contributing", link: "/CONTRIBUTING" }
         ],
@@ -43,7 +44,8 @@ export default defineConfig({
           {
             text: "Case Studies",
             items: [
-              { text: "Customer Stories", link: "/cases/" }
+              { text: "Customer Stories", link: "/cases/" },
+              { text: "Workflow Examples", link: "/examples" }
             ]
           },
           {
@@ -113,6 +115,7 @@ export default defineConfig({
           { text: "快速开始", link: "/zh/guide/quick-start" },
           { text: "部署与配置", link: "/zh/guide/deploy" },
           { text: "案例实践", link: "/zh/cases/" },
+          { text: "工作流示例", link: "/zh/examples" },
           { text: "架构与开发", link: "/zh/PROJECT_MODULES" },
           { text: "贡献协作", link: "/zh/CONTRIBUTING" }
         ],
@@ -128,7 +131,8 @@ export default defineConfig({
           {
             text: "案例实践",
             items: [
-              { text: "用户案例", link: "/zh/cases/" }
+              { text: "用户案例", link: "/zh/cases/" },
+              { text: "工作流示例", link: "/zh/examples" }
             ]
           },
           {
