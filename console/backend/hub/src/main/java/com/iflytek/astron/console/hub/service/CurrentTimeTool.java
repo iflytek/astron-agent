@@ -9,14 +9,14 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
-final class CurrentTimeTool {
+public final class CurrentTimeTool {
 
     static final String TOOL_NAME = "current_time";
     static final String DEFAULT_TIMEZONE = "Asia/Shanghai";
 
     private CurrentTimeTool() {}
 
-    static String execute(String requestedTimezone) {
+    public static String execute(String requestedTimezone) {
         ZoneId zoneId = resolveZoneId(requestedTimezone);
         ZonedDateTime now = ZonedDateTime.now(zoneId);
         JSONObject result = new JSONObject();
