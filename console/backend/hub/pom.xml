@@ -166,6 +166,12 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-mysql</artifactId>
         </dependency>
+
+        <!-- Spring AI (OpenAI-compatible model, no Boot autoconfig; models built per-request) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

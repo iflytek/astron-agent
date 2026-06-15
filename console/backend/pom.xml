@@ -66,6 +66,7 @@
         <mockito.version>5.12.0</mockito.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <openai-java.version>4.23.0</openai-java.version>
+        <spring-ai.version>1.1.2</spring-ai.version>
 
         <!-- JaCoCo test coverage -->
         <jacoco.version>0.8.12</jacoco.version>
@@ -272,6 +273,14 @@
                 <artifactId>openai-java</artifactId>
                 <version>${openai-java.version}</version>
                 <scope>compile</scope>
+            </dependency>
+            <!-- Spring AI BOM -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
