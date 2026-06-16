@@ -204,10 +204,12 @@ const MessageList = (props: {
     item: MessageListType,
     messageIndex: number
   ): ReactElement => {
-    const showLoading = !item.sid && (isLoading || !!answerPercent);
+    const isLastMessage = messageIndex === messageList.length - 1; //是否是最后一条消息
+    // Only the current (last) answer bubble may show the loading spinner; otherwise a previous
+    // unfinished/errored bubble (no sid) would also spin when a new question starts streaming.
+    const showLoading = isLastMessage && !item.sid && (isLoading || !!answerPercent);
     const workflowContent = item?.workflowEventData?.content;
     const messageContent = workflowContent ? workflowContent : item.message;
-    const isLastMessage = messageIndex === messageList.length - 1; //是否是最后一条消息
     return (
       <div
         className="mt-[14px] w-[inherit] max-w-full"

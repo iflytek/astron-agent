@@ -5,6 +5,7 @@ import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
 import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
@@ -62,7 +63,11 @@ public class ChatModelFactory {
                 .apiKey(apiKey)
                 .build();
         OpenAiChatOptions options = OpenAiChatOptions.builder().model(model).build();
-        return OpenAiChatModel.builder().openAiApi(api).defaultOptions(options).build();
+        return OpenAiChatModel.builder()
+                .openAiApi(api)
+                .defaultOptions(options)
+                .toolCallingManager(new BlankToolCallFilteringToolCallingManager(ToolCallingManager.builder().build()))
+                .build();
     }
 
     static String sparkModelToOpenAiModelId(String sparkModelName) {
