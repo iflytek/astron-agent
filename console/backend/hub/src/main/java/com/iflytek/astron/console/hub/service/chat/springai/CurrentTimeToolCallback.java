@@ -38,6 +38,7 @@ public class CurrentTimeToolCallback implements ToolCallback {
                 log.warn("Failed to parse current_time tool input as JSON: {}", toolInput);
             }
         }
+        log.info("current_time tool invoked, timezone={}", timezone);
         return CurrentTimeTool.execute(timezone);
     }
 }

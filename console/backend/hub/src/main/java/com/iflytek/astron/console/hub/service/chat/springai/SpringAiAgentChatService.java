@@ -16,32 +16,28 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.chat.model.MessageAggregator;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.model.tool.ToolCallingManager;
-import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Runs a standalone-agent chat turn on Spring AI: builds a per-request model + tool callbacks,
- * drives the streaming tool-call loop manually (for trace fidelity), bridges chunks to the legacy
- * SSE contract, and persists chat records.
+ * Runs a standalone-agent chat turn on Spring AI. Tools (web_search / current_time / MCP) are
+ * registered as {@link ToolCallback}s and executed internally by the framework (Spring AI's default
+ * internal tool execution); each streamed chunk is forwarded to the legacy SSE contract and chat
+ * records are persisted.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SpringAiAgentChatService {
-
-    private static final int MAX_TOOL_ROUNDS = 15;
 
     private final ChatModelFactory chatModelFactory;
     private final AgentToolCallbackResolver toolCallbackResolver;
@@ -57,40 +53,32 @@ public class SpringAiAgentChatService {
                     : chatModelFactory.forSparkModel(task.getSparkModelName());
 
             List<ToolCallback> tools = toolCallbackResolver.resolve(task.getOpenedTool(), task.getMcpServerUrls(), context);
+            log.info("Agent chat start, streamId={}, modelId={}, spark={}, toolCount={}, openedTool={}, mcpServerUrls={}",
+                    streamId, agentModel.modelId(), task.getLlmInfoVo() == null, tools.size(), task.getOpenedTool(),
+                    task.getMcpServerUrls());
+
+            // internalToolExecutionEnabled defaults to true: Spring AI executes tool calls internally
+            // and streams the final answer. We only forward each chunk to the SSE bridge.
             OpenAiChatOptions options = OpenAiChatOptions.builder()
                     .model(agentModel.modelId())
                     .toolCallbacks(tools)
-                    .internalToolExecutionEnabled(false)
                     .build();
-
             Prompt prompt = new Prompt(toMessages(task.getMessages()), options);
-            ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
 
-            for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
-                if (SseEmitterUtil.isStreamStopped(streamId)) {
-                    log.info("Stream stopped by user, breaking tool loop, streamId: {}", streamId);
-                    break;
-                }
-                AtomicReference<ChatResponse> aggregatedRef = new AtomicReference<>();
-                new MessageAggregator()
-                        .aggregate(agentModel.chatModel()
-                                .stream(prompt)
-                                .takeWhile(resp -> !SseEmitterUtil.isStreamStopped(streamId))
-                                .doOnNext(resp -> emitChunk(resp, bridge)), aggregatedRef::set)
-                        .blockLast();
+            agentModel.chatModel()
+                    .stream(prompt)
+                    .takeWhile(resp -> !SseEmitterUtil.isStreamStopped(streamId))
+                    .doOnNext(resp -> emitChunk(resp, bridge))
+                    .blockLast();
 
-                ChatResponse aggregated = aggregatedRef.get();
-                if (aggregated == null || SseEmitterUtil.isStreamStopped(streamId) || !aggregated.hasToolCalls()) {
-                    break;
-                }
-                ToolExecutionResult result = toolCallingManager.executeToolCalls(prompt, aggregated);
-                bridge.emitToolTrace(context.drainTrace());
-                prompt = new Prompt(result.conversationHistory(), options);
-            }
-
+            bridge.emitToolTrace(context.drainTrace());
             persist(task, bridge);
             Long requestId = task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
             bridge.complete(task.getChatId(), requestId);
+        } catch (WebClientResponseException e) {
+            log.error("Spring AI agent chat failed (HTTP {}), streamId: {}, responseBody: {}", e.getStatusCode(),
+                    streamId, e.getResponseBodyAsString(), e);
+            SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());
         } catch (Exception e) {
             log.error("Spring AI agent chat failed, streamId: {}", streamId, e);
             SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());

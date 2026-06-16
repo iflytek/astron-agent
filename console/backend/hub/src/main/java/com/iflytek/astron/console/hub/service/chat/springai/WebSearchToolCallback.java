@@ -56,6 +56,7 @@ public class WebSearchToolCallback implements ToolCallback {
         if (StringUtils.isBlank(query)) {
             return "No query provided.";
         }
+        log.info("web_search tool invoked, userId={}, query={}", context.getUserId(), query);
 
         SearchAugmentation result = managedWebSearchService.search(query, context.getUserId());
         if (result.failed()) {

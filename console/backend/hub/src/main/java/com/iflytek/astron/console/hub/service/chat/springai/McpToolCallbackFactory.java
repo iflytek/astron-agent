@@ -54,6 +54,7 @@ public class McpToolCallbackFactory {
 
         @Override
         public String call(String toolInput) {
+            log.info("mcp tool invoked, tool={}", tool.toolName());
             JSONObject args;
             try {
                 args = StringUtils.isBlank(toolInput) ? new JSONObject() : JSON.parseObject(toolInput);
