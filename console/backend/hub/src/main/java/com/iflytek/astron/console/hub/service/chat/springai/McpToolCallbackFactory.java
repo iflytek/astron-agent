@@ -54,7 +54,13 @@ public class McpToolCallbackFactory {
 
         @Override
         public String call(String toolInput) {
-            JSONObject args = StringUtils.isBlank(toolInput) ? new JSONObject() : JSON.parseObject(toolInput);
+            JSONObject args;
+            try {
+                args = StringUtils.isBlank(toolInput) ? new JSONObject() : JSON.parseObject(toolInput);
+            } catch (Exception e) {
+                log.warn("Failed to parse MCP tool input as JSON, tool: {}, input: {}", tool.toolName(), toolInput);
+                args = new JSONObject();
+            }
             String content;
             try {
                 content = mcpRuntimeToolService.callTool(tool, args);

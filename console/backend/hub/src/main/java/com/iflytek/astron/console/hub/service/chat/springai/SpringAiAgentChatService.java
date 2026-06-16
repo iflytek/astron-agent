@@ -67,14 +67,20 @@ public class SpringAiAgentChatService {
             ToolCallingManager toolCallingManager = ToolCallingManager.builder().build();
 
             for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
+                if (SseEmitterUtil.isStreamStopped(streamId)) {
+                    log.info("Stream stopped by user, breaking tool loop, streamId: {}", streamId);
+                    break;
+                }
                 AtomicReference<ChatResponse> aggregatedRef = new AtomicReference<>();
                 new MessageAggregator()
-                        .aggregate(agentModel.chatModel().stream(prompt).doOnNext(resp -> emitChunk(resp, bridge)),
-                                aggregatedRef::set)
+                        .aggregate(agentModel.chatModel()
+                                .stream(prompt)
+                                .takeWhile(resp -> !SseEmitterUtil.isStreamStopped(streamId))
+                                .doOnNext(resp -> emitChunk(resp, bridge)), aggregatedRef::set)
                         .blockLast();
 
                 ChatResponse aggregated = aggregatedRef.get();
-                if (aggregated == null || !aggregated.hasToolCalls()) {
+                if (aggregated == null || SseEmitterUtil.isStreamStopped(streamId) || !aggregated.hasToolCalls()) {
                     break;
                 }
                 ToolExecutionResult result = toolCallingManager.executeToolCalls(prompt, aggregated);

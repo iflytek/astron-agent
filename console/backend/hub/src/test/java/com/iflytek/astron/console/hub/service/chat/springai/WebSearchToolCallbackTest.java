@@ -42,4 +42,12 @@ class WebSearchToolCallbackTest {
         assertNotNull(out);
         assertTrue(ctx.drainTrace().isEmpty());
     }
+
+    @Test
+    void malformedInputDoesNotThrow() {
+        ManagedWebSearchService svc = mock(ManagedWebSearchService.class);
+        WebSearchToolCallback cb = new WebSearchToolCallback(svc, new ChatToolContext("u1"));
+        // Malformed JSON -> no query parsed -> graceful message, no exception
+        assertEquals("No query provided.", cb.call("not-json{"));
+    }
 }

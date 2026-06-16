@@ -41,4 +41,16 @@ class McpToolCallbackFactoryTest {
         List<ToolCallback> callbacks = new McpToolCallbackFactory(svc).build(List.of(), new ChatToolContext("u"));
         assertTrue(callbacks.isEmpty());
     }
+
+    @Test
+    void malformedInputFallsBackToEmptyArgs() throws Exception {
+        McpRuntimeToolService svc = mock(McpRuntimeToolService.class);
+        McpRuntimeTool tool = new McpRuntimeTool("mcp_x", "s", "http://s", "x", "d", new JSONObject());
+        when(svc.listTools(List.of("http://s"))).thenReturn(List.of(tool));
+        when(svc.callTool(eq(tool), any())).thenReturn("ok");
+
+        List<ToolCallback> callbacks = new McpToolCallbackFactory(svc).build(List.of("http://s"), new ChatToolContext("u"));
+        // Malformed JSON must not throw; the tool is still invoked (with empty args fallback)
+        assertEquals("ok", callbacks.get(0).call("not-json{"));
+    }
 }

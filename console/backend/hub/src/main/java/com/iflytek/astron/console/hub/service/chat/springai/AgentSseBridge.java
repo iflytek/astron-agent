@@ -91,9 +91,14 @@ public class AgentSseBridge {
                     .fluentPut("timestamp", System.currentTimeMillis())
                     .fluentPut("message", finalResult.toString());
             emitter.send(SseEmitter.event().name("end").data(endData.toJSONString()));
-            emitter.complete();
         } catch (IOException e) {
             log.warn("SSE complete failed, streamId: {}, error: {}", streamId, e.getMessage());
+        } finally {
+            try {
+                emitter.complete();
+            } catch (Exception e) {
+                log.warn("SSE emitter complete failed, streamId: {}, error: {}", streamId, e.getMessage());
+            }
         }
     }
 

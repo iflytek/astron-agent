@@ -28,4 +28,10 @@ class CurrentTimeToolCallbackTest {
         CurrentTimeToolCallback cb = new CurrentTimeToolCallback();
         assertNotNull(cb.call("{}"));
     }
+
+    @Test
+    void callToleratesMalformedJson() {
+        CurrentTimeToolCallback cb = new CurrentTimeToolCallback();
+        assertNotNull(cb.call("not-json{"));
+    }
 }

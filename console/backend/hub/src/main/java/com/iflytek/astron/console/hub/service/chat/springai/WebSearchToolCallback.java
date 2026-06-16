@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.hub.service.ManagedWebSearchService;
 import com.iflytek.astron.console.hub.service.ManagedWebSearchService.SearchAugmentation;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
@@ -14,6 +15,7 @@ import org.springframework.ai.tool.definition.ToolDefinition;
  * summarized, citation-tagged answer as the tool result and records the search trace into
  * {@link ChatToolContext}.
  */
+@Slf4j
 public class WebSearchToolCallback implements ToolCallback {
 
     private static final String INPUT_SCHEMA = """
@@ -42,9 +44,13 @@ public class WebSearchToolCallback implements ToolCallback {
     public String call(String toolInput) {
         String query = null;
         if (StringUtils.isNotBlank(toolInput)) {
-            JSONObject args = JSON.parseObject(toolInput);
-            if (args != null) {
-                query = args.getString("query");
+            try {
+                JSONObject args = JSON.parseObject(toolInput);
+                if (args != null) {
+                    query = args.getString("query");
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse web_search tool input as JSON: {}", toolInput);
             }
         }
         if (StringUtils.isBlank(query)) {
@@ -55,7 +61,13 @@ public class WebSearchToolCallback implements ToolCallback {
         if (result.failed()) {
             return "Web search failed: " + StringUtils.defaultString(result.errorMessage());
         }
-        JSONArray toolCalls = JSON.parseArray(StringUtils.defaultIfBlank(result.traceJson(), "[]"));
+        JSONArray toolCalls;
+        try {
+            toolCalls = JSON.parseArray(StringUtils.defaultIfBlank(result.traceJson(), "[]"));
+        } catch (Exception e) {
+            log.warn("Failed to parse web search trace JSON, skipping trace");
+            toolCalls = null;
+        }
         if (toolCalls != null) {
             for (int i = 0; i < toolCalls.size(); i++) {
                 context.addTrace(toolCalls.getJSONObject(i));

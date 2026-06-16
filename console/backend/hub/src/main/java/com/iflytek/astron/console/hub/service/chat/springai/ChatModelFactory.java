@@ -53,6 +53,9 @@ public class ChatModelFactory {
         URI uri = URI.create(fullUrl);
         String baseUrl = uri.getScheme() + "://" + uri.getAuthority();
         String completionsPath = StringUtils.defaultIfBlank(uri.getRawPath(), "/v1/chat/completions");
+        if (StringUtils.isNotBlank(uri.getRawQuery())) {
+            completionsPath += "?" + uri.getRawQuery();
+        }
         OpenAiApi api = OpenAiApi.builder()
                 .baseUrl(baseUrl)
                 .completionsPath(completionsPath)
