@@ -32,8 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Runs a standalone-agent chat turn on Spring AI. Tools (web_search / current_time / MCP) are
  * registered as {@link ToolCallback}s and executed internally by the framework (Spring AI's default
- * internal tool execution); each streamed chunk is forwarded to the legacy SSE contract and chat
- * records are persisted.
+ * internal tool execution). The model is streamed asynchronously: the reactive pipeline is
+ * subscribed (NOT blocked) so the controller can return the {@link SseEmitter} immediately and
+ * chunks are forwarded incrementally; chat records are persisted on completion.
  */
 @Slf4j
 @Service
@@ -47,8 +48,8 @@ public class SpringAiAgentChatService {
 
     public void chat(AgentChatTask task, SseEmitter emitter, String streamId) {
         AgentSseBridge bridge = new AgentSseBridge(emitter, streamId);
+        ChatToolContext context = new ChatToolContext(task.getUserId());
         try {
-            ChatToolContext context = new ChatToolContext(task.getUserId());
             AgentModel agentModel = task.getLlmInfoVo() != null
                     ? chatModelFactory.forCustomModel(task.getLlmInfoVo())
                     : chatModelFactory.forSparkModel(task.getSparkModelName());
@@ -58,43 +59,55 @@ public class SpringAiAgentChatService {
                     streamId, agentModel.modelId(), task.getLlmInfoVo() == null, tools.size(), task.getOpenedTool(),
                     task.getMcpServerUrls());
 
-            // internalToolExecutionEnabled defaults to true: Spring AI executes tool calls internally
-            // and streams the final answer. We only forward each chunk to the SSE bridge.
             OpenAiChatOptions options = OpenAiChatOptions.builder()
                     .model(agentModel.modelId())
                     .toolCallbacks(tools)
                     .build();
             Prompt prompt = new Prompt(toMessages(task.getMessages()), options);
 
+            // Subscribe asynchronously: do NOT block the request thread. The controller returns the
+            // SseEmitter right after this call, so Spring MVC starts the streaming response and the
+            // chunks below are flushed incrementally. Blocking (blockLast) buffers every SSE event
+            // until the controller returns, which breaks streaming.
             AtomicInteger chunkCount = new AtomicInteger();
             agentModel.chatModel()
                     .stream(prompt)
                     .takeWhile(resp -> !SseEmitterUtil.isStreamStopped(streamId))
-                    .doOnNext(resp -> {
-                        int n = chunkCount.incrementAndGet();
-                        if (n <= 5) {
-                            Generation g = resp.getResult();
-                            String t = g != null && g.getOutput() != null ? g.getOutput().getText() : null;
-                            log.info("agent stream chunk #{}, streamId={}, textLen={}", n, streamId,
-                                    t == null ? -1 : t.length());
-                        }
-                        emitChunk(resp, bridge);
-                    })
-                    .blockLast();
-            log.info("agent stream complete, streamId={}, totalChunks={}", streamId, chunkCount.get());
-
-            bridge.emitToolTrace(context.drainTrace());
-            persist(task, bridge);
-            Long requestId = task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
-            bridge.complete(task.getChatId(), requestId);
-        } catch (WebClientResponseException e) {
-            log.error("Spring AI agent chat failed (HTTP {}), streamId: {}, responseBody: {}", e.getStatusCode(),
-                    streamId, e.getResponseBodyAsString(), e);
-            SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());
+                    .subscribe(
+                            resp -> {
+                                int n = chunkCount.incrementAndGet();
+                                if (n <= 5) {
+                                    Generation g = resp.getResult();
+                                    String t = g != null && g.getOutput() != null ? g.getOutput().getText() : null;
+                                    log.info("agent stream chunk #{}, streamId={}, textLen={}", n, streamId,
+                                            t == null ? -1 : t.length());
+                                }
+                                emitChunk(resp, bridge);
+                            },
+                            error -> handleStreamError(error, emitter, streamId),
+                            () -> {
+                                log.info("agent stream complete, streamId={}, totalChunks={}", streamId,
+                                        chunkCount.get());
+                                bridge.emitToolTrace(context.drainTrace());
+                                persist(task, bridge);
+                                Long requestId =
+                                        task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
+                                bridge.complete(task.getChatId(), requestId);
+                            });
         } catch (Exception e) {
-            log.error("Spring AI agent chat failed, streamId: {}", streamId, e);
+            log.error("Spring AI agent chat setup failed, streamId: {}", streamId, e);
             SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());
         }
+    }
+
+    private void handleStreamError(Throwable e, SseEmitter emitter, String streamId) {
+        if (e instanceof WebClientResponseException w) {
+            log.error("Spring AI agent chat failed (HTTP {}), streamId: {}, responseBody: {}", w.getStatusCode(),
+                    streamId, w.getResponseBodyAsString(), e);
+        } else {
+            log.error("Spring AI agent chat failed, streamId: {}", streamId, e);
+        }
+        SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());
     }
 
     private void emitChunk(ChatResponse response, AgentSseBridge bridge) {
