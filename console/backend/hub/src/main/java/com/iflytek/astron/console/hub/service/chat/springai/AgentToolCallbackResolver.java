@@ -10,49 +10,32 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * Resolves the set of Spring AI tool callbacks for a bot from its {@code openedTool} CSV and MCP
- * server URLs. Replaces the tool-selection role of the removed ProviderToolOrchestrator. All
- * providers use the managed web_search tool (decision C); no provider-native search.
+ * Resolves the Spring AI tool callbacks for a standalone agent. {@code web_search} and
+ * {@code current_time} are built-in tools that are ALWAYS available (matching the legacy default
+ * behavior where OpenAI-compatible providers always exposed them, regardless of the bot's
+ * {@code openedTool}); MCP tools are added from the bot's configured MCP server URLs. All providers
+ * use the managed web_search tool (decision C).
  */
 @Service
 @RequiredArgsConstructor
 public class AgentToolCallbackResolver {
 
-    private static final String TOOL_WEB_SEARCH = "web_search";
-    private static final String TOOL_IFLY_SEARCH_LEGACY = "ifly_search";
-    private static final String TOOL_CURRENT_TIME = "current_time";
-
     private final ManagedWebSearchService managedWebSearchService;
     private final McpToolCallbackFactory mcpToolCallbackFactory;
 
+    /**
+     * @param openedTool retained for future per-tool gating; built-in tools are always included.
+     */
     public List<ToolCallback> resolve(String openedTool, String mcpServerUrls, ChatToolContext context)
             throws IOException {
-        Set<String> enabled = parseEnabledTools(openedTool);
         List<ToolCallback> callbacks = new ArrayList<>();
-        if (enabled.contains(TOOL_WEB_SEARCH) || enabled.contains(TOOL_IFLY_SEARCH_LEGACY)) {
-            callbacks.add(new WebSearchToolCallback(managedWebSearchService, context));
-        }
-        if (enabled.contains(TOOL_CURRENT_TIME)) {
-            callbacks.add(new CurrentTimeToolCallback());
-        }
+        callbacks.add(new WebSearchToolCallback(managedWebSearchService, context));
+        callbacks.add(new CurrentTimeToolCallback());
         callbacks.addAll(mcpToolCallbackFactory.build(parseMcpUrls(mcpServerUrls), context));
         return callbacks;
-    }
-
-    private Set<String> parseEnabledTools(String openedTool) {
-        if (StringUtils.isBlank(openedTool)) {
-            return Set.of();
-        }
-        return Arrays.stream(openedTool.split(","))
-                .map(String::trim)
-                .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private List<String> parseMcpUrls(String mcpServerUrls) {

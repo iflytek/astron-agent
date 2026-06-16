@@ -30,11 +30,13 @@ class AgentToolCallbackResolverTest {
     }
 
     @Test
-    void blankOpenedToolYieldsNoBuiltinTools() throws Exception {
+    void builtinToolsAlwaysPresentEvenWhenOpenedToolBlank() throws Exception {
         McpRuntimeToolService mcp = mock(McpRuntimeToolService.class);
         when(mcp.listTools(any())).thenReturn(List.of());
         List<ToolCallback> tools = newResolver(mcp).resolve("", null, new ChatToolContext("u"));
-        assertTrue(tools.isEmpty());
+        List<String> names = tools.stream().map(t -> t.getToolDefinition().name()).toList();
+        assertTrue(names.contains("web_search"));
+        assertTrue(names.contains("current_time"));
     }
 
     @Test

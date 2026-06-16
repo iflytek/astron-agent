@@ -27,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Runs a standalone-agent chat turn on Spring AI. Tools (web_search / current_time / MCP) are
@@ -65,11 +66,22 @@ public class SpringAiAgentChatService {
                     .build();
             Prompt prompt = new Prompt(toMessages(task.getMessages()), options);
 
+            AtomicInteger chunkCount = new AtomicInteger();
             agentModel.chatModel()
                     .stream(prompt)
                     .takeWhile(resp -> !SseEmitterUtil.isStreamStopped(streamId))
-                    .doOnNext(resp -> emitChunk(resp, bridge))
+                    .doOnNext(resp -> {
+                        int n = chunkCount.incrementAndGet();
+                        if (n <= 5) {
+                            Generation g = resp.getResult();
+                            String t = g != null && g.getOutput() != null ? g.getOutput().getText() : null;
+                            log.info("agent stream chunk #{}, streamId={}, textLen={}", n, streamId,
+                                    t == null ? -1 : t.length());
+                        }
+                        emitChunk(resp, bridge);
+                    })
                     .blockLast();
+            log.info("agent stream complete, streamId={}, totalChunks={}", streamId, chunkCount.get());
 
             bridge.emitToolTrace(context.drainTrace());
             persist(task, bridge);
