@@ -33,7 +33,7 @@ public class SkillToolCallbackFactory {
                 continue;
             }
             callbacks.add(new ReadSkillToolCallback(skill, skillRuntimeToolService));
-            // run_skill_* added in Phase 3
+            callbacks.add(new RunSkillToolCallback(skill, skillRuntimeToolService));
         }
         return callbacks;
     }

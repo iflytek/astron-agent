@@ -23,6 +23,7 @@ api:
     tenantKey: ${TENANT_KEY:tenantKey}
     tenantSecret: ${TENANT_SECRET:tenantSecret}
     toolUrl: ${TOOL_URL:http://127.0.0.1:18888}
+    agentUrl: ${AGENT_URL:http://127.0.0.1:8700}
     toolRpaUrl: ${TOOL_RPA_URL:http://127.0.0.1:17198}
     workflow: ${WORKFLOW_URL:http://127.0.0.1:7880}
     sparkDB: ${SPARK_DB_URL:http://127.0.0.1:7990}

@@ -18,6 +18,7 @@ public class ApiUrl {
     String knowledgeUrl;
     String streamChatUrl;
     String toolUrl;
+    String agentUrl;
     String toolRpaUrl;
     String appUrl;
     String apiKey;
