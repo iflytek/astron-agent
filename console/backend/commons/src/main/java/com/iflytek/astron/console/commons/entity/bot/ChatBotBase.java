@@ -121,6 +121,9 @@ public class ChatBotBase {
     @Schema(description = "Custom MCP server URL list")
     private String mcpServerUrls;
 
+    @Schema(description = "Selected skills JSON list")
+    private String skills;
+
     @Schema(description = "Hidden on certain clients")
     private String clientHide;
 

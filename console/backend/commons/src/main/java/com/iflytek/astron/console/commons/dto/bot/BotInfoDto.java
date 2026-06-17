@@ -111,6 +111,8 @@ public class BotInfoDto {
 
     private String mcpServerUrls;
 
+    private String skills;
+
     private String vcnCn;
 
     private String vcnEn;

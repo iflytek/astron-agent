@@ -392,6 +392,7 @@ public class BotServiceImpl implements BotService {
         botBase.setIsSentence(bot.getIsSentence());
         botBase.setOpenedTool(bot.getOpenedTool());
         botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
+        botBase.setSkills(serializeSkills(bot.getSkills()));
         botBase.setClientType(bot.getClientType());
         botBase.setBotNameEn(bot.getBotNameEn());
         botBase.setBotDescEn(bot.getBotDescEn());
@@ -431,6 +432,16 @@ public class BotServiceImpl implements BotService {
                 .distinct()
                 .collect(Collectors.toList());
         return JSON.toJSONString(normalizedUrls);
+    }
+
+    private String serializeSkills(List<BotCreateForm.BotSkill> skills) {
+        if (skills == null) {
+            return null;
+        }
+        List<BotCreateForm.BotSkill> valid = skills.stream()
+                .filter(skill -> skill != null && skill.getSkillId() != null)
+                .collect(Collectors.toList());
+        return JSON.toJSONString(valid);
     }
 
     private boolean isValidMcpServerUrl(String mcpServerUrl) {
@@ -551,6 +562,7 @@ public class BotServiceImpl implements BotService {
                 .isSentence(bot.getIsSentence())
                 .openedTool(bot.getOpenedTool())
                 .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
+                .skills(serializeSkills(bot.getSkills()))
                 .clientType(bot.getClientType())
                 .botNameEn(bot.getBotNameEn())
                 .botDescEn(bot.getBotDescEn())

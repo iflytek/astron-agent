@@ -108,6 +108,9 @@ public class BotCreateForm {
     @Schema(description = "Custom MCP server URL list")
     private List<String> mcpServerUrls;
 
+    @Schema(description = "Selected skills imported from resource management")
+    private List<BotSkill> skills;
+
     @Schema(description = "Background image color scheme: 0 Light, 1 Dark")
     private Integer backgroundColor;
 
@@ -161,5 +164,13 @@ public class BotCreateForm {
     public static class PromptStruct {
         private String promptKey;
         private String promptValue;
+    }
+
+    @Data
+    public static class BotSkill {
+        @Schema(description = "Skill id (SkillImportDto.id)")
+        private Long skillId;
+        private String name;
+        private String description;
     }
 }
