@@ -136,7 +136,17 @@ public class McpRuntimeToolService {
             if (body == null) {
                 throw new IOException("MCP gateway response body is empty");
             }
-            return JSON.parseObject(body.string());
+            String bodyString = body.string();
+            JSONObject json;
+            try {
+                json = JSON.parseObject(bodyString);
+            } catch (RuntimeException e) {
+                throw new IOException("Failed to parse MCP gateway response as JSON: " + bodyString, e);
+            }
+            if (json == null) {
+                throw new IOException("MCP gateway returned empty or null JSON response: " + bodyString);
+            }
+            return json;
         }
     }
 
@@ -227,14 +237,15 @@ public class McpRuntimeToolService {
         }
         List<String> parts = new ArrayList<>();
         for (int i = 0; i < content.size(); i++) {
-            JSONObject item = content.getJSONObject(i);
-            if (item == null) {
-                continue;
-            }
-            if ("text".equals(item.getString("type"))) {
-                parts.add(StringUtils.defaultString(item.getString("text")));
-            } else {
-                parts.add(item.toJSONString());
+            Object element = content.get(i);
+            if (element instanceof JSONObject item) {
+                if ("text".equals(item.getString("type"))) {
+                    parts.add(StringUtils.defaultString(item.getString("text")));
+                } else {
+                    parts.add(item.toJSONString());
+                }
+            } else if (element != null) {
+                parts.add(element.toString());
             }
         }
         return String.join("\n", parts);

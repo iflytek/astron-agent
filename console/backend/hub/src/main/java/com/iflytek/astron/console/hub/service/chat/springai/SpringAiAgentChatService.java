@@ -84,7 +84,7 @@ public class SpringAiAgentChatService {
                                 }
                                 emitChunk(resp, bridge);
                             },
-                            error -> handleStreamError(error, emitter, streamId),
+                            error -> handleStreamError(error, emitter, streamId, task, bridge),
                             () -> {
                                 log.info("agent stream complete, streamId={}, totalChunks={}", streamId,
                                         chunkCount.get());
@@ -100,12 +100,19 @@ public class SpringAiAgentChatService {
         }
     }
 
-    private void handleStreamError(Throwable e, SseEmitter emitter, String streamId) {
+    private void handleStreamError(Throwable e, SseEmitter emitter, String streamId, AgentChatTask task,
+            AgentSseBridge bridge) {
         if (e instanceof WebClientResponseException w) {
             log.error("Spring AI agent chat failed (HTTP {}), streamId: {}, responseBody: {}", w.getStatusCode(),
                     streamId, w.getResponseBodyAsString(), e);
         } else {
             log.error("Spring AI agent chat failed, streamId: {}", streamId, e);
+        }
+        // Persist whatever was generated before the error so the partial reply is not lost.
+        try {
+            persist(task, bridge);
+        } catch (Exception persistError) {
+            log.error("Failed to persist partial response after stream error, streamId: {}", streamId, persistError);
         }
         SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());
     }

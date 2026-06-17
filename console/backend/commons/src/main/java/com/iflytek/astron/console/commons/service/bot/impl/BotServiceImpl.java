@@ -437,7 +437,10 @@ public class BotServiceImpl implements BotService {
         try {
             URI uri = URI.create(mcpServerUrl);
             String scheme = uri.getScheme();
-            return StringUtils.isNotBlank(uri.getHost())
+            // Use getAuthority() not getHost(): URI.getHost() returns null for hostnames containing
+            // underscores (e.g. http://mcp_server:8080), common in internal Docker/K8s networks,
+            // which would otherwise silently drop valid MCP server URLs.
+            return StringUtils.isNotBlank(uri.getAuthority())
                     && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
         } catch (IllegalArgumentException e) {
             return false;
