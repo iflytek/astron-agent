@@ -19,6 +19,7 @@ import {
   hasInvalidMcpServerUrls,
   normalizeMcpServerUrls,
 } from '@/components/config-page-component/config-base/mcp-url-config';
+import type { AgentSkill } from '@/types/skill';
 
 // PromptTry组件暴露的方法接口
 export interface PromptTryRef {
@@ -65,6 +66,7 @@ const PromptTry = forwardRef<
       [key: string]: boolean;
     };
     mcpServerUrls?: string[];
+    skills?: AgentSkill[];
     findModelOptionByUniqueKey: (
       uniqueKey: string
     ) => ModelListData | undefined;
@@ -87,6 +89,7 @@ const PromptTry = forwardRef<
       supportContext,
       choosedAlltool,
       mcpServerUrls,
+      skills,
       initialMessages,
       onMessagesChange,
       showHeaderAndRecommend = true,
@@ -225,6 +228,9 @@ const PromptTry = forwardRef<
       const normalizedMcpServerUrls = normalizeMcpServerUrls(mcpServerUrls);
       if (normalizedMcpServerUrls.length > 0) {
         form.append('mcpServerUrls', JSON.stringify(normalizedMcpServerUrls));
+      }
+      if (skills && skills.length > 0) {
+        form.append('skills', JSON.stringify(skills));
       }
 
       // 添加人设配置信息

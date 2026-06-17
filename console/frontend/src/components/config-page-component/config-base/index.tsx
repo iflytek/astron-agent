@@ -1657,6 +1657,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 supportContext={supportContextFlag ? 1 : 0}
                 choosedAlltool={effectiveToolConfig}
                 mcpServerUrls={mcpServerUrls}
+                skills={skills}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1717,6 +1718,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 supportContext={supportContextFlag ? 1 : 0}
                 choosedAlltool={effectiveToolConfig}
                 mcpServerUrls={mcpServerUrls}
+                skills={skills}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1750,6 +1752,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         supportContext={supportContextFlag ? 1 : 0}
         choosedAlltool={effectiveToolConfig}
         mcpServerUrls={mcpServerUrls}
+        skills={skills}
         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
         personalityConfig={
           personalityData.enablePersonality
@@ -2891,6 +2894,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       supportContext={supportContextFlag ? 1 : 0}
                       choosedAlltool={effectiveToolConfig}
                       mcpServerUrls={mcpServerUrls}
+                      skills={skills}
                       findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                       personalityConfig={
                         personalityData.enablePersonality
@@ -2935,6 +2939,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           supportContext={supportContextFlag ? 1 : 0}
                           choosedAlltool={effectiveToolConfig}
                           mcpServerUrls={mcpServerUrls}
+                          skills={skills}
                           findModelOptionByUniqueKey={
                             findModelOptionByUniqueKey
                           }
@@ -3009,6 +3014,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         supportContext={supportContextFlag ? 1 : 0}
                         choosedAlltool={effectiveToolConfig}
                         mcpServerUrls={mcpServerUrls}
+                        skills={skills}
                         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                         personalityConfig={
                           personalityData.enablePersonality
