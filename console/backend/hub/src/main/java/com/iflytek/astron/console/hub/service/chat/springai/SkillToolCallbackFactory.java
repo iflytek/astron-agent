@@ -7,7 +7,9 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Builds {@code read_skill_*} (and, in a later phase, {@code run_skill_*}) Spring AI tool callbacks
@@ -25,11 +27,16 @@ public class SkillToolCallbackFactory {
         if (skills == null) {
             return callbacks;
         }
+        Set<String> seenSkillIds = new HashSet<>();
         for (JSONObject skill : skills) {
             if (skill == null
                     || StringUtils.isBlank(skill.getString("skillId"))
                     || StringUtils.isBlank(skill.getString("name"))
                     || StringUtils.isBlank(skill.getString("downloadUrl"))) {
+                continue;
+            }
+            // Skip duplicate skillIds so we never register two tools with the same name.
+            if (!seenSkillIds.add(skill.getString("skillId"))) {
                 continue;
             }
             callbacks.add(new ReadSkillToolCallback(skill, skillRuntimeToolService));
