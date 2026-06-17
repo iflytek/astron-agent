@@ -81,7 +81,9 @@ import { getEffectiveToolConfig, serializeOpenedTool } from './tool-config';
 import {
   hasInvalidMcpServerUrls,
   normalizeMcpServerUrls,
+  normalizeSkills,
 } from './mcp-url-config';
+import type { AgentSkill } from '@/types/skill';
 import { VcnItem } from '@/components/speaker-modal';
 import { getVcnList } from '@/services/chat';
 import type { MessageListType } from '@/types/chat';
@@ -250,6 +252,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     codeinterpreter: false,
   });
   const [mcpServerUrls, setMcpServerUrls] = useState<string[]>([]);
+  const [skills, setSkills] = useState<AgentSkill[]>([]);
   const effectiveToolConfig = useMemo(
     () => getEffectiveToolConfig(choosedAlltool, isNewWorkbench),
     [choosedAlltool, isNewWorkbench]
@@ -535,6 +538,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       isSentence: 0,
       openedTool: effectiveOpenedTool,
       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
+      skills: normalizeSkills(skills),
       prologue: prologue,
       ...getModelConfig(model),
       prompt: prompt,
@@ -817,6 +821,7 @@ const BaseConfig: React.FC<ChatProps> = ({
           setMcpServerUrls(
             normalizeMcpServerUrls(currentConfigData?.mcpServerUrls)
           );
+          setSkills(normalizeSkills(currentConfigData?.skills));
           setSupportContextFlag(
             save == 'true'
               ? configPageData?.supportContext == 1
@@ -1832,6 +1837,8 @@ const BaseConfig: React.FC<ChatProps> = ({
       setTools={setTools}
       mcpServerUrls={mcpServerUrls}
       setMcpServerUrls={setMcpServerUrls}
+      skills={skills}
+      setSkills={setSkills}
       conversation={conversation}
       setConversation={setConversation}
       multiModelDebugging={multiModelDebugging}
@@ -2251,6 +2258,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       isSentence: 0,
                       openedTool: effectiveOpenedTool,
                       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
+                      skills: normalizeSkills(skills),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2300,6 +2308,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       isSentence: 0,
                       openedTool: effectiveOpenedTool,
                       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
+                      skills: normalizeSkills(skills),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2380,6 +2389,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     isSentence: sentence,
                     openedTool: effectiveOpenedTool,
                     mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
+                    skills: normalizeSkills(skills),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2428,6 +2438,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     isSentence: sentence,
                     openedTool: effectiveOpenedTool,
                     mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
+                    skills: normalizeSkills(skills),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2749,6 +2760,8 @@ const BaseConfig: React.FC<ChatProps> = ({
                           setTools={setTools}
                           mcpServerUrls={mcpServerUrls}
                           setMcpServerUrls={setMcpServerUrls}
+                          skills={skills}
+                          setSkills={setSkills}
                           conversation={conversation}
                           setConversation={setConversation}
                           multiModelDebugging={multiModelDebugging}

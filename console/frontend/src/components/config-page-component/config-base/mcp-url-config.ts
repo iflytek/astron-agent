@@ -1,3 +1,5 @@
+import type { AgentSkill } from '@/types/skill';
+
 export const isValidMcpServerUrl = (url: string): boolean => {
   const value = url.trim();
   if (!value) {
@@ -37,6 +39,37 @@ export const normalizeMcpServerUrls = (urls?: unknown): string[] => {
         .filter(url => Boolean(url) && isValidMcpServerUrl(url))
     )
   );
+};
+
+export const normalizeSkills = (skills?: unknown): AgentSkill[] => {
+  let source = skills;
+  if (typeof skills === 'string') {
+    try {
+      source = JSON.parse(skills);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(source)) {
+    return [];
+  }
+
+  const seen = new Set<number>();
+  const result: AgentSkill[] = [];
+  for (const item of source) {
+    const skillId = Number(item?.skillId ?? item?.id);
+    if (!skillId || seen.has(skillId)) {
+      continue;
+    }
+    seen.add(skillId);
+    result.push({
+      skillId,
+      name: String(item?.name ?? ''),
+      description: String(item?.description ?? ''),
+    });
+  }
+  return result.slice(0, 30);
 };
 
 export const hasInvalidMcpServerUrls = (urls?: unknown): boolean => {

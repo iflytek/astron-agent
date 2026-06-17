@@ -369,6 +369,88 @@
   color: #f53f3f;
 }
 
+.skillIcon {
+  background: #eef2ff;
+  color: #6356ea;
+}
+
+.skillList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skillRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e5e6eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.skillRowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.skillRowName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.skillRowDesc {
+  font-size: 12px;
+  color: #8a8f99;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillModalList {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skillModalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 8px;
+}
+
+.skillModalMeta {
+  min-width: 0;
+}
+
+.skillModalName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.skillModalDesc {
+  font-size: 12px;
+  color: #8a8f99;
+}
+
+.skillModalEmpty {
+  text-align: center;
+  color: #8a8f99;
+  padding: 24px 0;
+}
+
 @media (max-width: 768px) {
   .capabilityBlock {
     padding: 18px;

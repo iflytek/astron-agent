@@ -51,6 +51,8 @@ import styles from './CapabilityDevelopment.module.scss';
 import cls from 'classnames';
 import { CheckboxChangeEvent } from 'antd/es/checkbox';
 import { isValidMcpServerUrl } from '../mcp-url-config';
+import SkillSelectModal from './SkillSelectModal';
+import type { AgentSkill } from '@/types/skill';
 
 const { TextArea } = Input;
 
@@ -75,6 +77,8 @@ interface CapabilityDevelopmentProps {
   setTools: (v: any[]) => void;
   mcpServerUrls: string[];
   setMcpServerUrls: (v: string[]) => void;
+  skills: AgentSkill[];
+  setSkills: (v: AgentSkill[]) => void;
   files: any[];
   tree: any[];
   setTree: (v: any[]) => void;
@@ -111,6 +115,8 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
     setTools,
     mcpServerUrls,
     setMcpServerUrls,
+    skills,
+    setSkills,
     files,
     tree,
     setTree,
@@ -370,6 +376,11 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
       return itemIndex !== index;
     });
     setMcpServerUrls(nextUrls.length > 0 ? nextUrls : []);
+  };
+
+  const [skillModalOpen, setSkillModalOpen] = useState(false);
+  const removeSkill = (skillId: number) => {
+    setSkills(skills.filter(skill => skill.skillId !== skillId));
   };
 
   return (
@@ -856,6 +867,90 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {showMcpSection && (
+        <div
+          className={cls(
+            styles.capabilitySection,
+            showKnowledgeSection && styles.capabilitySectionCompact
+          )}
+        >
+          <div className={styles.capabilityBlock}>
+            <div className={styles.capabilityBlockHeader}>
+              <div className={styles.capabilityTitleGroup}>
+                <span className={cls(styles.capabilityIcon, styles.skillIcon)}>
+                  <ApiOutlined />
+                </span>
+                <div>
+                  <div className={styles.capabilityTitleRow}>
+                    <span className={styles.capabilityTitle}>Skill</span>
+                    <span
+                      className={cls(
+                        styles.capabilityStatus,
+                        skills.length > 0
+                          ? styles.statusReady
+                          : styles.statusMuted
+                      )}
+                    >
+                      {skills.length > 0
+                        ? `已添加 ${skills.length} 个`
+                        : '未添加'}
+                    </span>
+                  </div>
+                  <div className={styles.capabilityDescription}>
+                    添加资源管理中的 Skill，模型可读取 SKILL.md 并按说明执行。
+                  </div>
+                </div>
+              </div>
+              <Button
+                icon={<PlusOutlined />}
+                className={styles.capabilityActionButton}
+                onClick={() => setSkillModalOpen(true)}
+              >
+                {skills.length > 0 ? '管理 Skill' : '添加 Skill'}
+              </Button>
+            </div>
+
+            {skills.length > 0 ? (
+              <div className={styles.skillList}>
+                {skills.map(skill => (
+                  <div className={styles.skillRow} key={skill.skillId}>
+                    <div className={styles.skillRowMeta}>
+                      <span className={styles.skillRowName}>{skill.name}</span>
+                      <span className={styles.skillRowDesc}>
+                        {skill.description || '暂无描述'}
+                      </span>
+                    </div>
+                    <Tooltip title="删除">
+                      <Button
+                        className={styles.mcpDeleteButton}
+                        icon={<DeleteOutlined />}
+                        onClick={() => removeSkill(skill.skillId)}
+                      />
+                    </Tooltip>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.capabilityEmptyState}
+                onClick={() => setSkillModalOpen(true)}
+              >
+                <span className={styles.capabilityEmptyTitle}>暂无 Skill</span>
+                <span className={styles.capabilityEmptyDescription}>
+                  点击添加 Skill，或前往资源管理创建 Skill。
+                </span>
+              </button>
+            )}
+          </div>
+          <SkillSelectModal
+            open={skillModalOpen}
+            selected={skills}
+            onClose={() => setSkillModalOpen(false)}
+            onChange={setSkills}
+          />
         </div>
       )}
       {showMcpSection && (

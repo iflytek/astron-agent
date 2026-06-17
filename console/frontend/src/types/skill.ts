@@ -45,6 +45,13 @@ export interface SkillImportItem {
   updateTime?: string;
 }
 
+/** A skill reference saved on an agent (resolved/enriched on the backend at runtime). */
+export interface AgentSkill {
+  skillId: number;
+  name: string;
+  description: string;
+}
+
 export interface CreateSkillFolderParams {
   parentId?: number;
   name: string;
