@@ -591,6 +591,7 @@ services:
       APP_URL: "${APP_URL:-}"
       KNOWLEDGE_URL: "${KNOWLEDGE_URL:-}"
       TOOL_URL: "${TOOL_URL:-}"
+      AGENT_URL: "${AGENT_URL:-http://core-agent:${CORE_AGENT_PORT}}"
       TOOL_RPA_URL: "${TOOL_RPA_URL:-}"
       WORKFLOW_URL: "${WORKFLOW_URL:-}"
       SPARK_DB_URL: "${SPARK_DB_URL:-}"
