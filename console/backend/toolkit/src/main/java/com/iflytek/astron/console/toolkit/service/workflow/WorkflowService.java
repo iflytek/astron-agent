@@ -70,7 +70,6 @@ import com.iflytek.astron.console.toolkit.entity.table.relation.FlowRepoRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowToolRel;
 import com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2;
 import com.iflytek.astron.console.toolkit.entity.table.repo.Repo;
-import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillImportDto;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillSandboxConfigDto;
 import com.iflytek.astron.console.toolkit.entity.table.tool.*;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.*;
@@ -96,7 +95,7 @@ import com.iflytek.astron.console.toolkit.service.extra.AppService;
 import com.iflytek.astron.console.toolkit.service.extra.CoreSystemService;
 import com.iflytek.astron.console.toolkit.service.extra.OpenPlatformService;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
-import com.iflytek.astron.console.toolkit.service.skill.SkillFileService;
+import com.iflytek.astron.console.toolkit.service.skill.SkillEnrichmentService;
 import com.iflytek.astron.console.toolkit.service.skill.SkillSandboxConfigService;
 import com.iflytek.astron.console.toolkit.sse.WorkflowSseEventSourceListener;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
@@ -271,7 +270,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     @Autowired
     private DbTableMapper dbTableMapper;
     @Autowired
-    private SkillFileService skillFileService;
+    private SkillEnrichmentService skillEnrichmentService;
     @Autowired
     private SkillSandboxConfigService skillSandboxConfigService;
     @Autowired
@@ -2392,67 +2391,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     @SuppressWarnings("rawtypes")
     private void enrichSkills(JSONObject plugin) {
-        JSONArray skillArray = plugin.getJSONArray("skills");
-        if (skillArray == null || skillArray.isEmpty()) {
-            return;
-        }
-        List<Long> skillIds = new ArrayList<>();
-        for (int i = 0; i < skillArray.size(); i++) {
-            Object obj = skillArray.get(i);
-            if (!(obj instanceof Map skillObj)) {
-                continue;
-            }
-            Object skillIdObj = skillObj.get("skillId");
-            if (skillIdObj == null) {
-                skillIdObj = skillObj.get("id");
-            }
-            if (skillIdObj == null) {
-                continue;
-            }
-            try {
-                skillIds.add(Long.parseLong(String.valueOf(skillIdObj)));
-            } catch (NumberFormatException ex) {
-                log.warn("Ignore invalid skill id: {}", skillIdObj);
-            }
-        }
-        if (skillIds.isEmpty()) {
-            return;
-        }
-        Map<Long, SkillImportDto> importMap = skillFileService.getSkillImportsByIds(skillIds)
-                .stream()
-                .collect(Collectors.toMap(SkillImportDto::getId, item -> item, (a, b) -> a));
-        SkillSandboxConfigDto sandboxConfig = skillSandboxConfigService.toRuntimeDto();
-        for (int i = 0; i < skillArray.size(); i++) {
-            Object obj = skillArray.get(i);
-            if (!(obj instanceof Map skillObj)) {
-                continue;
-            }
-            Object skillIdObj = skillObj.get("skillId");
-            if (skillIdObj == null) {
-                skillIdObj = skillObj.get("id");
-            }
-            if (skillIdObj == null) {
-                continue;
-            }
-            try {
-                Long skillId = Long.parseLong(String.valueOf(skillIdObj));
-                SkillImportDto importDto = importMap.get(skillId);
-                if (importDto == null) {
-                    continue;
-                }
-                skillObj.put("skillId", String.valueOf(importDto.getId()));
-                skillObj.put("name", StringUtils.defaultString(importDto.getName()));
-                skillObj.put("description", StringUtils.defaultString(importDto.getDescription()));
-                skillObj.put("downloadUrl", StringUtils.defaultString(importDto.getDownloadUrl()));
-                skillObj.put("resources", importDto.getResources());
-                if (Boolean.TRUE.equals(sandboxConfig.getEnabled())
-                        && StringUtils.isNotBlank(sandboxConfig.getApiKey())) {
-                    skillObj.put("sandbox", JSON.parseObject(JSON.toJSONString(sandboxConfig)));
-                }
-            } catch (NumberFormatException ex) {
-                log.warn("Ignore invalid skill id while enriching: {}", skillIdObj);
-            }
-        }
+        skillEnrichmentService.enrichSkillEntries(plugin.getJSONArray("skills"));
     }
 
     private List<String> resolveBotMcpServerUrls(WorkflowReq saveDto, Workflow workflow) {

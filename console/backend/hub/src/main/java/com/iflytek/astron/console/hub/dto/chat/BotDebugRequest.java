@@ -52,6 +52,11 @@ public class BotDebugRequest {
     private String mcpServerUrls;
 
     /**
+     * Selected skills JSON list
+     */
+    private String skills;
+
+    /**
      * Model name
      */
     private String model = "spark";

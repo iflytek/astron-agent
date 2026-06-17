@@ -1,6 +1,7 @@
 package com.iflytek.astron.console.hub.service.chat.springai;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.hub.service.ManagedWebSearchService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -25,16 +26,19 @@ public class AgentToolCallbackResolver {
 
     private final ManagedWebSearchService managedWebSearchService;
     private final McpToolCallbackFactory mcpToolCallbackFactory;
+    private final SkillToolCallbackFactory skillToolCallbackFactory;
 
     /**
      * @param openedTool retained for future per-tool gating; built-in tools are always included.
+     * @param skills enriched skill entries; each yields read_skill_/run_skill_ tool callbacks.
      */
-    public List<ToolCallback> resolve(String openedTool, String mcpServerUrls, ChatToolContext context)
-            throws IOException {
+    public List<ToolCallback> resolve(String openedTool, String mcpServerUrls, List<JSONObject> skills,
+            ChatToolContext context) throws IOException {
         List<ToolCallback> callbacks = new ArrayList<>();
         callbacks.add(new WebSearchToolCallback(managedWebSearchService, context));
         callbacks.add(new CurrentTimeToolCallback());
         callbacks.addAll(mcpToolCallbackFactory.build(parseMcpUrls(mcpServerUrls), context));
+        callbacks.addAll(skillToolCallbackFactory.build(skills));
         return callbacks;
     }
 

@@ -1,5 +1,6 @@
 package com.iflytek.astron.console.hub.service.chat.springai;
 
+import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.dto.llm.SparkChatRequest;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
@@ -24,6 +25,13 @@ public class AgentChatTask {
     private List<SparkChatRequest.MessageDto> messages;
     private String openedTool;
     private String mcpServerUrls;
+
+    /**
+     * Enriched skills (skillId/name/description/downloadUrl/resources/sandbox), resolved on the request
+     * thread before streaming begins.
+     */
+    private List<JSONObject> skills;
+
     private String userId;
     private Long chatId;
 

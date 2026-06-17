@@ -1,6 +1,9 @@
 package com.iflytek.astron.console.hub.service.chat.impl;
 
 import cn.hutool.core.collection.CollectionUtil;
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotReqDto;
@@ -39,6 +42,7 @@ import com.iflytek.astron.console.toolkit.entity.biz.modelconfig.ModelDto;
 import com.iflytek.astron.console.toolkit.entity.vo.CategoryTreeVO;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
+import com.iflytek.astron.console.toolkit.service.skill.SkillEnrichmentService;
 import com.iflytek.astron.console.toolkit.service.workflow.WorkflowService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -68,6 +72,9 @@ public class BotChatServiceImpl implements BotChatService {
 
     @Autowired
     private SpringAiAgentChatService springAiAgentChatService;
+
+    @Autowired
+    private SkillEnrichmentService skillEnrichmentService;
 
     @Autowired
     private ChatHistoryService chatHistoryService;
@@ -135,6 +142,7 @@ public class BotChatServiceImpl implements BotChatService {
                         .messages(messages)
                         .openedTool(botConfig.openedTool)
                         .mcpServerUrls(botConfig.mcpServerUrls)
+                        .skills(enrichBotSkills(botConfig.skills()))
                         .userId(chatBotReqDto.getUid())
                         .chatId(chatBotReqDto.getChatId())
                         .chatReqRecords(chatReqRecords)
@@ -180,6 +188,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .messages(messages)
                     .openedTool(botConfig.openedTool)
                     .mcpServerUrls(botConfig.mcpServerUrls)
+                    .skills(enrichBotSkills(botConfig.skills()))
                     .userId(chatBotReqDto.getUid())
                     .chatId(chatBotReqDto.getChatId())
                     .chatReqRecords(chatReqRecords)
@@ -223,6 +232,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .messages(messageList)
                     .openedTool(request.getOpenedTool())
                     .mcpServerUrls(request.getMcpServerUrls())
+                    .skills(enrichBotSkills(request.getSkills()))
                     .userId(request.getUid())
                     .chatId(null)
                     .chatReqRecords(null)
@@ -394,7 +404,8 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotMarket.getVersion(),
                     chatBotMarket.getModelId(),
                     chatBotMarket.getSupportDocument() == 1,
-                    resolveBaseMcpServerUrls(botId));
+                    resolveBaseMcpServerUrls(botId),
+                    resolveBaseSkills(botId));
         } else {
             ChatBotBase chatBotBase = chatBotDataService.findById(botId)
                     .orElseThrow(() -> new BusinessException(ResponseEnum.BOT_NOT_EXISTS));
@@ -406,7 +417,8 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotBase.getVersion(),
                     chatBotBase.getModelId(),
                     chatBotBase.getSupportDocument() == 1,
-                    chatBotBase.getMcpServerUrls());
+                    chatBotBase.getMcpServerUrls(),
+                    chatBotBase.getSkills());
         }
     }
 
@@ -416,6 +428,36 @@ public class BotChatServiceImpl implements BotChatService {
         }
         var botBase = chatBotDataService.findById(botId);
         return botBase == null ? null : botBase.map(ChatBotBase::getMcpServerUrls).orElse(null);
+    }
+
+    private String resolveBaseSkills(Integer botId) {
+        if (botId == null) {
+            return null;
+        }
+        return chatBotDataService.findById(botId).map(ChatBotBase::getSkills).orElse(null);
+    }
+
+    /** Parse the saved skills JSON and enrich each entry with downloadUrl/resources/sandbox. */
+    private List<JSONObject> enrichBotSkills(String skillsJson) {
+        if (StringUtils.isBlank(skillsJson)) {
+            return List.of();
+        }
+        JSONArray array;
+        try {
+            array = JSON.parseArray(skillsJson);
+        } catch (Exception e) {
+            log.warn("Invalid skills json on bot: {}", skillsJson);
+            return List.of();
+        }
+        skillEnrichmentService.enrichSkillEntries(array);
+        List<JSONObject> result = new ArrayList<>();
+        for (int i = 0; i < array.size(); i++) {
+            JSONObject skill = array.getJSONObject(i);
+            if (skill != null && StringUtils.isNotBlank(skill.getString("downloadUrl"))) {
+                result.add(skill);
+            }
+        }
+        return result;
     }
 
     /**
@@ -703,7 +745,7 @@ public class BotChatServiceImpl implements BotChatService {
     }
 
     private record BotConfiguration(String prompt, boolean supportContext, String model, String openedTool,
-            Integer version, Long modelId, boolean supportDocument, String mcpServerUrls) {}
+            Integer version, Long modelId, boolean supportDocument, String mcpServerUrls, String skills) {}
 
     private record TokenStatistics(int systemTokens, int currentUserTokens, int reservedTokens, int availableTokens) {}
 

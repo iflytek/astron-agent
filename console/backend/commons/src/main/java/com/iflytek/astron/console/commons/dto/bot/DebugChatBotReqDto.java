@@ -47,6 +47,11 @@ public class DebugChatBotReqDto {
     private String mcpServerUrls;
 
     /**
+     * Selected skills JSON list
+     */
+    private String skills;
+
+    /**
      * Model name
      */
     private String model;
