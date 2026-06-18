@@ -16,14 +16,16 @@ import static org.mockito.Mockito.when;
 class AgentToolCallbackResolverTest {
 
     private AgentToolCallbackResolver newResolver(McpRuntimeToolService mcp) {
-        return new AgentToolCallbackResolver(mock(ManagedWebSearchService.class), new McpToolCallbackFactory(mcp));
+        return new AgentToolCallbackResolver(mock(ManagedWebSearchService.class), new McpToolCallbackFactory(mcp),
+                new SkillToolCallbackFactory(mock(SkillRuntimeToolService.class)));
     }
 
     @Test
     void webSearchAndCurrentTimeFromOpenedTool() throws Exception {
         McpRuntimeToolService mcp = mock(McpRuntimeToolService.class);
         when(mcp.listTools(any())).thenReturn(List.of());
-        List<ToolCallback> tools = newResolver(mcp).resolve("web_search,current_time", null, new ChatToolContext("u"));
+        List<ToolCallback> tools =
+                newResolver(mcp).resolve("web_search,current_time", null, null, new ChatToolContext("u"));
         List<String> names = tools.stream().map(t -> t.getToolDefinition().name()).toList();
         assertTrue(names.contains("web_search"));
         assertTrue(names.contains("current_time"));
@@ -33,7 +35,7 @@ class AgentToolCallbackResolverTest {
     void builtinToolsAlwaysPresentEvenWhenOpenedToolBlank() throws Exception {
         McpRuntimeToolService mcp = mock(McpRuntimeToolService.class);
         when(mcp.listTools(any())).thenReturn(List.of());
-        List<ToolCallback> tools = newResolver(mcp).resolve("", null, new ChatToolContext("u"));
+        List<ToolCallback> tools = newResolver(mcp).resolve("", null, null, new ChatToolContext("u"));
         List<String> names = tools.stream().map(t -> t.getToolDefinition().name()).toList();
         assertTrue(names.contains("web_search"));
         assertTrue(names.contains("current_time"));
@@ -43,7 +45,7 @@ class AgentToolCallbackResolverTest {
     void mcpUrlsParsedFromJsonArrayString() throws Exception {
         McpRuntimeToolService mcp = mock(McpRuntimeToolService.class);
         when(mcp.listTools(List.of("http://a", "http://b"))).thenReturn(List.of());
-        newResolver(mcp).resolve(null, "[\"http://a\",\"http://b\"]", new ChatToolContext("u"));
+        newResolver(mcp).resolve(null, "[\"http://a\",\"http://b\"]", null, new ChatToolContext("u"));
         verify(mcp).listTools(List.of("http://a", "http://b"));
     }
 }
