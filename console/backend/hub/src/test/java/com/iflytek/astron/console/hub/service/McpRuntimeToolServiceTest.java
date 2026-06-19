@@ -55,35 +55,35 @@ class McpRuntimeToolServiceTest {
         when(response.isSuccessful()).thenReturn(true);
         when(response.body()).thenReturn(ResponseBody.create(
                 """
-                {
-                  "code": 0,
-                  "message": "success",
-                  "sid": "sid",
-                  "data": {
-                    "servers": [
-                      {
-                        "server_id": "",
-                        "server_url": "https://mcp.example.com/sse",
-                        "server_status": 0,
-                        "server_message": "success",
-                        "tools": [
-                          {
-                            "name": "get_weather",
-                            "description": "Get weather.",
-                            "inputSchema": {
-                              "type": "object",
-                              "properties": {
-                                "city": {"type": "string"}
-                              },
-                              "required": ["city"]
-                            }
+                        {
+                          "code": 0,
+                          "message": "success",
+                          "sid": "sid",
+                          "data": {
+                            "servers": [
+                              {
+                                "server_id": "",
+                                "server_url": "https://mcp.example.com/sse",
+                                "server_status": 0,
+                                "server_message": "success",
+                                "tools": [
+                                  {
+                                    "name": "get_weather",
+                                    "description": "Get weather.",
+                                    "inputSchema": {
+                                      "type": "object",
+                                      "properties": {
+                                        "city": {"type": "string"}
+                                      },
+                                      "required": ["city"]
+                                    }
+                                  }
+                                ]
+                              }
+                            ]
                           }
-                        ]
-                      }
-                    ]
-                  }
-                }
-                """,
+                        }
+                        """,
                 MediaType.get("application/json; charset=utf-8")));
 
         List<McpRuntimeToolService.McpRuntimeTool> tools = service.listTools(List.of(serverUrl));
@@ -118,18 +118,18 @@ class McpRuntimeToolServiceTest {
         when(response.isSuccessful()).thenReturn(true);
         when(response.body()).thenReturn(ResponseBody.create(
                 """
-                {
-                  "code": 0,
-                  "message": "success",
-                  "sid": "sid",
-                  "data": {
-                    "isError": false,
-                    "content": [
-                      {"type": "text", "text": "北京今天晴。"}
-                    ]
-                  }
-                }
-                """,
+                        {
+                          "code": 0,
+                          "message": "success",
+                          "sid": "sid",
+                          "data": {
+                            "isError": false,
+                            "content": [
+                              {"type": "text", "text": "北京今天晴。"}
+                            ]
+                          }
+                        }
+                        """,
                 MediaType.get("application/json; charset=utf-8")));
 
         String result = service.callTool(tool, JSON.parseObject("{\"city\":\"北京\"}"));
@@ -153,27 +153,27 @@ class McpRuntimeToolServiceTest {
         when(response.isSuccessful()).thenReturn(true);
         when(response.body()).thenReturn(ResponseBody.create(
                 """
-                {
-                  "code": 0,
-                  "message": "success",
-                  "data": {
-                    "servers": [
-                      {
-                        "server_id": "",
-                        "server_url": "https://mcp.example.com/sse",
-                        "server_status": 0,
-                        "tools": [
-                          {
-                            "name": "web_search",
-                            "description": "Search through a remote MCP server.",
-                            "inputSchema": {"type": "object", "properties": {}}
+                        {
+                          "code": 0,
+                          "message": "success",
+                          "data": {
+                            "servers": [
+                              {
+                                "server_id": "",
+                                "server_url": "https://mcp.example.com/sse",
+                                "server_status": 0,
+                                "tools": [
+                                  {
+                                    "name": "web_search",
+                                    "description": "Search through a remote MCP server.",
+                                    "inputSchema": {"type": "object", "properties": {}}
+                                  }
+                                ]
+                              }
+                            ]
                           }
-                        ]
-                      }
-                    ]
-                  }
-                }
-                """,
+                        }
+                        """,
                 MediaType.get("application/json; charset=utf-8")));
 
         List<McpRuntimeToolService.McpRuntimeTool> tools = service.listTools(List.of(serverUrl));

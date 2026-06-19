@@ -1,6 +1,10 @@
 export type ToolConfig = Record<string, boolean>;
 
-const BUILT_IN_TOOL_KEYS = new Set(['web_search', 'ifly_search', 'current_time']);
+const BUILT_IN_TOOL_KEYS = new Set([
+  'web_search',
+  'ifly_search',
+  'current_time',
+]);
 
 const NEW_WORKBENCH_TOOL_OVERRIDES: ToolConfig = {
   text_to_image: false,
@@ -31,7 +35,9 @@ export const serializeOpenedTool = (
     .join(',');
 };
 
-const normalizeToolConfig = (toolConfig: ToolConfig | undefined): ToolConfig => {
+const normalizeToolConfig = (
+  toolConfig: ToolConfig | undefined
+): ToolConfig => {
   const normalized = { ...(toolConfig ?? {}) };
   BUILT_IN_TOOL_KEYS.forEach(toolKey => delete normalized[toolKey]);
   return normalized;

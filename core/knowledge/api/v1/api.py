@@ -18,7 +18,6 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from knowledge.consts.error_code import CodeEnum
-from knowledge.domain.platform_account_config import set_platform_account_config
 from knowledge.domain.entity.chunk_dto import (
     ChunkDeleteReq,
     ChunkQueryReq,
@@ -28,6 +27,7 @@ from knowledge.domain.entity.chunk_dto import (
     QueryDocReq,
     RAGType,
 )
+from knowledge.domain.platform_account_config import set_platform_account_config
 from knowledge.domain.response import ErrorResponse, SuccessDataResponse
 from knowledge.exceptions.exception import (
     CustomException,
@@ -37,6 +37,7 @@ from knowledge.exceptions.exception import (
 from knowledge.infra.ragflow.ragflow_utils import RagflowUtils
 from knowledge.service.rag_strategy_factory import RAGStrategyFactory
 from knowledge.service.rq.rewrite_query import rewrite_query
+
 
 async def bind_platform_account_config(request: Request) -> None:
     set_platform_account_config(

@@ -404,6 +404,22 @@ const AICodeInputBox = ({
   );
 };
 
+interface IOTestPanelProps {
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  input: string;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
+  setOutput: React.Dispatch<React.SetStateAction<string>>;
+  setErrCodeMsg: React.Dispatch<React.SetStateAction<string>>;
+  setCodeRunningStatus: React.Dispatch<React.SetStateAction<string>>;
+  value?: string;
+  currentFlow?: FlowType;
+  codeRunningStatus: string;
+  loading: boolean;
+  errCodeMsg: string;
+  output: string;
+  nodeId?: string;
+}
+
 const IOTestPanel = ({
   setLoading,
   input,
@@ -417,7 +433,8 @@ const IOTestPanel = ({
   loading,
   errCodeMsg,
   output,
-}): React.ReactElement => {
+  nodeId,
+}: IOTestPanelProps): React.ReactElement => {
   const { t } = useTranslation();
   const user = useUserStore(state => state.user);
   const generateRandomString = useMemoizedFn((): string => {
@@ -454,7 +471,7 @@ const IOTestPanel = ({
       app_id: currentFlow?.appId,
       uid: user?.uid.toString(),
       flow_id: currentFlow?.flowId,
-      node_id: id,
+      node_id: nodeId,
     };
     codeRun(params)
       .then((res: CodeRunResponse): void => {
@@ -758,6 +775,7 @@ function CodeIDEA(): React.ReactElement {
           loading={loading}
           errCodeMsg={errCodeMsg}
           output={output}
+          nodeId={id}
         />
       </div>
     </Drawer>

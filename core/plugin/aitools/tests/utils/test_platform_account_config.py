@@ -23,7 +23,9 @@ def test_aitools_services_do_not_read_ai_credentials_from_environment() -> None:
     assert offenders == []
 
 
-def test_get_iflytek_credentials_reads_plain_redis_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_iflytek_credentials_reads_plain_redis_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from plugin.aitools import platform_account_config
 
     fake_client = Mock()
@@ -38,14 +40,16 @@ def test_get_iflytek_credentials_reads_plain_redis_cache(monkeypatch: pytest.Mon
     assert credentials.app_id == "app-id"
     assert credentials.api_key == "api-key"
     assert credentials.api_secret == "api-secret"
-    fake_client.get.assert_called_once_with("platform_account_text:iflytek_open_platform")
+    fake_client.get.assert_called_once_with(
+        "platform_account_text:iflytek_open_platform"
+    )
 
 
 def test_get_iflytek_credentials_fails_clearly_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from plugin.aitools.common.exceptions.exceptions import ServiceException
     from plugin.aitools import platform_account_config
+    from plugin.aitools.common.exceptions.exceptions import ServiceException
 
     fake_client = Mock()
     fake_client.get.return_value = None

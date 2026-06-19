@@ -487,7 +487,9 @@ class AgentNode(BaseNode):
             "meta_data": {
                 "caller": self.metaData.caller,
                 "caller_sid": self.metaData.callerSid,
-                "workflow_id": variable_pool.system_params.get(ParamKey.FlowId, default=""),
+                "workflow_id": variable_pool.system_params.get(
+                    ParamKey.FlowId, default=""
+                ),
                 "run_id": self.metaData.callerSid,
                 "node_id": self.node_id,
             },

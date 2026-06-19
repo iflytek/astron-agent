@@ -27,7 +27,8 @@ import java.util.regex.Pattern;
  * <li>Restricts protocols to HTTP/HTTPS;</li>
  * <li>Prohibits user information (user:pass@host format);</li>
  * <li>Rejects IPv6 and IPv4-mapped IPv6 (can be relaxed as needed);</li>
- * <li>Resolves a bounded redirect chain and performs blacklist/whitelist validation on each hop;</li>
+ * <li>Resolves a bounded redirect chain and performs blacklist/whitelist validation on each
+ * hop;</li>
  * <li>Blocks common short link domains;</li>
  * <li>Supports IP blacklist, network segment blacklist, and domain whitelist (configuration source:
  * ConfigInfo table).</li>
@@ -468,8 +469,7 @@ public class UrlCheckTool {
         }
     }
 
-    private record RedirectLookupResult(int statusCode, String location) {
-    }
+    private record RedirectLookupResult(int statusCode, String location) {}
 
     private URL toSafeHttpUrl(String url) throws IOException {
         try {

@@ -1,8 +1,9 @@
 from typing import Any
 
-from common.service.base import ServiceType
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from common.service.base import ServiceType
 
 
 class DummyService:

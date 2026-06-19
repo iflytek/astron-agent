@@ -193,20 +193,20 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
         }}
         formValues={
           {
-          flowId: currentFlow?.flowId,
-          name: currentFlow?.name,
-          botType: currentFlow?.category,
-          avatar: currentFlow?.avatarIcon,
-          botDesc: currentFlow?.description,
-          talkAgentConfig: {
-            interactType: flowConfig?.interactType,
-            vcn: flowConfig?.vcn,
-            sceneId: flowConfig?.sceneId,
-            sceneMode: flowConfig?.sceneMode,
-            sceneEnable: flowConfig?.sceneEnable,
-            vcnEnable: flowConfig?.vcnEnable,
-            callSceneId: flowConfig?.callSceneId,
-          },
+            flowId: currentFlow?.flowId,
+            name: currentFlow?.name,
+            botType: currentFlow?.category,
+            avatar: currentFlow?.avatarIcon,
+            botDesc: currentFlow?.description,
+            talkAgentConfig: {
+              interactType: flowConfig?.interactType,
+              vcn: flowConfig?.vcn,
+              sceneId: flowConfig?.sceneId,
+              sceneMode: flowConfig?.sceneMode,
+              sceneEnable: flowConfig?.sceneEnable,
+              vcnEnable: flowConfig?.vcnEnable,
+              callSceneId: flowConfig?.callSceneId,
+            },
           } as any
         }
         onSubmit={handleEditSumbit}

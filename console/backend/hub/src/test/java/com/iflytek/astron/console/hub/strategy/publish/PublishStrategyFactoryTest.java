@@ -20,19 +20,19 @@ class PublishStrategyFactoryTest {
     }
 
     private record StubStrategy(String publishType) implements PublishStrategy {
-        @Override
-        public ApiResult<Object> publish(Integer botId, Object publishData, String currentUid, Long spaceId) {
-            return ApiResult.success(null);
-        }
 
-        @Override
-        public ApiResult<Object> offline(Integer botId, Object publishData, String currentUid, Long spaceId) {
-            return ApiResult.success(null);
-        }
-
-        @Override
-        public String getPublishType() {
-            return publishType;
-        }
+    @Override
+    public ApiResult<Object> publish(Integer botId, Object publishData, String currentUid, Long spaceId) {
+        return ApiResult.success(null);
     }
-}
+
+    @Override
+    public ApiResult<Object> offline(Integer botId, Object publishData, String currentUid, Long spaceId) {
+        return ApiResult.success(null);
+    }
+
+    @Override
+    public String getPublishType() {
+        return publishType;
+    }
+}}

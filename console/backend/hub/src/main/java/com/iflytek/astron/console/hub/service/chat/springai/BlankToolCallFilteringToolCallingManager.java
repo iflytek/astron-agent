@@ -60,8 +60,9 @@ public class BlankToolCallFilteringToolCallingManager implements ToolCallingMana
                 }
                 if (valid.size() != message.getToolCalls().size()) {
                     changed = true;
+                    String text = message.getText();
                     AssistantMessage filtered = AssistantMessage.builder()
-                            .content(message.getText())
+                            .content(text == null ? "" : text)
                             .properties(message.getMetadata())
                             .toolCalls(valid)
                             .media(message.getMedia())

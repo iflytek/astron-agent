@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import pytest
 
@@ -7,31 +8,35 @@ from workflow.engine.nodes.code.executor.base_executor import CodeExecutorFactor
 
 
 class DummySpan:
-    async def add_info_event_async(self, _event):
+    async def add_info_event_async(self, _event: Any) -> None:
         return None
 
-    async def add_info_events_async(self, _events):
+    async def add_info_events_async(self, _events: Any) -> None:
         return None
 
-    def record_exception(self, _error):
+    def record_exception(self, _error: Any) -> None:
         return None
 
 
 class RecordingExecutor:
-    def __init__(self):
-        self.kwargs = None
+    def __init__(self) -> None:
+        self.kwargs: dict[str, Any] = {}
 
-    async def execute(self, language, code, timeout, span, **kwargs):
+    async def execute(
+        self, language: str, code: str, timeout: Any, span: Any, **kwargs: Any
+    ) -> str:
         self.kwargs = kwargs
         return json.dumps({"result": "ok"}, ensure_ascii=False)
 
 
 @pytest.mark.asyncio
-async def test_code_node_uses_e2b_when_runtime_sandbox_is_configured(monkeypatch):
+async def test_code_node_uses_e2b_when_runtime_sandbox_is_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     executor = RecordingExecutor()
-    requested_types = []
+    requested_types: list[str] = []
 
-    def fake_create_executor(executor_type):
+    def fake_create_executor(executor_type: str) -> RecordingExecutor:
         requested_types.append(executor_type)
         return executor
 
@@ -66,19 +71,23 @@ async def test_code_node_uses_e2b_when_runtime_sandbox_is_configured(monkeypatch
 
     assert result == {"result": "ok"}
     assert requested_types == ["e2b"]
-    assert executor.kwargs["sandbox"]["api_key"] == "secret"
-    assert executor.kwargs["sandbox"]["workflow_id"] == "flow-1"
-    assert executor.kwargs["sandbox"]["run_id"] == "run-1"
-    assert executor.kwargs["sandbox"]["node_id"] == "ifly-code::node-1"
-    assert executor.kwargs["sandbox"]["space_id"] == "100"
+    sandbox = executor.kwargs["sandbox"]
+    assert sandbox is not None
+    assert sandbox["api_key"] == "secret"
+    assert sandbox["workflow_id"] == "flow-1"
+    assert sandbox["run_id"] == "run-1"
+    assert sandbox["node_id"] == "ifly-code::node-1"
+    assert sandbox["space_id"] == "100"
 
 
 @pytest.mark.asyncio
-async def test_code_node_falls_back_to_configured_executor_without_sandbox(monkeypatch):
+async def test_code_node_falls_back_to_configured_executor_without_sandbox(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     executor = RecordingExecutor()
-    requested_types = []
+    requested_types: list[str] = []
 
-    def fake_create_executor(executor_type):
+    def fake_create_executor(executor_type: str) -> RecordingExecutor:
         requested_types.append(executor_type)
         return executor
 
@@ -98,4 +107,4 @@ async def test_code_node_falls_back_to_configured_executor_without_sandbox(monke
     await node.execute_code({}, DummySpan())
 
     assert requested_types == ["langchain"]
-    assert executor.kwargs["sandbox"] is None
+    assert executor.kwargs.get("sandbox") is None

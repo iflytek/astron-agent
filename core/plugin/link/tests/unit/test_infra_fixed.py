@@ -240,7 +240,7 @@ class TestHttpRun:
 
         class MockSession:
             def __init__(self) -> None:
-                self.request_kwargs = None
+                self.request_kwargs: dict[str, Any] = {}
 
             async def __aenter__(self) -> Any:
                 return self

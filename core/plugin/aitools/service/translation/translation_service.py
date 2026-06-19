@@ -9,9 +9,7 @@ from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.exceptions.error.code_enums import BaseCodeEnum
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.platform_account_config import (
-    get_iflytek_open_platform_credentials,
-)
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from plugin.aitools.service.translation.translation_client import (
     CHINESE_LANGUAGE_CODE,
     VALID_LANGUAGE_CODES,

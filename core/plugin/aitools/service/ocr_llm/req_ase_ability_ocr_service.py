@@ -24,9 +24,7 @@ from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
 from plugin.aitools.const.const import OCR_LLM_HTTP_URL_KEY
-from plugin.aitools.platform_account_config import (
-    get_iflytek_open_platform_credentials,
-)
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 

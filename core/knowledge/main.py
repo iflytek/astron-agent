@@ -20,10 +20,11 @@ from common.service import service_manager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from loguru import logger
+
 from knowledge.api.v1.api import rag_router
 from knowledge.consts.error_code import CodeEnum
 from knowledge.domain.response import ErrorResponse
-from loguru import logger
 
 
 def initialize_extensions() -> None:

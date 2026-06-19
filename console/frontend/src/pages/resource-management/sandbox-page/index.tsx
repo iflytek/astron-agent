@@ -43,7 +43,8 @@ const PROVIDERS = [
     key: 'e2b',
     name: 'E2B Sandbox',
     icon: <CloudServerOutlined />,
-    description: '通过 E2B 官方 SDK 在第三方隔离环境中运行 Skill 脚本和工作流代码。',
+    description:
+      '通过 E2B 官方 SDK 在第三方隔离环境中运行 Skill 脚本和工作流代码。',
   },
   {
     key: 'daytona',

@@ -14,7 +14,10 @@ import React, {
 import { useTranslation } from 'react-i18next';
 
 // 虚拟人初始化鉴权参数
-const buildSdkInitAppInfoDefault = (appId?: string, signedUrl?: string): any => ({
+const buildSdkInitAppInfoDefault = (
+  appId?: string,
+  signedUrl?: string
+): any => ({
   serverUrl: 'wss://avatar.cn-huadong-1.xf-yun.com/v1/interact',
   appId: appId,
   sceneId: '',

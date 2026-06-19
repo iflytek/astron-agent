@@ -1,7 +1,6 @@
 from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
-
 _PLATFORM_ACCOUNT_CONFIG: ContextVar[Dict[str, Any]] = ContextVar(
     "platform_account_config", default={}
 )

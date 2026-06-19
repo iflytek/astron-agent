@@ -3,7 +3,6 @@ package com.iflytek.astron.console.hub.controller.gateway;
 import com.iflytek.astron.console.hub.service.gateway.GatewayAuthException;
 import com.iflytek.astron.console.hub.service.gateway.GatewayAuthService;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 

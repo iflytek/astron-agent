@@ -98,12 +98,8 @@ def _load_ragflow_config() -> Dict[str, Any]:
 
     # Validate required configuration
     if not _config_cache["base_url"] or not _config_cache["api_token"]:
-        logger.warning(
-            "RAGFlow configuration incomplete, please check config.env file"
-        )
-        logger.warning(
-            "Required configuration: RAGFLOW_BASE_URL and RAGFLOW_API_TOKEN"
-        )
+        logger.warning("RAGFlow configuration incomplete, please check config.env file")
+        logger.warning("Required configuration: RAGFLOW_BASE_URL and RAGFLOW_API_TOKEN")
     else:
         logger.info(f"RAGFlow configuration loaded: {_config_cache['base_url']}")
 

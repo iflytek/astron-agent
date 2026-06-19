@@ -19,9 +19,7 @@ from plugin.aitools.common.clients.aiohttp_client import HttpClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
 from plugin.aitools.const.const import IMAGE_GENERATE_URL_KEY
-from plugin.aitools.platform_account_config import (
-    get_iflytek_open_platform_credentials,
-)
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from plugin.aitools.utils.oss_utils import upload_file
 from pydantic import BaseModel
 

@@ -35,7 +35,8 @@ class LoopVariable(BaseModel):
 
     id: str = ""
     name: str
-    schema: dict[str, Any] = Field(default_factory=dict)
+    # Workflow DSL uses "schema"; BaseModel also exposes a schema() method.
+    schema: dict[str, Any] = Field(default_factory=dict)  # type: ignore[assignment]
     value: Any = None
     initialValue: Any = None
     defaultValue: Any = None

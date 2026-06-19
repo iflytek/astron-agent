@@ -203,14 +203,18 @@ class MySQLAdapter(DatabaseAdapter):
             await engine.dispose()
 
     def safe_create_schema_sql(self, schema_name: str) -> Any:
-        safe_name = quoted_name(self._validate_mysql_identifier(schema_name), quote=True)
+        safe_name = quoted_name(
+            self._validate_mysql_identifier(schema_name), quote=True
+        )
         return text(
             f"CREATE DATABASE IF NOT EXISTS `{safe_name}` "
             f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
         )
 
     def safe_drop_schema_sql(self, schema_name: str) -> Any:
-        safe_name = quoted_name(self._validate_mysql_identifier(schema_name), quote=True)
+        safe_name = quoted_name(
+            self._validate_mysql_identifier(schema_name), quote=True
+        )
         return text(f"DROP DATABASE IF EXISTS `{safe_name}`")
 
     def list_tables_sql(self) -> str:
@@ -256,7 +260,9 @@ class MySQLAdapter(DatabaseAdapter):
                 )
 
     def set_search_path_sql(self, schema_name: str) -> str:
-        safe_name = quoted_name(self._validate_mysql_identifier(schema_name), quote=True)
+        safe_name = quoted_name(
+            self._validate_mysql_identifier(schema_name), quote=True
+        )
         return f"USE `{safe_name}`"
 
     def get_alembic_version_table_schema(self) -> Optional[str]:

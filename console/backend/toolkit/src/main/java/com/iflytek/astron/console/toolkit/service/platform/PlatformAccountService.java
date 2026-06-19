@@ -1,7 +1,6 @@
 package com.iflytek.astron.console.toolkit.service.platform;
 
 import com.alibaba.fastjson2.JSON;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.iflytek.astron.console.commons.constant.RedisKeyConstant;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
@@ -242,64 +241,72 @@ public class PlatformAccountService {
             PlatformAccountType type, PlatformAccountConfigDto request, PlatformAccountConfigDto previous) {
         PlatformAccountConfigDto merged = request == null ? new PlatformAccountConfigDto() : request;
         switch (type) {
-            case IFLYTEK_OPEN_PLATFORM -> {
-                if (merged.getIflytekOpenPlatform() == null) {
-                    merged.setIflytekOpenPlatform(new PlatformAccountConfigDto.IflytekOpenPlatformConfig());
-                }
-                PlatformAccountConfigDto.IflytekOpenPlatformConfig current = merged.getIflytekOpenPlatform();
-                PlatformAccountConfigDto.IflytekOpenPlatformConfig old =
-                        previous == null ? null : previous.getIflytekOpenPlatform();
-                if (old != null) {
-                    current.setPlatformApiKey(keepOldIfMasked(current.getPlatformApiKey(), old.getPlatformApiKey()));
-                    current.setPlatformApiSecret(keepOldIfMasked(current.getPlatformApiSecret(), old.getPlatformApiSecret()));
-                    current.setSparkApiPassword(keepOldIfMasked(current.getSparkApiPassword(), old.getSparkApiPassword()));
-                    current.setSparkRtasrApiKey(keepOldIfMasked(current.getSparkRtasrApiKey(), old.getSparkRtasrApiKey()));
-                }
-            }
-            case AI_ABILITY_CHAT -> {
-                if (merged.getAiAbilityChat() == null) {
-                    merged.setAiAbilityChat(new PlatformAccountConfigDto.AiAbilityChatConfig());
-                }
-                PlatformAccountConfigDto.AiAbilityChatConfig current = merged.getAiAbilityChat();
-                PlatformAccountConfigDto.AiAbilityChatConfig old =
-                        previous == null ? null : previous.getAiAbilityChat();
-                if (old != null) {
-                    current.setApiKey(keepOldIfMasked(current.getApiKey(), old.getApiKey()));
-                }
-            }
-            case VIRTUAL_MAN -> {
-                if (merged.getVirtualMan() == null) {
-                    merged.setVirtualMan(new PlatformAccountConfigDto.VirtualManConfig());
-                }
-                PlatformAccountConfigDto.VirtualManConfig current = merged.getVirtualMan();
-                PlatformAccountConfigDto.VirtualManConfig old = previous == null ? null : previous.getVirtualMan();
-                if (old != null) {
-                    current.setSparkVirtualManApiKey(
-                            keepOldIfMasked(current.getSparkVirtualManApiKey(), old.getSparkVirtualManApiKey()));
-                    current.setSparkVirtualManApiSecret(
-                            keepOldIfMasked(current.getSparkVirtualManApiSecret(), old.getSparkVirtualManApiSecret()));
-                }
-            }
-            case KNOWLEDGE_PLATFORM -> {
-                if (merged.getKnowledgePlatform() == null) {
-                    merged.setKnowledgePlatform(new PlatformAccountConfigDto.KnowledgePlatformConfig());
-                }
-                PlatformAccountConfigDto.KnowledgePlatformConfig current = merged.getKnowledgePlatform();
-                PlatformAccountConfigDto.KnowledgePlatformConfig old =
-                        previous == null ? null : previous.getKnowledgePlatform();
-                if (current.getRagflow() == null) {
-                    current.setRagflow(new PlatformAccountConfigDto.RagflowConfig());
-                }
-                if (current.getXinghuo() == null) {
-                    current.setXinghuo(new PlatformAccountConfigDto.XinghuoKnowledgeConfig());
-                }
-                if (old != null && old.getRagflow() != null) {
-                    current.getRagflow().setApiToken(
-                            keepOldIfMasked(current.getRagflow().getApiToken(), old.getRagflow().getApiToken()));
-                }
-            }
+            case IFLYTEK_OPEN_PLATFORM -> mergeIflytekOpenPlatformSecrets(merged, previous);
+            case AI_ABILITY_CHAT -> mergeAiAbilityChatSecrets(merged, previous);
+            case VIRTUAL_MAN -> mergeVirtualManSecrets(merged, previous);
+            case KNOWLEDGE_PLATFORM -> mergeKnowledgePlatformSecrets(merged, previous);
         }
         return merged;
+    }
+
+    private void mergeIflytekOpenPlatformSecrets(
+            PlatformAccountConfigDto merged, PlatformAccountConfigDto previous) {
+        if (merged.getIflytekOpenPlatform() == null) {
+            merged.setIflytekOpenPlatform(new PlatformAccountConfigDto.IflytekOpenPlatformConfig());
+        }
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig current = merged.getIflytekOpenPlatform();
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig old =
+                previous == null ? null : previous.getIflytekOpenPlatform();
+        if (old == null) {
+            return;
+        }
+        current.setPlatformApiKey(keepOldIfMasked(current.getPlatformApiKey(), old.getPlatformApiKey()));
+        current.setPlatformApiSecret(keepOldIfMasked(current.getPlatformApiSecret(), old.getPlatformApiSecret()));
+        current.setSparkApiPassword(keepOldIfMasked(current.getSparkApiPassword(), old.getSparkApiPassword()));
+        current.setSparkRtasrApiKey(keepOldIfMasked(current.getSparkRtasrApiKey(), old.getSparkRtasrApiKey()));
+    }
+
+    private void mergeAiAbilityChatSecrets(PlatformAccountConfigDto merged, PlatformAccountConfigDto previous) {
+        if (merged.getAiAbilityChat() == null) {
+            merged.setAiAbilityChat(new PlatformAccountConfigDto.AiAbilityChatConfig());
+        }
+        PlatformAccountConfigDto.AiAbilityChatConfig current = merged.getAiAbilityChat();
+        PlatformAccountConfigDto.AiAbilityChatConfig old = previous == null ? null : previous.getAiAbilityChat();
+        if (old != null) {
+            current.setApiKey(keepOldIfMasked(current.getApiKey(), old.getApiKey()));
+        }
+    }
+
+    private void mergeVirtualManSecrets(PlatformAccountConfigDto merged, PlatformAccountConfigDto previous) {
+        if (merged.getVirtualMan() == null) {
+            merged.setVirtualMan(new PlatformAccountConfigDto.VirtualManConfig());
+        }
+        PlatformAccountConfigDto.VirtualManConfig current = merged.getVirtualMan();
+        PlatformAccountConfigDto.VirtualManConfig old = previous == null ? null : previous.getVirtualMan();
+        if (old == null) {
+            return;
+        }
+        current.setSparkVirtualManApiKey(
+                keepOldIfMasked(current.getSparkVirtualManApiKey(), old.getSparkVirtualManApiKey()));
+        current.setSparkVirtualManApiSecret(
+                keepOldIfMasked(current.getSparkVirtualManApiSecret(), old.getSparkVirtualManApiSecret()));
+    }
+
+    private void mergeKnowledgePlatformSecrets(PlatformAccountConfigDto merged, PlatformAccountConfigDto previous) {
+        if (merged.getKnowledgePlatform() == null) {
+            merged.setKnowledgePlatform(new PlatformAccountConfigDto.KnowledgePlatformConfig());
+        }
+        PlatformAccountConfigDto.KnowledgePlatformConfig current = merged.getKnowledgePlatform();
+        PlatformAccountConfigDto.KnowledgePlatformConfig old = previous == null ? null : previous.getKnowledgePlatform();
+        if (current.getRagflow() == null) {
+            current.setRagflow(new PlatformAccountConfigDto.RagflowConfig());
+        }
+        if (current.getXinghuo() == null) {
+            current.setXinghuo(new PlatformAccountConfigDto.XinghuoKnowledgeConfig());
+        }
+        if (old != null && old.getRagflow() != null) {
+            current.getRagflow().setApiToken(keepOldIfMasked(current.getRagflow().getApiToken(), old.getRagflow().getApiToken()));
+        }
     }
 
     private PlatformAccountConfigDto mask(PlatformAccountType type, PlatformAccountConfigDto config) {

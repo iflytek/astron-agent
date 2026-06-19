@@ -32,6 +32,7 @@ import com.iflytek.astron.console.hub.service.publish.PublishApprovalService;
 import com.iflytek.astron.console.hub.service.publish.executor.PublishApprovalExecutor;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PublishApprovalServiceImpl implements PublishApprovalService {
 
     private final PublishApprovalMapper publishApprovalMapper;
@@ -138,7 +140,8 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
         wrapper.orderByDesc(PublishApproval::getCreatedTime);
 
         Page<PublishApproval> resultPage = publishApprovalMapper.selectPage(new Page<>(page, size), wrapper);
-        List<PublishApprovalDto> records = resultPage.getRecords().stream()
+        List<PublishApprovalDto> records = resultPage.getRecords()
+                .stream()
                 .map(approval -> toDto(approval, canReview, currentUid))
                 .toList();
         return PageResponse.of(page, size, resultPage.getTotal(), records);
@@ -251,8 +254,9 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
             JSONObject snapshot = JSON.parseObject(submitDto.getPublishSnapshot());
             snapshot.put("spaceId", submitDto.getSpaceId());
             submitDto.setPublishSnapshot(snapshot.toJSONString());
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
             // Snapshot is auxiliary audit data; approval decisions use the normalized DTO spaceId.
+            log.warn("Failed to normalize publish approval snapshot spaceId", ex);
         }
     }
 
@@ -278,7 +282,7 @@ public class PublishApprovalServiceImpl implements PublishApprovalService {
 
         if (PublishApprovalTypeEnum.API == submitDto.getPublishType()
                 && (StringUtils.isBlank(submitDto.getTargetId())
-                || appMstService.getByAppId(submitDto.getRequesterUid(), submitDto.getTargetId()) == null)) {
+                        || appMstService.getByAppId(submitDto.getRequesterUid(), submitDto.getTargetId()) == null)) {
             throw new BusinessException(ResponseEnum.USER_APP_ID_NOT_EXISTE);
         }
     }

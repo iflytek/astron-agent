@@ -59,7 +59,7 @@ def _load_from_redis() -> Optional[str]:
 
 def _load_from_database() -> Optional[str]:
     try:
-        import pymysql
+        import pymysql  # type: ignore[import-untyped]
 
         connection = pymysql.connect(
             host=os.getenv("MYSQL_HOST", "mysql"),

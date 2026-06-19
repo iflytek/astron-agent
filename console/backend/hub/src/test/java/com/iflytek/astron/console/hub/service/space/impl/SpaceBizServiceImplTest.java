@@ -31,8 +31,8 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * Unit tests for SpaceBizServiceImpl.
- * Tests deleteSpace and updateSpace with DB-verified authorization checks.
+ * Unit tests for SpaceBizServiceImpl. Tests deleteSpace and updateSpace with DB-verified
+ * authorization checks.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SpaceBizServiceImpl Unit Tests")
@@ -346,7 +346,7 @@ class SpaceBizServiceImplTest {
     @DisplayName("updateSpace - Should succeed for personal space when user is owner and header matches DTO")
     void updateSpace_Success_WhenPersonalSpaceOwnerAndHeaderMatches() {
         try (MockedStatic<RequestContextUtil> mockedRequestContext = mockStatic(RequestContextUtil.class);
-             MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
+                MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
 
             mockedRequestContext.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             mockedSpaceInfo.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
@@ -389,7 +389,7 @@ class SpaceBizServiceImplTest {
     @DisplayName("updateSpace - Should reject personal space when header spaceId mismatches DTO id")
     void updateSpace_Error_WhenPersonalSpaceHeaderMismatchDto() {
         try (MockedStatic<RequestContextUtil> mockedRequestContext = mockStatic(RequestContextUtil.class);
-             MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
+                MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
 
             mockedRequestContext.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             mockedSpaceInfo.when(SpaceInfoUtil::getSpaceId).thenReturn(200L);
@@ -430,7 +430,7 @@ class SpaceBizServiceImplTest {
     @DisplayName("updateSpace - Should reject when name already exists")
     void updateSpace_Error_WhenNameDuplicate() {
         try (MockedStatic<RequestContextUtil> mockedRequestContext = mockStatic(RequestContextUtil.class);
-             MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
+                MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
 
             mockedRequestContext.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             mockedSpaceInfo.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);
@@ -453,7 +453,7 @@ class SpaceBizServiceImplTest {
     @DisplayName("updateSpace - Should reject when update fails after passing checks")
     void updateSpace_Error_WhenUpdateFails() {
         try (MockedStatic<RequestContextUtil> mockedRequestContext = mockStatic(RequestContextUtil.class);
-             MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
+                MockedStatic<SpaceInfoUtil> mockedSpaceInfo = mockStatic(SpaceInfoUtil.class)) {
 
             mockedRequestContext.when(RequestContextUtil::getUID).thenReturn(TEST_UID);
             mockedSpaceInfo.when(SpaceInfoUtil::getSpaceId).thenReturn(TEST_SPACE_ID);

@@ -163,8 +163,8 @@ public class VersionService {
     }
 
     /**
-     * Create a workflow version for a bot-bound publish flow after the caller has already verified
-     * bot publish permission and resolved the flowId from the bot binding.
+     * Create a workflow version for a bot-bound publish flow after the caller has already verified bot
+     * publish permission and resolved the flowId from the bot binding.
      */
     @Transactional
     public ApiResult<JSONObject> createForBoundBotPublish(WorkflowVersion createDto) {

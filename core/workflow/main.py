@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from loguru import logger
 from starlette.middleware.cors import CORSMiddleware
+
 from workflow.api.v1.router import old_auth_router, sparkflow_router, workflow_router
 from workflow.cache.event_registry import EventRegistry
 from workflow.extensions.fastapi.handler.validation import validation_exception_handler

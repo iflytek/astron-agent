@@ -200,7 +200,9 @@ class CodeArtifactUploader:
         if self.sandbox_config.get("node_id"):
             form.add_field("nodeId", str(self.sandbox_config["node_id"]))
         form.add_field("source", "code_sandbox")
-        form.add_field("file", file_bytes, filename=file_name, content_type=content_type)
+        form.add_field(
+            "file", file_bytes, filename=file_name, content_type=content_type
+        )
         headers = {}
         if self.sandbox_config.get("artifact_upload_token"):
             headers["X-Skill-Sandbox-Artifact-Token"] = str(

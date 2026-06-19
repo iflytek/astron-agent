@@ -74,9 +74,7 @@ class CodeExecutorFactory:
 
             return IFlyExecutorV2()
         elif executor == "e2b":
-            from workflow.engine.nodes.code.executor.e2b.e2b_executor import (
-                E2BExecutor,
-            )
+            from workflow.engine.nodes.code.executor.e2b.e2b_executor import E2BExecutor
 
             return E2BExecutor()
         else:

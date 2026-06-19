@@ -6,7 +6,9 @@ import {
   PlatformAccountType,
 } from '@/types/platform-account';
 
-export async function getPlatformAccountCards(): Promise<PlatformAccountCard[]> {
+export async function getPlatformAccountCards(): Promise<
+  PlatformAccountCard[]
+> {
   return await http.get('/api/platform-account/cards');
 }
 

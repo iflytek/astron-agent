@@ -6,7 +6,7 @@ with Gemini models.
 """
 
 import json
-from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, cast
 
 # Import Google GenAI SDK (new package name)
 from google.genai import Client
@@ -294,7 +294,7 @@ class GoogleChatAI(ChatAI):
             # Use the async streaming method from the client
             async for chunk in self.client.aio.models.generate_content_stream(  # type: ignore[union-attr]
                 model=self.model_name,
-                contents=contents,
+                contents=cast(Any, contents),
                 config=generation_config,
             ):
                 # Extract text from chunk

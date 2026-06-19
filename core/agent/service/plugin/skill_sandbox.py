@@ -13,7 +13,6 @@ from pydantic import Field
 
 from agent.service.plugin.base import PluginResponse
 
-
 SCRIPT_SANDBOX_UNCONFIGURED_MESSAGE = (
     "当前环境未配置脚本沙箱，暂不支持直接执行 Skill 脚本。"
     "你可以向用户说明需要管理员在资源管理中配置脚本沙箱后才能运行。"
@@ -185,7 +184,7 @@ class E2BSandboxProvider:
                         f"{workspace}/{path}", await response.read()
                     )
 
-    async def _collect_artifacts(
+    async def _collect_artifacts(  # noqa: C901
         self,
         sandbox: Any,
         workspace: str,

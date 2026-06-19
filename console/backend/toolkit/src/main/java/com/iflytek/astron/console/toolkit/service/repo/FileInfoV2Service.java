@@ -354,7 +354,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                 link = s3ClientUtil.uploadObject(fileName, contentType, in);
             }
             // Get doc signature
-        HashMap<String, String> docHeader = getXinghuoDsSign();
+            HashMap<String, String> docHeader = getXinghuoDsSign();
             // Call upload interface
             String uploadUrl = sparkDocUrl + "/openapi/v1/file/upload";
             Map<String, Object> uploadParams = new HashMap<>();
@@ -1028,7 +1028,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
         if (ProjectContent.isSparkRagCompatible(sliceFileVO.getTag())) {
             try {
                 String embeddingUrl = sparkDocUrl + "/openapi/v1/file/embedding";
-            HashMap<String, String> header = getXinghuoDsSign();
+                HashMap<String, String> header = getXinghuoDsSign();
                 Map<String, Object> params = new HashMap<>();
                 List<String> fileIds = sliceFileVO.getSparkFiles().stream().map(SparkFileVo::getFileId).collect(Collectors.toList());
                 params.put("fileIds", String.join(",", fileIds));
@@ -1188,7 +1188,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
         if (ProjectContent.isSparkRagCompatible(sliceFileVO.getTag())) {
             try {
                 String embeddingUrl = sparkDocUrl + "/openapi/v1/file/embedding";
-            HashMap<String, String> header = getXinghuoDsSign();
+                HashMap<String, String> header = getXinghuoDsSign();
                 Map<String, Object> params = new HashMap<>();
                 List<String> fileIds = sliceFileVO.getSparkFiles().stream().map(SparkFileVo::getFileId).collect(Collectors.toList());
                 params.put("fileIds", String.join(",", fileIds));
