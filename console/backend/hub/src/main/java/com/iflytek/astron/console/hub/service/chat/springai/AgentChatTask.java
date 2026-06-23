@@ -32,6 +32,9 @@ public class AgentChatTask {
      */
     private List<JSONObject> skills;
 
+    /** Saved tool-square plugins JSON ({@code [{"toolId":"tool@xxx",...}]}); resolved to Link tools. */
+    private String tools;
+
     private String userId;
     private Long chatId;
 
