@@ -30,7 +30,9 @@ const PluginSelectModal: React.FC<PluginSelectModalProps> = ({
 
   const fetchList = (kw?: string): void => {
     setLoading(true);
-    listToolSquare({ content: kw, page: 1, pageSize: 200 })
+    // orderFlag is required: the backend sorts by it and NPEs on a null value (-> HTTP 500).
+    // Omitting tagFlag keeps MCP tools out of the result (they have their own capability block).
+    listToolSquare({ content: kw, page: 1, pageSize: 200, orderFlag: 0 })
       .then(res => {
         // Only regular Link/HTTP plugins are addable here; MCP tools have their own block.
         const list = (res?.pageData || []).filter(
