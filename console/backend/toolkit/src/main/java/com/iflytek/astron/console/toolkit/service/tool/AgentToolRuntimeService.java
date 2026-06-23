@@ -4,6 +4,7 @@ import cn.hutool.core.codec.Base64;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.iflytek.astron.console.toolkit.config.properties.BizConfig;
 import com.iflytek.astron.console.toolkit.config.properties.CommonConfig;
 import com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox;
 import com.iflytek.astron.console.toolkit.entity.tool.AgentToolDefinition;
@@ -48,6 +49,7 @@ public class AgentToolRuntimeService {
 
     private final ToolBoxMapper toolBoxMapper;
     private final CommonConfig commonConfig;
+    private final BizConfig bizConfig;
     private final ToolServiceCallHandler toolServiceCallHandler;
 
     /** Load the latest version of each tool id and build an agent-callable definition per tool. */
@@ -105,6 +107,7 @@ public class AgentToolRuntimeService {
             }
             boolean accessible = Boolean.TRUE.equals(toolBox.getIsPublic())
                     || StringUtils.equals(uid, toolBox.getUserId())
+                    || StringUtils.equals(toolBox.getUserId(), bizConfig.getAdminUid())
                     || (spaceId != null && spaceId.equals(toolBox.getSpaceId()));
             if (!accessible) {
                 log.warn("Reject bot tool, not accessible by uid {}: {}", uid, id);
