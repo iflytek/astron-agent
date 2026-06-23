@@ -130,6 +130,12 @@ const zhContent = {
       title: "案例实践",
       description: "查看 Astron Agent 在金融、电信、制造与园区等真实场景中的落地成果。",
       href: "/cases/"
+    },
+    {
+      title: "v1.0.9 版本更新解读",
+      description: "下载 v1.0.9 版本更新解读（PDF），了解本次开源企业级 Agentic 平台的核心更新亮点。",
+      href: "/releases/astron-agent-v1.0.9-release-notes.pdf",
+      direct: true
     }
   ],
   communityEyebrow: "Community",
@@ -262,6 +268,12 @@ const enContent = {
       title: "FAQ",
       description: "Find the main troubleshooting paths and reduce repeated onboarding questions.",
       href: "/faq"
+    },
+    {
+      title: "v1.0.9 Release Notes",
+      description: "Download the v1.0.9 release walkthrough (PDF, in Chinese) covering the latest highlights of the open-source enterprise Agentic platform.",
+      href: "/releases/astron-agent-v1.0.9-release-notes.pdf",
+      direct: true
     }
   ],
   communityEyebrow: "Community",
@@ -436,7 +448,9 @@ onBeforeUnmount(() => {
               v-for="resource in content.resourceCards"
               :key="resource.title"
               class="astron-home__panel astron-home__resource-card js-reveal"
-              :href="localizePath(resource.href)"
+              :href="resource.direct ? withBase(resource.href) : localizePath(resource.href)"
+              :target="resource.direct ? '_blank' : undefined"
+              :rel="resource.direct ? 'noreferrer' : undefined"
             >
               <h3>{{ resource.title }}</h3>
               <p>{{ resource.description }}</p>
