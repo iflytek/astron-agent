@@ -124,6 +124,9 @@ public class ChatBotBase {
     @Schema(description = "Selected skills JSON list")
     private String skills;
 
+    @Schema(description = "Selected plugin tools (tool square) JSON list")
+    private String tools;
+
     @Schema(description = "Hidden on certain clients")
     private String clientHide;
 

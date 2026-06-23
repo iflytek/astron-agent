@@ -57,6 +57,11 @@ public class BotDebugRequest {
     private String skills;
 
     /**
+     * Selected plugin tools (tool square) JSON list
+     */
+    private String tools;
+
+    /**
      * Model name
      */
     private String model = "spark";

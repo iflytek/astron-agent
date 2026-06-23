@@ -1,4 +1,5 @@
 import type { AgentSkill } from '@/types/skill';
+import type { AgentTool } from '@/types/plugin-store';
 
 export const isValidMcpServerUrl = (url: string): boolean => {
   const value = url.trim();
@@ -70,6 +71,38 @@ export const normalizeSkills = (skills?: unknown): AgentSkill[] => {
     });
   }
   return result.slice(0, 30);
+};
+
+export const normalizeTools = (tools?: unknown): AgentTool[] => {
+  let source = tools;
+  if (typeof tools === 'string') {
+    try {
+      source = JSON.parse(tools);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(source)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const result: AgentTool[] = [];
+  for (const item of source) {
+    const toolId = String(item?.toolId ?? '').trim();
+    if (!toolId || seen.has(toolId)) {
+      continue;
+    }
+    seen.add(toolId);
+    result.push({
+      toolId,
+      name: String(item?.name ?? ''),
+      description: String(item?.description ?? ''),
+      icon: item?.icon ? String(item.icon) : undefined,
+    });
+  }
+  return result;
 };
 
 export const hasInvalidMcpServerUrls = (urls?: unknown): boolean => {
