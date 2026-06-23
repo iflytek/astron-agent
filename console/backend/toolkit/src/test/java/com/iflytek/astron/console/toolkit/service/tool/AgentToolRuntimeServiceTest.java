@@ -3,6 +3,7 @@ package com.iflytek.astron.console.toolkit.service.tool;
 import cn.hutool.core.codec.Base64;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
+import com.iflytek.astron.console.toolkit.config.properties.BizConfig;
 import com.iflytek.astron.console.toolkit.config.properties.CommonConfig;
 import com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox;
 import com.iflytek.astron.console.toolkit.entity.tool.AgentToolDefinition;
@@ -49,7 +50,9 @@ class AgentToolRuntimeServiceTest {
     private AgentToolRuntimeService newService(ToolBoxMapper mapper, ToolServiceCallHandler handler) {
         CommonConfig commonConfig = new CommonConfig();
         commonConfig.setAppId("app-123");
-        return new AgentToolRuntimeService(mapper, commonConfig, handler);
+        BizConfig bizConfig = new BizConfig();
+        bizConfig.setAdminUid("1");
+        return new AgentToolRuntimeService(mapper, commonConfig, bizConfig, handler);
     }
 
     @Test
@@ -120,12 +123,13 @@ class AgentToolRuntimeServiceTest {
         ToolBox pub = box("tool@pub", "1000", true, 7L);
         ToolBox own = box("tool@own", "me", false, 7L);
         ToolBox space = box("tool@space", "1000", false, 7L);
+        ToolBox official = box("tool@official", "1", false, 99L); // owned by admin (adminUid=1)
         ToolBox foreign = box("tool@foreign", "1000", false, 99L);
         when(mapper.getToolsLastVersion(anyList()))
-                .thenReturn(List.of(pub, own, space, foreign));
+                .thenReturn(List.of(pub, own, space, official, foreign));
 
         assertThat(service.checkToolsAccessible("me", 7L,
-                List.of("tool@pub", "tool@own", "tool@space"))).isTrue();
+                List.of("tool@pub", "tool@own", "tool@space", "tool@official"))).isTrue();
         // a private tool owned by someone else in another space is rejected
         assertThat(service.checkToolsAccessible("me", 7L, List.of("tool@foreign"))).isFalse();
         // an unknown tool id is rejected

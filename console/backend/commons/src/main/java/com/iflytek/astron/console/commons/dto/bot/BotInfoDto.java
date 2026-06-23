@@ -113,6 +113,8 @@ public class BotInfoDto {
 
     private String skills;
 
+    private String tools;
+
     private String vcnCn;
 
     private String vcnEn;
