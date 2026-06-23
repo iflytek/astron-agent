@@ -1661,6 +1661,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 choosedAlltool={effectiveToolConfig}
                 mcpServerUrls={mcpServerUrls}
                 skills={skills}
+                tools={tools}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1722,6 +1723,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 choosedAlltool={effectiveToolConfig}
                 mcpServerUrls={mcpServerUrls}
                 skills={skills}
+                tools={tools}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1756,6 +1758,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         choosedAlltool={effectiveToolConfig}
         mcpServerUrls={mcpServerUrls}
         skills={skills}
+        tools={tools}
         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
         personalityConfig={
           personalityData.enablePersonality
@@ -2902,6 +2905,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       choosedAlltool={effectiveToolConfig}
                       mcpServerUrls={mcpServerUrls}
                       skills={skills}
+                      tools={tools}
                       findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                       personalityConfig={
                         personalityData.enablePersonality
@@ -2947,6 +2951,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           choosedAlltool={effectiveToolConfig}
                           mcpServerUrls={mcpServerUrls}
                           skills={skills}
+                          tools={tools}
                           findModelOptionByUniqueKey={
                             findModelOptionByUniqueKey
                           }
@@ -3022,6 +3027,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         choosedAlltool={effectiveToolConfig}
                         mcpServerUrls={mcpServerUrls}
                         skills={skills}
+                        tools={tools}
                         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                         personalityConfig={
                           personalityData.enablePersonality
