@@ -1082,10 +1082,14 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
                     <span
                       className={cls(
                         styles.capabilityStatus,
-                        tools.length > 0 ? styles.statusReady : styles.statusMuted
+                        tools.length > 0
+                          ? styles.statusReady
+                          : styles.statusMuted
                       )}
                     >
-                      {tools.length > 0 ? `已添加 ${tools.length} 个` : '未添加'}
+                      {tools.length > 0
+                        ? `已添加 ${tools.length} 个`
+                        : '未添加'}
                     </span>
                   </div>
                   <div className={styles.capabilityDescription}>

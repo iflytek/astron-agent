@@ -30,12 +30,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Resolves tool-square plugins (Link tools, id {@code tool@xxx}) into agent-callable definitions and
- * executes them through the core-link {@code http_run} endpoint. Mirrors the production tool-run path
- * already used by the plugin "debug" feature ({@code ToolBoxService.debugTool}) and the workflow
- * agent's Python {@code LinkPluginFactory}: model-visible parameters ({@code from == 0}) are exposed
- * in the input schema, business-passthrough parameters ({@code from == 1}) are filled from their
- * defaults, and the request is assembled as base64-encoded header/query/body segments.
+ * Resolves tool-square plugins (Link tools, id {@code tool@xxx}) into agent-callable definitions
+ * and executes them through the core-link {@code http_run} endpoint. Mirrors the production
+ * tool-run path already used by the plugin "debug" feature ({@code ToolBoxService.debugTool}) and
+ * the workflow agent's Python {@code LinkPluginFactory}: model-visible parameters
+ * ({@code from == 0}) are exposed in the input schema, business-passthrough parameters
+ * ({@code from == 1}) are filled from their defaults, and the request is assembled as
+ * base64-encoded header/query/body segments.
  */
 @Slf4j
 @Service
@@ -250,7 +251,9 @@ public class AgentToolRuntimeService {
         return webSchema.getToolRequestInput();
     }
 
-    /** Flatten model-visible leaf parameters into a single JSON schema, mirroring the Python factory. */
+    /**
+     * Flatten model-visible leaf parameters into a single JSON schema, mirroring the Python factory.
+     */
     private String buildInputSchema(List<WebSchemaItem> inputs) {
         JSONObject properties = new JSONObject();
         JSONArray required = new JSONArray();

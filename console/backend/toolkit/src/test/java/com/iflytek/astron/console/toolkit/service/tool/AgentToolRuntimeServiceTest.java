@@ -90,7 +90,8 @@ class AgentToolRuntimeServiceTest {
         AgentToolDefinition def = service.resolveTools(List.of("tool@abc")).get(0);
 
         JSONObject args = new JSONObject().fluentPut("city", "Beijing")
-                .fluentPut("keyword", "rain").fluentPut("id", "42");
+                .fluentPut("keyword", "rain")
+                .fluentPut("id", "42");
         String result = service.runTool(def, args);
         assertThat(result).isEqualTo("sunny");
 
