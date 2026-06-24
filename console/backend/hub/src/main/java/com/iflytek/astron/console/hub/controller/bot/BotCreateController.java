@@ -78,7 +78,8 @@ public class BotCreateController {
         if (bot.getTools() == null) {
             return Collections.emptyList();
         }
-        return bot.getTools().stream()
+        return bot.getTools()
+                .stream()
                 .filter(tool -> tool != null && tool.getToolId() != null && !tool.getToolId().trim().isEmpty())
                 .map(tool -> tool.getToolId().trim())
                 .toList();

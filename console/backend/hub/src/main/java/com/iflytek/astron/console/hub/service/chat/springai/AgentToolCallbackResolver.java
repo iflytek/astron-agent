@@ -49,7 +49,9 @@ public class AgentToolCallbackResolver {
         return callbacks;
     }
 
-    /** Extract the {@code toolId} list from the saved plugin tools JSON; tolerant of malformed input. */
+    /**
+     * Extract the {@code toolId} list from the saved plugin tools JSON; tolerant of malformed input.
+     */
     private List<String> parseToolIds(String tools) {
         if (StringUtils.isBlank(tools)) {
             return List.of();

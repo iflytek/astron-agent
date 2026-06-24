@@ -61,8 +61,12 @@ class AgentToolCallbackResolverTest {
         when(mcp.listTools(any())).thenReturn(List.of());
         AgentToolRuntimeService link = mock(AgentToolRuntimeService.class);
         when(link.resolveTools(List.of("tool@a", "tool@b"))).thenReturn(List.of(
-                AgentToolDefinition.builder().toolId("tool@a").functionName("getWeather")
-                        .description("d").inputSchema("{\"type\":\"object\",\"properties\":{}}").build()));
+                AgentToolDefinition.builder()
+                        .toolId("tool@a")
+                        .functionName("getWeather")
+                        .description("d")
+                        .inputSchema("{\"type\":\"object\",\"properties\":{}}")
+                        .build()));
 
         String toolsJson = "[{\"toolId\":\"tool@a\",\"name\":\"A\"},{\"toolId\":\"tool@b\"},{\"toolId\":\"tool@a\"}]";
         List<ToolCallback> tools =
