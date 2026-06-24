@@ -93,7 +93,10 @@ const PluginSelectModal: React.FC<PluginSelectModalProps> = ({
           {data.map(item => {
             const checked = selectedIds.has(item.toolId as string);
             return (
-              <div className={styles.skillModalRow} key={item.toolId || item.id}>
+              <div
+                className={styles.skillModalRow}
+                key={item.toolId || item.id}
+              >
                 <div className={styles.skillModalMeta}>
                   <div className={styles.skillModalName}>{item.name}</div>
                   <div className={styles.skillModalDesc}>
