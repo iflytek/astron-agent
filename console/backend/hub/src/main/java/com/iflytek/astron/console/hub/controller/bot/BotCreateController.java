@@ -24,6 +24,7 @@ import com.iflytek.astron.console.hub.service.bot.PersonalityConfigService;
 import com.iflytek.astron.console.hub.util.BotPermissionUtil;
 import com.iflytek.astron.console.toolkit.service.model.LLMService;
 import com.iflytek.astron.console.toolkit.service.repo.MassDatasetInfoService;
+import com.iflytek.astron.console.toolkit.service.tool.AgentToolRuntimeService;
 import com.iflytek.astron.console.toolkit.util.RedisUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -70,6 +71,20 @@ public class BotCreateController {
     @Autowired
     private PersonalityConfigService personalityConfigService;
 
+    @Autowired
+    private AgentToolRuntimeService agentToolRuntimeService;
+
+    private List<String> extractToolIds(BotCreateForm bot) {
+        if (bot.getTools() == null) {
+            return Collections.emptyList();
+        }
+        return bot.getTools()
+                .stream()
+                .filter(tool -> tool != null && tool.getToolId() != null && !tool.getToolId().trim().isEmpty())
+                .map(tool -> tool.getToolId().trim())
+                .toList();
+    }
+
     /**
      * Create workflow assistant
      *
@@ -89,6 +104,10 @@ public class BotCreateController {
         List<Long> datasetList = bot.getDatasetList();
         List<Long> maasDatasetList = bot.getMaasDatasetList();
         if (!botDatasetService.checkDatasetBelong(uid, spaceId, datasetList)) {
+            return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
+        }
+        // Validate plugin-tool ownership: only public / own / same-space tools can be imported
+        if (!agentToolRuntimeService.checkToolsAccessible(uid, spaceId, extractToolIds(bot))) {
             return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
         }
         if (Boolean.TRUE.equals(bot.getEnablePersonality()) && personalityConfigService.checkPersonalityConfig(bot.getPersonalityConfig())) {
@@ -240,6 +259,10 @@ public class BotCreateController {
         List<Long> datasetList = bot.getDatasetList();
         List<Long> maasDatasetList = bot.getMaasDatasetList();
         if (!botDatasetService.checkDatasetBelong(uid, spaceId, datasetList)) {
+            return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
+        }
+        // Validate plugin-tool ownership: only public / own / same-space tools can be imported
+        if (!agentToolRuntimeService.checkToolsAccessible(uid, spaceId, extractToolIds(bot))) {
             return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
         }
         boolean selfDocumentExist = (datasetList != null && !datasetList.isEmpty());

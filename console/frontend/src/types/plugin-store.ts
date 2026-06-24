@@ -36,6 +36,13 @@ interface Tool {
   icon?: string;
   heatValue: number;
 }
+/** A tool-square plugin saved on an agent (resolved on the backend at runtime by toolId). */
+interface AgentTool {
+  toolId: string;
+  name: string;
+  description: string;
+  icon?: string;
+}
 //插件广场展示分类
 interface Classify {
   id: string;
@@ -291,6 +298,7 @@ export type {
   ListToolSquareParams,
   EnableToolFavoriteParams,
   Tool,
+  AgentTool,
   Classify,
   GetToolDetailParams,
   DebugToolParams,

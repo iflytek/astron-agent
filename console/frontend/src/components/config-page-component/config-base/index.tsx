@@ -82,6 +82,7 @@ import {
   hasInvalidMcpServerUrls,
   normalizeMcpServerUrls,
   normalizeSkills,
+  normalizeTools,
 } from './mcp-url-config';
 import type { AgentSkill } from '@/types/skill';
 import { VcnItem } from '@/components/speaker-modal';
@@ -539,6 +540,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       openedTool: effectiveOpenedTool,
       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
       skills: normalizeSkills(skills),
+      tools: normalizeTools(tools),
       prologue: prologue,
       ...getModelConfig(model),
       prompt: prompt,
@@ -822,6 +824,7 @@ const BaseConfig: React.FC<ChatProps> = ({
             normalizeMcpServerUrls(currentConfigData?.mcpServerUrls)
           );
           setSkills(normalizeSkills(currentConfigData?.skills));
+          setTools(normalizeTools(currentConfigData?.tools));
           setSupportContextFlag(
             save == 'true'
               ? configPageData?.supportContext == 1
@@ -1658,6 +1661,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 choosedAlltool={effectiveToolConfig}
                 mcpServerUrls={mcpServerUrls}
                 skills={skills}
+                tools={tools}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1719,6 +1723,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 choosedAlltool={effectiveToolConfig}
                 mcpServerUrls={mcpServerUrls}
                 skills={skills}
+                tools={tools}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1753,6 +1758,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         choosedAlltool={effectiveToolConfig}
         mcpServerUrls={mcpServerUrls}
         skills={skills}
+        tools={tools}
         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
         personalityConfig={
           personalityData.enablePersonality
@@ -2262,6 +2268,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       openedTool: effectiveOpenedTool,
                       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                       skills: normalizeSkills(skills),
+                      tools: normalizeTools(tools),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2312,6 +2319,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       openedTool: effectiveOpenedTool,
                       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                       skills: normalizeSkills(skills),
+                      tools: normalizeTools(tools),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2393,6 +2401,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     openedTool: effectiveOpenedTool,
                     mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                     skills: normalizeSkills(skills),
+                    tools: normalizeTools(tools),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2442,6 +2451,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     openedTool: effectiveOpenedTool,
                     mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                     skills: normalizeSkills(skills),
+                    tools: normalizeTools(tools),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -2895,6 +2905,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       choosedAlltool={effectiveToolConfig}
                       mcpServerUrls={mcpServerUrls}
                       skills={skills}
+                      tools={tools}
                       findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                       personalityConfig={
                         personalityData.enablePersonality
@@ -2940,6 +2951,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           choosedAlltool={effectiveToolConfig}
                           mcpServerUrls={mcpServerUrls}
                           skills={skills}
+                          tools={tools}
                           findModelOptionByUniqueKey={
                             findModelOptionByUniqueKey
                           }
@@ -3015,6 +3027,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         choosedAlltool={effectiveToolConfig}
                         mcpServerUrls={mcpServerUrls}
                         skills={skills}
+                        tools={tools}
                         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                         personalityConfig={
                           personalityData.enablePersonality

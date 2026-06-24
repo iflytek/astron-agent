@@ -52,6 +52,7 @@ import cls from 'classnames';
 import { CheckboxChangeEvent } from 'antd/es/checkbox';
 import { isValidMcpServerUrl } from '../mcp-url-config';
 import SkillSelectModal from './SkillSelectModal';
+import PluginSelectModal from './PluginSelectModal';
 import type { AgentSkill } from '@/types/skill';
 
 const { TextArea } = Input;
@@ -382,6 +383,8 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   const removeSkill = (skillId: number) => {
     setSkills(skills.filter(skill => skill.skillId !== skillId));
   };
+
+  const [pluginModalOpen, setPluginModalOpen] = useState(false);
 
   return (
     <div
@@ -1058,6 +1061,90 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
               })}
             </div>
           </div>
+        </div>
+      )}
+      {showMcpSection && !showCapabilitySection && (
+        <div
+          className={cls(
+            styles.capabilitySection,
+            showKnowledgeSection && styles.capabilitySectionCompact
+          )}
+        >
+          <div className={styles.capabilityBlock}>
+            <div className={styles.capabilityBlockHeader}>
+              <div className={styles.capabilityTitleGroup}>
+                <span className={cls(styles.capabilityIcon, styles.mcpIcon)}>
+                  <ApiOutlined />
+                </span>
+                <div>
+                  <div className={styles.capabilityTitleRow}>
+                    <span className={styles.capabilityTitle}>插件</span>
+                    <span
+                      className={cls(
+                        styles.capabilityStatus,
+                        tools.length > 0
+                          ? styles.statusReady
+                          : styles.statusMuted
+                      )}
+                    >
+                      {tools.length > 0
+                        ? `已添加 ${tools.length} 个`
+                        : '未添加'}
+                    </span>
+                  </div>
+                  <div className={styles.capabilityDescription}>
+                    从插件广场引入插件，模型会根据插件描述自主选择调用。
+                  </div>
+                </div>
+              </div>
+              <Button
+                icon={<PlusOutlined />}
+                className={styles.capabilityActionButton}
+                onClick={() => setPluginModalOpen(true)}
+              >
+                {tools.length > 0 ? '管理插件' : '添加插件'}
+              </Button>
+            </div>
+
+            {tools.length > 0 ? (
+              <div className={styles.skillList}>
+                {tools.map((item: any) => (
+                  <div className={styles.skillRow} key={item.toolId}>
+                    <div className={styles.skillRowMeta}>
+                      <span className={styles.skillRowName}>{item.name}</span>
+                      <span className={styles.skillRowDesc}>
+                        {item.description || '暂无描述'}
+                      </span>
+                    </div>
+                    <Tooltip title="删除">
+                      <Button
+                        className={styles.mcpDeleteButton}
+                        icon={<DeleteOutlined />}
+                        onClick={() => deleteTool(item.toolId)}
+                      />
+                    </Tooltip>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.capabilityEmptyState}
+                onClick={() => setPluginModalOpen(true)}
+              >
+                <span className={styles.capabilityEmptyTitle}>暂无插件</span>
+                <span className={styles.capabilityEmptyDescription}>
+                  点击添加插件，从插件广场引入可调用的工具能力。
+                </span>
+              </button>
+            )}
+          </div>
+          <PluginSelectModal
+            open={pluginModalOpen}
+            selected={tools}
+            onClose={() => setPluginModalOpen(false)}
+            onChange={setTools}
+          />
         </div>
       )}
       {showPersonalizationSection && (

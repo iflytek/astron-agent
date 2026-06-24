@@ -6,5 +6,6 @@ import lombok.Data;
 public class Message {
     String header;
     String query;
+    String path;
     String body;
 }

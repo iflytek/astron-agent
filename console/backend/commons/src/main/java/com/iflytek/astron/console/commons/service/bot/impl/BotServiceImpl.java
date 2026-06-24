@@ -49,8 +49,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -393,6 +395,7 @@ public class BotServiceImpl implements BotService {
         botBase.setOpenedTool(bot.getOpenedTool());
         botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
         botBase.setSkills(serializeSkills(bot.getSkills()));
+        botBase.setTools(serializeTools(bot.getTools()));
         botBase.setClientType(bot.getClientType());
         botBase.setBotNameEn(bot.getBotNameEn());
         botBase.setBotDescEn(bot.getBotDescEn());
@@ -441,6 +444,24 @@ public class BotServiceImpl implements BotService {
         List<BotCreateForm.BotSkill> valid = skills.stream()
                 .filter(skill -> skill != null && skill.getSkillId() != null)
                 .collect(Collectors.toList());
+        return JSON.toJSONString(valid);
+    }
+
+    private String serializeTools(List<BotCreateForm.BotTool> tools) {
+        if (tools == null) {
+            return null;
+        }
+        Set<String> seenToolIds = new LinkedHashSet<>();
+        List<BotCreateForm.BotTool> valid = new ArrayList<>();
+        for (BotCreateForm.BotTool tool : tools) {
+            if (tool == null || StringUtils.isBlank(tool.getToolId())) {
+                continue;
+            }
+            tool.setToolId(tool.getToolId().trim());
+            if (seenToolIds.add(tool.getToolId())) {
+                valid.add(tool);
+            }
+        }
         return JSON.toJSONString(valid);
     }
 
@@ -563,6 +584,7 @@ public class BotServiceImpl implements BotService {
                 .openedTool(bot.getOpenedTool())
                 .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
                 .skills(serializeSkills(bot.getSkills()))
+                .tools(serializeTools(bot.getTools()))
                 .clientType(bot.getClientType())
                 .botNameEn(bot.getBotNameEn())
                 .botDescEn(bot.getBotDescEn())

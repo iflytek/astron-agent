@@ -111,6 +111,9 @@ public class BotCreateForm {
     @Schema(description = "Selected skills imported from resource management")
     private List<BotSkill> skills;
 
+    @Schema(description = "Selected plugin tools imported from the tool square")
+    private List<BotTool> tools;
+
     @Schema(description = "Background image color scheme: 0 Light, 1 Dark")
     private Integer backgroundColor;
 
@@ -172,5 +175,14 @@ public class BotCreateForm {
         private Long skillId;
         private String name;
         private String description;
+    }
+
+    @Data
+    public static class BotTool {
+        @Schema(description = "Tool id from the tool square, e.g. tool@xxx")
+        private String toolId;
+        private String name;
+        private String description;
+        private String icon;
     }
 }
