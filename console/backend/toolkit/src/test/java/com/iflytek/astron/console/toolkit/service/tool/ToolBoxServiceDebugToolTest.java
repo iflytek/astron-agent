@@ -6,6 +6,7 @@ import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.toolkit.common.constant.ToolConst;
 import com.iflytek.astron.console.toolkit.config.properties.BizConfig;
 import com.iflytek.astron.console.toolkit.entity.dto.ToolBoxDto;
+import com.iflytek.astron.console.toolkit.entity.enumVo.ToolboxStatusEnum;
 import com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox;
 import com.iflytek.astron.console.toolkit.entity.tool.Text;
 import com.iflytek.astron.console.toolkit.entity.tool.ToolDebugRequest;
@@ -21,6 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,6 +72,35 @@ class ToolBoxServiceDebugToolTest {
         assertThat(request.getServer()).isEqualTo(INTERNAL_ENDPOINT);
         assertThat(request.getMethod()).isEqualTo("POST");
         assertThat(request.getBody().getString("prompt")).isEqualTo("生成一张小狗的图片");
+        verify(urlCheckTool, never()).checkUrl(INTERNAL_ENDPOINT);
+    }
+
+    @Test
+    void debugToolV2_allowsSeededOfficialInternalEndpointWhenOwnerIsNotAdminUid() {
+        ToolBoxMapper toolBoxMapper = mock(ToolBoxMapper.class);
+        ToolServiceCallHandler toolServiceCallHandler = mock(ToolServiceCallHandler.class);
+        ToolBoxOperateHistoryMapper operateHistoryMapper = mock(ToolBoxOperateHistoryMapper.class);
+        UrlCheckTool urlCheckTool = mock(UrlCheckTool.class);
+
+        ToolBox toolBox = seededOfficialImageTool();
+        when(toolBoxMapper.selectById(1L)).thenReturn(toolBox);
+        doThrow(new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL))
+                .when(urlCheckTool)
+                .checkUrl(INTERNAL_ENDPOINT);
+
+        when(toolServiceCallHandler.toolDebug(any()))
+                .thenReturn(successResponse("{\"code\":0,\"message\":\"ok\"}"));
+
+        try (MockedStatic<UserInfoManagerHandler> userMock =
+                mockStatic(UserInfoManagerHandler.class)) {
+            userMock.when(UserInfoManagerHandler::getUserId).thenReturn("normal-user");
+
+            Object result = newService(toolBoxMapper, toolServiceCallHandler,
+                    operateHistoryMapper, urlCheckTool).debugToolV2(debugDto());
+
+            assertThat(((JSONObject) result).getInteger("code")).isZero();
+        }
+
         verify(urlCheckTool, never()).checkUrl(INTERNAL_ENDPOINT);
     }
 
@@ -189,6 +221,7 @@ class ToolBoxServiceDebugToolTest {
         ToolBoxService service = new ToolBoxService();
         BizConfig bizConfig = new BizConfig();
         bizConfig.setAdminUid("admin-user");
+        bizConfig.setTrustedToolOwnerUids(List.of("ccdd4277-2c77-4c36-b484-3935d5077ebf"));
         ReflectionTestUtils.setField(service, "bizConfig", bizConfig);
         ReflectionTestUtils.setField(service, "toolBoxMapper", toolBoxMapper);
         ReflectionTestUtils.setField(service, "toolServiceCallHandler", toolServiceCallHandler);
@@ -204,6 +237,7 @@ class ToolBoxServiceDebugToolTest {
         toolBox.setDescription("根据输入的内容生成与内容有关的图片");
         toolBox.setUserId("admin-user");
         toolBox.setIsPublic(true);
+        toolBox.setStatus(ToolboxStatusEnum.FORMAL.getCode());
         toolBox.setEndPoint(INTERNAL_ENDPOINT);
         toolBox.setMethod("post");
         toolBox.setAuthType(ToolConst.AuthType.NONE);
@@ -215,6 +249,15 @@ class ToolBoxServiceDebugToolTest {
         ToolBox toolBox = officialImageTool();
         toolBox.setUserId("creator-user");
         toolBox.setEndPoint(endPoint);
+        return toolBox;
+    }
+
+    private ToolBox seededOfficialImageTool() {
+        ToolBox toolBox = officialImageTool();
+        toolBox.setUserId("ccdd4277-2c77-4c36-b484-3935d5077ebf");
+        toolBox.setSource(1);
+        toolBox.setDisplaySource("1,2");
+        toolBox.setStatus(1);
         return toolBox;
     }
 
