@@ -590,7 +590,7 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
     private boolean isTrustedOfficialToolForCurrentUser(ToolBox toolBox, String currentUserId) {
         boolean trustedOwner = Objects.equals(toolBox.getUserId(), bizConfig.getAdminUid())
                 || (bizConfig.getTrustedToolOwnerUids() != null
-                && bizConfig.getTrustedToolOwnerUids().contains(toolBox.getUserId()));
+                        && bizConfig.getTrustedToolOwnerUids().contains(toolBox.getUserId()));
         boolean officialTool = trustedOwner
                 && Boolean.TRUE.equals(toolBox.getIsPublic())
                 && ToolboxStatusEnum.FORMAL.getCode().equals(toolBox.getStatus());
