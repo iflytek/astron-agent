@@ -42,6 +42,7 @@ api:
 # Business-specific configuration
 biz:
   admin-uid: ${ADMIN_UID:9999}
+  trusted-tool-owner-uids: ${TRUSTED_TOOL_OWNER_UIDS:ccdd4277-2c77-4c36-b484-3935d5077ebf}
 #  RAG/Search generates maximum character count threshold (too large affects performance)
   cbg-rag-max-char-count: 1000000
 #  CBG RAG compatible source types (sources that have same behavior as CBG-RAG)

@@ -14,6 +14,11 @@ public class BizConfig {
     String adminUid;
 
     /**
+     * Trusted owners for built-in public tools whose internal endpoints are managed by the platform.
+     */
+    List<String> trustedToolOwnerUids;
+
+    /**
      * List of CBG RAG compatible source types that have the same behavior as CBG-RAG
      */
     List<String> cbgRagCompatibleSources;
