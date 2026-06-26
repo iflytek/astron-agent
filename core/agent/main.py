@@ -26,6 +26,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from agent.api import router
 from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
+from agent.api.v1.a2a import a2a_discovery_router
 from agent.exceptions.agent_exc import AgentExc
 
 
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(create_health_router("core-agent", service_manager))
+    app.include_router(a2a_discovery_router)
     app.include_router(router.router_v1)
 
     @app.exception_handler(AgentExc)  # type: ignore[misc]
