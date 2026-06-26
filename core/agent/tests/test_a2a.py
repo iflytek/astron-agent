@@ -126,6 +126,91 @@ async def test_send_message_maps_text_to_custom_completion() -> None:
 
 
 @pytest.mark.asyncio
+async def test_collect_completion_text_ignores_malformed_sse_payload() -> None:
+    """Malformed upstream SSE data should not fail the A2A request."""
+    mock_completion = MagicMock()
+
+    async def fake_complete() -> AsyncIterator[str]:
+        yield "data: {not-json}\n\n"
+        yield (
+            'data: {"choices":[{"delta":{"content":"Recovered"}}],'
+            '"code":0,"message":"success","object":"chat.completion.chunk"}\n\n'
+        )
+
+    mock_completion.do_complete = fake_complete
+
+    text, error = await a2a._collect_completion_text(mock_completion)
+
+    assert text == "Recovered"
+    assert error == ""
+
+
+def test_completion_inputs_uses_fallback_for_invalid_max_loop_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Invalid metadata/env loop counts should fall back instead of raising."""
+    monkeypatch.setenv("A2A_MAX_LOOP_COUNT", "also-invalid")
+    request = A2ASendMessageRequest.model_validate(
+        {
+            "message": {
+                "messageId": "msg-1",
+                "role": "ROLE_USER",
+                "parts": [{"text": "Say hello."}],
+            },
+            "metadata": {"max_loop_count": "not-an-int"},
+        }
+    )
+
+    inputs = a2a._completion_inputs_from_a2a(request, "Say hello.")
+
+    assert inputs.max_loop_count == 5
+
+
+def test_completion_inputs_generates_uid_when_request_ids_are_missing() -> None:
+    """A2A inputs should still have a non-empty uid when IDs are blank."""
+    request = A2ASendMessageRequest.model_validate(
+        {
+            "message": {
+                "messageId": "",
+                "role": "ROLE_USER",
+                "parts": [{"text": "Say hello."}],
+            }
+        }
+    )
+
+    inputs = a2a._completion_inputs_from_a2a(request, "Say hello.")
+
+    assert inputs.uid
+    assert len(inputs.uid) <= 64
+
+
+@pytest.mark.asyncio
+async def test_collect_completion_text_stops_after_error_code() -> None:
+    """Error chunks should stop stream processing before later content chunks."""
+    consumed_chunks = []
+    mock_completion = MagicMock()
+
+    async def fake_complete() -> AsyncIterator[str]:
+        for chunk in [
+            'data: {"code":500,"message":"boom","choices":[]}\n\n',
+            (
+                'data: {"choices":[{"delta":{"content":"ignored"}}],'
+                '"code":0,"message":"success","object":"chat.completion.chunk"}\n\n'
+            ),
+        ]:
+            consumed_chunks.append(chunk)
+            yield chunk
+
+    mock_completion.do_complete = fake_complete
+
+    text, error = await a2a._collect_completion_text(mock_completion)
+
+    assert text == ""
+    assert error == "boom"
+    assert len(consumed_chunks) == 1
+
+
+@pytest.mark.asyncio
 async def test_send_message_can_return_immediately_without_running_agent() -> None:
     """returnImmediately should create a submitted task without invoking the runner."""
     request = A2ASendMessageRequest.model_validate(

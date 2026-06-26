@@ -148,6 +148,36 @@ def _metadata_mapping(metadata: dict[str, Any], key: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _max_loop_count(metadata: dict[str, Any]) -> int:
+    parsed_metadata = _optional_int(metadata.get("max_loop_count"))
+    if parsed_metadata is not None:
+        return parsed_metadata
+
+    parsed_env = _optional_int(os.getenv("A2A_MAX_LOOP_COUNT"))
+    if parsed_env is not None:
+        return parsed_env
+
+    return 5
+
+
+def _request_uid(request: A2ASendMessageRequest, metadata: dict[str, Any]) -> str:
+    return (
+        _metadata_string(metadata, "uid")
+        or _metadata_string(request.message.metadata, "uid")
+        or request.message.context_id
+        or request.message.message_id
+        or request.message.task_id
+        or str(uuid.uuid4())
+    )[:64]
+
+
 def _completion_inputs_from_a2a(
     request: A2ASendMessageRequest,
     text: str,
@@ -161,15 +191,8 @@ def _completion_inputs_from_a2a(
     }
     model_config.update(_metadata_mapping(metadata, "model_config"))
 
-    max_loop_count = metadata.get("max_loop_count", os.getenv("A2A_MAX_LOOP_COUNT", 5))
-
     return CustomCompletionInputs(
-        uid=(
-            _metadata_string(metadata, "uid")
-            or _metadata_string(request.message.metadata, "uid")
-            or request.message.context_id
-            or request.message.message_id
-        )[:64],
+        uid=_request_uid(request, metadata),
         messages=[LLMMessage(role="user", content=text)],
         stream=False,
         meta_data={
@@ -182,7 +205,7 @@ def _completion_inputs_from_a2a(
         model_config=model_config,
         instruction=_metadata_mapping(metadata, "instruction"),
         plugin=_metadata_mapping(metadata, "plugin"),
-        max_loop_count=int(max_loop_count),
+        max_loop_count=_max_loop_count(metadata),
     )
 
 
@@ -252,7 +275,11 @@ def _parse_sse_payload(chunk: str) -> dict[str, Any] | None:
         payload = line.removeprefix("data:").strip()
         if not payload or payload == "[DONE]":
             return None
-        return json.loads(payload)
+        try:
+            parsed_payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+        return parsed_payload if isinstance(parsed_payload, dict) else None
     return None
 
 
@@ -267,6 +294,7 @@ async def _collect_completion_text(completion: CustomChatCompletion) -> tuple[st
 
         if payload.get("code", 0) != 0:
             error_message = str(payload.get("message") or "A2A agent execution failed")
+            break
 
         for choice in payload.get("choices", []):
             delta = choice.get("delta") or {}
