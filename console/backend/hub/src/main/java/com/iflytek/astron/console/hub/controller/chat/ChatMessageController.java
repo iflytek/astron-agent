@@ -392,6 +392,8 @@ public class ChatMessageController {
         // Build DTO object
         DebugChatBotReqDto debugChatReqDto = new DebugChatBotReqDto();
         debugChatReqDto.setText(debugRequest.getText());
+        debugChatReqDto.setBotId(debugRequest.getBotId());
+        debugChatReqDto.setDebugSessionId(debugRequest.getDebugSessionId());
         debugChatReqDto.setPrompt(debugRequest.getPrompt());
         debugChatReqDto.setMessages(messageList);
         debugChatReqDto.setUid(uid);
@@ -405,7 +407,8 @@ public class ChatMessageController {
         debugChatReqDto.setPersonalityConfig(debugRequest.getPersonalityConfig());
 
         try {
-            sendStartSignal(sseEmitter, sseId, new ChatContext(uid, 0L, 0));
+            sendStartSignal(sseEmitter, sseId,
+                    new ChatContext(uid, 0L, debugRequest.getBotId() == null ? 0 : debugRequest.getBotId()));
             botChatService.debugChatMessageBot(debugChatReqDto, sseEmitter, sseId);
             return sseEmitter;
         } catch (Exception e) {
