@@ -14,6 +14,7 @@ In scope:
 - Normal Agent re-answer through `/chat-message/re-answer`, with memory retrieval enabled but memory writing disabled in the first version.
 - Agent workbench debug chat through `/chat-message/bot-debug`.
 - A memory management UI in the Agent configuration page.
+- Page-based Mem0 API key configuration for each Agent.
 - A provider abstraction with Mem0 and no-op implementations.
 
 Out of scope:
@@ -69,6 +70,8 @@ Mem0-specific mapping stays inside the provider:
 
 Do not send raw UID to Mem0. Use a deterministic hash so the backend can query the same memory scope without exposing internal user identifiers to the memory vendor.
 
+The Mem0 API key is not read from application configuration. It is configured from the Agent page, stored per `spaceId + botId`, and decrypted only on the backend when the provider makes Mem0 calls.
+
 ## Prompt Flow
 
 For normal standalone Agent chat:
@@ -121,7 +124,7 @@ Add simple skip rules:
 - Skip when memory is disabled.
 - Skip when the user input is blank.
 - Skip for short acknowledgement-only utterances such as "好的", "谢谢", "继续", "ok".
-- Skip when Mem0 configuration is missing.
+- Skip when the current Agent has no configured Mem0 API key.
 
 All other user turns search memory. Search timeouts degrade to empty results and never block chat.
 
@@ -143,23 +146,21 @@ For each write, send the original user question and final assistant answer to Me
 
 ## Configuration
 
-Backend properties:
+Backend properties provide only feature defaults and provider runtime tuning:
 
 ```yaml
 agent:
   memory:
-    enabled: false
     provider: mem0
-    api-key: ${MEM0_API_KEY:}
     base-url: https://api.mem0.ai
     timeout-ms: 1200
     top-k: 5
     max-context-chars: 1500
 ```
 
-Use a no-op provider when disabled or when provider configuration is incomplete.
+No Mem0 API key is configured in application files. Use a no-op provider when the Agent-level memory config is disabled or when the Agent-level API key is missing.
 
-Agent-level enablement should be persisted per bot, preferably in a new table instead of overloading the existing bot prompt/config fields:
+Agent-level enablement and provider credentials should be persisted per bot, preferably in a new table instead of overloading the existing bot prompt/config fields:
 
 ```text
 agent_memory_config
@@ -168,11 +169,21 @@ agent_memory_config
 - space_id
 - provider
 - enabled
+- api_key_ciphertext
+- api_key_mask
+- api_key_configured
 - create_time
 - update_time
 ```
 
-The Mem0 API key remains service-level configuration and is not editable from the Agent UI in this iteration.
+API key handling:
+
+- The Agent configuration UI lets an authorized Agent editor enter or replace the Mem0 API key.
+- The frontend must encrypt the key before submission, reusing the existing model-management RSA public key and `encryptApiKey` flow where possible.
+- The backend decrypts the submitted key, validates that it is non-empty, then stores it encrypted or otherwise protected at rest following the existing model API key pattern.
+- Config read APIs return only `apiKeyConfigured` and `apiKeyMask`, never the raw key.
+- If the user saves config without changing the masked key, the backend keeps the existing stored key.
+- A dedicated clear-key action can remove the stored key and automatically disable memory for that Agent.
 
 ## Management API
 
@@ -181,6 +192,7 @@ Add Console backend endpoints:
 ```text
 GET    /agent-memory/config?botId=
 PUT    /agent-memory/config
+DELETE /agent-memory/config/api-key?botId=
 GET    /agent-memory/memories?botId=&keyword=
 DELETE /agent-memory/memories/{memoryId}?botId=
 DELETE /agent-memory/memories?botId=
@@ -189,9 +201,27 @@ DELETE /agent-memory/memories?botId=
 Access rules:
 
 - The current user must have permission for the bot in the current space.
+- Only users allowed to edit the Agent can save, replace, or clear the Mem0 API key.
 - List/delete/clear only operate on the current `spaceId + uid + botId` memory scope.
 - Single-memory deletion requires `botId` so the backend can verify the current Agent scope before calling the provider.
 - API responses should not include provider secrets.
+
+Config response fields:
+
+- `botId`
+- `provider`
+- `enabled`
+- `apiKeyConfigured`
+- `apiKeyMask`
+- `providerStatus`, such as `ready`, `missing_api_key`, or `disabled`
+
+Config save request fields:
+
+- `botId`
+- `provider`
+- `enabled`
+- `encryptedApiKey`, optional
+- `apiKeyMasked`, optional, indicating that the submitted value is the existing mask and should not replace the stored key.
 
 Suggested response fields for memories:
 
@@ -210,9 +240,12 @@ Controls:
 
 - Enable/disable switch.
 - Provider display: Mem0.
+- API Key password input with save/replace behavior.
+- Masked saved-key display, for example `sk-****abcd`.
+- Clear key action.
 - Status hint:
-  - Enabled and configured.
-  - Enabled but backend provider missing API key.
+  - Enabled and key configured.
+  - Enabled but missing API key.
   - Disabled.
 - "管理记忆" button.
 
@@ -224,7 +257,7 @@ Management drawer:
 - Clear all memories for the current Agent and current user.
 - Empty, loading, and error states.
 
-The UI must not expose the Mem0 API key. It should explain scope in product terms: memories are scoped to the current user, current space, and current Agent.
+The UI must not expose the raw Mem0 API key after save. It should explain scope in product terms: the provider key is configured for the current Agent, while memories are scoped to the current user, current space, and current Agent.
 
 The debug chat request should include `botId` and `debugSessionId` so backend memory scope can be precise. The current `PromptTry` request only sends prompt, model, current text, tools, datasets, and flattened history.
 
@@ -275,6 +308,12 @@ Provider disabled or misconfigured:
 - Management UI shows configuration status.
 - Chat behavior is unchanged.
 
+API key save failure:
+
+- Return a normal API error to the configuration UI.
+- Do not enable memory if the submitted key cannot be decrypted or stored.
+- Never echo the submitted key in logs or responses.
+
 Delete and clear failures:
 
 - Return a normal API error to the management UI.
@@ -297,16 +336,21 @@ Avoid logging raw memory content, full user messages, or API keys.
 Backend unit tests:
 
 - Provider selection falls back to no-op when disabled.
+- Provider selection falls back to no-op when the Agent has no configured key.
 - Search maps Astron scope to Mem0 scope correctly.
 - Search failures return empty memories.
 - Memory supplement is injected when search returns memories.
 - Memory supplement is omitted when disabled or empty.
 - Write is skipped for empty/interrupted/re-answer turns.
 - Config/list/delete/clear endpoints enforce bot permission.
+- Config APIs never return raw API keys.
+- Saving a masked existing key preserves the stored key.
+- Clearing the key disables memory for that Agent.
 
 Frontend tests:
 
 - Cloud memory section renders states.
+- API key input encrypts before submit and never displays the raw saved key.
 - Enable switch calls config API.
 - Management drawer lists, searches, deletes, and clears memories.
 - Debug request includes `botId` and `debugSessionId`.
@@ -322,6 +366,6 @@ Manual acceptance:
 
 ## Rollout
 
-Default `agent.memory.enabled=false`. This keeps existing deployments unchanged until Mem0 credentials and per-Agent enablement are configured.
+Existing deployments remain unchanged because every Agent starts with memory disabled and no provider API key.
 
-Once enabled globally, each Agent still requires per-bot enablement before memory is used.
+Memory becomes active only after an authorized user configures a Mem0 key on the Agent page and enables memory for that Agent.
