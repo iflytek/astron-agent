@@ -37,6 +37,10 @@ public class AgentChatTask {
 
     private String userId;
     private Long chatId;
+    private Integer botId;
+    private Long spaceId;
+    private String debugSessionId;
+    private String rawUserText;
 
     /** {@code null} for debug turns (no persistence). */
     private ChatReqRecords chatReqRecords;

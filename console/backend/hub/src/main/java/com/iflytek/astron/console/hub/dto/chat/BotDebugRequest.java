@@ -17,6 +17,16 @@ public class BotDebugRequest {
     private String text;
 
     /**
+     * Bot ID for scoped debug capabilities such as memory.
+     */
+    private Integer botId;
+
+    /**
+     * Debug session ID for scoped memory run metadata.
+     */
+    private String debugSessionId;
+
+    /**
      * Prompt
      */
     private String prompt;

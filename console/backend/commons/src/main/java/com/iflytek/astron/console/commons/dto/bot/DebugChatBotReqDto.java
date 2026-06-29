@@ -22,6 +22,16 @@ public class DebugChatBotReqDto {
     private String text;
 
     /**
+     * Bot ID
+     */
+    private Integer botId;
+
+    /**
+     * Debug session ID
+     */
+    private String debugSessionId;
+
+    /**
      * Prompt
      */
     private String prompt;

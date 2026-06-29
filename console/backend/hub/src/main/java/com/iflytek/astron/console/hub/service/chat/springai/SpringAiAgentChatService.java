@@ -6,6 +6,7 @@ import com.iflytek.astron.console.commons.entity.chat.ChatTraceSource;
 import com.iflytek.astron.console.commons.service.ChatRecordModelService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.springai.ChatModelFactory.AgentModel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public class SpringAiAgentChatService {
     private final AgentToolCallbackResolver toolCallbackResolver;
     private final ChatRecordModelService chatRecordModelService;
     private final ChatDataService chatDataService;
+    private final AgentMemoryRuntimeService agentMemoryRuntimeService;
 
     public void chat(AgentChatTask task, SseEmitter emitter, String streamId) {
         AgentSseBridge bridge = new AgentSseBridge(emitter, streamId);
@@ -94,6 +96,7 @@ public class SpringAiAgentChatService {
                                 Long requestId =
                                         task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
                                 bridge.complete(task.getChatId(), requestId);
+                                agentMemoryRuntimeService.writeTurn(task, bridge.getFinalResult().toString());
                             });
         } catch (Exception e) {
             log.error("Spring AI agent chat setup failed, streamId: {}", streamId, e);

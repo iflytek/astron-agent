@@ -32,6 +32,7 @@ import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
 import com.iflytek.astron.console.hub.entity.ReqKnowledgeRecords;
 import com.iflytek.astron.console.hub.enums.ConfigTypeEnum;
+import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.bot.PersonalityConfigService;
 import com.iflytek.astron.console.hub.service.chat.BotChatService;
 import com.iflytek.astron.console.hub.service.chat.ChatListService;
@@ -112,6 +113,9 @@ public class BotChatServiceImpl implements BotChatService {
     @Autowired
     private PersonalityConfigService personalityConfigService;
 
+    @Autowired
+    private AgentMemoryRuntimeService agentMemoryRuntimeService;
+
     /**
      * Function to handle chat messages
      *
@@ -146,10 +150,14 @@ public class BotChatServiceImpl implements BotChatService {
                         .tools(botConfig.tools())
                         .userId(chatBotReqDto.getUid())
                         .chatId(chatBotReqDto.getChatId())
+                        .botId(chatBotReqDto.getBotId())
+                        .spaceId(SpaceInfoUtil.getSpaceId())
+                        .rawUserText(chatBotReqDto.getAsk())
                         .chatReqRecords(chatReqRecords)
                         .edit(false)
                         .debug(false)
                         .build();
+                task.setMessages(agentMemoryRuntimeService.enrichMessages(task));
                 springAiAgentChatService.chat(task, sseEmitter, sseId);
             }
         } catch (Exception e) {
@@ -193,10 +201,14 @@ public class BotChatServiceImpl implements BotChatService {
                     .tools(botConfig.tools())
                     .userId(chatBotReqDto.getUid())
                     .chatId(chatBotReqDto.getChatId())
+                    .botId(botId)
+                    .spaceId(SpaceInfoUtil.getSpaceId())
+                    .rawUserText(chatBotReqDto.getAsk())
                     .chatReqRecords(chatReqRecords)
                     .edit(true)
                     .debug(false)
                     .build();
+            task.setMessages(agentMemoryRuntimeService.enrichMessages(task));
             springAiAgentChatService.chat(task, sseEmitter, sseId);
         } catch (Exception e) {
             log.error("Bot reAnswer error for sseId: {}, requestId: {}", sseId, requestId, e);
@@ -238,10 +250,15 @@ public class BotChatServiceImpl implements BotChatService {
                     .tools(request.getTools())
                     .userId(request.getUid())
                     .chatId(null)
+                    .botId(request.getBotId())
+                    .spaceId(SpaceInfoUtil.getSpaceId())
+                    .debugSessionId(request.getDebugSessionId())
+                    .rawUserText(request.getText())
                     .chatReqRecords(null)
                     .edit(false)
                     .debug(true)
                     .build();
+            task.setMessages(agentMemoryRuntimeService.enrichMessages(task));
             springAiAgentChatService.chat(task, sseEmitter, sseId);
         } catch (Exception e) {
             log.error("Bot debug error for sseId: {}, uid: {}", sseId, request.getUid(), e);
