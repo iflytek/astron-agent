@@ -59,6 +59,7 @@ const PromptTry = forwardRef<
     model?: string;
     supportContext?: number;
     promptText?: string;
+    botId?: number | null;
     debugSessionId?: string;
     initialMessages?: MessageListType[];
     onMessagesChange?: (messages: MessageListType[]) => void;
@@ -89,6 +90,8 @@ const PromptTry = forwardRef<
       prompt,
       model,
       supportContext,
+      botId,
+      debugSessionId,
       choosedAlltool,
       mcpServerUrls,
       skills,
@@ -204,6 +207,12 @@ const PromptTry = forwardRef<
       form.append('model', useModel?.modelDomain || 'spark');
 
       form.append('text', question);
+      if (botId !== undefined && botId !== null) {
+        form.append('botId', String(botId));
+      }
+      if (debugSessionId) {
+        form.append('debugSessionId', debugSessionId);
+      }
       const datasetList: string[] = [];
       (selectSource || []).forEach((item: any) => {
         datasetList.push(item.id);

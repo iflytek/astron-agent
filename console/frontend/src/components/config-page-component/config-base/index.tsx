@@ -17,6 +17,12 @@ import {
   Row,
   Col,
   Tabs,
+  Switch,
+  InputNumber,
+  List,
+  Popconfirm,
+  Empty,
+  Tag,
 } from 'antd';
 
 import ConfigHeader from '@/components/config-page-component/config-header/ConfigHeader';
@@ -53,9 +59,13 @@ import { useTranslation } from 'react-i18next';
 import { getLanguageCode } from '@/utils/http';
 import {
   EditOutlined,
+  DatabaseOutlined,
+  DeleteOutlined,
   LeftOutlined,
   MessageOutlined,
   PlusSquareOutlined,
+  ReloadOutlined,
+  SaveOutlined,
   SearchOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
@@ -97,10 +107,27 @@ import {
   getAgentDebugSessions,
   saveAgentDebugMessages,
 } from '@/services/agent-debug';
+import {
+  AgentMemoryConfig,
+  AgentMemoryItem,
+  clearAgentMemories,
+  deleteAgentMemory,
+  getAgentMemories,
+  getAgentMemoryConfig,
+  saveAgentMemoryConfig,
+} from '@/services/agent-memory';
+import { modelRsaPublicKey } from '@/services/model';
+import { encryptApiKey } from '@/pages/model-management/utils/encrypt-api-key';
 
 const { Option } = Select;
 
-type WorkbenchView = 'chat' | 'search' | 'basic' | 'prompt' | 'capability';
+type WorkbenchView =
+  | 'chat'
+  | 'search'
+  | 'basic'
+  | 'prompt'
+  | 'capability'
+  | 'memory';
 
 const getDebugSessionTitleFromMessages = (
   messages: MessageListType[]
@@ -131,6 +158,16 @@ const filterDebugSessions = (
     getDebugSessionSearchText(session).includes(normalizedKeyword)
   );
 };
+
+const buildDefaultMemoryConfig = (botId: number): AgentMemoryConfig => ({
+  botId,
+  provider: 'MEM0',
+  enabled: false,
+  hasApiKey: false,
+  autoSearch: true,
+  searchTopK: 5,
+  minScore: 0,
+});
 
 const baseModelConfig: BaseModelConfig = {
   visible: false,
@@ -285,6 +322,13 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [debugSessionKey, setDebugSessionKey] = useState(0);
   const [debugHistoryLoading, setDebugHistoryLoading] = useState(false);
   const [debugHistorySearchQuery, setDebugHistorySearchQuery] = useState('');
+  const [memoryConfig, setMemoryConfig] =
+    useState<AgentMemoryConfig | null>(null);
+  const [memoryApiKey, setMemoryApiKey] = useState('');
+  const [memoryItems, setMemoryItems] = useState<AgentMemoryItem[]>([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memorySaving, setMemorySaving] = useState(false);
+  const [memoryListLoading, setMemoryListLoading] = useState(false);
   const activeDebugSessionIdRef = useRef('');
   const debugSessionScopeRef = useRef(0);
   const debugMessageRevisionRef = useRef(0);
@@ -1121,6 +1165,124 @@ const BaseConfig: React.FC<ChatProps> = ({
     loadDebugSessions();
   }, [loadDebugSessions]);
 
+  const loadMemoryConfig = useCallback(async () => {
+    if (!currentBotId) {
+      setMemoryConfig(null);
+      return;
+    }
+    setMemoryLoading(true);
+    try {
+      const config = await getAgentMemoryConfig(currentBotId);
+      setMemoryConfig({
+        ...buildDefaultMemoryConfig(currentBotId),
+        ...(config || {}),
+      });
+    } catch (err) {
+      setMemoryConfig(buildDefaultMemoryConfig(currentBotId));
+    } finally {
+      setMemoryLoading(false);
+    }
+  }, [currentBotId]);
+
+  const loadMemoryItems = useCallback(async () => {
+    if (!currentBotId) {
+      setMemoryItems([]);
+      return;
+    }
+    setMemoryListLoading(true);
+    try {
+      const items = await getAgentMemories(currentBotId);
+      setMemoryItems(items || []);
+    } catch (err) {
+      setMemoryItems([]);
+    } finally {
+      setMemoryListLoading(false);
+    }
+  }, [currentBotId]);
+
+  useEffect(() => {
+    if (activeWorkbenchView === 'memory') {
+      loadMemoryConfig();
+      loadMemoryItems();
+    }
+  }, [activeWorkbenchView, loadMemoryConfig, loadMemoryItems]);
+
+  const updateMemoryConfig = useCallback(
+    (patch: Partial<AgentMemoryConfig>) => {
+      if (!currentBotId) return;
+      setMemoryConfig(prev => ({
+        ...buildDefaultMemoryConfig(currentBotId),
+        ...(prev || {}),
+        ...patch,
+      }));
+    },
+    [currentBotId]
+  );
+
+  const handleSaveMemoryConfig = useCallback(async () => {
+    if (!currentBotId) return;
+    const config = memoryConfig || buildDefaultMemoryConfig(currentBotId);
+    const apiKey = memoryApiKey.trim();
+    if (config.enabled && !config.hasApiKey && !apiKey) {
+      message.warning('请填写 Mem0 API Key');
+      return;
+    }
+
+    setMemorySaving(true);
+    try {
+      let apiKeyCiphertext: string | undefined;
+      if (apiKey) {
+        const publicKey = await modelRsaPublicKey();
+        apiKeyCiphertext = encryptApiKey(publicKey, apiKey);
+      }
+      const saved = await saveAgentMemoryConfig({
+        botId: currentBotId,
+        provider: 'MEM0',
+        enabled: config.enabled,
+        apiKeyCiphertext,
+        autoSearch: config.autoSearch,
+        searchTopK: config.searchTopK,
+        minScore: config.minScore,
+      });
+      setMemoryConfig({
+        ...buildDefaultMemoryConfig(currentBotId),
+        ...(saved || {}),
+      });
+      setMemoryApiKey('');
+      message.success(t('configBase.saveSuccess') || '保存成功');
+      loadMemoryItems();
+    } catch (err: any) {
+      message.error(err?.msg || '保存记忆配置失败');
+    } finally {
+      setMemorySaving(false);
+    }
+  }, [currentBotId, loadMemoryItems, memoryApiKey, memoryConfig, t]);
+
+  const handleDeleteMemory = useCallback(
+    async (memoryId: string) => {
+      if (!currentBotId) return;
+      try {
+        await deleteAgentMemory(currentBotId, memoryId);
+        message.success('已删除');
+        loadMemoryItems();
+      } catch (err: any) {
+        message.error(err?.msg || '删除记忆失败');
+      }
+    },
+    [currentBotId, loadMemoryItems]
+  );
+
+  const handleClearMemories = useCallback(async () => {
+    if (!currentBotId) return;
+    try {
+      await clearAgentMemories(currentBotId);
+      message.success('已清空');
+      loadMemoryItems();
+    } catch (err: any) {
+      message.error(err?.msg || '清空记忆失败');
+    }
+  }, [currentBotId, loadMemoryItems]);
+
   const filteredDebugSessions = useMemo(
     () => filterDebugSessions(debugSessions, debugHistorySearchQuery),
     [debugHistorySearchQuery, debugSessions]
@@ -1549,6 +1711,11 @@ const BaseConfig: React.FC<ChatProps> = ({
       label: t('configBase.CapabilityDevelopment.capability'),
       icon: <ThunderboltOutlined />,
     },
+    {
+      key: 'memory',
+      label: '记忆',
+      icon: <DatabaseOutlined />,
+    },
   ];
 
   const workbenchTitleMap: Record<WorkbenchView, string> = {
@@ -1557,6 +1724,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     basic: t('configBase.agentBaseInfo') || '基础信息',
     prompt: personalizationTitle,
     capability: t('configBase.CapabilityDevelopment.capability'),
+    memory: '记忆',
   };
 
   const renderWorkbenchActions = () => (
@@ -1651,6 +1819,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                   }
                 }}
                 baseinfo={baseinfo}
+                botId={currentBotId}
                 inputExample={inputExample}
                 coverUrl={coverUrl}
                 selectSource={selectSource}
@@ -1713,6 +1882,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 }}
                 newPrompt={item.prompt}
                 baseinfo={baseinfo}
+                botId={currentBotId}
                 inputExample={inputExample}
                 coverUrl={coverUrl}
                 selectSource={selectSource}
@@ -1748,6 +1918,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         initialMessages={debugInitialMessages}
         onMessagesChange={handleDebugMessagesChange}
         baseinfo={baseinfo}
+        botId={currentBotId}
         inputExample={inputExample}
         coverUrl={coverUrl}
         selectSource={selectSource}
@@ -1965,6 +2136,175 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
+  const renderMemoryWorkspace = () => {
+    if (!currentBotId) {
+      return (
+        <div className={styles.workbenchFormSection}>
+          <div className={styles.workbenchEmptyState}>请先创建智能体</div>
+        </div>
+      );
+    }
+
+    const config = memoryConfig || buildDefaultMemoryConfig(currentBotId);
+    const keyStatus = memoryApiKey.trim()
+      ? '待保存'
+      : config.hasApiKey
+        ? '已配置'
+        : '未配置';
+
+    return (
+      <div className={styles.workbenchMemoryWorkspace}>
+        <div className={styles.workbenchFormSection}>
+          <div className={styles.workbenchSectionTitle}>
+            <span>Mem0 云端记忆</span>
+            <div className={styles.workbenchInlineActions}>
+              <Tag color={config.enabled ? 'green' : 'default'}>
+                {config.enabled ? '已启用' : '未启用'}
+              </Tag>
+              <Button
+                icon={<SaveOutlined />}
+                loading={memorySaving}
+                onClick={handleSaveMemoryConfig}
+              >
+                保存
+              </Button>
+            </div>
+          </div>
+          <Spin spinning={memoryLoading}>
+            <div className={styles.workbenchMemoryGrid}>
+              <label className={styles.workbenchMemoryField}>
+                <span>启用</span>
+                <Switch
+                  checked={config.enabled}
+                  onChange={checked =>
+                    updateMemoryConfig({ enabled: checked })
+                  }
+                />
+              </label>
+              <label className={styles.workbenchMemoryField}>
+                <span>API Key</span>
+                <Input.Password
+                  value={memoryApiKey}
+                  onChange={event => setMemoryApiKey(event.target.value)}
+                  placeholder={
+                    config.hasApiKey ? '已保存，输入新 key 可替换' : 'Mem0 API Key'
+                  }
+                />
+                <small>{keyStatus}</small>
+              </label>
+              <label className={styles.workbenchMemoryField}>
+                <span>自动检索</span>
+                <Switch
+                  checked={config.autoSearch}
+                  onChange={checked =>
+                    updateMemoryConfig({ autoSearch: checked })
+                  }
+                />
+              </label>
+              <label className={styles.workbenchMemoryField}>
+                <span>检索条数</span>
+                <InputNumber
+                  min={1}
+                  max={20}
+                  value={config.searchTopK}
+                  onChange={value =>
+                    updateMemoryConfig({ searchTopK: Number(value || 1) })
+                  }
+                />
+              </label>
+              <label className={styles.workbenchMemoryField}>
+                <span>匹配阈值</span>
+                <InputNumber
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={config.minScore}
+                  onChange={value =>
+                    updateMemoryConfig({ minScore: Number(value || 0) })
+                  }
+                />
+              </label>
+            </div>
+          </Spin>
+        </div>
+
+        <div className={styles.workbenchFormSection}>
+          <div className={styles.workbenchSectionTitle}>
+            <span>记忆列表</span>
+            <div className={styles.workbenchInlineActions}>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={loadMemoryItems}
+                loading={memoryListLoading}
+              >
+                刷新
+              </Button>
+              <Popconfirm
+                title="清空记忆"
+                description="确认清空当前智能体作用域下的 Mem0 记忆？"
+                onConfirm={handleClearMemories}
+                okText="清空"
+                cancelText="取消"
+              >
+                <Button danger disabled={memoryItems.length === 0}>
+                  清空
+                </Button>
+              </Popconfirm>
+            </div>
+          </div>
+          <List
+            loading={memoryListLoading}
+            dataSource={memoryItems}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="暂无记忆"
+                />
+              ),
+            }}
+            renderItem={item => (
+              <List.Item
+                key={item.id || item.memory}
+                actions={[
+                  <Popconfirm
+                    key="delete"
+                    title="删除记忆"
+                    description="确认删除这条记忆？"
+                    onConfirm={() => item.id && handleDeleteMemory(item.id)}
+                    okText="删除"
+                    cancelText="取消"
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      disabled={!item.id}
+                    />
+                  </Popconfirm>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={<span>{item.memory}</span>}
+                  description={
+                    <span className={styles.workbenchMemoryMeta}>
+                      {item.score !== undefined && item.score !== null
+                        ? `score ${item.score.toFixed(3)}`
+                        : 'score -'}
+                      {item.updatedAt || item.createdAt
+                        ? ` · ${item.updatedAt || item.createdAt}`
+                        : ''}
+                    </span>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const renderSearchWorkspace = () => (
     <div className={styles.workbenchFormSection}>
       <Input
@@ -2014,6 +2354,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (activeWorkbenchView === 'search') return renderSearchWorkspace();
     if (activeWorkbenchView === 'basic') return renderBasicInfoWorkspace();
     if (activeWorkbenchView === 'prompt') return renderPromptWorkspace();
+    if (activeWorkbenchView === 'memory') return renderMemoryWorkspace();
     return renderCapabilityWorkspace();
   };
 
@@ -2895,6 +3236,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     <PromptTry
                       ref={defaultPromptTryRef}
                       baseinfo={baseinfo}
+                      botId={currentBotId}
                       inputExample={inputExample}
                       coverUrl={coverUrl}
                       selectSource={selectSource}
@@ -2941,6 +3283,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           }}
                           newPrompt={item.prompt}
                           baseinfo={baseinfo}
+                          botId={currentBotId}
                           inputExample={inputExample}
                           coverUrl={coverUrl}
                           selectSource={selectSource}
@@ -3017,6 +3360,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           }
                         }}
                         baseinfo={baseinfo}
+                        botId={currentBotId}
                         inputExample={inputExample}
                         coverUrl={coverUrl}
                         selectSource={selectSource}
