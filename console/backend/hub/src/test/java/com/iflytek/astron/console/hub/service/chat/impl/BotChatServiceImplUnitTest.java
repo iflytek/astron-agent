@@ -20,6 +20,7 @@ import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotChatService;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
+import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.ChatListService;
 import com.iflytek.astron.console.hub.service.chat.springai.AgentChatTask;
 import com.iflytek.astron.console.hub.service.chat.springai.SpringAiAgentChatService;
@@ -78,6 +79,8 @@ class BotChatServiceImplUnitTest {
     private com.iflytek.astron.console.hub.util.BotPermissionUtil botPermissionUtil;
     @Mock
     private com.iflytek.astron.console.hub.service.bot.PersonalityConfigService personalityConfigService;
+    @Mock
+    private AgentMemoryRuntimeService agentMemoryRuntimeService;
 
     @InjectMocks
     private BotChatServiceImpl botChatService;
@@ -85,6 +88,8 @@ class BotChatServiceImplUnitTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(botChatService, "maxInputTokens", 8000);
+        lenient().when(agentMemoryRuntimeService.enrichMessages(any(AgentChatTask.class)))
+                .thenAnswer(invocation -> invocation.<AgentChatTask>getArgument(0).getMessages());
     }
 
     @Test
