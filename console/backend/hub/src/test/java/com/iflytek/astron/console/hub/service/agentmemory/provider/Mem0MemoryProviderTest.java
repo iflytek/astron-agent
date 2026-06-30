@@ -32,11 +32,12 @@ class Mem0MemoryProviderTest {
     }
 
     @Test
-    void addTurnStoresSynchronousScopedMemoriesAndSearchUsesMem0Parameters() throws Exception {
+    void addTurnUsesMem0InferenceAndScopesByAppIdForSearchAndList() throws Exception {
         AtomicReference<JSONObject> addPayload = new AtomicReference<>();
         AtomicReference<JSONObject> searchPayload = new AtomicReference<>();
         AtomicReference<JSONObject> listPayload = new AtomicReference<>();
         AtomicReference<URI> listUri = new AtomicReference<>();
+        AtomicReference<URI> clearUri = new AtomicReference<>();
         AtomicInteger eventPollCount = new AtomicInteger();
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/v3/memories/add/", exchange -> {
@@ -71,6 +72,12 @@ class Mem0MemoryProviderTest {
                     {"results":[{"id":"m1","memory":"用户喜欢打篮球","metadata":{"source":"debug"}}]}
                     """);
         });
+        server.createContext("/v1/memories/", exchange -> {
+            clearUri.set(exchange.getRequestURI());
+            respond(exchange, 200, """
+                    {"message":"Delete in progress"}
+                    """);
+        });
         server.start();
 
         Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
@@ -81,15 +88,24 @@ class Mem0MemoryProviderTest {
                 "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
         List<AgentMemorySearchResult> results = provider.search(context, "我喜欢什么运动", 3, 0.1);
         List<AgentMemoryItem> items = provider.list(context, 2, 10);
+        provider.clear(context);
 
-        assertEquals(Boolean.FALSE, addPayload.get().getBoolean("infer"));
+        assertEquals(Boolean.TRUE, addPayload.get().getBoolean("infer"));
         assertEquals("u1", addPayload.get().getString("user_id"));
-        assertEquals("bot-7", addPayload.get().getString("agent_id"));
+        assertEquals("bot-7", addPayload.get().getString("app_id"));
+        assertFalse(addPayload.get().containsKey("agent_id"));
         assertEquals(2, eventPollCount.get());
+        assertEquals("u1", searchPayload.get().getJSONObject("filters").getString("user_id"));
+        assertEquals("bot-7", searchPayload.get().getJSONObject("filters").getString("app_id"));
+        assertFalse(searchPayload.get().getJSONObject("filters").containsKey("agent_id"));
         assertEquals(3, searchPayload.get().getInteger("top_k"));
         assertEquals(0.1, searchPayload.get().getDouble("threshold"));
         assertFalse(searchPayload.get().containsKey("limit"));
+        assertEquals("u1", listPayload.get().getJSONObject("filters").getString("user_id"));
+        assertEquals("bot-7", listPayload.get().getJSONObject("filters").getString("app_id"));
+        assertFalse(listPayload.get().getJSONObject("filters").containsKey("agent_id"));
         assertEquals("page=2&page_size=10", listUri.get().getRawQuery());
+        assertEquals("user_id=u1&app_id=bot-7", clearUri.get().getRawQuery());
         assertFalse(listPayload.get().containsKey("page"));
         assertFalse(listPayload.get().containsKey("page_size"));
         assertEquals(1, results.size());
