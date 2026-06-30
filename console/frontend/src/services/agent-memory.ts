@@ -45,9 +45,7 @@ export const saveAgentMemoryConfig = (
   return http.put('/agent-memory/config', params);
 };
 
-export const getAgentMemories = (
-  botId: number
-): Promise<AgentMemoryItem[]> => {
+export const getAgentMemories = (botId: number): Promise<AgentMemoryItem[]> => {
   return http.get('/agent-memory/memories', {
     params: { botId },
   });
