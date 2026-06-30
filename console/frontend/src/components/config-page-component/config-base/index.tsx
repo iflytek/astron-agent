@@ -351,8 +351,9 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [debugSessionKey, setDebugSessionKey] = useState(0);
   const [debugHistoryLoading, setDebugHistoryLoading] = useState(false);
   const [debugHistorySearchQuery, setDebugHistorySearchQuery] = useState('');
-  const [memoryConfig, setMemoryConfig] =
-    useState<AgentMemoryConfig | null>(null);
+  const [memoryConfig, setMemoryConfig] = useState<AgentMemoryConfig | null>(
+    null
+  );
   const [memoryApiKey, setMemoryApiKey] = useState('');
   const [memoryApiKeyEditing, setMemoryApiKeyEditing] = useState(false);
   const [memoryItems, setMemoryItems] = useState<AgentMemoryItem[]>([]);
