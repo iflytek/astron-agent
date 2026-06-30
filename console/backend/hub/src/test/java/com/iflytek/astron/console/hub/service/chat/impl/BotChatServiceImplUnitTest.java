@@ -19,6 +19,7 @@ import com.iflytek.astron.console.commons.service.data.ChatHistoryService;
 import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotChatService;
+import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
 import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.ChatListService;
@@ -29,12 +30,14 @@ import com.iflytek.astron.console.toolkit.entity.vo.CategoryTreeVO;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
 import com.iflytek.astron.console.toolkit.service.workflow.WorkflowService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -85,11 +88,20 @@ class BotChatServiceImplUnitTest {
     @InjectMocks
     private BotChatServiceImpl botChatService;
 
+    private MockedStatic<SpaceInfoUtil> spaceInfoUtil;
+
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(botChatService, "maxInputTokens", 8000);
+        spaceInfoUtil = mockStatic(SpaceInfoUtil.class);
+        spaceInfoUtil.when(SpaceInfoUtil::getSpaceId).thenReturn(1L);
         lenient().when(agentMemoryRuntimeService.enrichMessages(any(AgentChatTask.class)))
                 .thenAnswer(invocation -> invocation.<AgentChatTask>getArgument(0).getMessages());
+    }
+
+    @AfterEach
+    void tearDown() {
+        spaceInfoUtil.close();
     }
 
     @Test
@@ -131,6 +143,7 @@ class BotChatServiceImplUnitTest {
         AgentChatTask task = captureTask();
         assertNull(task.getLlmInfoVo());
         assertEquals("x1", task.getSparkModelName());
+        assertEquals(1L, task.getSpaceId());
         assertFalse(task.isEdit());
         assertFalse(task.isDebug());
         assertNotNull(task.getChatReqRecords());
@@ -265,16 +278,12 @@ class BotChatServiceImplUnitTest {
         when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
 
-        try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
-            mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
+        botChatService.debugChatMessageBot(request, sseEmitter, "sse");
 
-            botChatService.debugChatMessageBot(request, sseEmitter, "sse");
-
-            verify(modelService).checkModelBase(anyLong(), anyString(), anyString(), anyString(), any());
-            AgentChatTask task = captureTask();
-            assertTrue(task.isDebug());
-            assertNotNull(task.getLlmInfoVo());
-        }
+        verify(modelService).checkModelBase(anyLong(), anyString(), anyString(), anyString(), any());
+        AgentChatTask task = captureTask();
+        assertTrue(task.isDebug());
+        assertNotNull(task.getLlmInfoVo());
     }
 
     @Test
