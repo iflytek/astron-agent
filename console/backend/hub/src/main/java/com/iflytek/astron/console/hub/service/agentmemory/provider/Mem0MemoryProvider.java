@@ -24,12 +24,38 @@ import java.util.Map;
 public class Mem0MemoryProvider implements AgentMemoryProvider {
 
     public static final String PROVIDER = "MEM0";
-    private static final String BASE_URL = "https://api.mem0.ai";
+    private static final String DEFAULT_BASE_URL = "https://api.mem0.ai";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(6);
+    private static final Duration DEFAULT_EVENT_POLL_DELAY = Duration.ofMillis(500);
+    private static final int MAX_EVENT_POLL_ATTEMPTS = 6;
 
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .build();
+    private final String baseUrl;
+    private final HttpClient httpClient;
+    private final Duration eventPollDelay;
+
+    public Mem0MemoryProvider() {
+        this(DEFAULT_BASE_URL);
+    }
+
+    Mem0MemoryProvider(String baseUrl) {
+        this(baseUrl, DEFAULT_EVENT_POLL_DELAY);
+    }
+
+    Mem0MemoryProvider(String baseUrl, Duration eventPollDelay) {
+        this(baseUrl, HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .build(), eventPollDelay);
+    }
+
+    Mem0MemoryProvider(String baseUrl, HttpClient httpClient) {
+        this(baseUrl, httpClient, DEFAULT_EVENT_POLL_DELAY);
+    }
+
+    Mem0MemoryProvider(String baseUrl, HttpClient httpClient, Duration eventPollDelay) {
+        this.baseUrl = StringUtils.removeEnd(StringUtils.defaultIfBlank(baseUrl, DEFAULT_BASE_URL), "/");
+        this.httpClient = httpClient;
+        this.eventPollDelay = eventPollDelay == null ? DEFAULT_EVENT_POLL_DELAY : eventPollDelay;
+    }
 
     @Override
     public String provider() {
@@ -45,7 +71,8 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         JSONObject payload = new JSONObject()
                 .fluentPut("query", query)
                 .fluentPut("filters", scopeFilters(context))
-                .fluentPut("limit", topK);
+                .fluentPut("top_k", topK)
+                .fluentPut("threshold", minScore);
         String responseBody = post(context.apiKey(), "/v3/memories/search/", payload);
         return parseItems(responseBody).stream()
                 .map(item -> new AgentMemorySearchResult(
@@ -72,17 +99,20 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
                 .fluentPut("user_id", context.userId())
                 .fluentPut("agent_id", context.agentId())
                 .fluentPut("run_id", turn.runId())
+                // Mem0 Cloud v3 inferred events can finish without scoped list/search visibility.
+                .fluentPut("infer", false)
                 .fluentPut("metadata", metadata);
-        post(context.apiKey(), "/v3/memories/add/", payload);
+        String responseBody = post(context.apiKey(), "/v3/memories/add/", payload);
+        waitForEventIfPending(context.apiKey(), responseBody);
     }
 
     @Override
     public List<AgentMemoryItem> list(AgentMemoryProviderContext context, int page, int pageSize) {
         JSONObject payload = new JSONObject()
-                .fluentPut("filters", scopeFilters(context))
-                .fluentPut("page", page)
-                .fluentPut("page_size", pageSize);
-        String responseBody = post(context.apiKey(), "/v3/memories/", payload);
+                .fluentPut("filters", scopeFilters(context));
+        String path = "/v3/memories/?page=" + Math.max(1, page)
+                + "&page_size=" + Math.max(1, pageSize);
+        String responseBody = post(context.apiKey(), path, payload);
         return parseItems(responseBody);
     }
 
@@ -119,8 +149,13 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         send(request);
     }
 
+    private String get(String apiKey, String path) {
+        HttpRequest request = baseRequest(apiKey, path).GET().build();
+        return send(request);
+    }
+
     private HttpRequest.Builder baseRequest(String apiKey, String path) {
-        return HttpRequest.newBuilder(URI.create(BASE_URL + path))
+        return HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Authorization", "Token " + apiKey)
                 .header("Content-Type", "application/json")
@@ -134,13 +169,64 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
             if (statusCode >= 200 && statusCode < 300) {
                 return StringUtils.defaultString(response.body());
             }
-            throw new IllegalStateException("Mem0 request failed with HTTP " + statusCode);
+            throw new IllegalStateException("Mem0 request failed with HTTP " + statusCode
+                    + ": " + StringUtils.abbreviate(StringUtils.defaultString(response.body()), 300));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Mem0 request interrupted", e);
-        } catch (Exception e) {
+        } catch (java.io.IOException e) {
             log.warn("Mem0 provider request failed: {}", e.getMessage());
             throw new IllegalStateException("Mem0 request failed", e);
+        }
+    }
+
+    private void waitForEventIfPending(String apiKey, String responseBody) {
+        if (StringUtils.isBlank(responseBody)) {
+            return;
+        }
+        JSONObject response = JSON.parseObject(responseBody);
+        String status = StringUtils.upperCase(response.getString("status"));
+        String eventId = response.getString("event_id");
+        if (!isPendingEvent(status) || StringUtils.isBlank(eventId)) {
+            if ("FAILED".equals(status)) {
+                throw new IllegalStateException("Mem0 add event failed");
+            }
+            return;
+        }
+
+        String eventPath = "/v1/event/" + urlEncode(eventId) + "/";
+        for (int attempt = 0; attempt < MAX_EVENT_POLL_ATTEMPTS; attempt++) {
+            sleepBeforeEventPoll(attempt);
+            JSONObject event = JSON.parseObject(get(apiKey, eventPath));
+            String eventStatus = StringUtils.upperCase(event.getString("status"));
+            if (isSuccessfulEvent(eventStatus)) {
+                return;
+            }
+            if ("FAILED".equals(eventStatus)) {
+                throw new IllegalStateException("Mem0 add event failed");
+            }
+        }
+        log.warn("Mem0 add event still pending after {} polls, eventId={}",
+                MAX_EVENT_POLL_ATTEMPTS, eventId);
+    }
+
+    private boolean isPendingEvent(String status) {
+        return "PENDING".equals(status) || "RUNNING".equals(status) || "PROCESSING".equals(status);
+    }
+
+    private boolean isSuccessfulEvent(String status) {
+        return "SUCCEEDED".equals(status) || "COMPLETED".equals(status) || "SUCCESS".equals(status);
+    }
+
+    private void sleepBeforeEventPoll(int attempt) {
+        if (attempt == 0 || eventPollDelay.isZero() || eventPollDelay.isNegative()) {
+            return;
+        }
+        try {
+            Thread.sleep(eventPollDelay.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Mem0 event polling interrupted", e);
         }
     }
 

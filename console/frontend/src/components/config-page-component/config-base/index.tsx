@@ -169,6 +169,35 @@ const buildDefaultMemoryConfig = (botId: number): AgentMemoryConfig => ({
   minScore: 0,
 });
 
+const MEMORY_API_KEY_MASK = '****************';
+
+const memoryProviderOptions = [
+  {
+    key: 'MEM0',
+    name: 'Mem0',
+    title: '云端记忆',
+    description: '当前用于 Agent 对话的长期记忆服务',
+    status: '已接入',
+    disabled: false,
+  },
+  {
+    key: 'ZEP',
+    name: 'Zep',
+    title: '会话记忆',
+    description: '预留接入位，后续可复用同一配置面板',
+    status: '待接入',
+    disabled: true,
+  },
+  {
+    key: 'LANGMEM',
+    name: 'LangMem',
+    title: '框架记忆',
+    description: '预留接入位，不影响当前 Mem0 配置',
+    status: '待接入',
+    disabled: true,
+  },
+];
+
 const baseModelConfig: BaseModelConfig = {
   visible: false,
   isSending: false,
@@ -325,6 +354,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [memoryConfig, setMemoryConfig] =
     useState<AgentMemoryConfig | null>(null);
   const [memoryApiKey, setMemoryApiKey] = useState('');
+  const [memoryApiKeyEditing, setMemoryApiKeyEditing] = useState(false);
   const [memoryItems, setMemoryItems] = useState<AgentMemoryItem[]>([]);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memorySaving, setMemorySaving] = useState(false);
@@ -1168,6 +1198,8 @@ const BaseConfig: React.FC<ChatProps> = ({
   const loadMemoryConfig = useCallback(async () => {
     if (!currentBotId) {
       setMemoryConfig(null);
+      setMemoryApiKey('');
+      setMemoryApiKeyEditing(false);
       return;
     }
     setMemoryLoading(true);
@@ -1177,8 +1209,12 @@ const BaseConfig: React.FC<ChatProps> = ({
         ...buildDefaultMemoryConfig(currentBotId),
         ...(config || {}),
       });
+      setMemoryApiKey('');
+      setMemoryApiKeyEditing(false);
     } catch (err) {
       setMemoryConfig(buildDefaultMemoryConfig(currentBotId));
+      setMemoryApiKey('');
+      setMemoryApiKeyEditing(false);
     } finally {
       setMemoryLoading(false);
     }
@@ -1249,6 +1285,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         ...(saved || {}),
       });
       setMemoryApiKey('');
+      setMemoryApiKeyEditing(false);
       message.success(t('configBase.saveSuccess') || '保存成功');
       loadMemoryItems();
     } catch (err: any) {
@@ -2151,84 +2188,190 @@ const BaseConfig: React.FC<ChatProps> = ({
       : config.hasApiKey
         ? '已配置'
         : '未配置';
+    const scoreHint =
+      config.minScore >= 0.5
+        ? '当前阈值偏高，Mem0 常见得分在 0.1-0.4，可能导致检索不到。'
+        : '建议 0.1 左右；设为 0 表示不过滤低分结果。';
 
     return (
       <div className={styles.workbenchMemoryWorkspace}>
-        <div className={styles.workbenchFormSection}>
-          <div className={styles.workbenchSectionTitle}>
-            <span>Mem0 云端记忆</span>
-            <div className={styles.workbenchInlineActions}>
-              <Tag color={config.enabled ? 'green' : 'default'}>
-                {config.enabled ? '已启用' : '未启用'}
-              </Tag>
-              <Button
-                icon={<SaveOutlined />}
-                loading={memorySaving}
-                onClick={handleSaveMemoryConfig}
-              >
-                保存
-              </Button>
+        <div className={styles.workbenchMemoryLayout}>
+          <aside className={styles.workbenchMemoryProviders}>
+            <div className={styles.workbenchMemoryPanelTitle}>
+              <span>记忆服务</span>
+              <small>后续框架接入位</small>
             </div>
-          </div>
-          <Spin spinning={memoryLoading}>
-            <div className={styles.workbenchMemoryGrid}>
-              <label className={styles.workbenchMemoryField}>
-                <span>启用</span>
-                <Switch
-                  checked={config.enabled}
-                  onChange={checked =>
-                    updateMemoryConfig({ enabled: checked })
-                  }
-                />
-              </label>
-              <label className={styles.workbenchMemoryField}>
-                <span>API Key</span>
-                <Input.Password
-                  value={memoryApiKey}
-                  onChange={event => setMemoryApiKey(event.target.value)}
-                  placeholder={
-                    config.hasApiKey ? '已保存，输入新 key 可替换' : 'Mem0 API Key'
-                  }
-                />
-                <small>{keyStatus}</small>
-              </label>
-              <label className={styles.workbenchMemoryField}>
-                <span>自动检索</span>
-                <Switch
-                  checked={config.autoSearch}
-                  onChange={checked =>
-                    updateMemoryConfig({ autoSearch: checked })
-                  }
-                />
-              </label>
-              <label className={styles.workbenchMemoryField}>
-                <span>检索条数</span>
-                <InputNumber
-                  min={1}
-                  max={20}
-                  value={config.searchTopK}
-                  onChange={value =>
-                    updateMemoryConfig({ searchTopK: Number(value || 1) })
-                  }
-                />
-              </label>
-              <label className={styles.workbenchMemoryField}>
-                <span>匹配阈值</span>
-                <InputNumber
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={config.minScore}
-                  onChange={value =>
-                    updateMemoryConfig({ minScore: Number(value || 0) })
-                  }
-                />
-              </label>
+            <div className={styles.workbenchProviderList}>
+              {memoryProviderOptions.map(provider => {
+                const active = provider.key === config.provider;
+                return (
+                  <button
+                    key={provider.key}
+                    type="button"
+                    aria-current={active ? 'true' : undefined}
+                    className={`${styles.workbenchProviderItem} ${
+                      active ? styles.workbenchProviderItemActive : ''
+                    }`}
+                    disabled={provider.disabled}
+                    onClick={() =>
+                      !provider.disabled &&
+                      updateMemoryConfig({ provider: provider.key })
+                    }
+                  >
+                    <DatabaseOutlined />
+                    <span>
+                      <strong>{provider.name}</strong>
+                      <small>{provider.title}</small>
+                    </span>
+                    <Tag color={active ? 'blue' : 'default'}>
+                      {provider.status}
+                    </Tag>
+                    <em>{provider.description}</em>
+                  </button>
+                );
+              })}
             </div>
-          </Spin>
+          </aside>
+
+          <section className={styles.workbenchMemoryDetail}>
+            <div className={styles.workbenchMemoryDetailHeader}>
+              <div>
+                <h2>Mem0 云端记忆</h2>
+                <p>用于 Agent 对话的长期记忆写入、检索和管理。</p>
+              </div>
+              <div className={styles.workbenchInlineActions}>
+                <Tag color={config.enabled ? 'green' : 'default'}>
+                  {config.enabled ? '已启用' : '未启用'}
+                </Tag>
+                <Button
+                  icon={<SaveOutlined />}
+                  loading={memorySaving}
+                  onClick={handleSaveMemoryConfig}
+                >
+                  保存
+                </Button>
+              </div>
+            </div>
+
+            <Spin spinning={memoryLoading}>
+              <div className={styles.workbenchMemoryDetailGrid}>
+                <div className={styles.workbenchMemoryBlock}>
+                  <div className={styles.workbenchMemoryBlockTitle}>
+                    <span>连接配置</span>
+                    <small>Key 只用于服务端调用，不回显明文。</small>
+                  </div>
+                  <label className={styles.workbenchMemorySwitchRow}>
+                    <span>
+                      <strong>启用 Mem0</strong>
+                      <small>开启后，Agent 对话完成时写入记忆。</small>
+                    </span>
+                    <Switch
+                      checked={config.enabled}
+                      onChange={checked =>
+                        updateMemoryConfig({ enabled: checked })
+                      }
+                    />
+                  </label>
+                  <div className={styles.workbenchMemoryField}>
+                    <span>API Key</span>
+                    {config.hasApiKey && !memoryApiKeyEditing ? (
+                      <div className={styles.workbenchMemoryKeyPreview}>
+                        <span>{MEMORY_API_KEY_MASK}</span>
+                        <Tag color="green">已保存</Tag>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            setMemoryApiKey('');
+                            setMemoryApiKeyEditing(true);
+                          }}
+                        >
+                          替换
+                        </Button>
+                      </div>
+                    ) : (
+                      <Input.Password
+                        value={memoryApiKey}
+                        autoComplete="new-password"
+                        onChange={event => setMemoryApiKey(event.target.value)}
+                        placeholder="输入 Mem0 API Key"
+                      />
+                    )}
+                    <small>{keyStatus}</small>
+                    {memoryApiKeyEditing && config.hasApiKey && (
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setMemoryApiKey('');
+                          setMemoryApiKeyEditing(false);
+                        }}
+                      >
+                        取消替换
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className={styles.workbenchMemoryBlock}>
+                  <div className={styles.workbenchMemoryBlockTitle}>
+                    <span>检索策略</span>
+                    <small>影响每次 Agent 回复前注入的长期记忆。</small>
+                  </div>
+                  <label className={styles.workbenchMemorySwitchRow}>
+                    <span>
+                      <strong>自动检索</strong>
+                      <small>每次用户提问前按当前问题搜索记忆。</small>
+                    </span>
+                    <Switch
+                      checked={config.autoSearch}
+                      onChange={checked =>
+                        updateMemoryConfig({ autoSearch: checked })
+                      }
+                    />
+                  </label>
+                  <div className={styles.workbenchMemoryGrid}>
+                    <label className={styles.workbenchMemoryField}>
+                      <span>检索条数</span>
+                      <InputNumber
+                        min={1}
+                        max={20}
+                        value={config.searchTopK}
+                        onChange={value =>
+                          updateMemoryConfig({
+                            searchTopK: Number(value || 1),
+                          })
+                        }
+                      />
+                    </label>
+                    <label className={styles.workbenchMemoryField}>
+                      <span>匹配阈值</span>
+                      <InputNumber
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        precision={2}
+                        value={config.minScore}
+                        onChange={value =>
+                          updateMemoryConfig({ minScore: Number(value || 0) })
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div
+                    className={`${styles.workbenchMemoryHint} ${
+                      config.minScore >= 0.5
+                        ? styles.workbenchMemoryHintWarning
+                        : ''
+                    }`}
+                  >
+                    {scoreHint}
+                  </div>
+                </div>
+              </div>
+            </Spin>
+          </section>
         </div>
 
-        <div className={styles.workbenchFormSection}>
+        <div className={styles.workbenchMemoryListPanel}>
           <div className={styles.workbenchSectionTitle}>
             <span>记忆列表</span>
             <div className={styles.workbenchInlineActions}>
