@@ -97,10 +97,9 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         JSONObject payload = new JSONObject()
                 .fluentPut("messages", messages)
                 .fluentPut("user_id", context.userId())
-                .fluentPut("agent_id", context.agentId())
+                .fluentPut("app_id", context.agentId())
                 .fluentPut("run_id", turn.runId())
-                // Mem0 Cloud v3 inferred events can finish without scoped list/search visibility.
-                .fluentPut("infer", false)
+                .fluentPut("infer", true)
                 .fluentPut("metadata", metadata);
         String responseBody = post(context.apiKey(), "/v3/memories/add/", payload);
         waitForEventIfPending(context.apiKey(), responseBody);
@@ -127,14 +126,14 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
     @Override
     public void clear(AgentMemoryProviderContext context) {
         String query = "?user_id=" + urlEncode(context.userId())
-                + "&agent_id=" + urlEncode(context.agentId());
+                + "&app_id=" + urlEncode(context.agentId());
         delete(context.apiKey(), "/v1/memories/" + query);
     }
 
     private JSONObject scopeFilters(AgentMemoryProviderContext context) {
         return new JSONObject()
                 .fluentPut("user_id", context.userId())
-                .fluentPut("agent_id", context.agentId());
+                .fluentPut("app_id", context.agentId());
     }
 
     private String post(String apiKey, String path, JSONObject payload) {
