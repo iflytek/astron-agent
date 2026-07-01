@@ -86,6 +86,13 @@ class A2AAgentCapabilities(A2ABaseModel):
     extended_agent_card: bool = Field(default=False, alias="extendedAgentCard")
 
 
+class A2AAuthentication(A2ABaseModel):
+    """Legacy A2A AgentCard authentication declaration."""
+
+    schemes: list[str] = Field(default_factory=list)
+    credentials: str = ""
+
+
 class A2AStringList(A2ABaseModel):
     """A2A list wrapper used by security requirements."""
 
@@ -129,12 +136,16 @@ class A2AAgentSkill(A2ABaseModel):
 class A2AAgentCard(A2ABaseModel):
     """A2A discovery card."""
 
+    protocol_version: str = Field(default="0.3.0", alias="protocolVersion")
     name: str
     description: str
+    url: str = ""
+    preferred_transport: str = Field(default="HTTP+JSON", alias="preferredTransport")
     supported_interfaces: list[A2AAgentInterface] = Field(alias="supportedInterfaces")
     provider: A2AAgentProvider
     version: str
     capabilities: A2AAgentCapabilities
+    authentication: A2AAuthentication = Field(default_factory=A2AAuthentication)
     security_schemes: dict[str, A2ASecurityScheme] = Field(
         default_factory=dict, alias="securitySchemes"
     )
@@ -189,3 +200,48 @@ class A2ASendMessageResponse(A2ABaseModel):
 
     task: Optional[A2ATask] = None
     message: Optional[A2AMessage] = None
+
+
+class A2ATaskSendParams(A2ABaseModel):
+    """A2A task send request used by task-oriented HTTP clients."""
+
+    id: str = ""
+    tenant: str = ""
+    session_id: str = Field(default="", alias="sessionId")
+    context_id: str = Field(default="", alias="contextId")
+    message: A2AMessage
+    configuration: A2ASendMessageConfiguration = Field(
+        default_factory=A2ASendMessageConfiguration
+    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class A2ATaskStatusUpdateEvent(A2ABaseModel):
+    """A2A task status update event."""
+
+    task_id: str = Field(alias="taskId")
+    context_id: str = Field(alias="contextId")
+    kind: Literal["status-update"] = "status-update"
+    status: A2ATaskStatus
+    final: bool = False
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class A2ATaskArtifactUpdateEvent(A2ABaseModel):
+    """A2A task artifact update event."""
+
+    task_id: str = Field(alias="taskId")
+    context_id: str = Field(alias="contextId")
+    kind: Literal["artifact-update"] = "artifact-update"
+    artifact: A2AArtifact
+    append: bool = False
+    last_chunk: bool = Field(default=True, alias="lastChunk")
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class A2ATaskEvents(A2ABaseModel):
+    """Recorded task runtime events."""
+
+    events: list[A2ATaskStatusUpdateEvent | A2ATaskArtifactUpdateEvent] = Field(
+        default_factory=list
+    )

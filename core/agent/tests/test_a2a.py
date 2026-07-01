@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from common.otlp import sid as sid_module
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 from agent.api.schemas.a2a import A2ASendMessageRequest
 from agent.api.v1 import a2a
@@ -40,6 +41,12 @@ def test_build_agent_card_uses_a2a_shapes(monkeypatch: pytest.MonkeyPatch) -> No
         "https://agent.example.com/agent/v1/a2a"
     )
     assert dumped["supportedInterfaces"][0]["protocolBinding"] == "HTTP+JSON"
+    assert dumped["protocolVersion"] == "0.3.0"
+    assert dumped["version"] == "1.0.9"
+    assert dumped["authentication"] == {
+        "schemes": ["ApiKey"],
+        "credentials": "x-consumer-username header",
+    }
     assert dumped["capabilities"] == {
         "streaming": False,
         "pushNotifications": False,
@@ -241,3 +248,81 @@ async def test_send_message_can_return_immediately_without_running_agent() -> No
     assert response.task is not None
     assert response.task.status.state == "TASK_STATE_SUBMITTED"
     assert response.task.artifacts == []
+
+
+def test_tasks_send_get_and_events_e2e() -> None:
+    """The HTTP adapter should expose task runtime state and task events."""
+    if hasattr(a2a, "_TASKS"):
+        a2a._TASKS.clear()
+    if hasattr(a2a, "_TASK_EVENTS"):
+        a2a._TASK_EVENTS.clear()
+
+    app = FastAPI()
+    app.include_router(a2a.a2a_router, prefix="/agent/v1")
+    client = TestClient(app)
+    mock_completion = MagicMock()
+
+    async def fake_complete() -> AsyncIterator[str]:
+        yield (
+            'data: {"choices":[{"delta":{"content":"Task"}}],'
+            '"code":0,"message":"success","object":"chat.completion.chunk"}\n\n'
+        )
+        yield (
+            'data: {"choices":[{"delta":{"content":" done"}}],'
+            '"code":0,"message":"success","object":"chat.completion.chunk"}\n\n'
+        )
+
+    mock_completion.do_complete = fake_complete
+    payload = {
+        "id": "task-1",
+        "message": {
+            "messageId": "msg-1",
+            "contextId": "ctx-1",
+            "role": "ROLE_USER",
+            "parts": [{"text": "Run this task."}],
+        },
+        "metadata": {
+            "uid": "user-1",
+            "model_config": {
+                "domain": "model",
+                "api": "https://llm.example.com",
+            },
+        },
+    }
+
+    with patch("agent.api.v1.a2a.CustomChatCompletion", return_value=mock_completion):
+        send_response = client.post(
+            "/agent/v1/a2a/tasks:send",
+            headers={"x-consumer-username": "tenant-1"},
+            json=payload,
+        )
+
+    assert send_response.status_code == 200
+    task = send_response.json()
+    assert task["id"] == "task-1"
+    assert task["contextId"] == "ctx-1"
+    assert task["status"]["state"] == "TASK_STATE_COMPLETED"
+    assert task["artifacts"][0]["parts"][0]["text"] == "Task done"
+
+    get_response = client.get(
+        "/agent/v1/a2a/tasks/task-1",
+        headers={"x-consumer-username": "tenant-1"},
+    )
+
+    assert get_response.status_code == 200
+    assert get_response.json() == task
+
+    events_response = client.get(
+        "/agent/v1/a2a/tasks/task-1/events",
+        headers={"x-consumer-username": "tenant-1"},
+    )
+
+    assert events_response.status_code == 200
+    events = events_response.json()["events"]
+    assert [event["kind"] for event in events] == [
+        "status-update",
+        "artifact-update",
+    ]
+    assert events[0]["status"]["state"] == "TASK_STATE_COMPLETED"
+    assert events[0]["final"] is True
+    assert events[1]["artifact"]["parts"][0]["text"] == "Task done"

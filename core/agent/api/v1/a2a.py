@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from common.otlp.trace.span import Span
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 
 from agent.api.schemas.a2a import (
     A2AAgentCapabilities,
@@ -17,6 +17,7 @@ from agent.api.schemas.a2a import (
     A2AAgentSkill,
     A2AAPIKeySecurityScheme,
     A2AArtifact,
+    A2AAuthentication,
     A2AMessage,
     A2APart,
     A2ASecurityRequirement,
@@ -25,13 +26,27 @@ from agent.api.schemas.a2a import (
     A2ASendMessageResponse,
     A2AStringList,
     A2ATask,
+    A2ATaskArtifactUpdateEvent,
+    A2ATaskEvents,
+    A2ATaskSendParams,
     A2ATaskStatus,
+    A2ATaskStatusUpdateEvent,
 )
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.workflow_agent_inputs import CustomCompletionInputs
 from agent.api.v1.workflow_agent import CustomChatCompletion
 
-A2A_PROTOCOL_VERSION = "0.3"
+A2A_PROTOCOL_VERSION = "0.3.0"
+ASTRON_AGENT_VERSION = "1.0.9"
+_TERMINAL_TASK_STATES = {
+    "TASK_STATE_COMPLETED",
+    "TASK_STATE_FAILED",
+    "TASK_STATE_CANCELED",
+    "TASK_STATE_REJECTED",
+}
+_TaskEvent = A2ATaskStatusUpdateEvent | A2ATaskArtifactUpdateEvent
+_TASKS: dict[str, A2ATask] = {}
+_TASK_EVENTS: dict[str, list[_TaskEvent]] = {}
 
 a2a_discovery_router = APIRouter()
 a2a_router = APIRouter(prefix="/a2a")
@@ -50,13 +65,20 @@ def _public_base_url() -> str:
     return configured_url.rstrip("/")
 
 
+def _agent_version() -> str:
+    return os.getenv("ASTRON_AGENT_VERSION", ASTRON_AGENT_VERSION).removeprefix("v")
+
+
 def build_agent_card() -> A2AAgentCard:
     """Build public A2A discovery metadata for the core agent service."""
 
     interface_url = f"{_public_base_url()}/agent/v1/a2a"
     return A2AAgentCard(
+        protocolVersion=A2A_PROTOCOL_VERSION,
         name="Astron Agent",
         description="Astron Agent core runtime exposed through an A2A text adapter.",
+        url=interface_url,
+        preferredTransport="HTTP+JSON",
         supportedInterfaces=[
             A2AAgentInterface(
                 url=interface_url,
@@ -68,11 +90,15 @@ def build_agent_card() -> A2AAgentCard:
             organization="iFLYTEK",
             url="https://github.com/iflytek/astron-agent",
         ),
-        version="0.1.0",
+        version=_agent_version(),
         capabilities=A2AAgentCapabilities(
             streaming=False,
             pushNotifications=False,
             extendedAgentCard=False,
+        ),
+        authentication=A2AAuthentication(
+            schemes=["ApiKey"],
+            credentials="x-consumer-username header",
         ),
         securitySchemes={
             "astronConsumer": A2ASecurityScheme(
@@ -268,6 +294,57 @@ def _task_response(
     )
 
 
+def _record_task(task: A2ATask) -> None:
+    """Store task state and the latest task runtime events in process memory."""
+
+    _TASKS[task.id] = task
+    final = task.status.state in _TERMINAL_TASK_STATES
+    events: list[_TaskEvent] = [
+        A2ATaskStatusUpdateEvent(
+            taskId=task.id,
+            contextId=task.context_id,
+            status=task.status,
+            final=final,
+        )
+    ]
+    events.extend(
+        A2ATaskArtifactUpdateEvent(
+            taskId=task.id,
+            contextId=task.context_id,
+            artifact=artifact,
+            append=False,
+            lastChunk=True,
+        )
+        for artifact in task.artifacts
+    )
+    _TASK_EVENTS[task.id] = events
+
+
+def _stored_response(response: A2ASendMessageResponse) -> A2ASendMessageResponse:
+    if response.task is not None:
+        _record_task(response.task)
+    return response
+
+
+def _request_from_task_send_params(
+    params: A2ATaskSendParams,
+) -> A2ASendMessageRequest:
+    task_id = params.id or params.message.task_id
+    context_id = params.context_id or params.session_id or params.message.context_id
+    message = params.message.model_copy(
+        update={
+            "task_id": task_id,
+            "context_id": context_id,
+        }
+    )
+    return A2ASendMessageRequest(
+        tenant=params.tenant,
+        message=message,
+        configuration=params.configuration,
+        metadata=params.metadata,
+    )
+
+
 def _parse_sse_payload(chunk: str) -> dict[str, Any] | None:
     for line in chunk.splitlines():
         if not line.startswith("data:"):
@@ -317,7 +394,7 @@ async def send_message(
 
     text = extract_message_text(request.message)
     if request.configuration.return_immediately:
-        return _task_response(request, "TASK_STATE_SUBMITTED")
+        return _stored_response(_task_response(request, "TASK_STATE_SUBMITTED"))
 
     completion_inputs = _completion_inputs_from_a2a(request, text)
     span = Span(app_id=x_consumer_username, uid=completion_inputs.uid)
@@ -333,10 +410,68 @@ async def send_message(
     output_text, error_message = await _collect_completion_text(completion)
 
     if error_message:
-        return _task_response(
-            request,
-            "TASK_STATE_FAILED",
-            error_text=error_message,
+        return _stored_response(
+            _task_response(
+                request,
+                "TASK_STATE_FAILED",
+                error_text=error_message,
+            )
         )
 
-    return _task_response(request, "TASK_STATE_COMPLETED", output_text=output_text)
+    return _stored_response(
+        _task_response(request, "TASK_STATE_COMPLETED", output_text=output_text)
+    )
+
+
+@a2a_router.post(  # type: ignore[misc]
+    "/tasks:send",
+    response_model=A2ATask,
+)
+async def send_task(
+    x_consumer_username: Annotated[str, Header()],
+    params: A2ATaskSendParams,
+) -> A2ATask:
+    """Run a task-oriented A2A request through the core agent runtime."""
+
+    response = await send_message(
+        x_consumer_username=x_consumer_username,
+        request=_request_from_task_send_params(params),
+    )
+    if response.task is None:
+        raise HTTPException(status_code=500, detail="A2A runtime did not create a task")
+    return response.task
+
+
+@a2a_router.get(  # type: ignore[misc]
+    "/tasks/{task_id}",
+    response_model=A2ATask,
+)
+async def get_task(
+    x_consumer_username: Annotated[str, Header()],
+    task_id: str,
+    history_length: Annotated[int | None, Query(alias="historyLength")] = None,
+) -> A2ATask:
+    """Return the latest recorded task runtime state."""
+
+    task = _TASKS.get(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="A2A task not found")
+    if history_length is None:
+        return task
+    history = [] if history_length <= 0 else task.history[-history_length:]
+    return task.model_copy(update={"history": history})
+
+
+@a2a_router.get(  # type: ignore[misc]
+    "/tasks/{task_id}/events",
+    response_model=A2ATaskEvents,
+)
+async def get_task_events(
+    x_consumer_username: Annotated[str, Header()],
+    task_id: str,
+) -> A2ATaskEvents:
+    """Return recorded task status and artifact events."""
+
+    if task_id not in _TASKS:
+        raise HTTPException(status_code=404, detail="A2A task not found")
+    return A2ATaskEvents(events=_TASK_EVENTS.get(task_id, []))
