@@ -28,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -96,7 +97,9 @@ public class SpringAiAgentChatService {
                                 Long requestId =
                                         task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
                                 bridge.complete(task.getChatId(), requestId);
-                                agentMemoryRuntimeService.writeTurn(task, bridge.getFinalResult().toString());
+                                CompletableFuture.runAsync(
+                                        () -> agentMemoryRuntimeService.writeTurn(
+                                                task, bridge.getFinalResult().toString()));
                             });
         } catch (Exception e) {
             log.error("Spring AI agent chat setup failed, streamId: {}", streamId, e);

@@ -36,6 +36,8 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
     private static final int MIN_TOP_K = 1;
     private static final int MAX_TOP_K = 20;
     private static final double DEFAULT_MIN_SCORE = 0.0;
+    private static final long NO_SPACE_ID = 0L;
+    private static final long ACTIVE_DELETE_TIME = 0L;
 
     private final AgentMemoryConfigMapper configMapper;
     private final ChatBotBaseMapper chatBotBaseMapper;
@@ -76,7 +78,7 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
         AgentMemoryConfig config = existing.orElseGet(AgentMemoryConfig::new);
         config.setBotId(request.getBotId());
         config.setUid(uid);
-        config.setSpaceId(spaceId);
+        config.setSpaceId(toStoredSpaceId(spaceId));
         config.setProvider(provider);
         config.setEnabled(enabled ? 1 : 0);
         config.setAutoSearch(Boolean.FALSE.equals(request.getAutoSearch()) ? 0 : 1);
@@ -84,6 +86,7 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
         config.setSearchTopK(normalizeTopK(request.getSearchTopK()));
         config.setMinScore(normalizeMinScore(request.getMinScore()));
         config.setIsDelete(0);
+        config.setDeleteTime(ACTIVE_DELETE_TIME);
         config.setUpdateTime(now);
 
         if (config.getId() == null) {
@@ -152,6 +155,7 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
                 .eq(AgentMemoryConfig::getUid, uid)
                 .eq(AgentMemoryConfig::getProvider, normalizeProvider(provider))
                 .eq(AgentMemoryConfig::getIsDelete, 0)
+                .eq(AgentMemoryConfig::getDeleteTime, ACTIVE_DELETE_TIME)
                 .orderByDesc(AgentMemoryConfig::getUpdateTime)
                 .last("LIMIT 1");
         addSpaceCondition(query, spaceId);
@@ -166,14 +170,15 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
     private AgentMemoryProviderContext buildContext(AgentMemoryConfig config) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("bot_id", config.getBotId());
-        if (config.getSpaceId() != null) {
-            metadata.put("space_id", config.getSpaceId());
+        Long spaceId = toRuntimeSpaceId(config.getSpaceId());
+        if (spaceId != null) {
+            metadata.put("space_id", spaceId);
         }
         return new AgentMemoryProviderContext(
                 secretService.decryptApiKey(config.getApiKeyCiphertext()),
                 config.getUid(),
                 config.getBotId(),
-                config.getSpaceId(),
+                spaceId,
                 agentId(config.getBotId()),
                 metadata);
     }
@@ -226,11 +231,7 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
     }
 
     private void addSpaceCondition(LambdaQueryWrapper<AgentMemoryConfig> queryWrapper, Long spaceId) {
-        if (spaceId == null) {
-            queryWrapper.isNull(AgentMemoryConfig::getSpaceId);
-        } else {
-            queryWrapper.eq(AgentMemoryConfig::getSpaceId, spaceId);
-        }
+        queryWrapper.eq(AgentMemoryConfig::getSpaceId, toStoredSpaceId(spaceId));
     }
 
     private String normalizeProvider(String provider) {
@@ -250,5 +251,13 @@ public class AgentMemoryServiceImpl implements AgentMemoryService {
 
     private String agentId(Integer botId) {
         return "bot-" + botId;
+    }
+
+    private Long toStoredSpaceId(Long spaceId) {
+        return spaceId == null ? NO_SPACE_ID : spaceId;
+    }
+
+    private Long toRuntimeSpaceId(Long spaceId) {
+        return spaceId == null || NO_SPACE_ID == spaceId ? null : spaceId;
     }
 }

@@ -92,6 +92,67 @@ Based on the given note topic, write a creative Xiaohongshu-style product recomm
   comparePrompt: 'Compare Prompt',
   selected: 'Selected',
   select: 'Select',
+  memory: {
+    mem0Title: 'Cloud Memory',
+    mem0Description:
+      'Long-term memory service currently used for Agent conversations',
+    connected: 'Connected',
+    zepTitle: 'Session Memory',
+    zepDescription:
+      'Reserved provider slot that can reuse this settings panel later',
+    langMemTitle: 'Framework Memory',
+    langMemDescription:
+      'Reserved provider slot that does not affect the current Mem0 settings',
+    pendingConnection: 'Pending',
+    apiKeyRequired: 'Please enter the Mem0 API Key',
+    saveConfigFailed: 'Failed to save memory settings',
+    deleted: 'Deleted',
+    deleteFailed: 'Failed to delete memory',
+    cleared: 'Cleared',
+    clearFailed: 'Failed to clear memories',
+    createAgentFirst: 'Please create the agent first',
+    pendingSave: 'Pending save',
+    configured: 'Configured',
+    notConfigured: 'Not configured',
+    highScoreHint:
+      'The current threshold is high. Common Mem0 scores are around 0.1-0.4, so retrieval may return no results.',
+    scoreHint:
+      'Around 0.1 is recommended. Set 0 to avoid filtering low-score results.',
+    service: 'Memory Service',
+    futureProviderSlot: 'Future provider slot',
+    mem0CloudMemory: 'Mem0 Cloud Memory',
+    mem0CloudMemoryDesc:
+      'Long-term memory writing, retrieval, and management for Agent conversations.',
+    enabled: 'Enabled',
+    disabled: 'Disabled',
+    connectionConfig: 'Connection Settings',
+    keyPrivacyTip:
+      'The key is only used by the server and is never shown in plaintext.',
+    enableMem0: 'Enable Mem0',
+    enableMem0Desc:
+      'When enabled, memory is written after an Agent conversation completes.',
+    saved: 'Saved',
+    replace: 'Replace',
+    apiKeyPlaceholder: 'Enter Mem0 API Key',
+    cancelReplace: 'Cancel replace',
+    retrievalPolicy: 'Retrieval Policy',
+    retrievalPolicyDesc:
+      'Controls long-term memories injected before each Agent response.',
+    autoSearch: 'Auto Retrieval',
+    autoSearchDesc:
+      'Search memories by the current question before each user request.',
+    searchTopK: 'Results',
+    minScore: 'Score Threshold',
+    memoryList: 'Memory List',
+    clearMemories: 'Clear Memories',
+    clearConfirm: 'Clear Mem0 memories under the current agent scope?',
+    clear: 'Clear',
+    noMemories: 'No memories yet',
+    deleteMemory: 'Delete Memory',
+    deleteConfirm: 'Delete this memory?',
+    delete: 'Delete',
+    score: 'score',
+  },
 
   //能力开发
   CapabilityDevelopment: {
