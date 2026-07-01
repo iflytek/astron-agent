@@ -151,18 +151,22 @@ public class AgentMemoryRuntimeServiceImpl implements AgentMemoryRuntimeService 
     private List<SparkChatRequest.MessageDto> injectMemories(
             List<SparkChatRequest.MessageDto> messages, List<AgentMemorySearchResult> memories) {
         List<SparkChatRequest.MessageDto> enriched = new ArrayList<>();
-        for (SparkChatRequest.MessageDto message : messages) {
-            enriched.add(copy(message));
-        }
-
         String memoryBlock = buildMemoryBlock(memories);
-        for (SparkChatRequest.MessageDto message : enriched) {
-            if ("system".equalsIgnoreCase(message.getRole())) {
-                message.setContent(StringUtils.defaultString(message.getContent()) + "\n\n" + memoryBlock);
-                return enriched;
+        boolean systemFound = false;
+        for (SparkChatRequest.MessageDto message : messages) {
+            if (!systemFound && message != null && "system".equalsIgnoreCase(message.getRole())) {
+                SparkChatRequest.MessageDto systemCopy = copy(message);
+                systemCopy.setContent(StringUtils.defaultString(message.getContent()) + "\n\n" + memoryBlock);
+                enriched.add(systemCopy);
+                systemFound = true;
+            } else {
+                enriched.add(message);
             }
         }
 
+        if (systemFound) {
+            return enriched;
+        }
         SparkChatRequest.MessageDto system = new SparkChatRequest.MessageDto();
         system.setRole("system");
         system.setContent(memoryBlock);
