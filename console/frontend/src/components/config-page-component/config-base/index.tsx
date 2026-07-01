@@ -171,6 +171,33 @@ const buildDefaultMemoryConfig = (botId: number): AgentMemoryConfig => ({
 
 const MEMORY_API_KEY_MASK = '****************';
 
+const normalizeBotTypeValue = (value: unknown): number | undefined => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return undefined;
+  }
+  return numericValue;
+};
+
+const resolveBotTypeValue = (
+  value: unknown,
+  options: Array<{ value: unknown }> = []
+): number | undefined => {
+  const normalizedValue = normalizeBotTypeValue(value);
+  if (
+    normalizedValue !== undefined &&
+    options.some(item => Number(item.value) === normalizedValue)
+  ) {
+    return normalizedValue;
+  }
+  return normalizeBotTypeValue(options[0]?.value);
+};
+
+const PUBLISHED_BOT_STATUSES = [1, 2, 4];
+
+const isPublishedBotStatus = (botStatus?: number): boolean =>
+  botStatus !== undefined && PUBLISHED_BOT_STATUSES.includes(botStatus);
+
 const baseModelConfig: BaseModelConfig = {
   visible: false,
   isSending: false,
@@ -369,6 +396,29 @@ const BaseConfig: React.FC<ChatProps> = ({
     scope: number;
     promise: Promise<AgentDebugSession | null>;
   } | null>(null);
+  const getEffectiveBotType = useCallback(
+    (value: unknown) => resolveBotTypeValue(value, bottypeList),
+    [bottypeList]
+  );
+  const hasRequiredBaseInfo = useCallback(
+    (info: any = baseinfo) =>
+      Boolean(
+        info?.botName && getEffectiveBotType(info?.botType) && info?.botDesc
+      ),
+    [baseinfo, getEffectiveBotType]
+  );
+  const botTypeRules = useMemo(
+    () => [
+      { required: true, message: '' },
+      {
+        validator: (_: unknown, value: unknown) =>
+          getEffectiveBotType(value)
+            ? Promise.resolve()
+            : Promise.reject(new Error('')),
+      },
+    ],
+    [getEffectiveBotType]
+  );
 
   // 人设相关状态
   const [personalityData, setPersonalityData] = useState({
@@ -549,7 +599,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         navigate('/space/agent');
       } else {
         setIsChanged(false);
-        if (detailInfo.botStatus == 2) {
+        if (isPublishedBotStatus(detailInfo.botStatus)) {
           obj.botName = obj.name;
           return setConfigPageData(obj);
         }
@@ -574,9 +624,9 @@ const BaseConfig: React.FC<ChatProps> = ({
     const name = useFormValues
       ? form.getFieldsValue().botName
       : baseinfo.botName;
-    const botType = useFormValues
-      ? form.getFieldsValue().botType
-      : baseinfo.botType;
+    const botType = getEffectiveBotType(
+      useFormValues ? form.getFieldsValue().botType : baseinfo.botType
+    );
     const botDesc = useFormValues
       ? form.getFieldsValue().botDesc
       : baseinfo.botDesc;
@@ -660,11 +710,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (!coverUrl) {
       return message.warning(t('configBase.defaultAvatar'));
     }
-    if (
-      baseinfo?.botName === '' ||
-      baseinfo?.botType === '' ||
-      baseinfo?.botDesc === ''
-    ) {
+    if (!hasRequiredBaseInfo()) {
       return message.warning(t('configBase.requiredInfoNotFilled'));
     }
     if (!validateMcpServerUrls()) return;
@@ -694,7 +740,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (!coverUrl) {
       return message.warning(t('configBase.defaultAvatar'));
     }
-    if (!baseinfo?.botName || !baseinfo?.botType || !baseinfo?.botDesc) {
+    if (!hasRequiredBaseInfo()) {
       return message.warning(t('configBase.requiredInfoNotFilled'));
     }
     if (!validateMcpServerUrls()) return;
@@ -860,6 +906,11 @@ const BaseConfig: React.FC<ChatProps> = ({
       });
       const filteredBottypeList = arr.filter(item => item.value !== 25);
       setBottypeList(filteredBottypeList);
+      const withValidBotType = (data: any) => {
+        if (!data) return data;
+        const botType = resolveBotTypeValue(data.botType, filteredBottypeList);
+        return botType ? { ...data, botType } : data;
+      };
       const save = searchParams.get('save');
       const botId = searchParams.get('botId');
 
@@ -867,9 +918,10 @@ const BaseConfig: React.FC<ChatProps> = ({
         sessionStorage.removeItem('botTemplateInfoValue');
 
         getBotInfo({ botId: botId }).then((res: any) => {
+          const normalizedRes = withValidBotType(res);
           setBackgroundImgApp(res.appBackground);
           setBackgroundImg(res.pcBackground);
-          setBotInfo(res);
+          setBotInfo(normalizedRes);
           setBotCreateActiveV({
             cn: save == 'true' ? configPageData?.vcnCn : res.vcnCn,
           });
@@ -896,7 +948,10 @@ const BaseConfig: React.FC<ChatProps> = ({
           } else {
             obj.codeinterpreter = false;
           }
-          const currentConfigData = save == 'true' ? configPageData : res;
+          const currentConfigData =
+            save == 'true'
+              ? withValidBotType(configPageData || res)
+              : normalizedRes;
           setMcpServerUrls(
             normalizeMcpServerUrls(currentConfigData?.mcpServerUrls)
           );
@@ -923,9 +978,13 @@ const BaseConfig: React.FC<ChatProps> = ({
           );
           setPrologue(save == 'true' ? configPageData?.prologue : res.prologue);
           setChoosedAlltool(obj);
-          setBaseinfo(save == 'true' ? configPageData : res);
-          form.setFieldsValue(save == 'true' ? configPageData : res);
-          setDetailInfo(save == 'true' ? { ...res, ...configPageData } : res);
+          setBaseinfo(currentConfigData);
+          form.setFieldsValue(currentConfigData);
+          setDetailInfo(
+            save == 'true'
+              ? { ...normalizedRes, ...currentConfigData }
+              : currentConfigData
+          );
           setCoverUrl(save == 'true' ? configPageData?.avatar : res.avatar);
 
           // 回显人设数据
@@ -1006,6 +1065,10 @@ const BaseConfig: React.FC<ChatProps> = ({
             setSelectSource(arr);
           });
         });
+      } else {
+        const initialBaseInfo = withValidBotType(obj);
+        setBaseinfo(initialBaseInfo);
+        form.setFieldsValue(initialBaseInfo);
       }
     });
     const quickCreate = searchParams.get('quickCreate');
@@ -1682,7 +1745,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       message.warning(t('configBase.defaultAvatar'));
       return;
     }
-    if (!baseinfo?.botName || !baseinfo?.botType || !baseinfo?.botDesc) {
+    if (!hasRequiredBaseInfo()) {
       message.warning(t('configBase.requiredInfoNotFilled'));
       return;
     }
@@ -2112,7 +2175,7 @@ const BaseConfig: React.FC<ChatProps> = ({
               </Form.Item>
               <Form.Item
                 name="botType"
-                rules={[{ required: true, message: '' }]}
+                rules={botTypeRules}
                 colon={false}
                 label={t('configBase.agentCategory')}
               >
@@ -2533,7 +2596,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                   t('configBase.agentName')}
               </div>
               <div className={styles.workbenchAgentStatus}>
-                {detailInfo?.botStatus === 2
+                {isPublishedBotStatus(detailInfo?.botStatus)
                   ? t('configBase.botStatus2')
                   : t('configBase.botStatus0')}
               </div>
@@ -2714,11 +2777,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     message.warning(t('configBase.defaultAvatar'));
                     return;
                   }
-                  if (
-                    baseinfo?.botName == '' ||
-                    baseinfo?.botType == '' ||
-                    baseinfo?.botDesc == ''
-                  ) {
+                  if (!hasRequiredBaseInfo()) {
                     message.warning(t('configBase.requiredInfoNotFilled'));
                     return;
                   }
@@ -2746,7 +2805,9 @@ const BaseConfig: React.FC<ChatProps> = ({
                       supportContext: supportContextFlag ? 1 : 0,
                       supportSystem: supportSystemFlag ? 1 : 0,
                       name: form.getFieldsValue().botName,
-                      botType: form.getFieldsValue().botType,
+                      botType: getEffectiveBotType(
+                        form.getFieldsValue().botType
+                      ),
                       botDesc: form.getFieldsValue().botDesc,
                       botId: searchParams.get('botId'),
                       promptType: 0,
@@ -2797,7 +2858,9 @@ const BaseConfig: React.FC<ChatProps> = ({
                       supportContext: supportContextFlag ? 1 : 0,
                       supportSystem: supportSystemFlag ? 1 : 0,
                       name: form.getFieldsValue().botName,
-                      botType: form.getFieldsValue().botType,
+                      botType: getEffectiveBotType(
+                        form.getFieldsValue().botType
+                      ),
                       botDesc: form.getFieldsValue().botDesc,
                       botId: searchParams.get('botId'),
                       promptType: 0,
@@ -2849,11 +2912,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                   message.warning(t('configBase.defaultAvatar'));
                   return;
                 }
-                if (
-                  !baseinfo?.botName ||
-                  !baseinfo?.botType ||
-                  !baseinfo?.botDesc
-                ) {
+                if (!hasRequiredBaseInfo()) {
                   message.warning(t('configBase.requiredInfoNotFilled'));
                   return;
                 }
@@ -2878,7 +2937,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           : backgroundImg,
                     }),
                     name: baseinfo.botName,
-                    botType: baseinfo.botType,
+                    botType: getEffectiveBotType(baseinfo.botType),
                     botDesc: baseinfo.botDesc,
                     supportContext: supportContextFlag ? 1 : 0,
                     supportSystem: supportSystemFlag ? 1 : 0,
@@ -2928,7 +2987,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           : backgroundImg,
                     }),
                     name: baseinfo.botName,
-                    botType: baseinfo.botType,
+                    botType: getEffectiveBotType(baseinfo.botType),
                     botDesc: baseinfo.botDesc,
                     supportContext: supportContextFlag ? 1 : 0,
                     supportSystem: supportSystemFlag ? 1 : 0,
@@ -3097,7 +3156,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                               <div className={styles.type}>
                                 <Form.Item
                                   name="botType"
-                                  rules={[{ required: true, message: '' }]}
+                                  rules={botTypeRules}
                                   colon={false}
                                   label={t('configBase.agentCategory')}
                                 >
