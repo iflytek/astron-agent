@@ -27,8 +27,8 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
     public static final String PROVIDER = "MEM0";
     private static final String DEFAULT_BASE_URL = "https://api.mem0.ai";
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(6);
-    private static final Duration DEFAULT_EVENT_POLL_DELAY = Duration.ofMillis(500);
-    private static final int MAX_EVENT_POLL_ATTEMPTS = 6;
+    private static final Duration DEFAULT_EVENT_POLL_DELAY = Duration.ofMillis(750);
+    private static final int MAX_EVENT_POLL_ATTEMPTS = 20;
 
     private final String baseUrl;
     private final HttpClient httpClient;
@@ -158,7 +158,7 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         return HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(REQUEST_TIMEOUT)
                 .header("Authorization", "Token " + apiKey)
-                .header("Content-Type", "application/json")
+                .header("Content-Type", "application/json; charset=UTF-8")
                 .header("Accept", "application/json");
     }
 

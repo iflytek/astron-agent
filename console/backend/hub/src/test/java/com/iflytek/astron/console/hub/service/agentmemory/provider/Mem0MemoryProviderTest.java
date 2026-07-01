@@ -38,9 +38,13 @@ class Mem0MemoryProviderTest {
         AtomicReference<JSONObject> listPayload = new AtomicReference<>();
         AtomicReference<URI> listUri = new AtomicReference<>();
         AtomicReference<URI> clearUri = new AtomicReference<>();
+        AtomicReference<String> addContentType = new AtomicReference<>();
+        AtomicReference<String> searchContentType = new AtomicReference<>();
+        AtomicReference<String> listContentType = new AtomicReference<>();
         AtomicInteger eventPollCount = new AtomicInteger();
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/v3/memories/add/", exchange -> {
+            addContentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
             addPayload.set(readJson(exchange));
             respond(exchange, 200, """
                     {"status":"PENDING","event_id":"event-1"}
@@ -57,6 +61,7 @@ class Mem0MemoryProviderTest {
                             """);
         });
         server.createContext("/v3/memories/search/", exchange -> {
+            searchContentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
             searchPayload.set(readJson(exchange));
             respond(exchange, 200, """
                     {"results":[
@@ -66,6 +71,7 @@ class Mem0MemoryProviderTest {
                     """);
         });
         server.createContext("/v3/memories/", exchange -> {
+            listContentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
             listPayload.set(readJson(exchange));
             listUri.set(exchange.getRequestURI());
             respond(exchange, 200, """
@@ -94,13 +100,20 @@ class Mem0MemoryProviderTest {
         assertEquals("u1", addPayload.get().getString("user_id"));
         assertEquals("bot-7", addPayload.get().getString("app_id"));
         assertFalse(addPayload.get().containsKey("agent_id"));
+        assertEquals("我喜欢打篮球", addPayload.get().getJSONArray("messages")
+                .getJSONObject(0).getString("content"));
+        assertEquals("已记住", addPayload.get().getJSONArray("messages")
+                .getJSONObject(1).getString("content"));
+        assertEquals("application/json; charset=UTF-8", addContentType.get());
         assertEquals(2, eventPollCount.get());
+        assertEquals("application/json; charset=UTF-8", searchContentType.get());
         assertEquals("u1", searchPayload.get().getJSONObject("filters").getString("user_id"));
         assertEquals("bot-7", searchPayload.get().getJSONObject("filters").getString("app_id"));
         assertFalse(searchPayload.get().getJSONObject("filters").containsKey("agent_id"));
         assertEquals(3, searchPayload.get().getInteger("top_k"));
         assertEquals(0.1, searchPayload.get().getDouble("threshold"));
         assertFalse(searchPayload.get().containsKey("limit"));
+        assertEquals("application/json; charset=UTF-8", listContentType.get());
         assertEquals("u1", listPayload.get().getJSONObject("filters").getString("user_id"));
         assertEquals("bot-7", listPayload.get().getJSONObject("filters").getString("app_id"));
         assertFalse(listPayload.get().getJSONObject("filters").containsKey("agent_id"));
@@ -113,6 +126,30 @@ class Mem0MemoryProviderTest {
         assertEquals(0.3397, results.getFirst().score());
         assertEquals(1, items.size());
         assertEquals("用户喜欢打篮球", items.getFirst().memory());
+    }
+
+    @Test
+    void addTurnWaitsForSlowMem0EventCompletion() throws Exception {
+        AtomicInteger eventPollCount = new AtomicInteger();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v3/memories/add/", exchange -> respond(exchange, 200, """
+                {"status":"PENDING","event_id":"event-1"}
+                """));
+        server.createContext("/v1/event/event-1/", exchange -> {
+            int count = eventPollCount.incrementAndGet();
+            respond(exchange, 200, count < 8 ? """
+                    {"status":"RUNNING","event_id":"event-1"}
+                    """ : """
+                    {"status":"SUCCEEDED","event_id":"event-1","results":[{"id":"m1","memory":"用户喜欢打篮球"}]}
+                    """);
+        });
+        server.start();
+
+        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
+        provider.addTurn(context(), new AgentMemoryTurn(
+                "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
+
+        assertEquals(8, eventPollCount.get());
     }
 
     @Test
