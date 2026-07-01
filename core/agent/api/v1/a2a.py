@@ -4,7 +4,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeAlias
 
 from common.otlp.trace.span import Span
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -44,7 +44,7 @@ _TERMINAL_TASK_STATES = {
     "TASK_STATE_CANCELED",
     "TASK_STATE_REJECTED",
 }
-_TaskEvent = A2ATaskStatusUpdateEvent | A2ATaskArtifactUpdateEvent
+_TaskEvent: TypeAlias = A2ATaskStatusUpdateEvent | A2ATaskArtifactUpdateEvent
 _TASKS: dict[str, A2ATask] = {}
 _TASK_EVENTS: dict[str, list[_TaskEvent]] = {}
 
