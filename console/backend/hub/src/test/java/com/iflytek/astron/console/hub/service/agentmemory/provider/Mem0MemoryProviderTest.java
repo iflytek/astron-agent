@@ -115,8 +115,55 @@ class Mem0MemoryProviderTest {
         assertEquals("用户喜欢打篮球", items.getFirst().memory());
     }
 
+    @Test
+    void addTurnIgnoresNullAddResponseBody() throws Exception {
+        AtomicInteger eventPollCount = new AtomicInteger();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v3/memories/add/", exchange -> respond(exchange, 200, "null"));
+        server.createContext("/v1/event/event-1/", exchange -> {
+            eventPollCount.incrementAndGet();
+            respond(exchange, 200, """
+                    {"status":"SUCCEEDED"}
+                    """);
+        });
+        server.start();
+
+        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
+        provider.addTurn(context(), new AgentMemoryTurn(
+                "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
+
+        assertEquals(0, eventPollCount.get());
+    }
+
+    @Test
+    void addTurnContinuesPollingWhenEventResponseBodyIsNull() throws Exception {
+        AtomicInteger eventPollCount = new AtomicInteger();
+        server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/v3/memories/add/", exchange -> respond(exchange, 200, """
+                {"status":"PENDING","event_id":"event-1"}
+                """));
+        server.createContext("/v1/event/event-1/", exchange -> {
+            int count = eventPollCount.incrementAndGet();
+            respond(exchange, 200, count == 1 ? "null" : """
+                    {"status":"SUCCEEDED"}
+                    """);
+        });
+        server.start();
+
+        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
+        provider.addTurn(context(), new AgentMemoryTurn(
+                "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
+
+        assertEquals(2, eventPollCount.get());
+    }
+
     private String baseUrl() {
         return "http://127.0.0.1:" + server.getAddress().getPort();
+    }
+
+    private AgentMemoryProviderContext context() {
+        return new AgentMemoryProviderContext(
+                "test-key", "u1", 7, 3L, "bot-7", Map.of("bot_id", 7));
     }
 
     private JSONObject readJson(HttpExchange exchange) throws IOException {

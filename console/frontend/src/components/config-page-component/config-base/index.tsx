@@ -1276,7 +1276,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       }
       const saved = await saveAgentMemoryConfig({
         botId: currentBotId,
-        provider: 'MEM0',
+        provider: config.provider,
         enabled: config.enabled,
         apiKeyCiphertext,
         autoSearch: config.autoSearch,

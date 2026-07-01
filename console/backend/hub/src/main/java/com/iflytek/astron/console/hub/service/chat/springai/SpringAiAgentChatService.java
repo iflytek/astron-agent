@@ -8,7 +8,6 @@ import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
 import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.springai.ChatModelFactory.AgentModel;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -20,6 +19,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -40,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SpringAiAgentChatService {
 
     private final ChatModelFactory chatModelFactory;
@@ -48,6 +48,22 @@ public class SpringAiAgentChatService {
     private final ChatRecordModelService chatRecordModelService;
     private final ChatDataService chatDataService;
     private final AgentMemoryRuntimeService agentMemoryRuntimeService;
+    private final Executor agentMemoryExecutor;
+
+    public SpringAiAgentChatService(
+            ChatModelFactory chatModelFactory,
+            AgentToolCallbackResolver toolCallbackResolver,
+            ChatRecordModelService chatRecordModelService,
+            ChatDataService chatDataService,
+            AgentMemoryRuntimeService agentMemoryRuntimeService,
+            @Qualifier("agentMemoryExecutor") Executor agentMemoryExecutor) {
+        this.chatModelFactory = chatModelFactory;
+        this.toolCallbackResolver = toolCallbackResolver;
+        this.chatRecordModelService = chatRecordModelService;
+        this.chatDataService = chatDataService;
+        this.agentMemoryRuntimeService = agentMemoryRuntimeService;
+        this.agentMemoryExecutor = agentMemoryExecutor;
+    }
 
     public void chat(AgentChatTask task, SseEmitter emitter, String streamId) {
         AgentSseBridge bridge = new AgentSseBridge(emitter, streamId);
@@ -99,7 +115,8 @@ public class SpringAiAgentChatService {
                                 bridge.complete(task.getChatId(), requestId);
                                 CompletableFuture.runAsync(
                                         () -> agentMemoryRuntimeService.writeTurn(
-                                                task, bridge.getFinalResult().toString()));
+                                                task, bridge.getFinalResult().toString()),
+                                        agentMemoryExecutor);
                             });
         } catch (Exception e) {
             log.error("Spring AI agent chat setup failed, streamId: {}", streamId, e);
