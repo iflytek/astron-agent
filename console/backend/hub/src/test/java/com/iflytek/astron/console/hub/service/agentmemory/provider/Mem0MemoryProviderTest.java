@@ -100,10 +100,14 @@ class Mem0MemoryProviderTest {
         assertEquals("u1", addPayload.get().getString("user_id"));
         assertEquals("bot-7", addPayload.get().getString("app_id"));
         assertFalse(addPayload.get().containsKey("agent_id"));
-        assertEquals("我喜欢打篮球", addPayload.get().getJSONArray("messages")
-                .getJSONObject(0).getString("content"));
-        assertEquals("已记住", addPayload.get().getJSONArray("messages")
-                .getJSONObject(1).getString("content"));
+        assertEquals("我喜欢打篮球", addPayload.get()
+                .getJSONArray("messages")
+                .getJSONObject(0)
+                .getString("content"));
+        assertEquals("已记住", addPayload.get()
+                .getJSONArray("messages")
+                .getJSONObject(1)
+                .getString("content"));
         assertEquals("application/json; charset=UTF-8", addContentType.get());
         assertEquals(2, eventPollCount.get());
         assertEquals("application/json; charset=UTF-8", searchContentType.get());
