@@ -19,10 +19,43 @@ public class AgentMemorySecretService {
 
     private static final String CAT_MODEL_SECRET_KEY = "MODEL_SECRET_KEY";
     private static final String CODE_PRIVATE_KEY = "private_key";
+    private static final long PRIVATE_KEY_CACHE_TTL_MS = 60_000L;
 
     private final ConfigInfoMapper configInfoMapper;
 
+    private volatile RSAPrivateKey cachedPrivateKey;
+    private volatile long privateKeyCacheExpiresAt;
+
     public String decryptApiKey(String apiKeyCiphertext) {
+        RSAPrivateKey privateKey = getPrivateKey();
+        try {
+            return RSAUtil.decryptByPrivateKeyBase64(apiKeyCiphertext, privateKey);
+        } catch (Exception e) {
+            log.error("Decrypt agent memory API key failed", e);
+            throw new BusinessException(ResponseEnum.MODEL_APIKEY_LOAD_ERROR);
+        }
+    }
+
+    private RSAPrivateKey getPrivateKey() {
+        long now = System.currentTimeMillis();
+        RSAPrivateKey privateKey = cachedPrivateKey;
+        if (privateKey != null && now < privateKeyCacheExpiresAt) {
+            return privateKey;
+        }
+        synchronized (this) {
+            now = System.currentTimeMillis();
+            privateKey = cachedPrivateKey;
+            if (privateKey != null && now < privateKeyCacheExpiresAt) {
+                return privateKey;
+            }
+            privateKey = loadPrivateKey();
+            cachedPrivateKey = privateKey;
+            privateKeyCacheExpiresAt = System.currentTimeMillis() + PRIVATE_KEY_CACHE_TTL_MS;
+            return privateKey;
+        }
+    }
+
+    private RSAPrivateKey loadPrivateKey() {
         ConfigInfo modelSecretKey = configInfoMapper.selectOne(Wrappers.<ConfigInfo>lambdaQuery()
                 .eq(ConfigInfo::getCategory, CAT_MODEL_SECRET_KEY)
                 .eq(ConfigInfo::getCode, CODE_PRIVATE_KEY)
@@ -34,9 +67,12 @@ public class AgentMemorySecretService {
 
         try {
             RSAPrivateKey privateKey = RSAUtil.loadPrivateKey(modelSecretKey.getValue());
-            return RSAUtil.decryptByPrivateKeyBase64(apiKeyCiphertext, privateKey);
+            if (privateKey == null) {
+                throw new IllegalStateException("Private key is null");
+            }
+            return privateKey;
         } catch (Exception e) {
-            log.error("Decrypt agent memory API key failed", e);
+            log.error("Load agent memory private key failed", e);
             throw new BusinessException(ResponseEnum.MODEL_APIKEY_LOAD_ERROR);
         }
     }

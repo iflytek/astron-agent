@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -59,6 +61,31 @@ class AgentMemoryRuntimeServiceImplTest {
         assertTrue(enriched.getFirst().getContent().contains("用户喜欢简洁、直接的回答"));
         assertEquals("user", enriched.getLast().getRole());
         assertEquals("我喜欢什么风格?", enriched.getLast().getContent());
+    }
+
+    @Test
+    void enrichMessagesKeepsNonSystemMessageReferencesWhenInjectingMemories() {
+        AgentMemoryRuntimeServiceImpl runtime = new AgentMemoryRuntimeServiceImpl(
+                agentMemoryService, secretService, providerFactory);
+        AgentMemoryConfig config = enabledConfig();
+        when(agentMemoryService.getRuntimeConfig("u1", 3L, 7)).thenReturn(Optional.of(config));
+        when(secretService.decryptApiKey("cipher")).thenReturn("plain-key");
+        when(providerFactory.getProvider("MEM0")).thenReturn(Optional.of(provider));
+        when(provider.search(any(), eq("我喜欢什么风格?"), eq(4), eq(0.4))).thenReturn(List.of(
+                new AgentMemorySearchResult("m1", "用户喜欢简洁、直接的回答", 0.91, Map.of())));
+
+        SparkChatRequest.MessageDto system = message("system", "系统提示");
+        SparkChatRequest.MessageDto assistant = message("assistant", "历史回答");
+        SparkChatRequest.MessageDto user = message("user", "我喜欢什么风格?");
+        AgentChatTask task = task(false, List.of(system, assistant, user));
+
+        List<SparkChatRequest.MessageDto> enriched = runtime.enrichMessages(task);
+
+        assertNotSame(system, enriched.get(0));
+        assertSame(assistant, enriched.get(1));
+        assertSame(user, enriched.get(2));
+        assertEquals("系统提示", system.getContent());
+        assertTrue(enriched.get(0).getContent().contains("长期记忆"));
     }
 
     @Test
@@ -121,21 +148,26 @@ class AgentMemoryRuntimeServiceImplTest {
     }
 
     private AgentChatTask task(boolean edit) {
-        SparkChatRequest.MessageDto system = new SparkChatRequest.MessageDto();
-        system.setRole("system");
-        system.setContent("系统提示");
-        SparkChatRequest.MessageDto user = new SparkChatRequest.MessageDto();
-        user.setRole("user");
-        user.setContent("我喜欢什么风格?");
+        return task(edit, List.of(message("system", "系统提示"), message("user", "我喜欢什么风格?")));
+    }
+
+    private AgentChatTask task(boolean edit, List<SparkChatRequest.MessageDto> messages) {
         return AgentChatTask.builder()
                 .userId("u1")
                 .spaceId(3L)
                 .botId(7)
                 .debugSessionId("debug-session-1")
                 .rawUserText("我喜欢什么风格?")
-                .messages(List.of(system, user))
+                .messages(messages)
                 .edit(edit)
                 .debug(true)
                 .build();
+    }
+
+    private SparkChatRequest.MessageDto message(String role, String content) {
+        SparkChatRequest.MessageDto message = new SparkChatRequest.MessageDto();
+        message.setRole(role);
+        message.setContent(content);
+        return message;
     }
 }
