@@ -1,6 +1,7 @@
 package com.iflytek.astron.console.hub.service.agentmemory.provider;
 
 import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONException;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.slf4j.Slf4j;
@@ -183,7 +184,10 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         if (StringUtils.isBlank(responseBody)) {
             return;
         }
-        JSONObject response = JSON.parseObject(responseBody);
+        JSONObject response = parseObjectOrNull(responseBody);
+        if (response == null) {
+            return;
+        }
         String status = StringUtils.upperCase(response.getString("status"));
         String eventId = response.getString("event_id");
         if (!isPendingEvent(status) || StringUtils.isBlank(eventId)) {
@@ -196,7 +200,10 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         String eventPath = "/v1/event/" + urlEncode(eventId) + "/";
         for (int attempt = 0; attempt < MAX_EVENT_POLL_ATTEMPTS; attempt++) {
             sleepBeforeEventPoll(attempt);
-            JSONObject event = JSON.parseObject(get(apiKey, eventPath));
+            JSONObject event = parseObjectOrNull(get(apiKey, eventPath));
+            if (event == null) {
+                continue;
+            }
             String eventStatus = StringUtils.upperCase(event.getString("status"));
             if (isSuccessfulEvent(eventStatus)) {
                 return;
@@ -207,6 +214,19 @@ public class Mem0MemoryProvider implements AgentMemoryProvider {
         }
         log.warn("Mem0 add event still pending after {} polls, eventId={}",
                 MAX_EVENT_POLL_ATTEMPTS, eventId);
+    }
+
+    private JSONObject parseObjectOrNull(String responseBody) {
+        if (StringUtils.isBlank(responseBody)) {
+            return null;
+        }
+        try {
+            return JSON.parseObject(responseBody);
+        } catch (JSONException e) {
+            log.warn("Mem0 provider returned invalid JSON: {}",
+                    StringUtils.abbreviate(responseBody, 200));
+            return null;
+        }
     }
 
     private boolean isPendingEvent(String status) {
