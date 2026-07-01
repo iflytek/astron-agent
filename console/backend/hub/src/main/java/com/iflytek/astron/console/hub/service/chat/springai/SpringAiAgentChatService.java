@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -113,14 +114,27 @@ public class SpringAiAgentChatService {
                                 Long requestId =
                                         task.getChatReqRecords() == null ? null : task.getChatReqRecords().getId();
                                 bridge.complete(task.getChatId(), requestId);
-                                CompletableFuture.runAsync(
-                                        () -> agentMemoryRuntimeService.writeTurn(
-                                                task, bridge.getFinalResult().toString()),
-                                        agentMemoryExecutor);
+                                scheduleMemoryWrite(task, bridge.getFinalResult().toString());
                             });
         } catch (Exception e) {
             log.error("Spring AI agent chat setup failed, streamId: {}", streamId, e);
             SseEmitterUtil.completeWithError(emitter, "Failed to process chat request: " + e.getMessage());
+        }
+    }
+
+    private void scheduleMemoryWrite(AgentChatTask task, String assistantAnswer) {
+        try {
+            CompletableFuture.runAsync(
+                    () -> agentMemoryRuntimeService.writeTurn(task, assistantAnswer),
+                    agentMemoryExecutor)
+                    .exceptionally(error -> {
+                        log.warn("Agent memory async write failed, botId={}, uid={}, err={}",
+                                task.getBotId(), task.getUserId(), error.getMessage());
+                        return null;
+                    });
+        } catch (RejectedExecutionException e) {
+            log.warn("Agent memory write skipped because executor is saturated, botId={}, uid={}",
+                    task.getBotId(), task.getUserId());
         }
     }
 

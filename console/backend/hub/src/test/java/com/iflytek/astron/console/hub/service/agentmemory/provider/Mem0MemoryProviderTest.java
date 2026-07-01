@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,14 +50,10 @@ class Mem0MemoryProviderTest {
                     """);
         });
         server.createContext("/v1/event/event-1/", exchange -> {
-            int count = eventPollCount.incrementAndGet();
-            respond(exchange, 200, count == 1
-                    ? """
-                            {"status":"RUNNING","event_id":"event-1"}
-                            """
-                    : """
-                            {"status":"SUCCEEDED","event_id":"event-1","results":[{"id":"m1","data":{"memory":"用户喜欢打篮球"}}]}
-                            """);
+            eventPollCount.incrementAndGet();
+            respond(exchange, 200, """
+                    {"status":"RUNNING","event_id":"event-1"}
+                    """);
         });
         server.createContext("/v3/memories/search/", exchange -> {
             searchContentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
@@ -86,7 +81,7 @@ class Mem0MemoryProviderTest {
         });
         server.start();
 
-        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
+        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl());
         AgentMemoryProviderContext context = new AgentMemoryProviderContext(
                 "test-key", "u1", 7, 3L, "bot-7", Map.of("bot_id", 7));
 
@@ -109,7 +104,7 @@ class Mem0MemoryProviderTest {
                 .getJSONObject(1)
                 .getString("content"));
         assertEquals("application/json; charset=UTF-8", addContentType.get());
-        assertEquals(2, eventPollCount.get());
+        assertEquals(0, eventPollCount.get());
         assertEquals("application/json; charset=UTF-8", searchContentType.get());
         assertEquals("u1", searchPayload.get().getJSONObject("filters").getString("user_id"));
         assertEquals("bot-7", searchPayload.get().getJSONObject("filters").getString("app_id"));
@@ -130,72 +125,6 @@ class Mem0MemoryProviderTest {
         assertEquals(0.3397, results.getFirst().score());
         assertEquals(1, items.size());
         assertEquals("用户喜欢打篮球", items.getFirst().memory());
-    }
-
-    @Test
-    void addTurnWaitsForSlowMem0EventCompletion() throws Exception {
-        AtomicInteger eventPollCount = new AtomicInteger();
-        server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/v3/memories/add/", exchange -> respond(exchange, 200, """
-                {"status":"PENDING","event_id":"event-1"}
-                """));
-        server.createContext("/v1/event/event-1/", exchange -> {
-            int count = eventPollCount.incrementAndGet();
-            respond(exchange, 200, count < 8 ? """
-                    {"status":"RUNNING","event_id":"event-1"}
-                    """ : """
-                    {"status":"SUCCEEDED","event_id":"event-1","results":[{"id":"m1","memory":"用户喜欢打篮球"}]}
-                    """);
-        });
-        server.start();
-
-        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
-        provider.addTurn(context(), new AgentMemoryTurn(
-                "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
-
-        assertEquals(8, eventPollCount.get());
-    }
-
-    @Test
-    void addTurnIgnoresNullAddResponseBody() throws Exception {
-        AtomicInteger eventPollCount = new AtomicInteger();
-        server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/v3/memories/add/", exchange -> respond(exchange, 200, "null"));
-        server.createContext("/v1/event/event-1/", exchange -> {
-            eventPollCount.incrementAndGet();
-            respond(exchange, 200, """
-                    {"status":"SUCCEEDED"}
-                    """);
-        });
-        server.start();
-
-        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
-        provider.addTurn(context(), new AgentMemoryTurn(
-                "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
-
-        assertEquals(0, eventPollCount.get());
-    }
-
-    @Test
-    void addTurnContinuesPollingWhenEventResponseBodyIsNull() throws Exception {
-        AtomicInteger eventPollCount = new AtomicInteger();
-        server = HttpServer.create(new InetSocketAddress(0), 0);
-        server.createContext("/v3/memories/add/", exchange -> respond(exchange, 200, """
-                {"status":"PENDING","event_id":"event-1"}
-                """));
-        server.createContext("/v1/event/event-1/", exchange -> {
-            int count = eventPollCount.incrementAndGet();
-            respond(exchange, 200, count == 1 ? "null" : """
-                    {"status":"SUCCEEDED"}
-                    """);
-        });
-        server.start();
-
-        Mem0MemoryProvider provider = new Mem0MemoryProvider(baseUrl(), Duration.ZERO);
-        provider.addTurn(context(), new AgentMemoryTurn(
-                "我喜欢打篮球", "已记住", "debug-session-1", "debug", Map.of()));
-
-        assertEquals(2, eventPollCount.get());
     }
 
     private String baseUrl() {
