@@ -29,6 +29,7 @@ public class AgentMemoryRuntimeServiceImpl implements AgentMemoryRuntimeService 
     private static final int MAX_MEMORY_ITEMS = 8;
     private static final int MAX_MEMORY_TEXT_LENGTH = 500;
     private static final int MAX_MEMORY_BLOCK_LENGTH = 2400;
+    private static final long NO_SPACE_ID = 0L;
 
     private final AgentMemoryService agentMemoryService;
     private final AgentMemorySecretService secretService;
@@ -121,14 +122,15 @@ public class AgentMemoryRuntimeServiceImpl implements AgentMemoryRuntimeService 
     private AgentMemoryProviderContext buildContext(AgentMemoryConfig config, String apiKey) {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("bot_id", config.getBotId());
-        if (config.getSpaceId() != null) {
-            metadata.put("space_id", config.getSpaceId());
+        Long spaceId = toRuntimeSpaceId(config.getSpaceId());
+        if (spaceId != null) {
+            metadata.put("space_id", spaceId);
         }
         return new AgentMemoryProviderContext(
                 apiKey,
                 config.getUid(),
                 config.getBotId(),
-                config.getSpaceId(),
+                spaceId,
                 agentId(config.getBotId()),
                 metadata);
     }
@@ -222,5 +224,9 @@ public class AgentMemoryRuntimeServiceImpl implements AgentMemoryRuntimeService 
 
     private String agentId(Integer botId) {
         return "bot-" + botId;
+    }
+
+    private Long toRuntimeSpaceId(Long spaceId) {
+        return spaceId == null || NO_SPACE_ID == spaceId ? null : spaceId;
     }
 }

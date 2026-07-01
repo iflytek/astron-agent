@@ -171,33 +171,6 @@ const buildDefaultMemoryConfig = (botId: number): AgentMemoryConfig => ({
 
 const MEMORY_API_KEY_MASK = '****************';
 
-const memoryProviderOptions = [
-  {
-    key: 'MEM0',
-    name: 'Mem0',
-    title: '云端记忆',
-    description: '当前用于 Agent 对话的长期记忆服务',
-    status: '已接入',
-    disabled: false,
-  },
-  {
-    key: 'ZEP',
-    name: 'Zep',
-    title: '会话记忆',
-    description: '预留接入位，后续可复用同一配置面板',
-    status: '待接入',
-    disabled: true,
-  },
-  {
-    key: 'LANGMEM',
-    name: 'LangMem',
-    title: '框架记忆',
-    description: '预留接入位，不影响当前 Mem0 配置',
-    status: '待接入',
-    disabled: true,
-  },
-];
-
 const baseModelConfig: BaseModelConfig = {
   visible: false,
   isSending: false,
@@ -261,6 +234,35 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [fabuFlag, setFabuFlag] = useState<boolean>(false);
   const [openWxmol, setOpenWxmol] = useState<boolean>(false);
   const { t } = useTranslation();
+  const memoryProviderOptions = useMemo(
+    () => [
+      {
+        key: 'MEM0',
+        name: 'Mem0',
+        title: t('configBase.memory.mem0Title'),
+        description: t('configBase.memory.mem0Description'),
+        status: t('configBase.memory.connected'),
+        disabled: false,
+      },
+      {
+        key: 'ZEP',
+        name: 'Zep',
+        title: t('configBase.memory.zepTitle'),
+        description: t('configBase.memory.zepDescription'),
+        status: t('configBase.memory.pendingConnection'),
+        disabled: true,
+      },
+      {
+        key: 'LANGMEM',
+        name: 'LangMem',
+        title: t('configBase.memory.langMemTitle'),
+        description: t('configBase.memory.langMemDescription'),
+        status: t('configBase.memory.pendingConnection'),
+        disabled: true,
+      },
+    ],
+    [t]
+  );
   const [askValue, setAskValue] = useState('');
   const [sentence, setSentence] = useState(0); //是否是一句话创建
   const [globalLoading, setGlobalLoading] = useState(false); // 全局loading状态
@@ -1261,7 +1263,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     const config = memoryConfig || buildDefaultMemoryConfig(currentBotId);
     const apiKey = memoryApiKey.trim();
     if (config.enabled && !config.hasApiKey && !apiKey) {
-      message.warning('请填写 Mem0 API Key');
+      message.warning(t('configBase.memory.apiKeyRequired'));
       return;
     }
 
@@ -1287,10 +1289,10 @@ const BaseConfig: React.FC<ChatProps> = ({
       });
       setMemoryApiKey('');
       setMemoryApiKeyEditing(false);
-      message.success(t('configBase.saveSuccess') || '保存成功');
+      message.success(t('configBase.saveSuccess'));
       loadMemoryItems();
     } catch (err: any) {
-      message.error(err?.msg || '保存记忆配置失败');
+      message.error(err?.msg || t('configBase.memory.saveConfigFailed'));
     } finally {
       setMemorySaving(false);
     }
@@ -1301,25 +1303,25 @@ const BaseConfig: React.FC<ChatProps> = ({
       if (!currentBotId) return;
       try {
         await deleteAgentMemory(currentBotId, memoryId);
-        message.success('已删除');
+        message.success(t('configBase.memory.deleted'));
         loadMemoryItems();
       } catch (err: any) {
-        message.error(err?.msg || '删除记忆失败');
+        message.error(err?.msg || t('configBase.memory.deleteFailed'));
       }
     },
-    [currentBotId, loadMemoryItems]
+    [currentBotId, loadMemoryItems, t]
   );
 
   const handleClearMemories = useCallback(async () => {
     if (!currentBotId) return;
     try {
       await clearAgentMemories(currentBotId);
-      message.success('已清空');
+      message.success(t('configBase.memory.cleared'));
       loadMemoryItems();
     } catch (err: any) {
-      message.error(err?.msg || '清空记忆失败');
+      message.error(err?.msg || t('configBase.memory.clearFailed'));
     }
-  }, [currentBotId, loadMemoryItems]);
+  }, [currentBotId, loadMemoryItems, t]);
 
   const filteredDebugSessions = useMemo(
     () => filterDebugSessions(debugSessions, debugHistorySearchQuery),
@@ -2178,29 +2180,31 @@ const BaseConfig: React.FC<ChatProps> = ({
     if (!currentBotId) {
       return (
         <div className={styles.workbenchFormSection}>
-          <div className={styles.workbenchEmptyState}>请先创建智能体</div>
+          <div className={styles.workbenchEmptyState}>
+            {t('configBase.memory.createAgentFirst')}
+          </div>
         </div>
       );
     }
 
     const config = memoryConfig || buildDefaultMemoryConfig(currentBotId);
     const keyStatus = memoryApiKey.trim()
-      ? '待保存'
+      ? t('configBase.memory.pendingSave')
       : config.hasApiKey
-        ? '已配置'
-        : '未配置';
+        ? t('configBase.memory.configured')
+        : t('configBase.memory.notConfigured');
     const scoreHint =
       config.minScore >= 0.5
-        ? '当前阈值偏高，Mem0 常见得分在 0.1-0.4，可能导致检索不到。'
-        : '建议 0.1 左右；设为 0 表示不过滤低分结果。';
+        ? t('configBase.memory.highScoreHint')
+        : t('configBase.memory.scoreHint');
 
     return (
       <div className={styles.workbenchMemoryWorkspace}>
         <div className={styles.workbenchMemoryLayout}>
           <aside className={styles.workbenchMemoryProviders}>
             <div className={styles.workbenchMemoryPanelTitle}>
-              <span>记忆服务</span>
-              <small>后续框架接入位</small>
+              <span>{t('configBase.memory.service')}</span>
+              <small>{t('configBase.memory.futureProviderSlot')}</small>
             </div>
             <div className={styles.workbenchProviderList}>
               {memoryProviderOptions.map(provider => {
@@ -2237,19 +2241,21 @@ const BaseConfig: React.FC<ChatProps> = ({
           <section className={styles.workbenchMemoryDetail}>
             <div className={styles.workbenchMemoryDetailHeader}>
               <div>
-                <h2>Mem0 云端记忆</h2>
-                <p>用于 Agent 对话的长期记忆写入、检索和管理。</p>
+                <h2>{t('configBase.memory.mem0CloudMemory')}</h2>
+                <p>{t('configBase.memory.mem0CloudMemoryDesc')}</p>
               </div>
               <div className={styles.workbenchInlineActions}>
                 <Tag color={config.enabled ? 'green' : 'default'}>
-                  {config.enabled ? '已启用' : '未启用'}
+                  {config.enabled
+                    ? t('configBase.memory.enabled')
+                    : t('configBase.memory.disabled')}
                 </Tag>
                 <Button
                   icon={<SaveOutlined />}
                   loading={memorySaving}
                   onClick={handleSaveMemoryConfig}
                 >
-                  保存
+                  {t('configBase.save')}
                 </Button>
               </div>
             </div>
@@ -2258,13 +2264,13 @@ const BaseConfig: React.FC<ChatProps> = ({
               <div className={styles.workbenchMemoryDetailGrid}>
                 <div className={styles.workbenchMemoryBlock}>
                   <div className={styles.workbenchMemoryBlockTitle}>
-                    <span>连接配置</span>
-                    <small>Key 只用于服务端调用，不回显明文。</small>
+                    <span>{t('configBase.memory.connectionConfig')}</span>
+                    <small>{t('configBase.memory.keyPrivacyTip')}</small>
                   </div>
                   <label className={styles.workbenchMemorySwitchRow}>
                     <span>
-                      <strong>启用 Mem0</strong>
-                      <small>开启后，Agent 对话完成时写入记忆。</small>
+                      <strong>{t('configBase.memory.enableMem0')}</strong>
+                      <small>{t('configBase.memory.enableMem0Desc')}</small>
                     </span>
                     <Switch
                       checked={config.enabled}
@@ -2278,7 +2284,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     {config.hasApiKey && !memoryApiKeyEditing ? (
                       <div className={styles.workbenchMemoryKeyPreview}>
                         <span>{MEMORY_API_KEY_MASK}</span>
-                        <Tag color="green">已保存</Tag>
+                        <Tag color="green">{t('configBase.memory.saved')}</Tag>
                         <Button
                           size="small"
                           onClick={() => {
@@ -2286,7 +2292,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                             setMemoryApiKeyEditing(true);
                           }}
                         >
-                          替换
+                          {t('configBase.memory.replace')}
                         </Button>
                       </div>
                     ) : (
@@ -2294,7 +2300,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         value={memoryApiKey}
                         autoComplete="new-password"
                         onChange={event => setMemoryApiKey(event.target.value)}
-                        placeholder="输入 Mem0 API Key"
+                        placeholder={t('configBase.memory.apiKeyPlaceholder')}
                       />
                     )}
                     <small>{keyStatus}</small>
@@ -2306,7 +2312,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           setMemoryApiKeyEditing(false);
                         }}
                       >
-                        取消替换
+                        {t('configBase.memory.cancelReplace')}
                       </Button>
                     )}
                   </div>
@@ -2314,13 +2320,13 @@ const BaseConfig: React.FC<ChatProps> = ({
 
                 <div className={styles.workbenchMemoryBlock}>
                   <div className={styles.workbenchMemoryBlockTitle}>
-                    <span>检索策略</span>
-                    <small>影响每次 Agent 回复前注入的长期记忆。</small>
+                    <span>{t('configBase.memory.retrievalPolicy')}</span>
+                    <small>{t('configBase.memory.retrievalPolicyDesc')}</small>
                   </div>
                   <label className={styles.workbenchMemorySwitchRow}>
                     <span>
-                      <strong>自动检索</strong>
-                      <small>每次用户提问前按当前问题搜索记忆。</small>
+                      <strong>{t('configBase.memory.autoSearch')}</strong>
+                      <small>{t('configBase.memory.autoSearchDesc')}</small>
                     </span>
                     <Switch
                       checked={config.autoSearch}
@@ -2331,7 +2337,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                   </label>
                   <div className={styles.workbenchMemoryGrid}>
                     <label className={styles.workbenchMemoryField}>
-                      <span>检索条数</span>
+                      <span>{t('configBase.memory.searchTopK')}</span>
                       <InputNumber
                         min={1}
                         max={20}
@@ -2344,7 +2350,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       />
                     </label>
                     <label className={styles.workbenchMemoryField}>
-                      <span>匹配阈值</span>
+                      <span>{t('configBase.memory.minScore')}</span>
                       <InputNumber
                         min={0}
                         max={1}
@@ -2374,24 +2380,24 @@ const BaseConfig: React.FC<ChatProps> = ({
 
         <div className={styles.workbenchMemoryListPanel}>
           <div className={styles.workbenchSectionTitle}>
-            <span>记忆列表</span>
+            <span>{t('configBase.memory.memoryList')}</span>
             <div className={styles.workbenchInlineActions}>
               <Button
                 icon={<ReloadOutlined />}
                 onClick={loadMemoryItems}
                 loading={memoryListLoading}
               >
-                刷新
+                {t('configBase.CapabilityDevelopment.refresh')}
               </Button>
               <Popconfirm
-                title="清空记忆"
-                description="确认清空当前智能体作用域下的 Mem0 记忆？"
+                title={t('configBase.memory.clearMemories')}
+                description={t('configBase.memory.clearConfirm')}
                 onConfirm={handleClearMemories}
-                okText="清空"
-                cancelText="取消"
+                okText={t('configBase.memory.clear')}
+                cancelText={t('configBase.CapabilityDevelopment.cancel')}
               >
                 <Button danger disabled={memoryItems.length === 0}>
-                  清空
+                  {t('configBase.memory.clear')}
                 </Button>
               </Popconfirm>
             </div>
@@ -2403,7 +2409,7 @@ const BaseConfig: React.FC<ChatProps> = ({
               emptyText: (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="暂无记忆"
+                  description={t('configBase.memory.noMemories')}
                 />
               ),
             }}
@@ -2413,11 +2419,11 @@ const BaseConfig: React.FC<ChatProps> = ({
                 actions={[
                   <Popconfirm
                     key="delete"
-                    title="删除记忆"
-                    description="确认删除这条记忆？"
+                    title={t('configBase.memory.deleteMemory')}
+                    description={t('configBase.memory.deleteConfirm')}
                     onConfirm={() => item.id && handleDeleteMemory(item.id)}
-                    okText="删除"
-                    cancelText="取消"
+                    okText={t('configBase.memory.delete')}
+                    cancelText={t('configBase.CapabilityDevelopment.cancel')}
                   >
                     <Button
                       type="text"
@@ -2433,8 +2439,8 @@ const BaseConfig: React.FC<ChatProps> = ({
                   description={
                     <span className={styles.workbenchMemoryMeta}>
                       {item.score !== undefined && item.score !== null
-                        ? `score ${item.score.toFixed(3)}`
-                        : 'score -'}
+                        ? `${t('configBase.memory.score')} ${item.score.toFixed(3)}`
+                        : `${t('configBase.memory.score')} -`}
                       {item.updatedAt || item.createdAt
                         ? ` · ${item.updatedAt || item.createdAt}`
                         : ''}

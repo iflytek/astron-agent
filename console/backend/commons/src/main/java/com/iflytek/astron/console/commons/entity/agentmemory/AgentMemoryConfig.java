@@ -46,6 +46,9 @@ public class AgentMemoryConfig {
     @Schema(description = "Deletion status: 0 not deleted, 1 deleted")
     private Integer isDelete;
 
+    @Schema(description = "Deletion timestamp, 0 means active")
+    private Long deleteTime;
+
     @Schema(description = "Create time")
     private LocalDateTime createTime;
 
