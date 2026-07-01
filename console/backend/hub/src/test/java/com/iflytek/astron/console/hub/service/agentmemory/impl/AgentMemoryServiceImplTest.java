@@ -75,8 +75,31 @@ class AgentMemoryServiceImplTest {
         assertEquals(1, saved.getAutoSearch());
         assertEquals(8, saved.getSearchTopK());
         assertEquals(0.35, saved.getMinScore());
+        assertEquals(0, saved.getIsDelete());
+        assertEquals(0L, saved.getDeleteTime());
         assertTrue(dto.getHasApiKey());
         assertTrue(dto.getEnabled());
+    }
+
+    @Test
+    void saveConfigStoresNoSpaceAsZeroForUniqueIndex() {
+        when(chatBotBaseMapper.checkBotPermission(7, "u1", null)).thenReturn(1);
+        when(configMapper.selectOne(any())).thenReturn(null);
+
+        SaveAgentMemoryConfigRequest request = new SaveAgentMemoryConfigRequest();
+        request.setBotId(7);
+        request.setProvider("MEM0");
+        request.setEnabled(true);
+        request.setApiKeyCiphertext("cipher-new");
+
+        service.saveConfig("u1", null, request);
+
+        ArgumentCaptor<AgentMemoryConfig> captor = ArgumentCaptor.forClass(AgentMemoryConfig.class);
+        verify(configMapper).insert(captor.capture());
+        AgentMemoryConfig saved = captor.getValue();
+        assertEquals(0L, saved.getSpaceId());
+        assertEquals(0, saved.getIsDelete());
+        assertEquals(0L, saved.getDeleteTime());
     }
 
     @Test

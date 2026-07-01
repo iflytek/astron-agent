@@ -4,6 +4,7 @@ import com.iflytek.astron.console.commons.dto.llm.SparkChatRequest;
 import com.iflytek.astron.console.commons.entity.agentmemory.AgentMemoryConfig;
 import com.iflytek.astron.console.hub.service.agentmemory.AgentMemoryService;
 import com.iflytek.astron.console.hub.service.agentmemory.provider.AgentMemoryProvider;
+import com.iflytek.astron.console.hub.service.agentmemory.provider.AgentMemoryProviderContext;
 import com.iflytek.astron.console.hub.service.agentmemory.provider.AgentMemoryProviderFactory;
 import com.iflytek.astron.console.hub.service.agentmemory.provider.AgentMemorySearchResult;
 import com.iflytek.astron.console.hub.service.agentmemory.provider.AgentMemoryTurn;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,6 +91,28 @@ class AgentMemoryRuntimeServiceImplTest {
     }
 
     @Test
+    void enrichMessagesTreatsStoredNoSpaceAsNullProviderContext() {
+        AgentMemoryRuntimeServiceImpl runtime = new AgentMemoryRuntimeServiceImpl(
+                agentMemoryService, secretService, providerFactory);
+        AgentMemoryConfig config = enabledConfig();
+        config.setSpaceId(0L);
+        when(agentMemoryService.getRuntimeConfig("u1", null, 7)).thenReturn(Optional.of(config));
+        when(secretService.decryptApiKey("cipher")).thenReturn("plain-key");
+        when(providerFactory.getProvider("MEM0")).thenReturn(Optional.of(provider));
+        when(provider.search(any(), eq("我喜欢什么风格?"), eq(4), eq(0.4))).thenReturn(List.of(
+                new AgentMemorySearchResult("m1", "用户喜欢简洁、直接的回答", 0.91, Map.of())));
+
+        runtime.enrichMessages(task(false, List.of(
+                message("system", "系统提示"), message("user", "我喜欢什么风格?")), null));
+
+        ArgumentCaptor<AgentMemoryProviderContext> captor = ArgumentCaptor.forClass(AgentMemoryProviderContext.class);
+        verify(provider).search(captor.capture(), eq("我喜欢什么风格?"), eq(4), eq(0.4));
+        AgentMemoryProviderContext context = captor.getValue();
+        assertEquals(null, context.spaceId());
+        assertFalse(context.metadata().containsKey("space_id"));
+    }
+
+    @Test
     void enrichMessagesSkipsProviderWhenConfigIsDisabled() {
         AgentMemoryRuntimeServiceImpl runtime = new AgentMemoryRuntimeServiceImpl(
                 agentMemoryService, secretService, providerFactory);
@@ -152,9 +176,13 @@ class AgentMemoryRuntimeServiceImplTest {
     }
 
     private AgentChatTask task(boolean edit, List<SparkChatRequest.MessageDto> messages) {
+        return task(edit, messages, 3L);
+    }
+
+    private AgentChatTask task(boolean edit, List<SparkChatRequest.MessageDto> messages, Long spaceId) {
         return AgentChatTask.builder()
                 .userId("u1")
-                .spaceId(3L)
+                .spaceId(spaceId)
                 .botId(7)
                 .debugSessionId("debug-session-1")
                 .rawUserText("我喜欢什么风格?")
