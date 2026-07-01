@@ -619,7 +619,8 @@ public class BotServiceImpl implements BotService {
 
         if (botTypeListService != null) {
             try {
-                return botTypeListService.getBotTypeList().stream()
+                return botTypeListService.getBotTypeList()
+                        .stream()
                         .map(BotTypeList::getTypeKey)
                         .filter(typeKey -> typeKey != null && typeKey > 0)
                         .findFirst()
