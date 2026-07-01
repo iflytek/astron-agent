@@ -116,6 +116,7 @@ public class BotServiceImpl implements BotService {
     private String workflowConfigUrl;
 
     public static final String BOT_INPUT_EXAMPLE_SPLIT = "%%split%%";
+    private static final Integer DEFAULT_BOT_TYPE = 10;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -340,9 +341,10 @@ public class BotServiceImpl implements BotService {
     }
 
     private ChatBotBase createWorkflowBotBase(String uid, BotCreateForm bot, Long spaceId, Integer version) {
+        Integer botType = normalizeBotFormType(bot);
         ChatBotBase botBase = new ChatBotBase();
         botBase.setUid(uid);
-        botBase.setBotType(bot.getBotType());
+        botBase.setBotType(botType);
         botBase.setBotName(bot.getName());
         botBase.setAvatar(bot.getAvatar());
         botBase.setPcBackground(bot.getPcBackground());
@@ -369,9 +371,10 @@ public class BotServiceImpl implements BotService {
     }
 
     private ChatBotBase createBasicBotBase(String uid, BotCreateForm bot, Long spaceId) {
+        Integer botType = normalizeBotFormType(bot);
         ChatBotBase botBase = new ChatBotBase();
         botBase.setUid(uid);
-        botBase.setBotType(bot.getBotType());
+        botBase.setBotType(botType);
         botBase.setBotName(bot.getName());
         botBase.setAvatar(bot.getAvatar());
         botBase.setPcBackground(bot.getPcBackground());
@@ -498,10 +501,11 @@ public class BotServiceImpl implements BotService {
     private void updateWorkflowBotInternal(String uid, BotCreateForm bot, HttpServletRequest request, Long spaceId) {
         try {
             Integer botId = bot.getBotId();
+            Integer botType = normalizeBotFormType(bot);
             ChatBotBase botBase = ChatBotBase.builder()
                     .uid(uid)
                     .id(botId)
-                    .botType(bot.getBotType())
+                    .botType(botType)
                     .botName(bot.getName())
                     .avatar(bot.getAvatar())
                     .pcBackground(bot.getPcBackground())
@@ -556,10 +560,11 @@ public class BotServiceImpl implements BotService {
     }
 
     private ChatBotBase createUpdateBotBase(String uid, BotCreateForm bot) {
+        Integer botType = normalizeBotFormType(bot);
         return ChatBotBase.builder()
                 .uid(uid)
                 .id(bot.getBotId())
-                .botType(bot.getBotType())
+                .botType(botType)
                 .botName(bot.getName())
                 .avatar(bot.getAvatar())
                 .pcBackground(bot.getPcBackground())
@@ -599,6 +604,31 @@ public class BotServiceImpl implements BotService {
                 .inputExample(bot.getInputExample() != null && !bot.getInputExample().isEmpty() ? String.join(BOT_INPUT_EXAMPLE_SPLIT, bot.getInputExample()) : null)
                 .modelId(bot.getModelId())
                 .build();
+    }
+
+    private Integer normalizeBotFormType(BotCreateForm bot) {
+        Integer botType = normalizeBotType(bot.getBotType());
+        bot.setBotType(botType);
+        return botType;
+    }
+
+    private Integer normalizeBotType(Integer botType) {
+        if (botType != null && botType > 0) {
+            return botType;
+        }
+
+        if (botTypeListService != null) {
+            try {
+                return botTypeListService.getBotTypeList().stream()
+                        .map(BotTypeList::getTypeKey)
+                        .filter(typeKey -> typeKey != null && typeKey > 0)
+                        .findFirst()
+                        .orElse(DEFAULT_BOT_TYPE);
+            } catch (Exception e) {
+                log.warn("Failed to load default bot type, fallback to {}", DEFAULT_BOT_TYPE, e);
+            }
+        }
+        return DEFAULT_BOT_TYPE;
     }
 
     private void setEnglishInputExamplesIfPresent(ChatBotBase botBase, List<String> inputExampleEn) {
