@@ -31,21 +31,25 @@ public class AgentToolCallbackResolver {
     private final McpToolCallbackFactory mcpToolCallbackFactory;
     private final SkillToolCallbackFactory skillToolCallbackFactory;
     private final LinkToolCallbackFactory linkToolCallbackFactory;
+    private final WorkflowToolCallbackFactory workflowToolCallbackFactory;
 
     /**
      * @param openedTool retained for future per-tool gating; built-in tools are always included.
      * @param skills enriched skill entries; each yields read_skill_/run_skill_ tool callbacks.
      * @param tools saved tool-square plugins JSON ({@code [{"toolId":"tool@xxx",...}]}); each yields a
      *        Link tool callback executed through the core-link runtime.
+     * @param workflows saved workflows JSON ({@code [{"flowId":"xxx",...}]}); each yields a workflow
+     *        tool callback executed through the core workflow engine.
      */
     public List<ToolCallback> resolve(String openedTool, String mcpServerUrls, List<JSONObject> skills,
-            String tools, ChatToolContext context) throws IOException {
+            String tools, String workflows, ChatToolContext context) throws IOException {
         List<ToolCallback> callbacks = new ArrayList<>();
         callbacks.add(new WebSearchToolCallback(managedWebSearchService, context));
         callbacks.add(new CurrentTimeToolCallback());
         callbacks.addAll(mcpToolCallbackFactory.build(parseMcpUrls(mcpServerUrls), context));
         callbacks.addAll(skillToolCallbackFactory.build(skills));
         callbacks.addAll(linkToolCallbackFactory.build(parseToolIds(tools), context));
+        callbacks.addAll(workflowToolCallbackFactory.build(parseFlowIds(workflows), context));
         return callbacks;
     }
 
@@ -74,6 +78,31 @@ public class AgentToolCallbackResolver {
             return List.of();
         }
         return toolIds.stream().distinct().toList();
+    }
+
+    /** Extract the {@code flowId} list from the saved workflows JSON; tolerant of malformed input. */
+    private List<String> parseFlowIds(String workflows) {
+        if (StringUtils.isBlank(workflows)) {
+            return List.of();
+        }
+        List<String> flowIds = new ArrayList<>();
+        try {
+            JSONArray array = JSON.parseArray(workflows.trim());
+            for (int i = 0; i < array.size(); i++) {
+                JSONObject item = array.getJSONObject(i);
+                if (item == null) {
+                    continue;
+                }
+                String flowId = item.getString("flowId");
+                if (StringUtils.isNotBlank(flowId)) {
+                    flowIds.add(flowId.trim());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Invalid bot workflows json, ignored: {}", workflows);
+            return List.of();
+        }
+        return flowIds.stream().distinct().toList();
     }
 
     private List<String> parseMcpUrls(String mcpServerUrls) {

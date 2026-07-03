@@ -114,6 +114,9 @@ public class BotCreateForm {
     @Schema(description = "Selected plugin tools imported from the tool square")
     private List<BotTool> tools;
 
+    @Schema(description = "Selected workflows imported from the workflow list")
+    private List<BotWorkflow> workflows;
+
     @Schema(description = "Background image color scheme: 0 Light, 1 Dark")
     private Integer backgroundColor;
 
@@ -181,6 +184,15 @@ public class BotCreateForm {
     public static class BotTool {
         @Schema(description = "Tool id from the tool square, e.g. tool@xxx")
         private String toolId;
+        private String name;
+        private String description;
+        private String icon;
+    }
+
+    @Data
+    public static class BotWorkflow {
+        @Schema(description = "Business flow id of the published workflow")
+        private String flowId;
         private String name;
         private String description;
         private String icon;

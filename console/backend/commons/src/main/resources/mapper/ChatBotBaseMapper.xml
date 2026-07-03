@@ -30,6 +30,7 @@
         a.mcp_server_urls AS mcpServerUrls,
         a.skills AS skills,
         a.tools AS tools,
+        a.workflows AS workflows,
         a.client_hide as clientHide,
         b.hot_num as hotNum,
         b.id as marketBotId,

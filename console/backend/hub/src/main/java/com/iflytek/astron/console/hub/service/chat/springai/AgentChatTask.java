@@ -35,6 +35,9 @@ public class AgentChatTask {
     /** Saved tool-square plugins JSON ({@code [{"toolId":"tool@xxx",...}]}); resolved to Link tools. */
     private String tools;
 
+    /** Saved workflows JSON ({@code [{"flowId":"xxx",...}]}); resolved to workflow tools. */
+    private String workflows;
+
     private String userId;
     private Long chatId;
     private Integer botId;

@@ -53,7 +53,9 @@ import { CheckboxChangeEvent } from 'antd/es/checkbox';
 import { isValidMcpServerUrl } from '../mcp-url-config';
 import SkillSelectModal from './SkillSelectModal';
 import PluginSelectModal from './PluginSelectModal';
+import WorkflowSelectModal from './WorkflowSelectModal';
 import type { AgentSkill } from '@/types/skill';
+import type { AgentWorkflow } from '@/types/agent-workflow';
 
 const { TextArea } = Input;
 
@@ -76,6 +78,8 @@ interface CapabilityDevelopmentProps {
   setSupportContextFlag: (v: boolean) => void;
   tools: any[];
   setTools: (v: any[]) => void;
+  workflows: AgentWorkflow[];
+  setWorkflows: (v: AgentWorkflow[]) => void;
   mcpServerUrls: string[];
   setMcpServerUrls: (v: string[]) => void;
   skills: AgentSkill[];
@@ -114,6 +118,8 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
     setSupportContextFlag,
     tools,
     setTools,
+    workflows,
+    setWorkflows,
     mcpServerUrls,
     setMcpServerUrls,
     skills,
@@ -281,6 +287,10 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
     setTools(newTools);
   }
 
+  function deleteWorkflow(flowId: string) {
+    setWorkflows(workflows.filter(item => item.flowId !== flowId));
+  }
+
   function deleteFile(record: any) {
     if (record.nodeType !== 0) {
       const newTree = deleteNodeById(tree, record.id);
@@ -385,6 +395,7 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   };
 
   const [pluginModalOpen, setPluginModalOpen] = useState(false);
+  const [workflowModalOpen, setWorkflowModalOpen] = useState(false);
 
   return (
     <div
@@ -1144,6 +1155,90 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
             selected={tools}
             onClose={() => setPluginModalOpen(false)}
             onChange={setTools}
+          />
+        </div>
+      )}
+      {showMcpSection && !showCapabilitySection && (
+        <div
+          className={cls(
+            styles.capabilitySection,
+            showKnowledgeSection && styles.capabilitySectionCompact
+          )}
+        >
+          <div className={styles.capabilityBlock}>
+            <div className={styles.capabilityBlockHeader}>
+              <div className={styles.capabilityTitleGroup}>
+                <span className={cls(styles.capabilityIcon, styles.mcpIcon)}>
+                  <ApiOutlined />
+                </span>
+                <div>
+                  <div className={styles.capabilityTitleRow}>
+                    <span className={styles.capabilityTitle}>工作流</span>
+                    <span
+                      className={cls(
+                        styles.capabilityStatus,
+                        workflows.length > 0
+                          ? styles.statusReady
+                          : styles.statusMuted
+                      )}
+                    >
+                      {workflows.length > 0
+                        ? `已添加 ${workflows.length} 个`
+                        : '未添加'}
+                    </span>
+                  </div>
+                  <div className={styles.capabilityDescription}>
+                    引入已发布的工作流，模型会根据工作流描述自主选择调用。
+                  </div>
+                </div>
+              </div>
+              <Button
+                icon={<PlusOutlined />}
+                className={styles.capabilityActionButton}
+                onClick={() => setWorkflowModalOpen(true)}
+              >
+                {workflows.length > 0 ? '管理工作流' : '添加工作流'}
+              </Button>
+            </div>
+
+            {workflows.length > 0 ? (
+              <div className={styles.skillList}>
+                {workflows.map((item: AgentWorkflow) => (
+                  <div className={styles.skillRow} key={item.flowId}>
+                    <div className={styles.skillRowMeta}>
+                      <span className={styles.skillRowName}>{item.name}</span>
+                      <span className={styles.skillRowDesc}>
+                        {item.description || '暂无描述'}
+                      </span>
+                    </div>
+                    <Tooltip title="删除">
+                      <Button
+                        className={styles.mcpDeleteButton}
+                        icon={<DeleteOutlined />}
+                        onClick={() => deleteWorkflow(item.flowId)}
+                      />
+                    </Tooltip>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <button
+                type="button"
+                className={styles.capabilityEmptyState}
+                onClick={() => setWorkflowModalOpen(true)}
+              >
+                <span className={styles.capabilityEmptyTitle}>暂无工作流</span>
+                <span className={styles.capabilityEmptyDescription}>
+                  点击添加工作流，引入已发布的工作流作为可调用能力。
+                </span>
+              </button>
+            )}
+          </div>
+          <WorkflowSelectModal
+            open={workflowModalOpen}
+            selected={workflows}
+            onClose={() => setWorkflowModalOpen(false)}
+            onChange={setWorkflows}
           />
         </div>
       )}

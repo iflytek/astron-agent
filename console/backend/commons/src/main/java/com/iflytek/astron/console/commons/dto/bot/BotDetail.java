@@ -38,6 +38,7 @@ public class BotDetail {
     private String mcpServerUrls;
     private String skills;
     private String tools;
+    private String workflows;
     private Integer hotNum;
     private String marketBotId;
     private Integer supportSystem;

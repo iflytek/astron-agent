@@ -21,6 +21,7 @@ import {
 } from '@/components/config-page-component/config-base/mcp-url-config';
 import type { AgentSkill } from '@/types/skill';
 import type { AgentTool } from '@/types/plugin-store';
+import type { AgentWorkflow } from '@/types/agent-workflow';
 
 // PromptTry组件暴露的方法接口
 export interface PromptTryRef {
@@ -70,6 +71,7 @@ const PromptTry = forwardRef<
     mcpServerUrls?: string[];
     skills?: AgentSkill[];
     tools?: AgentTool[];
+    workflows?: AgentWorkflow[];
     findModelOptionByUniqueKey: (
       uniqueKey: string
     ) => ModelListData | undefined;
@@ -96,6 +98,7 @@ const PromptTry = forwardRef<
       mcpServerUrls,
       skills,
       tools,
+      workflows,
       initialMessages,
       onMessagesChange,
       showHeaderAndRecommend = true,
@@ -246,6 +249,9 @@ const PromptTry = forwardRef<
       }
       if (tools && tools.length > 0) {
         form.append('tools', JSON.stringify(tools));
+      }
+      if (workflows && workflows.length > 0) {
+        form.append('workflows', JSON.stringify(workflows));
       }
 
       // 添加人设配置信息

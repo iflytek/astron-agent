@@ -1,5 +1,6 @@
 import type { AgentSkill } from '@/types/skill';
 import type { AgentTool } from '@/types/plugin-store';
+import type { AgentWorkflow } from '@/types/agent-workflow';
 
 export const isValidMcpServerUrl = (url: string): boolean => {
   const value = url.trim();
@@ -103,6 +104,38 @@ export const normalizeTools = (tools?: unknown): AgentTool[] => {
     });
   }
   return result;
+};
+
+export const normalizeWorkflows = (workflows?: unknown): AgentWorkflow[] => {
+  let source = workflows;
+  if (typeof workflows === 'string') {
+    try {
+      source = JSON.parse(workflows);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(source)) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const result: AgentWorkflow[] = [];
+  for (const item of source) {
+    const flowId = String(item?.flowId ?? '').trim();
+    if (!flowId || seen.has(flowId)) {
+      continue;
+    }
+    seen.add(flowId);
+    result.push({
+      flowId,
+      name: String(item?.name ?? ''),
+      description: String(item?.description ?? ''),
+      icon: item?.icon ? String(item.icon) : undefined,
+    });
+  }
+  return result.slice(0, 30);
 };
 
 export const hasInvalidMcpServerUrls = (urls?: unknown): boolean => {

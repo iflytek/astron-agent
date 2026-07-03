@@ -93,8 +93,10 @@ import {
   normalizeMcpServerUrls,
   normalizeSkills,
   normalizeTools,
+  normalizeWorkflows,
 } from './mcp-url-config';
 import type { AgentSkill } from '@/types/skill';
+import type { AgentWorkflow } from '@/types/agent-workflow';
 import { VcnItem } from '@/components/speaker-modal';
 import { getVcnList } from '@/services/chat';
 import type { MessageListType } from '@/types/chat';
@@ -456,6 +458,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState({});
   const [tools, setTools] = useState<any[]>([]);
+  const [workflows, setWorkflows] = useState<AgentWorkflow[]>([]);
   const [tree, setTree] = useState<any>([]);
   const [knowledges, setKnowledges] = useState<any[]>([]);
   const [chatModelList, setChatModelList] = useState([
@@ -668,6 +671,7 @@ const BaseConfig: React.FC<ChatProps> = ({
       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
       skills: normalizeSkills(skills),
       tools: normalizeTools(tools),
+      workflows: normalizeWorkflows(workflows),
       prologue: prologue,
       ...getModelConfig(model),
       prompt: prompt,
@@ -957,6 +961,7 @@ const BaseConfig: React.FC<ChatProps> = ({
           );
           setSkills(normalizeSkills(currentConfigData?.skills));
           setTools(normalizeTools(currentConfigData?.tools));
+          setWorkflows(normalizeWorkflows(currentConfigData?.workflows));
           setSupportContextFlag(
             save == 'true'
               ? configPageData?.supportContext == 1
@@ -1934,6 +1939,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 mcpServerUrls={mcpServerUrls}
                 skills={skills}
                 tools={tools}
+                workflows={workflows}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -1997,6 +2003,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                 mcpServerUrls={mcpServerUrls}
                 skills={skills}
                 tools={tools}
+                workflows={workflows}
                 findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                 personalityConfig={
                   personalityData.enablePersonality
@@ -2033,6 +2040,7 @@ const BaseConfig: React.FC<ChatProps> = ({
         mcpServerUrls={mcpServerUrls}
         skills={skills}
         tools={tools}
+        workflows={workflows}
         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
         personalityConfig={
           personalityData.enablePersonality
@@ -2118,6 +2126,8 @@ const BaseConfig: React.FC<ChatProps> = ({
       setTree={setTree}
       tools={tools}
       setTools={setTools}
+      workflows={workflows}
+      setWorkflows={setWorkflows}
       mcpServerUrls={mcpServerUrls}
       setMcpServerUrls={setMcpServerUrls}
       skills={skills}
@@ -2821,6 +2831,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                       skills: normalizeSkills(skills),
                       tools: normalizeTools(tools),
+                      workflows: normalizeWorkflows(workflows),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2874,6 +2885,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                       skills: normalizeSkills(skills),
                       tools: normalizeTools(tools),
+                      workflows: normalizeWorkflows(workflows),
                       prologue: prologue,
                       ...getModelConfig(model),
                       prompt: prompt,
@@ -2952,6 +2964,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                     skills: normalizeSkills(skills),
                     tools: normalizeTools(tools),
+                    workflows: normalizeWorkflows(workflows),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -3002,6 +3015,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                     mcpServerUrls: normalizeMcpServerUrls(mcpServerUrls),
                     skills: normalizeSkills(skills),
                     tools: normalizeTools(tools),
+                    workflows: normalizeWorkflows(workflows),
                     prologue: prologue,
                     ...getModelConfig(model),
                     prompt: prompt,
@@ -3321,6 +3335,8 @@ const BaseConfig: React.FC<ChatProps> = ({
                           setTree={setTree}
                           tools={tools}
                           setTools={setTools}
+                          workflows={workflows}
+                          setWorkflows={setWorkflows}
                           mcpServerUrls={mcpServerUrls}
                           setMcpServerUrls={setMcpServerUrls}
                           skills={skills}
@@ -3457,6 +3473,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                       mcpServerUrls={mcpServerUrls}
                       skills={skills}
                       tools={tools}
+                      workflows={workflows}
                       findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                       personalityConfig={
                         personalityData.enablePersonality
@@ -3504,6 +3521,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                           mcpServerUrls={mcpServerUrls}
                           skills={skills}
                           tools={tools}
+                          workflows={workflows}
                           findModelOptionByUniqueKey={
                             findModelOptionByUniqueKey
                           }
@@ -3581,6 +3599,7 @@ const BaseConfig: React.FC<ChatProps> = ({
                         mcpServerUrls={mcpServerUrls}
                         skills={skills}
                         tools={tools}
+                        workflows={workflows}
                         findModelOptionByUniqueKey={findModelOptionByUniqueKey}
                         personalityConfig={
                           personalityData.enablePersonality

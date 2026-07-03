@@ -399,6 +399,7 @@ public class BotServiceImpl implements BotService {
         botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
         botBase.setSkills(serializeSkills(bot.getSkills()));
         botBase.setTools(serializeTools(bot.getTools()));
+        botBase.setWorkflows(serializeWorkflows(bot.getWorkflows()));
         botBase.setClientType(bot.getClientType());
         botBase.setBotNameEn(bot.getBotNameEn());
         botBase.setBotDescEn(bot.getBotDescEn());
@@ -463,6 +464,24 @@ public class BotServiceImpl implements BotService {
             tool.setToolId(tool.getToolId().trim());
             if (seenToolIds.add(tool.getToolId())) {
                 valid.add(tool);
+            }
+        }
+        return JSON.toJSONString(valid);
+    }
+
+    private String serializeWorkflows(List<BotCreateForm.BotWorkflow> workflows) {
+        if (workflows == null) {
+            return null;
+        }
+        Set<String> seenFlowIds = new LinkedHashSet<>();
+        List<BotCreateForm.BotWorkflow> valid = new ArrayList<>();
+        for (BotCreateForm.BotWorkflow workflow : workflows) {
+            if (workflow == null || StringUtils.isBlank(workflow.getFlowId())) {
+                continue;
+            }
+            workflow.setFlowId(workflow.getFlowId().trim());
+            if (seenFlowIds.add(workflow.getFlowId())) {
+                valid.add(workflow);
             }
         }
         return JSON.toJSONString(valid);
@@ -590,6 +609,7 @@ public class BotServiceImpl implements BotService {
                 .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
                 .skills(serializeSkills(bot.getSkills()))
                 .tools(serializeTools(bot.getTools()))
+                .workflows(serializeWorkflows(bot.getWorkflows()))
                 .clientType(bot.getClientType())
                 .botNameEn(bot.getBotNameEn())
                 .botDescEn(bot.getBotDescEn())

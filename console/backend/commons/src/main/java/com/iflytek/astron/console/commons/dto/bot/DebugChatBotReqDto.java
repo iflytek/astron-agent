@@ -67,6 +67,11 @@ public class DebugChatBotReqDto {
     private String tools;
 
     /**
+     * Selected workflows JSON list
+     */
+    private String workflows;
+
+    /**
      * Model name
      */
     private String model;

@@ -72,6 +72,11 @@ public class BotDebugRequest {
     private String tools;
 
     /**
+     * Selected workflows JSON list
+     */
+    private String workflows;
+
+    /**
      * Model name
      */
     private String model = "spark";

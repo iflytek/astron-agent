@@ -12,6 +12,7 @@ import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.hub.dto.chat.BotDebugRequest;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotReqDto;
 import com.iflytek.astron.console.commons.dto.bot.DebugChatBotReqDto;
@@ -20,6 +21,7 @@ import com.iflytek.astron.console.commons.entity.chat.ChatList;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.entity.chat.ChatTreeIndex;
 import com.iflytek.astron.console.hub.service.chat.BotChatService;
+import com.iflytek.astron.console.toolkit.service.workflow.AgentWorkflowRuntimeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.PostConstruct;
@@ -58,6 +60,9 @@ public class ChatMessageController {
 
     @Autowired
     private RedissonClient redissonClient;
+
+    @Autowired
+    private AgentWorkflowRuntimeService agentWorkflowRuntimeService;
 
     public static final String STOP_GENERATE_SUBSCRIBE_PUBLISH_CHANNEL = "stop_generate_sub_pub";
 
@@ -401,10 +406,25 @@ public class ChatMessageController {
         debugChatReqDto.setMcpServerUrls(debugRequest.getMcpServerUrls());
         debugChatReqDto.setSkills(debugRequest.getSkills());
         debugChatReqDto.setTools(debugRequest.getTools());
+        debugChatReqDto.setWorkflows(debugRequest.getWorkflows());
         debugChatReqDto.setModel(debugRequest.getModel());
         debugChatReqDto.setModelId(debugRequest.getModelId());
         debugChatReqDto.setMaasDatasetList(maasDatasetList);
         debugChatReqDto.setPersonalityConfig(debugRequest.getPersonalityConfig());
+
+        // Debug requests carry workflows straight from the client; enforce the same ownership
+        // gate as save, otherwise any user could run another owner's workflow via crafted input.
+        Long spaceId = SpaceInfoUtil.getSpaceId();
+        // space-id is a client-supplied header and botDebug has no @SpacePreAuth membership
+        // aspect; without verified membership the same-space leg of the ownership check must
+        // not apply.
+        if (spaceId != null && !SpaceInfoUtil.checkUserBelongSpace()) {
+            spaceId = null;
+        }
+        if (!agentWorkflowRuntimeService.checkWorkflowsAccessible(uid, spaceId, debugRequest.getWorkflows())) {
+            SseEmitterUtil.completeWithError(sseEmitter, "Workflow not accessible");
+            return sseEmitter;
+        }
 
         try {
             sendStartSignal(sseEmitter, sseId,

@@ -25,6 +25,7 @@ import com.iflytek.astron.console.hub.util.BotPermissionUtil;
 import com.iflytek.astron.console.toolkit.service.model.LLMService;
 import com.iflytek.astron.console.toolkit.service.repo.MassDatasetInfoService;
 import com.iflytek.astron.console.toolkit.service.tool.AgentToolRuntimeService;
+import com.iflytek.astron.console.toolkit.service.workflow.AgentWorkflowRuntimeService;
 import com.iflytek.astron.console.toolkit.util.RedisUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -74,6 +75,9 @@ public class BotCreateController {
     @Autowired
     private AgentToolRuntimeService agentToolRuntimeService;
 
+    @Autowired
+    private AgentWorkflowRuntimeService agentWorkflowRuntimeService;
+
     private List<String> extractToolIds(BotCreateForm bot) {
         if (bot.getTools() == null) {
             return Collections.emptyList();
@@ -82,6 +86,17 @@ public class BotCreateController {
                 .stream()
                 .filter(tool -> tool != null && tool.getToolId() != null && !tool.getToolId().trim().isEmpty())
                 .map(tool -> tool.getToolId().trim())
+                .toList();
+    }
+
+    private List<String> extractWorkflowFlowIds(BotCreateForm bot) {
+        if (bot.getWorkflows() == null) {
+            return Collections.emptyList();
+        }
+        return bot.getWorkflows()
+                .stream()
+                .filter(w -> w != null && w.getFlowId() != null && !w.getFlowId().trim().isEmpty())
+                .map(w -> w.getFlowId().trim())
                 .toList();
     }
 
@@ -108,6 +123,10 @@ public class BotCreateController {
         }
         // Validate plugin-tool ownership: only public / own / same-space tools can be imported
         if (!agentToolRuntimeService.checkToolsAccessible(uid, spaceId, extractToolIds(bot))) {
+            return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
+        }
+        // Validate workflow ownership: only own / same-space workflows can be imported
+        if (!agentWorkflowRuntimeService.checkWorkflowsAccessible(uid, spaceId, extractWorkflowFlowIds(bot))) {
             return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
         }
         if (Boolean.TRUE.equals(bot.getEnablePersonality()) && personalityConfigService.checkPersonalityConfig(bot.getPersonalityConfig())) {
@@ -263,6 +282,10 @@ public class BotCreateController {
         }
         // Validate plugin-tool ownership: only public / own / same-space tools can be imported
         if (!agentToolRuntimeService.checkToolsAccessible(uid, spaceId, extractToolIds(bot))) {
+            return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
+        }
+        // Validate workflow ownership: only own / same-space workflows can be imported
+        if (!agentWorkflowRuntimeService.checkWorkflowsAccessible(uid, spaceId, extractWorkflowFlowIds(bot))) {
             return ApiResult.error(ResponseEnum.BOT_BELONG_ERROR);
         }
         boolean selfDocumentExist = (datasetList != null && !datasetList.isEmpty());

@@ -75,10 +75,10 @@ public class SpringAiAgentChatService {
                     : chatModelFactory.forSparkModel(task.getSparkModelName());
 
             List<ToolCallback> tools = toolCallbackResolver.resolve(task.getOpenedTool(), task.getMcpServerUrls(),
-                    task.getSkills(), task.getTools(), context);
-            log.info("Agent chat start, streamId={}, modelId={}, spark={}, toolCount={}, openedTool={}, mcpServerUrls={}, tools={}",
+                    task.getSkills(), task.getTools(), task.getWorkflows(), context);
+            log.info("Agent chat start, streamId={}, modelId={}, spark={}, toolCount={}, openedTool={}, mcpServerUrls={}, tools={}, workflows={}",
                     streamId, agentModel.modelId(), task.getLlmInfoVo() == null, tools.size(), task.getOpenedTool(),
-                    task.getMcpServerUrls(), task.getTools());
+                    task.getMcpServerUrls(), task.getTools(), task.getWorkflows());
 
             OpenAiChatOptions options = OpenAiChatOptions.builder()
                     .model(agentModel.modelId())

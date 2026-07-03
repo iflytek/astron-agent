@@ -148,6 +148,7 @@ public class BotChatServiceImpl implements BotChatService {
                         .mcpServerUrls(botConfig.mcpServerUrls)
                         .skills(enrichBotSkills(botConfig.skills()))
                         .tools(botConfig.tools())
+                        .workflows(botConfig.workflows())
                         .userId(chatBotReqDto.getUid())
                         .chatId(chatBotReqDto.getChatId())
                         .botId(chatBotReqDto.getBotId())
@@ -199,6 +200,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .mcpServerUrls(botConfig.mcpServerUrls)
                     .skills(enrichBotSkills(botConfig.skills()))
                     .tools(botConfig.tools())
+                    .workflows(botConfig.workflows())
                     .userId(chatBotReqDto.getUid())
                     .chatId(chatBotReqDto.getChatId())
                     .botId(botId)
@@ -248,6 +250,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .mcpServerUrls(request.getMcpServerUrls())
                     .skills(enrichBotSkills(request.getSkills()))
                     .tools(request.getTools())
+                    .workflows(request.getWorkflows())
                     .userId(request.getUid())
                     .chatId(null)
                     .botId(request.getBotId())
@@ -426,7 +429,8 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotMarket.getSupportDocument() == 1,
                     resolveBaseMcpServerUrls(botId),
                     resolveBaseSkills(botId),
-                    resolveBaseTools(botId));
+                    resolveBaseTools(botId),
+                    resolveBaseWorkflows(botId));
         } else {
             ChatBotBase chatBotBase = chatBotDataService.findById(botId)
                     .orElseThrow(() -> new BusinessException(ResponseEnum.BOT_NOT_EXISTS));
@@ -440,7 +444,8 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotBase.getSupportDocument() == 1,
                     chatBotBase.getMcpServerUrls(),
                     chatBotBase.getSkills(),
-                    chatBotBase.getTools());
+                    chatBotBase.getTools(),
+                    chatBotBase.getWorkflows());
         }
     }
 
@@ -464,6 +469,13 @@ public class BotChatServiceImpl implements BotChatService {
             return null;
         }
         return chatBotDataService.findById(botId).map(ChatBotBase::getTools).orElse(null);
+    }
+
+    private String resolveBaseWorkflows(Integer botId) {
+        if (botId == null) {
+            return null;
+        }
+        return chatBotDataService.findById(botId).map(ChatBotBase::getWorkflows).orElse(null);
     }
 
     /** Parse the saved skills JSON and enrich each entry with downloadUrl/resources/sandbox. */
@@ -775,7 +787,7 @@ public class BotChatServiceImpl implements BotChatService {
 
     private record BotConfiguration(String prompt, boolean supportContext, String model, String openedTool,
             Integer version, Long modelId, boolean supportDocument, String mcpServerUrls, String skills,
-            String tools) {}
+            String tools, String workflows) {}
 
     private record TokenStatistics(int systemTokens, int currentUserTokens, int reservedTokens, int availableTokens) {}
 

@@ -115,6 +115,8 @@ public class BotInfoDto {
 
     private String tools;
 
+    private String workflows;
+
     private String vcnCn;
 
     private String vcnEn;
