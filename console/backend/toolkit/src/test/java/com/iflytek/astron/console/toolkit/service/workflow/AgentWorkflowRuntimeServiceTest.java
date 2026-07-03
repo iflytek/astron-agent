@@ -168,6 +168,23 @@ class AgentWorkflowRuntimeServiceTest {
     }
 
     @Test
+    void runWorkflow_unexpectedResponseShapes_returnReadableErrorInsteadOfThrowing() throws Exception {
+        WorkflowMapper mapper = mock(WorkflowMapper.class);
+        when(mapper.selectList(any())).thenReturn(List.of(sampleWorkflow()));
+        WorkflowChatRunClient client = mock(WorkflowChatRunClient.class);
+        AgentWorkflowRuntimeService service = newService(mapper, client);
+        AgentWorkflowDefinition def = service.resolveWorkflows(List.of("flow123")).get(0);
+
+        // choices is not an array: fastjson2 getJSONArray throws on the invalid inner JSON
+        when(client.chat(any())).thenReturn("{\"code\":0,\"choices\":\"oops\"}");
+        assertThat(service.runWorkflow(def, "u", new JSONObject())).contains("WORKFLOW_CALL_FAILED");
+
+        // code is a non-numeric string: getInteger throws
+        when(client.chat(any())).thenReturn("{\"code\":\"boom\"}");
+        assertThat(service.runWorkflow(def, "u", new JSONObject())).contains("WORKFLOW_CALL_FAILED");
+    }
+
+    @Test
     void runWorkflow_invalidJsonResponse_returnsBadResponseError() throws Exception {
         WorkflowMapper mapper = mock(WorkflowMapper.class);
         when(mapper.selectList(any())).thenReturn(List.of(sampleWorkflow()));

@@ -140,14 +140,13 @@ public class AgentWorkflowRuntimeService {
         body.put("history", new JSONArray());
         body.put("stream", false);
 
-        String responseBody;
         try {
-            responseBody = workflowChatRunClient.chat(body);
+            String responseBody = workflowChatRunClient.chat(body);
+            return extractResult(definition, responseBody);
         } catch (Exception e) {
             log.warn("Workflow run failed, flowId: {}, error: {}", definition.getFlowId(), e.getMessage());
             return errorContent("WORKFLOW_CALL_FAILED", "Workflow call failed: " + e.getMessage());
         }
-        return extractResult(definition, responseBody);
     }
 
     private List<Workflow> selectByFlowIds(List<String> flowIds) {
