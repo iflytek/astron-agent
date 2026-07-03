@@ -26,9 +26,9 @@ import java.util.Set;
 /**
  * Resolves workflows the bot has imported into agent-callable definitions (tool name + JSON schema
  * from the start-node inputs) and executes them synchronously (stream=false) through the core
- * workflow chat endpoint. Mirrors {@code AgentToolRuntimeService}, the plugin counterpart.
- * Publish state is enforced by the workflow engine at run time; the save-time guard here focuses
- * on ownership (own or same-space) so crafted requests cannot attach another owner's workflow.
+ * workflow chat endpoint. Mirrors {@code AgentToolRuntimeService}, the plugin counterpart. Publish
+ * state is enforced by the workflow engine at run time; the save-time guard here focuses on
+ * ownership (own or same-space) so crafted requests cannot attach another owner's workflow.
  */
 @Slf4j
 @Service
@@ -68,8 +68,8 @@ public class AgentWorkflowRuntimeService {
     }
 
     /**
-     * Save-time guard: every requested workflow must exist, not be deleted, and be owned by the
-     * user or shared in the same space.
+     * Save-time guard: every requested workflow must exist, not be deleted, and be owned by the user or
+     * shared in the same space.
      */
     public boolean checkWorkflowsAccessible(String uid, Long spaceId, List<String> flowIds) {
         List<String> ids = normalize(flowIds);
