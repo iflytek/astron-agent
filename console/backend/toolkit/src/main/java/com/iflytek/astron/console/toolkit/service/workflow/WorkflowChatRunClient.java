@@ -8,6 +8,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -46,7 +47,8 @@ public class WorkflowChatRunClient {
             if (!response.isSuccessful()) {
                 throw new IOException("Workflow chat HTTP " + response.code());
             }
-            return response.body() == null ? "" : response.body().string();
+            ResponseBody body = response.body();
+            return body == null ? "" : body.string();
         }
     }
 }
