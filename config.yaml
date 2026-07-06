@@ -1,0 +1,38 @@
+# Astron Agent configuration
+# API Key for authentication (change in production)
+api_key: "your-api-key-here"
+
+# Webhook settings
+webhook:
+  host: "0.0.0.0"
+  port: 5000
+  ssl_enabled: true
+  ssl_cert: "/path/to/cert.pem"
+  ssl_key: "/path/to/key.pem"
+
+# Supported workfows and their permissions
+workflows:
+  - id: "financial_reimbursement"
+    name: "Financial Reimbursement"
+    required_roles: ["finance", "manager"]
+    human_approval: true
+    max_amount: 10000.00
+  - id: "contract_entry"
+    name: "Contract Entry"
+    required_roles: ["legal", "admin"]
+    human_approval: true
+  - id: "data_modification"
+    name: "Core System Data Modification"
+    required_roles: ["system_admin"]
+    human_approval: true
+
+# Audit settings
+audit:
+  log_path: "audit.log"
+  retention_days: 365
+
+# RPA executor
+rpa:
+  executor_type: "simulated"  # options: simulated, ui_path, automation_anywhere
+  endpoint: "http://rpa-orchestrator:8080/execute"
+  timeout: 300
