@@ -1,0 +1,43 @@
+# Astron Agent RPA configuration
+# This file defines the RPA execution policy and approval nodes.
+
+rpa:
+  # Endpoint for RPA bot execution
+  endpoint: "http://rpa-bot.internal/execute"
+  # API key for authentication
+  api_key: "${RPA_API_KEY}"
+
+workflows:
+  - name: "financial_reimbursement"
+    description: "财务报销流程"
+    approval_required: true
+    approval_channels:
+      - type: "email"
+        recipients: ["approver@company.com"]
+      - type: "slack"
+        channel: "#finance-approval"
+    steps:
+      - action: "login_system"
+        target: "finance_system"
+      - action: "fill_form"
+        fields:
+          - "employee_id"
+          - "amount"
+          - "reason"
+      - action: "upload_attachment"
+        file: "receipt.pdf"
+      - action: "submit"
+    audit_log: true
+
+  - name: "contract_entry"
+    description: "合同录入流程"
+    approval_required: false
+    steps:
+      - action: "parse_contract"
+      - action: "validate_fields"
+      - action: "save_to_database"
+    audit_log: true
+
+audit:
+  log_endpoint: "http://elk.internal/log"
+  log_format: "json"
