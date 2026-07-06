@@ -1,0 +1,35 @@
+{
+  "name": "ChatClaw",
+  "description": "开箱即用的 ChatClaw 应用模板，内置触发-规划-执行-回复流程",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "input",
+      "position": { "x": 250, "y": 0 },
+      "data": { "label": "用户消息触发" }
+    },
+    {
+      "id": "plan",
+      "type": "default",
+      "position": { "x": 250, "y": 100 },
+      "data": { "label": "AI 助手规划" }
+    },
+    {
+      "id": "action",
+      "type": "openclaw",
+      "position": { "x": 250, "y": 200 },
+      "data": { "skill": "default_skill", "params": "{}" }
+    },
+    {
+      "id": "reply",
+      "type": "output",
+      "position": { "x": 250, "y": 300 },
+      "data": { "label": "AI 助手回复" }
+    }
+  ],
+  "edges": [
+    { "id": "e1-2", "source": "trigger", "target": "plan" },
+    { "id": "e2-3", "source": "plan", "target": "action" },
+    { "id": "e3-4", "source": "action", "target": "reply" }
+  ]
+}
