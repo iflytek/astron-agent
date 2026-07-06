@@ -1,0 +1,24 @@
+# Example configuration for Astron Agent integration
+
+astron_agent:
+  api_url: "http://localhost:8000/api/v1/workflow"
+  auth_token: "valid-token"  # Replace with actual JWT
+  allowed_workflows:
+    - expense_report
+    - contract_entry
+    - core_data_modify
+
+rpa_executor:
+  type: "simulated"  # Options: simulated, uipath, aa
+  # If using real RPA, provide connection details
+  # uipath:
+  #   orchestrator_url: "https://orchestrator.example.com"
+  #   tenant: "default"
+  #   application_id: "..."
+  #   secret: "..."
+
+security:
+  enable_human_approval: true  # Enable human-in-the-loop
+  approval_timeout_seconds: 300
+  audit_log_file: "/var/log/astron/audit.log"
+  token_validation: "jwt"  # Options: jwt, oauth, custom
