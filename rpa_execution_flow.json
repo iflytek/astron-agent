@@ -1,0 +1,42 @@
+{
+  "scenario": "financial_reimbursement",
+  "steps": [
+    {
+      "step_id": 1,
+      "action": "open_system",
+      "target": "ERP_System",
+      "credentials": "${vault:erp_credentials}"
+    },
+    {
+      "step_id": 2,
+      "action": "navigate_to_module",
+      "module": "Reimbursement"
+    },
+    {
+      "step_id": 3,
+      "action": "fill_form",
+      "fields": {
+        "employee_id": "${params.employee_id}",
+        "amount": "${params.amount}",
+        "category": "${params.category}",
+        "description": "${params.description}"
+      }
+    },
+    {
+      "step_id": 4,
+      "action": "attach_document",
+      "document_path": "${params.receipt_path}"
+    },
+    {
+      "step_id": 5,
+      "action": "submit_for_approval"
+    },
+    {
+      "step_id": 6,
+      "action": "log_audit",
+      "message": "Financial reimbursement submitted by RPA robot"
+    }
+  ],
+  "approval_required": true,
+  "approval_channel": "email"
+}

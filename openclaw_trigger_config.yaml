@@ -1,0 +1,20 @@
+name: Astron Agent Trigger
+enabled: true
+source: openclaw
+trigger:
+  type: webhook
+  webhook_url: "https://astron-agent.internal/api/v1/trigger"
+  method: POST
+  authentication:
+    type: api_key
+    api_key: "${ASTRON_API_KEY}"
+  headers:
+    Content-Type: application/json
+  body:
+    workflow: "high_risk_workflow"
+    parameters:
+      scenario: "${scenario}"
+      user_id: "${approver_id}"
+  response_handling:
+    success_codes: [200]
+    timeout: 30000
