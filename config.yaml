@@ -1,0 +1,27 @@
+auth:
+  secret_key: "change-me-to-a-random-secret"
+
+logging:
+  log_dir: "/var/log/astron_agent"
+
+workflows:
+  financial_reimbursement:
+    allowed_users:
+      - "openclaw_service"
+      - "auditor"
+    require_approval: true
+    rpa_robot: "ui_path_robot_01"
+    steps:
+      - action: "validate_receipt"
+      - action: "submit_to_erp"
+    timeout_seconds: 300
+
+  contract_entry:
+    allowed_users:
+      - "openclaw_service"
+    require_approval: true
+    rpa_robot: "aa_robot_02"
+    steps:
+      - action: "extract_contract_data"
+      - action: "save_to_dms"
+    timeout_seconds: 600
