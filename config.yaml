@@ -1,0 +1,24 @@
+# Astron Agent Configuration
+server:
+  host: "0.0.0.0"
+  port: 8000
+
+authentication:
+  api_key: ${ASTRON_API_KEY}
+  jwt_algorithm: HS256
+
+rpa:
+  engine: "ui_path"
+  endpoint: "http://rpa-orchestrator:8080"
+  robot_pool: 5
+
+audit:
+  log_dir: "/var/log/astron_agent"
+  retention_days: 90
+
+workflows:
+  directory: "/app/workflow_definitions"
+
+human_approval:
+  enabled: true
+  timeout_seconds: 3600

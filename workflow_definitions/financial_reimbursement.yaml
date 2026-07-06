@@ -1,0 +1,25 @@
+name: Financial Reimbursement Process
+version: 1.0
+description: Standard workflow for employee expense reimbursement with human approval.
+steps:
+  - name: validate_expense_report
+    type: rpa
+    action: validate
+    input: "{{ parameters.expense_data }}"
+    expected_output: validation_result
+  - name: manager_approval
+    type: human_approval
+    required_role: manager
+    timeout: 3600
+  - name: submit_to_erp
+    type: rpa
+    action: submit
+    input: "{{ context.validate_expense_report.output }}"
+    expected_output: submission_confirmation
+  - name: notify_employee
+    type: rpa
+    action: send_notification
+    input:
+      to: "{{ parameters.employee_email }}"
+      subject: "Expense Reimbursement Submitted"
+      body: "Your expense report has been submitted for processing."
