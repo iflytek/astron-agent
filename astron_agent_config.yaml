@@ -1,0 +1,30 @@
+agents:
+  - id: rpa-orchestrator
+    name: "RPA Orchestrator"
+    triggers:
+      - type: webhook
+        path: /webhook/trigger
+        auth:
+          method: hmac
+          secret: ${ASTRON_WEBHOOK_SECRET}
+        allowed_sources: ["openclaw"]
+    workflows:
+      - id: secure-financial-reimbursement
+        name: "财务报销安全流程"
+        steps:
+          - task: permission-check
+            config:
+              required_roles: ["finance_admin"]
+          - task: human-approval
+            config:
+              timeout: 3600
+              approver_group: "finance_managers"
+          - task: rpa-execution
+            config:
+              robot_id: "rpa-bot-01"
+              script: "finance_reimbursement.py"
+              parameters: ${payload}
+          - task: audit-log
+            config:
+              log_level: "INFO"
+              retention_days: 90
