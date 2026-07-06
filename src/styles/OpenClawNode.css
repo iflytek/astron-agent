@@ -1,0 +1,95 @@
+.openclaw-node {
+  background: #fff;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  width: 200px;
+  font-family: sans-serif;
+}
+
+.openclaw-node.selected {
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.3);
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.node-icon {
+  font-size: 1.2em;
+}
+
+.node-label {
+  font-weight: bold;
+}
+
+.node-body {
+  font-size: 0.9em;
+}
+
+.node-field {
+  margin-bottom: 4px;
+}
+
+.node-field label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.config-panel {
+  background: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  min-width: 300px;
+}
+
+.config-panel h3 {
+  margin-top: 0;
+}
+
+.config-field {
+  margin-bottom: 15px;
+}
+
+.config-field label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.config-field input,
+.config-field textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.config-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.config-actions button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.config-actions button:first-child {
+  background-color: #007bff;
+  color: white;
+}
+
+.config-actions button:last-child {
+  background-color: #6c757d;
+  color: white;
+}
