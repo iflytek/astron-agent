@@ -1,0 +1,48 @@
+{
+  "id": "chatclaw-template",
+  "name": "ChatClaw Default",
+  "description": "A ready-to-use ChatClaw workflow with trigger-plan-execute-respond flow",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "input",
+      "position": {"x": 0, "y": 200},
+      "data": {"label": "User Input"}
+    },
+    {
+      "id": "planner",
+      "type": "aiPlanner",
+      "position": {"x": 200, "y": 200},
+      "data": {"model": "gpt-4", "prompt": "Plan the steps to answer the user query"}
+    },
+    {
+      "id": "openclaw",
+      "type": "openclaw",
+      "position": {"x": 400, "y": 200},
+      "data": {
+        "skillName": "default_skill",
+        "inputParams": {},
+        "preCondition": "",
+        "postCondition": ""
+      }
+    },
+    {
+      "id": "responder",
+      "type": "aiResponder",
+      "position": {"x": 600, "y": 200},
+      "data": {"model": "gpt-4", "prompt": "Formulate a response based on the result"}
+    },
+    {
+      "id": "output",
+      "type": "output",
+      "position": {"x": 800, "y": 200},
+      "data": {"label": "Final Response"}
+    }
+  ],
+  "edges": [
+    {"id": "e1-2", "source": "trigger", "target": "planner"},
+    {"id": "e2-3", "source": "planner", "target": "openclaw"},
+    {"id": "e3-4", "source": "openclaw", "target": "responder"},
+    {"id": "e4-5", "source": "responder", "target": "output"}
+  ]
+}
