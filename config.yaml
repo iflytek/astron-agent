@@ -1,0 +1,31 @@
+# Astron Agent Configuration
+astron_agent:
+  api:
+    host: "0.0.0.0"
+    port: 5000
+    tls: true
+  authentication:
+    api_key: "your_api_key"
+    hmac_secret: "your_hmac_secret"
+  rpa:
+    orchestrator: "RPAOrchestrator"
+    workflows:
+      finance_reimbursement:
+        description: "Finance reimbursement process with human approval"
+        required_approval: true
+        approval_level: "manager"
+        rpa_bot: "finance_bot_v1"
+      contract_entry:
+        description: "Contract entry process"
+        required_approval: true
+        approval_level: "legal"
+        rpa_bot: "contract_bot_v2"
+      core_data_modification:
+        description: "Core system data modification"
+        required_approval: true
+        approval_level: "supervisor"
+        rpa_bot: "data_bot_v3"
+  logging:
+    level: "INFO"
+    audit_log: true
+    retention_days: 365
