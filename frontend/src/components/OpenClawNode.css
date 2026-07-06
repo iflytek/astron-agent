@@ -1,0 +1,36 @@
+.openclaw-node {
+  background: #ffffff;
+  border: 2px solid #4a90d9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 180px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  font-family: sans-serif;
+}
+
+.openclaw-node.selected {
+  border-color: #ff6b35;
+  box-shadow: 0 0 0 2px #ff6b3540;
+}
+
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.node-icon {
+  font-size: 1.2em;
+}
+
+.node-title {
+  font-weight: bold;
+  color: #333;
+}
+
+.node-body {
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 4px;
+}

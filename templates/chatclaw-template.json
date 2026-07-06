@@ -1,0 +1,58 @@
+{
+  "name": "ChatClaw Application",
+  "description": "A complete ChatClaw workflow: trigger -> plan -> execute OpenClaw -> reply",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "triggerNode",
+      "data": {
+        "label": "User Message Trigger",
+        "triggerType": "message",
+        "config": {}
+      },
+      "position": { "x": 100, "y": 50 }
+    },
+    {
+      "id": "planner",
+      "type": "aiPlannerNode",
+      "data": {
+        "label": "AI Assistant Planner",
+        "model": "gpt-4",
+        "instructions": "Analyze user query and determine which OpenClaw skill to call."
+      },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "openclaw",
+      "type": "openclawNode",
+      "data": {
+        "label": "OpenClaw Execution",
+        "skillId": "default-skillset",
+        "inputMapping": {
+          "query": "planner.output.skillInput"
+        },
+        "outputMapping": {
+          "executionResult": "result"
+        },
+        "preconditions": [],
+        "postconditions": []
+      },
+      "position": { "x": 100, "y": 350 }
+    },
+    {
+      "id": "reply",
+      "type": "aiReplyNode",
+      "data": {
+        "label": "AI Assistant Reply",
+        "model": "gpt-4",
+        "template": "Based on the execution result: {{executionResult}}, here is my response..."
+      },
+      "position": { "x": 100, "y": 500 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger", "target": "planner", "type": "smoothstep" },
+    { "id": "e2", "source": "planner", "target": "openclaw", "type": "smoothstep" },
+    { "id": "e3", "source": "openclaw", "target": "reply", "type": "smoothstep" }
+  ]
+}
