@@ -1,0 +1,52 @@
+{
+  "workflow": {
+    "name": "ChatClaw Example",
+    "nodes": [
+      {
+        "id": "trigger",
+        "type": "trigger",
+        "label": "User Message",
+        "position": { "x": 100, "y": 100 },
+        "config": {
+          "event": "user_message"
+        }
+      },
+      {
+        "id": "planner",
+        "type": "ai_planner",
+        "label": "AI Planner",
+        "position": { "x": 100, "y": 200 },
+        "config": {}
+      },
+      {
+        "id": "openclaw_action",
+        "type": "openclaw_node",
+        "label": "OpenClaw Skill Execution",
+        "position": { "x": 100, "y": 300 },
+        "config": {
+          "skillId": "sample_skill",
+          "parameters": {
+            "input": "{{planner.output}}",
+            "additionalParam": "static_value"
+          },
+          "preconditions": [],
+          "postconditions": []
+        }
+      },
+      {
+        "id": "response",
+        "type": "ai_response",
+        "label": "AI Response",
+        "position": { "x": 100, "y": 400 },
+        "config": {
+          "input": "{{openclaw_action.output}}"
+        }
+      }
+    ],
+    "edges": [
+      { "source": "trigger", "target": "planner" },
+      { "source": "planner", "target": "openclaw_action" },
+      { "source": "openclaw_action", "target": "response" }
+    ]
+  }
+}

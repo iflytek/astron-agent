@@ -1,0 +1,46 @@
+{
+  "openclawNode": {
+    "skillId": "string",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "string",
+          "description": "Input to the skill, can reference previous node outputs using {{nodeId.output}}"
+        },
+        "additionalParam": {
+          "type": "string",
+          "description": "Any additional parameters required by the skill"
+        }
+      },
+      "required": ["input"]
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "condition": { "type": "string" },
+          "action": { "type": "string" }
+        },
+        "required": ["condition"]
+      }
+    },
+    "postconditions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/condition"
+      }
+    },
+    "definitions": {
+      "condition": {
+        "type": "object",
+        "properties": {
+          "condition": { "type": "string" },
+          "action": { "type": "string" }
+        },
+        "required": ["condition"]
+      }
+    }
+  }
+}
