@@ -1,0 +1,27 @@
+# Astron Agent - Security and RPA Configuration
+
+# Shared secret between OpenClaw and Astron Agent for HMAC
+secret_key: "your-secret-key"
+
+# Allowed workflows (whitelist)
+allowed_workflows:
+  - finance_reimbursement
+  - contract_entry
+  - core_data_update
+
+# RPA execution settings
+rpa:
+  script_path: "/opt/rpa/execute_workflow.py"
+  timeout_seconds: 300
+  max_retries: 3
+
+# Human-in-the-loop approval endpoint (if applicable)
+approval:
+  enabled: true
+  endpoint: "https://approval.internal/api/request"
+  timeout_seconds: 60
+
+# Audit logging
+logging:
+  level: "INFO"
+  output: "stdout"
