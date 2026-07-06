@@ -1,0 +1,15 @@
+# Astron Agent configuration example (RPA scenario definition)
+scenarios:
+  - id: financial-reimbursement
+    name: "财务报销流程"
+    steps:
+      - action: validate_user
+        permissions: ["finance_admin"]
+      - action: approve_human_in_loop
+        timeout: 3600
+      - action: execute_rpa
+        robot_id: "rpa-01"
+        script: "reimbursement_script.py"
+    audit:
+      log_all_actions: true
+      retention_days: 365
