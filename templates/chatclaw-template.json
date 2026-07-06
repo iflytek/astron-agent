@@ -1,0 +1,42 @@
+{
+  "name": "ChatClaw 应用模板",
+  "description": "内置"触发-规划-执行-回复"闭环流程",
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "input",
+      "position": { "x": 0, "y": 0 },
+      "data": { "label": "用户消息触发" }
+    },
+    {
+      "id": "planner",
+      "type": "ai-assistant",
+      "position": { "x": 0, "y": 100 },
+      "data": { "label": "AI 助手规划", "prompt": "根据用户意图规划动作" }
+    },
+    {
+      "id": "openclaw",
+      "type": "openclaw",
+      "position": { "x": 0, "y": 200 },
+      "data": { "label": "OpenClaw Skill", "skillId": "", "inputParams": {}, "outputMapping": {} }
+    },
+    {
+      "id": "reply",
+      "type": "ai-assistant",
+      "position": { "x": 0, "y": 300 },
+      "data": { "label": "AI 助手回复", "prompt": "基于执行结果生成回复" }
+    },
+    {
+      "id": "end",
+      "type": "output",
+      "position": { "x": 0, "y": 400 },
+      "data": { "label": "结束" }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger", "target": "planner" },
+    { "id": "e2", "source": "planner", "target": "openclaw" },
+    { "id": "e3", "source": "openclaw", "target": "reply" },
+    { "id": "e4", "source": "reply", "target": "end" }
+  ]
+}
