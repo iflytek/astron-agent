@@ -33,6 +33,7 @@ class NodeType(Enum):
     DATABASE = "database"
     RPA = "rpa"
     MCP = "mcp"
+    OPENCLAW = "openclaw"
     MEMORY_ADD = "memory-add"
     MEMORY_SEARCH = "memory-search"
 
@@ -98,6 +99,7 @@ CONTINUE_ON_ERROR_NOT_STREAM_NODE_TYPE = [
     NodeType.KNOWLEDGE_BASE.value,
     NodeType.PARAMETER_EXTRACTOR.value,
     NodeType.MCP.value,
+    NodeType.OPENCLAW.value,
     NodeType.RPA.value,
     NodeType.MEMORY_ADD.value,
     NodeType.MEMORY_SEARCH.value,

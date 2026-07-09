@@ -42,6 +42,30 @@ class MCPNode(BaseNode):
             raise ValueError("toolName cannot be empty")
         return self
 
+    def build_tool_args(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """Build MCP tool arguments from resolved workflow inputs."""
+        return inputs
+
+    def build_request_body(self, tool_args: dict[str, Any]) -> dict[str, Any]:
+        """Build the request body sent to the MCP gateway."""
+        return {
+            "mcp_server_id": self.mcpServerId,
+            "mcp_server_url": self.mcpServerUrl,
+            "tool_name": self.toolName,
+            "tool_args": tool_args,
+        }
+
+    async def collect_inputs(
+        self,
+        variable_pool: VariablePool,
+        span: Span,
+    ) -> dict[str, Any]:
+        """Resolve workflow inputs before building MCP tool arguments."""
+        return {
+            k: variable_pool.get_variable(node_id=self.node_id, key_name=k, span=span)
+            for k in self.input_identifier
+        }
+
     async def execute(
         self,
         variable_pool: VariablePool,
@@ -62,14 +86,7 @@ class MCPNode(BaseNode):
         inputs, outputs = {}, {}
         try:
             # Get input variables from variable pool using dictionary comprehension
-            inputs.update(
-                {
-                    k: variable_pool.get_variable(
-                        node_id=self.node_id, key_name=k, span=span
-                    )
-                    for k in self.input_identifier
-                }
-            )
+            inputs.update(await self.collect_inputs(variable_pool, span))
             await span.add_info_events_async(
                 {"mcp_input": json.dumps(inputs, ensure_ascii=False)}
             )
@@ -77,12 +94,7 @@ class MCPNode(BaseNode):
 
             # Prepare MCP tool call request
             url = f"{os.getenv('MCP_BASE_URL')}/api/v1/mcp/call_tool"
-            req_body = {
-                "mcp_server_id": self.mcpServerId,
-                "mcp_server_url": self.mcpServerUrl,
-                "tool_name": self.toolName,
-                "tool_args": inputs,
-            }
+            req_body = self.build_request_body(self.build_tool_args(inputs))
             # Execute MCP tool call
             async with aiohttp.ClientSession(
                 timeout=ClientTimeout(total=5 * 60, sock_connect=30)

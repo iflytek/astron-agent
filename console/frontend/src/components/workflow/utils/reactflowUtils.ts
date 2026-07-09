@@ -80,7 +80,7 @@ export function getEdgeId(sourceId: string, targetId: string): string {
 
 export function extractTargetAndSource(inputString: string): string[] | null {
   const regex =
-    /([a-zA-Z]+-(llm|start|end|making|code|base|else|parameter|joiner|aggregation)|plugin|message|iteration|loop|loop-node-start|loop-node-end|loop-exit|variable)::[0-9a-fA-F-]{36}/g;
+    /([a-zA-Z]+-(llm|start|end|making|code|base|else|parameter|joiner|aggregation)|plugin|message|iteration|loop|loop-node-start|loop-node-end|loop-exit|openclaw|variable)::[0-9a-fA-F-]{36}/g;
   return inputString.match(regex);
 }
 
@@ -227,8 +227,7 @@ export const checkedNodeInputData = (
     ) || [];
 
   const noNeedCheckToolInputs =
-    currentCheckNode?.nodeType === 'plugin' ||
-    currentCheckNode?.nodeType === 'flow'
+    ['plugin', 'flow', 'openclaw'].includes(currentCheckNode?.nodeType)
       ? currentCheckNode?.data?.inputs
           ?.filter(input => !input?.required || input?.disabled)
           ?.map(input => input?.id)
@@ -579,6 +578,60 @@ function validateAgentParams(currentCheckNode: unknown): boolean {
   );
 }
 
+function validateOpenClawParams(currentCheckNode: unknown): boolean {
+  if (currentCheckNode?.nodeType !== 'openclaw') {
+    return true;
+  }
+
+  const nodeParam = currentCheckNode?.data?.nodeParam;
+  if (!nodeParam) {
+    return false;
+  }
+
+  const valueCannotBeEmpty = i18next.t(
+    'workflow.nodes.validation.valueCannotBeEmpty'
+  );
+  let passFlag = true;
+
+  if (!nodeParam?.mcpServerId?.trim() && !nodeParam?.mcpServerUrl?.trim()) {
+    nodeParam.mcpServerUrlErrMsg = valueCannotBeEmpty;
+    passFlag = false;
+  } else if (
+    nodeParam?.mcpServerUrl?.trim() &&
+    !isValidURL(nodeParam.mcpServerUrl)
+  ) {
+    nodeParam.mcpServerUrlErrMsg = i18next.t(
+      'workflow.nodes.validation.pleaseEnterValidURL'
+    );
+    passFlag = false;
+  } else {
+    nodeParam.mcpServerUrlErrMsg = '';
+  }
+
+  if (!nodeParam?.toolName?.trim()) {
+    nodeParam.toolNameErrMsg = valueCannotBeEmpty;
+    passFlag = false;
+  } else {
+    nodeParam.toolNameErrMsg = '';
+  }
+
+  if (!nodeParam?.skillName?.trim()) {
+    nodeParam.skillNameErrMsg = valueCannotBeEmpty;
+    passFlag = false;
+  } else {
+    nodeParam.skillNameErrMsg = '';
+  }
+
+  if (!nodeParam?.executionMode?.trim()) {
+    nodeParam.executionModeErrMsg = valueCannotBeEmpty;
+    passFlag = false;
+  } else {
+    nodeParam.executionModeErrMsg = '';
+  }
+
+  return passFlag;
+}
+
 function validateQuestionAnswerOptions(currentCheckNode: unknown): boolean {
   if (
     currentCheckNode?.nodeType !== 'question-answer' ||
@@ -764,6 +817,7 @@ export const checkedNodeParams = (currentCheckNode: unknown): boolean => {
     validateLoopParams,
     validateTextJoinerParams,
     validateAgentParams,
+    validateOpenClawParams,
     validateQuestionAnswerOptions,
     validateDatabaseParams,
     validateServiceIdParams,
