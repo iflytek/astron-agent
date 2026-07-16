@@ -70,15 +70,17 @@ class A2AAPIKeySecurityScheme(A2ABaseModel):
     """A2A API key security scheme."""
 
     description: str = ""
-    location: Literal["query", "header", "cookie"]
+    type: Literal["apiKey"] = "apiKey"
+    in_: Literal["query", "header", "cookie"] = Field(alias="in")
     name: str
 
 
 class A2ASecurityScheme(A2ABaseModel):
     """A2A security scheme union."""
 
-    api_key_security_scheme: A2AAPIKeySecurityScheme = Field(
-        alias="apiKeySecurityScheme"
+    api_key_security_scheme: Optional[A2AAPIKeySecurityScheme] = Field(
+        default=None,
+        alias="apiKeySecurityScheme",
     )
 
 

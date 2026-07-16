@@ -72,7 +72,7 @@ def build_agent_card() -> A2AAgentCard:
             "astronConsumer": A2ASecurityScheme(
                 apiKeySecurityScheme=A2AAPIKeySecurityScheme(
                     description="Astron gateway consumer header.",
-                    location="header",
+                    in_="header",
                     name="x-consumer-username",
                 )
             )

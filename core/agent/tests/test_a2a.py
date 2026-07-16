@@ -31,7 +31,8 @@ def test_build_agent_card_uses_a2a_shapes(monkeypatch: pytest.MonkeyPatch) -> No
     }
     assert dumped["securitySchemes"]["astronConsumer"]["apiKeySecurityScheme"] == {
         "description": "Astron gateway consumer header.",
-        "location": "header",
+        "type": "apiKey",
+        "in": "header",
         "name": "x-consumer-username",
     }
     assert dumped["securityRequirements"][0]["schemes"] == {
