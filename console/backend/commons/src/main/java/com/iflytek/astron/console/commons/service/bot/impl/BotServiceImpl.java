@@ -27,6 +27,7 @@ import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.DatasetDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainLogService;
+import com.iflytek.astron.console.commons.service.workflow.WorkflowVersionLookupService;
 import com.iflytek.astron.console.commons.util.BotFileParamUtil;
 import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.commons.util.MaasUtil;
@@ -43,12 +44,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -102,6 +106,9 @@ public class BotServiceImpl implements BotService {
     @Autowired
     private ChatBotPromptStructMapper chatBotPromptStructMapper;
 
+    @Autowired
+    private WorkflowVersionLookupService workflowVersionLookupService;
+
     @Value("${bot.default.avatar}")
     private String DEFAULT_AVATAR;
 
@@ -109,6 +116,7 @@ public class BotServiceImpl implements BotService {
     private String workflowConfigUrl;
 
     public static final String BOT_INPUT_EXAMPLE_SPLIT = "%%split%%";
+    private static final Integer DEFAULT_BOT_TYPE = 10;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -211,7 +219,7 @@ public class BotServiceImpl implements BotService {
         botBase.setBotName(detail.getBotName() + RandomUtil.randomString(6));
         botBase.setUpdateTime(LocalDateTime.now());
         botBase.setCreateTime(LocalDateTime.now());
-        chatBotBaseMapper.insert(botBase);
+        saveBotAndAddToList(botBase);
         return botBase;
     }
 
@@ -231,7 +239,7 @@ public class BotServiceImpl implements BotService {
         botBase.setBotName(detail.getBotName() + RandomUtil.randomString(6));
         botBase.setUpdateTime(LocalDateTime.now());
         botBase.setCreateTime(LocalDateTime.now());
-        chatBotBaseMapper.insert(botBase);
+        saveBotAndAddToList(botBase);
         return botBase;
     }
 
@@ -333,9 +341,10 @@ public class BotServiceImpl implements BotService {
     }
 
     private ChatBotBase createWorkflowBotBase(String uid, BotCreateForm bot, Long spaceId, Integer version) {
+        Integer botType = normalizeBotFormType(bot);
         ChatBotBase botBase = new ChatBotBase();
         botBase.setUid(uid);
-        botBase.setBotType(bot.getBotType());
+        botBase.setBotType(botType);
         botBase.setBotName(bot.getName());
         botBase.setAvatar(bot.getAvatar());
         botBase.setPcBackground(bot.getPcBackground());
@@ -351,6 +360,7 @@ public class BotServiceImpl implements BotService {
         botBase.setModel(bot.getModel());
         botBase.setIsSentence(bot.getIsSentence());
         botBase.setOpenedTool(bot.getOpenedTool());
+        botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
         botBase.setClientType(bot.getClientType());
         botBase.setSpaceId(spaceId);
         setInputExamples(botBase, bot.getInputExample(), null);
@@ -361,9 +371,10 @@ public class BotServiceImpl implements BotService {
     }
 
     private ChatBotBase createBasicBotBase(String uid, BotCreateForm bot, Long spaceId) {
+        Integer botType = normalizeBotFormType(bot);
         ChatBotBase botBase = new ChatBotBase();
         botBase.setUid(uid);
-        botBase.setBotType(bot.getBotType());
+        botBase.setBotType(botType);
         botBase.setBotName(bot.getName());
         botBase.setAvatar(bot.getAvatar());
         botBase.setPcBackground(bot.getPcBackground());
@@ -385,6 +396,10 @@ public class BotServiceImpl implements BotService {
         botBase.setVcnSpeed(bot.getVcnSpeed());
         botBase.setIsSentence(bot.getIsSentence());
         botBase.setOpenedTool(bot.getOpenedTool());
+        botBase.setMcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()));
+        botBase.setSkills(serializeSkills(bot.getSkills()));
+        botBase.setTools(serializeTools(bot.getTools()));
+        botBase.setWorkflows(serializeWorkflows(bot.getWorkflows()));
         botBase.setClientType(bot.getClientType());
         botBase.setBotNameEn(bot.getBotNameEn());
         botBase.setBotDescEn(bot.getBotDescEn());
@@ -413,6 +428,79 @@ public class BotServiceImpl implements BotService {
         }
     }
 
+    private String serializeMcpServerUrls(List<String> mcpServerUrls) {
+        if (mcpServerUrls == null) {
+            return null;
+        }
+        List<String> normalizedUrls = mcpServerUrls.stream()
+                .filter(StringUtils::isNotBlank)
+                .map(String::trim)
+                .filter(this::isValidMcpServerUrl)
+                .distinct()
+                .collect(Collectors.toList());
+        return JSON.toJSONString(normalizedUrls);
+    }
+
+    private String serializeSkills(List<BotCreateForm.BotSkill> skills) {
+        if (skills == null) {
+            return null;
+        }
+        List<BotCreateForm.BotSkill> valid = skills.stream()
+                .filter(skill -> skill != null && skill.getSkillId() != null)
+                .collect(Collectors.toList());
+        return JSON.toJSONString(valid);
+    }
+
+    private String serializeTools(List<BotCreateForm.BotTool> tools) {
+        if (tools == null) {
+            return null;
+        }
+        Set<String> seenToolIds = new LinkedHashSet<>();
+        List<BotCreateForm.BotTool> valid = new ArrayList<>();
+        for (BotCreateForm.BotTool tool : tools) {
+            if (tool == null || StringUtils.isBlank(tool.getToolId())) {
+                continue;
+            }
+            tool.setToolId(tool.getToolId().trim());
+            if (seenToolIds.add(tool.getToolId())) {
+                valid.add(tool);
+            }
+        }
+        return JSON.toJSONString(valid);
+    }
+
+    private String serializeWorkflows(List<BotCreateForm.BotWorkflow> workflows) {
+        if (workflows == null) {
+            return null;
+        }
+        Set<String> seenFlowIds = new LinkedHashSet<>();
+        List<BotCreateForm.BotWorkflow> valid = new ArrayList<>();
+        for (BotCreateForm.BotWorkflow workflow : workflows) {
+            if (workflow == null || StringUtils.isBlank(workflow.getFlowId())) {
+                continue;
+            }
+            workflow.setFlowId(workflow.getFlowId().trim());
+            if (seenFlowIds.add(workflow.getFlowId())) {
+                valid.add(workflow);
+            }
+        }
+        return JSON.toJSONString(valid);
+    }
+
+    private boolean isValidMcpServerUrl(String mcpServerUrl) {
+        try {
+            URI uri = URI.create(mcpServerUrl);
+            String scheme = uri.getScheme();
+            // Use getAuthority() not getHost(): URI.getHost() returns null for hostnames containing
+            // underscores (e.g. http://mcp_server:8080), common in internal Docker/K8s networks,
+            // which would otherwise silently drop valid MCP server URLs.
+            return StringUtils.isNotBlank(uri.getAuthority())
+                    && ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     private void saveBotAndAddToList(ChatBotBase botBase) {
         try {
             chatBotDataService.createBot(botBase);
@@ -432,10 +520,11 @@ public class BotServiceImpl implements BotService {
     private void updateWorkflowBotInternal(String uid, BotCreateForm bot, HttpServletRequest request, Long spaceId) {
         try {
             Integer botId = bot.getBotId();
+            Integer botType = normalizeBotFormType(bot);
             ChatBotBase botBase = ChatBotBase.builder()
                     .uid(uid)
                     .id(botId)
-                    .botType(bot.getBotType())
+                    .botType(botType)
                     .botName(bot.getName())
                     .avatar(bot.getAvatar())
                     .pcBackground(bot.getPcBackground())
@@ -451,6 +540,7 @@ public class BotServiceImpl implements BotService {
                     .model(bot.getModel())
                     .isSentence(bot.getIsSentence())
                     .openedTool(bot.getOpenedTool())
+                    .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
                     .clientType(bot.getClientType())
                     .inputExample(bot.getInputExample() != null && bot.getInputExample().size() > 0 ? String.join(BOT_INPUT_EXAMPLE_SPLIT, bot.getInputExample()) : null)
                     .modelId(bot.getModelId())
@@ -489,10 +579,11 @@ public class BotServiceImpl implements BotService {
     }
 
     private ChatBotBase createUpdateBotBase(String uid, BotCreateForm bot) {
+        Integer botType = normalizeBotFormType(bot);
         return ChatBotBase.builder()
                 .uid(uid)
                 .id(bot.getBotId())
-                .botType(bot.getBotType())
+                .botType(botType)
                 .botName(bot.getName())
                 .avatar(bot.getAvatar())
                 .pcBackground(bot.getPcBackground())
@@ -515,6 +606,10 @@ public class BotServiceImpl implements BotService {
                 .vcnSpeed(bot.getVcnSpeed())
                 .isSentence(bot.getIsSentence())
                 .openedTool(bot.getOpenedTool())
+                .mcpServerUrls(serializeMcpServerUrls(bot.getMcpServerUrls()))
+                .skills(serializeSkills(bot.getSkills()))
+                .tools(serializeTools(bot.getTools()))
+                .workflows(serializeWorkflows(bot.getWorkflows()))
                 .clientType(bot.getClientType())
                 .botNameEn(bot.getBotNameEn())
                 .botDescEn(bot.getBotDescEn())
@@ -529,6 +624,32 @@ public class BotServiceImpl implements BotService {
                 .inputExample(bot.getInputExample() != null && !bot.getInputExample().isEmpty() ? String.join(BOT_INPUT_EXAMPLE_SPLIT, bot.getInputExample()) : null)
                 .modelId(bot.getModelId())
                 .build();
+    }
+
+    private Integer normalizeBotFormType(BotCreateForm bot) {
+        Integer botType = normalizeBotType(bot.getBotType());
+        bot.setBotType(botType);
+        return botType;
+    }
+
+    private Integer normalizeBotType(Integer botType) {
+        if (botType != null && botType > 0) {
+            return botType;
+        }
+
+        if (botTypeListService != null) {
+            try {
+                return botTypeListService.getBotTypeList()
+                        .stream()
+                        .map(BotTypeList::getTypeKey)
+                        .filter(typeKey -> typeKey != null && typeKey > 0)
+                        .findFirst()
+                        .orElse(DEFAULT_BOT_TYPE);
+            } catch (Exception e) {
+                log.warn("Failed to load default bot type, fallback to {}", DEFAULT_BOT_TYPE, e);
+            }
+        }
+        return DEFAULT_BOT_TYPE;
     }
 
     private void setEnglishInputExamplesIfPresent(ChatBotBase botBase, List<String> inputExampleEn) {
@@ -706,29 +827,42 @@ public class BotServiceImpl implements BotService {
             botInfo.setPcBackground(background);
         }
 
-        if (workflowVersion != null && uid.equals(chatBotBase.getUid())) {
-            updateWorkflowStatus(botInfo, botId, workflowVersion);
-        }
+        updateWorkflowStatus(botInfo, botId, normalizeWorkflowVersion(workflowVersion));
     }
 
     private void updateWorkflowStatus(BotInfoDto botInfo, Integer botId, String workflowVersion) {
         try {
             String flowId = userLangChainDataService.findFlowIdByBotId(botId);
-            JSONObject releaseStatusJson = getWorkflowApiResponse("http://127.0.0.1:8080/workflow/version/publish-result?flowId=" + flowId + "&name=" + workflowVersion);
-            JSONObject versionResult = getWorkflowApiResponse("http://127.0.0.1:8080/workflow/version/get-max-version?botId=" + botId);
-
-            if (!releaseStatusJson.getJSONArray("data").isEmpty()) {
-                String releaseStatus = releaseStatusJson.getJSONArray("data").getJSONObject(0).getString("publishResult");
-                log.info("botId:{} query release status: {}", botId, releaseStatus);
-                botInfo.setBotStatus(Objects.equals(releaseStatus, "success") ? ShelfStatusEnum.ON_SHELF.getCode() : ShelfStatusEnum.OFF_SHELF.getCode());
+            if (StringUtils.isBlank(flowId)) {
+                return;
             }
 
-            String versionMax = versionResult.getJSONObject("data").getString("workflowMaxVersion");
-            botInfo.setWorkflowVersion(versionMax);
+            if (StringUtils.isNotBlank(workflowVersion)) {
+                workflowVersionLookupService.isPublishedVersion(flowId, workflowVersion)
+                        .ifPresent(published -> botInfo.setBotStatus(
+                                published ? ShelfStatusEnum.ON_SHELF.getCode() : ShelfStatusEnum.OFF_SHELF.getCode()));
+            }
+
+            workflowVersionLookupService.findLatestSuccessfulVersionName(botId)
+                    .ifPresentOrElse(
+                            botInfo::setWorkflowVersion,
+                            () -> {
+                                if (StringUtils.isNotBlank(workflowVersion)) {
+                                    botInfo.setWorkflowVersion(workflowVersion);
+                                }
+                            });
         } catch (Exception e) {
             log.error("botId:{} query release status exception", botId, e);
-            botInfo.setBotStatus(ShelfStatusEnum.OFF_SHELF.getCode());
         }
+    }
+
+    private String normalizeWorkflowVersion(String workflowVersion) {
+        if (StringUtils.isBlank(workflowVersion)
+                || "undefined".equalsIgnoreCase(workflowVersion)
+                || "null".equalsIgnoreCase(workflowVersion)) {
+            return null;
+        }
+        return workflowVersion;
     }
 
     @Override
@@ -777,35 +911,6 @@ public class BotServiceImpl implements BotService {
             log.error("Failed to get assistant background image: {}: {}, botId: {}, response: {}", e.getClass().getName(), e.getMessage(), botId, response);
         }
         return null;
-    }
-
-    private JSONObject getWorkflowApiResponse(String url) {
-        Request request = new Request.Builder()
-                .url(url)
-                .get()
-                .build();
-
-        try (Response okResponse = httpClient.newCall(request).execute()) {
-            if (!okResponse.isSuccessful()) {
-                log.error("Workflow API request failed: {}, URL: {}", okResponse.code(), url);
-                return new JSONObject();
-            }
-
-            ResponseBody responseBody = okResponse.body();
-            if (responseBody == null) {
-                return new JSONObject();
-            }
-
-            String response = responseBody.string();
-            if (StringUtils.isBlank(response)) {
-                return new JSONObject();
-            }
-
-            return JSONObject.parseObject(response);
-        } catch (Exception e) {
-            log.error("Workflow API call exception, URL: {}, error: {}", url, e.getMessage(), e);
-            return new JSONObject();
-        }
     }
 
     public void processPromptStruct(Integer botId, BotCreateForm bot) {

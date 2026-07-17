@@ -76,10 +76,10 @@
             <when test="condition.sortField != null">
                 <choose>
                     <when test="condition.sortField == 'createTime'">
-                        ORDER BY a.create_time ${condition.sortDirection != null ? condition.sortDirection : 'DESC'}
+                        ORDER BY a.create_time ${condition.safeSortDirection}
                     </when>
                     <when test="condition.sortField == 'updateTime'">
-                        ORDER BY a.update_time ${condition.sortDirection != null ? condition.sortDirection : 'DESC'}
+                        ORDER BY a.update_time ${condition.safeSortDirection}
                     </when>
                     <otherwise>
                         ORDER BY a.create_time DESC

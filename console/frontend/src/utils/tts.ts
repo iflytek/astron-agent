@@ -557,7 +557,7 @@ class Experience {
     fromRate: number = 16000,
     toRate: number = 22505
   ): void {
-    let outputS16 = this.base64ToS16(audioDataStr);
+    const outputS16 = this.base64ToS16(audioDataStr);
     let output = this.transS16ToF32(outputS16);
     output = this.transSamplingRate(output, fromRate, toRate);
     const outputArray = Array.from(output);

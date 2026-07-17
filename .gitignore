@@ -104,6 +104,9 @@ tmp/
 # Serena MCP cache
 .serena/
 
+# Superpowers visual brainstorming/session artifacts
+.superpowers/
+
 # =============================================================================
 # Operating Systems
 # =============================================================================
@@ -246,3 +249,4 @@ docker-compose.override.yml
 *.dockerignore.local
 .codex/
 openspec/
+docs/superpowers/

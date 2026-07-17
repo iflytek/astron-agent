@@ -16,8 +16,6 @@ class KnowledgeConfig:
     Documentation: http://10.1.87.65:3000/project/427/interface/api/17187
     """
 
-    # TODO: Move knowledge base URL to configuration file
-
     def __init__(
         self,
         top_n: str,
@@ -27,6 +25,7 @@ class KnowledgeConfig:
         query: str,
         flow_id: str = "",
         doc_ids: list = [],
+        dataset_ids: list[str] = [],
         threshold: float = 0.1,
         history: list[HistoryItem] = [],
     ):
@@ -49,6 +48,7 @@ class KnowledgeConfig:
         self.query = query
         self.flow_id = flow_id
         self.doc_ids = doc_ids
+        self.dataset_ids = dataset_ids
         self.threshold = threshold
         self.history = history
 
@@ -61,7 +61,7 @@ class KnowledgeClient:
     using the provided configuration parameters.
     """
 
-    headers = {"Content-Type": "application/json"}
+    BASE_HEADERS = {"Content-Type": "application/json"}
 
     def __init__(self, *, config: KnowledgeConfig):
         """
@@ -91,11 +91,11 @@ class KnowledgeClient:
             event_log_node_trace = kwargs.get("event_log_node_trace")
             if event_log_node_trace:
                 event_log_node_trace.append_config_data(
-                    {"url": url, "req_headers": self.headers, "req_body": payload}
+                    {"url": url, "req_headers": self.headers(), "req_body": payload}
                 )
             session = HttpClient.get_session()
             async with session.post(
-                url, headers=self.headers, json=json.loads(payload)
+                url, headers=self.headers(), json=json.loads(payload)
             ) as resp:
                 background_json = json.loads(await resp.text())
                 # background_json = requests.request("POST", url, headers=self.headers, data=payload).json()
@@ -134,20 +134,27 @@ class KnowledgeClient:
 
         :return: JSON string containing the request payload
         """
+        match = {
+            "repoId": self.config.repo_id,
+            "docIds": self.config.doc_ids,
+            "flowId": self.config.flow_id,
+            "threshold": self.config.threshold,
+        }
+        if self.config.rag_type == "Ragflow-RAG" and self.config.dataset_ids:
+            match["datasetId"] = self.config.dataset_ids
+
         _payload = json.dumps(
             {
                 "query": self.config.query,
                 "topN": self.config.top_n,
                 "ragType": self.config.rag_type,
-                "match": {
-                    "repoId": self.config.repo_id,
-                    "docIds": self.config.doc_ids,
-                    "flowId": self.config.flow_id,
-                    "threshold": self.config.threshold,
-                },
+                "match": match,
                 "history": [item.dict() for item in self.config.history],
             },
             ensure_ascii=True,
         )
 
         return _payload
+
+    def headers(self) -> dict[str, str]:
+        return dict(self.BASE_HEADERS)

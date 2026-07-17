@@ -5,7 +5,6 @@ from celery import Celery, signals
 
 from workflow.configs import workflow_config
 from workflow.consts.runtime_env import RuntimeEnv
-from workflow.extensions.fastapi.lifespan.http_client import HttpClient
 from workflow.extensions.middleware.base import FactoryConfig, ServiceType
 from workflow.extensions.middleware.initialize import initialize_services
 

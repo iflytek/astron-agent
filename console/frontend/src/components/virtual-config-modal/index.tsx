@@ -520,7 +520,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
    * 渲染助手发音人
    */
   const renderBotVcn = useCallback(() => {
-    let vcnObj =
+    const vcnObj =
       [...officialVcnList].find(
         (item: any) => item.voiceType === selectedVoice
       ) || mySpeaker.find((item: any) => item.assetId === selectedVoice);

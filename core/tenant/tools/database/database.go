@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"tenant/config"
 
-	_ "github.com/go-sql-driver/mysql"
+	mysql "github.com/go-sql-driver/mysql"
 )
 
 type DBType string
@@ -51,8 +52,17 @@ func (db *Database) buildMysql(conf *config.Config) error {
 		return errors.New("mysql url is empty")
 	}
 
-	client, err := sql.Open("mysql",
-		fmt.Sprintf("%s:%s@tcp%s", conf.DataBase.UserName, conf.DataBase.Password, conf.DataBase.Url))
+	dsn := fmt.Sprintf("%s:%s@tcp%s", conf.DataBase.UserName, conf.DataBase.Password, conf.DataBase.Url)
+	parsedDsn, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		return err
+	}
+
+	if err := ensureMySQLDatabase(parsedDsn); err != nil {
+		return err
+	}
+
+	client, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return err
 	}
@@ -62,10 +72,44 @@ func (db *Database) buildMysql(conf *config.Config) error {
 	if err != nil {
 		return err
 	}
+
+	if err := runMigrations(client); err != nil {
+		_ = client.Close()
+		return err
+	}
+
 	db.mysql = client
 	return nil
 }
 
 func (db *Database) GetMysql() *sql.DB {
 	return db.mysql
+}
+
+func ensureMySQLDatabase(parsedDsn *mysql.Config) error {
+	if parsedDsn == nil {
+		return errors.New("mysql dsn is nil")
+	}
+	if parsedDsn.DBName == "" {
+		return errors.New("mysql database name is empty")
+	}
+
+	adminDsn := parsedDsn.Clone()
+	dbName := adminDsn.DBName
+	adminDsn.DBName = ""
+
+	client, err := sql.Open("mysql", adminDsn.FormatDSN())
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = client.Close()
+	}()
+
+	if err := client.Ping(); err != nil {
+		return err
+	}
+
+	_, err = client.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", strings.ReplaceAll(dbName, "`", "``")))
+	return err
 }

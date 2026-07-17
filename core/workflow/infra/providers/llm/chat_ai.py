@@ -93,6 +93,7 @@ class ChatAI(abc.ABC, BaseModel):
         timeout: float | None = None,
         search_disable: bool = True,
         event_log_node_trace: NodeLog | None = None,
+        multimodal_inputs: list = [],
     ) -> AsyncIterator[LLMResponse]:
         """
         Send asynchronous chat request to LLM and process streaming response.
@@ -104,6 +105,7 @@ class ChatAI(abc.ABC, BaseModel):
         :param timeout: Request timeout in seconds (None for no timeout)
         :param search_disable: Flag to disable search functionality
         :param event_log_node_trace: Node logging trace for debugging and monitoring
+        :param multimodal_inputs: List of multimodal inputs to include
         :return: AsyncIterator yielding LLMResponse objects from streaming response
         """
         pass

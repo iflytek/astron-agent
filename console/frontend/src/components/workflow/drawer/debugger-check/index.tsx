@@ -80,9 +80,11 @@ function OperationResult({
 
   const nodeIcon = useMemoizedFn((nodeType: string) => {
     let nodeFinallyType = '';
-    if (nodeType === 'iteration-node-start') {
+    if (['iteration-node-start', 'loop-node-start'].includes(nodeType)) {
       nodeFinallyType = 'node-start';
-    } else if (nodeType === 'iteration-node-end') {
+    } else if (
+      ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(nodeType)
+    ) {
       nodeFinallyType = 'node-end';
     } else {
       nodeFinallyType = nodeType;

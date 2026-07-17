@@ -1,9 +1,11 @@
 package com.iflytek.astron.console.hub.listener;
 
+import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.entity.bot.ChatBotBase;
 import com.iflytek.astron.console.commons.enums.ShelfStatusEnum;
 import com.iflytek.astron.console.commons.enums.bot.ReleaseTypeEnum;
 import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
+import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotBaseMapper;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.hub.dto.workflow.WorkflowReleaseResponseDto;
@@ -59,8 +61,8 @@ public class WorkflowBotPublishListener {
             // 3. Get flowId for workflow-specific operations
             String flowId = userLangChainDataService.findFlowIdByBotId(event.getBotId());
             if (flowId == null || flowId.trim().isEmpty()) {
-                log.warn("Workflow bot missing flowId, skipping workflow version creation: botId={}", event.getBotId());
-                return;
+                log.error("Workflow bot missing flowId, unable to create workflow version: botId={}", event.getBotId());
+                throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
             }
 
             // 4. Execute workflow publish logic (including version creation and API sync)
@@ -76,12 +78,17 @@ public class WorkflowBotPublishListener {
             } else {
                 log.error("Workflow bot publish failed: botId={}, error={}",
                         event.getBotId(), response.getErrorMessage());
+                throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
             }
 
-        } catch (Exception e) {
-            // Workflow publish failure should not affect the main process, just log the error
+        } catch (BusinessException e) {
             log.error("Exception occurred while handling workflow bot publish: botId={}, uid={}, spaceId={}",
                     event.getBotId(), event.getUid(), event.getSpaceId(), e);
+            throw e;
+        } catch (Exception e) {
+            log.error("Exception occurred while handling workflow bot publish: botId={}, uid={}, spaceId={}",
+                    event.getBotId(), event.getUid(), event.getSpaceId(), e);
+            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED, e);
         }
     }
 }

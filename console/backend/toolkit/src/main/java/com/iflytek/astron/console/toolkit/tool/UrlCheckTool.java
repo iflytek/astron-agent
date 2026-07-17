@@ -27,7 +27,8 @@ import java.util.regex.Pattern;
  * <li>Restricts protocols to HTTP/HTTPS;</li>
  * <li>Prohibits user information (user:pass@host format);</li>
  * <li>Rejects IPv6 and IPv4-mapped IPv6 (can be relaxed as needed);</li>
- * <li>Resolves one 301/302/303 redirect and then performs blacklist/whitelist validation;</li>
+ * <li>Resolves a bounded redirect chain and performs blacklist/whitelist validation on each
+ * hop;</li>
  * <li>Blocks common short link domains;</li>
  * <li>Supports IP blacklist, network segment blacklist, and domain whitelist (configuration source:
  * ConfigInfo table).</li>
@@ -55,7 +56,9 @@ public class UrlCheckTool {
     // ===== Other constants =====
     private static final int CONNECT_TIMEOUT_MS = (int) Duration.ofSeconds(5).toMillis();
     private static final int READ_TIMEOUT_MS = (int) Duration.ofSeconds(5).toMillis();
+    private static final int MAX_REDIRECTS = 5;
     private static final Pattern DOMAIN_PATTERN = Pattern.compile("https?://([^/]+)", Pattern.CASE_INSENSITIVE);
+    private static final Set<Integer> REDIRECT_STATUS_CODES = Set.of(301, 302, 303, 307, 308);
 
     // Common short link domains
     private static final Set<String> SHORT_LINK_DOMAINS = Set.of(
@@ -63,11 +66,11 @@ public class UrlCheckTool {
             "monojson.com", "t.cn", "url.cn", "dwz.cn");
 
     /**
-     * Gets the redirected URL after at most one redirect.
+     * Gets the direct redirected URL without following it automatically.
      *
      * <p>
-     * Implementation details: Prefers HEAD method; if 405/HEAD not supported, falls back to GET;
-     * Disables auto-follow, only retrieves Location header.
+     * Implementation details: Uses HEAD method only, disables auto-follow, and only retrieves the
+     * Location header.
      * </p>
      *
      * @param url the original URL to check for redirects
@@ -78,35 +81,39 @@ public class UrlCheckTool {
             return url;
 
         try {
-            URL u = new URL(url);
-            HttpURLConnection conn = (HttpURLConnection) u.openConnection();
-            conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            conn.setReadTimeout(READ_TIMEOUT_MS);
-
-            // Prefer HEAD, fallback to GET on failure
-            try {
-                conn.setRequestMethod("HEAD");
-            } catch (ProtocolException ignored) {
-                try {
-                    conn.setRequestMethod("GET");
-                } catch (ProtocolException e) {
-                    log.warn("setRequestMethod failed: {}", e.getMessage());
-                }
-            }
-
-            int code = conn.getResponseCode();
-            if (code == HttpURLConnection.HTTP_MOVED_TEMP
-                    || code == HttpURLConnection.HTTP_MOVED_PERM
-                    || code == HttpURLConnection.HTTP_SEE_OTHER) {
-                String redirect = conn.getHeaderField("Location");
-                return StringUtils.isNotBlank(redirect) ? redirect : url;
+            RedirectLookupResult result = lookupRedirect(url);
+            if (REDIRECT_STATUS_CODES.contains(result.statusCode)
+                    && StringUtils.isNotBlank(result.location)) {
+                return new URL(new URL(url), result.location).toString();
             }
         } catch (IOException e) {
             // Use original URL on network exception
             log.debug("getRedirectUrl error: {}", e.toString());
         }
         return url;
+    }
+
+    private RedirectLookupResult lookupRedirect(String url) throws IOException {
+        HttpURLConnection conn = null;
+        try {
+            URL u = toSafeHttpUrl(url);
+            ensurePublicAddresses(u.getHost());
+            URLConnection urlConnection = u.openConnection();
+            if (!(urlConnection instanceof HttpURLConnection httpURLConnection)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
+            }
+            conn = httpURLConnection;
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            conn.setReadTimeout(READ_TIMEOUT_MS);
+            conn.setRequestMethod("HEAD");
+            int code = conn.getResponseCode();
+            return new RedirectLookupResult(code, conn.getHeaderField("Location"));
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
     }
 
     /**
@@ -149,14 +156,14 @@ public class UrlCheckTool {
     }
 
     /**
-     * Blacklist/whitelist validation (considering one redirect).
+     * Blacklist/whitelist validation (considering a bounded redirect chain).
      * <ol>
      * <li>First validate the original URL before any connection;</li>
      * <li>Domain in whitelist → allow;</li>
      * <li>Resolve A record to get IPv4/IPv6 (this policy focuses on IPv4 validation);</li>
      * <li>Hit IP blacklist → reject;</li>
      * <li>Hit network segment blacklist (CIDR) → reject;</li>
-     * <li>Then follow redirect and validate the redirected URL.</li>
+     * <li>Then inspect redirects and validate every redirected URL before proceeding.</li>
      * </ol>
      * Silently returns on parsing exception (doesn't affect main flow), let upper layer handle
      * uniformly.
@@ -170,23 +177,39 @@ public class UrlCheckTool {
             List<String> segmentBlackList = readCsvConfig(NETWORK_SEGMENT_CATEGORY);
             List<String> domainWhiteList = readCsvConfig(DOMAIN_WHITE_CATEGORY);
 
-            // Step 1: Validate original URL BEFORE making any connection
-            validateUrlAgainstBlacklist(url, ipBlackList, segmentBlackList, domainWhiteList);
+            String currentUrl = url;
+            Set<String> visitedUrls = new HashSet<>();
+            for (int i = 0; i <= MAX_REDIRECTS; i++) {
+                validateUrlPolicy(currentUrl, ipBlackList, segmentBlackList, domainWhiteList);
+                if (!visitedUrls.add(currentUrl)) {
+                    throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+                }
 
-            // Step 2: Get redirect URL (now safe to make connection)
-            String redirectUrl = getRedirectUrl(url);
-
-            // Step 3: If redirected to different URL, validate the target too
-            if (!url.equals(redirectUrl)) {
-                validateUrlAgainstBlacklist(redirectUrl, ipBlackList, segmentBlackList, domainWhiteList);
+                String redirectUrl = getRedirectUrl(currentUrl);
+                if (currentUrl.equals(redirectUrl)) {
+                    return;
+                }
+                currentUrl = redirectUrl;
             }
+            throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
 
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            // Silent: let main checkUrl handle uniform exception exit
-            log.debug("checkBlackList ignore error: {}", e.toString());
+            log.debug("checkBlackList error: {}", e.toString());
+            throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
         }
+    }
+
+    private void validateUrlPolicy(String url, List<String> ipBlackList,
+            List<String> segmentBlackList,
+            List<String> domainWhiteList) throws Exception {
+        checkHttpOrHttps(url);
+        symbolCheck(url);
+        IPv4MappedCheck(url);
+        checkUrlForIPv6(url);
+        resolveShortLink(url);
+        validateUrlAgainstBlacklist(url, ipBlackList, segmentBlackList, domainWhiteList);
     }
 
     /**
@@ -214,19 +237,27 @@ public class UrlCheckTool {
             }
         }
 
-        InetAddress inet = InetAddress.getByName(asciiHost);
-        String ip = inet.getHostAddress();
-
-        // IPv4 blacklist
-        if (ipBlackList.stream().map(String::trim).anyMatch(ip::equals)) {
-            throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+        InetAddress[] addresses = InetAddress.getAllByName(asciiHost);
+        if (addresses.length == 0) {
+            throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
         }
+        for (InetAddress inet : addresses) {
+            if (isRestrictedAddress(inet)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            String ip = inet.getHostAddress();
 
-        // Network segment blacklist (only effective for IPv4; IPv6 can be extended)
-        if (inet instanceof Inet4Address) {
-            for (String segment : segmentBlackList) {
-                if (isIpInRange(ip, segment)) {
-                    throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+            // IPv4 blacklist
+            if (ipBlackList.stream().map(String::trim).anyMatch(ip::equals)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+            }
+
+            // Network segment blacklist (only effective for IPv4; IPv6 can be extended)
+            if (inet instanceof Inet4Address) {
+                for (String segment : segmentBlackList) {
+                    if (isIpInRange(ip, segment)) {
+                        throw new BusinessException(ResponseEnum.TOOLBOX_IP_IN_BLACKLIST);
+                    }
                 }
             }
         }
@@ -436,5 +467,78 @@ public class UrlCheckTool {
             log.warn("readCsvConfig error, category={}, err={}", category, e.toString());
             return Collections.emptyList();
         }
+    }
+
+    private record RedirectLookupResult(int statusCode, String location) {}
+
+    private boolean isHostInDomainAllowList(String host, List<String> domainWhiteList) {
+        if (StringUtils.isBlank(host) || domainWhiteList == null || domainWhiteList.isEmpty()) {
+            return false;
+        }
+        String normalizedHost = StringUtils.lowerCase(StringUtils.trim(host), Locale.ROOT);
+        for (String allowed : domainWhiteList) {
+            String normalizedAllowed = StringUtils.lowerCase(StringUtils.trimToEmpty(allowed), Locale.ROOT);
+            // Remove leading dot if present (e.g., ".example.com" -> "example.com")
+            if (normalizedAllowed.startsWith(".")) {
+                normalizedAllowed = normalizedAllowed.substring(1);
+            }
+            if (normalizedAllowed.isEmpty()) {
+                continue;
+            }
+            if (normalizedHost.equals(normalizedAllowed) || normalizedHost.endsWith("." + normalizedAllowed)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private URL toSafeHttpUrl(String url) throws IOException {
+        try {
+            URI uri = new URI(url);
+            String scheme = StringUtils.lowerCase(uri.getScheme(), Locale.ROOT);
+            if (!"http".equals(scheme) && !"https".equals(scheme)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
+            }
+            if (StringUtils.isNotBlank(uri.getUserInfo())) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            String host = uri.getHost();
+            if (StringUtils.isBlank(host)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            String asciiHost = IDN.toASCII(host);
+            String path = StringUtils.defaultIfBlank(uri.getPath(), "/");
+            return new URI(
+                    scheme,
+                    null,
+                    asciiHost,
+                    uri.getPort(),
+                    path,
+                    uri.getQuery(),
+                    null).toURL();
+        } catch (URISyntaxException e) {
+            throw new IOException("Illegal URL", e);
+        }
+    }
+
+    private void ensurePublicAddresses(String host) throws UnknownHostException {
+        for (InetAddress address : InetAddress.getAllByName(host)) {
+            if (isRestrictedAddress(address)) {
+                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+        }
+    }
+
+    private boolean isRestrictedAddress(InetAddress address) {
+        return address.isAnyLocalAddress()
+                || address.isLoopbackAddress()
+                || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress()
+                || address.isMulticastAddress()
+                || address.isMCGlobal()
+                || address.isMCLinkLocal()
+                || address.isMCNodeLocal()
+                || address.isMCOrgLocal()
+                || address.isMCSiteLocal();
     }
 }

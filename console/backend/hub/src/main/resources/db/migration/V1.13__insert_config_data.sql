@@ -3536,7 +3536,7 @@ main
     [],
     "url": "wss://maas-api.cn-huabei-1.xf-yun.com/v1.1/chat",
     "modelId": 0
-}',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-07-09 14:31:21'),
+}',1,'项目测试使用','2000-01-01 00:00:00','2025-07-09 14:31:21'),
 	 (1755,'SPECIAL_MODEL','10000010','xop3qwen14b','{
     "llmSource": 1,
     "llmId": 10000010,
@@ -3554,7 +3554,7 @@ main
     [],
     "url": "wss://maas-api.cn-huabei-1.xf-yun.com/v1.1/chat",
     "modelId": 0
-}',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-07-09 14:31:21'),
+}',1,'项目测试使用','2000-01-01 00:00:00','2025-07-09 14:31:21'),
 	 (1757,'SPECIAL_MODEL_CONFIG','10000009','xop3qwen8b','{
         "id": 2431162637211657,
         "name": "xop3qwen8b",
@@ -3743,7 +3743,7 @@ main
         "appId": null,
         "licChannel": "xop3qwen8b"
     }
-',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-06-16 15:27:55'),
+',1,'项目测试使用','2000-01-01 00:00:00','2025-06-16 15:27:55'),
 	 (1759,'SPECIAL_MODEL_CONFIG','10000010','xop3qwen14b','{
         "id": 2431162637211657,
         "name": "xop3qwen14b",
@@ -3932,7 +3932,7 @@ main
         "appId": null,
         "licChannel": "xop3qwen14b"
     }
-',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-06-16 15:27:55'),
+',1,'项目测试使用','2000-01-01 00:00:00','2025-06-16 15:27:55'),
 	 (1761,'SPECIAL_MODEL','10000011','image_understandingv3','{
     "llmSource": 1,
     "llmId": 10000005,
@@ -3950,7 +3950,7 @@ main
     "modelId": 0,
     "isThink":false,
     "multiMode":true
-}',0,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-07-08 17:25:54'),
+}',0,'项目测试使用','2000-01-01 00:00:00','2025-07-08 17:25:54'),
 	 (1763,'SPECIAL_MODEL_CONFIG','10000011','image_understandingv3','{
         "id": 2431162637211660,
         "name": "image_understandingv3",
@@ -4139,7 +4139,7 @@ main
         "appId": null,
         "licChannel": "image_understandingv3"
     }
-',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-06-16 15:27:55'),
+',1,'项目测试使用','2000-01-01 00:00:00','2025-06-16 15:27:55'),
 	 (1765,'DEFAULT_SLICE_RULES_CBG','1','CBG默认切片规则','{"type":0,"seperator":["\\n"],"lengthRange":[256,1024]}',1,'','2025-06-18 17:21:37','2025-06-18 17:21:44'),
 	 (1767,'CUSTOM_SLICE_RULES_CBG','1','CBG自定义切片模板','{"type":1,"seperator":["\\n"],"lengthRange":[16,1024]}',1,'','2025-06-18 17:21:42','2025-08-14 17:22:34'),
 	 (1769,'DEFAULT_SLICE_RULES_SPARK','1','Spark默认切片规则','{"type":0,"seperator":["\\n"],"lengthRange":[16,1024]}',1,'','2025-06-18 17:21:41','2025-06-18 17:21:46'),
@@ -4643,7 +4643,7 @@ main
     "url": "wss://maas-api.cn-huabei-1.xf-yun.com/v1.1/chat",
     "appId": null,
     "licChannel": "xopgptoss20b"
-}',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-08-07 11:40:58'),
+}',1,'项目测试使用','2000-01-01 00:00:00','2025-08-07 11:40:58'),
 	 (1809,'SPECIAL_MODEL_CONFIG','10000014','xopgptoss120b','{
         "id": 2431162637211660,
         "name": "xopgptoss120b",
@@ -4751,7 +4751,7 @@ main
         "appId": null,
         "licChannel": "xopgptoss120b"
     }
-',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-08-07 11:41:35'),
+',1,'项目测试使用','2000-01-01 00:00:00','2025-08-07 11:41:35'),
 	 (1811,'SPACE_SWITCH_NODE','SPACE_SWITCH_NODE','空间节点开关','',1,NULL,'2025-07-10 10:50:48','2025-09-04 14:59:57'),
 	 (1813,'SPECIAL_MODEL','10000015','xdeepseekv31','{
     "llmSource": 1,
@@ -4879,7 +4879,7 @@ main
     "url": "wss://maas-api.cn-huabei-1.xf-yun.com/v1.1/chat",
     "appId": null,
     "licChannel": "xdeepseekv31"
-}',1,'亚谋理想项目测试使用','2000-01-01 00:00:00','2025-08-27 11:31:43'),
+}',1,'项目测试使用','2000-01-01 00:00:00','2025-08-27 11:31:43'),
 	 (1817,'MCP_MODEL_API_REFLECT','mcp','xdeepseekv31','https://maas-api.cn-huabei-1.xf-yun.com/v2',1,'','2000-01-01 00:00:00','2025-05-29 15:54:10'),
 	 (1819,'NODE_PREFIX_MODEL','switch','应用大模型节点前缀配置','spark-llm,decision-making,extractor-parameter,agent,knowledge-pro-base,question-answer',1,NULL,'2025-07-10 10:50:48','2025-08-27 14:12:02'),
 	 (1821,'DB_TABLE_RESERVED_KEYWORD','reserved_keyword','数据库关键字','all,analyse,analyze,and,any,array,as,asc,asymmetric,authorization,binary,both,case,cast,check,collate,collation,column,concurrently,constraint,create,cross,current_catalog,current_date,current_role,current_schema,current_time,current_timestamp,current_user,default,deferrable,desc,distinct,do,else,end,except,false,fetch,for,foreign,freeze,from,full,grant,group,having,ilike,in,initially,inner,intersect,into,is,isnull,join,lateral,leading,left,like,limit,localtime,localtimestamp,natural,not,notnull,null,offset,on,only,or,order,outer,overlaps,placing,primary,references,returning,right,select,session_user,similar,some,symmetric,table,tablesample,then,to,trailing,true,union,unique,user,using,variadic,verbose,when,where,window,with',1,NULL,'2025-07-10 10:50:48','2025-08-12 16:34:24'),

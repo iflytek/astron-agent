@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
-import Overview from '@/components/config-page-component/config-overview';
+import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import BaseConfig from '@/components/config-page-component/config-base';
 
 import styles from './index.module.scss';
 
 const index = () => {
   const [currentRobot, setCurrentRobot] = useState<any>({});
-  const [currentTab, setCurrentTab] = useState('overview');
+  const [currentTab, setCurrentTab] = useState('base');
+  const location = useLocation();
 
   return (
     <div className={styles.config_page_container}>
@@ -15,11 +15,7 @@ const index = () => {
         <Route
           path="/overview"
           element={
-            <Overview
-              currentRobot={currentRobot}
-              setCurrentTab={(activeKey: string) => setCurrentTab(activeKey)}
-              currentTab={currentTab}
-            />
+            <Navigate to={`/space/config/base${location.search}`} replace />
           }
         />
         <Route

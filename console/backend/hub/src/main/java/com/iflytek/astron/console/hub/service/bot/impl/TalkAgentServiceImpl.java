@@ -17,11 +17,12 @@ import com.iflytek.astron.console.commons.util.AuthStringUtil;
 import com.iflytek.astron.console.commons.util.MaasUtil;
 import com.iflytek.astron.console.hub.service.bot.TalkAgentService;
 import com.iflytek.astron.console.hub.service.workflow.BotChainService;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,10 +33,6 @@ import java.util.List;
 @Service
 @Slf4j
 public class TalkAgentServiceImpl implements TalkAgentService {
-    @Value("${spark.virtual-man-apiKey}")
-    private String apiKey;
-    @Value("${spark.virtual-man-apiSecret}")
-    private String apiSecret;
 
     @Autowired
     private ChatListDataService chatListDataService;
@@ -51,11 +48,17 @@ public class TalkAgentServiceImpl implements TalkAgentService {
 
     @Autowired
     private RedissonClient redissonClient;
+
+    @Autowired
+    private PlatformAccountService platformAccountService;
+
     private static final String SIGNATURE_URL = "wss://avatar.cn-huadong-1.xf-yun.com/v1/interact";
 
     @Override
     public String getSignature() {
-        return AuthStringUtil.assembleRequestUrl(SIGNATURE_URL, "GET", apiKey, apiSecret);
+        PlatformAccountConfigDto.VirtualManConfig config = platformAccountService.requireVirtualMan();
+        return AuthStringUtil.assembleRequestUrl(
+                SIGNATURE_URL, "GET", config.getSparkVirtualManApiKey(), config.getSparkVirtualManApiSecret());
     }
 
     @Override

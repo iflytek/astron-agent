@@ -8,18 +8,20 @@ Provides document processing and knowledge management strategy based on RAGFlow
 
 import json
 import logging
-import os
 import time
 from typing import Any, Dict, List, Optional
 
 from knowledge.consts.error_code import CodeEnum
-from knowledge.exceptions.exception import CustomException
+from knowledge.domain.entity.chunk_dto import RagflowQueryExt
+from knowledge.exceptions.exception import CustomException, ThirdPartyException
 from knowledge.infra.ragflow import ragflow_client
 from knowledge.infra.ragflow.ragflow_utils import RagflowUtils
 from knowledge.service.rag_strategy import RAGStrategy
 from knowledge.utils.verification import check_not_empty
 
 logger = logging.getLogger(__name__)
+
+_DATASET_ID_KWARG = "datasetId"
 
 
 class RagflowRAGStrategy(RAGStrategy):
@@ -39,69 +41,149 @@ class RagflowRAGStrategy(RAGStrategy):
         threshold: Optional[float] = 0,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """
-        Execute query using RAGFlow and return results.
-
-        Args:
-            query: Query string
-            doc_ids: List of specified document IDs
-            repo_ids: Ignore this parameter, use default dataset name from config
-            top_k: Number of results to return
-            threshold: Similarity threshold
-            **kwargs: Additional parameters
-
-        Returns:
-            Query result dictionary (abstract interface format)
-        """
+        """Query RAGFlow using datasetId when provided."""
         try:
-            logger.info("Starting RAGFlow query: query=%s, doc_ids=%s", query, doc_ids)
+            logger.info(
+                "Starting RAGFlow query: query=%s, doc_ids=%s, repo_ids=%s",
+                query,
+                doc_ids,
+                repo_ids,
+            )
+            ext: Optional[RagflowQueryExt] = kwargs.get("ragflow_ext")
 
-            # Get dataset name from configuration
-            dataset_name = RagflowUtils.get_default_dataset_name()
-            dataset_id = await RagflowUtils.get_dataset_id_by_name(dataset_name)
+            dataset_ids_input = kwargs.get(_DATASET_ID_KWARG)
+            dataset_ids = await self._resolve_query_datasets(dataset_ids_input)
+            if not dataset_ids:
+                return self._empty_query_result(query)
 
-            if not dataset_id:
-                logger.warning("Dataset not found: %s", dataset_name)
-                return {"query": query, "count": 0, "results": []}
-
-            logger.info("Using dataset: %s (ID: %s)", dataset_name, dataset_id)
-
-            # Build RAGFlow retrieval request with correct parameter format
-            ragflow_request = {
-                "question": query,
-                "dataset_ids": [dataset_id],
-                "top_k": top_k or 6,
-                "similarity_threshold": threshold,
-                "vector_similarity_weight": 0.2,
-            }
-
-            # Only add document_ids parameter when document IDs are provided
-            if doc_ids:
-                ragflow_request["document_ids"] = doc_ids
-
-            # Call RAGFlow retrieval API
-            ragflow_response = await ragflow_client.retrieval_with_dataset(
-                dataset_id=dataset_id, request_data=ragflow_request
+            effective_top_k = (
+                ext.top_k if ext and ext.top_k is not None else (top_k or 6)
+            )
+            payload = self._build_retrieval_payload(
+                query=query,
+                dataset_ids=dataset_ids,
+                doc_ids=doc_ids,
+                top_k=effective_top_k,
+                threshold=threshold or 0,
+                ext=ext,
+            )
+            return await self._execute_retrieval(
+                payload=payload,
+                query=query,
+                threshold=threshold or 0,
+                effective_top_k=effective_top_k,
             )
 
-            if ragflow_response.get("code") != 0:
-                logger.error("RAGFlow query failed: %s", ragflow_response)
-                return {"query": query, "count": 0, "results": []}
-
-            # Parse response and convert format
-            results = RagflowUtils.convert_ragflow_query_response(
-                ragflow_response, threshold or 0
-            )
-
-            if top_k and top_k > 0:
-                results = results[:top_k]
-
-            logger.info("Query completed, returning %d results", len(results))
-            return {"query": query, "count": len(results), "results": results}
-
+        except CustomException:
+            raise
+        except ThirdPartyException:
+            raise
         except Exception as e:
             logger.error("RAGFlow query exception: %s", e)
-            return {"query": query, "count": 0, "results": []}
+            raise ThirdPartyException(
+                msg=f"RAGFlow retrieval failed: {e}",
+                e=CodeEnum.RAGFLOW_RAGError,
+            ) from e
+
+    async def _resolve_query_datasets(
+        self, dataset_ids: Optional[List[str]]
+    ) -> List[str]:
+        """Return requested dataset ids or the default dataset id."""
+        if not dataset_ids:
+            default_name = RagflowUtils.get_default_dataset_name()
+            ds_id = await RagflowUtils.ensure_dataset(default_name)
+            return [ds_id] if ds_id else []
+        return list(dataset_ids)
+
+    async def _resolve_dataset_id(
+        self,
+        dataset_id_input: Optional[str],
+        group: Optional[str] = None,
+    ) -> Optional[str]:
+        """Return requested dataset id or the default dataset id."""
+        if dataset_id_input:
+            return dataset_id_input
+        default_name = group or RagflowUtils.get_default_dataset_name()
+        return await RagflowUtils.ensure_dataset(default_name)
+
+    def _build_retrieval_payload(
+        self,
+        query: str,
+        dataset_ids: List[str],
+        doc_ids: Optional[List[str]],
+        top_k: int,
+        threshold: float,
+        ext: Optional[RagflowQueryExt],
+    ) -> Dict[str, Any]:
+        """Build the RAGFlow ``/retrieval`` request body."""
+        payload: Dict[str, Any] = {
+            "question": query,
+            "dataset_ids": dataset_ids,
+            "top_k": top_k,
+            "similarity_threshold": threshold,
+            "vector_similarity_weight": 0.2,
+        }
+        if doc_ids:
+            payload["document_ids"] = doc_ids
+        if ext is not None:
+            self._apply_ragflow_ext(payload, ext)
+        return payload
+
+    def _apply_ragflow_ext(self, payload: Dict[str, Any], ext: RagflowQueryExt) -> None:
+        """Apply optional ``RagflowQueryExt`` fields onto the payload."""
+        # NB: top_k is intentionally not applied here. query() resolves
+        # effective_top_k upstream and writes it into the payload first.
+        if ext.vector_similarity_weight is not None:
+            payload["vector_similarity_weight"] = ext.vector_similarity_weight
+        if ext.keyword is not None:
+            payload["keyword"] = ext.keyword
+        if ext.rerank_id is not None:
+            payload["rerank_id"] = ext.rerank_id
+        if ext.use_kg is not None:
+            payload["use_kg"] = ext.use_kg
+        if ext.highlight is not None:
+            # RAGFlow v0.20.5 compares ``highlight`` as a string; passing a
+            # Python bool leaves it enabled. v0.24.0 accepts bool directly —
+            # drop ``str()`` once the pinned image is >= v0.24.0.
+            payload["highlight"] = str(ext.highlight)
+
+    async def _execute_retrieval(
+        self,
+        payload: Dict[str, Any],
+        query: str,
+        threshold: float,
+        effective_top_k: int,
+    ) -> Dict[str, Any]:
+        """Call RAGFlow ``/retrieval`` and convert response."""
+        # ``ragflow_client.retrieval_with_dataset`` ignores ``dataset_id``
+        # (the underlying RAGFlow body uses ``request_data['dataset_ids']``
+        # for the actual filter). The first id is passed only to satisfy the
+        # current client signature; remove this arg once the client drops it.
+        primary_dataset_id = payload["dataset_ids"][0]
+        ragflow_response = await ragflow_client.retrieval_with_dataset(
+            dataset_id=primary_dataset_id, request_data=payload
+        )
+
+        if ragflow_response.get("code") != 0:
+            msg = ragflow_response.get("message", "Unknown error")
+            logger.error("RAGFlow query failed: %s", ragflow_response)
+            raise ThirdPartyException(
+                msg=f"RAGFlow retrieval failed: {msg}",
+                e=CodeEnum.RAGFLOW_RAGError,
+            )
+
+        results = RagflowUtils.convert_ragflow_query_response(
+            ragflow_response, threshold
+        )
+        if effective_top_k and effective_top_k > 0:
+            results = results[:effective_top_k]
+
+        logger.info("Query completed, returning %d results", len(results))
+        return {"query": query, "count": len(results), "results": results}
+
+    def _empty_query_result(self, query: str) -> Dict[str, Any]:
+        """Unified empty-result format for query paths."""
+        return {"query": query, "count": 0, "results": []}
 
     def _validate_split_parameters(
         self, fileUrl: Optional[str], file: Optional[Any]
@@ -199,13 +281,14 @@ class RagflowRAGStrategy(RAGStrategy):
         separator: Optional[List[str]] = None,
         titleSplit: bool = False,
         cutOff: Optional[List[str]] = None,
+        document_id: Optional[str] = None,
         **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
         Split file into chunks using RAGFlow.
 
         Complete process:
-        1. Check or create dataset (using group as dataset name)
+        1. Resolve target dataset by id
         2. File download/reading and type detection
         3. Upload document to RAGFlow
         4. Trigger parsing
@@ -220,7 +303,7 @@ class RagflowRAGStrategy(RAGStrategy):
             separator: List of separators
             titleSplit: Whether to split by title
             cutOff: Truncation rules
-            **kwargs: Other parameters, including group (dataset name), file
+            **kwargs: Other parameters, including datasetId (RAGFlow dataset.id), file
 
         Returns:
             List of chunk results in format:
@@ -235,8 +318,6 @@ class RagflowRAGStrategy(RAGStrategy):
                 }
             ]
         """
-        # Get group parameter, use default if not provided
-        group = os.getenv("RAGFLOW_DEFAULT_GROUP", "Stellar Knowledge Base")
         file = kwargs.get("file")
 
         # Parameter validation
@@ -252,25 +333,32 @@ class RagflowRAGStrategy(RAGStrategy):
         input_type = "file upload" if file else "URL/path"
         display_name = getattr(file, "filename", fileUrl) if file else fileUrl
         logger.info(
-            "Starting split request: %s (%s), group: %s",
+            "Starting split request: %s (%s)",
             display_name,
             input_type,
-            group,
         )
 
         try:
-            # Step 1: Dataset management
-            dataset_id = await RagflowUtils.ensure_dataset(group)
-            logger.info("Using dataset: %s, name: %s", dataset_id, group)
+            # Step 1: Resolve dataset
+            dataset_id = await self._resolve_dataset_id(
+                kwargs.get(_DATASET_ID_KWARG), kwargs.get("group")
+            )
+            if not dataset_id:
+                raise CustomException(
+                    CodeEnum.RAGFLOW_RAGError,
+                    "Unable to resolve RAGFlow dataset",
+                )
+            logger.info("Using dataset: %s", dataset_id)
 
-            # Step 2-3: Process document upload
-            doc_id = await self._process_document_upload(file_input, dataset_id)
-
-            # Step 4-5: Handle document parsing
-            await self._handle_document_parsing(dataset_id, doc_id)
-
-            # Step 6: Get chunk content
-            chunks_data = await RagflowUtils.get_document_chunks(dataset_id, doc_id)
+            if document_id:
+                logger.info("re-slice upsert old_doc_id=%s", document_id)
+                doc_id, chunks_data = await self._upsert_document(
+                    file_input, dataset_id, document_id
+                )
+            else:
+                doc_id = await self._process_document_upload(file_input, dataset_id)
+                await self._handle_document_parsing(dataset_id, doc_id)
+                chunks_data = await RagflowUtils.get_document_chunks(dataset_id, doc_id)
 
             # Step 7: Convert to standard format
             result = RagflowUtils.convert_to_standard_format(doc_id, chunks_data)
@@ -278,6 +366,8 @@ class RagflowRAGStrategy(RAGStrategy):
             logger.info("Split processing completed, returning %d chunks", len(result))
             return result
 
+        except CustomException:
+            raise
         except Exception as e:
             logger.error("Split operation failed: %s", e)
             raise ValueError(f"File chunking processing failed: {str(e)}") from e
@@ -301,53 +391,48 @@ class RagflowRAGStrategy(RAGStrategy):
             "copiedFrom": None,
         }
 
-    async def _validate_chunks_save_config(self, doc_id: str) -> str:
-        """Validate chunks_save configuration and dataset"""
-        default_group = os.getenv("RAGFLOW_DEFAULT_GROUP")
-        if not default_group:
-            logger.error("RAGFLOW_DEFAULT_GROUP not found in configuration")
-            raise CustomException(
-                CodeEnum.ChunkSaveFailed, "RAGFLOW_DEFAULT_GROUP configuration missing"
-            )
-
-        dataset_id = await RagflowUtils.ensure_dataset(default_group)
-        if not dataset_id:
-            logger.error(f"Unable to find or create dataset: {default_group}")
+    async def _validate_chunks_save_config(
+        self,
+        doc_id: str,
+        dataset_id: Optional[str] = None,
+    ) -> str:
+        """Resolve dataset for chunks_save."""
+        resolved = await self._resolve_dataset_id(dataset_id)
+        if not resolved:
+            logger.error("Unable to resolve RAGFlow dataset for chunks_save")
             raise CustomException(
                 CodeEnum.ChunkSaveFailed,
-                f"Unable to find or create dataset: {default_group}",
+                "Unable to resolve RAGFlow dataset",
             )
-
-        return dataset_id
+        return resolved
 
     async def _validate_document_exists(self, dataset_id: str, doc_id: str) -> None:
-        """Validate if document exists, raise exception if error occurs"""
+        """Validate that the document exists in RAGFlow.
+
+        Delegates to ``ragflow_client.get_document_info`` which uses RAGFlow's
+        server-side ``id`` filter for an O(1) exact lookup (verified against
+        v0.20.5 ~ v0.24.0). Raises ``CustomException(ChunkSaveFailed)`` on
+        not-found or on any underlying error.
+
+        ``get_document_info`` returns ``None`` only for the server's
+        ``DATA_ERROR`` (code=102) "not owned / not found" path, raises
+        ``ThirdPartyException`` for other non-zero codes, and lets transport
+        errors propagate. The generic ``except Exception`` branch below wraps
+        all raised errors into ``CustomException(ChunkSaveFailed)`` so the
+        chunk-save caller sees a consistent error code.
+        """
         try:
-            docs_response = await ragflow_client.list_documents_in_dataset(
-                dataset_id, doc_id, page=1, page_size=1000
-            )
-
-            if docs_response.get("code") == 0:
-                docs_data = docs_response.get("data", {})
-                docs = docs_data.get("docs", [])
-
-                for doc in docs:
-                    if doc.get("id") == doc_id:
-                        logger.info(f"Document {doc_id} exists in RAGFlow")
-                        return  # Document exists, validation passed
-
-                logger.error(f"Document {doc_id} does not exist in RAGFlow")
+            doc = await ragflow_client.get_document_info(dataset_id, doc_id)
+            if doc is None:
+                logger.error(f"Document {doc_id} not found in RAGFlow")
                 raise CustomException(
-                    CodeEnum.ChunkSaveFailed, f"Document {doc_id} does not exist"
+                    CodeEnum.ChunkSaveFailed,
+                    f"Document {doc_id} not found",
                 )
-            else:
-                logger.error(f"Unable to get document list: {docs_response}")
-                raise CustomException(
-                    CodeEnum.ChunkSaveFailed, "Unable to get document list"
-                )
-
+            logger.info(f"Document {doc_id} exists in RAGFlow")
         except CustomException:
-            raise  # Re-raise custom exceptions
+            # Preserve the code/message from the None branch.
+            raise
         except Exception as e:
             logger.error(f"Error checking document existence: {e}")
             raise CustomException(
@@ -358,39 +443,48 @@ class RagflowRAGStrategy(RAGStrategy):
     async def _get_existing_chunks(
         self, dataset_id: str, doc_id: str
     ) -> Dict[str, Dict]:
-        """Get mapping of existing chunks"""
-        existing_chunks = {}
+        """Get mapping of existing chunks for a document.
+
+        Uses ``ragflow_client.fetch_all_document_chunks`` to paginate through
+        all chunks via the server-reported ``total`` field, so documents with
+        large chunk counts are fully covered.
+
+        **Fail-closed**: errors propagate rather than being swallowed into an
+        empty dict — a partial or empty mapping would cause
+        ``_process_single_chunk`` to treat existing chunks as missing and
+        re-insert them, corrupting the dataset with duplicates. The caller
+        ``chunks_save`` converts any ``Exception`` to
+        ``CustomException(ChunkSaveFailed)``, so transient RAGFlow failures
+        during reconciliation abort the upsert cleanly.
+        """
+        existing_chunks: Dict[str, Dict] = {}
         try:
-            chunks_response = await ragflow_client.list_document_chunks(
-                dataset_id, doc_id, page=1, page_size=1000
+            all_chunks = await ragflow_client.fetch_all_document_chunks(
+                dataset_id, doc_id
             )
-            if chunks_response.get("code") == 0:
-                chunks_data = chunks_response.get("data", {})
-                existing_chunk_list = chunks_data.get("chunks", [])
+        except Exception:
+            # Log doc/dataset context before re-raising — the upstream
+            # chunks_save catch-all only sees the exception message, so
+            # without this line the doc_id is lost in production triage.
+            logger.error(
+                f"fetch_all_document_chunks failed for doc={doc_id} "
+                f"in dataset={dataset_id}"
+            )
+            raise
 
-                for chunk in existing_chunk_list:
-                    # Get various identifiers of chunk
-                    data_index = str(chunk.get("dataIndex", ""))
-                    chunk_id = chunk.get("id") or chunk.get("chunk_id")
+        for chunk in all_chunks:
+            data_index = str(chunk.get("dataIndex", ""))
+            chunk_id = chunk.get("id") or chunk.get("chunk_id")
 
-                    if chunk_id:
-                        # Use chunk_id as primary key (corresponding to dataIndex in split results)
-                        existing_chunks[str(chunk_id)] = chunk
+            if chunk_id:
+                existing_chunks[str(chunk_id)] = chunk
+                if data_index:
+                    existing_chunks[data_index] = chunk
 
-                        # If dataIndex exists, also use as backup key
-                        if data_index:
-                            existing_chunks[data_index] = chunk
-
-                logger.info(
-                    f"Document {doc_id} already has {len(existing_chunk_list)} chunks, established {len(existing_chunks)} mappings"
-                )
-            else:
-                logger.info(
-                    f"Unable to get existing chunks or document does not exist: {chunks_response}"
-                )
-        except Exception as e:
-            logger.warning(f"Error checking existing chunks: {e}")
-
+        logger.info(
+            f"Document {doc_id} already has {len(all_chunks)} chunks, "
+            f"established {len(existing_chunks)} mappings"
+        )
         return existing_chunks
 
     async def _process_single_chunk(
@@ -570,14 +664,20 @@ class RagflowRAGStrategy(RAGStrategy):
         return saved_chunks
 
     async def chunks_save(
-        self, docId: str, group: str, uid: str, chunks: List[object], **kwargs: Any
+        self,
+        docId: str,
+        group: Optional[str],
+        uid: str,
+        chunks: List[object],
+        **kwargs: Any,
     ) -> List[Dict[str, Any]]:
         """
         Save knowledge chunks using RAGFlow.
 
         Args:
             docId: Document ID
-            group: Group (dataset name)
+            group: Required by the abstract base for cross-strategy
+                compatibility; unused here. Ragflow routes by datasetId.
             uid: User ID
             chunks: List of knowledge chunks, each chunk contains:
                    - docId: Document ID
@@ -586,7 +686,7 @@ class RagflowRAGStrategy(RAGStrategy):
                    - content: Text content
                    - context: Context
                    - references: Reference information
-            **kwargs: Other parameters
+            **kwargs: Other parameters, including datasetId (RAGFlow dataset.id)
 
         Returns:
             List of save results in format:
@@ -611,21 +711,19 @@ class RagflowRAGStrategy(RAGStrategy):
             )
 
         logger.info(
-            f"Starting chunk save request: docId={docId}, group={group}, chunks_count={len(chunks)}"
+            f"Starting chunk save request: docId={docId}, chunks_count={len(chunks)}"
         )
 
         try:
-            # 1. Validate configuration and dataset
-            dataset_id = await self._validate_chunks_save_config(docId)
+            dataset_id = await self._validate_chunks_save_config(
+                docId, dataset_id=kwargs.get(_DATASET_ID_KWARG)
+            )
             logger.info(f"Using dataset: {dataset_id}")
 
-            # 2. Validate if document exists
             await self._validate_document_exists(dataset_id, docId)
 
-            # 3. Get existing chunks
             existing_chunks = await self._get_existing_chunks(dataset_id, docId)
 
-            # 4. Process each chunk
             current_time = time.strftime("%Y-%m-%d %H:%M:%S")
             chunks_typed = [
                 chunk if isinstance(chunk, dict) else chunk.__dict__ for chunk in chunks
@@ -645,25 +743,16 @@ class RagflowRAGStrategy(RAGStrategy):
             logger.error(f"Chunk save operation failed: {e}")
             raise CustomException(CodeEnum.ChunkSaveFailed, str(e))
 
-    async def _validate_chunks_update_config(self) -> str:
-        """Validate chunks_update configuration and dataset"""
-        default_group = os.getenv("RAGFLOW_DEFAULT_GROUP")
-        if not default_group:
-            logger.error("RAGFLOW_DEFAULT_GROUP not found in configuration")
-            raise CustomException(
-                CodeEnum.ChunkUpdateFailed,
-                "RAGFLOW_DEFAULT_GROUP configuration missing",
-            )
-
-        dataset_id = await RagflowUtils.ensure_dataset(default_group)
-        if not dataset_id:
-            logger.error(f"Unable to find or create dataset: {default_group}")
-            raise CustomException(
-                CodeEnum.ChunkUpdateFailed,
-                f"Unable to find or create dataset: {default_group}",
-            )
-
-        return dataset_id
+    async def _validate_chunks_update_config(
+        self, dataset_id: Optional[str] = None
+    ) -> str:
+        """Resolve dataset for chunks_update."""
+        resolved = await self._resolve_dataset_id(dataset_id)
+        if not resolved:
+            err = "Unable to resolve RAGFlow dataset for chunks_update"
+            logger.error(err)
+            raise CustomException(CodeEnum.ChunkUpdateFailed, err)
+        return resolved
 
     async def _process_chunk_update(
         self,
@@ -752,7 +841,7 @@ class RagflowRAGStrategy(RAGStrategy):
     async def chunks_update(
         self,
         docId: str,
-        group: str,
+        group: Optional[str],
         uid: str,
         chunks: List[Dict[str, Any]],
         **kwargs: Any,
@@ -762,7 +851,8 @@ class RagflowRAGStrategy(RAGStrategy):
 
         Args:
             docId: Document ID
-            group: Group (dataset name)
+            group: Required by the abstract base for cross-strategy
+                compatibility; unused here. Ragflow routes by datasetId.
             uid: User ID
             chunks: List of knowledge chunks, each chunk contains:
                    - docId: Document ID
@@ -772,7 +862,7 @@ class RagflowRAGStrategy(RAGStrategy):
                    - context: Context
                    - references: Reference information
                    - docInfo: Document information
-            **kwargs: Other parameters
+            **kwargs: Other parameters, including datasetId (RAGFlow dataset.id)
 
         Returns:
             Update result data:
@@ -786,15 +876,15 @@ class RagflowRAGStrategy(RAGStrategy):
             )
 
         logger.info(
-            f"Processing chunk update request: docId={docId}, group={group}, chunks_count={len(chunks)}"
+            f"Processing chunk update request: docId={docId}, chunks_count={len(chunks)}"
         )
 
         try:
-            # 1. Validate configuration and dataset
-            dataset_id = await self._validate_chunks_update_config()
+            dataset_id = await self._validate_chunks_update_config(
+                kwargs.get(_DATASET_ID_KWARG)
+            )
             logger.info(f"Using dataset: {dataset_id}")
 
-            # 2. Process each chunk update
             failed_chunks: Dict[str, str] = {}
             successful_count = 0
 
@@ -822,7 +912,10 @@ class RagflowRAGStrategy(RAGStrategy):
             raise CustomException(CodeEnum.ChunkUpdateFailed, str(e))
 
     async def chunks_delete(
-        self, docId: str, chunkIds: List[str], **kwargs: Any
+        self,
+        docId: str,
+        chunkIds: List[str],
+        **kwargs: Any,
     ) -> None:
         """
         Delete knowledge chunks using RAGFlow.
@@ -830,7 +923,8 @@ class RagflowRAGStrategy(RAGStrategy):
         Args:
             docId: Document ID
             chunkIds: List of chunk IDs to delete
-            **kwargs: Additional parameters
+            **kwargs: Additional parameters, including datasetId (RAGFlow
+                dataset.id). When omitted/empty, uses the default dataset.
 
         Returns:
             None if successful
@@ -846,30 +940,20 @@ class RagflowRAGStrategy(RAGStrategy):
             )
 
         logger.info(
-            f"Processing chunk deletion request: docId={docId}, chunks_count={len(chunkIds)}"
+            f"Processing chunk deletion request: docId={docId}, "
+            f"chunks_count={len(chunkIds)}"
         )
 
         try:
-            # 1. Get dataset name from config, then find dataset ID
-            default_group = os.getenv("RAGFLOW_DEFAULT_GROUP")
-            if not default_group:
-                logger.error(
-                    "RAGFLOW_DEFAULT_GROUP not found in config, chunks_delete operation failed"
-                )
-                raise CustomException(
-                    CodeEnum.ChunkDeleteFailed,
-                    "RAGFLOW_DEFAULT_GROUP configuration missing",
-                )
-
-            dataset_id = await RagflowUtils.ensure_dataset(default_group)
+            dataset_id = await self._resolve_dataset_id(kwargs.get(_DATASET_ID_KWARG))
             if not dataset_id:
-                logger.error(f"Unable to find or create dataset: {default_group}")
-                raise CustomException(
-                    CodeEnum.ChunkDeleteFailed,
-                    f"Unable to find or create dataset: {default_group}",
+                logger.info(
+                    "Unable to resolve RAGFlow dataset, "
+                    "treating delete as no-op (idempotent)"
                 )
+                return None
 
-            logger.info(f"Using dataset: {default_group} (ID: {dataset_id})")
+            logger.info(f"Using dataset: {dataset_id}")
 
             # 2. Call RAGFlow deletion API directly
             delete_response = await ragflow_client.delete_chunks(
@@ -899,17 +983,15 @@ class RagflowRAGStrategy(RAGStrategy):
             )
 
     async def query_doc(self, docId: str, **kwargs: Any) -> List[Dict[str, Any]]:
-        """
-        Query all chunk information for a document using RAGFlow.
-        """
+        """Query all chunk information for a document using RAGFlow."""
         try:
             logger.info(f"Starting document chunk query: docId={docId}")
 
-            # Get dataset ID
-            dataset_name = RagflowUtils.get_default_dataset_name()
-            dataset_id = await RagflowUtils.get_dataset_id_by_name(dataset_name)
+            dataset_id = await self._resolve_dataset_id(kwargs.get(_DATASET_ID_KWARG))
             if not dataset_id:
-                logger.warning(f"Dataset not found: {dataset_name}")
+                logger.warning(
+                    "Unable to resolve RAGFlow dataset for query_doc; returning empty"
+                )
                 return []
 
             # Step 1: Get total count
@@ -918,10 +1000,12 @@ class RagflowRAGStrategy(RAGStrategy):
             )
 
             if first_response.get("code") != 0:
-                logger.warning(
-                    f"Failed to get chunks: {first_response.get('message', 'Unknown error')}"
+                msg = first_response.get("message", "Unknown error")
+                logger.warning(f"Failed to get chunks: {msg}")
+                raise ThirdPartyException(
+                    msg=f"RAGFlow query_doc doc={docId}: {msg}",
+                    e=CodeEnum.RAGFLOW_RAGError,
                 )
-                return []
 
             total_count = first_response.get("data", {}).get("total", 0)
             if total_count == 0:
@@ -936,10 +1020,12 @@ class RagflowRAGStrategy(RAGStrategy):
             )
 
             if chunks_response.get("code") != 0:
-                logger.warning(
-                    f"Failed to get all chunks: {chunks_response.get('message', 'Unknown error')}"
+                msg = chunks_response.get("message", "Unknown error")
+                logger.warning(f"Failed to get all chunks: {msg}")
+                raise ThirdPartyException(
+                    msg=f"RAGFlow query_doc doc={docId}: {msg}",
+                    e=CodeEnum.RAGFLOW_RAGError,
                 )
-                return []
 
             logger.info(
                 f"Successfully retrieved {len(chunks_response.get('data', {}).get('chunks', []))} chunks"
@@ -965,24 +1051,29 @@ class RagflowRAGStrategy(RAGStrategy):
             logger.info(f"Successfully converted {len(chunk_infos)} ChunkInfo objects")
             return chunk_infos
 
+        except CustomException:
+            raise
+        except ThirdPartyException:
+            raise
         except Exception as e:
             logger.error(f"Failed to query document chunk information: {e}")
-            return []
+            raise ThirdPartyException(
+                msg=f"RAGFlow query_doc failed for doc={docId}: {e}",
+                e=CodeEnum.RAGFLOW_RAGError,
+            ) from e
 
     async def query_doc_name(
         self, docId: str, **kwargs: Any
     ) -> Optional[Dict[str, Any]]:
-        """
-        Query document name and information using RAGFlow.
-        """
+        """Query document name and information using RAGFlow."""
         try:
             logger.info(f"Starting document info query: docId={docId}")
 
-            # Get dataset ID
-            dataset_name = RagflowUtils.get_default_dataset_name()
-            dataset_id = await RagflowUtils.get_dataset_id_by_name(dataset_name)
+            dataset_id = await self._resolve_dataset_id(kwargs.get(_DATASET_ID_KWARG))
             if not dataset_id:
-                logger.warning(f"Dataset not found: {dataset_name}")
+                logger.warning(
+                    "Unable to resolve RAGFlow dataset for query_doc_name; returning None"
+                )
                 return None
 
             # Get document information
@@ -1010,6 +1101,91 @@ class RagflowRAGStrategy(RAGStrategy):
             )
             return file_info
 
+        except CustomException:
+            raise
+        except ThirdPartyException:
+            raise
         except Exception as e:
             logger.error(f"Failed to query document information: {e}")
-            return None
+            raise ThirdPartyException(
+                msg=f"RAGFlow query_doc_name failed for doc={docId}: {e}",
+                e=CodeEnum.RAGFLOW_RAGError,
+            ) from e
+
+    async def _upsert_document(
+        self,
+        file_input: Any,
+        dataset_id: str,
+        old_doc_id: str,
+    ) -> tuple[str, List[Dict[str, Any]]]:
+        """Atomic upsert: upload + parse + fetch chunks + delete old.
+
+        Any failure at any step rolls back the pending new doc and preserves
+        old_doc_id. Chunks fetch is intentionally inside the transaction:
+        RagflowUtils.get_document_chunks silently returns [] on fetch
+        failure, so deleting the old doc before verifying non-empty chunks
+        would strand the file as un-retrievable.
+
+        Returns (new_doc_id, chunks_data) with chunks_data non-empty.
+        """
+        pending_doc_id = await self._process_document_upload(file_input, dataset_id)
+        logger.info(
+            "upsert pending_doc_id=%s, old_doc_id=%s", pending_doc_id, old_doc_id
+        )
+
+        try:
+            await self._handle_document_parsing(dataset_id, pending_doc_id)
+        except Exception:
+            logger.exception("upsert parse failed, rolling back %s", pending_doc_id)
+            await self._safe_delete_document(dataset_id, pending_doc_id, log_only=True)
+            raise
+
+        try:
+            chunks_data = await RagflowUtils.get_document_chunks(
+                dataset_id, pending_doc_id
+            )
+        except Exception:
+            logger.exception("upsert fetch failed, rolling back %s", pending_doc_id)
+            await self._safe_delete_document(dataset_id, pending_doc_id, log_only=True)
+            raise
+
+        if not chunks_data:
+            logger.error(
+                "upsert new doc %s returned zero chunks, rolling back",
+                pending_doc_id,
+            )
+            await self._safe_delete_document(dataset_id, pending_doc_id, log_only=True)
+            raise CustomException(
+                CodeEnum.ChunkQueryFailed,
+                f"Upsert produced zero chunks for pending doc {pending_doc_id}",
+            )
+
+        await self._safe_delete_document(dataset_id, old_doc_id)
+        return pending_doc_id, chunks_data
+
+    async def _safe_delete_document(
+        self,
+        dataset_id: str,
+        doc_id: str,
+        log_only: bool = False,
+    ) -> None:
+        """Delete a RAGFlow document. With log_only=True, swallow errors so
+        a delete failure doesn't mask a more important exception."""
+        try:
+            resp = await ragflow_client.delete_documents(dataset_id, [doc_id])
+            if resp.get("code") == 0:
+                logger.info("deleted RAGFlow doc: %s", doc_id)
+                return
+            msg = resp.get("message", "unknown")
+            logger.warning("delete doc %s non-zero: %s", doc_id, msg)
+            if not log_only:
+                raise CustomException(
+                    CodeEnum.ChunkDeleteFailed,
+                    f"Failed to delete document {doc_id}: {msg}",
+                )
+        except CustomException:
+            raise
+        except Exception as e:
+            logger.warning("delete doc %s raised: %s", doc_id, e)
+            if not log_only:
+                raise

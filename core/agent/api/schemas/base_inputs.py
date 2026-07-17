@@ -12,6 +12,9 @@ class MetaDataInputs(BaseModel):
 
     caller: str = Field(default="chat_open_api")
     caller_sid: str = Field(default="")
+    workflow_id: str = Field(default="")
+    run_id: str = Field(default="")
+    node_id: str = Field(default="")
 
 
 class BaseInputs(BaseModel):

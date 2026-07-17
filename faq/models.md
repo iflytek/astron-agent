@@ -56,3 +56,17 @@ wget https://raw.githubusercontent.com/iflytek/astron-agent/refs/heads/main/docs
 https://github.com/iflytek/astron-agent/blob/main/docs/xinghuo_rag_tool.html
 ```
 
+## 网页版（agent.xfyun.cn）的会员或 Token 额度能和私有化部署共用吗？
+
+不能共用，二者是相互独立的两套体系。
+
+1. 会员只在网页版生效，私有化部署没有会员概念。
+2. 私有化部署所需的模型额度需自行获取：去 https://www.xfyun.cn 领取（新用户通常有较多免费额度），或使用 https://maas.xfyun.cn 的套餐。
+
+## 知识库配置星火大模型不生效或报错？
+
+RAGFlow 是第三方组件，其内部并未兼容星火大模型（包括 embedding 模型），因此在 RAGFlow 中直接选用星火模型可能不生效。
+
+1. 可以不安装 RAGFlow，改用其它 embedding 模型实现 RAG 功能。
+2. Astron Agent 自身内部是可以使用星火大模型的；通过标准 OpenAI 协议调用星火大模型也没有问题。
+

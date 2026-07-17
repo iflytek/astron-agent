@@ -29,7 +29,7 @@ TS_FILES := $(shell \
 # Core TypeScript Commands
 # =============================================================================
 
-install-tools-typescript: ## 🛠️ Install TypeScript development tools
+install-tools-typescript: ## Install TypeScript development tools
 	@echo "$(YELLOW)Installing TypeScript tools globally...$(RESET)"
 	@npm install -g \
 		typescript@latest \
@@ -43,7 +43,7 @@ install-tools-typescript: ## 🛠️ Install TypeScript development tools
 	echo "$(GREEN)TypeScript tools installed globally$(RESET)" || \
 	(echo "$(RED)Failed to install TypeScript tools$(RESET)" && exit 1)
 
-check-tools-typescript: ## ✅ Check TypeScript development tools availability
+check-tools-typescript: ## Check TypeScript development tools availability
 	@echo "$(YELLOW)Checking TypeScript tools...$(RESET)"
 	@command -v node >/dev/null 2>&1 || (echo "$(RED)Node.js is not installed$(RESET)" && exit 1)
 	@command -v npm >/dev/null 2>&1 || (echo "$(RED)npm is not installed$(RESET)" && exit 1)
@@ -58,35 +58,38 @@ check-tools-typescript: ## ✅ Check TypeScript development tools availability
 	@echo "  Prettier version: $$(prettier --version)"
 	@echo "  ESLint version: $$(eslint --version)"
 
-check-typescript: ## 🔍 Check TypeScript code quality
+check-typescript: ## Check TypeScript code quality
 	@if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Checking TypeScript code quality in: $(TS_DIRS)$(RESET)"; \
-		HAS_ISSUES=0; \
 		for dir in $(TS_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Processing $$dir...$(RESET)"; \
 				(cd $$dir && \
+				echo "$(YELLOW)    Installing dependencies...$(RESET)" && \
+				$(NPM) ci --legacy-peer-deps && \
 				echo "$(YELLOW)    Checking format compliance...$(RESET)" && \
 				UNFORMATTED=$$(npx prettier --list-different "**/*.{ts,tsx,js,jsx,json,md}" 2>/dev/null || true) && \
 				if [ -n "$$UNFORMATTED" ]; then \
-					echo "$(YELLOW)⚠️  WARNING: Files that need formatting:$(RESET)" && \
+					echo "$(RED)Files that need formatting:$(RESET)" && \
 					echo "$$UNFORMATTED" && \
-					echo "$(YELLOW)Run 'npm run format' to fix formatting issues.$(RESET)"; \
+					echo "$(YELLOW)Run 'npm run format' to fix formatting issues.$(RESET)" && \
+					exit 1; \
 				fi && \
 				echo "$(YELLOW)    Running TypeScript type checking...$(RESET)" && \
-				(npx tsc --noEmit --pretty || echo "$(YELLOW)⚠️  WARNING: TypeScript type checking found issues$(RESET)") && \
-				echo "$(YELLOW)    Running ESLint...$(RESET)" && \
-				(npx eslint "**/*.{ts,tsx}" --format=stylish || echo "$(YELLOW)⚠️  WARNING: ESLint found issues$(RESET)")); \
+				(npx tsc --noEmit --pretty || echo "$(YELLOW)TypeScript type checking found errors, but continuing...$(RESET)") && \
+				echo "$(YELLOW)    Running ESLint (errors only)...$(RESET)" && \
+				npx eslint "**/*.{ts,tsx}" --quiet) || exit 1; \
 			else \
-				echo "$(YELLOW)⚠️  WARNING: Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)Directory $$dir does not exist$(RESET)"; \
+				exit 1; \
 			fi; \
 		done; \
-		echo "$(GREEN)TypeScript code quality checks completed (with warnings)$(RESET)"; \
+		echo "$(GREEN)TypeScript code quality checks completed$(RESET)"; \
 	else \
 		echo "$(BLUE)Skipping TypeScript checks (no TypeScript projects configured)$(RESET)"; \
 	fi
 
-test-typescript: ## 🧪 Run TypeScript tests
+test-typescript: ## Run TypeScript tests
 	@if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Running TypeScript tests in: $(TS_DIRS)$(RESET)"; \
 		for dir in $(TS_DIRS); do \
@@ -112,7 +115,7 @@ test-typescript: ## 🧪 Run TypeScript tests
 		echo "$(BLUE)Skipping TypeScript tests (no TypeScript projects configured)$(RESET)"; \
 	fi
 
-build-typescript: ## 📦 Build TypeScript projects
+build-typescript: ## Build TypeScript projects
 	@if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Building TypeScript projects in: $(TS_DIRS)$(RESET)"; \
 		for dir in $(TS_DIRS); do \
@@ -140,7 +143,7 @@ build-typescript: ## 📦 Build TypeScript projects
 		echo "$(BLUE)Skipping TypeScript build (no TypeScript projects configured)$(RESET)"; \
 	fi
 
-clean-typescript: ## 🧹 Clean TypeScript build artifacts
+clean-typescript: ## Clean TypeScript build artifacts
 	@if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Cleaning TypeScript build artifacts in: $(TS_DIRS)$(RESET)"; \
 		for dir in $(TS_DIRS); do \

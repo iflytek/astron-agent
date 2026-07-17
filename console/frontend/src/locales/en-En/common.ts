@@ -165,6 +165,7 @@ const translation = {
     knowledge: 'Knowledge Base',
     database: 'Database',
     rpa: 'RPA',
+    skill: 'Skill',
   },
   // ToolInputParameters component translations
   pleaseEnterDefaultValue: 'Please enter default value',

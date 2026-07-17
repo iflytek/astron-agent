@@ -108,7 +108,7 @@ class DecisionNode(BaseLLMNode):
         default="not_knowledge"
     )  # Type of question for LLM processing
     intentChains: list[IntentChain] = Field(
-        ..., default_factory=list
+        default_factory=list
     )  # List of intent chain configurations
 
     async def async_execute_fc(

@@ -87,7 +87,7 @@ class TestWorkflowEngineBuilder:
             with pytest.raises(CustomException) as exc_info:
                 self.builder._validate_node("invalid_type:node_id", mock_node)
 
-            assert exc_info.value.code == CodeEnum.ENG_PROTOCOL_VALIDATE_ERROR.code
+            assert exc_info.value.code == CodeEnum.ENG_RUN_ERROR.code
 
     def test_merge_message_dependencies(self) -> None:
         """Test merging message dependencies from multiple dependency lists."""
@@ -239,7 +239,7 @@ class TestWorkflowEngineBuilderAdvanced:
 
         assert exc_info.value.code == CodeEnum.ENG_PROTOCOL_VALIDATE_ERROR.code
         assert exc_info.value.message == (
-            "Workflow engine build failed"
+            "Workflow engine protocol validation failed"
             "(Iteration start node: missing_node does not exist)"
         )
 

@@ -66,4 +66,10 @@ public class Model {
      * Whether has thinking capability
      */
     private Boolean isThink;
+
+    /**
+     * Whether has multimodal capability
+     */
+    @TableField("multi_mode")
+    private Boolean multiMode;
 }

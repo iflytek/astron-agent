@@ -5,8 +5,14 @@ from typing import Optional
 
 from common.utils.snowfake import get_id
 from memory.database.domain.models.base import SQLModelSerializable
+from memory.database.repository.middleware.adapters import get_adapter
 from sqlalchemy import BigInteger, Column
 from sqlmodel import Field
+
+
+def _get_table_args() -> dict:
+    """Get table_args based on the configured database adapter."""
+    return get_adapter().get_model_table_args()
 
 
 class SchemaMeta(
@@ -25,7 +31,7 @@ class SchemaMeta(
     """
 
     __tablename__ = "schema_meta"
-    __table_args__ = {"schema": "sparkdb_manager"}
+    __table_args__ = _get_table_args()
     id: int = Field(
         default_factory=get_id, sa_column=Column(BigInteger, primary_key=True)
     )

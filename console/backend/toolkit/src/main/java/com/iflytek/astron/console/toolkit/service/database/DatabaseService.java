@@ -28,6 +28,9 @@ import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.util.S3Util;
 import com.iflytek.astron.console.toolkit.util.database.NamePolicy;
 import com.iflytek.astron.console.toolkit.util.database.SqlRenderer;
+import com.iflytek.astron.console.toolkit.util.database.dialect.ColumnDef;
+import com.iflytek.astron.console.toolkit.util.database.dialect.ColumnModification;
+import com.iflytek.astron.console.toolkit.util.database.dialect.DbDialect;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -87,6 +90,9 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
     private DSLContext dslCon;
     @Autowired
     private CommonConfig commonConfig;
+
+    @Autowired
+    private DbDialect dialect;
 
     private static final String[] SYSTEM_FIELDS = {"id", "uid", "create_time"};
     // New additions in DatabaseService
@@ -465,76 +471,30 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
         StringBuilder ddl = new StringBuilder();
 
         if (DBOperateEnum.INSERT.getCode().equals(type)) {
-            String table = SqlRenderer.quoteIdent(dbTableDto.getName());
-            ddl.append("CREATE TABLE ")
-                    .append(table)
-                    .append(" (\n")
-                    .append("  ")
-                    .append(SqlRenderer.quoteIdent("id"))
-                    .append(" BIGSERIAL PRIMARY KEY,\n")
-                    .append("  ")
-                    .append(SqlRenderer.quoteIdent("uid"))
-                    .append(" VARCHAR(64) NOT NULL,\n")
-                    .append("  ")
-                    .append(SqlRenderer.quoteIdent("create_time"))
-                    .append(" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP");
-
             List<DbTableFieldDto> fields = dbTableDto.getFields()
                     .stream()
                     .filter(f -> !Arrays.asList(SYSTEM_FIELDS).contains(f.getName()))
                     .collect(Collectors.toList());
 
-            for (DbTableFieldDto field : fields) {
-                ddl.append(",\n  ")
-                        .append(SqlRenderer.quoteIdent(field.getName()))
-                        .append(" ")
-                        .append(transFormType(field.getType()));
-                if (Boolean.TRUE.equals(field.getIsRequired())) {
-                    ddl.append(" NOT NULL");
-                }
-                // Default value
-                if (StringUtils.isNotBlank(field.getDefaultValue())) {
-                    ddl.append(" DEFAULT ").append(SqlRenderer.renderValue(adaptDefault(field)));
-                }
-            }
-            ddl.append("\n);");
+            List<ColumnDef> columns = fields.stream()
+                    .map(f -> new ColumnDef(
+                            f.getName(),
+                            transFormType(f.getType()),
+                            Boolean.TRUE.equals(f.getIsRequired()),
+                            StringUtils.isNotBlank(f.getDefaultValue())
+                                    ? SqlRenderer.renderValue(adaptDefault(f))
+                                    : null,
+                            f.getDescription()))
+                    .collect(Collectors.toList());
 
-            // Table/column comments
-            if (StringUtils.isNotBlank(dbTableDto.getDescription())) {
-                ddl.append("\nCOMMENT ON TABLE ")
-                        .append(table)
-                        .append(" IS ")
-                        .append(SqlRenderer.quoteLiteral(dbTableDto.getDescription()))
-                        .append(";");
-            }
-            ddl.append("\nCOMMENT ON COLUMN ").append(table).append(".").append(SqlRenderer.quoteIdent("id")).append(" IS 'Primary key id';");
-            ddl.append("\nCOMMENT ON COLUMN ").append(table).append(".").append(SqlRenderer.quoteIdent("uid")).append(" IS 'uid';");
-            ddl.append("\nCOMMENT ON COLUMN ").append(table).append(".").append(SqlRenderer.quoteIdent("create_time")).append(" IS 'Create time';");
-
-            for (DbTableFieldDto field : fields) {
-                if (StringUtils.isNotBlank(field.getDescription())) {
-                    ddl.append("\nCOMMENT ON COLUMN ")
-                            .append(table)
-                            .append(".")
-                            .append(SqlRenderer.quoteIdent(field.getName()))
-                            .append(" IS ")
-                            .append(SqlRenderer.quoteLiteral(field.getDescription()))
-                            .append(";");
-                }
-            }
+            ddl.append(dialect.buildCreateTable(dbTableDto.getName(), columns, dbTableDto.getDescription()));
 
         } else if (DBOperateEnum.UPDATE.getCode().equals(type)) {
-            String tableNow = SqlRenderer.quoteIdent(dbTableDto.getName());
             if (StringUtils.isNotBlank(dbTableDto.getName()) && !dbTableDto.getName().equals(originTbName)) {
-                String origin = SqlRenderer.quoteIdent(originTbName);
-                ddl.append("ALTER TABLE ").append(origin).append(" RENAME TO ").append(tableNow).append("; ");
+                ddl.append(dialect.buildRenameTable(originTbName, dbTableDto.getName())).append(" ");
             }
             if (StringUtils.isNotBlank(dbTableDto.getDescription())) {
-                ddl.append("COMMENT ON TABLE ")
-                        .append(tableNow)
-                        .append(" IS ")
-                        .append(SqlRenderer.quoteLiteral(dbTableDto.getDescription()))
-                        .append("; ");
+                ddl.append(dialect.buildTableComment(dbTableDto.getName(), dbTableDto.getDescription())).append(" ");
             }
 
             // Sort operations by type (DELETE -> UPDATE -> INSERT) to avoid dependency issues
@@ -551,11 +511,11 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
             }
 
         } else if (DBOperateEnum.DELETE.getCode().equals(type)) {
-            ddl.append("DROP TABLE IF EXISTS ").append(SqlRenderer.quoteIdent(dbTableDto.getName())).append(";");
+            ddl.append("DROP TABLE IF EXISTS ").append(dialect.quoteIdent(dbTableDto.getName())).append(";");
 
         } else if (DBOperateEnum.COPY.getCode().equals(type)) {
-            String to = SqlRenderer.quoteIdent(dbTableDto.getName());
-            String from = SqlRenderer.quoteIdent(originTbName);
+            String to = dialect.quoteIdent(dbTableDto.getName());
+            String from = dialect.quoteIdent(originTbName);
             ddl.append("CREATE TABLE ").append(to).append(" AS SELECT * FROM ").append(from).append(";");
         }
         return ddl.toString();
@@ -565,7 +525,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
     private String transFormType(String type) {
         switch (type.toLowerCase()) {
             case CommonConst.DBFieldType.STRING:
-                return "VARCHAR";
+                return "VARCHAR(512)";
             case CommonConst.DBFieldType.TIME:
                 return "TIMESTAMP";
             case CommonConst.DBFieldType.NUMBER:
@@ -595,102 +555,49 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
 
     // Add field
     public String buildAddColumnSql(String tableName, DbTableFieldDto field) {
-        StringBuilder sql = new StringBuilder();
-        String table = SqlRenderer.quoteIdent(tableName);
-        String col = SqlRenderer.quoteIdent(field.getName());
-
-        sql.append("ALTER TABLE ")
-                .append(table)
-                .append(" ADD COLUMN IF NOT EXISTS ")
-                .append(col)
-                .append(" ")
-                .append(transFormType(field.getType()));
-
-        if (Boolean.TRUE.equals(field.getIsRequired())) {
-            sql.append(" NOT NULL");
-        }
-        if (StringUtils.isNotBlank(field.getDefaultValue())) {
-            sql.append(" DEFAULT ").append(SqlRenderer.renderValue(adaptDefault(field)));
-        }
-        sql.append("; ");
-
-        if (StringUtils.isNotBlank(field.getDescription())) {
-            sql.append("COMMENT ON COLUMN ")
-                    .append(table)
-                    .append(".")
-                    .append(col)
-                    .append(" IS ")
-                    .append(SqlRenderer.quoteLiteral(field.getDescription()))
-                    .append("; ");
-        }
-        return sql.toString();
+        ColumnDef col = new ColumnDef(
+                field.getName(),
+                transFormType(field.getType()),
+                Boolean.TRUE.equals(field.getIsRequired()),
+                StringUtils.isNotBlank(field.getDefaultValue())
+                        ? SqlRenderer.renderValue(adaptDefault(field))
+                        : null,
+                field.getDescription());
+        return dialect.buildAddColumn(tableName, col);
     }
 
     // Delete field
-    public static String buildDropColumnSql(String tableName, String columnName) {
-        String table = SqlRenderer.quoteIdent(tableName);
-        String col = SqlRenderer.quoteIdent(columnName);
-        String sql = "ALTER TABLE " + table + " DROP COLUMN IF EXISTS " + col + ";";
+    public String buildDropColumnSql(String tableName, String columnName) {
+        String sql = dialect.buildDropColumn(tableName, columnName);
         SqlRenderer.denyMultiStmtOrComment(sql);
         return sql;
     }
 
     // Edit field
     public String buildModifyColumnSql(String tableName, DbTableFieldDto field) {
-        List<String> alterClauses = new ArrayList<>();
-        String renameClause = null;
-        StringBuilder commentSql = new StringBuilder();
-
         DbTableField dbTableField = dbTableFieldMapper.selectById(field.getId());
-        String fromCol = SqlRenderer.quoteIdent(dbTableField.getName());
-        String toCol = fromCol;
-        if (StringUtils.isNotBlank(field.getName()) && !dbTableField.getName().equals(field.getName())) {
-            toCol = SqlRenderer.quoteIdent(field.getName());
-            renameClause = "RENAME COLUMN " + fromCol + " TO " + toCol;
-        }
-        if (StringUtils.isNotBlank(field.getType()) && !dbTableField.getType().equalsIgnoreCase(field.getType())) {
-            alterClauses.add("ALTER COLUMN " + toCol + " SET DATA TYPE " + transFormType(field.getType()));
-        }
-        if (Boolean.TRUE.equals(field.getIsRequired())) {
-            alterClauses.add("ALTER COLUMN " + toCol + " SET NOT NULL");
-        } else {
-            alterClauses.add("ALTER COLUMN " + toCol + " DROP NOT NULL");
-        }
-        if (!Objects.equals(field.getDefaultValue(), dbTableField.getDefaultValue())) {
-            alterClauses.add("ALTER COLUMN " + toCol + " SET DEFAULT " + SqlRenderer.renderValue(adaptDefault(field)));
-        }
 
-        String table = SqlRenderer.quoteIdent(tableName);
-        StringBuilder sql = new StringBuilder();
-        if (renameClause != null) {
-            sql.append("ALTER TABLE ").append(table).append(" ").append(renameClause).append("; ");
-        }
-        if (!alterClauses.isEmpty()) {
-            sql.append("ALTER TABLE ").append(table).append(" ").append(String.join(", ", alterClauses)).append(";");
-        }
+        String oldName = dbTableField.getName();
+        String newName =
+                (StringUtils.isNotBlank(field.getName()) && !dbTableField.getName().equals(field.getName()))
+                        ? field.getName()
+                        : oldName;
+        boolean typeChanged = StringUtils.isNotBlank(field.getType()) && !dbTableField.getType().equalsIgnoreCase(field.getType());
+        boolean defaultChanged = !Objects.equals(field.getDefaultValue(), dbTableField.getDefaultValue());
+        boolean commentChanged = !StringUtils.equals(field.getDescription(), dbTableField.getDescription());
 
-        // Comment
-        if (!StringUtils.equals(field.getDescription(), dbTableField.getDescription())) {
-            if (StringUtils.isNotBlank(field.getDescription())) {
-                commentSql.append(" COMMENT ON COLUMN ")
-                        .append(table)
-                        .append(".")
-                        .append(toCol)
-                        .append(" IS ")
-                        .append(SqlRenderer.quoteLiteral(field.getDescription()))
-                        .append("; ");
-            } else {
-                commentSql.append(" COMMENT ON COLUMN ")
-                        .append(table)
-                        .append(".")
-                        .append(toCol)
-                        .append(" IS NULL; ");
-            }
-        }
+        ColumnModification mod = new ColumnModification(
+                oldName,
+                newName,
+                transFormType(field.getType()),
+                Boolean.TRUE.equals(field.getIsRequired()),
+                defaultChanged ? SqlRenderer.renderValue(adaptDefault(field)) : null,
+                field.getDescription(),
+                typeChanged,
+                defaultChanged,
+                commentChanged);
 
-        String out = sql.append(" ").append(commentSql).toString();
-        SqlRenderer.denyMultiStmtOrComment(out);
-        return out;
+        return dialect.buildModifyColumn(tableName, mod);
     }
 
     // Delete field
@@ -723,62 +630,6 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
             default:
                 return v; // Others as string
         }
-    }
-
-    // Edit field
-    public String buildModifyColumnSqlOld(String tableName, DbTableFieldDto field) {
-
-        List<String> alterClauses = new ArrayList<>();
-        String renameClause = null;
-        StringBuilder commentSql = new StringBuilder();
-
-        // Check if name is modified
-        DbTableField dbTableField = dbTableFieldMapper.selectById(field.getId());
-        String colNameToUse = dbTableField.getName();
-        if (field.getName() != null && !dbTableField.getName().equals(field.getName())) {
-            renameClause = String.format("RENAME COLUMN %s TO %s", dbTableField.getName(), field.getName());
-            colNameToUse = field.getName();
-        }
-
-        if (StringUtils.isNotBlank(field.getType()) && !dbTableField.getType().equalsIgnoreCase(field.getType())) {
-            alterClauses.add(String.format("ALTER COLUMN %s SET DATA TYPE %s", colNameToUse, transFormType(field.getType())));
-        }
-
-        if (Boolean.TRUE.equals(field.getIsRequired())) {
-            alterClauses.add(String.format("ALTER COLUMN %s SET NOT NULL", colNameToUse));
-        } else {
-            alterClauses.add(String.format("ALTER COLUMN %s DROP NOT NULL", colNameToUse));
-        }
-
-        // Set default value, only if different
-        if (!field.getDefaultValue().equals(dbTableField.getDefaultValue())) {
-            if (CommonConst.DBFieldType.STRING.equalsIgnoreCase(field.getType()) || CommonConst.DBFieldType.TIME.equalsIgnoreCase(field.getType())) {
-                alterClauses.add(String.format("ALTER COLUMN %s SET DEFAULT '%s'", colNameToUse, field.getDefaultValue()));
-            } else {
-                alterClauses.add(String.format(String.format("ALTER COLUMN %s SET DEFAULT %s", colNameToUse, field.getDefaultValue())));
-            }
-        }
-        // Concatenate ALTER TABLE statement
-        StringBuilder sql = new StringBuilder();
-        if (renameClause != null) {
-            sql.append(String.format("ALTER TABLE %s ", tableName));
-            sql.append(renameClause).append("; ");
-        }
-        sql.append(String.format("ALTER TABLE %s ", tableName));
-        sql.append(String.join(", ", alterClauses));
-        sql.append(";");
-
-
-        // Check if comment changes, concatenate COMMENT statement
-        if (StringUtils.isNotBlank(field.getDescription())) {
-            // Set or modify comment, only execute if changed
-            if (!field.getDescription().equals(dbTableField.getDescription())) {
-                commentSql.append(String.format("COMMENT ON COLUMN %s.%s IS '%s'; ", tableName, colNameToUse, field.getDescription()));
-            }
-        } else {
-            commentSql.append(String.format("COMMENT ON COLUMN %s.%s IS NULL; ", tableName, colNameToUse));
-        }
-        return sql.append(" ").append(commentSql).toString();
     }
 
 
@@ -838,7 +689,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
                         UserInfoManagerHandler.getUserId(),
                         SpaceInfoUtil.getSpaceId(),
                         dbInfo.getDbId(),
-                        DBOperateEnum.UPDATE.getCode(),
+                        data.getOperateType(),
                         dbTableOperateDto.getExecDev());
 
                 // Simple batch yielding can be done here (e.g., sleep 1ms every BATCH items) to prevent
@@ -887,7 +738,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
 
     private String buildDml(String tableName, Map<String, Object> params, Integer operateType) {
         StringBuilder sql = new StringBuilder();
-        String table = SqlRenderer.quoteIdent(tableName);
+        String table = dialect.quoteIdent(tableName);
 
         if (DBOperateEnum.INSERT.getCode().equals(operateType)) {
             // Filter null
@@ -898,11 +749,11 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
 
             List<String> cols = new ArrayList<>();
             List<String> vals = new ArrayList<>();
-            cols.add(SqlRenderer.quoteIdent("uid"));
+            cols.add(dialect.quoteIdent("uid"));
             vals.add(SqlRenderer.renderValue(UserInfoManagerHandler.getUserId()));
 
             for (Map.Entry<String, Object> e : nonNull.entrySet()) {
-                cols.add(SqlRenderer.quoteIdent(e.getKey()));
+                cols.add(dialect.quoteIdent(e.getKey()));
                 vals.add(SqlRenderer.renderValue(e.getValue()));
             }
             sql.append("INSERT INTO ")
@@ -917,12 +768,12 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
         } else if (DBOperateEnum.UPDATE.getCode().equals(operateType)) {
             // where id = ?
             long id = SqlRenderer.requireLong(params.get("id"), "id");
-            String where = SqlRenderer.quoteIdent("id") + " = " + id;
+            String where = dialect.quoteIdent("id") + " = " + id;
 
             String sets = params.entrySet()
                     .stream()
                     .filter(e -> !"id".equals(e.getKey()))
-                    .map(e -> SqlRenderer.quoteIdent(e.getKey()) + " = " + SqlRenderer.renderValue(e.getValue()))
+                    .map(e -> dialect.quoteIdent(e.getKey()) + " = " + SqlRenderer.renderValue(e.getValue()))
                     .collect(Collectors.joining(", "));
 
             if (StringUtils.isBlank(sets)) {
@@ -938,7 +789,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
 
         } else if (DBOperateEnum.DELETE.getCode().equals(operateType)) {
             long id = SqlRenderer.requireLong(params.get("id"), "id");
-            String where = SqlRenderer.quoteIdent("id") + " = " + id;
+            String where = dialect.quoteIdent("id") + " = " + id;
             sql.append("DELETE FROM ").append(table).append(" WHERE ").append(where).append(";");
         }
 
@@ -946,39 +797,6 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
         return sql.toString();
     }
 
-    private String buildDmlOld(String tableName, Map<String, Object> params, Integer operateType) {
-        StringBuilder sql = new StringBuilder();
-        if (DBOperateEnum.INSERT.getCode().equals(operateType)) {
-            // System field uuid filling
-            params = params.entrySet()
-                    .stream()
-                    .filter(entry -> entry.getValue() != null)
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            String columns = " uid ";
-            String values = "'" + UserInfoManagerHandler.getUserId() + "'";
-            if (!params.isEmpty()) {
-                columns = columns.concat(",").concat(String.join(", ", params.keySet()));
-                values = values + "," + params.values()
-                        .stream()
-                        .map(value -> value instanceof String ? "'" + value + "'" : value.toString())
-                        .collect(Collectors.joining(", "));
-            }
-            sql.append("INSERT INTO ").append(tableName).append(" (").append(columns).append(") VALUES (").append(values).append("); ");
-        } else if (DBOperateEnum.UPDATE.getCode().equals(operateType)) {
-            String condition = "id = " + params.get("id");
-            String updates = params.entrySet()
-                    .stream()
-                    .filter(entry -> !"id".equals(entry.getKey())) // Filter out entries with key "id"
-                    .map(entry -> entry.getKey() + " = " +
-                            (entry.getValue() instanceof String ? "'" + entry.getValue() + "'" : entry.getValue()))
-                    .collect(Collectors.joining(", "));
-            sql.append("UPDATE ").append(tableName).append(" SET ").append(updates).append(" WHERE ").append(condition).append("; ");
-        } else if (DBOperateEnum.DELETE.getCode().equals(operateType)) {
-            String condition = "id = " + params.get("id");
-            sql.append("DELETE FROM ").append(tableName).append(" WHERE ").append(condition).append("; ");
-        }
-        return sql.toString();
-    }
 
     public void getTableTemplateFile(HttpServletResponse response, Long tbId) {
         dataPermissionCheckTool.checkTbBelong(tbId);
@@ -1025,14 +843,14 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
             DbTable dbTable = dbTableMapper.selectById(dto.getTbId());
             DbInfo dbInfo = dbInfoMapper.selectById(dbTable.getDbId());
 
-            String table = SqlRenderer.quoteIdent(dbTable.getName());
+            String table = dialect.quoteIdent(dbTable.getName());
             long limit = page.getSize();
             long offset = (page.getCurrent() - 1) * page.getSize();
             if (limit < 0 || offset < 0)
                 throw new IllegalArgumentException("Bad paging");
 
             String dml = "SELECT * FROM " + table + " ORDER BY " +
-                    SqlRenderer.quoteIdent("create_time") + " DESC, " + SqlRenderer.quoteIdent("id") + " DESC" +
+                    dialect.quoteIdent("create_time") + " DESC, " + dialect.quoteIdent("id") + " DESC" +
                     " LIMIT " + limit + " OFFSET " + offset;
             SqlRenderer.denyMultiStmtOrComment(dml);
 
@@ -1044,7 +862,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
                     DBOperateEnum.SELECT.getCode(),
                     dto.getExecDev());
 
-            String countDml = "SELECT COUNT(*) FROM " + table;
+            String countDml = "SELECT COUNT(*) AS count FROM " + table;
             Long total = (Long) coreSystemService.execDML(
                     countDml,
                     UserInfoManagerHandler.getUserId(),
@@ -1187,7 +1005,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
             DbTable dbTable = dbTableMapper.selectById(dto.getTbId());
             DbInfo dbInfo = dbInfoMapper.selectById(dbTable.getDbId());
 
-            String table = SqlRenderer.quoteIdent(dbTable.getName());
+            String table = dialect.quoteIdent(dbTable.getName());
             String dml = "SELECT * FROM " + table + " LIMIT 1000 OFFSET 0";
 
             if (dto.getDataIds() != null && !dto.getDataIds().isEmpty()) {
@@ -1200,7 +1018,7 @@ public class DatabaseService extends ServiceImpl<DbInfoMapper, DbInfo> {
                         .map(x -> SqlRenderer.requireLong(x, "id"))
                         .collect(Collectors.toList());
                 String in = ids.stream().map(String::valueOf).collect(Collectors.joining(","));
-                dml = "SELECT * FROM " + table + " WHERE " + SqlRenderer.quoteIdent("id") + " IN (" + in + ")";
+                dml = "SELECT * FROM " + table + " WHERE " + dialect.quoteIdent("id") + " IN (" + in + ")";
             }
             SqlRenderer.denyMultiStmtOrComment(dml);
 

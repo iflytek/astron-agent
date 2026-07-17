@@ -4,6 +4,10 @@ export async function listFlows(params): Promise<unknown> {
   return http.get('/workflow/list', { params });
 }
 
+export async function getFlowInputsInfo(flowId: string): Promise<unknown> {
+  return http.get('/workflow/get-inputs-info', { params: { flowId } });
+}
+
 export async function createFlowAPI(params): Promise<unknown> {
   return http.post('/workflow', params);
 }

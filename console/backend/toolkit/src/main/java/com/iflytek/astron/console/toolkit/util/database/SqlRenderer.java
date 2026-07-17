@@ -31,6 +31,30 @@ public final class SqlRenderer {
     public static final int MAX_LITERAL_LENGTH = 4096;
 
     /**
+     * Validate an identifier name without quoting it. Returns the trimmed, validated name. This method
+     * is used by dialect implementations which apply their own quoting.
+     *
+     * @param name the original identifier
+     * @return the validated (trimmed) identifier string
+     * @throws IllegalArgumentException if identifier is empty, too long, invalid, or reserved
+     */
+    public static String validateIdent(String name) {
+        String n = StringUtils.trimToEmpty(name);
+        denyDangerousChars(n);
+        if (n.length() == 0 || n.length() > MAX_IDENTIFIER_LENGTH) {
+            throw new IllegalArgumentException("Illegal identifier length: " + name);
+        }
+        if (!IDENTIFIER.matcher(n).matches()) {
+            throw new IllegalArgumentException("Illegal identifier: " + name);
+        }
+        String upper = n.toUpperCase(Locale.ROOT);
+        if (RESERVED.contains(upper)) {
+            throw new IllegalArgumentException("Identifier is reserved keyword: " + name);
+        }
+        return n;
+    }
+
+    /**
      * Safely quote a table/column identifier with double quotes after strict validation.
      *
      * <p>
@@ -49,19 +73,7 @@ public final class SqlRenderer {
      * @throws IllegalArgumentException if identifier is empty, too long, invalid, or reserved
      */
     public static String quoteIdent(String name) {
-        String n = StringUtils.trimToEmpty(name);
-        denyDangerousChars(n);
-        if (n.length() == 0 || n.length() > MAX_IDENTIFIER_LENGTH) {
-            throw new IllegalArgumentException("Illegal identifier length: " + name);
-        }
-        // Allow mixed naming like "name_copy", but disallow destructive characters
-        if (!IDENTIFIER.matcher(n).matches()) {
-            throw new IllegalArgumentException("Illegal identifier: " + name);
-        }
-        String upper = n.toUpperCase(Locale.ROOT);
-        if (RESERVED.contains(upper)) {
-            throw new IllegalArgumentException("Identifier is reserved keyword: " + name);
-        }
+        String n = validateIdent(name);
         // PostgreSQL/SQL safe form: wrap with double quotes; escape inner quotes
         return "\"" + n.replace("\"", "\"\"") + "\"";
     }

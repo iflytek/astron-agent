@@ -118,7 +118,7 @@ class SparkLLMNode(BaseLLMNode):
             return {}
         return res_json
 
-    async def async_execute(
+    async def async_execute(  # noqa: C901
         self,
         variable_pool: VariablePool,
         span: Span,
@@ -198,6 +198,35 @@ class SparkLLMNode(BaseLLMNode):
                     else None
                 )
             flow_id = callbacks.flow_id if callbacks else ""
+            # Extract multimodal inputs based on the DSL protocol fileType mapping
+            # Use a mapping from input names to their fileType as defined in the DSL protocol
+
+            multimodal_inputs = []
+
+            # Create a mapping from input identifiers to their DSL-defined fileTypes
+            # This maps the input names to their fileType as defined in the DSL protocol
+            input_to_filetype_map = self.input_to_filetype_map
+
+            # Iterate through the runtime inputs
+            for input_name, input_value in inputs.items():
+                # Get the fileType for this input from the DSL protocol mapping
+                filetype = input_to_filetype_map.get(input_name, "")
+
+                # Check if this input is defined as multimodal in the DSL protocol
+                if filetype in ["image", "audio", "video"]:
+                    # Process this input as a multimodal input
+                    if isinstance(input_value, str):
+                        # If the value is a string, treat it as a URL
+                        multimodal_inputs.append({"type": filetype, "url": input_value})
+                    elif isinstance(input_value, dict):
+                        # If the value is a dictionary, extract the URL or content
+                        url = (
+                            input_value.get("url")
+                            or input_value.get("link")
+                            or str(input_value)
+                        )
+                        multimodal_inputs.append({"type": filetype, "url": url})
+
             token_usage, res, think_contents, processed_history = (
                 await self._chat_with_llm(
                     span=span,
@@ -211,6 +240,7 @@ class SparkLLMNode(BaseLLMNode):
                     image_url=image_url,
                     stream=True,
                     msg_or_end_node_deps=msg_or_end_node_deps,
+                    multimodal_inputs=multimodal_inputs,  # Pass multimodal inputs
                 )
             )
 

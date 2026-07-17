@@ -68,12 +68,15 @@ public class UserLangChainInfoDataServiceImpl implements UserLangChainDataServic
 
     @Override
     public String findFlowIdByBotId(Integer botId) {
+        if (botId == null) {
+            return null;
+        }
         UserLangChainInfo userLangChainInfo = userLangChainInfoMapper.selectOne(
                 new LambdaQueryWrapper<UserLangChainInfo>()
                         .eq(UserLangChainInfo::getBotId, botId)
                         .orderByDesc(UserLangChainInfo::getUpdateTime)
                         .last("LIMIT 1"));
-        return userLangChainInfo.getFlowId();
+        return userLangChainInfo == null ? null : userLangChainInfo.getFlowId();
     }
 
     @Override

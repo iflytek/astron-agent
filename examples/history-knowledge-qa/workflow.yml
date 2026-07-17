@@ -1,0 +1,744 @@
+flowMeta:
+  name: 历史知识问答小助理
+  description: “历史知识问答”智能体是您的私人历史顾问，专业涵盖全球历史事件、文化演变和重要人物。无论您对古代文明的奥秘还是现代历史的转折点感兴趣，它都能提供准确信息，解答您的每一个疑问。
+  avatarIcon: https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_14@2x.png
+  avatarColor: '#FFEAD5'
+  advancedConfig: '{"textToSpeech":{"vcn_en":"x4_EnUs_Luna","enable":true,"vcnEmotion":"","vcn_cn":"x4_lingxiaoli_oral"},"needGuide":false,"prologue":{"enabled":true,"inputExample":["我想知道李白的生平？","为什么会有“安史之乱”？","山顶洞人是怎么生活的？"],"prologueText":"你好，我是“历史知识问答”智能体，您的私人历史顾问，专业涵盖全球历史事件、文化演变和重要人物。无论您对古代文明的奥秘还是现代历史的转折点感兴趣，我都能提供准确信息，解答您的每一个疑问，很高兴认识你。"},"chatBackground":{"enabled":false},"suggestedQuestionsAfterAnswer":{"enabled":false}}'
+  category: 10
+  dslVersion: v1
+flowData:
+  nodes:
+  - id: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+    dragging: false
+    selected: false
+    width: 362
+    height: 116
+    position:
+      x: 1039.743191955861
+      y: -478.89660972756934
+    positionAbsolute:
+      x: 1039.743191955861
+      y: -478.89660972756934
+    type: 开始节点
+    data:
+      allowInputReference: false
+      allowOutputReference: true
+      label: 开始
+      status: ''
+      nodeMeta:
+        aliasName: 开始节点
+        nodeType: 基础节点
+      inputs: [
+        ]
+      outputs:
+      - id: 0918514b-72a8-4646-8dd9-ff4a8fc26d44
+        name: AGENT_USER_INPUT
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: 用户本轮对话输入内容
+        required: true
+        deleteDisabled: true
+      nodeParam: {
+        }
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/start-node-icon.png
+      description: 工作流的开启节点，用于定义流程调用所需的业务变量信息。
+      updatable: false
+  - id: node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    dragging: false
+    selected: false
+    width: 362
+    height: 116
+    position:
+      x: 3097.6737316601316
+      y: 162.08753003135402
+    positionAbsolute:
+      x: 3097.6737316601316
+      y: 162.08753003135402
+    type: 结束节点
+    data:
+      allowInputReference: true
+      allowOutputReference: false
+      label: 结束
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 结束节点
+        nodeType: 基础节点
+      inputs:
+      - id: 82de2b42-a059-4c98-bffb-b6b4800fcac9
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              name: output
+              id: 10946470-9754-49b4-9a29-e80bb4f11fd3
+              nodeId: spark-llm::6206a73a-cfa9-49a0-9804-0b63a7df1f26
+            contentErrMsg: ''
+        fileType: ''
+      outputs: [
+        ]
+      nodeParam:
+        template: '{{output}}'
+        streamOutput: true
+        templateErrMsg: ''
+        outputMode: 1
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/end-node-icon.png
+      description: 工作流的结束节点，用于输出工作流运行后的最终结果。
+      updatable: false
+  - id: spark-llm::5a0d2719-7ba0-468c-a3eb-dad026e765cb
+    dragging: false
+    selected: false
+    width: 362
+    height: 124
+    position:
+      x: 2063.7628643329326
+      y: 0
+    positionAbsolute:
+      x: 971.0146533559237
+      y: 62.41299361743364
+    type: 大模型
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 信息处理
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 大模型
+        nodeType: 基础节点
+      inputs:
+      - id: 48745e3a-dc79-457d-8062-a2eac8279a63
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: array-object
+          value:
+            type: ref
+            content:
+              name: result
+              id: c7da8eb6-3629-422e-84d6-2d41d5064da2
+              nodeId: plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: 66f91f50-b57c-4d27-87c9-c6785c3d000d
+        name: REASONING_CONTENT
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: 模型思考过程
+        customParameterType: deepseekr1
+      - id: 616a66eb-b302-4631-ab99-cff574c22cb3
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        topK: 4
+        template: 接下来我的输入是包含了联网搜索的结果：{{input}}
+        modelId: 219
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        auditing: default
+        llmId: 219
+        url: wss://spark-api.xf-yun.com/v1/x1
+        multiMode: false
+        uid: '18828012125'
+        modelName: Spark X1
+        patchId: '0'
+        isThink: true
+        templateErrMsg: ''
+        domain: x1
+        appId: YOUR_APP_ID
+        maxTokens: 2048
+        temperature: 0.5
+        systemTemplate: |-
+          你是一名专业严谨、通俗易懂、亲和力强的历史知识问答数字人助手，专注于中国史与世界史领域，具备扎实的正史典籍、学术专著、考古报告支撑的史料功底，核心目标是精准解答用户各类历史问题，输出内容兼顾准确性、趣味性、实用性，同时完全适配数字人语音交互的口语化表达习惯。
+
+          请严格遵循以下规则执行问答任务：
+          1.  准确性优先原则
+              - 所有知识点必须基于权威史料，拒绝野史传闻和未经证实的猜测；涉及历史争议点时，需明确说明“学界目前存在XX种主流观点，分别是……”，不主观站队。
+              - 时间、地点、人物、事件因果关系必须精准，严禁张冠李戴（如区分不同朝代同名人物、相似历史事件的差异）。
+          2.  分层级灵活解答
+              - 基础问题（如“秦始皇生卒年”“法国大革命爆发时间”）：直接给出简洁答案，不冗余扩展。
+              - 深度问题（如“安史之乱的影响”“罗斯福新政的历史意义”）：先讲核心结论，再分点梳理原因、过程、影响，逻辑链条清晰。
+              - 拓展问题（如“明朝历史入门书籍推荐”“中西封建社会异同对比”）：结合需求给出具体建议，推荐内容需标注权威性。
+          3.  口语化适配数字人语音
+              - 拒绝复杂长句、生僻术语；若必须使用专业术语，需当场用通俗语言解释。
+              - 句式简短明快，适当加入过渡语（如“这里要补充一点”“值得注意的是”）增强对话感；避免密集使用分号、破折号等书面化标点。
+              - 关键信息（如时间、人物名、事件转折点）需在语音表达逻辑中适当放慢语速或加重语气。
+          4.  智能交互引导规则
+              - 用户提问模糊时（如“讲一下唐朝历史”），主动拆解需求引导细化：“唐朝历史跨度近三百年，你想了解它的政治制度、文化发展，还是著名人物和事件呢？”
+              - 回答完毕后，可追加1个关联问题供用户选择：“你还想了解和这个事件相关的XX内容吗？”
+              - 适配不同用户群体：面对青少年，语言活泼多穿插历史小故事；面对成人/专业用户，可适当引用史料依据，满足深度探究需求。
+          5.  语气与态度把控
+              - 整体语气温和耐心，避免说教感；涉及战争、灾难等沉重历史事件时，保持严肃尊重，不调侃。
+          6.  禁忌与边界处理
+              - 严禁输出违背历史事实、历史虚无主义的言论，以及涉及民族、宗教敏感的不当表述，不极端片面评价历史人物。
+              - 遇到非历史范畴问题（如现代科技、娱乐八卦），礼貌回应：“这个问题不属于历史知识范畴，我暂时无法解答哦~”
+              - 遇到无法准确回答的问题，如实说明：“关于这个问题的准确史料我还需要进一步查证，暂时不能给你确定的答案呢。”
+        model: spark
+        modelEnabled: true
+        serviceId: x1
+        respFormat: 0
+        llmIdErrMsg: ''
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  - id: plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+    dragging: false
+    selected: false
+    width: 362
+    height: 100
+    position:
+      x: 1548.987803105876
+      y: 0.3468365419005579
+    positionAbsolute:
+      x: 1548.987803105876
+      y: 0.3468365419005579
+    type: 工具
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 联网搜索_1
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 工具
+        nodeType: 工具
+      inputs:
+      - id: cc1f4b06-778f-4713-8771-0c553e98f78d
+        name: name
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              name: AGENT_USER_INPUT
+              id: 0918514b-72a8-4646-8dd9-ff4a8fc26d44
+              nodeId: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+            contentErrMsg: ''
+        description: 需要搜索的问题
+        required: true
+        disabled: false
+      outputs:
+      - id: 1758f863-19fb-48a2-8878-7860aa314211
+        name: msg
+        schema:
+          type: string
+      - id: c7da8eb6-3629-422e-84d6-2d41d5064da2
+        name: result
+        schema:
+          type: array-object
+          properties:
+          - id: 6889bad9-3055-4f73-b6a9-7002b55e5c01
+            name: summary
+            type: string
+          - id: 9035b42e-d825-4263-a3f6-8528a1fa28c9
+            name: img
+            type: string
+          - id: e53d48df-d96e-4297-8437-26fdf6216a86
+            name: domain
+            type: string
+          - id: b10e3026-a6c8-4c66-9d7b-5b45f8746e1a
+            name: name
+            type: string
+          - id: 91a0b750-a76e-4ea3-9a67-073f4e04182b
+            name: is_high_summary
+            type: boolean
+          - id: abe71f0e-67cc-488d-a114-6612ef3ddb61
+            name: siteName
+            type: string
+          - id: 7f9f764e-97f0-4b8e-98bc-4a4a12c315fd
+            name: source
+            type: string
+          - id: 761a52fe-70da-4ccf-b3b3-e75855621c7b
+            name: type
+            type: string
+          - id: 9ba4e0bf-1e78-4eef-821d-35bfc24c186c
+            name: url
+            type: string
+      - id: b74916fc-c134-495f-b858-c47b6978d245
+        name: rc
+        schema:
+          type: string
+      - id: 250d1be6-6d43-43de-b824-7bce148408bf
+        name: semantic
+        schema:
+          type: array-string
+          properties: [
+            ]
+      - id: 37e983ec-8e06-45ce-a875-647ec66f66f1
+        name: total
+        schema:
+          type: string
+      - id: a3bb943c-d4d6-4ffe-8b07-e6094a086767
+        name: offset
+        schema:
+          type: string
+      - id: 94cf8dce-5166-4d35-b98c-013bd0f2c8d9
+        name: limit
+        schema:
+          type: string
+      - id: 50ed486f-6d40-45a8-8c66-941852f66415
+        name: sid
+        schema:
+          type: string
+      nodeParam:
+        uid: '18828012125'
+        code: ''
+        toolDescription: 使用网络搜索公开信息
+        pluginId: tool@665b86a9b821000
+        appId: YOUR_APP_ID
+        operationId: 聚合搜索-hL0CqmNi
+        version: V1.0
+        businessInput: [
+          ]
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/tool-icon.png
+      updatable: false
+      isLatest: true
+  - id: spark-llm::6206a73a-cfa9-49a0-9804-0b63a7df1f26
+    dragging: false
+    selected: false
+    width: 362
+    height: 124
+    position:
+      x: 2579.7035569411055
+      y: 0
+    positionAbsolute:
+      x: 1409.8614253631365
+      y: 56.76406790123829
+    type: 大模型
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 角色扮演
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 大模型
+        nodeType: 基础节点
+      inputs:
+      - id: fb5fa79b-0779-4ca7-8090-24ada0a8f8c7
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              name: output
+              id: 616a66eb-b302-4631-ab99-cff574c22cb3
+              nodeId: spark-llm::5a0d2719-7ba0-468c-a3eb-dad026e765cb
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: 10946470-9754-49b4-9a29-e80bb4f11fd3
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        topK: 4
+        template: |
+          已经经过预处理的文本信息是{{input}}，你需要根据你的角色设定和我的文本生成合适的面向用户的回答文本，严格控制在400字左右，上下浮动不超过30字。
+        modelId: 140
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        auditing: default
+        llmId: 140
+        url: wss://maas-api.cn-huabei-1.xf-yun.com/v1.1/chat
+        multiMode: false
+        uid: '18828012125'
+        modelName: Spark Character
+        patchId: '0'
+        isThink: false
+        templateErrMsg: ''
+        domain: xaipersonality
+        appId: YOUR_APP_ID
+        maxTokens: 2048
+        temperature: 0.5
+        systemTemplate: |-
+          你需全程精准扮演【历史知识问答数字人助手】，身份设定为：深耕中国史与世界史领域，具备权威史料（正史典籍、学术专著、考古报告）支撑的专业功底，同时拥有亲和易懂、自然流畅的数字人交互特质，核心使命是通过语音友好的对话方式，为用户解答各类历史问题。
+          扮演核心要求：
+          身份认知：时刻明确自身 “数字人助手” 属性，对话中不偏离历史领域定位，不产生身份混淆（如不说 “我是大模型”“我能生成其他内容” 等脱离角色的表述）。
+          语气风格：全程保持温和耐心的语气质感，无说教感；面对青少年用户时语言活泼，多穿插简短历史小故事；面对成人 / 专业用户时可适度深化表述，引用权威史料依据；涉及战争、灾难等沉重历史事件时，切换为严肃尊重的语气，杜绝调侃。
+          行为逻辑：以 “解答历史问题 + 适配数字人语音交互” 为核心行为导向 —— 用户提问模糊时主动引导细化需求，回答完毕后追加 1 个关联问题供选择；表述时优先使用短句，避免生僻术语（必用则当场通俗解释），关键历史信息（时间、人物、事件转折点）需隐含 “放慢语速 / 加重语气” 的语音表达逻辑，适当用 “这里要补充一点” 等过渡语增强对话感。
+          专业底线：所有回答必须基于权威史实，拒绝野史与无根据猜测；涉及历史争议点时，客观列明主流观点不主观站队；严禁输出历史虚无主义、民族 / 宗教敏感表述及极端片面的历史评价；非历史范畴问题或无法准确解答的问题，礼貌如实回应，不强行作答。
+          请以该角色身份，与用户展开自然的历史知识对话交互，全程不脱离设定。
+        model: spark
+        modelEnabled: true
+        serviceId: xaipersonality
+        respFormat: 0
+        llmIdErrMsg: ''
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  - id: mcp::d126e0fc-cee4-4692-b921-8cb100eefb50
+    dragging: false
+    selected: false
+    width: 362
+    height: 142
+    position:
+      x: 1033.4810258238708
+      y: -230.7985678086595
+    positionAbsolute:
+      x: 1033.4810258238708
+      y: -230.7985678086595
+    type: MCP
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 文本合规_1
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: MCP
+        nodeType: 工具节点
+      inputs:
+      - id: ad3b9950-00d6-45bf-95af-fdeec602839c
+        name: is_match_all
+        nameErrMsg: ''
+        schema:
+          type: integer
+          value:
+            type: literal
+            content: '1'
+            contentErrMsg: ''
+        description: 是否全匹配： 1 代表是 0 代表否 默认取值0，匹配到敏感词则不再匹配，不会返回所有敏感分类。
+        required: false
+      - id: 1698fed5-c75c-4204-a0d0-2b491101c7b9
+        name: categories
+        nameErrMsg: ''
+        schema:
+          type: array
+          value:
+            type: literal
+            content: '["pornDetection","violentTerrorism","political","contraband","uncivilizedLanguage"]'
+            contentErrMsg: ''
+        description: 指定检测的敏感分类： pornDetection 色情 violentTerrorism 暴恐 political 涉政
+          lowQualityIrrigation 低质量灌水 contraband 违禁 advertisement 广告 uncivilizedLanguage
+          不文明用语
+        required: false
+      - id: 30f905ac-196c-4870-a84d-72dd5097d20c
+        name: content
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              name: AGENT_USER_INPUT
+              id: 0918514b-72a8-4646-8dd9-ff4a8fc26d44
+              nodeId: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+            contentErrMsg: ''
+        description: 待识别文本，文本长度最大支持 5 千字符
+        required: true
+      outputs:
+      - id: c3751e9f-b9c2-4781-ba04-13c9a0767dc2
+        name: result
+        nameErrMsg: ''
+        schema:
+          type: object
+          properties:
+          - id: d6139baf-1e21-4138-9f69-30134a3b9ba8
+            name: isError
+            required: false
+            type: boolean
+            properties: [
+              ]
+            default: ''
+          - id: 6af38267-17fe-4e77-a064-1f345035e75a
+            name: content
+            required: false
+            type: array-object
+            default: ''
+          default: ''
+        required: false
+      nodeParam:
+        toolDescription: 基于业界先进的语义模型和海量的多语种样本库，有效识别各类场景中涉政、违禁、色情、暴恐、辱骂、广告导流等风险文本内容，支持风险标签识别
+        mcpServerId: mcp@api92760f0da421000
+        toolName: 文本合规
+      icon: https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/mcp-new.png
+      updatable: false
+  - id: decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    dragging: false
+    selected: false
+    width: 362
+    height: 214
+    position:
+      x: 1031.881385216346
+      y: 33.924900935246384
+    positionAbsolute:
+      x: 105.1349433387951
+      y: 124.17614596295786
+    type: 决策
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 决策_1
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 决策
+        nodeType: 基础节点
+      inputs:
+      - id: 7a6a35a3-c71c-478c-a4f8-08fa1f634402
+        name: Query
+        nameErrMsg: ''
+        schema:
+          type: object
+          value:
+            type: ref
+            content:
+              name: result
+              id: c3751e9f-b9c2-4781-ba04-13c9a0767dc2
+              nodeId: mcp::d126e0fc-cee4-4692-b921-8cb100eefb50
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: 02209257-596e-4d05-86e4-27fd37249b19
+        name: class_name
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        topK: 4
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        reasonMode: 1
+        handlingEdge: normal_one_of::040796b6-a7ac-4bd3-867d-28a1d0534d4e
+        auditing: default
+        llmId: 110
+        exceptionHandlingEdge: fail_one_of::ec40b479-6601-4023-a28e-8ed252a5052c
+        promptPrefix: ''
+        url: wss://spark-api.xf-yun.com/v4.0/chat
+        uid: '18828012125'
+        patchId: '0'
+        intentChains:
+        - intentType: 2
+          name: 合规检测通过
+          description: 安全合规检测结果值为false
+          id: intent-one-of::bac84c4b-a1c5-416c-b1fc-87f6bb8b7654
+          nameErrMsg: ''
+          descriptionErrMsg: ''
+        - intentType: 1
+          name: default
+          description: 默认意图
+          id: intent-one-of::c0ebed3a-1b20-4a53-b5bf-22015e43903f
+          nameErrMsg: ''
+          descriptionErrMsg: ''
+        domain: 4.0Ultra
+        appId: YOUR_APP_ID
+        maxTokens: 2048
+        temperature: 0.5
+        model: spark
+        useFunctionCall: true
+        serviceId: bm4
+        llmIdErrMsg: ''
+      retryConfig:
+        shouldRetry: false
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/designMakeIcon.png
+      description: 结合输入的参数与填写的意图，决定后续的逻辑走向
+      updatable: false
+  - id: spark-llm::5473efa2-2d27-4989-86f4-e045c0f9d0e9
+    dragging: false
+    selected: false
+    width: 362
+    height: 166
+    position:
+      x: 1714.4331486006338
+      y: 234.57091438179458
+    positionAbsolute:
+      x: 1714.4331486006338
+      y: 234.57091438179458
+    type: 大模型
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 兜底大模型
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 大模型
+        nodeType: 基础节点
+      inputs:
+      - id: f814d028-1540-4bff-8da1-17257f317398
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: array-object
+          value:
+            type: ref
+            content:
+              name: result.content
+              id: 6af38267-17fe-4e77-a064-1f345035e75a
+              nodeId: mcp::d126e0fc-cee4-4692-b921-8cb100eefb50
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: 55e4a9db-38d8-4dc4-a4d6-1f54e6f80458
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        topK: 4
+        template: '{{input}}'
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        auditing: default
+        llmId: 110
+        url: wss://spark-api.xf-yun.com/v4.0/chat
+        uid: '18828012125'
+        patchId: '0'
+        templateErrMsg: ''
+        domain: 4.0Ultra
+        appId: YOUR_APP_ID
+        maxTokens: 2048
+        temperature: 0.5
+        systemTemplate: |-
+          你作为历史知识问答数字人助手，在所有交互中必须将安全合规作为不可逾越的底线，严格执行以下全流程合规处理规则，同时保持数字人交互的自然与亲和：
+          一、 史实与价值观合规（核心红线）
+          坚决抵制历史虚无主义，所有回答必须基于权威史料，严禁歪曲、否定历史事件与历史人物，严禁编造虚假历史信息、传播野史当作正史。
+          客观中立评价历史，不得对历史人物、事件进行极端片面的定性；涉及民族、朝代、疆域等敏感历史内容时，必须符合国家主流历史定论，尊重各民族历史与文化，严禁出现民族歧视、分裂相关表述。
+          对历史争议点，仅客观列明学界主流观点并注明依据，不主观站队，不传播非主流且有争议的极端言论。
+          二、 内容边界与敏感信息管控
+          严禁输出任何违反法律法规、公序良俗的内容，包括但不限于宗教极端思想、暴力恐怖信息、仇恨言论、色情低俗内容等。
+          明确知识边界：仅聚焦历史知识领域，对涉及现代政治、军事机密、个人隐私、宗教传教、商业广告等非历史范畴的问题，礼貌拒绝，不越界作答。
+          审慎处理近代史、战争史、灾难史等内容，保持严肃尊重，不调侃、不娱乐化；对可能引发情绪争议的内容，优先强调客观史实与和平理念。
+          三、 交互过程合规与兜底处理
+          保护用户隐私：不主动询问用户姓名、年龄、住址、联系方式等隐私信息；若用户主动提供，仅礼貌回应，不存储、不传播。
+          合规自查与纠错：每一次回答后，快速校验是否触碰合规红线；若发现表述不当，立即主动纠正并致歉。
+          兜底话术规范：
+          非历史问题：“这个问题不属于历史知识范畴，为了保证回答的专业性，我暂时无法解答哦～”
+          敏感 / 违规问题：“这个问题涉及敏感内容，我不能为你提供相关解答，请理解。”
+          无法准确解答的问题：“关于这个问题的准确史料我还需要进一步查证，暂时不能给你确定的答案呢。”
+        model: spark
+        serviceId: bm4
+        respFormat: 0
+        llmIdErrMsg: ''
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  edges:
+  - source: plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+    target: spark-llm::5a0d2719-7ba0-468c-a3eb-dad026e765cb
+    type: customEdge
+    id: reactflow__edge-plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f-spark-llm::5a0d2719-7ba0-468c-a3eb-dad026e765cb
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: spark-llm::5a0d2719-7ba0-468c-a3eb-dad026e765cb
+    target: spark-llm::6206a73a-cfa9-49a0-9804-0b63a7df1f26
+    type: customEdge
+    id: reactflow__edge-spark-llm::5a0d2719-7ba0-468c-a3eb-dad026e765cb-spark-llm::6206a73a-cfa9-49a0-9804-0b63a7df1f26
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: spark-llm::6206a73a-cfa9-49a0-9804-0b63a7df1f26
+    target: node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    type: customEdge
+    id: reactflow__edge-spark-llm::6206a73a-cfa9-49a0-9804-0b63a7df1f26-node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+    target: mcp::d126e0fc-cee4-4692-b921-8cb100eefb50
+    type: customEdge
+    id: reactflow__edge-node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783-mcp::d126e0fc-cee4-4692-b921-8cb100eefb50
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: mcp::d126e0fc-cee4-4692-b921-8cb100eefb50
+    target: decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    type: customEdge
+    id: reactflow__edge-mcp::d126e0fc-cee4-4692-b921-8cb100eefb50-decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    sourceHandle: normal_one_of::040796b6-a7ac-4bd3-867d-28a1d0534d4e
+    target: plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+    type: customEdge
+    id: reactflow__edge-decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72anormal_one_of::040796b6-a7ac-4bd3-867d-28a1d0534d4e-plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    sourceHandle: normal_one_of::040796b6-a7ac-4bd3-867d-28a1d0534d4e
+    target: node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    type: customEdge
+    id: reactflow__edge-decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72anormal_one_of::040796b6-a7ac-4bd3-867d-28a1d0534d4e-node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: spark-llm::5473efa2-2d27-4989-86f4-e045c0f9d0e9
+    target: node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    type: customEdge
+    id: reactflow__edge-spark-llm::5473efa2-2d27-4989-86f4-e045c0f9d0e9-node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    sourceHandle: intent-one-of::bac84c4b-a1c5-416c-b1fc-87f6bb8b7654
+    target: plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+    type: customEdge
+    id: reactflow__edge-decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72aintent-one-of::bac84c4b-a1c5-416c-b1fc-87f6bb8b7654-plugin::b6a87c39-87d2-41a6-b835-471f9c9aa09f
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve
+  - source: decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72a
+    sourceHandle: intent-one-of::c0ebed3a-1b20-4a53-b5bf-22015e43903f
+    target: spark-llm::5473efa2-2d27-4989-86f4-e045c0f9d0e9
+    type: customEdge
+    id: reactflow__edge-decision-making::2b4eb78b-ed31-4fb6-9910-7d5c1255a72aintent-one-of::c0ebed3a-1b20-4a53-b5bf-22015e43903f-spark-llm::5473efa2-2d27-4989-86f4-e045c0f9d0e9
+    markerEnd:
+      color: '#6356EA'
+      type: arrow
+    data:
+      edgeType: curve

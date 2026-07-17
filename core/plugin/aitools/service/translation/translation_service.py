@@ -2,7 +2,6 @@
 Translation service
 """
 
-import os
 from enum import Enum
 
 from fastapi import Request
@@ -10,7 +9,7 @@ from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.exceptions.error.code_enums import BaseCodeEnum
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.const.const import AI_API_KEY_KEY, AI_API_SECRET_KEY, AI_APP_ID_KEY
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from plugin.aitools.service.translation.translation_client import (
     CHINESE_LANGUAGE_CODE,
     VALID_LANGUAGE_CODES,
@@ -98,11 +97,13 @@ class TranslationInput(BaseModel):
 )
 async def translation_service(body: TranslationInput, request: Request) -> BaseResponse:
     """translation service"""
-    app_id = os.getenv(AI_APP_ID_KEY, "")
-    app_key = os.getenv(AI_API_KEY_KEY, "")
-    app_secret = os.getenv(AI_API_SECRET_KEY, "")
+    credentials = get_iflytek_open_platform_credentials()
 
-    translation_client = TranslationClient(app_id, app_key, app_secret)
+    translation_client = TranslationClient(
+        credentials.app_id,
+        credentials.api_key,
+        credentials.api_secret,
+    )
     success, message, result = translation_client.translate(
         text=body.text,
         target_language=body.target_language,

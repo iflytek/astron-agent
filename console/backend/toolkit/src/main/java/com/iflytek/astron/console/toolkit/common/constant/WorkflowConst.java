@@ -9,6 +9,36 @@ public class WorkflowConst {
         public static final int PUBLISHED = 1;
     }
 
+    public static class PublishResult {
+        public static final String SUCCESS = "成功";
+        public static final String LEGACY_SUCCESS = "Success";
+        public static final String LEGACY_SUCCESS_UPPER = "SUCCESS";
+        public static final String FAILED = "失败";
+        public static final String LEGACY_FAILED = "Failed";
+        public static final String LEGACY_FAILED_UPPER = "FAILED";
+        public static final String REVIEWING = "审核中";
+        public static final String LEGACY_REVIEWING = "Under review";
+
+        public static boolean isSuccess(String value) {
+            return SUCCESS.equals(value)
+                    || LEGACY_SUCCESS.equals(value)
+                    || LEGACY_SUCCESS_UPPER.equals(value);
+        }
+
+        public static String normalize(String value) {
+            if (LEGACY_SUCCESS.equals(value) || LEGACY_SUCCESS_UPPER.equals(value)) {
+                return SUCCESS;
+            }
+            if (LEGACY_FAILED.equals(value) || LEGACY_FAILED_UPPER.equals(value)) {
+                return FAILED;
+            }
+            if (LEGACY_REVIEWING.equals(value)) {
+                return REVIEWING;
+            }
+            return value;
+        }
+    }
+
     public static class NodeType {
         public static final String START = "node-start";
         public static final String END = "node-end";
@@ -22,6 +52,7 @@ public class WorkflowConst {
         public static final String KNOWLEDGE = "knowledge-base";
         public static final String KNOWLEDGE_PRO = "knowledge-pro-base";
         public static final String AGENT = "agent";
+        public static final String CODE = "ifly-code";
         public static final String FLOW_END = "flow_obj";
         public static final String DATABASE = "database";
         public static final String RPA = "rpa";

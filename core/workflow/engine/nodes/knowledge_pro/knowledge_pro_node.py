@@ -57,7 +57,7 @@ class KnowledgeProNode(BaseNode):
     ragType: Literal[1, 2] = Field(...)  # RAG type (1: AGENTIC_RAG, 2: LONG_RAG)
     repoIds: List[str] = Field(..., min_length=1)  # List of repository IDs to query
     docIds: List[str] = Field(
-        ..., default_factory=list
+        default_factory=list
     )  # List of document IDs (required for CBG_RAG)
     repoType: Literal[1, 2] = Field(...)  # Repository type (1: AIUI_RAG2, 2: CBG_RAG)
     repoTopK: int = Field(..., ge=1, le=5)  # Number of top documents to retrieve (1-5)

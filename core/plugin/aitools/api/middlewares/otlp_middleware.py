@@ -27,11 +27,11 @@ from plugin.aitools.common.clients.adapters import SpanLike, adapt_span
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
 from plugin.aitools.const.const import (
-    AI_APP_ID_KEY,
     SERVICE_LOCATION_KEY,
     SERVICE_PORT_KEY,
     SERVICE_SUB_KEY,
 )
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_app_id
 from plugin.aitools.utils.otlp_utils import update_span, upload_trace
 from starlette import status as http_status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -72,7 +72,7 @@ class OTLPMiddleware(BaseHTTPMiddleware):
         self.sample_rate = sample_rate
         self.include_paths = include_paths or ["/aitools/v1"]
 
-        self.app_id = os.getenv(AI_APP_ID_KEY, "")
+        self.app_id = get_iflytek_open_platform_app_id()
         self.uid = str(uuid.uuid1())
         self.sid_info = SidInfo(
             sub=os.getenv(SERVICE_SUB_KEY, "aitools"),

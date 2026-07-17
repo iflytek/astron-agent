@@ -13,6 +13,8 @@ import com.iflytek.astron.console.commons.util.AudioValidator;
 import com.iflytek.astron.console.hub.entity.CustomSpeaker;
 import com.iflytek.astron.console.hub.service.bot.CustomSpeakerService;
 import com.iflytek.astron.console.hub.service.bot.SpeakerTrainService;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -21,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.nio.file.Paths;
 import java.util.Set;
 import java.util.UUID;
 
@@ -47,13 +48,13 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
 
     private final CustomSpeakerService customSpeakerService;
 
-    private final VoiceTrainClient voiceTrainClient;
+    private final PlatformAccountService platformAccountService;
 
     @Override
     @Cacheable(value = "speakerTrain", key = "#root.methodName", unless = "#result == null", cacheManager = "cacheManager5min")
     public JSONObject getText() {
         try {
-            String trainText = voiceTrainClient.trainText(5001L);
+            String trainText = buildVoiceTrainClient().trainText(5001L);
             if (StringUtils.isBlank(trainText)) {
                 log.error("train text is blank");
                 return null;
@@ -79,8 +80,7 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
         // validate audio file
         AudioValidator.validateAudioFile(file);
 
-        String sanitizedFilename = sanitizeFilename(file.getOriginalFilename());
-        File tempFile = File.createTempFile(UUID.randomUUID().toString(), "_" + sanitizedFilename);
+        File tempFile = File.createTempFile(UUID.randomUUID().toString(), buildSafeTempFileSuffix(file.getOriginalFilename()));
         try {
             file.transferTo(tempFile);
             // Create task
@@ -90,6 +90,7 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
                     .ageGroup(AgeGroupEnum.YOUTH.getValue())
                     .language(language)
                     .build();
+            VoiceTrainClient voiceTrainClient = buildVoiceTrainClient();
             String taskResp = voiceTrainClient.createTask(createTaskParam);
             JSONObject taskObj = JSONObject.parseObject(taskResp);
             if (taskObj == null || !SUCCESS_CODE.equals(taskObj.get("code"))) {
@@ -123,6 +124,7 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
     @Override
     public JSONObject trainStatus(String taskId, Long spaceId, String uid) {
         try {
+            VoiceTrainClient voiceTrainClient = buildVoiceTrainClient();
             String trainStatus = voiceTrainClient.result(taskId);
             if (StringUtils.isBlank(trainStatus)) {
                 throw new BusinessException(ResponseEnum.OPERATION_FAILED);
@@ -156,26 +158,32 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
      * @param originalFilename original filename from user input
      * @return sanitized filename safe for use in file operations
      */
-    private String sanitizeFilename(String originalFilename) {
+    private String buildSafeTempFileSuffix(String originalFilename) {
         if (StringUtils.isBlank(originalFilename)) {
-            return "audio";
+            return ".tmp";
         }
-        // Extract just the filename part (not the path) to prevent path traversal
-        java.nio.file.Path fileNamePath = Paths.get(originalFilename).getFileName();
-        // getFileName() can return null for root paths (e.g., "/", "C:\")
-        if (fileNamePath == null) {
-            return "audio";
+        String normalized = originalFilename.replace('\\', '/');
+        int separatorIndex = normalized.lastIndexOf('/');
+        String filename = separatorIndex >= 0 ? normalized.substring(separatorIndex + 1) : normalized;
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex < 0 || dotIndex == filename.length() - 1) {
+            return ".tmp";
         }
-        String filename = fileNamePath.toString();
-        // Remove dangerous characters: path separators, wildcards, and other special chars
-        // Keep only alphanumeric, dots, dashes, and underscores
-        String sanitized = filename.replaceAll("[^a-zA-Z0-9._-]", "_");
-        // Prevent empty result or just dots
-        if (sanitized.isEmpty() || sanitized.matches("^\\.+$")) {
-            return "audio";
+        StringBuilder extension = new StringBuilder();
+        for (int i = dotIndex + 1; i < filename.length() && extension.length() < 10; i++) {
+            char current = filename.charAt(i);
+            if ((current >= 'a' && current <= 'z')
+                    || (current >= 'A' && current <= 'Z')
+                    || (current >= '0' && current <= '9')) {
+                extension.append(Character.toLowerCase(current));
+            } else {
+                break;
+            }
         }
-        // Limit length to prevent excessively long filenames
-        return sanitized.length() > 255 ? sanitized.substring(0, 255) : sanitized;
+        if (extension.isEmpty()) {
+            return ".tmp";
+        }
+        return "." + extension;
     }
 
     /**
@@ -226,5 +234,11 @@ public class SpeakerTrainServiceImpl implements SpeakerTrainService {
 
         log.error("Training timeout, taskId: {}", taskId);
         throw new BusinessException(ResponseEnum.OPERATION_FAILED, "Training timeout");
+    }
+
+    private VoiceTrainClient buildVoiceTrainClient() {
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
+        return new VoiceTrainClient.Builder(config.getPlatformAppId(), config.getPlatformApiKey()).build();
     }
 }

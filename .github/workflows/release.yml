@@ -26,6 +26,7 @@ permissions:
   packages: write
   attestations: write
   id-token: write
+  pull-requests: read
 
 env:
   REGISTRY_GHCR: ghcr.io
@@ -43,7 +44,7 @@ jobs:
       has-core-services: ${{ steps.detect.outputs.has-core-services }}
       has-console-hub: ${{ steps.detect.outputs.has-console-hub }}
       has-console-frontend: ${{ steps.detect.outputs.has-console-frontend }}
-      changelog: ${{ steps.changelog.outputs.changelog }}
+      changelog: ${{ steps.changelog.outputs.result }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -120,65 +121,98 @@ jobs:
           echo "has-console-hub=$HAS_CONSOLE_HUB" >> $GITHUB_OUTPUT
           echo "has-console-frontend=$HAS_CONSOLE_FRONTEND" >> $GITHUB_OUTPUT
 
+      - name: Resolve main release range
+        id: release-range
+        run: |
+          echo "Resolving main branch release range..."
+
+          CURRENT_TAG="${{ steps.meta.outputs.version }}"
+          BASE_BRANCH="origin/main"
+          git fetch origin main --no-tags
+
+          CURRENT_TAG_SHA=$(git rev-list -n 1 "$CURRENT_TAG" 2>/dev/null || git rev-parse HEAD)
+          CURRENT_TAG_DATE=$(git show -s --format=%cI "$CURRENT_TAG_SHA")
+          echo "current-tag-date=$CURRENT_TAG_DATE" >> $GITHUB_OUTPUT
+          PREVIOUS_TAG=$(git tag --merged="$BASE_BRANCH" --sort=-creatordate --format='%(refname:strip=2) %(creatordate:iso-strict)' | awk -v current_tag="$CURRENT_TAG" -v current_date="$CURRENT_TAG_DATE" '$1 != current_tag && $2 < current_date { print $1; exit }')
+
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            PREVIOUS_TAG_SHA=$(git rev-list -n 1 "$PREVIOUS_TAG")
+            PREVIOUS_TAG_DATE=$(git show -s --format=%cI "$PREVIOUS_TAG_SHA")
+            echo "previous-tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+            echo "previous-tag-date=$PREVIOUS_TAG_DATE" >> $GITHUB_OUTPUT
+          else
+            echo "previous-tag=" >> $GITHUB_OUTPUT
+            echo "previous-tag-date=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Generate Changelog
         id: changelog
-        run: |
-          echo "📝 Generating changelog..."
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          result-encoding: string
+          script: |
+            const previousTag = `${{ steps.release-range.outputs.previous-tag }}`.trim();
+            const previousTagDate = `${{ steps.release-range.outputs.previous-tag-date }}`.trim();
+            const currentTagDate = `${{ steps.release-range.outputs.current-tag-date }}`.trim();
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
 
-          # Get previous tag
-          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          CURRENT_TAG="${{ steps.meta.outputs.version }}"
+            const pulls = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "closed",
+              base: "main",
+              sort: "updated",
+              direction: "desc",
+              per_page: 100,
+            });
 
-          if [[ -z "$PREVIOUS_TAG" ]]; then
-            echo "🆕 This is the first release"
-            COMMIT_RANGE="HEAD"
-          else
-            echo "📊 Comparing: $PREVIOUS_TAG...$CURRENT_TAG"
-            COMMIT_RANGE="$PREVIOUS_TAG..HEAD"
-          fi
+            const mergedPulls = pulls
+              .filter((pr) => pr.merged_at)
+              .filter((pr) => !previousTagDate || new Date(pr.merged_at) > new Date(previousTagDate))
+              .filter((pr) => !currentTagDate || new Date(pr.merged_at) <= new Date(currentTagDate))
+              .sort((a, b) => new Date(a.merged_at) - new Date(b.merged_at));
 
-          # Create changelog
-          CHANGELOG_FILE="/tmp/changelog.md"
+            const categories = {
+              features: [],
+              fixes: [],
+              improvements: [],
+            };
 
-          # Write header
-          echo "## What's Changed" > "$CHANGELOG_FILE"
-          echo "" >> "$CHANGELOG_FILE"
+            const formatPr = (pr) => `- ${pr.title} ([#${pr.number}](${pr.html_url}))`;
 
-          # Collect and categorize commits
-          echo "### ✨ New Features" >> "$CHANGELOG_FILE"
-          FEATURES=$(git log --pretty=format:"%s" $COMMIT_RANGE | grep "^feat" | sed 's/^feat[^:]*: /- /')
-          if [[ -n "$FEATURES" ]]; then
-            echo "$FEATURES" >> "$CHANGELOG_FILE"
-          else
-            echo "- No new features in this release" >> "$CHANGELOG_FILE"
-          fi
+            for (const pr of mergedPulls) {
+              const title = pr.title.toLowerCase();
+              if (/^(feat|feature)(\(|:)/.test(title)) {
+                categories.features.push(formatPr(pr));
+              } else if (/^(fix|bugfix)(\(|:)/.test(title)) {
+                categories.fixes.push(formatPr(pr));
+              } else {
+                categories.improvements.push(formatPr(pr));
+              }
+            }
 
-          echo "" >> "$CHANGELOG_FILE"
-          echo "### 🐛 Fixes" >> "$CHANGELOG_FILE"
-          FIXES=$(git log --pretty=format:"%s" $COMMIT_RANGE | grep "^fix" | sed 's/^fix[^:]*: /- /')
-          if [[ -n "$FIXES" ]]; then
-            echo "$FIXES" >> "$CHANGELOG_FILE"
-          else
-            echo "- No bug fixes in this release" >> "$CHANGELOG_FILE"
-          fi
+            const lines = ["## What's Changed", ""];
 
-          echo "" >> "$CHANGELOG_FILE"
-          echo "### 🔧 Improvements" >> "$CHANGELOG_FILE"
-          IMPROVEMENTS=$(git log --pretty=format:"%s" $COMMIT_RANGE | grep -E "^(chore|docs|refactor|test|ci|perf|style)" | sed 's/^[^:]*: /- /')
-          if [[ -n "$IMPROVEMENTS" ]]; then
-            echo "$IMPROVEMENTS" >> "$CHANGELOG_FILE"
-          else
-            echo "- No improvements in this release" >> "$CHANGELOG_FILE"
-          fi
+            if (previousTag) {
+              lines.push(`Based on PRs merged into \`main\` since \`${previousTag}\`.`);
+            } else {
+              lines.push("Based on PRs merged into `main`.");
+            }
 
-          # Output to GitHub Output
-          {
-            echo "changelog<<EOF"
-            cat "$CHANGELOG_FILE"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+            lines.push("");
+            lines.push("### New Features");
+            lines.push(...(categories.features.length ? categories.features : ["- No new features in this release"]));
+            lines.push("");
+            lines.push("### Fixes");
+            lines.push(...(categories.fixes.length ? categories.fixes : ["- No bug fixes in this release"]));
+            lines.push("");
+            lines.push("### Improvements");
+            lines.push(...(categories.improvements.length ? categories.improvements : ["- No improvements in this release"]));
 
-          echo "📄 Changelog generated successfully"
+            core.info(`Generated changelog from ${mergedPulls.length} PR(s) merged into main.`);
+            return lines.join("\n");
 
   # ============================================================================
   # Stage 2: Build Docker Images (reuse build-push logic)
@@ -365,8 +399,7 @@ jobs:
           name: "Astron Agent ${{ needs.prepare-release.outputs.version }}"
           body: ${{ needs.prepare-release.outputs.changelog }}
           prerelease: ${{ needs.prepare-release.outputs.is-prerelease }}
-          generate_release_notes: true
-          append_body: true
+          generate_release_notes: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release Summary

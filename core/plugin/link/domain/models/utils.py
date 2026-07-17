@@ -280,7 +280,7 @@ class RedisService:
         if match:
             host = match.group(1)
             port = match.group(2)
-            return redis.Redis(host=host, port=port, password=password)
+            return redis.Redis(host=host, port=int(port), password=password)
         else:
             raise ValueError(f"Invalid Redis address format: {cluster_addr}")
 
@@ -305,8 +305,8 @@ class RedisService:
         Returns:
             The value associated with the key, or None if the key is not found.
         """
-        value = self._client.get(key)
-        return json.loads(value.decode("utf-8")) if value else None
+        value = self._client.get(key)  # type: ignore[union-attr]
+        return json.loads(value.decode("utf-8")) if value else None  # type: ignore[union-attr]
 
     def setnx(self, key: str, value: Any, ex: Optional[int] = None) -> bool:
         """Set key only if it does not exist."""
@@ -329,9 +329,9 @@ class RedisService:
             TypeError: If the value cannot be deserialized.
         """
         try:
-            result = self._client.hget(name=name, key=key)
+            result = self._client.hget(name=name, key=key)  # type: ignore[union-attr]
             print("result: ", result)
-            result_str = result.decode("utf-8")
+            result_str = result.decode("utf-8")  # type: ignore[union-attr]
             return json.loads(result_str)
         except TypeError as exc:
             raise TypeError(
@@ -355,7 +355,7 @@ class RedisService:
             result = self._client.hdel(name, *key)
             need_delete = {}
             if result != len(key):
-                if self._client.exists(result):
+                if self._client.exists(result):  # type: ignore[arg-type]
                     for field in key:
                         if self._client.hexists(name, field):
                             need_delete.update({name: field})
@@ -384,7 +384,7 @@ class RedisService:
         """
         try:
             return_dict: Dict = {}
-            result: Dict = self._client.hgetall(name=name)
+            result: Dict = self._client.hgetall(name=name)  # type: ignore[assignment]
             if result:
                 for key in result.keys():
                     key_str = key
@@ -449,7 +449,7 @@ class RedisService:
 
     def __contains__(self, key: Optional[str]) -> bool:
         """Check if the key is in the cache."""
-        return False if key is None else self._client.exists(key)
+        return False if key is None else bool(self._client.exists(key))  # type: ignore[return-value]
 
     def __getitem__(self, key: str) -> Optional[Any]:
         """Retrieve an item from the cache using the square bracket notation."""

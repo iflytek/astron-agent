@@ -288,6 +288,7 @@ class TestRunDatabaseMigration:
             yield
 
     @patch("plugin.link.extensions.database_migration._execute_migration")
+    @patch("plugin.link.extensions.database_migration.seed_default_tools")
     @patch("plugin.link.extensions.database_migration._get_or_create_redis_service")
     @patch("plugin.link.extensions.database_migration._check_db_url")
     @patch("plugin.link.extensions.database_migration._build_alembic_config")
@@ -296,6 +297,7 @@ class TestRunDatabaseMigration:
         mock_build_config: MagicMock,
         mock_check_db_url: MagicMock,
         mock_get_or_create_redis: MagicMock,
+        mock_seed_default_tools: MagicMock,
         mock_execute_migration: MagicMock,
     ) -> None:
         """Test migration is skipped when Redis lock is already held"""
@@ -311,8 +313,10 @@ class TestRunDatabaseMigration:
             LOCK_KEY, "locked", ex=LOCK_TTL_SECONDS
         )
         mock_execute_migration.assert_not_called()
+        mock_seed_default_tools.assert_not_called()
 
     @patch("plugin.link.extensions.database_migration._execute_migration")
+    @patch("plugin.link.extensions.database_migration.seed_default_tools")
     @patch("plugin.link.extensions.database_migration._get_or_create_redis_service")
     @patch("plugin.link.extensions.database_migration._check_db_url")
     @patch("plugin.link.extensions.database_migration._build_alembic_config")
@@ -321,6 +325,7 @@ class TestRunDatabaseMigration:
         mock_build_config: MagicMock,
         mock_check_db_url: MagicMock,
         mock_get_or_create_redis: MagicMock,
+        mock_seed_default_tools: MagicMock,
         mock_execute_migration: MagicMock,
     ) -> None:
         """Test migration executes when lock is acquired."""
@@ -336,6 +341,7 @@ class TestRunDatabaseMigration:
             LOCK_KEY, "locked", ex=LOCK_TTL_SECONDS
         )
         mock_execute_migration.assert_called_once()
+        mock_seed_default_tools.assert_called_once()
 
 
 @pytest.mark.unit

@@ -5,7 +5,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 from common.otlp.trace.span import Span
-from openai import APIError, APITimeoutError, AsyncOpenAI
+from openai import APIError, APITimeoutError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -165,12 +165,12 @@ class ProviderLLMModel(BaseLLMModel):
             usage=CompatUsage(**usage_data) if usage_data else None,
         )
 
-    async def _yield_normalized_chunks(
+    async def _yield_normalized_chunks(  # type: ignore[override, return-value]  # noqa: C901
         self, response: httpx.Response
     ) -> AsyncIterator[CompatChunk]:
         raise NotImplementedError
 
-    async def stream(
+    async def stream(  # type: ignore[override]
         self, messages: list, stream: bool, span: Optional[Span] = None
     ) -> AsyncIterator[CompatChunk]:
         sp = span
@@ -186,7 +186,7 @@ class ProviderLLMModel(BaseLLMModel):
                 json=self.build_payload(messages, stream),
             ) as response:
                 response.raise_for_status()
-                async for chunk in self._yield_normalized_chunks(response):
+                async for chunk in self._yield_normalized_chunks(response):  # type: ignore[attr-defined]
                     if sp is not None:
                         sp.add_info_events({"llm-chunk": chunk.model_dump_json()})
                     yield chunk
@@ -241,7 +241,7 @@ class AnthropicLLMModel(ProviderLLMModel):
             payload["system"] = "\n".join(system_parts)
         return payload
 
-    async def _yield_normalized_chunks(
+    async def _yield_normalized_chunks(  # type: ignore[override]  # noqa: C901
         self, response: httpx.Response
     ) -> AsyncIterator[CompatChunk]:
         event_type = ""
@@ -334,8 +334,7 @@ class GoogleLLMModel(ProviderLLMModel):
         model_url = self.model_url
         if ":generateContent" not in model_url:
             model_url = (
-                model_url.rstrip("/")
-                + f"/v1beta/models/{self.name}:generateContent"
+                model_url.rstrip("/") + f"/v1beta/models/{self.name}:generateContent"
             )
         model_url = model_url.replace(":generateContent", ":streamGenerateContent")
         parsed = urlsplit(model_url)
@@ -430,7 +429,7 @@ class GoogleLLMModel(ProviderLLMModel):
         }
         return self._build_compat_chunk(normalized)
 
-    async def _yield_normalized_chunks(
+    async def _yield_normalized_chunks(  # type: ignore[override]  # noqa: C901
         self, response: httpx.Response
     ) -> AsyncIterator[CompatChunk]:
         content_type = response.headers.get("content-type", "").lower()

@@ -1,6 +1,6 @@
 # Environment Variables Configuration Guide
 
-This document provides detailed descriptions of all environment variables required by the system, including middleware, service ports, authentication, business modules, and more.
+This document provides detailed descriptions of the environment variables required by the system, including middleware, service ports, authentication, access addresses, and more. Business capability accounts such as iFLYTEK Open Platform, AI Ability Chat, Virtual Man, and Knowledge Base Platform have moved to the console **Platform Account Management** page and are no longer written to `.env`.
 
 ## Quick Start
 
@@ -10,19 +10,19 @@ Before deploying with Docker Compose, the following environment variables **must
 
 **Key Configuration Items Overview**:
 
-- **iFlytek Open Platform Credentials** (requires application):
-  - `PLATFORM_APP_ID`, `PLATFORM_API_KEY`, `PLATFORM_API_SECRET`
-  - `SPARK_API_PASSWORD`, `SPARK_RTASR_API_KEY`
-
 - **Casdoor Authentication Configuration** (requires Casdoor service deployment):
   - `CONSOLE_CASDOOR_URL`, `CONSOLE_CASDOOR_ID`
   - `CONSOLE_CASDOOR_APP`, `CONSOLE_CASDOOR_ORG`
 
-- **RAGFlow Knowledge Base Configuration** (if using RAGFlow as knowledge base):
-  - `RAGFLOW_BASE_URL`, `RAGFLOW_API_TOKEN`, `RAGFLOW_DEFAULT_GROUP`
-
 - **Host Address Configuration**:
   - `HOST_BASE_ADDRESS` - Set to your server address or domain name
+
+**Business capability accounts configured after startup in Platform Account Management** (not written to `.env`):
+
+- **iFLYTEK Open Platform**: `PLATFORM_APP_ID`, `PLATFORM_API_KEY`, `PLATFORM_API_SECRET`, `SPARK_API_PASSWORD`, `SPARK_RTASR_API_KEY`
+- **AI Ability Chat**: `AI_ABILITY_CHAT_BASE_URL`, `AI_ABILITY_CHAT_MODEL`, `AI_ABILITY_CHAT_API_KEY`
+- **Virtual Man capability**: `SPARK_VIRTUAL_MAN_APP_ID`, `SPARK_VIRTUAL_MAN_API_KEY`, `SPARK_VIRTUAL_MAN_API_SECRET`
+- **Knowledge Base Platform**: RAGFlow fields `RAGFLOW_BASE_URL`, `RAGFLOW_API_TOKEN`, `RAGFLOW_TIMEOUT`, `RAGFLOW_DEFAULT_GROUP`, and Spark Knowledge Base field `XINGHUO_DATASET_ID`
 
 ### Configuration Item Descriptions
 
@@ -202,19 +202,19 @@ Configuration items in this document are marked as follows:
 
 ## 10. Knowledge Module Configuration
 
-> **Knowledge Base Selection Note**: The system supports two knowledge base methods. Choose one based on your needs:
-> - **RAGFlow**: Use RAGFlow knowledge base service (requires configuration of RAGFLOW_* related variables)
-> - **Spark Knowledge Base**: Use iFlytek Spark knowledge base service (requires configuration of XINGHUO_DATASET_ID)
+> **Knowledge Base Selection Note**: The system supports two knowledge base methods. Choose one when creating a knowledge base:
+> - **RAGFlow**: Use RAGFlow knowledge base service
+> - **Spark Knowledge Base**: Use iFLYTEK Spark Knowledge Base service
 >
-> Whichever method you choose, the corresponding configuration items are required; configuration items for the unchosen method can be left empty.
+> Knowledge platform accounts are no longer configured through `.env`. Fill in the corresponding fields under **Platform Account Management - Knowledge Base Platform** in the console. After saving, the configuration takes effect globally without restarting containers. Whichever method you choose, the corresponding configuration items are required; configuration items for the unchosen method can be left empty.
 
-| Variable Name | Configuration Type | Type | Description | Example Value |
-|---------------|-------------------|------|-------------|---------------|
-| RAGFLOW_BASE_URL | Conditional | url | RAGFlow service base address (required when using RAGFlow) | http://localhost:10080 |
-| RAGFLOW_API_TOKEN | Conditional | string | RAGFlow API access token (required when using RAGFlow) | your-ragflow-token |
-| RAGFLOW_TIMEOUT | Conditional | int | RAGFlow request timeout (seconds) (required when using RAGFlow) | 60 |
-| RAGFLOW_DEFAULT_GROUP | Conditional | string | RAGFlow default group name (required when using RAGFlow) | Astron Knowledge Base |
-| XINGHUO_DATASET_ID | Conditional | string | Spark knowledge base dataset ID (required when using Spark knowledge base) | (empty) |
+| Field | Platform | Configuration Type | Description | Example Value |
+|-------|----------|--------------------|-------------|---------------|
+| RAGFLOW_BASE_URL | RAGFlow | Conditional | RAGFlow service base address (required when using RAGFlow) | http://localhost:18080 |
+| RAGFLOW_API_TOKEN | RAGFlow | Conditional | RAGFlow API access token (required when using RAGFlow) | your-ragflow-token |
+| RAGFLOW_TIMEOUT | RAGFlow | Conditional | RAGFlow request timeout (seconds) (required when using RAGFlow) | 60 |
+| RAGFLOW_DEFAULT_GROUP | RAGFlow | Conditional | RAGFlow default group name (required when using RAGFlow) | Astron Knowledge Base |
+| XINGHUO_DATASET_ID | Spark Knowledge Base | Conditional | Spark Knowledge Base dataset ID (required when using Spark Knowledge Base) | (empty) |
 
 ---
 
@@ -241,22 +241,6 @@ Configuration items in this document are marked as follows:
 | OAUTH2_ISSUER_URI | Required | url | OAuth2 issuer URI (defaults from CONSOLE_CASDOOR_URL) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000} |
 | OAUTH2_JWK_SET_URI | Required | url | OAuth2 JWK key set URI (defaults from CONSOLE_CASDOOR_URL) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000}/.well-known/jwks |
 | OAUTH2_AUDIENCE | Required | string | OAuth2 audience identifier (defaults from CONSOLE_CASDOOR_ID) | ${CONSOLE_CASDOOR_ID:-your-oauth2-client-id} |
-| PLATFORM_APP_ID | User Required | string | iFlytek Open Platform application ID | your-app-id |
-| PLATFORM_API_KEY | User Required | string | iFlytek Open Platform API Key | your-api-key |
-| PLATFORM_API_SECRET | User Required | string | iFlytek Open Platform API Secret | your-api-secret |
-| AI_ABILITY_CHAT_BASE_URL | Optional | url | Text model service address (OpenAI-compatible API) (defaults from PLATFORM_API_KEY) | ${PLATFORM_API_KEY} |
-| AI_ABILITY_CHAT_MODEL | Optional | string | Text model name | ${AI_ABILITY_CHAT_MODEL} |
-| AI_ABILITY_CHAT_API_KEY | Optional | string | Text model API Key | ${AI_ABILITY_CHAT_API_KEY} |
-| SPARK_RTASR_API_KEY | User Required | string | Spark real-time speech-to-text API Key | your-rtasr-api-key |
-| SPARK_API_PASSWORD | User Required | string | Spark large model API password | your-api-password |
-| SPARK_APP_ID | Required | string | Spark service application ID (defaults from PLATFORM_APP_ID) | ${PLATFORM_APP_ID} |
-| SPARK_API_KEY | Required | string | Spark service API Key (defaults from PLATFORM_API_KEY) | ${PLATFORM_API_KEY} |
-| SPARK_API_SECRET | Required | string | Spark service API Secret (defaults from PLATFORM_API_SECRET) | ${PLATFORM_API_SECRET} |
-| SPARK_RTASR_APPID | Required | string | Spark real-time speech-to-text application ID (defaults from PLATFORM_APP_ID) | ${PLATFORM_APP_ID} |
-| SPARK_RTASR_KEY | Required | string | Spark real-time speech-to-text Key (defaults from SPARK_RTASR_API_KEY) | ${SPARK_RTASR_API_KEY} |
-| SPARK_IMAGE_APP_ID | Required | string | Spark image generation application ID (defaults from PLATFORM_APP_ID) | ${PLATFORM_APP_ID} |
-| SPARK_IMAGE_API_KEY | Required | string | Spark image generation API Key (defaults from PLATFORM_API_KEY) | ${PLATFORM_API_KEY} |
-| SPARK_IMAGE_API_SECRET | Required | string | Spark image generation API Secret (defaults from PLATFORM_API_SECRET) | ${PLATFORM_API_SECRET} |
 | WECHAT_COMPONENT_APPID | Optional | string | WeChat third-party platform AppID | your-wechat-component-appid |
 | WECHAT_COMPONENT_SECRET | Optional | string | WeChat third-party platform Secret | your-wechat-secret |
 | WECHAT_TOKEN | Optional | string | WeChat message verification Token | your-wechat-token |
@@ -284,9 +268,9 @@ Configuration items in this document are marked as follows:
 
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
-| MAAS_APP_ID | Required | string | MaaS platform application ID (defaults from PLATFORM_APP_ID) | ${PLATFORM_APP_ID} |
-| MAAS_API_KEY | Required | string | MaaS platform API Key (defaults from PLATFORM_API_KEY) | ${PLATFORM_API_KEY} |
-| MAAS_API_SECRET | Required | string | MaaS platform API Secret (defaults from PLATFORM_API_SECRET) | ${PLATFORM_API_SECRET} |
+| MAAS_APP_ID | Required | string | MaaS platform application ID (defaults from TENANT_ID) | ${TENANT_ID} |
+| MAAS_API_KEY | Required | string | MaaS platform API Key (defaults from TENANT_KEY) | ${TENANT_KEY} |
+| MAAS_API_SECRET | Required | string | MaaS platform API Secret (defaults from TENANT_SECRET) | ${TENANT_SECRET} |
 | MAAS_CONSUMER_ID | Required | string | MaaS consumer ID (defaults from TENANT_ID) | ${TENANT_ID} |
 | MAAS_CONSUMER_KEY | Required | string | MaaS consumer Key (defaults from TENANT_KEY) | ${TENANT_KEY} |
 | MAAS_CONSUMER_SECRET | Required | string | MaaS consumer Secret (defaults from TENANT_SECRET) | ${TENANT_SECRET} |

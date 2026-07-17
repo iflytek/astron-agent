@@ -22,6 +22,16 @@ public class DebugChatBotReqDto {
     private String text;
 
     /**
+     * Bot ID
+     */
+    private Integer botId;
+
+    /**
+     * Debug session ID
+     */
+    private String debugSessionId;
+
+    /**
      * Prompt
      */
     private String prompt;
@@ -40,6 +50,26 @@ public class DebugChatBotReqDto {
      * Opened tool
      */
     private String openedTool;
+
+    /**
+     * Custom MCP server URL list
+     */
+    private String mcpServerUrls;
+
+    /**
+     * Selected skills JSON list
+     */
+    private String skills;
+
+    /**
+     * Selected plugin tools (tool square) JSON list
+     */
+    private String tools;
+
+    /**
+     * Selected workflows JSON list
+     */
+    private String workflows;
 
     /**
      * Model name

@@ -50,7 +50,7 @@ class KafkaProducerService(Service):
             self.producer.poll(timeout)
         except Exception as e:
             logger.error(f"Kafka message send failed: {e}")
-            raise e
+            raise
 
     def _delivery_report(self, err: Any, msg: Any) -> None:
         """

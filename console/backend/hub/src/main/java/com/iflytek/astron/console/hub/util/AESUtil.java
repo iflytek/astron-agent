@@ -21,6 +21,7 @@ public class AESUtil {
     private static final int IV_LENGTH = 12; // GCM recommended 96 bits (12 bytes)
     private static final int TAG_LENGTH = 128; // GCM authentication tag length 128 bits
     private static final HexFormat HEX_FORMAT = HexFormat.of();
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     // Private constructor to prevent instantiation
     private AESUtil() {
@@ -99,7 +100,7 @@ public class AESUtil {
 
             // Generate random IV
             byte[] iv = new byte[IV_LENGTH];
-            SecureRandom.getInstanceStrong().nextBytes(iv);
+            SECURE_RANDOM.nextBytes(iv);
             GCMParameterSpec gcmSpec = new GCMParameterSpec(TAG_LENGTH, iv);
 
             cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec);

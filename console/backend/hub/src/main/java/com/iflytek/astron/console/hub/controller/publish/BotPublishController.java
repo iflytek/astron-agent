@@ -1,7 +1,10 @@
 package com.iflytek.astron.console.hub.controller.publish;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.annotation.RateLimit;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
+import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
@@ -15,8 +18,14 @@ import com.iflytek.astron.console.hub.dto.publish.BotVersionVO;
 import com.iflytek.astron.console.hub.dto.publish.BotTraceRequestDto;
 import com.iflytek.astron.console.hub.dto.publish.UnifiedPrepareDto;
 import com.iflytek.astron.console.hub.dto.publish.UnifiedPublishRequestDto;
+import com.iflytek.astron.console.hub.dto.publish.approval.PublishApprovalDecisionDto;
+import com.iflytek.astron.console.hub.dto.publish.approval.PublishApprovalSubmitDto;
+import com.iflytek.astron.console.hub.enums.publish.PublishApprovalActionEnum;
+import com.iflytek.astron.console.hub.enums.publish.PublishApprovalResourceTypeEnum;
+import com.iflytek.astron.console.hub.enums.publish.PublishApprovalTypeEnum;
 import com.iflytek.astron.console.hub.service.publish.BotPublishService;
 import com.iflytek.astron.console.hub.service.publish.McpService;
+import com.iflytek.astron.console.hub.service.publish.PublishApprovalService;
 import com.iflytek.astron.console.hub.strategy.publish.PublishStrategy;
 import com.iflytek.astron.console.hub.strategy.publish.PublishStrategyFactory;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,6 +61,7 @@ public class BotPublishController {
     private final BotPublishService botPublishService;
     private final McpService mcpService;
     private final PublishStrategyFactory publishStrategyFactory;
+    private final PublishApprovalService publishApprovalService;
 
     /**
      * Retrieve paginated bot list with advanced filtering
@@ -151,15 +161,28 @@ public class BotPublishController {
                         "Unsupported publish type: " + request.getPublishType() +
                                 ". Supported types: " + publishStrategyFactory.getSupportedTypes());
             }
+            if (!isSupportedPublishAction(request.getAction())) {
+                return ApiResult.error(ResponseEnum.PARAMETER_ERROR,
+                        "Unsupported action: " + request.getAction() +
+                                ". Supported actions: PUBLISH, OFFLINE");
+            }
 
-            // Get strategy and execute action
-            PublishStrategy strategy = publishStrategyFactory.getStrategy(request.getPublishType());
+            PublishApprovalSubmitDto approvalSubmit = buildApprovalSubmitDto(botId, request, currentUid, spaceId);
+            PublishApprovalDecisionDto approvalDecision = publishApprovalService.submitIfRequired(approvalSubmit);
+            if (Boolean.TRUE.equals(approvalDecision.getApprovalRequired())) {
+                log.info("Unified publish submitted for approval: botId={}, publishType={}, action={}, approvalId={}",
+                        botId, request.getPublishType(), request.getAction(), approvalDecision.getApprovalId());
+                return ApiResult.success(approvalDecision);
+            }
+            Long effectiveSpaceId = approvalSubmit.getSpaceId();
 
             ApiResult<Object> result;
             if ("PUBLISH".equalsIgnoreCase(request.getAction())) {
-                result = strategy.publish(botId, request.getPublishData(), currentUid, spaceId);
+                PublishStrategy strategy = publishStrategyFactory.getStrategy(request.getPublishType());
+                result = strategy.publish(botId, request.getPublishData(), currentUid, effectiveSpaceId);
             } else if ("OFFLINE".equalsIgnoreCase(request.getAction())) {
-                result = strategy.offline(botId, request.getPublishData(), currentUid, spaceId);
+                PublishStrategy strategy = publishStrategyFactory.getStrategy(request.getPublishType());
+                result = strategy.offline(botId, request.getPublishData(), currentUid, effectiveSpaceId);
             } else {
                 return ApiResult.error(ResponseEnum.PARAMETER_ERROR,
                         "Unsupported action: " + request.getAction() +
@@ -171,11 +194,59 @@ public class BotPublishController {
 
             return result;
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Unified publish failed: botId={}, publishType={}, action={}",
                     botId, request.getPublishType(), request.getAction(), e);
             return ApiResult.error(ResponseEnum.OPERATION_FAILED, e.getMessage());
         }
+    }
+
+    private boolean isSupportedPublishAction(String action) {
+        return "PUBLISH".equalsIgnoreCase(action) || "OFFLINE".equalsIgnoreCase(action);
+    }
+
+    private PublishApprovalSubmitDto buildApprovalSubmitDto(
+            Integer botId,
+            UnifiedPublishRequestDto request,
+            String currentUid,
+            Long spaceId) {
+        PublishApprovalTypeEnum publishType = PublishApprovalTypeEnum.normalize(request.getPublishType());
+        PublishApprovalActionEnum action = PublishApprovalActionEnum.valueOf(request.getAction().trim().toUpperCase());
+        String targetId = resolvePublishTargetId(publishType, request.getPublishData());
+        JSONObject snapshot = new JSONObject();
+        snapshot.put("schemaVersion", 1);
+        snapshot.put("executorKey", "BOT_" + publishType.name());
+        snapshot.put("resourceType", PublishApprovalResourceTypeEnum.BOT.name());
+        snapshot.put("resourceId", String.valueOf(botId));
+        snapshot.put("botId", botId);
+        snapshot.put("spaceId", spaceId);
+        snapshot.put("requesterUid", currentUid);
+        snapshot.put("publishType", publishType.name());
+        snapshot.put("publishAction", action.name());
+        snapshot.put("targetId", targetId);
+        snapshot.put("publishData", request.getPublishData());
+
+        return PublishApprovalSubmitDto.builder()
+                .spaceId(spaceId)
+                .requesterUid(currentUid)
+                .resourceType(PublishApprovalResourceTypeEnum.BOT)
+                .resourceId(String.valueOf(botId))
+                .publishType(publishType)
+                .publishAction(action)
+                .targetId(targetId)
+                .publishSnapshot(snapshot.toJSONString())
+                .build();
+    }
+
+    private String resolvePublishTargetId(PublishApprovalTypeEnum publishType, Object publishData) {
+        if (PublishApprovalTypeEnum.API != publishType || publishData == null) {
+            return "SQUARE";
+        }
+        JSONObject data = JSON.parseObject(JSON.toJSONString(publishData));
+        String appId = data.getString("appId");
+        return appId == null || appId.isBlank() ? "API" : appId;
     }
 
     /**

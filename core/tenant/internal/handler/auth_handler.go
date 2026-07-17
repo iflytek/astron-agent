@@ -150,13 +150,44 @@ func (h *AuthHandler) GetAppByAPIKey(c *gin.Context) {
 		c.JSON(http.StatusOK, resp)
 		return
 	}
-	resp := newSuccessResp(&AppData{
+	resp := newSuccessResp(newAppData(app), sid)
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *AuthHandler) VerifyAppAuth(c *gin.Context) {
+	sid := c.GetString(keySid)
+	req, err := newVerifyAppAuthReq(c)
+	if err != nil {
+		log.Printf("build verify app auth request error: %v", err)
+		resp := newErrResp(ParamErr, err.Error(), sid)
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	app, err := h.authService.VerifyAppByAPIKeySecret(req.ApiKey, req.ApiSecret)
+	if err != nil {
+		var appErr service.BizErr
+		if errors.As(err, &appErr) {
+			log.Printf("request verify app auth error: %s", appErr.Msg())
+			resp := newErrResp(appErr.Code(), appErr.Msg(), sid)
+			c.JSON(http.StatusOK, resp)
+			return
+		}
+		log.Printf("request verify app auth error: %s", err.Error())
+		resp := newErrResp(service.ErrCodeSystem, err.Error(), sid)
+		c.JSON(http.StatusOK, resp)
+		return
+	}
+	resp := newSuccessResp(newAppData(app), sid)
+	c.JSON(http.StatusOK, resp)
+}
+
+func newAppData(app *models.App) *AppData {
+	return &AppData{
 		Appid:   app.AppId,
 		Name:    app.AppName,
 		DevId:   app.DevId,
 		Source:  app.Source,
 		Desc:    app.Desc,
 		CloudId: app.ChannelId,
-	}, sid)
-	c.JSON(http.StatusOK, resp)
+	}
 }

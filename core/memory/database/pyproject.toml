@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "alembic==1.13.1",
+    "aiomysql>=0.2.0",
     "asyncpg>=0.30.0",
     "black==24.4.2",
     "confluent-kafka>=2.11.1",
@@ -27,6 +28,7 @@ dependencies = [
     "orjson>=3.10.18",
     "pandas>=2.3.0",
     "psycopg2-binary>=2.9.11",
+    "pymysql>=1.1.0",
     "pydantic-settings>=2.10.1",
     "pylint==3.1.0",
     "pytest-asyncio>=1.2.0",
@@ -45,3 +47,6 @@ dependencies = [
     "types-requests>=2.32.4.20250913",
     "uvicorn>=0.34.2",
 ]
+
+[tool.isort]
+profile = "black"

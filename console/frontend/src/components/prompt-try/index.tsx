@@ -15,6 +15,13 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import eventBus from '@/utils/event-bus';
 import { baseURL } from '@/utils/http';
 import { ModelListData } from '@/services/spark-common';
+import {
+  hasInvalidMcpServerUrls,
+  normalizeMcpServerUrls,
+} from '@/components/config-page-component/config-base/mcp-url-config';
+import type { AgentSkill } from '@/types/skill';
+import type { AgentTool } from '@/types/plugin-store';
+import type { AgentWorkflow } from '@/types/agent-workflow';
 
 // PromptTry组件暴露的方法接口
 export interface PromptTryRef {
@@ -53,9 +60,18 @@ const PromptTry = forwardRef<
     model?: string;
     supportContext?: number;
     promptText?: string;
+    botId?: number | null;
+    debugSessionId?: string;
+    initialMessages?: MessageListType[];
+    onMessagesChange?: (messages: MessageListType[]) => void;
+    showHeaderAndRecommend?: boolean;
     choosedAlltool?: {
       [key: string]: boolean;
     };
+    mcpServerUrls?: string[];
+    skills?: AgentSkill[];
+    tools?: AgentTool[];
+    workflows?: AgentWorkflow[];
     findModelOptionByUniqueKey: (
       uniqueKey: string
     ) => ModelListData | undefined;
@@ -76,7 +92,16 @@ const PromptTry = forwardRef<
       prompt,
       model,
       supportContext,
+      botId,
+      debugSessionId,
       choosedAlltool,
+      mcpServerUrls,
+      skills,
+      tools,
+      workflows,
+      initialMessages,
+      onMessagesChange,
+      showHeaderAndRecommend = true,
       findModelOptionByUniqueKey,
       personalityConfig,
     },
@@ -89,6 +114,7 @@ const PromptTry = forwardRef<
     const [messageList, setMessageList] = useState<MessageListType[]>([]); // 消息列表
     const controllerRef = useRef<AbortController>(new AbortController()); //sse请求ref
     const currentSid = useRef<string>(''); // 当前sid
+    const pendingInitialMessagesRef = useRef<MessageListType[] | null>(null);
 
     // 使用useImperativeHandle暴露组件方法
     useImperativeHandle(ref, () => ({
@@ -113,6 +139,29 @@ const PromptTry = forwardRef<
         });
       };
     }, []);
+
+    useEffect(() => {
+      if (initialMessages) {
+        pendingInitialMessagesRef.current = initialMessages;
+        setMessageList(current => {
+          if (current === initialMessages) {
+            pendingInitialMessagesRef.current = null;
+            return current;
+          }
+          return initialMessages;
+        });
+      }
+    }, [initialMessages]);
+
+    useEffect(() => {
+      if (pendingInitialMessagesRef.current) {
+        if (pendingInitialMessagesRef.current === messageList) {
+          pendingInitialMessagesRef.current = null;
+        }
+        return;
+      }
+      onMessagesChange?.(messageList);
+    }, [messageList, onMessagesChange]);
 
     // 监听loading状态变化，通知config-base
     useEffect(() => {
@@ -148,6 +197,10 @@ const PromptTry = forwardRef<
 
     // 获取答案
     const getAnswer = (question: string) => {
+      if (hasInvalidMcpServerUrls(mcpServerUrls)) {
+        message.warning('请先修正 MCP Server URL');
+        return;
+      }
       const esURL = `${baseURL}/chat-message/bot-debug`;
       const form = new FormData();
       const useModel = findModelOptionByUniqueKey(model || '');
@@ -157,6 +210,12 @@ const PromptTry = forwardRef<
       form.append('model', useModel?.modelDomain || 'spark');
 
       form.append('text', question);
+      if (botId !== undefined && botId !== null) {
+        form.append('botId', String(botId));
+      }
+      if (debugSessionId) {
+        form.append('debugSessionId', debugSessionId);
+      }
       const datasetList: string[] = [];
       (selectSource || []).forEach((item: any) => {
         datasetList.push(item.id);
@@ -180,6 +239,19 @@ const PromptTry = forwardRef<
             .filter((key: string) => choosedAlltool[key])
             .join(',')
         );
+      }
+      const normalizedMcpServerUrls = normalizeMcpServerUrls(mcpServerUrls);
+      if (normalizedMcpServerUrls.length > 0) {
+        form.append('mcpServerUrls', JSON.stringify(normalizedMcpServerUrls));
+      }
+      if (skills && skills.length > 0) {
+        form.append('skills', JSON.stringify(skills));
+      }
+      if (tools && tools.length > 0) {
+        form.append('tools', JSON.stringify(tools));
+      }
+      if (workflows && workflows.length > 0) {
+        form.append('workflows', JSON.stringify(workflows));
       }
 
       // 添加人设配置信息
@@ -331,6 +403,7 @@ const PromptTry = forwardRef<
             isLoading={isLoading}
             isCompleted={isCompleted}
             stopAnswer={stopAnswer}
+            showHeaderAndRecommend={showHeaderAndRecommend}
           />
         </div>
       </div>

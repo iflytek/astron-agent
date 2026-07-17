@@ -9,5 +9,7 @@ import lombok.EqualsAndHashCode;
 public class MaasDuplicate extends BotCreateForm {
 
     private Long maasId;
+    private Long templateId;
+    private String templateSource;
 
 }

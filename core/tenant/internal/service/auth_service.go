@@ -12,8 +12,27 @@ import (
 )
 
 type AuthService struct {
-	appDao  *dao.AppDao
-	authDao *dao.AuthDao
+	appDao  authAppDao
+	authDao authAuthDao
+}
+
+type authAppDao interface {
+	Count(bool, *sql.Tx, ...dao.SqlOption) (int64, error)
+	Select(...dao.SqlOption) ([]*models.App, error)
+	WithAppId(string) dao.SqlOption
+	WithIsDelete(bool) dao.SqlOption
+}
+
+type authAuthDao interface {
+	BeginTx() (*sql.Tx, error)
+	Count(bool, *sql.Tx, ...dao.SqlOption) (int64, error)
+	Insert(*models.Auth, *sql.Tx) (int64, error)
+	Delete(*sql.Tx, ...dao.SqlOption) (int64, error)
+	Select(...dao.SqlOption) ([]*models.Auth, error)
+	WithAppId(string) dao.SqlOption
+	WithIsDelete(bool) dao.SqlOption
+	WithApiKey(string) dao.SqlOption
+	WithApiSecret(string) dao.SqlOption
 }
 
 func NewAuthService(appDao *dao.AppDao, authDao *dao.AuthDao) (*AuthService, error) {
@@ -115,6 +134,26 @@ func (biz *AuthService) QueryAppByAPIKey(apiKey string) (*models.App, error) {
 		log.Printf("query auth biz info error: %v", err)
 		return nil, NewBizErr(ErrCodeSystem, err.Error())
 	}
+	return biz.queryAppByAuth(data)
+}
+
+func (biz *AuthService) VerifyAppByAPIKeySecret(apiKey string, apiSecret string) (*models.App, error) {
+	data, err := biz.authDao.Select(
+		biz.authDao.WithApiKey(apiKey),
+		biz.authDao.WithApiSecret(apiSecret),
+		biz.authDao.WithIsDelete(false),
+	)
+	if err != nil {
+		log.Printf("verify auth biz info error: %v", err)
+		return nil, NewBizErr(ErrCodeSystem, err.Error())
+	}
+	if len(data) == 0 {
+		return nil, NewBizErr(ApiKeyNotExist, "api key or secret not exist")
+	}
+	return biz.queryAppByAuth(data)
+}
+
+func (biz *AuthService) queryAppByAuth(data []*models.Auth) (*models.App, error) {
 	if len(data) == 0 {
 		return nil, NewBizErr(AppIdNotExist, "app id not exist")
 	}

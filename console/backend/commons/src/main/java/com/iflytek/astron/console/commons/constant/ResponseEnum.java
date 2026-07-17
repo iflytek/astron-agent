@@ -281,6 +281,8 @@ public enum ResponseEnum {
     PROMPT_GROUP_PROMPT_CANNOT_EMPTY(8124, "prompt.group.prompt.cannot.empty"),
     WORKFLOW_DLS_UPLOAD_FAILED(8125, "work.flow.dls.upload.failed"),
     WORKFLOW_MCP_SERVER_REGISTRY_FAILED(8126, "work.flow.mcp.server.registry.failed"),
+    WORKFLOW_SKILL_API_NOT_READY(8127, "workflow.skill.api.not.ready"),
+    WORKFLOW_SKILL_NAME_DESC_EMPTY(8128, "workflow.skill.name.desc.empty"),
 
 
     // Plugins 8300 - 8500
@@ -393,6 +395,7 @@ public enum ResponseEnum {
     REPO_KNOWLEDGE_QUERY_FAILED(8737, "repo.knowledge.query.failed"),
     REPO_DELETE_FAILED_BOT_USED(8738, "repo.delete.failed.bot.used"),
     REPO_FILE_UPLOAD_TYPE_NOT_EXIST(8739, "repo.file.upload.type.not.exist"),
+    REPO_CREATE_RAGFLOW_FAILED(8740, "repo.create.ragflow.failed"),
 
     // 8900 - 9000 (Model related)
     MODEL_NOT_COMPATIBLE_OPENAI(8900, "model.not.compatible.openai"),
@@ -409,6 +412,9 @@ public enum ResponseEnum {
     MODEL_DELETE_FAILED_APPLY_WORKFLOW(8911, "model.delete.failed.apply.workflow"),
     MODEL_URL_ILLEGAL_FAILED(8912, "model.url.illegal.failed"),
     NOT_CUSTOM_MODEL(8913, "not.custom.model"),
+
+    // 9100 - 9199 (Platform account related)
+    PLATFORM_ACCOUNT_NOT_CONFIGURED(9100, "platform.account.not.configured"),
 
     // Notification center related errors 90xxx
     NOTIFICATION_NOT_EXISTS(90001, "notification.not.exists"),

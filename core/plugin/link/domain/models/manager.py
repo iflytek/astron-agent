@@ -4,6 +4,7 @@ from typing import Optional
 from plugin.link.consts import const
 from plugin.link.domain.entity.tool_schema import Tools
 from plugin.link.domain.models.utils import DatabaseService, RedisService
+from sqlalchemy import create_engine, text
 
 data_base_singleton: Optional[DatabaseService] = None
 redis_singleton: Optional[RedisService] = None
@@ -24,8 +25,14 @@ def init_data_base() -> None:
         f"mysql+pymysql://{user}:{password}@{mysql_host}:{mysql_port}/{db}"
         "?charset=utf8mb4"
     )
+    base_engine = create_engine(
+        f"mysql+pymysql://{user}:{password}@{mysql_host}:{mysql_port}"
+    )
+    with base_engine.connect() as conn:
+        conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db}`"))
+        conn.commit()
+    base_engine.dispose()
     data_base_singleton = DatabaseService(database_url=db_url)
-    data_base_singleton.create_db_and_tables()
 
     # Initialize Redis service using global singleton pattern
     # Use global statement to modify module-level singleton instance

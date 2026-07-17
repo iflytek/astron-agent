@@ -138,6 +138,7 @@ const useAICodeInputBox = ({
   handleChangeNodeParam,
   errCodeMsg,
   textQueue,
+  controllerRef,
 }): useAICodeInputBoxProps => {
   const { t } = useTranslation();
   const extractInputs = useMemoizedFn((functionString: string): string[] => {
@@ -162,7 +163,12 @@ const useAICodeInputBox = ({
   const handleAiCode = useMemoizedFn(
     (inputPrompt?: string, codeRevision = false): void => {
       if (isReciving) return;
-      const controller = new AbortController();
+      if (controllerRef.current) {
+        controllerRef.current.abort();
+        controllerRef.current = null;
+      }
+      textQueue.current = [];
+      controllerRef.current = new AbortController();
       const vars = extractInputs(value || '');
       const params: AICodeParams = {
         code: value || '',
@@ -189,10 +195,12 @@ const useAICodeInputBox = ({
           Authorization: getAuthorization(),
         },
         body: JSON.stringify(params),
-        signal: controller.signal,
+        signal: controllerRef.current.signal,
         openWhenHidden: true,
         onerror() {
-          controller.abort();
+          controllerRef.current?.abort();
+          controllerRef.current = null;
+          wsMessageStatus.current = 'end';
         },
         onmessage(e) {
           if (e.data && isJSON(e.data)) {
@@ -205,6 +213,11 @@ const useAICodeInputBox = ({
               wsMessageStatus.current = 'end';
             }
           }
+        },
+        onclose() {
+          controllerRef.current?.abort();
+          controllerRef.current = null;
+          wsMessageStatus.current = 'end';
         },
       });
     }
@@ -241,6 +254,7 @@ const AICodeInputBox = ({
   rePrompt,
   errCodeMsg,
   textQueue,
+  controllerRef,
 }): React.ReactElement => {
   const { t } = useTranslation();
   const { handleAiCode, handleSendMessage } = useAICodeInputBox({
@@ -258,6 +272,7 @@ const AICodeInputBox = ({
     handleChangeNodeParam,
     errCodeMsg,
     textQueue,
+    controllerRef,
   });
   return (
     <div className="w-full bg-[#000]">
@@ -301,6 +316,10 @@ const AICodeInputBox = ({
           className="w-3 h-3 cursor-pointer absolute top-2 right-4"
           alt=""
           onClick={() => {
+            controllerRef.current?.abort();
+            controllerRef.current = null;
+            wsMessageStatus.current = 'end';
+            textQueue.current = [];
             setAiCodeInputShow(false);
             handleChangeNodeParam(
               (data, value) => (data.nodeParam.code = value),
@@ -339,6 +358,10 @@ const AICodeInputBox = ({
               <div
                 className="bg-[#383c43] px-[36px] rounded-lg cursor-pointer hover:text-[#fff] hover:bg-[#5b696a]"
                 onClick={() => {
+                  controllerRef.current?.abort();
+                  controllerRef.current = null;
+                  wsMessageStatus.current = 'end';
+                  textQueue.current = [];
                   handleChangeNodeParam(
                     (data, value) => (data.nodeParam.code = value),
                     temporaryStorageCode.current
@@ -381,6 +404,22 @@ const AICodeInputBox = ({
   );
 };
 
+interface IOTestPanelProps {
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  input: string;
+  setInput: React.Dispatch<React.SetStateAction<string>>;
+  setOutput: React.Dispatch<React.SetStateAction<string>>;
+  setErrCodeMsg: React.Dispatch<React.SetStateAction<string>>;
+  setCodeRunningStatus: React.Dispatch<React.SetStateAction<string>>;
+  value?: string;
+  currentFlow?: FlowType;
+  codeRunningStatus: string;
+  loading: boolean;
+  errCodeMsg: string;
+  output: string;
+  nodeId?: string;
+}
+
 const IOTestPanel = ({
   setLoading,
   input,
@@ -394,7 +433,8 @@ const IOTestPanel = ({
   loading,
   errCodeMsg,
   output,
-}): React.ReactElement => {
+  nodeId,
+}: IOTestPanelProps): React.ReactElement => {
   const { t } = useTranslation();
   const user = useUserStore(state => state.user);
   const generateRandomString = useMemoizedFn((): string => {
@@ -431,6 +471,7 @@ const IOTestPanel = ({
       app_id: currentFlow?.appId,
       uid: user?.uid.toString(),
       flow_id: currentFlow?.flowId,
+      node_id: nodeId,
     };
     codeRun(params)
       .then((res: CodeRunResponse): void => {
@@ -603,6 +644,7 @@ const useCodeIDEAEffect = ({
 
 function CodeIDEA(): React.ReactElement {
   const editorRef = useRef<unknown>(null);
+  const controllerRef = useRef<AbortController | null>(null);
   const textQueue = useRef<string[]>([]);
   const wsMessageStatus = useRef<string>('end');
   const temporaryStorageCode = useRef<string>('');
@@ -638,6 +680,24 @@ function CodeIDEA(): React.ReactElement {
     () => currentNode?.data?.nodeParam?.code,
     [currentNode]
   );
+  useEffect(() => {
+    if (!open) {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      wsMessageStatus.current = 'end';
+      textQueue.current = [];
+      setIsReciving(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    return (): void => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      wsMessageStatus.current = 'end';
+      textQueue.current = [];
+    };
+  }, []);
   useCodeIDEAEffect({
     editorRef,
     textQueue,
@@ -699,6 +759,7 @@ function CodeIDEA(): React.ReactElement {
             rePrompt={rePrompt}
             errCodeMsg={errCodeMsg}
             textQueue={textQueue}
+            controllerRef={controllerRef}
           />
         )}
         <IOTestPanel
@@ -714,6 +775,7 @@ function CodeIDEA(): React.ReactElement {
           loading={loading}
           errCodeMsg={errCodeMsg}
           output={output}
+          nodeId={id}
         />
       </div>
     </Drawer>

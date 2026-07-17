@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { cloneDeep } from 'lodash';
 import ReactFlow, {
@@ -26,6 +27,10 @@ import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import FlowPanel from '@/components/workflow/panel';
 import { ReactFlowProvider } from 'reactflow';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
+import {
+  AddNodeType,
+  PositionType,
+} from '@/components/workflow/types/drawer/chat-debugger';
 
 import CustomNode from '@/components/workflow/nodes';
 import CustomEdge from '@/components/workflow/edges';
@@ -89,7 +94,9 @@ const useKeyboardHandlers = ({
     lastSelection.nodes = lastSelection?.nodes?.filter(
       node =>
         node.nodeType !== 'iteration-node-start' &&
-        node.nodeType !== 'iteration-node-end'
+        node.nodeType !== 'iteration-node-end' &&
+        node.nodeType !== 'loop-node-start' &&
+        node.nodeType !== 'loop-node-end'
     );
     const edgeIds = lastSelection?.edges?.map(edge => edge?.id);
     const leftEdges = edges.filter(edge => !edgeIds?.includes(edge?.id));
@@ -124,7 +131,9 @@ const useKeyboardHandlers = ({
           }
           return (
             node.nodeType !== 'iteration-node-start' &&
-            node.nodeType !== 'iteration-node-end'
+            node.nodeType !== 'iteration-node-end' &&
+            node.nodeType !== 'loop-node-start' &&
+            node.nodeType !== 'loop-node-end'
           );
         });
         try {
@@ -360,8 +369,9 @@ const useIterativeAmplification = ({
 function FlowContainer({
   zoom,
   setZoom,
+  handleAddNode,
 }: FlowContainerProps): React.ReactElement {
-  const { handleAddNode, startIterativeWorkflowKeydownEvent } = useFlowCommon();
+  const { startIterativeWorkflowKeydownEvent } = useFlowCommon();
   const reactFlowInstance = useIteratorFlowStore(
     state => state.reactFlowInstance
   );
@@ -497,12 +507,42 @@ function FlowContainer({
 }
 
 function IterativeAmplificationModal(): React.ReactElement {
+  const { t } = useTranslation();
   const zoom = useIteratorFlowStore(state => state.zoom);
   const setZoom = useIteratorFlowStore(state => state.setZoom);
   const setShowIterativeModal = useFlowsManager(
     state => state.setShowIterativeModal
   );
   const showNodeList = useFlowsManager(state => state.showNodeList);
+  const iteratorId = useFlowsManager(state => state.iteratorId);
+  const mainFlowNodes = useFlowStore(state => state.nodes);
+  const setWillAddNode = useFlowsManager(state => state.setWillAddNode);
+  const { handleAddNode: handleAddNodeBase } = useFlowCommon();
+
+  const isParallelIterator = useMemo(() => {
+    if (!iteratorId) return false;
+    const iteratorNode = mainFlowNodes?.find(n => n?.id === iteratorId);
+    return iteratorNode?.data?.nodeParam?.runMode === 'parallel';
+  }, [iteratorId, mainFlowNodes]);
+
+  const isLoopContainer = useMemo(() => {
+    if (!iteratorId) return false;
+    const iteratorNode = mainFlowNodes?.find(n => n?.id === iteratorId);
+    return iteratorNode?.nodeType === 'loop';
+  }, [iteratorId, mainFlowNodes]);
+
+  const handleAddNode = useMemoizedFn(
+    (addNode: AddNodeType, position: PositionType) => {
+      if (isParallelIterator && addNode?.idType === 'question-answer') {
+        message.warning(
+          t('workflow.nodes.iteratorNode.parallelModeNoQaInSubCanvas')
+        );
+        setWillAddNode(null);
+        return;
+      }
+      return handleAddNodeBase(addNode, position);
+    }
+  );
 
   return (
     <>
@@ -515,11 +555,23 @@ function IterativeAmplificationModal(): React.ReactElement {
               width: '90%',
             }}
           >
-            {showNodeList && <NodeList noIterator={true} />}
+            {showNodeList && (
+              <NodeList
+                noIterator={true}
+                hiddenIdTypes={
+                  isLoopContainer
+                    ? ['iteration', 'loop']
+                    : ['iteration', 'loop', 'loop-exit']
+                }
+                hiddenAliasNames={isParallelIterator ? ['问答节点'] : []}
+                handleAddNode={handleAddNode}
+              />
+            )}
             <FlowContainer
               zoom={zoom}
               setZoom={setZoom}
               setShowIterativeModal={setShowIterativeModal}
+              handleAddNode={handleAddNode}
             />
           </div>
         </div>,

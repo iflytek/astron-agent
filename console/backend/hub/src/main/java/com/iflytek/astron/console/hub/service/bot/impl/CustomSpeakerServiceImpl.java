@@ -8,8 +8,10 @@ import com.iflytek.astron.console.hub.entity.CustomSpeaker;
 import com.iflytek.astron.console.hub.enums.TtsTypeEnum;
 import com.iflytek.astron.console.hub.mapper.CustomSpeakerMapper;
 import com.iflytek.astron.console.hub.service.bot.CustomSpeakerService;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import com.iflytek.astron.console.toolkit.tool.http.HttpAuthTool;
-import org.springframework.beans.factory.annotation.Value;
+import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -22,14 +24,8 @@ public class CustomSpeakerServiceImpl extends ServiceImpl<CustomSpeakerMapper, C
 
     private static final String CLONE_API_URL = "wss://cn-huabei-1.xf-yun.com/v1/private/voice_clone";
 
-    @Value("${spark.app-id}")
-    private String appId;
-
-    @Value("${spark.api-key}")
-    private String apiKey;
-
-    @Value("${spark.api-secret}")
-    private String apiSecret;
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     @Override
     public List<CustomSpeaker> getTrainSpeaker(Long spaceId, String uid) {
@@ -87,9 +83,12 @@ public class CustomSpeakerServiceImpl extends ServiceImpl<CustomSpeakerMapper, C
 
     @Override
     public Map<String, String> getCloneSign() {
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
         Map<String, String> resultMap = new HashMap<>();
-        String url = HttpAuthTool.assembleRequestUrl(CLONE_API_URL, apiKey, apiSecret);
-        resultMap.put("appId", appId);
+        String url = HttpAuthTool.assembleRequestUrl(
+                CLONE_API_URL, config.getPlatformApiKey(), config.getPlatformApiSecret());
+        resultMap.put("appId", config.getPlatformAppId());
         resultMap.put("url", url);
         resultMap.put("type", TtsTypeEnum.CLONE.name());
         return resultMap;

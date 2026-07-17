@@ -8,10 +8,14 @@ import { ModelProvider, useModelContext } from '../context/model-context';
 import { useModelFilters } from '../hooks/use-model-filters';
 import { ModelProviderType } from '@/types/model';
 import { getModelProviderLabel } from '../utils/provider';
+import {
+  mapProviderToVendor,
+  getSpecificProviderOptions,
+} from '../utils/provider-group';
 import chatgptIcon from '@/assets/imgs/modelManage/providers/custom/chatgpt.svg';
 import anthropicIcon from '@/assets/imgs/modelManage/providers/custom/anthropic.svg';
-import deepseekIcon from '@/assets/imgs/modelManage/providers/custom/deepseek.svg';
 import googleIcon from '@/assets/imgs/modelManage/providers/custom/google.svg';
+import deepseekIcon from '@/assets/imgs/modelManage/providers/custom/deepseek.svg';
 import minimaxIcon from '@/assets/imgs/modelManage/providers/custom/minimax.svg';
 import zhipuIcon from '@/assets/imgs/modelManage/providers/custom/zhipu.svg';
 import qwenIcon from '@/assets/imgs/modelManage/providers/custom/qwen.svg';
@@ -68,9 +72,15 @@ const OfficialModelContent: React.FC = () => {
   const { t } = useTranslation();
   const { state, actions } = useModelContext();
   const filters = useModelFilters();
+  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const [searchInput, setSearchInput] = useState<string>('');
   const [selectedCard, setSelectedCard] = useState<OfficialProviderCard | null>(
     null
   );
+
+  const handleProviderChange = (provider?: string) => {
+    setSelectedProvider(provider || '');
+  };
 
   const providerCards = useMemo<OfficialProviderCard[]>(
     () => [
@@ -101,7 +111,7 @@ const OfficialModelContent: React.FC = () => {
       {
         provider: ModelProviderType.MINIMAX,
         title: 'MiniMax',
-        subtitle: 'MiniMax-Text-01',
+        subtitle: 'MiniMax-M3 / MiniMax-M2.7',
         description: t('model.providerCardMiniMaxDesc'),
         accentClass: 'from-[#FFF3E8] via-[#FFF8F2] to-white',
         endpoint: 'https://api.minimaxi.com/v1',
@@ -151,12 +161,18 @@ const OfficialModelContent: React.FC = () => {
     [t]
   );
 
+  const handleOpenProviderModal = (card: OfficialProviderCard): void => {
+    actions.setCurrentEditModel(undefined);
+    setSelectedCard(card);
+  };
+
   const visibleCards = useMemo(() => {
-    const keyword = state.searchInput.trim().toLowerCase();
+    const keyword = searchInput.trim().toLowerCase();
 
     return providerCards.filter(card => {
+      // 这里我们检查的是具体的模型提供商
       const matchedProvider =
-        !state.providerFilter || state.providerFilter === card.provider;
+        !selectedProvider || selectedProvider === card.provider;
       const matchedKeyword =
         !keyword ||
         card.title.toLowerCase().includes(keyword) ||
@@ -166,12 +182,7 @@ const OfficialModelContent: React.FC = () => {
 
       return matchedProvider && matchedKeyword;
     });
-  }, [providerCards, state.providerFilter, state.searchInput]);
-
-  const handleOpenProviderModal = (card: OfficialProviderCard): void => {
-    actions.setCurrentEditModel(undefined);
-    setSelectedCard(card);
-  };
+  }, [providerCards, selectedProvider, searchInput]);
 
   return (
     <div className="w-full h-screen flex flex-col page-container-inner-UI">
@@ -179,8 +190,8 @@ const OfficialModelContent: React.FC = () => {
         <ModelManagementHeader
           activeTab="officialModel"
           shelfOffModel={[]}
-          searchInput={state.searchInput}
-          setSearchInput={filters.handleSearchInputChange}
+          searchInput={searchInput}
+          setSearchInput={setSearchInput}
           setShowShelfOnly={() => undefined}
         />
       </div>
@@ -190,46 +201,9 @@ const OfficialModelContent: React.FC = () => {
           <aside className="w-full lg:w-[224px] max-w-[224px] min-w-[180px] flex-shrink-0 rounded-[18px] bg-[#FFFFFF] overflow-y-auto hide-scrollbar shadow-sm">
             <CategoryAside
               tree={[]}
-              providerFilter={state.providerFilter}
-              providerOptions={[
-                {
-                  label: t('model.providerChatGPT'),
-                  value: ModelProviderType.CHATGPT,
-                },
-                {
-                  label: t('model.providerDeepSeek'),
-                  value: ModelProviderType.DEEPSEEK,
-                },
-                {
-                  label: t('model.providerAnthropic'),
-                  value: ModelProviderType.ANTHROPIC,
-                },
-                {
-                  label: t('model.providerGoogle'),
-                  value: ModelProviderType.GOOGLE,
-                },
-                {
-                  label: t('model.providerMiniMax'),
-                  value: ModelProviderType.MINIMAX,
-                },
-                {
-                  label: t('model.providerZhipu'),
-                  value: ModelProviderType.ZHIPU,
-                },
-                {
-                  label: t('model.providerQwen'),
-                  value: ModelProviderType.QWEN,
-                },
-                {
-                  label: t('model.providerMoonshot'),
-                  value: ModelProviderType.MOONSHOT,
-                },
-                {
-                  label: t('model.providerDoubao'),
-                  value: ModelProviderType.DOUBAO,
-                },
-              ]}
-              onProviderChange={filters.handleProviderFilterChange}
+              providerFilter={selectedProvider}
+              providerOptions={getSpecificProviderOptions()}
+              onProviderChange={handleProviderChange}
               showContextLength={false}
               showModelStatus={false}
             />
@@ -305,7 +279,7 @@ const OfficialModelContent: React.FC = () => {
           setCreateModal={() => setSelectedCard(null)}
           initialProvider={selectedCard.provider}
           initialEndpoint={selectedCard.endpoint}
-          lockProvider={true}
+          lockProvider={false}
           hideLocalModel={true}
           showCategoryForm={false}
         />

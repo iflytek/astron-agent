@@ -47,6 +47,7 @@ class TestKnowledgePluginFactory:
             top_k=3,
             repo_ids=["repo1"],
             doc_ids=["doc1"],
+            dataset_ids=[],
             score_threshold=0.3,
             rag_type="AIUI-RAG2",
         )
@@ -214,6 +215,39 @@ class TestKnowledgePluginFactory:
                 assert captured_data["topN"] == "3"
                 assert "match" in captured_data
                 assert captured_data["ragType"] == "AIUI-RAG2"
+
+    @pytest.mark.asyncio
+    async def test_retrieve_ragflow_with_dataset_ids(
+        self, factory: KnowledgePluginFactory
+    ) -> None:
+        """Test Ragflow-RAG route data"""
+        factory.rag_type = "Ragflow-RAG"
+        factory.dataset_ids = ["dataset-1"]
+        span = Span(app_id="test_app", uid="test_uid")
+        captured_data: dict[str, Any] = {}
+        captured_headers: dict[str, str] = {}
+
+        def mock_post(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN001
+            captured_data.update(kwargs.get("json", {}))
+            captured_headers.update(kwargs.get("headers", {}))
+            mock_resp = AsyncMock()
+            mock_resp.status = 200
+            mock_resp.json = AsyncMock(return_value={"data": {"results": []}})
+            mock_resp.raise_for_status = MagicMock()
+            mock_resp.read = AsyncMock(return_value=b'{"data": {}}')
+            mock_resp.__aenter__.return_value = mock_resp
+            mock_resp.__aexit__.return_value = False
+            return mock_resp
+
+        with patch.dict(
+            os.environ,
+            {"CHUNK_QUERY_URL": "http://test.com/query"},
+        ):
+            with patch("aiohttp.ClientSession.post", new=mock_post):
+                await factory.retrieve(span)
+
+        assert captured_data["match"]["datasetId"] == ["dataset-1"]
+        assert captured_headers == {"Content-Type": "application/json"}
 
 
 class TestKnowledgePlugin:

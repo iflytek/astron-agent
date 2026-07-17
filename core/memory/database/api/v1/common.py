@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Tuple
 
 import sqlalchemy
 import sqlalchemy.exc
+from loguru import logger
 from memory.database.domain.entity.database_meta import (
     get_id_by_did,
     get_id_by_did_uid,
@@ -15,158 +16,7 @@ from memory.database.domain.entity.database_meta import (
 from memory.database.domain.entity.schema_meta import get_schema_name_by_did
 from memory.database.domain.entity.views.http_resp import format_response
 from memory.database.exceptions.error_code import CodeEnum
-
-PGSQL_INVALID_KEY = [
-    "all",
-    "analyse",
-    "analyze",
-    "and",
-    "any",
-    "array",
-    "as",
-    "asc",
-    "asymmetric",
-    "authorization",
-    "binary",
-    "both",
-    "case",
-    "cast",
-    "check",
-    "collate",
-    "collation",
-    "column",
-    "concurrently",
-    "constraint",
-    "create",
-    "cross",
-    "current_catalog",
-    "current_date",
-    "current_role",
-    "current_schema",
-    "current_time",
-    "current_timestamp",
-    "current_user",
-    "default",
-    "deferrable",
-    "desc",
-    "distinct",
-    "do",
-    "else",
-    "end",
-    "except",
-    "false",
-    "fetch",
-    "for",
-    "foreign",
-    "freeze",
-    "from",
-    "full",
-    "grant",
-    "group",
-    "having",
-    "ilike",
-    "in",
-    "initially",
-    "inner",
-    "intersect",
-    "into",
-    "is",
-    "isnull",
-    "join",
-    "lateral",
-    "leading",
-    "left",
-    "like",
-    "limit",
-    "localtime",
-    "localtimestamp",
-    "natural",
-    "not",
-    "notnull",
-    "null",
-    "offset",
-    "on",
-    "only",
-    "or",
-    "order",
-    "outer",
-    "overlaps",
-    "placing",
-    "primary",
-    "references",
-    "returning",
-    "right",
-    "select",
-    "session_user",
-    "similar",
-    "some",
-    "symmetric",
-    "table",
-    "tablesample",
-    "then",
-    "to",
-    "trailing",
-    "true",
-    "union",
-    "unique",
-    "user",
-    "using",
-    "variadic",
-    "verbose",
-    "when",
-    "where",
-    "window",
-    "with",
-]
-
-
-PGSQL_DANGEROUS_FUNCTIONS = [
-    "current_catalog",
-    "current_database",
-    "current_role",
-    "current_schema",
-    "current_schema",
-    "current_schemas",
-    "current_user",
-    "inet_client_addr",
-    "inet_client_port",
-    "inet_server_addr",
-    "inet_server_port",
-    "pg_backend_pid",
-    "pg_blocking_pids",
-    "pg_conf_load_time",
-    "pg_current_logfile",
-    "pg_my_temp_schema",
-    "pg_is_other_temp_schema",
-    "pg_listening_channels",
-    "pg_postmaster_start_time",
-    "pg_safe_snapshot_blocking_pids",
-    "session_user",
-    "user",
-    "version",
-    "pg_current_xact_id",
-    "pg_current_xact_id_if_assigned",
-    "pg_current_snapshot",
-    "txid_current",
-    "txid_current_if_assigned",
-    "txid_current_snapshot",
-    "pg_control_checkpoint",
-    "pg_control_system",
-    "pg_control_init",
-    "pg_control_recovery",
-    "current_setting",
-    "set_config",
-    "pg_cancel_backend",
-    "pg_terminate_backend",
-    "pg_last_wal_receive_lsn",
-    "pg_last_wal_replay_lsn",
-    "pg_last_xact_replay_timestamp",
-    "pg_is_wal_replay_paused",
-    "pg_get_wal_replay_pause_state",
-    "pg_export_snapshot",
-    "pg_advisory_lock",
-    "pg_try_advisory_lock",
-]
+from memory.database.repository.middleware.adapters import get_adapter
 
 
 async def check_database_exists_by_did_uid(
@@ -179,6 +29,7 @@ async def check_database_exists_by_did_uid(
             span_context.add_error_event(
                 f"User: {uid} does not have database: {database_id}"
             )
+            logger.error(f"User: {uid} does not have database: {database_id}")
             return None, format_response(
                 code=CodeEnum.DatabaseNotExistError.code,
                 message=f"uid: {uid} or database_id: {database_id} error, "
@@ -220,6 +71,7 @@ async def check_database_exists_by_did(
         db_id_res = await get_id_by_did(db, database_id)
         if not db_id_res:
             span_context.add_error_event(f"Database does not exist: {database_id}")
+            logger.error(f"Database does not exist: {database_id}")
             return None, format_response(
                 code=CodeEnum.DatabaseNotExistError.code,
                 message=f"database_id: {database_id} error, please verify",
@@ -249,9 +101,13 @@ async def check_space_id_and_get_uid(
 ) -> Tuple[Optional[List[List[str]]], Optional[Any]]:
     """Check if space ID is valid."""
     span_context.add_info_event(f"space_id: {space_id}")
+    logger.info(f"space_id: {space_id}")
     create_uid_res = await get_uid_by_did_space_id(db, database_id, space_id)
     if not create_uid_res:
         span_context.add_error_event(
+            f"space_id: {space_id} does not contain database_id: {database_id}"
+        )
+        logger.error(
             f"space_id: {space_id} does not contain database_id: {database_id}"
         )
         return None, format_response(
@@ -265,9 +121,12 @@ async def check_space_id_and_get_uid(
 
 async def validate_reserved_keywords(keys: list, span_context: Any) -> Any:
     """Validate reserved keywords."""
+    adapter = get_adapter()
+    reserved_keywords = adapter.get_reserved_keywords()
     for key_name in keys:
-        if key_name.lower() in PGSQL_INVALID_KEY:
+        if key_name.lower() in reserved_keywords:
             span_context.add_error_event(f"Key name '{key_name}' is not allowed")
+            logger.error(f"Key name '{key_name}' is not allowed")
             return format_response(
                 code=CodeEnum.DMLNotAllowed.code,
                 message=f"Key name '{key_name}' is not allowed",
@@ -278,9 +137,12 @@ async def validate_reserved_keywords(keys: list, span_context: Any) -> Any:
 
 async def validate_reserved_functions(keys: list, span_context: Any) -> Any:
     """Validate reserved functions."""
+    adapter = get_adapter()
+    dangerous_functions = adapter.get_dangerous_functions()
     for key_name in keys:
-        if key_name.lower() in PGSQL_DANGEROUS_FUNCTIONS:
+        if key_name.lower() in dangerous_functions:
             span_context.add_error_event(f"Function name '{key_name}' is not allowed")
+            logger.error(f"Function name '{key_name}' is not allowed")
             return format_response(
                 code=CodeEnum.DMLNotAllowed.code,
                 message=f"Function name '{key_name}' is not allowed",

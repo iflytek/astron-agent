@@ -1,12 +1,14 @@
-[![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
-
 <div align="center">
+
+[![Astron Agent Logo](./logo.svg)](https://iflytek.github.io/astron-agent/)
+
+[![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
 
 [![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/iflytek/astron-agent?style=social)](https://github.com/iflytek/astron-agent/stargazers)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/iflytek/astron-agent)
 
-English | [简体中文](docs/README-zh.md) | [日本語](docs/README-ja.md)
+English | [简体中文](docs/zh/README.md) | [日本語](docs/ja/README.md)
 
 </div>
 
@@ -26,11 +28,27 @@ The platform supports **high-availability** deployment, enabling organizations t
 - **Ready-to-Use Tool Ecosystem:** Integrates massive AI capabilities and tools from the [iFLYTEK Open Platform](https://www.xfyun.cn), validated by millions of developers, supporting plug-and-play integration without extra development.  
 - **Flexible Large Model Support:** Offers diverse access methods, from rapid API-based model access and validation to one-click deployment of enterprise-level MaaS (Model as a Service) on-premises clusters, meeting needs of all scales.  
 
+## 🤝 [Adopters](https://iflytek.github.io/astron-agent/cases/)
+
+<div align="center">
+
+<img src="./docs/cases/imgs/donghua.png" alt="东华软件" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/chinatelecom.png" alt="中国电信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/yunsuan.jpg" alt="云算数字科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiaoqu.png" alt="小趣科技" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/shandongyungu.png" alt="山东云谷" height="56" />
+<br/><br/>
+<img src="./docs/cases/imgs/guangwu.jpg" alt="广物互联" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/yugou.jpg" alt="北京榆构" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/fiberhome.png" alt="烽火通信" height="56" />&nbsp;&nbsp;&nbsp;&nbsp;
+<img src="./docs/cases/imgs/foxit.jpg" alt="厦门福昕中数" height="56" />&nbsp;&nbsp;
+<img src="./docs/cases/imgs/xiangyang-dongsheng.png" alt="襄阳东昇" height="28" />
+
+</div>
+
 ## 📰 News
 
 ### 🔄 Ongoing
-
-- **[Astron Industrial Intelligence Hackathon](https://awesome-astron-workflow.dev/activities/astron-industrial-intelligence-hackathon)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/horizon220222"><img src="https://github.com/horizon220222.png" width="20" align="center" /> @horizon220222</a>
 
 ### 📅 Past
 
@@ -42,6 +60,7 @@ The platform supports **high-availability** deployment, enabling organizations t
 - **[Astron Talk @ Chongqing Mini Tech Fest](https://mp.weixin.qq.com/s/HROf1zZpkPVDSsCQrv2jRg)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a>
 - **[Astron Agent @ MWC Barcelona 2026](https://www.iflytek.com/en/news-events/mwc2026.html)**
 - **[Astron Agent & RPA · Hefei Meetup](https://mp.weixin.qq.com/s/tDJaoOLUrjBlgMLDurvHCw)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/doctorbruce"><img src="https://github.com/doctorbruce.png" width="20" align="center" /> @doctorbruce</a>
+- **[Astron Industrial Intelligence Hackathon](https://awesome-astron-workflow.dev/activities/astron-industrial-intelligence-hackathon)**  🎤 <a href="https://github.com/lyj715824"><img src="https://github.com/lyj715824.png" width="20" align="center" /> @lyj715824</a> <a href="https://github.com/horizon220222"><img src="https://github.com/horizon220222.png" width="20" align="center" /> @horizon220222</a>
 
 ## 🚀 Quick Start
 
@@ -109,9 +128,11 @@ After startup, you can access the services at the following addresses:
 - [🔧 Configuration](docs/CONFIGURATION.md)
 - [🚀 Quick Start](https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html)
 - [📘 Development Guide](https://www.xfyun.cn/doc/spark/Agent03-%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.html#_1-%E6%8C%87%E4%BB%A4%E5%9E%8B%E6%99%BA%E8%83%BD%E4%BD%93%E5%BC%80%E5%8F%91)
+- [📖 Tutorial](https://scn5s6198j3j.feishu.cn/wiki/VefnwvPbridJBikCUb1cYXO9nYb)
 - [💡 Best Practices](https://www.xfyun.cn/doc/spark/AgentNew-%E6%8A%80%E6%9C%AF%E5%AE%9E%E8%B7%B5%E6%A1%88%E4%BE%8B.html)
 - [📱 Use Cases](https://www.xfyun.cn/doc/spark/Agent05-%E5%BA%94%E7%94%A8%E6%A1%88%E4%BE%8B.html)
 - [❓ FAQ](https://www.xfyun.cn/doc/spark/Agent06-FAQ.html)
+- [🌐 Open Source Workflows](https://awesome-astron-workflow.dev/#workflows)
 
 ## 🤝 Contributing
 
@@ -127,6 +148,7 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](CONTR
 
 - 💬 Community Discussion: [GitHub Discussions](https://github.com/iflytek/astron-agent/discussions)
 - 🐛 Bug Reports: [Issues](https://github.com/iflytek/astron-agent/issues)
+- [![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/YgG2v9NEMH)
 - 👥 WeChat Work Group:
 
 <div align="center">

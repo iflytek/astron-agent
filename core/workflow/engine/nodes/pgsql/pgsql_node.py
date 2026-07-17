@@ -170,15 +170,31 @@ class PGSqlNode(BaseNode):
         :param replacements: Dictionary mapping variable names to their values
         :return: SQL string with placeholders replaced by actual values
         """
-        # Compile regex pattern to match {{variable}} placeholders
-        pattern = re.compile(r"\{\{(\w+)\}\}")
+        sql, _ = self.build_parameterized_sql(template, replacements)
+        return sql
+
+    def build_parameterized_sql(
+        self, template: str, replacements: dict
+    ) -> tuple[str, dict[str, Any]]:
+        """Convert custom SQL placeholders to bind parameters."""
+        params: dict[str, Any] = {}
+        param_idx = 0
 
         def replacer(match: re.Match[str]) -> str:
+            nonlocal param_idx
             key = match.group(1)
-            # Replace with actual value or keep original if not found
-            return str(replacements.get(key, match.group(0)))
+            if key not in replacements:
+                return match.group(0)
+            param_name = f"input_{param_idx}"
+            param_idx += 1
+            params[param_name] = replacements[key]
+            return f":{param_name}"
 
-        return pattern.sub(replacer, template)
+        quoted_pattern = re.compile(r"'\{\{(\w+)\}\}'")
+        sql = quoted_pattern.sub(replacer, template)
+        placeholder_pattern = re.compile(r"\{\{(\w+)\}\}")
+        sql = placeholder_pattern.sub(replacer, sql)
+        return sql, params
 
     def generate_insert_statement(self, data: dict) -> str:
         """Generate INSERT SQL statement from input data.
@@ -517,7 +533,9 @@ class PGSqlNode(BaseNode):
             pgsql_config.env = ExecuteEnv.PROD.value
         # Generate DML statement based on mode
         if self.mode == DBMode.CUSTOM.value:
-            pgsql_config.dml = self.replace_placeholders(self.sql or "", inputs)
+            pgsql_config.dml, pgsql_config.params = self.build_parameterized_sql(
+                self.sql or "", inputs
+            )
         else:
             pgsql_config.dml = await self.generate_dml(inputs, span)
         return pgsql_config

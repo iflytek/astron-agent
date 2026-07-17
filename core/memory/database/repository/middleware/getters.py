@@ -17,7 +17,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         AsyncSession: An async database session instance
 
     Note:
-        Automatically sets the search path to 'sparkdb_manager' schema
+        Automatically sets the search path to 'sparkdb_manager' admin schema/database
         and ensures session is properly closed after use.
     """
     db_service = await service_manager.get(ServiceType.DATABASE_SERVICE)

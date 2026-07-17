@@ -25,6 +25,7 @@ import com.iflytek.astron.console.commons.mapper.chat.ChatListMapper;
 import com.iflytek.astron.console.commons.mapper.vcn.CustomVCNMapper;
 import com.iflytek.astron.console.commons.service.bot.BotFavoriteService;
 import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
+import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.IDatasetInfoService;
 import com.iflytek.astron.console.commons.service.mcp.McpDataService;
 import com.iflytek.astron.console.commons.util.MaasUtil;
@@ -60,6 +61,9 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
 
     @Autowired
     private ChatListMapper chatListMapper;
+
+    @Autowired
+    private ChatListDataService chatListDataService;
 
     @Autowired
     private ChatBotPromptStructMapper promptStructMapper;
@@ -189,10 +193,22 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
 
     @Override
     public boolean deleteBot(Integer botId, String uid) {
-        return deleteChatBotBase(botId, uid) &&
-                deleteChatBotList(botId, uid) &&
-                deleteChatList(botId, uid) &&
-                deleteChatBotMarket(botId, uid);
+        boolean baseDeleted = deleteChatBotBase(botId, uid);
+        boolean botListDeleted = deleteChatBotList(botId, uid);
+        boolean chatListDeleted = deleteChatList(botId, uid);
+        boolean marketDeleted = deleteChatBotMarket(botId, uid);
+
+        if (!botListDeleted) {
+            log.info("No active chat_bot_list rows updated during bot deletion, botId={}, uid={}", botId, uid);
+        }
+        if (!chatListDeleted) {
+            log.info("No active chat_list rows updated during bot deletion, botId={}, uid={}", botId, uid);
+        }
+        if (!marketDeleted) {
+            log.info("No chat_bot_market rows updated during bot deletion, botId={}, uid={}", botId, uid);
+        }
+
+        return baseDeleted;
     }
 
     private boolean deleteChatBotBase(Integer botId, String uid) {
@@ -236,7 +252,13 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
 
         ChatBotBase chatBot = new ChatBotBase();
         chatBot.setIsDelete(1);
-        return chatBotBaseMapper.update(chatBot, wrapper) > 0;
+        boolean baseDeleted = chatBotBaseMapper.update(chatBot, wrapper) > 0;
+        if (baseDeleted) {
+            deactivateChatBotListByBotIds(List.of(botId));
+            deleteChatListByBotIds(List.of(botId));
+            deleteChatBotMarketByBotIds(List.of(botId));
+        }
+        return baseDeleted;
     }
 
     @Override
@@ -251,7 +273,13 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
         LambdaQueryWrapper<ChatBotBase> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(ChatBotBase::getId, botIds);
 
-        return chatBotBaseMapper.update(chatBot, wrapper) > 0;
+        boolean baseDeleted = chatBotBaseMapper.update(chatBot, wrapper) > 0;
+        if (baseDeleted) {
+            deactivateChatBotListByBotIds(botIds);
+            deleteChatListByBotIds(botIds);
+            deleteChatBotMarketByBotIds(botIds);
+        }
+        return baseDeleted;
     }
 
     @Override
@@ -267,7 +295,13 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
         wrapper.in(ChatBotBase::getId, botIds);
         wrapper.eq(ChatBotBase::getSpaceId, spaceId);
 
-        return chatBotBaseMapper.update(chatBot, wrapper) > 0;
+        boolean baseDeleted = chatBotBaseMapper.update(chatBot, wrapper) > 0;
+        if (baseDeleted) {
+            deactivateChatBotListByBotIds(botIds);
+            deleteChatListByBotIds(botIds);
+            deleteChatBotMarketByBotIds(botIds);
+        }
+        return baseDeleted;
     }
 
     @Override
@@ -434,6 +468,8 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
                 .eq(ChatBotBase::getSpaceId, spaceId)
                 .eq(ChatBotBase::getIsDelete, 0)
                 .set(ChatBotBase::getIsDelete, 1));
+        deactivateChatBotListByBotIds(spaceBotIdList);
+        deleteChatListByBotIds(spaceBotIdList);
         log.info("deleteBotForDeleteSpace-start to maintain botDataSet, uid={}, spaceId={}", uid, spaceId);
         // Update status of datasets associated with assistant
         LambdaUpdateWrapper<BotDataset> updateWrapper = new LambdaUpdateWrapper<>();
@@ -462,6 +498,36 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
                 .set(ChatBotMarket::getBotStatus, 0)
                 .set(ChatBotMarket::getIsDelete, 1);
 
+        chatBotMarketMapper.update(null, updateWrapper);
+    }
+
+    private void deactivateChatBotListByBotIds(List<Integer> botIds) {
+        if (CollectionUtil.isEmpty(botIds)) {
+            return;
+        }
+        LambdaUpdateWrapper<ChatBotList> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.in(ChatBotList::getRealBotId, botIds)
+                .set(ChatBotList::getIsAct, 0);
+        chatBotListMapper.update(null, updateWrapper);
+    }
+
+    private void deleteChatListByBotIds(List<Integer> botIds) {
+        if (CollectionUtil.isEmpty(botIds)) {
+            return;
+        }
+        LambdaUpdateWrapper<ChatList> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.in(ChatList::getBotId, botIds)
+                .set(ChatList::getIsDelete, 1);
+        chatListMapper.update(null, updateWrapper);
+    }
+
+    private void deleteChatBotMarketByBotIds(List<Integer> botIds) {
+        if (CollectionUtil.isEmpty(botIds)) {
+            return;
+        }
+        LambdaUpdateWrapper<ChatBotMarket> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.in(ChatBotMarket::getBotId, botIds)
+                .set(ChatBotMarket::getIsDelete, 1);
         chatBotMarketMapper.update(null, updateWrapper);
     }
 
@@ -495,6 +561,7 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
         base.setCreateTime(LocalDateTime.now());
         log.info("--------------------------------old bot is :{}, new bot is :{}", JSONObject.toJSONString(botDetail), base);
         chatBotBaseMapper.insert(base);
+        chatListDataService.insertChatBotList(base);
         return base;
     }
 
@@ -628,8 +695,12 @@ public class ChatBotDataServiceImpl implements ChatBotDataService {
 
     @Override
     public ChatBotBase findOne(String uid, Long botId) {
+        return findOne(uid, botId, SpaceInfoUtil.getSpaceId());
+    }
+
+    @Override
+    public ChatBotBase findOne(String uid, Long botId, Long spaceId) {
         LambdaQueryWrapper<ChatBotBase> botSearch = Wrappers.lambdaQuery(ChatBotBase.class).eq(ChatBotBase::getId, botId);
-        Long spaceId = SpaceInfoUtil.getSpaceId();
         if (spaceId == null) {
             botSearch.eq(ChatBotBase::getUid, uid)
                     .isNull(ChatBotBase::getSpaceId);

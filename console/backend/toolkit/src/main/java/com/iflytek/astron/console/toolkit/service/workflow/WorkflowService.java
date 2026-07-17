@@ -27,11 +27,13 @@ import com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo;
 import com.iflytek.astron.console.commons.entity.user.UserInfo;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
+import com.iflytek.astron.console.commons.enums.space.SpaceRoleEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.mapper.UserLangChainInfoMapper;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotBaseMapper;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.service.bot.BotMarketDataService;
+import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
@@ -67,6 +69,8 @@ import com.iflytek.astron.console.toolkit.entity.table.relation.FlowDbRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowRepoRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowToolRel;
 import com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2;
+import com.iflytek.astron.console.toolkit.entity.table.repo.Repo;
+import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillSandboxConfigDto;
 import com.iflytek.astron.console.toolkit.entity.table.tool.*;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.*;
 import com.iflytek.astron.console.toolkit.entity.tool.McpServerTool;
@@ -82,6 +86,7 @@ import com.iflytek.astron.console.toolkit.mapper.relation.FlowDbRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowRepoRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowToolRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.repo.FileInfoV2Mapper;
+import com.iflytek.astron.console.toolkit.mapper.repo.RepoMapper;
 import com.iflytek.astron.console.toolkit.mapper.tool.*;
 import com.iflytek.astron.console.toolkit.mapper.trace.ChatInfoMapper;
 import com.iflytek.astron.console.toolkit.mapper.trace.NodeInfoMapper;
@@ -90,6 +95,8 @@ import com.iflytek.astron.console.toolkit.service.extra.AppService;
 import com.iflytek.astron.console.toolkit.service.extra.CoreSystemService;
 import com.iflytek.astron.console.toolkit.service.extra.OpenPlatformService;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
+import com.iflytek.astron.console.toolkit.service.skill.SkillEnrichmentService;
+import com.iflytek.astron.console.toolkit.service.skill.SkillSandboxConfigService;
 import com.iflytek.astron.console.toolkit.sse.WorkflowSseEventSourceListener;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.tool.JsonConverter;
@@ -167,7 +174,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     public static final String CLONED_SUFFIX_PATTERN = "[(]\\d+[)]$";
 
     private static final String JSON_KEY_BOT_ID = "botId";
-    private static final String PUBLISH_SUCCESS = "成功";
+    private static final String PUBLISH_SUCCESS = WorkflowConst.PublishResult.SUCCESS;
     private static final int DEFAULT_ORDER = 0;
     private static final String NP_PROJECT_ID = "projectId";
     private static final String NP_ASSISTANT_ID = "assistantId";
@@ -200,6 +207,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     ApiUrl apiUrl;
     @Autowired
     DataPermissionCheckTool dataPermissionCheckTool;
+    @Autowired
+    private SpaceUserService spaceUserService;
     @Autowired
     BizConfig bizConfig;
     @Autowired
@@ -238,6 +247,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     McpServerHandler mcpServerHandler;
     @Resource
     FileInfoV2Mapper fileInfoV2Mapper;
+    @Resource
+    RepoMapper repoMapper;
     @Autowired
     private UserLangChainInfoMapper userLangChainInfoDao;
     @Autowired
@@ -258,6 +269,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     private FlowDbRelMapper flowDbRelMapper;
     @Autowired
     private DbTableMapper dbTableMapper;
+    @Autowired
+    private SkillEnrichmentService skillEnrichmentService;
+    @Autowired
+    private SkillSandboxConfigService skillSandboxConfigService;
     @Autowired
     private ToolBoxMapper toolBoxMapper;
     @Autowired
@@ -430,7 +445,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 Long count = workflowVersionMapper.selectCount(
                         Wrappers.lambdaQuery(WorkflowVersion.class)
                                 .eq(WorkflowVersion::getFlowId, workflow.getFlowId())
-                                .eq(WorkflowVersion::getPublishResult, PUBLISH_SUCCESS));
+                                .in(WorkflowVersion::getPublishResult,
+                                        PUBLISH_SUCCESS,
+                                        WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                        WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER));
                 if (count > 0) {
                     statusFlag = 1;
                     final WorkflowVo maxVersionByFlowId = getMaxVersionByFlowId(workflow.getFlowId());
@@ -932,7 +950,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getFlowId, flowId)
-                            .eq(WorkflowVersion::getPublishResult, PUBLISH_SUCCESS)
+                            .in(WorkflowVersion::getPublishResult,
+                                    PUBLISH_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER)
                             .orderByDesc(WorkflowVersion::getCreatedTime)
                             .last("LIMIT 1"));
 
@@ -1415,12 +1436,14 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             }
             checkAndEditData(bizNodeData, prefix);
             fixOnRepoNode(type, bizNodeData, prefix);
+            injectScriptSandboxIntoCodeNodes(List.of(node), debugDto.getFlowId());
         } catch (Exception ignored) {
             if (!node.getId().startsWith(WorkflowConst.NodeType.FLOW)
                     && CommonConst.FIXED_APPID_ENV.contains(env)) {
                 buidKeyInfo(bizNodeData);
                 checkAndEditData(bizNodeData, prefix);
                 fixOnRepoNode(type, bizNodeData, prefix);
+                injectScriptSandboxIntoCodeNodes(List.of(node), debugDto.getFlowId());
             }
         }
 
@@ -2174,6 +2197,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
         boolean fixedAppEnv = CommonConst.FIXED_APPID_ENV.contains(env);
         Workflow workflow = getOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
+        List<String> configuredMcpServerUrls = resolveBotMcpServerUrls(saveDto, workflow);
         try {
             if (workflow == null) {
                 appId = commonConfig.getAppId();
@@ -2202,7 +2226,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 configs = Arrays.asList(configInfo.getValue().split(","));
             }
             // check and fix node
-            checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret);
+            checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret, configuredMcpServerUrls);
+            injectScriptSandboxIntoCodeNodes(nodes, flowId);
 
             // Update core system flow
 
@@ -2221,7 +2246,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return protocol;
     }
 
-    private void checkAndFixNode(List<BizWorkflowNode> nodes, boolean fixedAppEnv, List<String> configs, String appId, String apiKey, String apiSecret) {
+    private void checkAndFixNode(List<BizWorkflowNode> nodes, boolean fixedAppEnv, List<String> configs, String appId,
+            String apiKey, String apiSecret, List<String> configuredMcpServerUrls) {
         for (BizWorkflowNode node : nodes) {
             boolean notFlowNode = !node.getId().startsWith(WorkflowConst.NodeType.FLOW);
             BizNodeData bizNodeData = node.getData();
@@ -2250,7 +2276,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     }
                 }
                 // Agent node changes
-                checkAndEditData(bizNodeData, prefix);
+                checkAndEditData(bizNodeData, prefix, configuredMcpServerUrls);
                 // Knowledge base node new parameter passing logic
                 fixOnRepoNode(type, bizNodeData, prefix);
                 // Handle retry strategy information
@@ -2307,9 +2333,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     private void setDocIds(BizNodeData bizNodeData, JSONArray repoIds) {
         if (!CollUtil.isEmpty(repoIds)) {
+            List<String> coreRepoIds = extractRepoIds(repoIds);
             JSONArray docIds = new JSONArray();
-            for (int i = 0; i < repoIds.size(); i++) {
-                String repoId = repoIds.getString(i);
+            for (String repoId : coreRepoIds) {
                 List<FileInfoV2> fileInfoList = fileInfoV2Mapper.getFileInfoV2ByCoreRepoId(repoId);
                 if (CollUtil.isNotEmpty(fileInfoList)) {
                     log.info("get file info list ,{}", fileInfoList);
@@ -2318,11 +2344,21 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 }
             }
             bizNodeData.getNodeParam().put("docIds", docIds);
+            JSONArray datasetIds = getDatasetIdsForRepos(coreRepoIds);
+            if (!datasetIds.isEmpty()) {
+                bizNodeData.getNodeParam().put("datasetIds", datasetIds);
+            } else {
+                bizNodeData.getNodeParam().remove("datasetIds");
+            }
         }
     }
 
-    @SuppressWarnings("unchecked")
     private void checkAndEditData(BizNodeData bizNodeData, String prefix) {
+        checkAndEditData(bizNodeData, prefix, List.of());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkAndEditData(BizNodeData bizNodeData, String prefix, List<String> configuredMcpServerUrls) {
         if (!isAgentNode(bizNodeData, prefix)) {
             return;
         }
@@ -2340,13 +2376,65 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
         // (2.1) MCP: copy mcpServerIds to mcpServerUrls
         copyMcpServerIdsToUrls(plugin);
+        mergeConfiguredMcpServerUrls(plugin, configuredMcpServerUrls);
 
-        // (2.2) Knowledge: aggregate docIds based on repoIds
+        // (2.2) Skills: inject stable metadata and on-demand download urls
+        enrichSkills(plugin);
+
+        // (2.3) Knowledge: aggregate docIds based on repoIds
         JSONArray knowledgeArray = plugin.getJSONArray("knowledge");
         if (knowledgeArray == null || knowledgeArray.isEmpty()) {
             return;
         }
         enrichKnowledgeDocIds(knowledgeArray);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private void enrichSkills(JSONObject plugin) {
+        skillEnrichmentService.enrichSkillEntries(plugin.getJSONArray("skills"));
+    }
+
+    private List<String> resolveBotMcpServerUrls(WorkflowReq saveDto, Workflow workflow) {
+        Integer botId = resolveWorkflowBotId(saveDto, workflow);
+        if (botId == null || chatBotBaseMapper == null) {
+            return List.of();
+        }
+        ChatBotBase botBase = chatBotBaseMapper.selectById(botId);
+        return botBase == null ? List.of() : parseMcpServerUrls(botBase.getMcpServerUrls());
+    }
+
+    private Integer resolveWorkflowBotId(WorkflowReq saveDto, Workflow workflow) {
+        JSONObject ext = saveDto == null ? null : saveDto.getExt();
+        Integer botId = ext == null ? null : ext.getInteger("botId");
+        if (botId != null) {
+            return botId;
+        }
+        String workflowExt = workflow == null ? null : workflow.getExt();
+        if (StringUtils.isBlank(workflowExt)) {
+            return null;
+        }
+        try {
+            return JSON.parseObject(workflowExt).getInteger("botId");
+        } catch (Exception e) {
+            log.warn("Failed to parse workflow ext while resolving MCP config, ext={}", workflowExt, e);
+            return null;
+        }
+    }
+
+    private void mergeConfiguredMcpServerUrls(JSONObject plugin, List<String> configuredMcpServerUrls) {
+        if (plugin == null || configuredMcpServerUrls == null || configuredMcpServerUrls.isEmpty()) {
+            return;
+        }
+        JSONArray mcpServerUrls = plugin.getJSONArray("mcpServerUrls");
+        if (mcpServerUrls == null) {
+            mcpServerUrls = new JSONArray();
+            plugin.put("mcpServerUrls", mcpServerUrls);
+        }
+        for (String serverUrl : configuredMcpServerUrls) {
+            if (StringUtils.isNotBlank(serverUrl) && !mcpServerUrls.contains(serverUrl)) {
+                mcpServerUrls.add(serverUrl);
+            }
+        }
     }
 
     /** Check whether it is an AGENT node and has valid metadata */
@@ -2387,6 +2475,29 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         }
     }
 
+    private List<String> parseMcpServerUrls(String mcpServerUrls) {
+        if (StringUtils.isBlank(mcpServerUrls)) {
+            return List.of();
+        }
+        try {
+            JSONArray urls = JSON.parseArray(mcpServerUrls);
+            if (urls == null || urls.isEmpty()) {
+                return List.of();
+            }
+            List<String> result = new ArrayList<>();
+            for (int i = 0; i < urls.size(); i++) {
+                String url = urls.getString(i);
+                if (StringUtils.isNotBlank(url) && !result.contains(url.trim())) {
+                    result.add(url.trim());
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("Failed to parse bot MCP server urls: {}", mcpServerUrls, e);
+            return List.of();
+        }
+    }
+
     private boolean requiresCustomModelCredentialInjection(String source) {
         return StringUtils.equalsAny(source,
                 "openai",
@@ -2423,6 +2534,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             if (!allDocIds.isEmpty()) {
                 match.put("docIds", allDocIds);
             }
+            JSONArray datasetIds = getDatasetIdsForRepos(repoIds);
+            if (!datasetIds.isEmpty()) {
+                match.put("datasetIds", datasetIds);
+            } else {
+                match.remove("datasetIds");
+            }
         }
     }
 
@@ -2458,6 +2575,28 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return allDocIds;
     }
 
+    private JSONArray getDatasetIdsForRepos(List<String> repoIds) {
+        JSONArray datasetIds = new JSONArray();
+        if (CollUtil.isEmpty(repoIds)) {
+            return datasetIds;
+        }
+        List<Repo> repos = repoMapper.listInRepoCoreIds(repoIds);
+        if (CollUtil.isEmpty(repos)) {
+            return datasetIds;
+        }
+        Map<String, String> datasetIdMap = repos.stream()
+                .filter(repo -> StringUtils.isNotBlank(repo.getCoreRepoId()))
+                .filter(repo -> StringUtils.isNotBlank(repo.getRagflowDatasetId()))
+                .collect(Collectors.toMap(Repo::getCoreRepoId, Repo::getRagflowDatasetId, (a, b) -> a));
+        for (String repoId : repoIds) {
+            String datasetId = datasetIdMap.get(repoId);
+            if (StringUtils.isNotBlank(datasetId)) {
+                datasetIds.add(datasetId);
+            }
+        }
+        return datasetIds;
+    }
+
     private void dealWithUrl(JSONObject modelConfig, String serviceId) {
         if (modelConfig != null) {
             List<ConfigInfo> configInfos = configInfoMapper.selectList(new LambdaQueryWrapper<ConfigInfo>()
@@ -2485,8 +2624,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 .fluentPut("name", saveDto.getName())
                 .fluentPut("description", saveDto.getDescription())
                 .fluentPut("status", saveDto.getStatus());
+        JSONObject protocolJson = null;
         if (protocol != null) {
-            jsonObject.fluentPut("data", protocol);
+            protocolJson = JSON.parseObject(JSON.toJSONString(protocol));
+            removeWorkflowUiValidationFields(protocolJson);
+            jsonObject.fluentPut("data", protocolJson);
         }
         String body = jsonObject.toString();
 
@@ -2503,7 +2645,22 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         // Flow protocol temporary storage
         saveFlowProtocolTemp(flowId,
                 saveDto.getData() == null ? null : JSON.toJSONString(saveDto.getData()),
-                saveDto.getData() == null ? null : JSON.toJSONString(protocol.getData()));
+                protocolJson == null || protocolJson.get("data") == null ? null : JSON.toJSONString(protocolJson.get("data")));
+    }
+
+    private void removeWorkflowUiValidationFields(Object value) {
+        if (value instanceof JSONObject jsonObject) {
+            jsonObject.remove("setAnswerContentErrMsg");
+            for (Object child : jsonObject.values()) {
+                removeWorkflowUiValidationFields(child);
+            }
+            return;
+        }
+        if (value instanceof JSONArray jsonArray) {
+            for (Object child : jsonArray) {
+                removeWorkflowUiValidationFields(child);
+            }
+        }
     }
 
     private Property bizPropertyToProperty(BizProperty bizProperty) {
@@ -2563,14 +2720,72 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object runCode(Object runCodeData) {
         String url = apiUrl.getWorkflow() + CODE_RUN_PATH;
-        log.info("code run, url = {}, data = {}", url, runCodeData);
-        String body = JSON.toJSONString(runCodeData);
+        Object payload = enrichCodeRunSandbox(runCodeData);
+        log.info("code run, url = {}, data = {}", url, payload);
+        String body = JSON.toJSONString(payload);
 
         // body = StringEscapeUtils.unescapeJava(body);
 
         String resp = OkHttpUtil.post(url, body);
         log.info("code run, resp = {}", resp);
         return JSON.parseObject(resp, Result.class);
+    }
+
+    private Object enrichCodeRunSandbox(Object runCodeData) {
+        JSONObject payload = JSON.parseObject(JSON.toJSONString(runCodeData));
+        JSONObject sandbox = buildRuntimeSandbox(
+                payload.getString("flow_id"),
+                payload.getString("node_id"));
+        if (sandbox != null) {
+            if (StringUtils.isBlank(sandbox.getString("uid"))) {
+                sandbox.put("uid", payload.getString("uid"));
+            }
+            payload.put("sandbox", sandbox);
+        }
+        return payload;
+    }
+
+    private void injectScriptSandboxIntoCodeNodes(List<BizWorkflowNode> nodes, String flowId) {
+        if (nodes == null || nodes.isEmpty()) {
+            return;
+        }
+        for (BizWorkflowNode node : nodes) {
+            if (node == null || node.getData() == null || !isCodeNode(node.getId())) {
+                continue;
+            }
+            JSONObject sandbox = buildRuntimeSandbox(flowId, node.getId());
+            if (sandbox == null) {
+                node.getData().getNodeParam().remove("sandbox");
+                continue;
+            }
+            node.getData().getNodeParam().put("sandbox", sandbox);
+        }
+    }
+
+    private JSONObject buildRuntimeSandbox(String flowId, String nodeId) {
+        SkillSandboxConfigDto sandboxConfig;
+        try {
+            sandboxConfig = skillSandboxConfigService.toRuntimeDto();
+        } catch (Exception ex) {
+            log.warn("Skip injecting code sandbox config, flowId={}, nodeId={}, reason={}", flowId, nodeId, ex.getMessage());
+            return null;
+        }
+        if (sandboxConfig == null
+                || !Boolean.TRUE.equals(sandboxConfig.getEnabled())
+                || StringUtils.isBlank(sandboxConfig.getApiKey())) {
+            return null;
+        }
+        JSONObject sandbox = JSON.parseObject(JSON.toJSONString(sandboxConfig));
+        sandbox.put("workflowId", StringUtils.defaultString(flowId));
+        sandbox.put("nodeId", StringUtils.defaultString(nodeId));
+        if (sandboxConfig.getSpaceId() != null) {
+            sandbox.put("spaceId", String.valueOf(sandboxConfig.getSpaceId()));
+        }
+        return sandbox;
+    }
+
+    private boolean isCodeNode(String nodeId) {
+        return StringUtils.startsWith(nodeId, WorkflowConst.NodeType.CODE + "::");
     }
 
     public Object getSquare(int current, int size, String search, Integer tagFlag, Integer tags) {
@@ -2988,6 +3203,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object canPublishSetNot(Long id) {
         Workflow workflow = getById(id);
+        Long effectiveSpaceId = resolveCurrentWorkflowSpaceId(workflow);
+        assertWorkflowBelongsToCurrentContext(workflow, effectiveSpaceId);
+        assertSpacePublishManager(effectiveSpaceId);
         WorkflowReq req = new WorkflowReq();
         // req.setStatus(WorkflowConst.Status.UNPUBLISHED);
         req.setAppId(workflow.getAppId());
@@ -3003,12 +3221,44 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object canPublishSet(Long id) {
         Workflow workflow = getById(id);
-        dataPermissionCheckTool.checkWorkflowVisible(workflow, SpaceInfoUtil.getSpaceId());
+        Long effectiveSpaceId = resolveCurrentWorkflowSpaceId(workflow);
+        assertWorkflowBelongsToCurrentContext(workflow, effectiveSpaceId);
+        assertSpacePublishManager(effectiveSpaceId);
         WorkflowReq req = new WorkflowReq();
         req.setAppId(workflow.getAppId());
         return update(Wrappers.lambdaUpdate(Workflow.class)
                 .eq(Workflow::getId, id)
                 .set(Workflow::getCanPublish, true));
+    }
+
+    private Long resolveCurrentWorkflowSpaceId(Workflow workflow) {
+        Long requestSpaceId = SpaceInfoUtil.getSpaceId();
+        return requestSpaceId != null ? requestSpaceId : workflow == null ? null : workflow.getSpaceId();
+    }
+
+    private void assertWorkflowBelongsToCurrentContext(Workflow workflow, Long spaceId) {
+        if (workflow == null) {
+            throw new BusinessException(ResponseEnum.DATA_NOT_EXIST);
+        }
+        if (spaceId != null) {
+            if (!Objects.equals(workflow.getSpaceId(), spaceId)) {
+                throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+            }
+            return;
+        }
+        if (!Objects.equals(workflow.getUid(), UserInfoManagerHandler.getUserId())) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
+    }
+
+    private void assertSpacePublishManager(Long spaceId) {
+        if (spaceId == null) {
+            return;
+        }
+        SpaceRoleEnum role = spaceUserService.getRole(spaceId, UserInfoManagerHandler.getUserId());
+        if (SpaceRoleEnum.OWNER != role && SpaceRoleEnum.ADMIN != role) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
     }
 
     public boolean isSimpleIo(Long id) {
@@ -3902,6 +4152,84 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return true;
     }
 
+    public boolean refreshWorkflowRuntimeProtocol(String flowId) {
+        if (StringUtils.isBlank(flowId)) {
+            return false;
+        }
+        Workflow workflow = this.getOne(new LambdaQueryWrapper<Workflow>()
+                .eq(Workflow::getFlowId, flowId)
+                .eq(Workflow::getDeleted, false));
+        if (workflow == null || StringUtils.isBlank(workflow.getData())) {
+            log.warn("Skip refreshing workflow runtime protocol, flow not found or empty, flowId={}", flowId);
+            return false;
+        }
+
+        BizWorkflowData bizWorkflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
+        if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
+            return false;
+        }
+        if (!containsRuntimePluginConfiguration(bizWorkflowData) && !hasConfiguredBotMcpServerUrls(workflow)) {
+            return false;
+        }
+
+        saveRemote(buildWorkflowReqForRuntimeRefresh(workflow, bizWorkflowData), flowId);
+        return true;
+    }
+
+    private boolean hasConfiguredBotMcpServerUrls(Workflow workflow) {
+        return !resolveBotMcpServerUrls(null, workflow).isEmpty();
+    }
+
+    private boolean containsRuntimePluginConfiguration(BizWorkflowData bizWorkflowData) {
+        if (bizWorkflowData == null || CollectionUtils.isEmpty(bizWorkflowData.getNodes())) {
+            return false;
+        }
+        for (BizWorkflowNode node : bizWorkflowData.getNodes()) {
+            if (node == null || node.getData() == null || StringUtils.isBlank(node.getId())) {
+                continue;
+            }
+            String prefix = StringUtils.substringBefore(node.getId(), "::");
+            if (!WorkflowConst.NodeType.AGENT.equals(prefix)) {
+                continue;
+            }
+            JSONObject nodeParam = node.getData().getNodeParam();
+            JSONObject plugin = nodeParam == null ? null : nodeParam.getJSONObject("plugin");
+            JSONArray skills = plugin == null ? null : plugin.getJSONArray("skills");
+            if (skills != null && !skills.isEmpty()) {
+                return true;
+            }
+            JSONArray mcpServerUrls = plugin == null ? null : plugin.getJSONArray("mcpServerUrls");
+            if (mcpServerUrls != null && !mcpServerUrls.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private WorkflowReq buildWorkflowReqForRuntimeRefresh(Workflow workflow, BizWorkflowData bizWorkflowData) {
+        WorkflowReq workflowReq = new WorkflowReq();
+        workflowReq.setId(workflow.getId());
+        workflowReq.setFlowId(workflow.getFlowId());
+        workflowReq.setName(workflow.getName());
+        workflowReq.setDescription(workflow.getDescription());
+        workflowReq.setStatus(workflow.getStatus());
+        workflowReq.setAppId(workflow.getAppId());
+        workflowReq.setAvatarIcon(workflow.getAvatarIcon());
+        workflowReq.setAvatarColor(workflow.getAvatarColor());
+        workflowReq.setData(bizWorkflowData);
+        workflowReq.setCategory(workflow.getCategory());
+        workflowReq.setSpaceId(workflow.getSpaceId());
+        workflowReq.setFlowType(workflow.getType());
+        if (StringUtils.isNotBlank(workflow.getExt())) {
+            workflowReq.setExt(JSON.parseObject(workflow.getExt()));
+        }
+        if (StringUtils.isNotBlank(workflow.getAdvancedConfig())) {
+            workflowReq.setAdvancedConfig(
+                    JSON.parseObject(workflow.getAdvancedConfig(), new TypeReference<Map<String, Object>>() {}));
+        }
+        return workflowReq;
+    }
+
     private WorkflowReq buildWorkflowReqForModelSync(Workflow workflow, BizWorkflowData bizWorkflowData, LLMInfoVo llmInfoVo) {
         WorkflowReq workflowReq = new WorkflowReq();
         workflowReq.setId(workflow.getId());
@@ -3921,8 +4249,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             workflowReq.setExt(JSON.parseObject(workflow.getExt()));
         }
         if (StringUtils.isNotBlank(workflow.getAdvancedConfig())) {
-            workflowReq.setAdvancedConfig(JSON.parseObject(workflow.getAdvancedConfig(), new TypeReference<Map<String, Object>>() {
-            }));
+            workflowReq.setAdvancedConfig(
+                    JSON.parseObject(workflow.getAdvancedConfig(), new TypeReference<Map<String, Object>>() {}));
         }
         return workflowReq;
     }

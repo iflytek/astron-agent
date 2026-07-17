@@ -29,6 +29,13 @@ const translation = {
         'Large model persona setting, combined with user input questions, define the type, scope, format, etc. of problems handled by the large model here, you can use {{variableName}} method for output',
       newVersionUpdate: 'New version update',
       modelThinkingProcess: 'Model thinking process',
+      multimedia: 'Multimedia',
+      multimediaInputPlaceholder:
+        'Enter multimedia content or select from reference',
+      multimediaRefPlaceholder: 'Select multimedia content from other nodes',
+      multimediaNamePlaceholder: 'Parameter name',
+      noMultimediaInput: 'No multimedia input configured',
+      addMultimediaInput: 'Add multimedia input',
     },
     rpaNode: {
       selectRpa: 'select RPA',
@@ -341,6 +348,30 @@ const translation = {
       input: 'Input',
       output: 'Output',
       iterationSubNodes: 'Iteration Sub Nodes',
+      runConfigTitle: 'Execution Mode',
+      runModeLabel: 'Execution Mode',
+      serialMode: 'Serial Mode',
+      parallelMode: 'Parallel Mode',
+      errorHandlingLabel: 'Error Handling Strategy',
+      errorHandlingOptions: {
+        failFast: 'Fail fast (stop on error)',
+        continue: 'Continue on error',
+        ignoreErrorOutput: 'Ignore error output',
+      },
+      maxConcurrencyLabel: 'Max Concurrency',
+      parallelModeNoQaInSubCanvas:
+        'Question-answer nodes cannot be added to the iterator sub-canvas in parallel mode',
+      cannotSwitchToParallelWithQa:
+        'Cannot switch to parallel mode while a question-answer node exists in the sub-canvas',
+    },
+    loopNode: {
+      type: 'Loop',
+      variables: 'Loop Variables',
+      addVariable: 'Add Variable',
+      termination: 'Termination',
+      maxLoopCount: 'Max Loop Count',
+      addCondition: 'Add Condition',
+      output: 'Output',
     },
     codeNode: {
       type: 'Code',

@@ -292,33 +292,83 @@
   .set_bot-center-confirm-modal {
     .ant-modal {
       .ant-modal-content {
-        padding: 30px 30px !important;
+        padding: 24px !important;
+        border-radius: 20px;
         .ant-modal-close {
-          background: url(~assets/imgs/bot-center/close_btn_model.png) no-repeat;
-          background-position: center center;
-          background-size: 60% 60%;
+          top: 20px;
+          inset-inline-end: 20px;
+          width: 24px;
+          height: 24px;
+          color: #8f94a8;
+        }
+        .ant-modal-header {
+          margin-bottom: 16px;
+        }
+        .ant-modal-title {
+          padding-right: 28px;
+        }
+        .ant-modal-body {
+          padding: 0;
+        }
+        .ant-modal-footer {
+          margin-top: 20px;
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+        }
+        .ant-btn {
+          min-width: 104px;
+          height: 44px;
+          border-radius: 14px;
+          font-weight: 500;
+        }
+        .ant-btn-default {
+          border-color: #d7dbe8;
+          color: #5b6074;
+        }
+        .ant-btn-primary {
+          box-shadow: none;
         }
       }
     }
   }
 }
 
+.confirmModalTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #222529;
+}
+
+.confirmModalTitleIcon {
+  color: #f2aa58;
+  font-size: 20px;
+}
+
+.closeIcon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+}
+
 .cancelUploadModal {
+  padding: 6px 0 2px;
   .cancelTip {
     display: flex;
-    align-items: center;
-    position: absolute;
-    bottom: 32px;
-    width: 60%;
-    height: 34px;
-    font-size: 12px;
-    font-weight: 500;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 400;
     color: #f2aa58;
-    line-height: 17px;
+    line-height: 22px;
 
     :global {
       .anticon {
-        display: inline-block;
+        display: inline-flex;
+        margin-top: 2px;
       }
     }
   }

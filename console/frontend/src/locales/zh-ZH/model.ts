@@ -141,7 +141,7 @@ const translation = {
   providerFilter: '供应商筛选',
   allProviders: '全部供应商',
   providerDeepSeek: 'DeepSeek',
-  providerOpenAI: 'OpenAI 兼容',
+  providerOpenAI: 'OpenAI',
   providerAnthropic: 'Anthropic',
   providerGoogle: 'Google',
   providerMiniMax: 'MiniMax',
@@ -150,9 +150,9 @@ const translation = {
   providerMoonshot: '月之暗面',
   providerChatGPT: 'ChatGPT',
   providerDoubao: '豆包',
-  providerHintOpenAI: '使用 OpenAI 兼容接口地址，例如 /v1/chat/completions。',
+  providerHintOpenAI: '使用 OpenAI 接口地址，例如 /v1/chat/completions。',
   providerHintMiniMax:
-    '使用 MiniMax 官方接口地址，并填写 MiniMax-Text-01 等模型名称。',
+    '使用 MiniMax 官方接口地址，并填写 MiniMax-M3 等模型名称。',
   providerHintZhipu:
     '使用智谱官方接口地址，并填写 glm-4.5、glm-4-flash 等模型名称。',
   providerHintQwen:
@@ -169,7 +169,7 @@ const translation = {
     '使用 Anthropic Messages API 地址，并填写 Claude Sonnet / Opus 等模型名。',
   providerHintGoogle:
     '使用 Gemini API 地址，并填写 gemini-2.5-flash 等模型名。',
-  minimaxModelPlaceholder: '例如 MiniMax-Text-01',
+  minimaxModelPlaceholder: '例如 MiniMax-M3 或 MiniMax-M2.7',
   minimaxEndpointPlaceholder: '请输入 MiniMax API 地址',
   zhipuModelPlaceholder: '例如 glm-4.5 或 glm-4-flash',
   zhipuEndpointPlaceholder: '请输入智谱 API 地址',
@@ -209,6 +209,8 @@ const translation = {
     '接入 DeepSeek-V3、DeepSeek-R1 等模型，适合通用生成、推理与工作流问答。',
   thinkingCapability: '思维能力',
   enableThinkingCapability: '启用思考内容输出',
+  multimodalCapability: '多模态能力',
+  enableMultimodalCapability: '启用多媒体内容输入',
 };
 
 export default translation;

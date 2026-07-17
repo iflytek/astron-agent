@@ -40,8 +40,7 @@ install-tools-python: ## 🛠️ Install Python development tools
 			flake8==7.0.0 \
 			mypy==1.18.2 \
 			pylint==3.1.0 \
-			pytest==8.0.0 \
-			pytest-cov==4.0.0; \
+			'types-requests>=2.32.4.20250913'; \
 		echo "$(GREEN)Python tools installed$(RESET)"; \
 	else \
 		echo "$(BLUE)Skipping Python tools (no Python project detected)$(RESET)"; \
@@ -70,6 +69,8 @@ check-python: ## 🔍 Check Python code quality
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Processing $$dir...$(RESET)"; \
 				if (cd $$dir && \
+				echo "$(YELLOW)    Installing Python quality tools...$(RESET)" && \
+				$(PYTHON) -m pip install black==24.4.2 isort==5.13.2 flake8==7.0.0 mypy==1.18.2 pylint==3.1.0 'types-requests>=2.32.4.20250913' && \
 				echo "$(YELLOW)    1. Running flake8 code style check...$(RESET)" && \
 				$(PYTHON) -m $(FLAKE8) . && \
 				echo "$(YELLOW)    2. Checking isort import order...$(RESET)" && \

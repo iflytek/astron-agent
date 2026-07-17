@@ -255,7 +255,7 @@ const index = () => {
     return {
       total: totalCount || 0,
       data: (pageData?.[0] || []).map((item: any) => {
-        let { sub, startTime, endTime, usage, trace, status, ...rest } = item;
+        const { sub, startTime, endTime, usage, trace, status, ...rest } = item;
 
         // 使用通用解析函数
         const statusCode = parseJsonValue(status, 'code');

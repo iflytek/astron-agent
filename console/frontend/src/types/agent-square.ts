@@ -20,6 +20,7 @@ interface Bot {
   isFavorite: boolean;
   /** 助手创作者 */
   creator: string;
+  createTime?: string;
   version?: number;
   hotNum?: number;
 }

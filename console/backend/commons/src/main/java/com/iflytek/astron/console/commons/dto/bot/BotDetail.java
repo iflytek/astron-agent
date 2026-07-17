@@ -35,6 +35,10 @@ public class BotDetail {
     private Integer vcnSpeed;
     private Integer version;
     private String openedTool;
+    private String mcpServerUrls;
+    private String skills;
+    private String tools;
+    private String workflows;
     private Integer hotNum;
     private String marketBotId;
     private Integer supportSystem;

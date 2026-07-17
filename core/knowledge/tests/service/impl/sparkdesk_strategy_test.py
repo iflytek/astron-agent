@@ -168,7 +168,7 @@ class TestSparkDeskRAGStrategy:
         self, strategy: SparkDeskRAGStrategy
     ) -> None:
         """Test that all abstract methods from RAGStrategy are implemented (even if they raise NotImplementedError)."""
-        methods_to_test = [
+        methods_to_test: list[tuple[str, dict]] = [
             ("query", {"query": "test"}),
             (
                 "split",

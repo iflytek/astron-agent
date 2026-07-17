@@ -3,6 +3,7 @@ import AvatarPlatform, {
 } from '@/utils/avatar-sdk-web_3.1.2.1002/index.js';
 import useChatStore from '@/store/chat-store';
 import { getSignedUrl } from '@/services/spark-common';
+import { getPlatformAccountRuntimeConfig } from '@/services/platform-account';
 import { message } from 'antd';
 import React, {
   useImperativeHandle,
@@ -12,15 +13,16 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
-const appId = window?.__APP_CONFIG__?.SPARK_VIRTUAL_MAN_APP_ID;
-
 // 虚拟人初始化鉴权参数
-const sdkInitAppInfoDefault: any = {
+const buildSdkInitAppInfoDefault = (
+  appId?: string,
+  signedUrl?: string
+): any => ({
   serverUrl: 'wss://avatar.cn-huadong-1.xf-yun.com/v1/interact',
   appId: appId,
   sceneId: '',
-  signedUrl: '',
-};
+  signedUrl: signedUrl || '',
+});
 // 虚拟人形象参数
 const sdkAvatarInfoDefault = {
   avatar_id: '',
@@ -104,16 +106,17 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
   /**
    * 加载虚拟人签名url信息，初始化虚拟人sdk实例
    */
-  const loadSignedUrlInfo = async () => {
+  const loadSignedUrlInfo = async (): Promise<string> => {
     try {
       const res: any = await getSignedUrl();
-      sdkInitAppInfoDefault.signedUrl = res;
+      return res;
     } catch (error) {
       console.error(
         t('vmsInteractionCmp.loadVirtualHumanAvatarSignUrlFailed'),
         error
       );
       message.error(t('vmsInteractionCmp.loadVirtualHumanAvatarSignUrlFailed'));
+      return '';
     }
   };
 
@@ -136,7 +139,10 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
     //如果不存在此虚拟人实例，开始初始化
     if (!vmsInteractiveRef.current) {
       loadingStatusChange?.(true);
-      await loadSignedUrlInfo();
+      const [signedUrl, runtimeConfig] = await Promise.all([
+        loadSignedUrlInfo(),
+        getPlatformAccountRuntimeConfig(),
+      ]);
       vmsInteractiveRef.current = new (AvatarPlatform as any)({
         useInlinePlayer: true,
       });
@@ -148,7 +154,10 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
       //     console.log('sdk event: frame_stop', frameData);
       // });
       vmsInteractiveRef.current.setApiInfo({
-        ...sdkInitAppInfoDefault,
+        ...buildSdkInitAppInfoDefault(
+          runtimeConfig.sparkVirtualManAppId,
+          signedUrl
+        ),
         ...(sdkInitAppInfo ? sdkInitAppInfo : {}),
       });
       //设置全局参数：形象和tts

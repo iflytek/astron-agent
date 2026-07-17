@@ -28,6 +28,15 @@ class TestRouterModule:
         # Should include at least one sub-route (workflow_agent route)
         assert api_router.router_v1.routes
 
+    def test_router_module_docstring_matches_agent_prefix(self) -> None:
+        """router module documentation should describe the actual agent router"""
+        docstring = api_router.__doc__ or ""
+
+        assert "Astron Agent service" in docstring
+        assert "/agent/v1" in docstring
+        assert "Xingchen DB" not in docstring
+        assert "/xingchen-db/v1" not in docstring
+
 
 class TestAgentResponseAndCotStep:
     """Test AgentResponse and CotStep data structures"""

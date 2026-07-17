@@ -1,146 +1,150 @@
 # AGENTS.md
 
-## 项目概览
+## Project Overview
 
-Astron Agent 是一个企业级 Agentic Workflow 开发平台，包含控制台前后端、多个核心微服务、插件系统以及部署与基础设施配置。仓库采用多语言多模块结构，主要语言包括 TypeScript、Java、Python 和 Go。
+Astron Agent is an enterprise-grade Agentic Workflow development platform. It includes the console frontend and backend, multiple core microservices, a plugin system, and deployment and infrastructure configuration. The repository uses a multi-language, multi-module structure. The primary languages are TypeScript, Java, Python, and Go.
 
-## 仓库结构
+## Repository Structure
 
-### 控制台
+### Console
 
 - `console/frontend`
-  - React 18 + TypeScript + Vite 前端应用
-  - 负责控制台 UI、Agent 创建、聊天界面、工作流可视化、模型管理、插件商店等功能
+  - React 18 + TypeScript + Vite frontend application
+  - Responsible for the console UI, agent creation, chat interface, workflow visualization, model management, plugin marketplace, and related features
 - `console/backend`
-  - Java Spring Boot 后端
-  - 负责控制台 REST API、SSE、鉴权、管理能力和业务聚合
-  - 主要子模块：
+  - Java Spring Boot backend
+  - Responsible for console REST APIs, SSE, authentication, management capabilities, and business aggregation
+  - Main submodules:
     - `hub`
     - `toolkit`
     - `commons`
 
-### 核心微服务
+### Core Microservices
 
 - `core/agent`
-  - Python FastAPI 服务
-  - 负责 Agent 执行引擎、Chat/CoT/CoT Process Agent、插件调用、会话上下文处理
+  - Python FastAPI service
+  - Responsible for the agent execution engine, Chat/CoT/CoT Process Agent, plugin invocation, and session context handling
 - `core/workflow`
-  - Python FastAPI 服务
-  - 负责工作流编排、执行、调试、版本与事件处理
+  - Python FastAPI service
+  - Responsible for workflow orchestration, execution, debugging, versioning, and event handling
 - `core/knowledge`
-  - Python FastAPI 服务
-  - 负责知识库、文档处理、向量化、检索、RAG 集成
+  - Python FastAPI service
+  - Responsible for the knowledge base, document processing, vectorization, retrieval, and RAG integration
 - `core/memory`
-  - Python 模块
-  - 负责对话历史、短期/长期记忆、会话持久化
+  - Python module
+  - Responsible for conversation history, short-term and long-term memory, and session persistence
 - `core/tenant`
-  - Go 服务
-  - 负责多租户、空间隔离、组织与资源配额管理
+  - Go service
+  - Responsible for multi-tenancy, space isolation, organization management, and resource quota management
 - `core/plugin`
-  - 插件能力目录
-  - 包含 `aitools`、`rpa`、`link` 等插件服务
+  - Plugin capability directory
+  - Includes plugin services such as `aitools`, `rpa`, and `link`
 - `core/common`
-  - Python 公共能力模块
-  - 负责认证、日志、观测、数据库/缓存/消息队列/对象存储等基础设施抽象
+  - Python shared capability module
+  - Responsible for abstractions around authentication, logging, observability, databases, cache, message queues, object storage, and other infrastructure concerns
 
-### 其他目录
+### Other Directories
 
 - `docs`
-  - 项目说明、部署、配置、模块说明
-  - 架构理解优先参考 `docs/PROJECT_MODULES_zh.md`
+  - Project documentation, deployment, configuration, and module descriptions
+  - For architectural understanding, refer first to `docs/zh/PROJECT_MODULES.md`
 - `docker`
-  - Docker Compose 及相关基础设施配置
+  - Docker Compose and related infrastructure configuration
 - `helm`
-  - Helm Chart 与 Kubernetes 部署配置
-- `makefiles`
-  - 各语言和模块的构建、检查脚本
-- `openspec`
-  - OpenSpec 变更提案与任务管理
+  - Helm Charts and Kubernetes deployment configuration
 
-## 架构理解
+## Typical Communication Flows
 
-建议按以下路径理解系统：
+- Frontend -> Console Backend: HTTP/REST, SSE
+- Console Backend -> Core Services: HTTP/REST
+- Core Services -> Core Services: Kafka event-driven communication
 
-1. `console/frontend` 负责用户交互入口。
-2. `console/backend` 负责控制台 API 聚合和管理逻辑。
-3. `core/*` 承担实际智能体、工作流、知识库、租户、插件等核心能力。
-4. `core/common` 为 Python 微服务提供统一基础设施支持。
-5. 底层依赖 MySQL、Redis、Kafka、MinIO 等基础设施。
+## Behavioral Guidelines to Reduce Common LLM Coding Mistakes
 
-典型通信关系：
+Merge these with project-specific instructions as needed.
 
-- Frontend -> Console Backend：HTTP/REST、SSE
-- Console Backend -> Core Services：HTTP/REST
-- Core Services -> Core Services：Kafka 事件驱动
+Tradeoff: These guidelines prioritize caution over speed. Use judgment for trivial tasks.
 
-## 技术栈
+### 1. Think Before Coding
 
-- 前端：React 18、TypeScript 5、Vite 5、Ant Design 5、Tailwind CSS
-- 控制台后端：Java 21、Spring Boot 3.5.x、MyBatis Plus、Spring Security、OAuth2
-- 核心服务：Python 3.11+、FastAPI、SQLAlchemy / SQLModel、Pydantic、OpenTelemetry
-- 租户服务：Go 1.23、Gin
-- 基础设施：MySQL、Redis、Kafka、MinIO
+Do not assume. Do not hide confusion. Surface tradeoffs.
 
-## 开发约定
+Before implementing:
 
-### 通用
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them instead of choosing silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Identify what is confusing and ask.
 
-- 优先做最小必要改动，避免跨模块无关重构。
-- 改动前先确认模块边界，避免把控制台逻辑误放到核心服务，或把领域逻辑误放到 API 层。
-- 优先沿用现有工程风格、目录组织和命名习惯。
-- 如果变更涉及多个服务，明确调用链和依赖方向。
+### 2. Simplicity First
 
-### Python 模块
+Write the minimum code that solves the problem. Nothing speculative.
 
-- 重点目录：`core/agent`、`core/workflow`、`core/knowledge`、`core/common`
-- 优先保持清晰分层，避免把业务逻辑堆进路由层。
-- 测试使用 `pytest`
-- 风格和质量工具以仓库现有配置为准，例如 Black、isort、MyPy、Pylint、Flake8
+- Do not add features beyond what was asked.
+- Do not add abstractions for single-use code.
+- Do not add "flexibility" or "configurability" that was not requested.
+- Do not add error handling for impossible scenarios.
+- If you write 200 lines and the same result could be achieved in 50, rewrite it.
+- Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-### Java 模块
+### 3. Surgical Changes
 
-- 重点目录：`console/backend/*`
-- 遵守 Spring Boot 分层结构
-- DTO、Service、Controller、Mapper 各司其职
-- 测试通常使用 JUnit
+Touch only what you must. Clean up only your own mess.
 
-### TypeScript 前端
+When editing existing code:
 
-- 重点目录：`console/frontend/src`
-- 页面在 `pages`，复用组件在 `components`，状态在 `store`，接口调用在 `services` 或相邻模块中
-- 优先复用已有状态管理、工具函数和样式体系
-- 风格和质量工具以 ESLint、Prettier、TypeScript 配置为准
+- Do not "improve" adjacent code, comments, or formatting.
+- Do not refactor things that are not broken.
+- Match the existing style, even if you would normally do it differently.
+- If you notice unrelated dead code, mention it. Do not delete it.
 
-### Go 模块
+When your changes create orphans:
 
-- 重点目录：`core/tenant`
-- 保持接口、服务、存储职责清晰
-- 遵循 `go fmt` 和现有项目结构
+- Remove imports, variables, or functions that become unused because of your changes.
+- Do not remove pre-existing dead code unless asked.
+- Use this test: every changed line should trace directly to the user's request.
 
-## 修改建议
+### 4. Goal-Driven Execution
 
-- 改前先定位目标模块，不要在不了解调用链时直接改公共层。
-- 涉及接口字段变更时，同时检查：
-  - 前端调用
-  - 控制台后端 DTO / Controller / Service
-  - 下游核心服务 schema 或接口定义
-- 涉及工作流、知识库、插件能力时，优先检查是否已有测试覆盖。
-- 涉及 Kafka、Redis、MinIO 或鉴权时，优先评估对其他服务的联动影响。
+Define success criteria. Iterate until verified.
 
-## 常用关注路径
+Turn tasks into verifiable goals:
 
-- `docs/PROJECT_MODULES_zh.md`
-- `README.md`
-- `console/README.md`
-- `console/frontend`
-- `console/backend`
-- `core/agent`
-- `core/workflow`
-- `core/knowledge`
-- `core/common`
-- `helm/astron-agent`
-- `docker`
+- "Add validation" -> "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" -> "Write a test that reproduces it, then make it pass"
+- "Refactor X" -> "Ensure tests pass before and after"
 
-## 协作说明
+For multi-step tasks, state a brief plan:
 
-- 进行实现前，优先确认目标模块、上下游依赖和验证方式。
+1. [Step] -> verify: [check]
+2. [Step] -> verify: [check]
+3. [Step] -> verify: [check]
+
+Strong success criteria allow you to work independently in a loop. Weak criteria such as "make it work" require constant clarification.
+
+These guidelines are working if there are fewer unnecessary changes in diffs, fewer rewrites caused by overcomplication, and more clarifying questions before implementation rather than after mistakes.
+
+## Modification Recommendations
+
+- Before making changes, first identify the target module. Do not modify shared layers directly before understanding the call chain.
+- If a change involves multiple services, make the call chain and dependency direction explicit.
+- If Kafka, Redis, MinIO, or authentication is involved, evaluate the impact on other services first.
+
+## Important Notes
+
+- Before implementation, first confirm the target module, upstream and downstream dependencies, and the verification approach.
+- **Always prioritize official frameworks, SDKs, and APIs.** When an official framework, SDK, or API exists for a task, you MUST use it instead of hand-rolling a custom implementation, reimplementing existing capabilities, or calling lower-level interfaces directly. Only fall back to a custom approach when no official option covers the need, and state explicitly why the official option was insufficient.
+- If it is a complete feature request or a complex bug, add logs at key points as much as reasonably possible to help with troubleshooting, but do not add excessive logging.
+
+## Key Workflow Expectations
+
+Once feature development and testing are complete, run the following release-and-acceptance loop **autonomously, end to end, without asking the user to confirm any step**. Steps 1–3 each dispatch a new subagent to run the named skill under `.codex\skills\`. Step 4 is different: the main agent reads and runs the skill itself, then spawns its own testing subagent as the skill directs — do not hand the whole skill to a single subagent. Repeat the loop until acceptance passes.
+
+1. **Publish and merge** — Dispatch a subagent to execute the `astron-agent-pr-publish` skill. It commits the eligible local changes, pushes the current branch to `origin`, opens a same-branch pull request into `iflytek/astron-agent`, and merges it once the PR has no conflicts.
+2. **Wait for the image build** — Merging into the upstream branch triggers the image-build workflow `.github/workflows/build-push.yml` in `iflytek/astron-agent`, which builds and pushes all service images to GHCR and takes ~16 minutes. Do not deploy before it finishes. Poll the run with `gh run list` / `gh run watch -R iflytek/astron-agent` on the branch you merged into (rather than sleeping a fixed time), and proceed only when it concludes with `success`. If the build fails, fix the cause and restart from step 1.
+3. **Deploy** — After the build succeeds, dispatch a subagent to execute the `astron-agent-server-deploy` skill, which pulls the new images, restarts the stack, and prunes dangling images on the server. Wait until the deployment completes and all services are up.
+4. **Acceptance test** — Once all services are running, the **main agent itself** reads and runs the `astron-agent-e2e-acceptance` skill (do not delegate the whole skill to a subagent). Following the skill, the main agent selects the feature points to verify, dispatches a testing-only subagent to drive the browser via the Chrome plugin, and uses the returned evidence to judge pass/fail.
+   - **Pass** → the loop is complete; report the result and stop.
+   - **Fail** → the main agent automatically diagnoses and fixes the issues surfaced by the subagent's evidence, then restarts from step 1. Keep iterating until acceptance passes.
+
+Safety net: if the same failure persists across several full iterations with no progress, stop and report to the user instead of looping indefinitely.

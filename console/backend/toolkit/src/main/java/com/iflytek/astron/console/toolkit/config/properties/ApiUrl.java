@@ -18,6 +18,7 @@ public class ApiUrl {
     String knowledgeUrl;
     String streamChatUrl;
     String toolUrl;
+    String agentUrl;
     String toolRpaUrl;
     String appUrl;
     String apiKey;
@@ -35,6 +36,7 @@ public class ApiUrl {
     String mcpAuthServer;
     String mcpUrlServer;
     String sparkDB;
+    String sparkDBType;
 
     // Get fine-tuning model authentication parameters
     String modelAk;

@@ -85,6 +85,23 @@ export function useVariableMemoryHandlers({
     output.schema.type = isRefKnowledgeBase(currentInput)
       ? `array-${currentInput?.schema?.type}`
       : currentInput?.schema?.type;
+    output.refId = currentInput?.id || '';
+  };
+
+  const findCurrentInput = (nodes, output) => {
+    const setterInputs =
+      nodes
+        ?.filter(
+          node =>
+            node.nodeType === 'node-variable' &&
+            node.data.nodeParam.method === 'set'
+        )
+        ?.flatMap(node => node?.data?.inputs || []) || [];
+
+    return (
+      setterInputs.find(item => item?.id === output?.refId) ||
+      setterInputs.find(item => item?.name && item?.name === output?.name)
+    );
   };
 
   /** 修改输入参数（支持 name / type / value / ref） */
@@ -111,9 +128,7 @@ export function useVariableMemoryHandlers({
               node.data.nodeParam.method === 'get'
             ) {
               node?.data?.outputs?.forEach(output => {
-                const currentInput = nodes
-                  ?.find(node => node?.id === id)
-                  ?.data?.inputs.find(item => item?.id === output?.refId);
+                const currentInput = findCurrentInput(nodes, output);
                 if (currentInput) {
                   updateOutputFromInput(output, currentInput);
                 }

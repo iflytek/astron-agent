@@ -43,6 +43,7 @@ export interface UseNodeInfoReturn {
   isDecisionMakingNode: boolean;
   isIfElseNode: boolean;
   isIteratorNode: boolean;
+  isLoopNode: boolean;
   isIteratorChildNode: boolean;
   isAgentNode: boolean;
   isStartOrEndNode: boolean;

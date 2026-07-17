@@ -1053,6 +1053,7 @@ class BaseLLMNode(BaseNode):
     source: str = Field(default=ModelProviderEnum.XINGHUO.value)
     searchDisable: bool = Field(default=True)
     extraParams: dict = Field(default_factory=dict)
+    input_to_filetype_map: dict = Field(default_factory=dict)
 
     def _get_chat_ai(self, uid: str = "") -> ChatAI:
         """
@@ -1204,6 +1205,29 @@ class BaseLLMNode(BaseNode):
         user_message.extend(filter(None, [image_msg, system_msg, *history, user_msg]))
         return user_message
 
+    def _build_input_to_filetype_map(
+        self, node_protocol: Optional[list] = None
+    ) -> dict:
+        """
+        Build the mapping from input names to their fileTypes based on DSL protocol.
+
+        :param node_protocol: DSL protocol definition for this node
+        :return: Dictionary mapping input names to their fileTypes
+        """
+        input_to_filetype_map = {}
+
+        if node_protocol and isinstance(node_protocol, list):
+            for item in node_protocol:
+                if isinstance(item, dict):
+                    file_type = item.get("fileType", "")
+                    input_name = item.get("name", "")
+
+                    # Only add to map if both file_type and input_name exist
+                    if file_type and input_name:
+                        input_to_filetype_map[input_name] = file_type
+
+        return input_to_filetype_map
+
     async def _chat_with_llm(
         self,
         flow_id: str,
@@ -1217,6 +1241,7 @@ class BaseLLMNode(BaseNode):
         image_url: str = "",
         stream: bool = False,
         event_log_node_trace: NodeLog | None = None,
+        multimodal_inputs: list = [],
     ) -> Tuple[dict, str, str, list]:
         """
         Chat with the LLM and process the response.
@@ -1271,6 +1296,7 @@ class BaseLLMNode(BaseNode):
                     else self._private_config.timeout
                 ),
                 search_disable=self.searchDisable,
+                multimodal_inputs=multimodal_inputs,
             ):
                 msg = llm_response.msg
                 status, content, reasoning_content, token_usage = (
@@ -1297,9 +1323,9 @@ class BaseLLMNode(BaseNode):
                     token_usage = token_usage
                     break
                 if (
-                    self.source in {
+                    self.source
+                    in {
                         ModelProviderEnum.OPENAI.value,
-                        ModelProviderEnum.DEEPSEEK.value,
                         ModelProviderEnum.ANTHROPIC.value,
                         ModelProviderEnum.GOOGLE.value,
                     }

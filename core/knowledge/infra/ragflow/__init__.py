@@ -9,6 +9,7 @@ from .ragflow_client import (  # Query related APIs; Dataset management APIs; Do
     create_dataset,
     delete_chunks,
     delete_documents,
+    fetch_all_document_chunks,
     get_document_info,
     list_datasets,
     list_document_chunks,
@@ -41,6 +42,7 @@ __all__ = [
     "add_chunk",
     # Helper functions
     "wait_for_parsing",
+    "fetch_all_document_chunks",
     "get_document_info",
     # Resource management
     "cleanup_session",

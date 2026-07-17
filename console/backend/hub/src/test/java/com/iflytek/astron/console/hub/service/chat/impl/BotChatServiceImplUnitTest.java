@@ -1,9 +1,9 @@
 package com.iflytek.astron.console.hub.service.chat.impl;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.dto.llm.SparkChatRequest;
 import com.iflytek.astron.console.commons.entity.bot.ChatBotBase;
 import com.iflytek.astron.console.commons.entity.bot.ChatBotMarket;
+import com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotReqDto;
 import com.iflytek.astron.console.commons.dto.bot.DebugChatBotReqDto;
 import com.iflytek.astron.console.commons.entity.chat.ChatList;
@@ -17,20 +17,27 @@ import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.service.data.ChatHistoryService;
 import com.iflytek.astron.console.commons.service.data.ChatListDataService;
+import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotChatService;
+import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
-import com.iflytek.astron.console.hub.service.PromptChatService;
-import com.iflytek.astron.console.hub.service.SparkChatService;
+import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.ChatListService;
+import com.iflytek.astron.console.hub.service.chat.springai.AgentChatTask;
+import com.iflytek.astron.console.hub.service.chat.springai.SpringAiAgentChatService;
 import com.iflytek.astron.console.hub.service.knowledge.KnowledgeService;
 import com.iflytek.astron.console.toolkit.entity.vo.CategoryTreeVO;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
+import com.iflytek.astron.console.toolkit.service.workflow.WorkflowService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -50,7 +57,7 @@ class BotChatServiceImplUnitTest {
     @Mock
     private ChatDataService chatDataService;
     @Mock
-    private SparkChatService sparkChatService;
+    private SpringAiAgentChatService springAiAgentChatService;
     @Mock
     private ChatHistoryService chatHistoryService;
     @Mock
@@ -66,432 +73,221 @@ class BotChatServiceImplUnitTest {
     @Mock
     private ModelService modelService;
     @Mock
-    private PromptChatService promptChatService;
+    private WorkflowService workflowService;
+    @Mock
+    private UserLangChainDataService userLangChainDataService;
     @Mock
     private ReqKnowledgeRecordsDataService reqKnowledgeRecordsDataService;
     @Mock
     private com.iflytek.astron.console.hub.util.BotPermissionUtil botPermissionUtil;
     @Mock
     private com.iflytek.astron.console.hub.service.bot.PersonalityConfigService personalityConfigService;
+    @Mock
+    private AgentMemoryRuntimeService agentMemoryRuntimeService;
 
     @InjectMocks
     private BotChatServiceImpl botChatService;
 
+    private MockedStatic<SpaceInfoUtil> spaceInfoUtil;
+
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(botChatService, "maxInputTokens", 8000);
+        spaceInfoUtil = mockStatic(SpaceInfoUtil.class);
+        spaceInfoUtil.when(SpaceInfoUtil::getSpaceId).thenReturn(1L);
+        lenient().when(agentMemoryRuntimeService.enrichMessages(any(AgentChatTask.class)))
+                .thenAnswer(invocation -> invocation.<AgentChatTask>getArgument(0).getMessages());
+    }
+
+    @AfterEach
+    void tearDown() {
+        spaceInfoUtil.close();
     }
 
     @Test
-    void testChatMessageBot_WorkflowBot_Success() {
-        // Given
+    void testChatMessageBot_WorkflowBot_RoutesToWorkflowService() {
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
-        String workflowOperation = "test-operation";
-        String workflowVersion = "v1";
 
         ChatBotMarket chatBotMarket = createChatBotMarket();
         chatBotMarket.setVersion(BotTypeEnum.WORKFLOW_BOT.getType());
+        UserLangChainInfo userLangChainInfo = new UserLangChainInfo();
+        userLangChainInfo.setFlowId("test-flow-id");
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
-        doNothing().when(workflowBotChatService).chatWorkflowBot(any(), any(), any(), any(), any());
+        when(userLangChainDataService.findOneByBotId(anyInt())).thenReturn(userLangChainInfo);
+        when(workflowService.refreshWorkflowRuntimeProtocol("test-flow-id")).thenReturn(true);
 
-        // When
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, workflowVersion);
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", "op", "v1");
 
-        // Then
-        verify(workflowBotChatService).chatWorkflowBot(eq(chatBotReqDto), eq(sseEmitter), eq(sseId), eq(workflowOperation), eq(workflowVersion));
-        verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
-        verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        verify(workflowBotChatService).chatWorkflowBot(eq(chatBotReqDto), eq(sseEmitter), eq("sse"), eq("op"), eq("v1"));
+        verify(springAiAgentChatService, never()).chat(any(), any(), any());
     }
 
     @Test
-    void testChatMessageBot_SparkChat_Success() {
-        // Given
+    void testChatMessageBot_SparkModel_BuildsSparkTask() {
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         ChatBotMarket chatBotMarket = createChatBotMarket();
         chatBotMarket.setModelId(null);
         chatBotMarket.setVersion(1);
-        chatBotMarket.setSupportDocument(0); // Disable knowledge base support for this test
-
-        ChatReqRecords createdRecord = createChatReqRecords();
-        List<String> knowledgeList = Arrays.asList("knowledge1", "knowledge2");
-        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
-        // Add current ask message that will be removed by the code
-        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
-        currentAskMessage.setRole("user");
-        currentAskMessage.setContent("test question");
-        historyMessages.add(currentAskMessage);
+        chatBotMarket.setSupportDocument(0);
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
-        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(knowledgeList);
-        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
-        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        when(chatDataService.createRequest(any())).thenReturn(createChatReqRecords());
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
 
-        // When
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
 
-        // Then
-        verify(chatDataService).createRequest(any(ChatReqRecords.class));
-        verify(sparkChatService).chatStream(argThat(req -> req.getEnableWebSearch()),
-                eq(sseEmitter), eq(sseId), any(), eq(false), eq(false));
+        AgentChatTask task = captureTask();
+        assertNull(task.getLlmInfoVo());
+        assertEquals("x1", task.getSparkModelName());
+        assertEquals(1L, task.getSpaceId());
+        assertFalse(task.isEdit());
+        assertFalse(task.isDebug());
+        assertNotNull(task.getChatReqRecords());
     }
 
     @Test
-    void testChatMessageBot_PromptChat_Success() {
-        // Given
+    void testChatMessageBot_CustomModel_BuildsCustomTask() {
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         ChatBotMarket chatBotMarket = createChatBotMarket();
         chatBotMarket.setModelId(1L);
         chatBotMarket.setVersion(1);
+        chatBotMarket.setSupportDocument(0);
 
-        ChatReqRecords createdRecord = createChatReqRecords();
-        List<String> knowledgeList = Arrays.asList("knowledge1", "knowledge2");
-        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
-        // Add current ask message that will be removed by the code
-        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
-        currentAskMessage.setRole("user");
-        currentAskMessage.setContent("test question");
-        historyMessages.add(currentAskMessage);
         LLMInfoVo llmInfoVo = createLLMInfoVo();
-
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
-        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(knowledgeList);
-        lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
+        when(chatDataService.createRequest(any())).thenReturn(createChatReqRecords());
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
         when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
-        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(promptChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
 
-        // When
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
 
-        // Then
-        verify(modelService).getDetail(eq(0), eq(1L), isNull());
-        verify(promptChatService).chatStream(any(JSONObject.class), eq(sseEmitter), eq(sseId), any(), eq(false), eq(false));
+        AgentChatTask task = captureTask();
+        assertNotNull(task.getLlmInfoVo());
+        assertNull(task.getSparkModelName());
+        assertFalse(task.isDebug());
     }
 
     @Test
-    void testChatMessageBot_ModelNotFound() {
-        // Given
+    void testChatMessageBot_BaseBot_PassesSavedMcpServerUrls() {
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
-
-        ChatBotMarket chatBotMarket = createChatBotMarket();
-        chatBotMarket.setModelId(1L);
-        chatBotMarket.setVersion(1);
-
-        ChatReqRecords createdRecord = createChatReqRecords();
-        List<String> knowledgeList = Arrays.asList("knowledge1", "knowledge2");
-        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
-
-        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
-        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(knowledgeList);
-        lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", null, 1L));
-        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-
-        // When
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
-
-        // Then
-        verify(modelService).getDetail(eq(0), eq(1L), isNull());
-        verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
-    }
-
-    @Test
-    void testChatMessageBot_BotNotOnShelf() {
-        // Given
-        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
-        SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         ChatBotBase chatBotBase = createChatBotBase();
-        ChatReqRecords createdRecord = createChatReqRecords();
-        List<String> knowledgeList = Arrays.asList("knowledge1", "knowledge2");
-        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
-        // Add current ask message that will be removed by the code
-        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
-        currentAskMessage.setRole("user");
-        currentAskMessage.setContent("test question");
-        historyMessages.add(currentAskMessage);
+        chatBotBase.setModelId(1L);
+        chatBotBase.setModel("test-model");
+        chatBotBase.setOpenedTool("");
+        chatBotBase.setMcpServerUrls("[\"https://mcp.example.com/sse\"]");
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(null);
         when(chatBotDataService.findById(anyInt())).thenReturn(Optional.of(chatBotBase));
-        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(knowledgeList);
-        lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
-        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        when(chatDataService.createRequest(any())).thenReturn(createChatReqRecords());
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
+        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", createLLMInfoVo(), 1L));
 
-        // When
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
 
-        // Then
-        verify(chatBotDataService).findMarketBotByBotId(eq(chatBotReqDto.getBotId()));
-        verify(chatBotDataService).findById(eq(chatBotReqDto.getBotId()));
-        verify(sparkChatService).chatStream(any(SparkChatRequest.class), eq(sseEmitter), eq(sseId), any(), eq(false), eq(false));
+        AgentChatTask task = captureTask();
+        assertEquals("[\"https://mcp.example.com/sse\"]", task.getMcpServerUrls());
     }
 
     @Test
-    void testChatMessageBot_BotNotExists() {
-        // Given
+    void testChatMessageBot_BotNotExists_DoesNotThrow() {
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(null);
         lenient().when(chatBotDataService.findById(anyInt())).thenReturn(Optional.empty());
 
-        // When & Then
-        assertDoesNotThrow(() -> botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null));
+        assertDoesNotThrow(() -> botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null));
+        verify(springAiAgentChatService, never()).chat(any(), any(), any());
     }
 
     @Test
-    void testReAnswerMessageBot_Success() {
-        // Given
-        Long requestId = 1L;
-        Integer botId = 1;
+    void testReAnswerMessageBot_BuildsEditTask() {
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         ChatReqRecords chatReqRecords = createChatReqRecords();
         ChatBotMarket chatBotMarket = createChatBotMarket();
         chatBotMarket.setModelId(null);
-        List<SparkChatRequest.MessageDto> historyMessages = new ArrayList<>();
-        // Add current ask message and previous Q&A that will be removed by the code (edit mode)
-        SparkChatRequest.MessageDto prevQuestion = new SparkChatRequest.MessageDto();
-        prevQuestion.setRole("user");
-        prevQuestion.setContent("previous question");
-        historyMessages.add(prevQuestion);
-        SparkChatRequest.MessageDto prevAnswer = new SparkChatRequest.MessageDto();
-        prevAnswer.setRole("assistant");
-        prevAnswer.setContent("previous answer");
-        historyMessages.add(prevAnswer);
-        SparkChatRequest.MessageDto currentAskMessage = new SparkChatRequest.MessageDto();
-        currentAskMessage.setRole("user");
-        currentAskMessage.setContent("test question");
-        historyMessages.add(currentAskMessage);
 
-        when(chatDataService.findRequestById(requestId)).thenReturn(chatReqRecords);
-        when(chatBotDataService.findMarketBotByBotId(botId)).thenReturn(chatBotMarket);
-        lenient().when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages);
-        lenient().when(knowledgeService.getChuncksByBotId(anyInt(), anyString(), anyInt())).thenReturn(Arrays.asList("knowledge"));
-        lenient().when(reqKnowledgeRecordsDataService.create(any())).thenReturn(null);
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        when(chatDataService.findRequestById(1L)).thenReturn(chatReqRecords);
+        when(chatBotDataService.findMarketBotByBotId(1)).thenReturn(chatBotMarket);
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
 
-        // When
-        botChatService.reAnswerMessageBot(requestId, botId, sseEmitter, sseId);
+        botChatService.reAnswerMessageBot(1L, 1, sseEmitter, "sse");
 
-        // Then
-        verify(chatDataService).findRequestById(requestId);
-        verify(sparkChatService).chatStream(any(SparkChatRequest.class), eq(sseEmitter), eq(sseId), eq(chatReqRecords), eq(true), eq(false));
+        AgentChatTask task = captureTask();
+        assertTrue(task.isEdit());
+        assertFalse(task.isDebug());
+        assertEquals("x1", task.getSparkModelName());
     }
 
     @Test
-    void testDebugChatMessageBot_WithNullModelId() {
-        // Given
+    void testDebugChatMessageBot_NullModelId_BuildsDebugSparkTask() {
         DebugChatBotReqDto request = new DebugChatBotReqDto();
         request.setText("test message");
         request.setPrompt("test prompt");
         request.setMessages(Arrays.asList("message1", "message2"));
         request.setUid("test-uid");
-        request.setOpenedTool("ifly_search");
+        request.setOpenedTool("web_search");
         request.setModel("x1");
         request.setModelId(null);
         request.setMaasDatasetList(Arrays.asList("dataset1"));
         request.setPersonalityConfig(null);
 
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
-        doNothing().when(sparkChatService).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
 
-        // When
-        botChatService.debugChatMessageBot(request, sseEmitter, sseId);
+        botChatService.debugChatMessageBot(request, sseEmitter, "sse");
 
-        // Then
-        verify(sparkChatService).chatStream(argThat(req -> req.getEnableWebSearch()),
-                eq(sseEmitter), eq(sseId), isNull(), eq(false), eq(true));
-        verify(promptChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
+        AgentChatTask task = captureTask();
+        assertTrue(task.isDebug());
+        assertNull(task.getChatReqRecords());
+        assertNull(task.getLlmInfoVo());
+        assertEquals("x1", task.getSparkModelName());
     }
 
     @Test
-    void testDebugChatMessageBot_WithModelId() {
-        // Given
+    void testDebugChatMessageBot_WithModelId_ChecksModelAndBuildsCustomTask() {
         DebugChatBotReqDto request = new DebugChatBotReqDto();
         request.setText("test message");
         request.setPrompt("test prompt");
         request.setMessages(Arrays.asList("message1", "message2"));
         request.setUid("test-uid");
-        request.setOpenedTool("ifly_search");
+        request.setOpenedTool("web_search");
         request.setModel("test-model");
         request.setModelId(1L);
         request.setMaasDatasetList(Arrays.asList("dataset1"));
         request.setPersonalityConfig(null);
 
         SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
 
         LLMInfoVo llmInfoVo = createLLMInfoVo();
-        llmInfoVo.setLlmId(100L); // Set llmId so checkModelBase can work properly
-        llmInfoVo.setServiceId("test-service-id"); // Set serviceId
+        llmInfoVo.setLlmId(100L);
+        llmInfoVo.setServiceId("test-service-id");
         when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
         when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
         when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
-        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
 
-        // When & Then - Mock SpaceInfoUtil static method
-        try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
-            mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
+        botChatService.debugChatMessageBot(request, sseEmitter, "sse");
 
-            botChatService.debugChatMessageBot(request, sseEmitter, sseId);
-
-            verify(modelService).getDetail(eq(0), eq(1L), isNull());
-            verify(promptChatService).chatStream(argThat(json ->
-                            "openai".equals(json.getString("provider")) &&
-                                    json.getBooleanValue("managedWebSearch") &&
-                                    "test message".equals(json.getString("managedSearchQuery")) &&
-                                    "test-uid".equals(json.getString("userId"))),
-                    eq(sseEmitter),
-                    eq(sseId),
-                    isNull(),
-                    eq(false),
-                    eq(true));
-            verify(sparkChatService, never()).chatStream(any(), any(), any(), any(), anyBoolean(), anyBoolean());
-        }
-    }
-
-    @Test
-    void testDebugChatMessageBot_WithGoogleModelId_PropagatesProvider() {
-        DebugChatBotReqDto request = new DebugChatBotReqDto();
-        request.setText("test message");
-        request.setPrompt("test prompt");
-        request.setMessages(Arrays.asList("message1", "message2"));
-        request.setUid("test-uid");
-        request.setOpenedTool("ifly_search");
-        request.setModel("gemini-3.1-pro");
-        request.setModelId(1L);
-
-        SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
-
-        LLMInfoVo llmInfoVo = createLLMInfoVo();
-        llmInfoVo.setProvider("google");
-        llmInfoVo.setDomain("gemini-3.1-pro");
-        llmInfoVo.setUrl("https://example.com/v1beta/models/gemini-3.1-pro:generateContent");
-        llmInfoVo.setLlmId(100L);
-        llmInfoVo.setServiceId("test-service-id");
-
-        when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
-        when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
-        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
-
-        try (var mockedSpaceInfoUtil = mockStatic(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil.class)) {
-            mockedSpaceInfoUtil.when(com.iflytek.astron.console.commons.util.space.SpaceInfoUtil::getSpaceId).thenReturn(1L);
-
-            botChatService.debugChatMessageBot(request, sseEmitter, sseId);
-
-            verify(promptChatService).chatStream(
-                    argThat(json -> "google".equals(json.getString("provider")) &&
-                            json.getJSONArray("tools") != null &&
-                            !json.getJSONArray("tools").isEmpty() &&
-                            json.getJSONArray("tools").getJSONObject(0).containsKey("google_search")),
-                    eq(sseEmitter),
-                    eq(sseId),
-                    isNull(),
-                    eq(false),
-                    eq(true));
-        }
-    }
-
-    @Test
-    void testChatMessageBot_PromptChat_AnthropicAddsNativeWebSearch() {
-        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
-        SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
-
-        ChatBotMarket chatBotMarket = createChatBotMarket();
-        chatBotMarket.setModelId(2L);
-        chatBotMarket.setVersion(1);
-
-        ChatReqRecords createdRecord = createChatReqRecords();
-        LLMInfoVo llmInfoVo = createLLMInfoVo();
-        llmInfoVo.setProvider("anthropic");
-        llmInfoVo.setDomain("claude-sonnet");
-
-        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
-        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(new ArrayList<>());
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
-        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
-
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
-
-        verify(promptChatService).chatStream(
-                argThat(json -> "anthropic".equals(json.getString("provider")) &&
-                        "web-search-2025-03-05".equals(json.getString("anthropicBeta")) &&
-                        json.getJSONArray("tools") != null &&
-                        "web_search_20250305".equals(json.getJSONArray("tools").getJSONObject(0).getString("type"))),
-                eq(sseEmitter),
-                eq(sseId),
-                any(),
-                eq(false),
-                eq(false));
-    }
-
-    @Test
-    void testChatMessageBot_PromptChat_OpenAiUsesManagedWebSearch() {
-        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
-        SseEmitter sseEmitter = new SseEmitter();
-        String sseId = "test-sse-id";
-
-        ChatBotMarket chatBotMarket = createChatBotMarket();
-        chatBotMarket.setModelId(3L);
-        chatBotMarket.setVersion(1);
-
-        ChatReqRecords createdRecord = createChatReqRecords();
-        LLMInfoVo llmInfoVo = createLLMInfoVo();
-        llmInfoVo.setProvider("openai");
-
-        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
-        when(chatDataService.createRequest(any())).thenReturn(createdRecord);
-        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(new ArrayList<>());
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
-        doNothing().when(promptChatService).chatStream(any(JSONObject.class), any(SseEmitter.class), anyString(), any(), anyBoolean(), anyBoolean());
-
-        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, sseId, null, null);
-
-        verify(promptChatService).chatStream(
-                argThat(json -> "openai".equals(json.getString("provider")) &&
-                        json.getBooleanValue("managedWebSearch") &&
-                        "test question".equals(json.getString("managedSearchQuery")) &&
-                        "test-uid".equals(json.getString("userId"))),
-                eq(sseEmitter),
-                eq(sseId),
-                any(),
-                eq(false),
-                eq(false));
+        verify(modelService).checkModelBase(anyLong(), anyString(), anyString(), anyString(), any());
+        AgentChatTask task = captureTask();
+        assertTrue(task.isDebug());
+        assertNotNull(task.getLlmInfoVo());
     }
 
     @Test
     void testClear_EmptyChat() {
-        // Given
         Long chatId = 1L;
         String uid = "test-uid";
         Integer botId = 1;
@@ -505,10 +301,8 @@ class BotChatServiceImplUnitTest {
         when(chatListDataService.findByUidAndChatId(uid, chatId)).thenReturn(chatList);
         when(chatDataService.countMessagesByChatId(chatId)).thenReturn(0L);
 
-        // When
         ChatListCreateResponse response = botChatService.clear(chatId, uid, botId, botBase);
 
-        // Then
         assertNotNull(response);
         assertEquals(chatId, response.getId());
         assertEquals("Test Chat", response.getTitle());
@@ -519,7 +313,6 @@ class BotChatServiceImplUnitTest {
 
     @Test
     void testClear_WithChatHistory() {
-        // Given
         Long chatId = 1L;
         String uid = "test-uid";
         Integer botId = 1;
@@ -541,10 +334,8 @@ class BotChatServiceImplUnitTest {
         when(chatListService.createRestartChat(uid, "", botId)).thenReturn(newChatResponse);
         doNothing().when(botService).addV2Bot(uid, botId);
 
-        // When
         ChatListCreateResponse response = botChatService.clear(chatId, uid, botId, botBase);
 
-        // Then
         assertNotNull(response);
         assertEquals(2L, response.getId());
         verify(chatListService).logicDeleteChatList(chatId, uid);
@@ -554,7 +345,6 @@ class BotChatServiceImplUnitTest {
 
     @Test
     void testClear_ChatNotFound() {
-        // Given
         Long chatId = 1L;
         String uid = "test-uid";
         Integer botId = 1;
@@ -562,10 +352,8 @@ class BotChatServiceImplUnitTest {
 
         when(chatListDataService.findByUidAndChatId(uid, chatId)).thenReturn(null);
 
-        // When
         ChatListCreateResponse response = botChatService.clear(chatId, uid, botId, botBase);
 
-        // Then
         assertNotNull(response);
         assertNull(response.getId());
         verify(chatListService, never()).logicDeleteChatList(anyLong(), anyString());
@@ -573,27 +361,44 @@ class BotChatServiceImplUnitTest {
 
     @Test
     void testClear_BotIdMismatch() {
-        // Given
         Long chatId = 1L;
         String uid = "test-uid";
         Integer botId = 1;
         ChatBotBase botBase = createChatBotBase();
 
         ChatList chatList = new ChatList();
-        chatList.setBotId(2); // Different botId
+        chatList.setBotId(2);
 
         when(chatListDataService.findByUidAndChatId(uid, chatId)).thenReturn(chatList);
 
-        // When
         ChatListCreateResponse response = botChatService.clear(chatId, uid, botId, botBase);
 
-        // Then
         assertNotNull(response);
         assertNull(response.getId());
         verify(chatListService, never()).logicDeleteChatList(anyLong(), anyString());
     }
 
-    // Helper methods to create test objects
+    private AgentChatTask captureTask() {
+        ArgumentCaptor<AgentChatTask> captor = ArgumentCaptor.forClass(AgentChatTask.class);
+        verify(springAiAgentChatService).chat(captor.capture(), any(SseEmitter.class), anyString());
+        return captor.getValue();
+    }
+
+    /**
+     * History always includes the current ask (and a prior Q&A) — mirrors ChatHistoryService output.
+     */
+    private List<SparkChatRequest.MessageDto> historyMessages() {
+        List<SparkChatRequest.MessageDto> list = new ArrayList<>();
+        String[][] roleContents = {{"user", "previous question"}, {"assistant", "previous answer"}, {"user", "test question"}};
+        for (String[] rc : roleContents) {
+            SparkChatRequest.MessageDto message = new SparkChatRequest.MessageDto();
+            message.setRole(rc[0]);
+            message.setContent(rc[1]);
+            list.add(message);
+        }
+        return list;
+    }
+
     private ChatBotReqDto createChatBotReqDto() {
         ChatBotReqDto dto = new ChatBotReqDto();
         dto.setUid("test-uid");
@@ -610,7 +415,7 @@ class BotChatServiceImplUnitTest {
         market.setBotStatus(ShelfStatusEnum.ON_SHELF.getCode());
         market.setPrompt("test prompt");
         market.setSupportContext(1);
-        market.setModel("x1"); // Use Spark model to trigger sparkChatService
+        market.setModel("x1");
         market.setOpenedTool("ifly_search");
         market.setVersion(1);
         market.setModelId(null);
@@ -625,7 +430,7 @@ class BotChatServiceImplUnitTest {
                 .botName("Test Bot")
                 .prompt("test prompt")
                 .supportContext(1)
-                .model("x1") // Use Spark model to trigger sparkChatService
+                .model("x1")
                 .openedTool("ifly_search")
                 .version(1)
                 .modelId(null)

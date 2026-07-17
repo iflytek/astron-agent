@@ -1,5 +1,6 @@
 import json
 from typing import Any, Dict
+
 from pydantic import Field
 
 from workflow.engine.entities.variable_pool import VariablePool
@@ -36,19 +37,19 @@ class VariableAggregationNode(BaseNode):
         if "default" in schema:
             return schema["default"]
 
-        schema_type = schema.get("type")
+        schema_type = schema.get("type") or ""
         type_defaults = {
             "string": "",
             "boolean": False,
             "integer": 0,
             "number": 0.0,
             "array": [],
-            "object": {}
+            "object": {},
         }
         return type_defaults.get(schema_type, None)
 
     @staticmethod
-    def _convert_to_type(value: Any, target_type: str) -> Any:
+    def _convert_to_type(value: Any, target_type: str) -> Any:  # noqa: C901
         """Convert value to target type with basic validation."""
         if target_type == "string":
             return str(value) if value is not None else ""
@@ -110,7 +111,7 @@ class VariableAggregationNode(BaseNode):
             "integer": lambda x: isinstance(x, int) and not isinstance(x, bool),
             "number": lambda x: isinstance(x, (int, float)) and not isinstance(x, bool),
             "array": lambda x: isinstance(x, list),
-            "object": lambda x: isinstance(x, dict)
+            "object": lambda x: isinstance(x, dict),
         }
 
         validator = type_validators.get(schema_type)
@@ -151,14 +152,15 @@ class VariableAggregationNode(BaseNode):
 
             # Find first non-empty value in input order (the core functionality)
             selected_value = next(
-                (value for value in inputs.values() if not self._is_empty(value)),
-                None
+                (value for value in inputs.values() if not self._is_empty(value)), None
             )
 
             # Handle fallback if all inputs are empty
             if self._is_empty(selected_value):
                 if self.fallbackEnabled:
-                    selected_value = self._parse_fallback_value(self.fallbackValue, output_schema)
+                    selected_value = self._parse_fallback_value(
+                        self.fallbackValue, output_schema
+                    )
                 else:
                     selected_value = self._default_value_from_schema(output_schema)
 

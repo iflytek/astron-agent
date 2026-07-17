@@ -69,6 +69,14 @@ const PluginStoreDetail: React.FC = (): ReactElement => {
   );
   const [debuggerJsonData, setDebuggerJsonData] = useState<string>('');
   const [debugLoading, setDebugLoading] = useState<boolean>(false);
+  const mcpToolInfo = useMemo(
+    () => ({
+      ...toolInfo,
+      id: id || '',
+      childName: searchParams?.get('childName') || '',
+    }),
+    [toolInfo, id, searchParams]
+  );
 
   const inputParamsData = useMemo(() => {
     return (
@@ -232,7 +240,7 @@ const PluginStoreDetail: React.FC = (): ReactElement => {
       </div>
       <div className="p-6 pr-0 w-full rounded-2xl bg-[#fff] flex-1 overflow-hidden">
         <div className="w-full h-full pr-6 overflow-scroll">
-          <MCPDetail currentTool={toolInfo} />
+          <MCPDetail currentTool={mcpToolInfo} />
         </div>
       </div>
     </div>

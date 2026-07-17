@@ -51,6 +51,7 @@ class RepositoryInfo(BaseModel):
     description: str = Field(default="")
     repoId: str = Field(..., min_length=1)
     docIds: list[str] = Field(default_factory=list)
+    datasetId: str = Field(default="")
 
 
 class RepoAndDocIds(BaseModel):
@@ -63,6 +64,7 @@ class RepoAndDocIds(BaseModel):
 
     repo_ids: list[str] = Field(default_factory=list)
     doc_ids: list[str] = Field(default_factory=list)
+    dataset_ids: list[str] = Field(default_factory=list)
 
 
 class KnowledgeNode(BaseLLMNode):
@@ -81,6 +83,7 @@ class KnowledgeNode(BaseLLMNode):
     docIds: list[str] = Field(
         default_factory=list
     )  # Optional list of specific document IDs to search
+    datasetIds: list[str] = Field(default_factory=list)
     score: float = Field(default=0.1)  # Minimum similarity threshold for results
     enableChatHistoryV2: EnableChatHistoryV2 = Field(
         default_factory=EnableChatHistoryV2
@@ -235,14 +238,22 @@ class KnowledgeNode(BaseLLMNode):
         :return: RepoAndDocIds object containing repo_ids and doc_ids
         """
         if self.repos:
-            repo_ids, doc_ids = [], []
+            repo_ids, doc_ids, dataset_ids = [], [], []
             for repo in self.repos:
                 if repo.repoId:
                     repo_ids.append(repo.repoId)
                 if repo.docIds:
                     doc_ids.extend(repo.docIds)
-            return RepoAndDocIds(repo_ids=repo_ids, doc_ids=doc_ids)
-        return RepoAndDocIds(repo_ids=self.repoId, doc_ids=self.docIds)
+                if repo.datasetId:
+                    dataset_ids.append(repo.datasetId)
+            return RepoAndDocIds(
+                repo_ids=repo_ids, doc_ids=doc_ids, dataset_ids=dataset_ids
+            )
+        return RepoAndDocIds(
+            repo_ids=self.repoId,
+            doc_ids=self.docIds,
+            dataset_ids=self.datasetIds,
+        )
 
     async def execute(
         self, variable_pool: VariablePool, span: Span, **kwargs: Any
@@ -314,6 +325,7 @@ class KnowledgeNode(BaseLLMNode):
                 query=str(query),
                 flow_id=flow_id,
                 doc_ids=repo_and_doc_ids.doc_ids,
+                dataset_ids=repo_and_doc_ids.dataset_ids,
                 threshold=self.score,
                 history=history,
             )

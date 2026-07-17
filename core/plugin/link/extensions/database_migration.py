@@ -8,10 +8,12 @@ import logging
 import os
 from pathlib import Path
 
+from plugin.link.alembic.default_tools import DEFAULT_TOOL_INSERT_STATEMENTS
 from plugin.link.consts import const
-from plugin.link.domain.models.manager import get_redis_engine
+from plugin.link.domain.models.manager import get_db_engine, get_redis_engine
 from plugin.link.domain.models.utils import RedisService
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import inspect
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from alembic import command  # type: ignore[attr-defined]
 from alembic.config import Config
@@ -127,6 +129,45 @@ def _execute_migration(config: Config) -> None:
         logging.error(f"Database migration failed: {e}")
 
 
+def _build_seed_statements() -> list[str]:
+    """Build idempotent seed statements from in-code defaults."""
+    return [
+        statement.replace(
+            "INSERT INTO tools_schema", "INSERT IGNORE INTO tools_schema", 1
+        )
+        for statement in DEFAULT_TOOL_INSERT_STATEMENTS
+    ]
+
+
+def seed_default_tools() -> None:
+    """Seed built-in link tools after schema migration."""
+    db_service = get_db_engine()
+    if db_service is None:
+        logging.warning(
+            "Skip link default tool seed because database is not initialized"
+        )
+        return
+
+    inspector = inspect(db_service.engine)
+    if "tools_schema" not in inspector.get_table_names():
+        logging.warning(
+            "Skip link default tool seed because tools_schema does not exist yet"
+        )
+        return
+
+    statements = _build_seed_statements()
+    if not statements:
+        logging.warning("Skip link default tool seed because no statements were found")
+        return
+
+    try:
+        with db_service.engine.begin() as connection:
+            for statement in statements:
+                connection.exec_driver_sql(statement)
+    except ProgrammingError as error:
+        logging.error("Failed to seed link default tools: %s", error)
+
+
 def run_database_migration() -> None:
     """Execute database migration with Redis distributed lock."""
     link_dir = Path(__file__).parent.parent
@@ -143,3 +184,4 @@ def run_database_migration() -> None:
         return
 
     _execute_migration(config)
+    seed_default_tools()

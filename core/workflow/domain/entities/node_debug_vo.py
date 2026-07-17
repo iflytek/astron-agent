@@ -43,6 +43,8 @@ class CodeRunVo(BaseModel):
     app_id: str = Field(min_length=1)
     uid: str = Field(min_length=1)
     flow_id: str = ""
+    node_id: str = ""
+    sandbox: dict[str, Any] | None = None
 
 
 class NodeDebugVo(BaseModel):

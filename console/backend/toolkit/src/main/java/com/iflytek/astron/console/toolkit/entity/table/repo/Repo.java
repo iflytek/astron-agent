@@ -121,6 +121,9 @@ public class Repo implements Serializable {
     // Knowledge base type, CBG-RAG / AIUI-RAG2
     private String tag;
 
+    /** RAGFlow dataset.id for Ragflow-RAG repos; null uses the default dataset. */
+    private String ragflowDatasetId;
+
     private Long spaceId;
 
 }

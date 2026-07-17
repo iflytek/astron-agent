@@ -6,6 +6,7 @@ import styles from './index.module.scss';
 // NOTE: 发布管理布局页及 指令型、工作流列表页
 const ReleasedPage = React.lazy(() => import('./released-page'));
 const AgentList = React.lazy(() => import('./agent-list'));
+const ApprovalList = React.lazy(() => import('./approval-list'));
 
 // NOTE: 工作流详情布局页及 详情页、日志页
 const DetailListPage = React.lazy(() => import('./detail-list-page'));
@@ -35,6 +36,7 @@ export default function Index(): ReactElement {
               element={<AgentList AgentType="workflow" />}
             />
             <Route path="virtual" element={<AgentList AgentType="virtual" />} />
+            <Route path="approval" element={<ApprovalList />} />
           </Route>
           <Route path="/detail/:botId" element={<DetailListPage />}>
             <Route index element={<DetailOverview />} />

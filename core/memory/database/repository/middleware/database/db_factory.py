@@ -5,6 +5,7 @@ Database service factory module for creating and configuring DatabaseService ins
 import os
 from typing import Optional
 
+from memory.database.repository.middleware.adapters import get_adapter
 from memory.database.repository.middleware.database.db_manager import DatabaseService
 from memory.database.repository.middleware.factory import ServiceFactory
 
@@ -28,25 +29,19 @@ class DatabaseServiceFactory(ServiceFactory):  # pylint: disable=too-few-public-
         Args:
             database_url: Optional direct database URL.
             If not provided, will be constructed
-            from environment variables.
-
-        Environment Variables:
-            PGSQL_USER: PostgreSQL username
-            PGSQL_PASSWORD: PostgreSQL password
-            PGSQL_DATABASE: PostgreSQL database name
-            PGSQL_HOST: PostgreSQL host address
-            PGSQL_PORT: PostgreSQL port number
+            from environment variables using the configured adapter.
 
         Returns:
             DatabaseService: Configured database service instance
         """
+        adapter = get_adapter()
+
         if database_url is None:
-            user = os.getenv("PGSQL_USER")
-            password = os.getenv("PGSQL_PASSWORD")
-            database = os.getenv("PGSQL_DATABASE")
-            host = os.getenv("PGSQL_HOST")
-            port = int(os.getenv("PGSQL_PORT", "5432"))
-            database_url = (
-                f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
-            )
-        return await DatabaseService.create(database_url=database_url)
+            prefix = adapter.get_env_prefix()
+            user = os.getenv(f"{prefix}_USER")
+            password = os.getenv(f"{prefix}_PASSWORD")
+            database = os.getenv(f"{prefix}_DATABASE")
+            host = os.getenv(f"{prefix}_HOST")
+            port = int(os.getenv(f"{prefix}_PORT", str(adapter.get_default_port())))
+            database_url = adapter.build_async_url(user, password, host, port, database)
+        return await DatabaseService.create(database_url=database_url, adapter=adapter)

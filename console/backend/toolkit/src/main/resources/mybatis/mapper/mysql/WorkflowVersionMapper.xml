@@ -39,7 +39,7 @@
                  FROM workflow_version wv
                  WHERE wv.bot_id = #{botId}
                    AND wv.deleted = 1
-                   AND wv.publish_result = 'Success'
+                   AND wv.publish_result IN ('成功', 'Success', 'SUCCESS')
              ) t
         WHERE t.rn = 1
         ORDER BY t.created_time DESC
@@ -51,7 +51,7 @@
                                  FROM workflow_version wv
                                  WHERE wv.bot_id = #{botId}
                                    AND wv.deleted = 1
-                                   AND wv.publish_result = 'Success'
+                                   AND wv.publish_result IN ('成功', 'Success', 'SUCCESS')
                                  GROUP BY wv.name
                              ) x
     </select>

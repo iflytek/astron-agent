@@ -139,7 +139,7 @@ public class BotQueryCondition {
         if (uid == null) {
             throw new IllegalArgumentException("User ID cannot be null");
         }
-        // Other validation logic...
+        this.sortDirection = getSafeSortDirection();
     }
 
     /**
@@ -172,7 +172,7 @@ public class BotQueryCondition {
         // Sort handling
         if (this.sortField != null) {
             String dbField = getSafeSortField();
-            String direction = this.sortDirection != null ? this.sortDirection.toUpperCase() : "DESC";
+            String direction = getSafeSortDirection();
 
             if ("createTime".equals(dbField)) {
                 params.put("sort", "a.create_time " + direction);

@@ -19,6 +19,7 @@ import com.iflytek.astron.console.toolkit.entity.common.PageData;
 import com.iflytek.astron.console.toolkit.entity.dto.*;
 import com.iflytek.astron.console.toolkit.entity.knowledge.ChunkInfo;
 import com.iflytek.astron.console.toolkit.entity.mongo.PreviewKnowledge;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
 import com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge;
 import com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlPreviewKnowledge;
 import com.iflytek.astron.console.toolkit.mapper.knowledge.KnowledgeMapper;
@@ -33,6 +34,7 @@ import com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler;
 import com.iflytek.astron.console.toolkit.mapper.repo.FileDirectoryTreeMapper;
 import com.iflytek.astron.console.toolkit.mapper.repo.FileInfoV2Mapper;
 import com.iflytek.astron.console.toolkit.service.common.ConfigInfoService;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import com.iflytek.astron.console.toolkit.service.task.ExtractKnowledgeTaskService;
 import com.iflytek.astron.console.toolkit.task.EmbeddingFileTask;
 import com.iflytek.astron.console.toolkit.task.SliceFileTask;
@@ -123,6 +125,8 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
     @Autowired
     ChatFileHttpClient chatFileHttpClient;
     @Autowired
+    private PlatformAccountService platformAccountService;
+    @Autowired
     private S3ClientUtil s3ClientUtil;
     // @Autowired
     // private ResourceQuotaFacade facade;
@@ -144,6 +148,13 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                 log.error("ApiUrl bean not found in Spring context.", e);
             }
         }
+    }
+
+    private HashMap<String, String> getXinghuoDsSign() {
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
+        return chatFileHttpClient.getSignForXinghuoDs(
+                config.getPlatformAppId(), config.getPlatformApiSecret());
     }
 
     /**
@@ -343,7 +354,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                 link = s3ClientUtil.uploadObject(fileName, contentType, in);
             }
             // Get doc signature
-            HashMap<String, String> docHeader = chatFileHttpClient.getSignForXinghuoDs();
+            HashMap<String, String> docHeader = getXinghuoDsSign();
             // Call upload interface
             String uploadUrl = sparkDocUrl + "/openapi/v1/file/upload";
             Map<String, Object> uploadParams = new HashMap<>();
@@ -1017,7 +1028,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
         if (ProjectContent.isSparkRagCompatible(sliceFileVO.getTag())) {
             try {
                 String embeddingUrl = sparkDocUrl + "/openapi/v1/file/embedding";
-                HashMap<String, String> header = chatFileHttpClient.getSignForXinghuoDs();
+                HashMap<String, String> header = getXinghuoDsSign();
                 Map<String, Object> params = new HashMap<>();
                 List<String> fileIds = sliceFileVO.getSparkFiles().stream().map(SparkFileVo::getFileId).collect(Collectors.toList());
                 params.put("fileIds", String.join(",", fileIds));
@@ -1177,7 +1188,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
         if (ProjectContent.isSparkRagCompatible(sliceFileVO.getTag())) {
             try {
                 String embeddingUrl = sparkDocUrl + "/openapi/v1/file/embedding";
-                HashMap<String, String> header = chatFileHttpClient.getSignForXinghuoDs();
+                HashMap<String, String> header = getXinghuoDsSign();
                 Map<String, Object> params = new HashMap<>();
                 List<String> fileIds = sliceFileVO.getSparkFiles().stream().map(SparkFileVo::getFileId).collect(Collectors.toList());
                 params.put("fileIds", String.join(",", fileIds));

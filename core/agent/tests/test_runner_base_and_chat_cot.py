@@ -1,5 +1,6 @@
 """Test engine.nodes.base / chat_runner / cot_runner / cot_process_runner"""
 
+import json
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Optional
 from unittest.mock import AsyncMock, MagicMock
@@ -183,6 +184,29 @@ class TestChatRunner:
             results.append(resp)
 
         assert results
+
+    @pytest.mark.asyncio
+    async def test_chat_runner_preserves_placeholder_text_in_history(
+        self, span: Span, node_trace: NodeTraceLog
+    ) -> None:
+        model = DummyLLM.model_construct(name="m", llm=MagicMock())
+        runner = ChatRunner(
+            model=model,
+            chat_history=[LLMMessage(role="user", content="keep {question} literal")],
+            instruct="inst",
+            knowledge="kb",
+            question="actual question",
+        )
+
+        async for _ in runner.run(span, node_trace):
+            pass
+
+        model_input = node_trace.trace[0].data.input["model_general_stream_input"]
+        messages = json.loads(model_input)
+        user_prompt = messages[1]["content"]
+
+        assert "keep {question} literal" in user_prompt
+        assert "Follow up question: actual question" in user_prompt
 
 
 class DummyPlugin(BasePlugin):

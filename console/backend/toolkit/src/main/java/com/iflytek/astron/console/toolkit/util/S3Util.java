@@ -36,7 +36,6 @@ import org.springframework.stereotype.Component;
  *
  * <p>
  * Features:
- * </p>
  * <ul>
  * <li>Upload with explicit size or unknown size (multipart).</li>
  * <li>Object download and deletion (single/batch).</li>
@@ -46,7 +45,6 @@ import org.springframework.stereotype.Component;
  * <p>
  * Thread-safety: this component holds a single {@link MinioClient} instance, initialized once in
  * {@link #init()}.
- * </p>
  */
 @Slf4j
 @Component
@@ -67,6 +65,14 @@ public class S3Util {
     @Getter
     @Value("${s3.presignExpirySeconds:600}")
     private int presignExpirySeconds;
+
+    /**
+     * Publicly accessible endpoint used when composing URLs returned to browsers or external clients.
+     * This should point to the reverse-proxied/domain endpoint rather than the internal container
+     * address.
+     */
+    @Value("${s3.remoteEndpoint:}")
+    private String remoteEndpoint;
 
     /**
      * Hostname used only when composing direct links (if different from {@code endpoint}). It can be
@@ -280,7 +286,7 @@ public class S3Util {
      * @return direct URL string
      */
     public String getS3Url(String key) {
-        String base = (hostname == null || hostname.isEmpty()) ? endpoint : ("https://" + hostname);
+        String base = resolvePublicBaseUrl("https://");
         String url = base + "/" + bucketName;
         try {
             for (String p : key.split("/")) {
@@ -299,7 +305,7 @@ public class S3Util {
      * @return URL prefix ending with "/"
      */
     public String getS3Prefix() {
-        String base = (hostname == null || hostname.isEmpty()) ? endpoint : ("https://" + hostname);
+        String base = resolvePublicBaseUrl("https://");
         return base + "/" + bucketName + "/";
     }
 
@@ -310,8 +316,25 @@ public class S3Util {
      * @return direct URL string
      */
     public String getS3UrlForKnowledge(String key) {
-        String base = (hostname == null || hostname.isEmpty()) ? endpoint : ("http://" + hostname);
+        String base = resolvePublicBaseUrl("http://");
         return base + "/" + bucketName + "/" + key;
+    }
+
+    private String resolvePublicBaseUrl(String hostnameScheme) {
+        if (remoteEndpoint != null && !remoteEndpoint.isBlank()) {
+            return trimTrailingSlash(remoteEndpoint);
+        }
+        if (hostname != null && !hostname.isBlank()) {
+            return trimTrailingSlash(hostnameScheme + hostname);
+        }
+        return trimTrailingSlash(endpoint);
+    }
+
+    private String trimTrailingSlash(String url) {
+        if (url == null) {
+            return null;
+        }
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     /* -------------------- Presigned -------------------- */

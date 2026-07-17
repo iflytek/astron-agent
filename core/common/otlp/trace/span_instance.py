@@ -9,13 +9,14 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from common.otlp import sid as sid_module
-from common.otlp.log_trace.node_log import NodeLog
-from common.otlp.trace.trace import SpanLevel
 from opentelemetry import trace
 from opentelemetry.context import attach, detach, get_current
 from opentelemetry.trace import Status, StatusCode, set_span_in_context
 from opentelemetry.util import types
+
+from common.otlp import sid as sid_module
+from common.otlp.log_trace.node_log import NodeLog
+from common.otlp.trace.trace import SpanLevel
 
 if TYPE_CHECKING:
     from common.service.oss.base_oss import BaseOSSService

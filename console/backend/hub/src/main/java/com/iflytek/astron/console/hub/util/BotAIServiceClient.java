@@ -9,11 +9,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
+import jakarta.annotation.Resource;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -98,23 +100,8 @@ public class BotAIServiceClient {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${spark.app-id}")
-    private String appId;
-
-    @Value("${spark.api-key}")
-    private String apiKey;
-
-    @Value("${spark.api-secret}")
-    private String apiSecret;
-
-    @Value("${spark.image-appId}")
-    private String imageAppId;
-
-    @Value("${spark.image-apiKey}")
-    private String imageApiKey;
-
-    @Value("${spark.image-apiSecret}")
-    private String imageApiSecret;
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     /**
      * Image generation request
@@ -130,10 +117,13 @@ public class BotAIServiceClient {
         }
 
         int imageSize = validateImageSize(size);
-        JSONObject requestData = buildImageGenerationRequest(imageAppId, uid, prompt, imageSize);
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
+        JSONObject requestData = buildImageGenerationRequest(config.getPlatformAppId(), uid, prompt, imageSize);
 
         try {
-            String requestUrl = buildAuthenticatedUrl(imageHost, imageApiKey, imageApiSecret, "POST");
+            String requestUrl = buildAuthenticatedUrl(
+                    imageHost, config.getPlatformApiKey(), config.getPlatformApiSecret(), "POST");
 
             MediaType jsonMediaType = MediaType.get("application/json; charset=utf-8");
             RequestBody requestBody = RequestBody.create(requestData.toString(), jsonMediaType);
@@ -197,17 +187,19 @@ public class BotAIServiceClient {
      */
     public String generateText(String question, String domain, int seconds) throws BusinessException, InterruptedException {
         validateTextGenerationParams(question, domain, seconds);
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
 
         TextGenerationWebSocketListener listener = null;
         try {
-            String authUrl = buildWebSocketAuthUrl(TEXT_HOST_URL, apiKey, apiSecret);
+            String authUrl = buildWebSocketAuthUrl(TEXT_HOST_URL, config.getPlatformApiKey(), config.getPlatformApiSecret());
             String wsUrl = authUrl.replace("http://", "ws://").replace("https://", "wss://");
             Request request = new Request.Builder().url(wsUrl).build();
             CountDownLatch latch = new CountDownLatch(1);
             StringBuilder totalAnswer = new StringBuilder();
 
             listener = new TextGenerationWebSocketListener(
-                    appId, question, domain, latch, totalAnswer);
+                    config.getPlatformAppId(), question, domain, latch, totalAnswer);
             httpClient.newWebSocket(request, listener);
 
             if (!latch.await(seconds, TimeUnit.SECONDS)) {

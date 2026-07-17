@@ -23,6 +23,7 @@ function PromptModal(): React.ReactElement {
   const setUpdateNodeInputData = useFlowsManager(
     state => state.setUpdateNodeInputData
   );
+  const controllerRef = useRef<AbortController | null>(null);
   const textQueue = useRef<string[]>([]);
   const wsMessageStatus = useRef<string>('end');
   const [optimizationPrompt, setOptimizationPrompt] = useState<string>('');
@@ -39,11 +40,16 @@ function PromptModal(): React.ReactElement {
   }, [promptData]);
 
   const handlePromptOptimization = useMemoizedFn(() => {
+    if (controllerRef.current) {
+      controllerRef.current.abort();
+      controllerRef.current = null;
+    }
+    textQueue.current = [];
     setOptimizationPrompt(() => '');
     wsMessageStatus.current = 'start';
     setIsReciving(true);
     const url = getFixedUrl('/prompt/enhance');
-    const controller = new AbortController();
+    controllerRef.current = new AbortController();
     fetchEventSource(url, {
       openWhenHidden: true,
       method: 'POST',
@@ -51,7 +57,7 @@ function PromptModal(): React.ReactElement {
         'Content-Type': 'application/json',
         Authorization: getAuthorization(),
       },
-      signal: controller.signal,
+      signal: controllerRef.current.signal,
       body: JSON.stringify({ prompt: promptData, name: currentFlow?.name }),
       onmessage(e) {
         if (e && e.data) {
@@ -68,15 +74,26 @@ function PromptModal(): React.ReactElement {
         }
       },
       onerror() {
-        controller.abort();
+        controllerRef.current?.abort();
+        controllerRef.current = null;
         wsMessageStatus.current = 'end';
       },
       onclose() {
-        controller.abort();
+        controllerRef.current?.abort();
+        controllerRef.current = null;
         wsMessageStatus.current = 'end';
       },
     });
   });
+
+  useEffect(() => {
+    return (): void => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      wsMessageStatus.current = 'end';
+      textQueue.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -109,6 +126,8 @@ function PromptModal(): React.ReactElement {
   }, [optimizationPrompt, isReciving]);
 
   const handleOk = useMemoizedFn(() => {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
     setPromptOptimizeModalInfo({ open: false, nodeId: '', key: '' });
     handleChangeNodeParam((data, value) => {
       if (data.nodeParam && promptOptimizeModalInfo?.key) {
@@ -186,13 +205,15 @@ function PromptModal(): React.ReactElement {
                   <Button
                     type="text"
                     className="origin-btn px-6"
-                    onClick={() =>
+                    onClick={() => {
+                      controllerRef.current?.abort();
+                      controllerRef.current = null;
                       setPromptOptimizeModalInfo({
                         open: false,
                         nodeId: '',
                         key: '',
-                      })
-                    }
+                      });
+                    }}
                   >
                     取消
                   </Button>

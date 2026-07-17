@@ -1,10 +1,13 @@
 import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input, message, Popover, Select, Tooltip } from 'antd';
+import { Input, message, Modal, Popover, Select, Tooltip } from 'antd';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import { throttle } from 'lodash';
 import { enableBotFavorite } from '@/services/agent'; // NOTE: 需更换接口
 import { useTranslation } from 'react-i18next';
 import {
+  BotData,
   getAgentList,
   copyBot,
   GetAgentListParams,
@@ -36,15 +39,33 @@ import { handleShare } from '@/utils';
 import { PlusOutlined } from '@ant-design/icons';
 
 import VirtualConfig from '@/components/virtual-config-modal';
-import { upgradeWorkflow } from '@/services/spark-common';
+import {
+  exportWorkflowSkill,
+  exportWorkflowTemplate,
+  upgradeWorkflow,
+} from '@/services/spark-common';
+import { RoleType, SpaceType } from '@/types/permission';
+
+dayjs.extend(utc);
+
+type WorkflowSkillAgent = Pick<
+  BotData,
+  'botId' | 'maasId' | 'botName' | 'botDesc'
+>;
 
 function index() {
+  const creatorLabel = '\u521b\u5efa\u4eba\uff1a';
+  const createdAtLabel = '\u521b\u5efa\u65f6\u95f4\uff1a';
   const [showbotNo, setShowbotNo] = useState(false);
   const typePublished = [1, 2, 4]; // 已发布状态
   const typeUnblished = [];
   const typeAudit = [];
   const typeFail = [];
   const user = useUserStore((state: any) => state.user);
+  const canManageMarketRelease =
+    user?.spaceType === SpaceType.PERSONAL ||
+    (user?.spaceType === SpaceType.ENTERPRISE &&
+      (user?.roleType === RoleType.OWNER || user?.roleType === RoleType.ADMIN));
   const navigate = useNavigate();
   const { t } = useTranslation();
   const robotRef = useRef<HTMLDivElement | null>(null);
@@ -65,6 +86,22 @@ function index() {
   const [operationId, setOperationId] = useState<string | null>(null);
   const { spaceId } = useSpaceStore();
   const { handleToChat } = useChat();
+
+  const getCreatorLabel = useCallback(
+    (bot: { uid?: string }) => {
+      if (bot?.uid && bot.uid === user?.uid) {
+        return user?.nickname || user?.username || user?.mobile || bot.uid;
+      }
+      return bot?.uid || '-';
+    },
+    [user]
+  );
+
+  const formatCreateTime = useCallback((value?: string) => {
+    if (!value) return '-';
+    const normalized = value.replace(' ', 'T');
+    return dayjs.utc(normalized).utcOffset(8).format('YYYY-MM-DD HH:mm');
+  }, []);
 
   // 复制成虚拟人需要的参数
   const [copyParams, setCopyParams] = useState<any>({});
@@ -257,6 +294,77 @@ function index() {
     await handleShare(botName, botId, t);
   };
 
+  const downloadSkillFile = (fileName: string, content: string): void => {
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'SKILL.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportSkill = (
+    e: React.MouseEvent<HTMLDivElement>,
+    bot: WorkflowSkillAgent
+  ): void => {
+    e.stopPropagation();
+    setOperationId(null);
+
+    const workflowName = (bot?.botName || '').trim();
+    const workflowDescription = (bot?.botDesc || '').trim();
+    if (!workflowName || !workflowDescription) {
+      message.warning(t('agentPage.agentPage.exportSkillNameDescRequired'));
+      return;
+    }
+
+    Modal.confirm({
+      title: t('agentPage.agentPage.exportSkillConfirmTitle'),
+      content: (
+        <div>
+          <p>{t('agentPage.agentPage.exportSkillConfirmContent')}</p>
+          <p>
+            {t('agentPage.agentPage.workflowName')}：{workflowName}
+          </p>
+          <p>
+            {t('agentPage.agentPage.workflowDescription')}：
+            {workflowDescription}
+          </p>
+        </div>
+      ),
+      okText: t('agentPage.agentPage.confirm'),
+      cancelText: t('agentPage.agentPage.cancel'),
+      onOk: async () => {
+        try {
+          const res = await exportWorkflowSkill({
+            botId: bot?.botId,
+            workflowId: bot?.maasId,
+            workflowName,
+            workflowDescription,
+          });
+          downloadSkillFile(res?.fileName || 'SKILL.md', res?.content || '');
+          message.success(t('agentPage.agentPage.exportSkillSuccess'));
+        } catch (err: unknown) {
+          const error = err as {
+            code?: number;
+            message?: string;
+            msg?: string;
+          };
+          if (typeof error?.code === 'number') {
+            return;
+          }
+          message.error(
+            error?.message ||
+              error?.msg ||
+              t('agentPage.agentPage.exportSkillFailed')
+          );
+        }
+      },
+    });
+  };
+
   return (
     <div className="w-full h-full overflow-hidden pb-6">
       <CreateApplicationModal
@@ -416,18 +524,39 @@ function index() {
                             alt=""
                           />
                         </span>
-                        <div className="flex flex-col gap-2 overflow-hidden">
+                        <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden">
                           <div
                             className="flex-1 text-overflow font-medium text-xl title-color title-size"
                             title={k.botName}
                           >
                             {k.botName}
                           </div>
-                          <div
-                            className="text-[#7F7F7F] text-[14px] overflow-hidden text-ellipsis h-[43px] w-full line-clamp-2"
-                            title={k.botDesc}
-                          >
-                            {k.botDesc}
+                          <div className="flex items-start justify-between gap-4">
+                            <div
+                              className="text-[#7F7F7F] text-[14px] overflow-hidden text-ellipsis h-[43px] flex-1 line-clamp-2"
+                              title={k.botDesc}
+                            >
+                              {k.botDesc}
+                            </div>
+                            <div
+                              className="shrink-0 min-w-[132px] text-[12px] leading-[18px] text-[#8C90A0]"
+                              style={{ marginTop: '2px' }}
+                            >
+                              <div
+                                className="truncate"
+                                title={`${creatorLabel}${getCreatorLabel(k)}`}
+                              >
+                                {creatorLabel}
+                                {getCreatorLabel(k)}
+                              </div>
+                              <div
+                                className="truncate"
+                                title={`${createdAtLabel}${formatCreateTime(k?.createTime)}`}
+                              >
+                                {createdAtLabel}
+                                {formatCreateTime(k?.createTime)}
+                              </div>
+                            </div>
                           </div>
                         </div>
                         <Tooltip
@@ -475,7 +604,7 @@ function index() {
                     </div>
 
                     <div
-                      className="flex justify-between items-center "
+                      className="flex justify-between items-center gap-3"
                       style={{
                         padding: '0px 24px 0 24px',
                         scrollbarWidth: 'none',
@@ -494,7 +623,7 @@ function index() {
                           </div>
                         </div>
                       </span>
-                      <div className="flex items-center text-desc flex-1 max-w-[200px] justify-between">
+                      <div className="flex items-center text-desc flex-1 justify-end gap-2">
                         <div
                           className="card-chat cursor-pointer flex justify-center items-center"
                           style={{
@@ -610,7 +739,7 @@ function index() {
                                 }}
                               >
                                 <div
-                                  className="p-1 rounded hover:bg-[#F2F5FE] block"
+                                  className="p-1 rounded hover:bg-[#F2F5FE] block text-[#666666]"
                                   onClick={e => {
                                     e.stopPropagation();
                                     copyBotNow(k.botId);
@@ -619,8 +748,45 @@ function index() {
                                   {t('agentPage.agentPage.copy')}
                                 </div>
                                 {k?.version === 3 && (
+                                  <div
+                                    className="p-1 rounded hover:bg-[#F2F5FE] block text-[#666666]"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      setOperationId(null);
+                                      exportWorkflowTemplate({
+                                        workflowId: k?.maasId,
+                                      })
+                                        .then(() => {
+                                          message.success(
+                                            t(
+                                              'agentPage.agentPage.exportTemplateSuccess'
+                                            )
+                                          );
+                                        })
+                                        .catch((err: any) => {
+                                          message.error(
+                                            err?.message ||
+                                              t(
+                                                'agentPage.agentPage.exportTemplateFailed'
+                                              )
+                                          );
+                                        });
+                                    }}
+                                  >
+                                    {t('agentPage.agentPage.exportTemplate')}
+                                  </div>
+                                )}
+                                {k?.version === 3 && (
+                                  <div
+                                    className="p-1 rounded hover:bg-[#F2F5FE] block text-[#666666]"
+                                    onClick={e => handleExportSkill(e, k)}
+                                  >
+                                    {t('agentPage.agentPage.exportSkill')}
+                                  </div>
+                                )}
+                                {k?.version === 3 && (
                                   <a
-                                    className="p-1 rounded hover:bg-[#F2F5FE] block"
+                                    className="p-1 rounded hover:bg-[#F2F5FE] block text-[#666666]"
                                     href={`${window.location.origin}/xingchen-api/workflow/export/${k?.maasId}`}
                                     download={`${k?.botName}.yml`}
                                     onClick={e => {
@@ -653,17 +819,31 @@ function index() {
                                     )}
                                   </div>
                                 )}
-                                <div
-                                  className="p-1 rounded hover:bg-[#F2F5FE] text-[#F74E43]"
-                                  onClick={e => {
-                                    e.stopPropagation();
-                                    setBotDetail(k);
-                                    setDeleteModal(true);
-                                    setOperationId(null);
-                                  }}
-                                >
-                                  {t('agentPage.agentPage.delete')}
-                                </div>
+                                {(!typePublished.includes(k?.botStatus) ||
+                                  canManageMarketRelease) && (
+                                  <div
+                                    className="p-1 rounded hover:bg-[#F2F5FE] text-[#F74E43]"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (
+                                        k?.uid &&
+                                        user?.uid &&
+                                        k.uid !== user.uid
+                                      ) {
+                                        message.warning(
+                                          '\u65e0\u6cd5\u5220\u9664\u4ed6\u4eba\u521b\u5efa\u7684\u667a\u80fd\u4f53'
+                                        );
+                                        setOperationId(null);
+                                        return;
+                                      }
+                                      setBotDetail(k);
+                                      setDeleteModal(true);
+                                      setOperationId(null);
+                                    }}
+                                  >
+                                    {t('agentPage.agentPage.delete')}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

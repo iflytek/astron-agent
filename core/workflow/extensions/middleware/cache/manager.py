@@ -72,7 +72,7 @@ class RedisCache(BaseCacheService, Service):
         from redis import Redis  # type: ignore
 
         host, port = addr.split(":")
-        return Redis(host=host, port=port, password=password)
+        return Redis(host=host, port=int(port), password=password)
 
     def is_connected(self) -> bool:
         """

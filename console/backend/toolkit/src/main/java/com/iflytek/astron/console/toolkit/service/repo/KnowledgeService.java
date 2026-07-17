@@ -91,11 +91,11 @@ public class KnowledgeService {
      */
     @Transactional
     public Knowledge createKnowledge(KnowledgeVO knowledgeVO) {
-        List<String> uuids = preCheck(knowledgeVO.getFileId());
-        Repo repo = repoService.getOnly(Wrappers.lambdaQuery(Repo.class).eq(Repo::getCoreRepoId, uuids.get(1)));
+        RepoContext repoContext = getRepoContext(knowledgeVO.getFileId());
+        Repo repo = repoService.getOnly(Wrappers.lambdaQuery(Repo.class).eq(Repo::getCoreRepoId, repoContext.coreRepoId));
         dataPermissionCheckTool.checkRepoBelong(repo);
         // Create knowledge
-        Knowledge knowledge = this.getKnowledgePojo(knowledgeVO, uuids.getFirst());
+        Knowledge knowledge = this.getKnowledgePojo(knowledgeVO, repoContext.fileUuid);
 
         String auditSuggest = null;
         // Query current document enabled status
@@ -127,9 +127,11 @@ public class KnowledgeService {
             // 3. Determine type, override chunk_id
             String source = fileInfoV2.getSource();
             if (ProjectContent.isAiuiRagCompatible(source)) {
-                this.addKnowledge4AIUI(uuids.get(0), uuids.get(1), jsonArray, source);
+                this.addKnowledge4AIUI(repoContext.fileUuid, repoContext.coreRepoId,
+                        repoContext.ragflowDatasetId, jsonArray, source);
             } else if (ProjectContent.isCbgRagCompatible(source)) {
-                Map<String, String> cbgKnowledgeMap = this.addKnowledge4CBG(uuids.get(0), uuids.get(1), jsonArray, source);
+                Map<String, String> cbgKnowledgeMap = this.addKnowledge4CBG(repoContext.fileUuid,
+                        repoContext.coreRepoId, repoContext.ragflowDatasetId, jsonArray, source);
                 if (!cbgKnowledgeMap.isEmpty()) {
                     for (String key : cbgKnowledgeMap.keySet()) {
                         knowledge.setId(cbgKnowledgeMap.get(key));
@@ -167,7 +169,7 @@ public class KnowledgeService {
         }
         Knowledge knowledge = new Knowledge();
         BeanUtils.copyProperties(mysqlKnowledge, knowledge);
-        List<String> uuids = preCheck(knowledgeVO.getFileId());
+        RepoContext repoContext = getRepoContext(knowledgeVO.getFileId());
 
         String originKnowledge = knowledge.getContent().getString("content");
         boolean notNeedUpdate = originKnowledge.equals(knowledgeVO.getContent());
@@ -177,7 +179,7 @@ public class KnowledgeService {
 
         knowledge.getContent().put("content", knowledgeVO.getContent());
         knowledge.setUpdatedAt(LocalDateTime.now());
-        Repo repo = repoService.getOnly(Wrappers.lambdaQuery(Repo.class).eq(Repo::getCoreRepoId, uuids.get(1)));
+        Repo repo = repoService.getOnly(Wrappers.lambdaQuery(Repo.class).eq(Repo::getCoreRepoId, repoContext.coreRepoId));
         dataPermissionCheckTool.checkRepoBelong(repo);
 
         String auditSuggest = null;
@@ -205,7 +207,8 @@ public class KnowledgeService {
             // 1. Modify knowledge point - using MySQL
             BeanUtils.copyProperties(knowledge, mysqlKnowledge);
             knowledgeMapper.updateById(mysqlKnowledge);
-            this.updateKnowledge(uuids.get(0), uuids.get(1), updateKnowledgeArray);
+            this.updateKnowledge(repoContext.fileUuid, repoContext.coreRepoId,
+                    repoContext.ragflowDatasetId, updateKnowledgeArray);
         } catch (Exception e) {
             log.error("Failed to modify knowledge point", e);
             throw e;
@@ -240,7 +243,7 @@ public class KnowledgeService {
             throw new BusinessException(ResponseEnum.REPO_FILE_NOT_EXIST);
         }
 
-        List<String> uuids = this.preCheck(fileInfoV2.getId());
+        RepoContext repoContext = this.getRepoContext(fileInfoV2.getId());
 
         JSONObject content = knowledge.getContent();
         String auditSuggest = content.getString("auditSuggest");
@@ -258,11 +261,13 @@ public class KnowledgeService {
 
                 jsonArray.add(this.convertKnowledge2Object(knowledge, knowledge.getFileId()));
                 if (ProjectContent.isAiuiRagCompatible(source)) {
-                    this.addKnowledge4AIUI(uuids.get(0), uuids.get(1), jsonArray, source);
+                    this.addKnowledge4AIUI(repoContext.fileUuid, repoContext.coreRepoId,
+                            repoContext.ragflowDatasetId, jsonArray, source);
                 } else if (ProjectContent.isCbgRagCompatible(source)) {
                     // Delete first then add
                     knowledgeMapper.deleteById(id);
-                    Map<String, String> cbgKnowledgeMap = this.addKnowledge4CBG(uuids.get(0), uuids.get(1), jsonArray, source);
+                    Map<String, String> cbgKnowledgeMap = this.addKnowledge4CBG(repoContext.fileUuid,
+                            repoContext.coreRepoId, repoContext.ragflowDatasetId, jsonArray, source);
                     if (!cbgKnowledgeMap.isEmpty()) {
                         for (String key : cbgKnowledgeMap.keySet()) {
                             knowledge.setId(cbgKnowledgeMap.get(key));
@@ -273,7 +278,7 @@ public class KnowledgeService {
             } else {// Disable - corresponding logic is to delete knowledge
                 JSONArray delKbList = new JSONArray();
                 delKbList.add(knowledge.getId());
-                this.deleteKnowledgeChunks(uuids.getFirst(), delKbList);
+                this.deleteKnowledgeChunks(repoContext.fileUuid, delKbList);
             }
             // Save using MySQL
             BeanUtils.copyProperties(knowledge, mysqlKnowledge);
@@ -295,11 +300,11 @@ public class KnowledgeService {
      * @throws BusinessException if file not found or operation fails
      */
     public void enableDoc(Long id, Integer enabled) {
-        List<String> uuids = this.preCheck(id);
+        RepoContext repoContext = this.getRepoContext(id);
         // ClientSession session = mongoClient.startSession();
         // try {
         // session.startTransaction();
-        FileInfoV2 fileInfoV2 = fileInfoV2Service.getOnly(new QueryWrapper<FileInfoV2>().eq("uuid", uuids.get(0)));
+        FileInfoV2 fileInfoV2 = fileInfoV2Service.getOnly(new QueryWrapper<FileInfoV2>().eq("uuid", repoContext.fileUuid));
         if (fileInfoV2 == null) {
             throw new BusinessException(ResponseEnum.REPO_FILE_NOT_EXIST);
         }
@@ -309,7 +314,7 @@ public class KnowledgeService {
             // List<Knowledge> knowledges = mongoTemplate.find(new Query(newCriteria), Knowledge.class);
 
             // Use MySQL query to replace MongoDB query
-            List<MysqlKnowledge> mysqlKnowledges = knowledgeMapper.findByFileIdAndEnabled(uuids.getFirst(), 0);
+            List<MysqlKnowledge> mysqlKnowledges = knowledgeMapper.findByFileIdAndEnabled(repoContext.fileUuid, 0);
             List<Knowledge> knowledges = new ArrayList<>();
             for (MysqlKnowledge mysql : mysqlKnowledges) {
                 Knowledge knowledge = new Knowledge();
@@ -317,12 +322,13 @@ public class KnowledgeService {
                 knowledges.add(knowledge);
             }
             // 2. Convert knowledge points to the structure required by the knowledge base
-            JSONArray waitAddKnowledge = this.getWaitAddKnowledge(knowledges, uuids.get(0));
+            JSONArray waitAddKnowledge = this.getWaitAddKnowledge(knowledges, repoContext.fileUuid);
             // 3. Add new (CBG knowledge base does not delete knowledge base slice information when
             // enabling/disabling doc)
             String source = fileInfoV2.getSource();
             if (ProjectContent.isAiuiRagCompatible(source)) {
-                List<String> failedKnowledge = this.addKnowledge4AIUI(uuids.get(0), uuids.get(1), waitAddKnowledge, source);
+                List<String> failedKnowledge = this.addKnowledge4AIUI(repoContext.fileUuid,
+                        repoContext.coreRepoId, repoContext.ragflowDatasetId, waitAddKnowledge, source);
                 // 4. Check if there are failed knowledge points
                 if (!CollectionUtils.isEmpty(failedKnowledge)) {
                     List<Knowledge> updateKnowledgeList = new ArrayList<>();
@@ -353,10 +359,10 @@ public class KnowledgeService {
             // mongoTemplate.updateMulti(query, update, Knowledge.class);
 
             // Use MySQL update
-            knowledgeMapper.updateEnabledByFileIdAndOldEnabled(uuids.getFirst(), 0, 1);
+            knowledgeMapper.updateEnabledByFileIdAndOldEnabled(repoContext.fileUuid, 0, 1);
         } else {// Disable - corresponding logic is to delete document
             JSONArray delDocList = new JSONArray();
-            delDocList.add(uuids.getFirst());
+            delDocList.add(repoContext.fileUuid);
             if (ProjectContent.isAiuiRagCompatible(fileInfoV2.getSource())) {
                 this.deleteKnowledgeDoc(delDocList, null);
             }
@@ -369,7 +375,7 @@ public class KnowledgeService {
             // mongoTemplate.updateMulti(query, update, Knowledge.class);
 
             // Use MySQL update
-            knowledgeMapper.updateEnabledByFileIdAndOldEnabled(uuids.getFirst(), 1, 0);
+            knowledgeMapper.updateEnabledByFileIdAndOldEnabled(repoContext.fileUuid, 1, 0);
         }
         // session.commitTransaction();
         // } catch (Exception e) {
@@ -525,9 +531,19 @@ public class KnowledgeService {
 
             Integer resourceType = ProjectContent.HTML_FILE_TYPE.equals(fileInfoV2.getType()) ? 1 : 0;
 
+            // Only Ragflow-RAG forwards a previous doc id for upsert; CBG-RAG
+            // shares this method but its request body must stay unchanged.
+            String oldDocId =
+                    ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(fileInfoV2.getSource())
+                            ? fileInfoV2.getLastUuid()
+                            : null;
+
+            String datasetId = resolveRagflowDatasetIdOrNull(fileInfoV2);
+
             return knowledgeV2ServiceCallHandler.documentUpload(
                     multipartFile, sliceConfig.getLengthRange(), separator,
-                    fileInfoV2.getSource(), resourceType);
+                    fileInfoV2.getSource(), resourceType,
+                    oldDocId, datasetId);
 
         } catch (Exception e) {
             log.error("Failed to upload file for chunking: {}", e.getMessage(), e);
@@ -547,7 +563,60 @@ public class KnowledgeService {
             request.setResourceType(1);
         }
         request.setRagType(fileInfoV2.getSource());
-        return knowledgeV2ServiceCallHandler.documentSplit(request);
+        String datasetId = resolveRagflowDatasetIdOrNull(fileInfoV2);
+        return knowledgeV2ServiceCallHandler.documentSplit(request, datasetId);
+    }
+
+    /** Return ragflow_dataset_id for Ragflow-RAG; null keeps default dataset routing. */
+    private String resolveRagflowDatasetIdOrNull(FileInfoV2 fileInfoV2) {
+        return resolveRagflowDatasetIdOrNull(fileInfoV2, null);
+    }
+
+    /** Same resolver with an optional repoId -> datasetId cache. */
+    private String resolveRagflowDatasetIdOrNull(FileInfoV2 fileInfoV2,
+            Map<Long, String> repoIdToDatasetId) {
+        if (!ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(fileInfoV2.getSource())) {
+            return null;
+        }
+        Long repoId = fileInfoV2.getRepoId();
+        if (repoId == null) {
+            log.error("Ragflow-RAG file requires repoId on FileInfoV2 id={}",
+                    fileInfoV2.getId());
+            throw new BusinessException(ResponseEnum.REPO_STATUS_ILLEGAL);
+        }
+        if (repoIdToDatasetId != null && repoIdToDatasetId.containsKey(repoId)) {
+            // Preserve cached null values for repos without ragflowDatasetId.
+            return repoIdToDatasetId.get(repoId);
+        }
+        Repo repo = repoService.getById(repoId);
+        if (repo == null) {
+            log.error("Repo not found for repoId={}", repoId);
+            throw new BusinessException(ResponseEnum.REPO_STATUS_ILLEGAL);
+        }
+        String datasetId = repo.getRagflowDatasetId();
+        if (repoIdToDatasetId != null) {
+            repoIdToDatasetId.put(repoId, datasetId);
+        }
+        return datasetId;
+    }
+
+    private boolean applyRagflowDatasetIdForDelete(KnowledgeRequest request, FileInfoV2 fileInfoV2) {
+        return applyRagflowDatasetIdForDelete(request, fileInfoV2, null);
+    }
+
+    private boolean applyRagflowDatasetIdForDelete(KnowledgeRequest request,
+            FileInfoV2 fileInfoV2, Map<Long, String> repoIdToDatasetId) {
+        try {
+            String datasetId = resolveRagflowDatasetIdOrNull(fileInfoV2, repoIdToDatasetId);
+            if (datasetId != null) {
+                request.setDatasetId(datasetId);
+            }
+            return true;
+        } catch (BusinessException e) {
+            log.warn("Skip Ragflow-RAG delete because repo metadata is invalid. fileId={}, uuid={}, reason={}",
+                    fileInfoV2.getId(), fileInfoV2.getUuid(), e.getMessage());
+            return false;
+        }
     }
 
     /** When code==11111 extract inner parentheses text, keep original message otherwise. */
@@ -954,6 +1023,7 @@ public class KnowledgeService {
         PushResult r = new PushResult();
         FileInfoV2 fileInfoV2 = fileInfoV2Service.getById(fileId);
         r.source = fileInfoV2.getSource();
+        String datasetId = resolveRagflowDatasetIdOrNull(fileInfoV2);
 
         final int maxSaveCount = 200;
         final int maxThreadCount = 3;
@@ -970,7 +1040,8 @@ public class KnowledgeService {
                     presetFail.add(obj.getString("chunkId"));
                 }
                 try {
-                    List<String> childFailed = this.addKnowledge4AIUI(uuid.get(0), uuid.get(1), batch, r.source);
+                    List<String> childFailed = this.addKnowledge4AIUI(uuid.get(0), uuid.get(1),
+                            datasetId, batch, r.source);
                     if (!CollectionUtils.isEmpty(childFailed)) {
                         r.failedKnowledge.addAll(childFailed);
                     }
@@ -996,7 +1067,8 @@ public class KnowledgeService {
                     for (Object o : jsonArray.subList(i, end)) {
                         batch.add((JSONObject) o);
                     }
-                    futures.add(pool.submit(() -> this.addKnowledge4CBG(uuid.get(0), uuid.get(1), batch, r.source)));
+                    futures.add(pool.submit(() -> this.addKnowledge4CBG(uuid.get(0), uuid.get(1),
+                            datasetId, batch, r.source)));
                 }
                 for (Future<Map<String, String>> f : futures) {
                     try {
@@ -1245,15 +1317,22 @@ public class KnowledgeService {
         }
     }
 
-    /**
-     * Perform pre-check validation and return file and repository information
-     *
-     * @param fileId the database ID of the file to be checked
-     * @return list containing: uuid[0] = file uuid, uuid[1] = core system side repoId, uuid[2] = last
-     *         uuid
-     * @throws BusinessException if file not found or repository not found
-     */
-    private List<String> preCheck(Long fileId) {
+    private static class RepoContext {
+        private final String fileUuid;
+        private final String coreRepoId;
+        private final String lastUuid;
+        private final String ragflowDatasetId;
+
+        private RepoContext(String fileUuid, String coreRepoId, String lastUuid,
+                String ragflowDatasetId) {
+            this.fileUuid = fileUuid;
+            this.coreRepoId = coreRepoId;
+            this.lastUuid = lastUuid;
+            this.ragflowDatasetId = ragflowDatasetId;
+        }
+    }
+
+    private RepoContext getRepoContext(Long fileId) {
         FileInfoV2 fileInfoV2 = fileInfoV2Service.getById(fileId);
         if (fileInfoV2 == null) {
             throw new BusinessException(ResponseEnum.REPO_FILE_NOT_EXIST);
@@ -1262,12 +1341,27 @@ public class KnowledgeService {
         if (repo == null) {
             throw new BusinessException(ResponseEnum.REPO_NOT_EXIST);
         }
+        String datasetId = ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(fileInfoV2.getSource())
+                ? repo.getRagflowDatasetId()
+                : null;
+        return new RepoContext(fileInfoV2.getUuid(), repo.getCoreRepoId(),
+                fileInfoV2.getLastUuid(), datasetId);
+    }
 
+    private List<String> preCheck(Long fileId) {
+        RepoContext context = getRepoContext(fileId);
         List<String> uuids = new ArrayList<>();
-        uuids.add(fileInfoV2.getUuid());
-        uuids.add(repo.getCoreRepoId());
-        uuids.add(fileInfoV2.getLastUuid());
+        uuids.add(context.fileUuid);
+        uuids.add(context.coreRepoId);
+        uuids.add(context.lastUuid);
         return uuids;
+    }
+
+    private void applyRagflowDatasetId(KnowledgeRequest request, String source, String datasetId) {
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(source)
+                && StringUtils.isNotBlank(datasetId)) {
+            request.setDatasetId(datasetId);
+        }
     }
 
     /**
@@ -1280,12 +1374,14 @@ public class KnowledgeService {
      * @return KnowledgeResponse containing the operation result
      * @throws BusinessException if knowledge addition fails
      */
-    private KnowledgeResponse addKnowledge(String docId, String group, JSONArray addChunkArray, String source) {
+    private KnowledgeResponse addKnowledge(String docId, String group, String datasetId,
+            JSONArray addChunkArray, String source) {
         KnowledgeResponse response = new KnowledgeResponse();
         if (!addChunkArray.isEmpty()) { // Embedding
             KnowledgeRequest request = new KnowledgeRequest();
             request.setDocId(docId);
             request.setGroup(group);
+            applyRagflowDatasetId(request, source, datasetId);
             request.setChunks(addChunkArray.toArray());
             request.setRagType(source);
             response = knowledgeV2ServiceCallHandler.saveChunk(request);
@@ -1308,7 +1404,12 @@ public class KnowledgeService {
      * @throws BusinessException if CBG knowledge base operations fail
      */
     public Map<String, String> addKnowledge4CBG(String docId, String group, JSONArray addChunkArray, String source) {
-        KnowledgeResponse knowledge = this.addKnowledge(docId, group, addChunkArray, source);
+        return addKnowledge4CBG(docId, group, null, addChunkArray, source);
+    }
+
+    public Map<String, String> addKnowledge4CBG(String docId, String group, String datasetId,
+            JSONArray addChunkArray, String source) {
+        KnowledgeResponse knowledge = this.addKnowledge(docId, group, datasetId, addChunkArray, source);
         List<CbgKnowledgeData> cbgKnowledgeDataList;
         Map<String, String> resultMap = new HashMap<>();
         try {
@@ -1337,7 +1438,12 @@ public class KnowledgeService {
      * @throws BusinessException if AIUI knowledge base operations fail
      */
     public List<String> addKnowledge4AIUI(String docId, String group, JSONArray addChunkArray, String source) {
-        KnowledgeResponse knowledge = this.addKnowledge(docId, group, addChunkArray, source);
+        return addKnowledge4AIUI(docId, group, null, addChunkArray, source);
+    }
+
+    public List<String> addKnowledge4AIUI(String docId, String group, String datasetId,
+            JSONArray addChunkArray, String source) {
+        KnowledgeResponse knowledge = this.addKnowledge(docId, group, datasetId, addChunkArray, source);
         List<String> resultList = new ArrayList<>();
         JSONObject data = (JSONObject) knowledge.getData();
         if (data != null) {
@@ -1365,6 +1471,11 @@ public class KnowledgeService {
      * @throws BusinessException if file not found or update operations fail
      */
     public List<String> updateKnowledge(String docId, String group, JSONArray updateChunkArray) {
+        return updateKnowledge(docId, group, null, updateChunkArray);
+    }
+
+    public List<String> updateKnowledge(String docId, String group, String datasetId,
+            JSONArray updateChunkArray) {
         List<String> resultList = new ArrayList<>();
         if (!updateChunkArray.isEmpty()) { // Delete document
             KnowledgeRequest request = new KnowledgeRequest();
@@ -1377,6 +1488,7 @@ public class KnowledgeService {
             }
 
             request.setRagType(fileInfoV2.getSource());
+            applyRagflowDatasetId(request, fileInfoV2.getSource(), datasetId);
 
             KnowledgeResponse response = knowledgeV2ServiceCallHandler.updateChunk(request);
             if (response.getCode() != 0) {
@@ -1409,6 +1521,8 @@ public class KnowledgeService {
     public void deleteKnowledgeDoc(JSONArray deleteDocIds, Map<String, List<String>> chunkIdsMap) {
         boolean needDelete = true;
         if (!deleteDocIds.isEmpty()) { // Delete documents
+            // Avoid repeated repo lookups in one batch.
+            Map<Long, String> repoIdToDatasetId = new HashMap<>();
             for (int i = 0; i < deleteDocIds.size(); i++) {
                 KnowledgeRequest request = new KnowledgeRequest();
                 String docId = deleteDocIds.getString(i);
@@ -1425,6 +1539,9 @@ public class KnowledgeService {
                     if (CollectionUtils.isEmpty(request.getChunkIds())) {
                         needDelete = false;
                     }
+                }
+                if (!applyRagflowDatasetIdForDelete(request, fileInfoV2, repoIdToDatasetId)) {
+                    continue;
                 }
                 if (needDelete) {
                     KnowledgeResponse response = knowledgeV2ServiceCallHandler.deleteDocOrChunk(request);
@@ -1454,6 +1571,9 @@ public class KnowledgeService {
                 throw new BusinessException(ResponseEnum.REPO_FILE_NOT_EXIST);
             }
             request.setRagType(fileInfoV2.getSource());
+            if (!applyRagflowDatasetIdForDelete(request, fileInfoV2)) {
+                return;
+            }
             KnowledgeResponse response = knowledgeV2ServiceCallHandler.deleteDocOrChunk(request);
             if (response.getCode() != 0) {
                 log.error("Failed to delete knowledge chunk, message:{}", response.getMessage());

@@ -22,30 +22,39 @@ except ImportError:
     # Handle missing ragflow_sdk dependency
     RAGFlow = None  # type: ignore[assignment]
 
+from knowledge.consts.error_code import CodeEnum
+from knowledge.domain.platform_account_config import get_config_value
+from knowledge.exceptions.exception import ThirdPartyException
+
 # Import constants module to ensure environment variables are loaded properly
 # from knowledge.consts import constants
 
 logger = logging.getLogger(__name__)
 
+# RAGFlow RetCode.DATA_ERROR (102) is used for missing / not-owned documents.
+# Other non-zero codes are treated as service failures.
+_RAGFLOW_DATA_ERROR = 102
+
 # Module-level configuration cache and session management
 _config_cache = None
 _session_cache = None
+_session_config_key = None
 _session_lock = asyncio.Lock()
 _rag_object = None
+_rag_object_config_key = None
 
 
 def get_rag_object() -> Any:
     """
     Get or create RAGFlow client instance with proper configuration loading
     """
-    global _rag_object
-    if _rag_object is None:
+    global _rag_object, _rag_object_config_key
+    base_url = _config_value("base_url", "RAGFLOW_BASE_URL", "")
+    api_key = _config_value("api_token", "RAGFLOW_API_TOKEN", "")
+    config_key = (base_url, api_key)
+    if _rag_object is None or _rag_object_config_key != config_key:
         if RAGFlow is None:
             raise ImportError("ragflow_sdk is not available")
-
-        # Use os.getenv directly to get environment variables, consistent with aiui.py
-        base_url = os.getenv("RAGFLOW_BASE_URL", "")
-        api_key = os.getenv("RAGFLOW_API_TOKEN", "")
 
         if not base_url:
             raise ValueError("RAGFLOW_BASE_URL not configured in environment variables")
@@ -55,6 +64,7 @@ def get_rag_object() -> Any:
             )
 
         _rag_object = RAGFlow(api_key=api_key, base_url=base_url)
+        _rag_object_config_key = config_key
         print(f"RAGFlow client initialized with base_url: {base_url}")
 
     return _rag_object
@@ -69,35 +79,29 @@ def _load_ragflow_config() -> Dict[str, Any]:
     """
     global _config_cache
 
-    if _config_cache is None:
+    # Safe conversion of timeout to integer
+    timeout_value = _config_value("timeout", "RAGFLOW_TIMEOUT", "30")
+    try:
+        timeout_int = int(timeout_value) if timeout_value else 30
+    except (ValueError, TypeError):
+        timeout_int = 30
+        logger.warning(
+            f"Invalid RAGFLOW_TIMEOUT value: {timeout_value}, using default: 30"
+        )
 
-        # Safe conversion of timeout to integer
-        timeout_value = os.getenv("RAGFLOW_TIMEOUT", "30")
-        try:
-            timeout_int = int(timeout_value) if timeout_value else 30
-        except (ValueError, TypeError):
-            timeout_int = 30
-            logger.warning(
-                f"Invalid RAGFLOW_TIMEOUT value: {timeout_value}, using default: 30"
-            )
+    _config_cache = {
+        "base_url": _config_value("base_url", "RAGFLOW_BASE_URL", ""),
+        "api_token": _config_value("api_token", "RAGFLOW_API_TOKEN", ""),
+        "timeout": timeout_int,
+        "default_group": _config_value("default_group", "RAGFLOW_DEFAULT_GROUP", ""),
+    }
 
-        _config_cache = {
-            "base_url": os.getenv("RAGFLOW_BASE_URL", ""),
-            "api_token": os.getenv("RAGFLOW_API_TOKEN", ""),
-            "timeout": timeout_int,
-            "default_group": os.getenv("RAGFLOW_DEFAULT_GROUP", ""),
-        }
-
-        # Validate required configuration
-        if not _config_cache["base_url"] or not _config_cache["api_token"]:
-            logger.warning(
-                "RAGFlow configuration incomplete, please check config.env file"
-            )
-            logger.warning(
-                "Required configuration: RAGFLOW_BASE_URL and RAGFLOW_API_TOKEN"
-            )
-        else:
-            logger.info(f"RAGFlow configuration loaded: {_config_cache['base_url']}")
+    # Validate required configuration
+    if not _config_cache["base_url"] or not _config_cache["api_token"]:
+        logger.warning("RAGFlow configuration incomplete, please check config.env file")
+        logger.warning("Required configuration: RAGFLOW_BASE_URL and RAGFLOW_API_TOKEN")
+    else:
+        logger.info(f"RAGFlow configuration loaded: {_config_cache['base_url']}")
 
     return _config_cache
 
@@ -113,13 +117,22 @@ async def _get_session() -> aiohttp.ClientSession:
 
     async with _session_lock:
         # Create new session if it doesn't exist, is closed, or connector is closed
+        global _session_config_key
+        config = _load_ragflow_config()
+        config_key = (
+            config.get("base_url"),
+            config.get("api_token"),
+            config.get("timeout"),
+        )
+        if _session_cache is not None and _session_config_key != config_key:
+            await _session_cache.close()
+            _session_cache = None
+
         if (
             _session_cache is None
             or _session_cache.closed
             or (_session_cache.connector and _session_cache.connector.closed)
         ):
-
-            config = _load_ragflow_config()
 
             timeout_config = aiohttp.ClientTimeout(total=config["timeout"])
             connector = aiohttp.TCPConnector(
@@ -139,6 +152,7 @@ async def _get_session() -> aiohttp.ClientSession:
             )
 
             logger.debug("RAGFlow HTTP session created and cached")
+            _session_config_key = config_key
 
     return _session_cache
 
@@ -365,10 +379,18 @@ def reload_config() -> None:
     """
     Reload configuration (called after configuration changes)
     """
-    global _config_cache, _rag_object
+    global _config_cache, _rag_object, _rag_object_config_key
     _config_cache = None
     _rag_object = None  # Reset RAGFlow client instance
+    _rag_object_config_key = None
     logger.info("RAGFlow configuration cache cleared, will reload on next request")
+
+
+def _config_value(key: str, env_name: str, default: str = "") -> str:
+    value = get_config_value("ragflow", key)
+    if value not in (None, ""):
+        return str(value)
+    return os.getenv(env_name, default)
 
 
 # ==================== Query Related APIs ====================
@@ -449,6 +471,19 @@ async def create_dataset(name: str, **kwargs: Any) -> Dict[str, Any]:
     return await _make_request("POST", "/api/v1/datasets", data=data)
 
 
+async def update_dataset(dataset_id: str, **kwargs: Any) -> Dict[str, Any]:
+    """Update dataset metadata via RAGFlow PUT /api/v1/datasets/{id}.
+
+    Args:
+        dataset_id: Dataset ID to update.
+        **kwargs: Fields to patch (description, name, embedding_model, ...).
+
+    Returns:
+        Update response from RAGFlow.
+    """
+    return await _make_request("PUT", f"/api/v1/datasets/{dataset_id}", data=kwargs)
+
+
 # ==================== Document Management APIs ====================
 
 
@@ -456,49 +491,85 @@ async def upload_document_to_dataset(
     dataset_id: str, file_content: bytes, filename: str
 ) -> List[Any]:
     """
-    Upload document to specified dataset API
+    Upload document to the specified dataset.
+
+    Resolution strategy:
+    - When ``dataset_id`` is non-empty, resolve the dataset via SDK id lookup
+      and upload to it. If the SDK returns no matching dataset, raise
+      ``ValueError`` instead of redirecting to the env default group.
+    - When ``dataset_id`` is empty, use the configured
+      ``RAGFLOW_DEFAULT_GROUP`` lookup. Missing or empty default groups fail
+      before any dataset lookup.
 
     Args:
-        dataset_id: Dataset ID
-        file_content: File content
-        filename: File name
+        dataset_id: Dataset ID; empty string triggers configured fallback.
+        file_content: File content bytes.
+        filename: File name.
 
     Returns:
-        Upload response containing document ID
-    """
+        Upload response containing document ID(s).
 
-    group_name = os.getenv("RAGFLOW_DEFAULT_GROUP", "")
+    Raises:
+        ValueError: If ``dataset_id`` is provided but not resolvable via SDK,
+            or if the configured fallback cannot resolve a dataset.
+    """
+    if dataset_id:
+        rag = get_rag_object()
+        sdk_datasets: List[Any] = rag.list_datasets(id=dataset_id)
+        if not sdk_datasets:
+            raise ValueError(
+                f"Dataset id={dataset_id} not visible to RAGFlow SDK; "
+                "refusing to silently fall back to RAGFLOW_DEFAULT_GROUP "
+                "to avoid cross-repo upload contamination"
+            )
+        return sdk_datasets[0].upload_documents(
+            [{"displayed_name": filename, "blob": file_content}]
+        )
+
+    return await _upload_via_default_group(file_content=file_content, filename=filename)
+
+
+async def _resolve_dataset_via_rest(group_name: str, rag: Any) -> Any:
+    """Fallback: locate default-group dataset via REST when SDK name lookup fails.
+
+    Kept separate to avoid increasing default-group path complexity.
+    """
+    rest_response = await list_datasets(name=group_name)
+    datasets = rest_response.get("data", []) if rest_response else []
+    if not datasets:
+        raise ValueError(f"Dataset '{group_name}' does not exist in RAGFlow")
+    actual_id = datasets[0].get("id")
+    if not actual_id:
+        raise ValueError(f"Dataset '{group_name}' REST response missing id field")
+    sdk_datasets: List[Any] = rag.list_datasets(id=actual_id)
+    if not sdk_datasets:
+        raise ValueError(
+            f"Dataset '{group_name}' (id={actual_id}) not visible to ragflow_sdk"
+        )
+    return sdk_datasets[0]
+
+
+async def _upload_via_default_group(file_content: bytes, filename: str) -> List[Any]:
+    """Legacy upload path using configured ``RAGFLOW_DEFAULT_GROUP``.
+
+    Kept separate to avoid increasing ``upload_document_to_dataset`` complexity.
+    """
+    group_name = _config_value("default_group", "RAGFLOW_DEFAULT_GROUP", "")
+    if not group_name:
+        raise ValueError(
+            "RAGFLOW_DEFAULT_GROUP is not set; cannot upload without dataset_id"
+        )
     rag = get_rag_object()
 
-    def _pick_first_dataset(datasets: List[Any]) -> Any:
-        if datasets:
-            return datasets[0]
-        raise ValueError(f"Dataset '{group_name}' not found when uploading document")
-
-    dataset_obj: Any
-
-    try:
-        # Preferred path: SDK finds the dataset directly by name
-        dataset_obj = _pick_first_dataset(rag.list_datasets(name=group_name))
-    except ValueError:
+    sdk_hit: List[Any] = rag.list_datasets(name=group_name)
+    if sdk_hit:
+        dataset_obj = sdk_hit[0]
+    else:
         logger.warning(
             "Dataset '%s' not visible via SDK lookup, refreshing via REST API",
             group_name,
         )
-
-        rest_response = await list_datasets(name=group_name)
-        datasets = rest_response.get("data", []) if rest_response else []
-        if not datasets:
-            raise ValueError(f"Dataset '{group_name}' does not exist in RAGFlow")
-
-        # Fall back to locating dataset via ID if REST returned it
-        actual_id = datasets[0].get("id") or dataset_id
-        sdk_datasets: List[Any] = rag.list_datasets(id=actual_id)
-        if not sdk_datasets:
-            raise ValueError(
-                f"Dataset '{group_name}' (id={actual_id}) not visible to ragflow_sdk"
-            )
-        dataset_obj = sdk_datasets[0]
+        dataset_obj = await _resolve_dataset_via_rest(group_name, rag)
 
     return dataset_obj.upload_documents(
         [{"displayed_name": filename, "blob": file_content}]
@@ -597,33 +668,134 @@ async def list_document_chunks(
     return await _make_request("GET", endpoint)
 
 
-async def get_document_info(dataset_id: str, doc_id: str) -> Optional[Dict[str, Any]]:
+async def fetch_all_document_chunks(
+    dataset_id: str,
+    document_id: str,
+    page_size: int = 1024,
+    max_pages: int = 1000,
+) -> List[Dict[str, Any]]:
     """
-    Get detailed information for a single document
+    Fetch all chunks for a single document by paginating through the RAGFlow API.
+
+    Uses the server-reported ``total`` field in each response envelope to decide
+    when to stop. **Fail-closed semantics**: any non-zero response ``code``
+    raises ``RuntimeError`` rather than returning partial results. The caller
+    (``RagflowRAGStrategy._get_existing_chunks``) is the reconciliation source
+    of truth for chunk-upsert deduplication, so a partial mapping would cause
+    the reconciler to re-add existing chunks, corrupting the dataset.
 
     Args:
-        dataset_id: Dataset ID
-        doc_id: Document ID
+        dataset_id: Dataset ID.
+        document_id: Document ID.
+        page_size: Items per page. Default 1024 to match
+            ``list_document_chunks``'s own default — almost every realistic
+            document fits in a single page, so pagination only kicks in for
+            truly large documents.
+        max_pages: Safety cap to prevent runaway loops if the server mis-reports
+            ``total``. Default 1000 => up to ~1M chunks per document with
+            default ``page_size``, well above any realistic single-document
+            chunk count.
 
     Returns:
-        Document information, returns None if not found
+        All chunks flattened into a single list (possibly empty).
+
+    Raises:
+        RuntimeError: on non-zero ``code`` from any paginated call, or when
+            ``max_pages`` is exceeded without ``total`` being reached.
     """
-    try:
-        # Do not pass doc_id parameter, get all documents then iterate to find
-        response = await list_documents_in_dataset(
-            dataset_id, doc_id="", page=1, page_size=1000
+    chunks: List[Dict[str, Any]] = []
+    # Optional so a page that drops ``total`` can't downgrade the stop condition.
+    total: Optional[int] = None
+    page = 1
+    while page <= max_pages:
+        resp = await list_document_chunks(
+            dataset_id, document_id, page=page, page_size=page_size
         )
+        if resp.get("code") != 0:
+            raise RuntimeError(
+                f"fetch_all_document_chunks failed on page {page} for "
+                f"doc={document_id}: code={resp.get('code')}, "
+                f"message={resp.get('message')}"
+            )
+        data = resp.get("data") or {}
+        batch = data.get("chunks") or []
+        chunks.extend(batch)
+        # Missing/None/non-int => keep last-known good value.
+        raw_total = data.get("total")
+        if isinstance(raw_total, int) and raw_total >= 0:
+            total = raw_total
+        if total is not None and len(chunks) >= total:
+            return chunks
+        if not batch:
+            # Protocol anomaly (stale pagination, mid-request deletion, or
+            # server mis-report): fail closed to avoid re-inserting the
+            # missing chunks as if they didn't exist.
+            raise RuntimeError(
+                f"fetch_all_document_chunks: empty page {page} but only "
+                f"{len(chunks)}/{total if total is not None else '?'} "
+                f"chunks fetched for doc={document_id}"
+            )
+        page += 1
+    raise RuntimeError(
+        f"fetch_all_document_chunks exceeded max_pages={max_pages} for "
+        f"doc={document_id}; server may be mis-reporting total"
+    )
 
-        if response.get("code") == 0:
-            docs = response.get("data", {}).get("docs", [])
-            for doc in docs:
-                if doc.get("id") == doc_id:
-                    return doc
-        return None
 
-    except Exception as e:
-        logger.error(f"Failed to get document info: {e}")
+async def get_document_info(dataset_id: str, doc_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get detailed information for a single document via RAGFlow's id filter.
+
+    Uses the ``id`` query parameter on ``/api/v1/datasets/{dataset_id}/documents``,
+    which performs exact-match filtering server-side (verified against RAGFlow
+    v0.20.5 ~ v0.24.0: ``DocumentService.get_list`` applies
+    ``.where(cls.model.id == id)`` — peewee equality, not ``LIKE``).
+
+    Return contract:
+
+    - ``code == 0`` with matching doc: return the doc dict.
+    - ``code == 0`` with no matching doc: return ``None``.
+    - ``code == DATA_ERROR`` (102): return ``None`` (server's
+      "not owned / not found" response).
+    - Any other non-zero ``code``: raise ``ThirdPartyException``.
+    - Transport-level exceptions propagate unchanged.
+
+    Args:
+        dataset_id: Dataset ID.
+        doc_id: Document ID.
+
+    Returns:
+        Document information dict, or ``None`` if the document does not
+        exist. Raises on protocol / transport errors.
+    """
+    # Defense-in-depth: RAGFlow server truthy-checks ``id``, so ``id=`` on the
+    # wire scans the whole dataset (see docstring above for version refs).
+    if not doc_id:
+        logger.warning(f"empty doc_id for dataset={dataset_id}")
         return None
+    response = await list_documents_in_dataset(
+        dataset_id, doc_id=doc_id, page=1, page_size=1
+    )
+    code = response.get("code")
+    if code == 0:
+        data = response.get("data") or {}
+        docs = data.get("docs") or []
+        # page_size=1 + server-side exact-match filter => at most one doc;
+        # the id re-check is defensive in case a future RAGFlow release
+        # relaxes the filter to LIKE.
+        if docs and docs[0].get("id") == doc_id:
+            return docs[0]
+        return None
+    if code == _RAGFLOW_DATA_ERROR:
+        return None
+    msg = response.get("message", "Unknown error")
+    raise ThirdPartyException(
+        msg=(
+            f"RAGFlow get_document_info doc={doc_id} dataset={dataset_id}: "
+            f"code={code} message={msg}"
+        ),
+        e=CodeEnum.RAGFLOW_RAGError,
+    )
 
 
 async def delete_documents(dataset_id: str, document_ids: List[str]) -> Dict[str, Any]:

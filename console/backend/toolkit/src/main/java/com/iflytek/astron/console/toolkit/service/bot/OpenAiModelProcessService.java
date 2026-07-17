@@ -3,16 +3,17 @@ package com.iflytek.astron.console.toolkit.service.bot;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
 import com.iflytek.astron.console.toolkit.entity.spark.chat.ChatResponse;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
-import jakarta.annotation.PostConstruct;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -28,32 +29,8 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class OpenAiModelProcessService {
 
-    @Value("${ai-ability.chat.api-key}")
-    private String apiKey;
-
-    /**
-     * Base URL should not include /chat/completions path OpenAI SDK will automatically append the
-     * endpoint path
-     */
-    @Value("${ai-ability.chat.base-url}")
-    private String baseUrl;
-
-    @Value("${ai-ability.chat.model}")
-    private String model;
-
-    private OpenAIClient client;
-
-    /**
-     * Initialize OpenAI client after properties are set
-     */
-    @PostConstruct
-    public void init() {
-        this.client = OpenAIOkHttpClient.builder()
-                .apiKey(apiKey)
-                .baseUrl(baseUrl)
-                .build();
-        log.info("OpenAI client initialized with base URL: {}", baseUrl);
-    }
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     /**
      * Non-streaming call to OpenAI API
@@ -65,9 +42,11 @@ public class OpenAiModelProcessService {
         log.info("Starting non-streaming OpenAI API call, prompt: {}", prompt);
 
         try {
+            PlatformAccountConfigDto.AiAbilityChatConfig config = platformAccountService.requireAiAbilityChat();
+            OpenAIClient client = buildClient(config);
             // Build request parameters
             ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                    .model(model)
+                    .model(config.getModel())
                     .addUserMessage(prompt)
                     .build();
 
@@ -94,6 +73,8 @@ public class OpenAiModelProcessService {
      */
     public SseEmitter processStreaming(String prompt) {
         log.info("Starting streaming OpenAI API call, prompt: {}", prompt);
+        PlatformAccountConfigDto.AiAbilityChatConfig config = platformAccountService.requireAiAbilityChat();
+        OpenAIClient client = buildClient(config);
 
         // Create SseEmitter
         SseEmitter emitter = SseEmitterUtil.createSseEmitter();
@@ -112,7 +93,7 @@ public class OpenAiModelProcessService {
             try {
                 // Build streaming request parameters
                 ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
-                        .model(model)
+                        .model(config.getModel())
                         .addUserMessage(prompt)
                         .temperature(0.2)
                         .topP(0.85)
@@ -166,5 +147,12 @@ public class OpenAiModelProcessService {
         });
 
         return emitter;
+    }
+
+    private OpenAIClient buildClient(PlatformAccountConfigDto.AiAbilityChatConfig config) {
+        return OpenAIOkHttpClient.builder()
+                .apiKey(config.getApiKey())
+                .baseUrl(config.getBaseUrl())
+                .build();
     }
 }

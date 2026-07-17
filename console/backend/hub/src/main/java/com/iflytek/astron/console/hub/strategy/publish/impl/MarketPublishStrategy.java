@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -37,6 +38,7 @@ public class MarketPublishStrategy implements PublishStrategy {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResult<Object> publish(Integer botId, Object publishData, String currentUid, Long spaceId) {
         log.info("Publishing bot to market: botId={}, currentUid={}, spaceId={}", botId, currentUid, spaceId);
 
@@ -93,6 +95,7 @@ public class MarketPublishStrategy implements PublishStrategy {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public ApiResult<Object> offline(Integer botId, Object publishData, String currentUid, Long spaceId) {
         log.info("Offlining bot from market: botId={}, currentUid={}, spaceId={}", botId, currentUid, spaceId);
 
@@ -235,8 +238,13 @@ public class MarketPublishStrategy implements PublishStrategy {
         com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<ChatBotMarket> updateWrapper =
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<>();
 
-        updateWrapper.eq("bot_id", botId)
-                .eq("uid", uid);
+        updateWrapper.eq("bot_id", botId);
+
+        // In shared space mode, publish records belong to the space bot instead of the current operator.
+        // Re-publish should therefore update the existing market record regardless of who triggers it.
+        if (spaceId == null) {
+            updateWrapper.eq("uid", uid);
+        }
 
         // Sync all data fields from chat_bot_base to ensure data consistency
         updateWrapper.set("bot_name", botBase.getBotName())
@@ -272,11 +280,11 @@ public class MarketPublishStrategy implements PublishStrategy {
         // Only update status and channels for offline operation
         int updateCount = chatBotMarketMapper.updatePublishStatus(botId, uid, spaceId, newStatus, newChannels);
         if (updateCount == 0) {
-            log.warn("Bot offline update failed, record not found: botId={}, uid={}, spaceId={}",
+            log.error("Bot offline update failed, record not found: botId={}, uid={}, spaceId={}",
                     botId, uid, spaceId);
-        } else {
-            log.info("Bot offline update successful: botId={}, status={}, channels={}",
-                    botId, newStatus, newChannels);
+            throw new BusinessException(ResponseEnum.BOT_UPDATE_FAILED);
         }
+        log.info("Bot offline update successful: botId={}, status={}, channels={}",
+                botId, newStatus, newChannels);
     }
 }

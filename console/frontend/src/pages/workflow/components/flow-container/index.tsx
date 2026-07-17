@@ -29,6 +29,27 @@ import CustomEdge from '@/components/workflow/edges';
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { customEdge: CustomEdge };
 
+const shouldIgnoreWorkflowShortcut = (event: KeyboardEvent): boolean => {
+  const target = event.target as HTMLElement | null;
+
+  if (!target) {
+    return false;
+  }
+
+  const tagName = target.tagName?.toLowerCase();
+
+  if (
+    target.isContentEditable ||
+    ['input', 'textarea', 'select'].includes(tagName)
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    target.closest('.monaco-editor, .monaco-inputbox, [contenteditable="true"]')
+  );
+};
+
 interface IndexProps {
   zoom: number;
   setZoom: (zoom: number) => void;
@@ -86,6 +107,10 @@ const useFlowContainerEffect = ({
 
   useEffect(() => {
     const handleKeyDown = async event => {
+      if (shouldIgnoreWorkflowShortcut(event)) {
+        return;
+      }
+
       if ((event.ctrlKey || event.metaKey) && event.key === 'z') {
         undo();
       } else if (

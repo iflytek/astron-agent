@@ -48,6 +48,9 @@ const translation = {
   buildSame: 'Build Same',
   allTemplates: 'All Templates',
   createSuccess: 'Create success',
+  deleteTemplate: 'Delete Template',
+  templateDeleteSuccess: 'Template deleted successfully',
+  templateDeleteFailed: 'Failed to delete template',
 };
 
 export default translation;

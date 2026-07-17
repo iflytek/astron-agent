@@ -25,6 +25,7 @@ import com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo;
 import com.iflytek.astron.console.commons.enums.ShelfStatusEnum;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotChatService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotParamService;
+import com.iflytek.astron.console.commons.service.workflow.WorkflowVersionLookupService;
 import com.iflytek.astron.console.commons.workflow.WorkflowClient;
 import com.iflytek.astron.console.commons.workflow.WorkflowListener;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +68,9 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
 
     @Autowired
     private WssListenerService wssListenerService;
+
+    @Autowired
+    private WorkflowVersionLookupService workflowVersionLookupService;
 
     @Value("${workflow.chatUrl}")
     private String chatUrl;
@@ -111,6 +115,7 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
             throw new BusinessException(ResponseEnum.BOT_CHAIN_SUBMIT_ERROR);
         }
         String flowId = userLangChainInfo.getFlowId();
+        String effectiveWorkflowVersion = resolveWorkflowVersion(botId, flowId, workflowVersion);
         // Record current question
         ChatReqRecords chatReqRecords = new ChatReqRecords();
         chatReqRecords.setChatId(chatId);
@@ -137,7 +142,7 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
         List<ChatReqModelDto> reqList = chatDataService.getReqModelBotHistoryByChatId(uid, chatId);
         ChatRequestDtoList requestDtoList = chatHistoryService.getHistory(uid, chatId, reqList);
         filterContent(requestDtoList);
-        WorkflowApiRequest workflowApiRequest = new WorkflowApiRequest(flowId, uid, inputs, requestDtoList.getMessages(), workflowVersion);
+        WorkflowApiRequest workflowApiRequest = new WorkflowApiRequest(flowId, uid, inputs, requestDtoList.getMessages(), effectiveWorkflowVersion);
         log.info("workflowApiRequest:{}", workflowApiRequest);
         RequestBody body = RequestBody.create(JSON.toJSONString(workflowApiRequest), MediaType.parse("application/json; charset=utf-8"));
 
@@ -179,6 +184,21 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
         WorkflowClient client = new WorkflowClient(apiUsedUrl, appId, appKey, appSecret, body);
         WorkflowListener listener = new WorkflowListener(client, chatReqRecords, sseId, wssListenerService, isDebug, sseEmitter);
         client.createWebSocketConnect(listener);
+    }
+
+    private String resolveWorkflowVersion(Integer botId, String flowId, String workflowVersion) {
+        if (!StrUtil.isBlank(workflowVersion)
+                && !"undefined".equalsIgnoreCase(workflowVersion)
+                && !"null".equalsIgnoreCase(workflowVersion)) {
+            boolean published = workflowVersionLookupService.isPublishedVersion(flowId, workflowVersion).orElse(false);
+            if (published) {
+                return workflowVersion;
+            }
+            log.warn("Requested workflow version is not published, fallback to latest successful version: botId={}, flowId={}, version={}",
+                    botId, flowId, workflowVersion);
+        }
+        return workflowVersionLookupService.findLatestSuccessfulVersionName(botId)
+                .orElseThrow(() -> new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND));
     }
 
     /**

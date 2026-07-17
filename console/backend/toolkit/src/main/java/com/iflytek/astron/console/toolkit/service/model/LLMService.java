@@ -256,6 +256,9 @@ public class LLMService {
             llmInfoVo.setLlmSource(0);
             llmInfoVo.setDomain(model.getDomain());
             llmInfoVo.setProvider(resolveProvider(model));
+            // Copy the isThink and multiMode properties from the model
+            llmInfoVo.setIsThink(model.getIsThink());
+            llmInfoVo.setMultiMode(model.getMultiMode());
             JSONArray config = JSONArray.parseArray(model.getConfig());
             for (Object o : config) {
                 JSONObject obj = (JSONObject) o;
@@ -447,40 +450,43 @@ public class LLMService {
         return null;
     }
 
+    /**
+     * Provider keyword-to-constant mapping for inference. Each entry: keyword -> provider constant.
+     * Order matters (more specific keywords first).
+     */
+    private static final List<Map.Entry<String, String>> PROVIDER_KEYWORD_MAP = List.of(
+            Map.entry("deepseek", PROVIDER_DEEPSEEK),
+            Map.entry("深度求索", PROVIDER_DEEPSEEK),
+            Map.entry("anthropic", PROVIDER_ANTHROPIC),
+            Map.entry("claude", PROVIDER_ANTHROPIC),
+            Map.entry("google", PROVIDER_GOOGLE),
+            Map.entry("谷歌", PROVIDER_GOOGLE),
+            Map.entry("gemini", PROVIDER_GOOGLE),
+            Map.entry("minimax", PROVIDER_MINIMAX),
+            Map.entry("zhipu", PROVIDER_ZHIPU),
+            Map.entry("智谱", PROVIDER_ZHIPU),
+            Map.entry("glm", PROVIDER_ZHIPU),
+            Map.entry("qwen", PROVIDER_QWEN),
+            Map.entry("千问", PROVIDER_QWEN),
+            Map.entry("moonshot", PROVIDER_MOONSHOT),
+            Map.entry("月之暗面", PROVIDER_MOONSHOT),
+            Map.entry("kimi", PROVIDER_MOONSHOT),
+            Map.entry("doubao", PROVIDER_DOUBAO),
+            Map.entry("豆包", PROVIDER_DOUBAO),
+            Map.entry("volcengine", PROVIDER_DOUBAO),
+            Map.entry("chatgpt", PROVIDER_CHATGPT),
+            Map.entry("openai", PROVIDER_OPENAI),
+            Map.entry("gpt-", PROVIDER_OPENAI));
+
     private String inferProvider(String rawValue) {
         if (StrUtil.isBlank(rawValue)) {
             return null;
         }
         String value = rawValue.trim().toLowerCase(Locale.ROOT);
-        if (value.contains("深度求索") || value.contains("deepseek")) {
-            return PROVIDER_DEEPSEEK;
-        }
-        if (value.contains("anthropic") || value.contains("claude")) {
-            return PROVIDER_ANTHROPIC;
-        }
-        if (value.contains("谷歌") || value.contains("google") || value.contains("gemini")) {
-            return PROVIDER_GOOGLE;
-        }
-        if (value.contains("minimax")) {
-            return PROVIDER_MINIMAX;
-        }
-        if (value.contains("鏅鸿氨") || value.contains("zhipu") || value.contains("glm")) {
-            return PROVIDER_ZHIPU;
-        }
-        if (value.contains("鍗冮棶") || value.contains("qwen")) {
-            return PROVIDER_QWEN;
-        }
-        if (value.contains("鏈堜箣鏆楅潰") || value.contains("moonshot") || value.contains("kimi")) {
-            return PROVIDER_MOONSHOT;
-        }
-        if (value.contains("璞嗗寘") || value.contains("doubao") || value.contains("volcengine")) {
-            return PROVIDER_DOUBAO;
-        }
-        if (value.contains("chatgpt")) {
-            return PROVIDER_CHATGPT;
-        }
-        if (value.contains("openai") || value.contains("gpt-")) {
-            return PROVIDER_OPENAI;
+        for (Map.Entry<String, String> entry : PROVIDER_KEYWORD_MAP) {
+            if (value.contains(entry.getKey().toLowerCase(Locale.ROOT))) {
+                return entry.getValue();
+            }
         }
         return null;
     }

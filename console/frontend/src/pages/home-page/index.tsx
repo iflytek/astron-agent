@@ -7,6 +7,8 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import { getCommonConfig } from '@/services/common';
 import {
   getAgentType,
@@ -27,6 +29,8 @@ import { BotType, Bot, SearchBotParam, Banner } from '@/types/agent-square';
 import type { ResponseResultPage } from '@/types/global';
 import { handleShare } from '@/utils';
 import { useLocaleStore } from '@/store/spark-store/locale-store';
+
+dayjs.extend(utc);
 
 const PAGE_SIZE = 10;
 
@@ -106,6 +110,12 @@ const HomePage: React.FC = () => {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { locale: localeNow } = useLocaleStore();
+
+  const formatCreateTime = useCallback((value?: string) => {
+    if (!value) return '';
+    const normalized = value.replace(' ', 'T');
+    return dayjs.utc(normalized).utcOffset(8).format('YYYY-MM-DD HH:mm');
+  }, []);
 
   // filter banner by language
   const filteredBanners: Banner[] = bannerList
@@ -415,9 +425,24 @@ const HomePage: React.FC = () => {
                               src={require('@/assets/imgs/home/author.svg')}
                               alt=""
                             />
-                            <span>
-                              {item?.creator || t('home.officialAssistant')}
-                            </span>
+                            <div
+                              style={{
+                                minWidth: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                              }}
+                            >
+                              <span>
+                                {item?.creator || t('home.officialAssistant')}
+                              </span>
+                              {item?.createTime ? (
+                                <span
+                                  title={formatCreateTime(item?.createTime)}
+                                >
+                                  {formatCreateTime(item?.createTime)}
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
                           <div className={styles.tags}>
                             {item?.version &&

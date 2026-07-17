@@ -39,6 +39,8 @@ export default [
         fetch: 'readonly',
         NodeJS: 'readonly',
         self: 'writable',
+        atob: 'readonly', // Base64 decode
+        btoa: 'readonly', // Base64 encode
       },
     },
     plugins: {

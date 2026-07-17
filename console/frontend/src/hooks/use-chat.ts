@@ -31,6 +31,7 @@ interface SSEData {
   ignore?: boolean;
   error?: string | boolean;
   message?: string;
+  finalResult?: string;
   reqId?: number;
 }
 
@@ -89,6 +90,7 @@ const useChat = () => {
     let nodeChat: boolean = false;
     let nodeChatContent: string = '';
     let messageContent: string = '';
+    let completeFinalResult: string = '';
     const controller = new AbortController();
     controllerRef.current = controller;
     setControllerRef(controllerRef.current);
@@ -156,8 +158,14 @@ const useChat = () => {
           error,
           reqId,
           message,
+          finalResult,
         } = deCodedData;
-        message && (messageContent = message);
+        if (message && message !== 'Success') {
+          messageContent = message;
+        }
+        if (finalResult) {
+          completeFinalResult = finalResult;
+        }
         sseId && setStreamId(sseId);
         id && (sidRef.current = id.toString());
         reqId && (reqIdRef.current = reqId);
@@ -214,7 +222,7 @@ const useChat = () => {
         if (!error && !ERROR_CODE.includes(code || 0)) {
           if (end) {
             if (ans.length === 0) {
-              ans = messageContent;
+              ans = completeFinalResult || messageContent;
               updateStreamingMessage(ans);
             }
             // 完成流式消息，添加sid和id

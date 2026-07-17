@@ -6,7 +6,6 @@ This module contains unit tests for RAG data object classes,
 testing ChunkInfo and FileInfo classes with various data types and edge cases.
 """
 
-
 from knowledge.domain.entity.rag_do import ChunkInfo, FileInfo
 
 

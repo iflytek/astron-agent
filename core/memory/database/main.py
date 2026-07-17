@@ -16,22 +16,16 @@ from typing import Any, AsyncGenerator
 
 import uvicorn
 from common.initialize.initialize import initialize_services
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from loguru import logger
-from memory.database.api import router
-from memory.database.domain.entity.views.http_resp import format_response
-from memory.database.exceptions.e import CustomException
-from memory.database.exceptions.error_code import CodeEnum
-from memory.database.repository.middleware.database.database_migration import (
-    run_database_migration,
-)
-from starlette.middleware.cors import CORSMiddleware
+
+_extensions_initialized = False
 
 
 def initialize_extensions() -> None:
     """Initialize required extensions and services for the application."""
+    global _extensions_initialized  # noqa: PLW0603
+    if _extensions_initialized:
+        return
+
     os.environ["CONFIG_ENV_PATH"] = "./memory/database/config.env"
 
     need_init_services = [
@@ -43,6 +37,27 @@ def initialize_extensions() -> None:
         "otlp_metric_service",
     ]
     initialize_services(services=need_init_services)
+    _extensions_initialized = True
+
+
+# Load configuration at module level so DB_TYPE is available for model imports.
+# The idempotency guard ensures this is safe even if called again later.
+initialize_extensions()
+
+# Business imports — DB_TYPE is now in the environment, model __table_args__
+# will resolve correctly for the configured database type.
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
+from loguru import logger  # noqa: E402
+from memory.database.api import router  # noqa: E402
+from memory.database.domain.entity.views.http_resp import format_response  # noqa: E402
+from memory.database.exceptions.e import CustomException  # noqa: E402
+from memory.database.exceptions.error_code import CodeEnum  # noqa: E402
+from memory.database.repository.middleware.database.database_migration import (  # noqa: E402
+    run_database_migration,
+)
+from starlette.middleware.cors import CORSMiddleware  # noqa: E402
 
 
 async def rep_initialize_extensions() -> None:
@@ -283,10 +298,8 @@ async def _log_ready_after_delay() -> None:
 
 if __name__ == "__main__":
     logger.debug(f"current platform {sys.platform}")
-    # app = asyncio.run(create_app())
-    # common init
-    initialize_extensions()
-    # postgresql init
+    # initialize_extensions() already called at module level above
+    # database init
     asyncio.run(rep_initialize_extensions())
     # kong init
     asyncio.run(_log_ready_after_delay())

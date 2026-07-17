@@ -15,6 +15,7 @@ import aiohttp
 from loguru import logger
 
 from knowledge.consts.error_code import CodeEnum
+from knowledge.domain.platform_account_config import get_config_value
 from knowledge.exceptions.exception import CustomException, ThirdPartyException
 from knowledge.utils.file_utils import get_file_info_from_url
 from knowledge.utils.spark_signature import get_signature
@@ -232,7 +233,7 @@ async def new_topk_search(
         Search result data
     """
     post_body = {
-        "datasetId": os.getenv("XINGHUO_DATASET_ID", ""),
+        "datasetId": _xinghuo_value("dataset_id", "XINGHUO_DATASET_ID", ""),
         "fileIds": doc_ids or [],
         "topK": top_n,
         "overlap": os.getenv("XINGHUO_SEARCH_OVERLAP", ""),
@@ -318,7 +319,7 @@ async def dataset_addchunk(
         chunks or [],
         os.getenv("XINGHUO_RAG_URL", "")
         + "openapi/v1/dataset/add-chunk?datasetId="
-        + os.getenv("XINGHUO_DATASET_ID", ""),
+        + _xinghuo_value("dataset_id", "XINGHUO_DATASET_ID", ""),
         **kwargs,
     )
     return data
@@ -341,7 +342,7 @@ async def dataset_delchunk(
 
     chunk_ids_str = ",".join(chunk_ids)
     delete_body = {
-        "datasetId": os.getenv("XINGHUO_DATASET_ID", ""),
+        "datasetId": _xinghuo_value("dataset_id", "XINGHUO_DATASET_ID", ""),
         "chunkIds": chunk_ids_str,
     }
 
@@ -377,7 +378,7 @@ async def dataset_updchunk(chunk: Dict[str, Any], **kwargs: Any) -> Dict[str, An
         upd_body,
         os.getenv("XINGHUO_RAG_URL", "")
         + "openapi/v1/dataset/update-chunk?datasetId="
-        + os.getenv("XINGHUO_DATASET_ID", ""),
+        + _xinghuo_value("dataset_id", "XINGHUO_DATASET_ID", ""),
         "POST",
         **kwargs,
     )
@@ -661,13 +662,22 @@ async def assemble_spark_auth_headers_async() -> Dict[str, str]:
     """
     timestamp = int(time.time())
     signature = get_signature(
-        os.getenv("XINGHUO_APP_ID", ""), timestamp, os.getenv("XINGHUO_APP_SECRET", "")
+        _xinghuo_value("app_id", "XINGHUO_APP_ID", ""),
+        timestamp,
+        _xinghuo_value("app_secret", "XINGHUO_APP_SECRET", ""),
     )
 
     headers = {
         "Accept": "application/json",
-        "appId": os.getenv("XINGHUO_APP_ID", ""),
+        "appId": _xinghuo_value("app_id", "XINGHUO_APP_ID", ""),
         "timestamp": str(timestamp),
         "signature": signature,
     }
     return headers
+
+
+def _xinghuo_value(key: str, env_name: str, default: str = "") -> str:
+    value = get_config_value("xinghuo", key)
+    if value not in (None, ""):
+        return str(value)
+    return os.getenv(env_name, default)

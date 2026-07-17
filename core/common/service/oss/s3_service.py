@@ -185,11 +185,11 @@ class IFlyGatewayStorageClient(BaseOSSService, Service):
             logger.error(e)
             return ""
         if resp.status_code != 200:
-            raise OssServiceException(*c9010)(str(e)) from e  # type: ignore
+            raise OssServiceException(*c9010)(str(resp.text))
 
         ret = resp.json()
         if ret["code"] != 0:
-            raise OssServiceException(*c9010)(str(e)) from e  # type: ignore
+            raise OssServiceException(*c9010)(str(ret))
         try:
             link = ret["data"]["link"]
         except Exception as e:

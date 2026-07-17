@@ -14,6 +14,7 @@ function OpeningRemarksModal({
   currentRobot,
   isFlow = false,
 }): React.ReactElement {
+  const controllerRef = useRef<AbortController | null>(null);
   const textQueue = useRef<string[]>([]);
   const wsMessageStatus = useRef<string>('end');
   const [optimizationOpeningRemarks, setOptimizationOpeningRemarks] =
@@ -25,10 +26,15 @@ function OpeningRemarksModal({
   }, [currentRobot]);
 
   function handlePromptOptimization(): void {
+    if (controllerRef.current) {
+      controllerRef.current.abort();
+      controllerRef.current = null;
+    }
+    textQueue.current = [];
     setOptimizationOpeningRemarks(() => '');
     wsMessageStatus.current = 'start';
     setIsReciving(true);
-    const controller = new AbortController();
+    controllerRef.current = new AbortController();
     fetchEventSource(getFixedUrl('/prompt/ai-generate'), {
       openWhenHidden: true,
       method: 'POST',
@@ -37,7 +43,7 @@ function OpeningRemarksModal({
         Accept: 'text/event-stream',
         Authorization: getAuthorization(),
       },
-      signal: controller.signal,
+      signal: controllerRef.current.signal,
       body: JSON.stringify({
         [isFlow ? 'flowId' : 'botId']: currentRobot.id,
         code: 'prologue',
@@ -47,7 +53,9 @@ function OpeningRemarksModal({
           if (e.data && isJSON(e.data)) {
             const data = JSON.parse(e.data);
             const content = data?.payload?.message?.content;
-            textQueue.current = [...textQueue.current, ...content.split('')];
+            if (content) {
+              textQueue.current = [...textQueue.current, ...content.split('')];
+            }
             if (data?.header?.status === 2) {
               wsMessageStatus.current = 'end';
             }
@@ -55,13 +63,26 @@ function OpeningRemarksModal({
         }
       },
       onerror() {
-        controller.abort();
+        controllerRef.current?.abort();
+        controllerRef.current = null;
+        wsMessageStatus.current = 'end';
       },
       onclose() {
+        controllerRef.current?.abort();
+        controllerRef.current = null;
         wsMessageStatus.current = 'end';
       },
     });
   }
+
+  useEffect(() => {
+    return (): void => {
+      controllerRef.current?.abort();
+      controllerRef.current = null;
+      wsMessageStatus.current = 'end';
+      textQueue.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -90,6 +111,8 @@ function OpeningRemarksModal({
   }, [optimizationOpeningRemarks, isReciving]);
 
   function handleOk(): void {
+    controllerRef.current?.abort();
+    controllerRef.current = null;
     setOpeningRemarksModal(false);
     setConversationStarter(optimizationOpeningRemarks);
   }
@@ -145,7 +168,11 @@ function OpeningRemarksModal({
           <Button
             type="text"
             className="origin-btn px-[24px]"
-            onClick={() => setOpeningRemarksModal(false)}
+            onClick={() => {
+              controllerRef.current?.abort();
+              controllerRef.current = null;
+              setOpeningRemarksModal(false);
+            }}
           >
             取消
           </Button>

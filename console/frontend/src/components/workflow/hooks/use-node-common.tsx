@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash';
 import { useMemoizedFn } from 'ahooks';
 import { Tooltip, Checkbox } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
+import useFlowStore from '@/components/workflow/store/use-flow-store';
 import {
   renderType,
   findPathById,
@@ -51,10 +52,13 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   const { t } = useTranslation();
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
+  const iteratorId = useFlowsManager(state => state.iteratorId);
   const nodeList = useFlowsManager(state => state.nodeList);
   const canvasesDisabled = useFlowsManager(state => state.canvasesDisabled);
   const nodes = currentStore(state => state.nodes);
   const edges = currentStore(state => state.edges);
+  const flowNodes = useFlowStore(state => state.nodes);
+  const flowEdges = useFlowStore(state => state.edges);
 
   const nodeType = useMemo(() => {
     return id?.split('::')[0] || '';
@@ -65,7 +69,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const isIteratorStart = useMemo(() => {
-    return nodeType === 'iteration-node-start';
+    return ['iteration-node-start', 'loop-node-start'].includes(nodeType);
   }, [nodeType]);
 
   const isEndNode = useMemo(() => {
@@ -73,7 +77,9 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const isIteratorEnd = useMemo(() => {
-    return nodeType === 'iteration-node-end';
+    return ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(
+      nodeType
+    );
   }, [nodeType]);
 
   const isKnowledgeNode = useMemo(() => {
@@ -96,6 +102,10 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     return nodeType === 'iteration';
   }, [nodeType]);
 
+  const isLoopNode = useMemo(() => {
+    return nodeType === 'loop';
+  }, [nodeType]);
+
   const isIteratorChildNode = useMemo(() => {
     return !showIterativeModal && data?.parentId;
   }, [showIterativeModal, data?.parentId]);
@@ -105,8 +115,13 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [nodeType]);
 
   const isStartOrEndNode = useMemo(() => {
-    return nodeType === 'node-start' || nodeType === 'node-end';
-  }, [nodeType]);
+    return (
+      nodeType === 'node-start' ||
+      nodeType === 'node-end' ||
+      isIteratorStart ||
+      isIteratorEnd
+    );
+  }, [nodeType, isIteratorStart, isIteratorEnd]);
 
   const isCodeNode = useMemo(() => {
     return nodeType === 'ifly-code';
@@ -137,8 +152,30 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
   }, [data?.retryConfig?.shouldRetry, data?.retryConfig?.errorStrategy]);
 
   const references = useMemo(() => {
-    return generateReferences(nodes, edges, id);
-  }, [id, nodes, edges]);
+    const currentReferences = generateReferences(nodes, edges, id);
+    const parentId = data?.parentId || (showIterativeModal ? iteratorId : '');
+    if (!parentId) return currentReferences;
+
+    const outerReferences = generateReferences(
+      showIterativeModal ? flowNodes : nodes,
+      showIterativeModal ? flowEdges : edges,
+      parentId
+    );
+    const existingIds = new Set(currentReferences.map(item => item?.value));
+    return [
+      ...outerReferences.filter(item => !existingIds.has(item?.value)),
+      ...currentReferences,
+    ];
+  }, [
+    id,
+    data?.parentId,
+    showIterativeModal,
+    iteratorId,
+    nodes,
+    edges,
+    flowNodes,
+    flowEdges,
+  ]);
   const isFixedInputsNode = useMemo(() => {
     return ['plugin', 'flow', 'rpa'].includes(nodeType);
   }, [nodeType]);
@@ -165,9 +202,11 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
 
   const nodeIcon = useMemo(() => {
     let nodeFinallyType = '';
-    if (nodeType === 'iteration-node-start') {
+    if (['iteration-node-start', 'loop-node-start'].includes(nodeType)) {
       nodeFinallyType = 'node-start';
-    } else if (nodeType === 'iteration-node-end') {
+    } else if (
+      ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(nodeType)
+    ) {
       nodeFinallyType = 'node-end';
     } else {
       nodeFinallyType = nodeType;
@@ -210,11 +249,11 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     return data?.nodeParam?.mode === 1;
   }, [data?.nodeParam?.mode]);
   const allowAddInput = useMemo(() => {
-    if (canvasesDisabled || stringSplitMode || isIteratorNode) {
+    if (canvasesDisabled || stringSplitMode || isIteratorNode || isLoopNode) {
       return false;
     }
     return true;
-  }, [canvasesDisabled, stringSplitMode, isIteratorNode]);
+  }, [canvasesDisabled, stringSplitMode, isIteratorNode, isLoopNode]);
   const allowAddOutput = useMemo(() => {
     if (canvasesDisabled) {
       return false;
@@ -236,6 +275,7 @@ const useNodeInfo = ({ id, data }): UseNodeInfoReturn => {
     isDecisionMakingNode,
     isIfElseNode,
     isIteratorNode,
+    isLoopNode,
     isIteratorChildNode,
     isAgentNode,
     isStartOrEndNode,
@@ -587,6 +627,7 @@ const useNodeOutputRender = ({ id, data }): UseNodeOutputRenderReturn => {
         return;
       }
       setNode(id, old => {
+        old.data.nodeParam.setAnswerContentErrMsg = '';
         if (old?.data?.retryConfig) {
           const newSetAnswerContent = JSON.stringify(
             generateOrUpdateObject(
@@ -599,7 +640,6 @@ const useNodeOutputRender = ({ id, data }): UseNodeOutputRenderReturn => {
             2
           );
           old.data.retryConfig.customOutput = newSetAnswerContent;
-          old.data.nodeParam.setAnswerContentErrMsg = '';
         }
         return {
           ...cloneDeep(old),
@@ -712,8 +752,8 @@ const useNodeModels = ({ id, data }): UseNodeModelsReturn => {
     return models?.find(item => item?.llmId === data?.nodeParam?.llmId);
   }, [data?.nodeParam?.llmId, models]);
   const isThinkModel = useMemo(() => {
-    return data?.nodeParam?.isThink;
-  }, [data?.nodeParam?.isThink]);
+    return model?.isThink === true || data?.nodeParam?.isThink === true;
+  }, [model?.isThink, data?.nodeParam?.isThink]);
   return {
     models,
     model,
@@ -882,7 +922,11 @@ const useNodeHandle = ({ id, data }): UseNodeHandleReturn => {
   }, [data?.parentId, showIterativeModal]);
 
   const hasSourceHandle = useMemo(() => {
-    if (nodeType === 'node-end' || nodeType === 'iteration-node-end') {
+    if (
+      ['node-end', 'iteration-node-end', 'loop-node-end', 'loop-exit'].includes(
+        nodeType
+      )
+    ) {
       return false;
     }
     if (nodeType === 'decision-making') {
@@ -906,7 +950,11 @@ const useNodeHandle = ({ id, data }): UseNodeHandleReturn => {
   }, [data?.nodeParam?.exceptionHandlingEdge, id]);
 
   const hasTargetHandle = useMemo(() => {
-    if (['node-start', 'iteration-node-start']?.includes(nodeType)) {
+    if (
+      ['node-start', 'iteration-node-start', 'loop-node-start']?.includes(
+        nodeType
+      )
+    ) {
       return false;
     }
     return true;

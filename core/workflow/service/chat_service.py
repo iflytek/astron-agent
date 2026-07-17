@@ -938,6 +938,13 @@ async def _chat_response_stream(
                     )
                     return
 
+                if (
+                    response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value
+                    and final_content
+                ):
+                    response.choices[0].delta.content = ""
+                    response.choices[0].delta.reasoning_content = ""
+
                 final_content += response.choices[0].delta.content
                 final_reasoning_content += response.choices[0].delta.reasoning_content
                 await span_context.add_info_events_async(

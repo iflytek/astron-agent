@@ -42,7 +42,7 @@ class CodeExecutorFactory:
         """
         Create a code executor instance based on the specified type.
 
-        :param executor: Executor type identifier ("local", "langchain", or "ifly")
+        :param executor: Executor type identifier ("local", "langchain", "ifly", "ifly-v2", or "e2b")
         :return: Configured executor instance
         :raises Exception: If the specified executor type is not supported
         """
@@ -73,5 +73,9 @@ class CodeExecutorFactory:
             )
 
             return IFlyExecutorV2()
+        elif executor == "e2b":
+            from workflow.engine.nodes.code.executor.e2b.e2b_executor import E2BExecutor
+
+            return E2BExecutor()
         else:
             raise Exception(f"Unsupported executor type: {executor}")

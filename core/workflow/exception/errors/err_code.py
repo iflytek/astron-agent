@@ -190,10 +190,10 @@ class CodeEnum(Enum):
     )
     MASDK_UNKNOWN_ERROR = (20905, "Authentication failed, unknown error")
 
-    # PostgreSQL node errors
-    PG_SQL_REQUEST_ERROR = (21000, "PostgreSQL node request error")
-    PG_SQL_NODE_EXECUTION_ERROR = (21001, "PostgreSQL node execution error")
-    PG_SQL_PARAM_ERROR = (21002, "PostgreSQL node request parameter error")
+    # Database node errors
+    PG_SQL_REQUEST_ERROR = (21000, "Database node request error")
+    PG_SQL_NODE_EXECUTION_ERROR = (21001, "Database node execution error")
+    PG_SQL_PARAM_ERROR = (21002, "Database node request parameter error")
 
     # Audit errors
     AUDIT_ERROR = (21100, "Audit error")

@@ -7,11 +7,21 @@ import {
   OnMove,
   Viewport,
 } from 'reactflow';
+import {
+  AddNodeType,
+  NewNodeType,
+  PositionType,
+} from '@/components/workflow/types/drawer/chat-debugger';
+
 //Flow容器Props
 export interface FlowContainerProps {
   zoom: number;
   setZoom: (zoom: number) => void;
   setShowIterativeModal: (show: boolean) => void;
+  handleAddNode: (
+    addNode: AddNodeType,
+    position: PositionType
+  ) => NewNodeType[] | null | void;
 }
 
 export interface useIterativeAmplificationProps {

@@ -18,12 +18,8 @@ from plugin.aitools.common.clients.adapters import SpanLike
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.const.const import (
-    AI_API_KEY_KEY,
-    AI_API_SECRET_KEY,
-    AI_APP_ID_KEY,
-    TTS_URL_KEY,
-)
+from plugin.aitools.const.const import TTS_URL_KEY
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from plugin.aitools.utils.oss_utils import upload_file
 from pydantic import BaseModel
 
@@ -97,19 +93,17 @@ async def smart_tts_service(
         )
 
     url = os.getenv(TTS_URL_KEY, "")
-    app_id = os.getenv(AI_APP_ID_KEY, "")
-    api_key = os.getenv(AI_API_KEY_KEY, "")
-    api_secret = os.getenv(AI_API_SECRET_KEY, "")
-    data = gen_data(app_id, body.text, body.vcn, body.speed)
+    credentials = get_iflytek_open_platform_credentials()
+    data = gen_data(credentials.app_id, body.text, body.vcn, body.speed)
 
     audio_data = bytearray()
     async with WebSocketClient(
         url=url,
         span=span,
         auth="ASE",
-        app_id=app_id,
-        api_key=api_key,
-        api_secret=api_secret,
+        app_id=credentials.app_id,
+        api_key=credentials.api_key,
+        api_secret=credentials.api_secret,
     ).start() as client:
         await client.send(json.dumps(data))
 

@@ -22,14 +22,15 @@ class ChatRunner(RunnerBase):
     ) -> AsyncIterator[AgentResponse]:
         with span.start("RunChatAgent") as sp:
 
-            system_prompt = (
-                CHAT_SYSTEM_TEMPLATE.replace("{now}", self.cur_time())
-                .replace("{instruct}", self.instruct)
-                .replace("{knowledge}", self.knowledge)
+            system_prompt = CHAT_SYSTEM_TEMPLATE.format(
+                now=self.cur_time(),
+                instruct=self.instruct,
+                knowledge=self.knowledge,
             )
-            user_prompt = CHAT_USER_TEMPLATE.replace(
-                "{chat_history}", await self.create_history_prompt()
-            ).replace("{question}", self.question)
+            user_prompt = CHAT_USER_TEMPLATE.format(
+                chat_history=await self.create_history_prompt(),
+                question=self.question,
+            )
 
             messages = [
                 {"role": "system", "content": system_prompt},

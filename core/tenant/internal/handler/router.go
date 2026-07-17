@@ -40,6 +40,7 @@ func InitRouter(e *gin.Engine, conf *config.Config) error {
 	authGroup.Use(preProcess)
 	authGroup.POST("", authHandler.SaveAuth)
 	authGroup.DELETE("", authHandler.DeleteAuth)
+	authGroup.POST("/verify", authHandler.VerifyAppAuth)
 	authGroup.GET("/:app_id", authHandler.ListAuth)
 	authGroup.GET("/api_key/:api_key", authHandler.GetAppByAPIKey)
 

@@ -24,6 +24,7 @@ class KnowledgeQueryParams:
 
     repo_ids: list[str]
     doc_ids: list[str]
+    dataset_ids: list[str]
     top_k: int
     score_threshold: float
     rag_type: str
@@ -43,11 +44,14 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 api_key=self.inputs.model_config_inputs.api_key,
             )
 
+            skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
+            self._inject_skill_runtime_context(skills)
             plugins = await self.build_plugins(
                 tool_ids=self.inputs.plugin.tools,
                 mcp_server_ids=self.inputs.plugin.mcp_server_ids,
                 mcp_server_urls=self.inputs.plugin.mcp_server_urls,
                 workflow_ids=self.inputs.plugin.workflow_ids,
+                skills=skills,
             )
             metadata_list, knowledge = await self.query_knowledge_by_workflow(
                 self.inputs.plugin.knowledge, sp
@@ -88,6 +92,18 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 knowledge_metadata_list=metadata_list,
             )
 
+    def _inject_skill_runtime_context(self, skills: list[dict[str, Any]]) -> None:
+        for skill in skills:
+            sandbox = skill.get("sandbox")
+            if not isinstance(sandbox, dict) or not sandbox:
+                continue
+            sandbox["uid"] = self.inputs.uid
+            sandbox["workflow_id"] = self.inputs.meta_data.workflow_id
+            sandbox["run_id"] = (
+                self.inputs.meta_data.run_id or self.inputs.meta_data.caller_sid
+            )
+            sandbox["node_id"] = self.inputs.meta_data.node_id
+
     async def query_knowledge_by_workflow(
         self, knowledge_list: list[CustomCompletionPluginKnowledgeInputs], span: Span
     ) -> tuple[list, str]:
@@ -125,6 +141,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
         for knowledge in knowledge_list:
             repo_ids = knowledge.match.repo_ids or []
             doc_ids = knowledge.match.doc_ids or []
+            dataset_ids = knowledge.match.dataset_ids or []
 
             # 添加调试日志
             span.add_info_events(
@@ -133,6 +150,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     "repo_type": knowledge.repo_type,
                     "repo_ids": repo_ids,
                     "doc_ids": doc_ids,
+                    "dataset_ids": dataset_ids,
                 }
             )
 
@@ -154,6 +172,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             params = KnowledgeQueryParams(
                 repo_ids=repo_ids,
                 doc_ids=doc_ids,
+                dataset_ids=dataset_ids,
                 top_k=top_k,
                 score_threshold=score_threshold,
                 rag_type=repo_type,
@@ -227,6 +246,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             top_k=params.top_k,
             repo_ids=params.repo_ids,
             doc_ids=params.doc_ids,
+            dataset_ids=params.dataset_ids,
             score_threshold=params.score_threshold,
             rag_type=params.rag_type,
         ).gen()

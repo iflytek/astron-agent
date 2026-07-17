@@ -8,7 +8,6 @@ from workflow.engine.nodes.util.frame_processor import (
     AnthropicFrameProcessor,
     FrameProcessorFactory,
     GoogleFrameProcessor,
-    OpenAIFrameProcessor,
 )
 
 
@@ -80,12 +79,6 @@ def test_frame_processor_factory_supports_google() -> None:
     processor = FrameProcessorFactory.get_processor(ModelProviderEnum.GOOGLE.value)
 
     assert isinstance(processor, GoogleFrameProcessor)
-
-
-def test_frame_processor_factory_supports_deepseek() -> None:
-    processor = FrameProcessorFactory.get_processor(ModelProviderEnum.DEEPSEEK.value)
-
-    assert isinstance(processor, OpenAIFrameProcessor)
 
 
 def test_frame_processor_factory_rejects_unknown_protocol() -> None:

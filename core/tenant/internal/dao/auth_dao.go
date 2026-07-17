@@ -226,6 +226,12 @@ func (dao *AuthDao) WithApiKey(apiKey string) SqlOption {
 	}
 }
 
+func (dao *AuthDao) WithApiSecret(apiSecret string) SqlOption {
+	return func() (string, []interface{}) {
+		return "api_secret=?", []interface{}{apiSecret}
+	}
+}
+
 func (dao *AuthDao) WithUpdateTime(updateTime string) SqlOption {
 	return func() (string, []interface{}) {
 		return "update_time=?", []interface{}{updateTime}

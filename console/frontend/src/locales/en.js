@@ -368,6 +368,7 @@ export const en = {
     modelManagement: 'Model Management',
     resourceManagement: 'Resource Management',
     appManagement: 'App Management',
+    platformAccountManagement: 'Platform Accounts',
 
     // Order type translations
     orderTypes: {

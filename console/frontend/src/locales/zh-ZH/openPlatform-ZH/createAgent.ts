@@ -45,6 +45,9 @@ const translation = {
   buildSame: '建同款',
   allTemplates: '所有模板',
   createSuccess: '创建成功',
+  deleteTemplate: '删除模板',
+  templateDeleteSuccess: '模板删除成功',
+  templateDeleteFailed: '模板删除失败',
 };
 
 export default translation;

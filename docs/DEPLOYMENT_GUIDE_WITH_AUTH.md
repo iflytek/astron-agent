@@ -71,9 +71,9 @@ cd docker/astronAgent
 cp .env.example .env
 ```
 
-#### 2.1 Configure Knowledge Base Service Connection (Optional,If RagFlow is deployed)
+The `.env` file is only used for startup, access addresses, authentication, database, Redis, object storage, and other infrastructure settings. Business capability accounts such as RAGFlow, iFLYTEK Open Platform, AI Ability Chat, Virtual Man, and Spark Knowledge Base are no longer configured in `.env`. Configure them in **Platform Account Management** after AstronAgent starts.
 
-Edit the docker/astronAgent/.env file to configure RagFlow connection information:
+#### 2.1 Configure Service Host Address
 
 ```bash
 # Navigate to astronAgent directory
@@ -83,23 +83,21 @@ cd docker/astronAgent
 vim .env
 ```
 
-**Key Configuration Items:**
+Configure the AstronAgent service host address:
 
 ```env
-# RAGFlow Configuration
-RAGFLOW_BASE_URL=http://localhost:18080
-RAGFLOW_API_TOKEN=ragflow-your-api-token-here
-RAGFLOW_TIMEOUT=60
-RAGFLOW_DEFAULT_GROUP=星辰知识库
+HOST_BASE_ADDRESS=http://localhost
 ```
 
-**Obtaining RagFlow API Token:**
-1. Visit RagFlow Web Interface: http://localhost:18080
-2. Log in and click on your avatar to enter user settings
-3. Click API to generate an API KEY
-4. Update the generated API KEY to RAGFLOW_API_TOKEN in the .env file
+**Notes:**
+- If you use a domain name for access, replace `localhost` with your domain name
+- Ensure nginx and minio ports are properly exposed
 
-#### 2.2 Configure iFLYTEK Open Platform APP_ID, API_KEY, and Related Information (Optional, some built-in features require the use of capabilities from the Open Platform)
+#### 2.2 Prepare Business Capability Account Information (configure in the UI after startup)
+
+The following settings do not need to be written to `.env`. After AstronAgent starts, log in to the console and open **Platform Account Management** from the left menu. Fill in the corresponding cards; after saving, the configuration takes effect globally without restarting containers. If a feature depends on a capability that has not been configured, the system will prompt the user to configure it in Platform Account Management and will not block system startup.
+
+**iFLYTEK Open Platform** (used by built-in Spark model, real-time speech recognition, image generation, and related capabilities):
 
 For documentation, see: https://www.xfyun.cn/doc/platform/quickguide.html
 
@@ -109,26 +107,36 @@ After creating your application, you may need to purchase or claim API authoriza
 - Real-time Speech Recognition API: https://console.xfyun.cn/services/rta
 - Image Generation API: https://www.xfyun.cn/services/wtop
 
-Edit the docker/astronAgent/.env file and update the relevant environment variables:
-```env
-PLATFORM_APP_ID=your-app-id
-PLATFORM_API_KEY=your-api-key
-PLATFORM_API_SECRET=your-api-secret
+Prepare and fill in the following fields in the UI:
+- `PLATFORM_APP_ID`
+- `PLATFORM_API_KEY`
+- `PLATFORM_API_SECRET`
+- `SPARK_API_PASSWORD`
+- `SPARK_RTASR_API_KEY`
 
-SPARK_API_PASSWORD=your-api-password
-SPARK_RTASR_API_KEY=your-rtasr-api-key
-```
+**AI Ability Chat** (default Agent model interface, OpenAI protocol):
+- `AI_ABILITY_CHAT_BASE_URL`
+- `AI_ABILITY_CHAT_MODEL`
+- `AI_ABILITY_CHAT_API_KEY`
 
-#### 2.3 Configure the default model interface (OpenAI protocol) for the Agent
+**Virtual Man capability**:
+- `SPARK_VIRTUAL_MAN_APP_ID`
+- `SPARK_VIRTUAL_MAN_API_KEY`
+- `SPARK_VIRTUAL_MAN_API_SECRET`
 
-Edit the docker/astronAgent/.env file and update the relevant environment variables:
-```env
-AI_ABILITY_CHAT_BASE_URL=https://spark-api-open.xf-yun.com/v1
-AI_ABILITY_CHAT_MODEL=your-model-id
-AI_ABILITY_CHAT_API_KEY=your-api-key
-```
+**Knowledge Base Platform**:
+- RAGFlow: `RAGFLOW_BASE_URL`, `RAGFLOW_API_TOKEN`, `RAGFLOW_TIMEOUT`, `RAGFLOW_DEFAULT_GROUP`
+- Spark Knowledge Base: `XINGHUO_DATASET_ID`
 
-#### 2.4 Configure Spark RAG Cloud Service (Optional)
+When creating a knowledge base, users choose **RAGFlow** or **Spark Knowledge Base**. Only the platform actually used needs to be configured.
+
+**Obtaining RagFlow API Token:**
+1. Visit RagFlow Web Interface: http://localhost:18080
+2. Log in and click on your avatar to enter user settings
+3. Click API to generate an API KEY
+4. Fill it in as `RAGFLOW_API_TOKEN` under **Platform Account Management - Knowledge Base Platform**
+
+**Obtaining Spark Knowledge Base Dataset ID:**
 
 Spark RAG cloud service provides two usage methods:
 
@@ -155,22 +163,7 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 - Please replace `your_app_id` with your actual APP ID
 - Please replace `your_api_secret` with your actual API Secret
 
-After obtaining the dataset ID, please update it in the docker/astronAgent/.env file:
-```env
-XINGHUO_DATASET_ID=
-```
-
-#### 2.5 Configure Service Host Address
-
-Edit the docker/astronAgent/.env file to configure the AstronAgent service host address:
-
-```env
-HOST_BASE_ADDRESS=http://localhost
-```
-
-**Note:**
-- If you're using a domain name for access, replace `localhost` with your domain name
-- Ensure nginx and minio ports are properly exposed
+After obtaining the dataset ID, fill it in as `XINGHUO_DATASET_ID` under **Platform Account Management - Knowledge Base Platform**.
 
 ### Step 3: Start AstronAgent Core Services (Including Casdoor Authentication Service)
 
@@ -187,11 +180,22 @@ docker compose -f docker-compose-with-auth.yaml up -d
 **Note:**
 - Default Casdoor login credentials: username: `admin`, password: `123`
 
-### Step 4: Modify Casdoor Authentication (Optional)
+### Step 4: Configure Platform Account Management (Optional, configure business capabilities as needed)
+
+After AstronAgent starts, access the console and log in. Open **Platform Account Management** from the left menu. Platform Account Management is at the same menu level as **Application Management** and **Resource Management**, and contains the following four configuration cards:
+
+1. **iFLYTEK Open Platform**: fill in `PLATFORM_APP_ID`, `PLATFORM_API_KEY`, `PLATFORM_API_SECRET`, `SPARK_API_PASSWORD`, `SPARK_RTASR_API_KEY`
+2. **AI Ability Chat**: fill in `AI_ABILITY_CHAT_BASE_URL`, `AI_ABILITY_CHAT_MODEL`, `AI_ABILITY_CHAT_API_KEY`
+3. **Virtual Man capability**: fill in `SPARK_VIRTUAL_MAN_APP_ID`, `SPARK_VIRTUAL_MAN_API_KEY`, `SPARK_VIRTUAL_MAN_API_SECRET`
+4. **Knowledge Base Platform**: fill in RAGFlow fields `RAGFLOW_BASE_URL`, `RAGFLOW_API_TOKEN`, `RAGFLOW_TIMEOUT`, `RAGFLOW_DEFAULT_GROUP`, and Spark Knowledge Base field `XINGHUO_DATASET_ID`
+
+After saving, the configuration takes effect globally immediately. The system automatically refreshes the cache, and AstronAgent containers do not need to be restarted.
+
+### Step 5: Modify Casdoor Authentication (Optional)
 
 You can create new applications and organizations in Casdoor as needed, and update the configuration information in the `.env` file (default organization and application already exist).
 
-#### 4.1 Configure Casdoor Application
+#### 5.1 Configure Casdoor Application
 
 **Obtaining Casdoor Configuration Information:**
 1. Visit the Casdoor management console: [http://localhost:8000](http://localhost:8000)

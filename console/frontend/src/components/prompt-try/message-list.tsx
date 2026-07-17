@@ -21,6 +21,7 @@ const MessageList = (props: {
   isLoading: boolean;
   isCompleted: boolean;
   stopAnswer: () => void;
+  showHeaderAndRecommend?: boolean;
 }): ReactElement => {
   const {
     messageList,
@@ -30,6 +31,7 @@ const MessageList = (props: {
     isLoading,
     isCompleted,
     stopAnswer,
+    showHeaderAndRecommend = true,
   } = props;
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const { user } = useUserStore();
@@ -185,7 +187,7 @@ const MessageList = (props: {
               </div>
             );
           })}
-        {renderHeaderAndRecommend()}
+        {showHeaderAndRecommend && renderHeaderAndRecommend()}
       </div>
     </div>
   );

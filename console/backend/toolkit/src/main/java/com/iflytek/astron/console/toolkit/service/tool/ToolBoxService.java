@@ -510,25 +510,31 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
 
     public Object debugToolV2(ToolBoxDto toolBoxDto) {
         ToolDebugRequest request = new ToolDebugRequest();
+        boolean useTrustedToolDefinition = false;
         if (toolBoxDto.getId() != null) {
             ToolBox toolBox = toolBoxMapper.selectById(toolBoxDto.getId());
             if (toolBox == null) {
                 throw new BusinessException(ResponseEnum.TOOLBOX_NOT_EXIST);
             }
-            // Determine official plugin
-            if ((toolBox.getIsPublic() || toolBox.getUserId().equals(bizConfig.getAdminUid().toString())) && !toolBox.getUserId().equals(UserInfoManagerHandler.getUserId())) {
+            String currentUserId = UserInfoManagerHandler.getUserId();
+            useTrustedToolDefinition = isTrustedOfficialToolForCurrentUser(toolBox, currentUserId);
+            // Use persisted official tool definition for marketplace debug.
+            if (useTrustedToolDefinition) {
+                applyTrustedToolDefinition(toolBoxDto, toolBox);
                 toolBoxDto.setWebSchema(buildDisPlaySchema(toolBoxDto.getId(), toolBoxDto.getWebSchema()));
             }
             // Add plugin debug history
             ToolBoxOperateHistory ToolBoxOperateHistory = new ToolBoxOperateHistory();
             ToolBoxOperateHistory.setToolId(toolBox.getToolId());
-            ToolBoxOperateHistory.setUid(UserInfoManagerHandler.getUserId());
+            ToolBoxOperateHistory.setUid(currentUserId);
             ToolBoxOperateHistory.setType(1);
             toolBoxOperateHistoryMapper.insert(ToolBoxOperateHistory);
         }
 
         // Parameter validation
-        urlCheckTool.checkUrl(toolBoxDto.getEndPoint());
+        if (!useTrustedToolDefinition) {
+            urlCheckTool.checkUrl(toolBoxDto.getEndPoint());
+        }
 
 
         OpenApiSchema openApiSchema = convertToolBoxVoToToolSchema(toolBoxDto, null);
@@ -579,6 +585,25 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
         } catch (Exception e) {
             return ApiResult.success(text);
         }
+    }
+
+    private boolean isTrustedOfficialToolForCurrentUser(ToolBox toolBox, String currentUserId) {
+        boolean trustedOwner = Objects.equals(toolBox.getUserId(), bizConfig.getAdminUid())
+                || (bizConfig.getTrustedToolOwnerUids() != null
+                        && bizConfig.getTrustedToolOwnerUids().contains(toolBox.getUserId()));
+        boolean officialTool = trustedOwner
+                && Boolean.TRUE.equals(toolBox.getIsPublic())
+                && ToolboxStatusEnum.FORMAL.getCode().equals(toolBox.getStatus());
+        return officialTool && !Objects.equals(toolBox.getUserId(), currentUserId);
+    }
+
+    private void applyTrustedToolDefinition(ToolBoxDto toolBoxDto, ToolBox toolBox) {
+        toolBoxDto.setName(toolBox.getName());
+        toolBoxDto.setDescription(toolBox.getDescription());
+        toolBoxDto.setEndPoint(toolBox.getEndPoint());
+        toolBoxDto.setMethod(toolBox.getMethod());
+        toolBoxDto.setAuthType(toolBox.getAuthType());
+        toolBoxDto.setAuthInfo(toolBox.getAuthInfo());
     }
 
     public PageData<ToolBoxVo> pageListTools(Integer pageNo, Integer pageSize, String content, Integer status) {
@@ -701,10 +726,14 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
                 .collect(Collectors.toMap(WebSchemaItem::getName, item -> item));
 
         originToolRequestInput = originToolRequestInput.stream()
-                .map(item -> inputMap.getOrDefault(item.getName(), item))
+                .map(item -> isDisplaySchemaItem(item) ? inputMap.getOrDefault(item.getName(), item) : item)
                 .collect(Collectors.toList());
         originWebSchema.setToolRequestInput(originToolRequestInput);
         return JSON.toJSONString(originWebSchema);
+    }
+
+    private boolean isDisplaySchemaItem(WebSchemaItem item) {
+        return item.getOpen() == null || item.getOpen();
     }
 
 

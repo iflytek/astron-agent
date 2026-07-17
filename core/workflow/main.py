@@ -1,7 +1,7 @@
 """
-Spark Flow Main Application Module
+Astron Agent Workflow Main Application Module
 
-This module serves as the entry point for the Spark Flow workflow engine application.
+This module serves as the entry point for the Astron Agent workflow engine application.
 It initializes the FastAPI application with all necessary middleware, routers, and
 extensions including metrics, tracing, and graceful shutdown handling.
 """
@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
 import uvicorn
+from common.health import create_health_router
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from loguru import logger
@@ -30,6 +31,7 @@ from workflow.extensions.fastapi.middleware.otlp import OtlpMiddleware
 from workflow.extensions.graceful_shutdown.graceful_shutdown import GracefulShutdown
 from workflow.extensions.middleware.base import FactoryConfig, ServiceType
 from workflow.extensions.middleware.initialize import initialize_services
+from workflow.extensions.middleware.manager import service_manager
 from workflow.utils.system_workers import worker_count
 
 
@@ -103,6 +105,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuthMiddleware)  # type: ignore[arg-type]
 
     # Include API routers for different endpoints
+    app.include_router(create_health_router("core-workflow", service_manager))
     app.include_router(sparkflow_router)
     app.include_router(workflow_router)
     app.include_router(old_auth_router)
@@ -117,7 +120,7 @@ def create_app() -> FastAPI:
 
 
 if __name__ == "__main__":
-    # Main entry point for the Spark Flow application.
+    # Main entry point for the Astron Agent workflow application.
     # This block initializes the application environment and starts the Uvicorn
     # ASGI server with appropriate configuration for different platforms.
 

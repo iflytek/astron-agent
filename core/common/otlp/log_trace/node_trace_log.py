@@ -90,7 +90,9 @@ class NodeTraceLog(BaseModel):
     def add_func_log(self, node_logs: list[NodeLog]) -> None:
         self.add_node_log(node_logs)
 
-    def to_json(self, large_field_save_service: Optional[BaseOSSService] = None) -> str:
+    def to_json(  # noqa: C901
+        self, large_field_save_service: Optional[BaseOSSService] = None
+    ) -> str:
         """
         返回JSON字符串。超过5kb的value值，存储在对应存储服务中
         :return:

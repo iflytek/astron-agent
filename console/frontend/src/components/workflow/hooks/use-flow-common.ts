@@ -93,10 +93,53 @@ const useAddNode = (): UseAddNodeReturn => {
           addNode.data.nodeParam.spaceId = spaceId?.toString();
         }
         let addNodes: NewNodeType[] = [];
-        if (nodeType === 'iteration') {
+        if (nodeType === 'iteration' || nodeType === 'loop') {
           const nodeId = getNodeId(addNode.idType);
-          const startNodeId = getNodeId('iteration-node-start');
-          addNode.data.nodeParam.IterationStartNodeId = startNodeId;
+          const isLoop = nodeType === 'loop';
+          const startType = isLoop ? 'loop-node-start' : 'iteration-node-start';
+          const endType = isLoop ? 'loop-node-end' : 'iteration-node-end';
+          const startNodeId = getNodeId(startType);
+          const loopVariable = {
+            id: uuid(),
+            name: 'loop_value',
+            schema: {
+              type: 'string',
+            },
+            value: {
+              type: 'literal',
+              content: '',
+            },
+          };
+          let loopVariables = [loopVariable];
+          if (isLoop) {
+            loopVariables = (
+              addNode.data.nodeParam.loopVariables?.length > 0
+                ? addNode.data.nodeParam.loopVariables
+                : [loopVariable]
+            ).map((variable, index) => ({
+              id: variable.id || (index === 0 ? loopVariable.id : uuid()),
+              name: variable.name || `loop_value_${index + 1}`,
+              schema: variable.schema || { type: 'string' },
+              value:
+                variable.value || variable.initialValue || loopVariable.value,
+            }));
+            addNode.data.nodeParam.LoopStartNodeId = startNodeId;
+            addNode.data.nodeParam.maxLoopCount =
+              addNode.data.nodeParam.maxLoopCount || 10;
+            addNode.data.nodeParam.loopVariables = loopVariables;
+            addNode.data.nodeParam.termination = addNode.data.nodeParam
+              .termination || {
+              logicalOperator: 'and',
+              conditions: [],
+            };
+            addNode.data.outputs = loopVariables.map(variable => ({
+              id: variable.id,
+              name: variable.name,
+              schema: variable.schema,
+            }));
+          } else {
+            addNode.data.nodeParam.IterationStartNodeId = startNodeId;
+          }
           addNodes = [
             {
               id: nodeId,
@@ -118,7 +161,7 @@ const useAddNode = (): UseAddNodeReturn => {
               zIndex: 1,
               draggable: false,
               type: 'custom',
-              nodeType: 'iteration-node-start',
+              nodeType: startType,
               selected: false,
               position: { x: 100, y: 150 },
               data: {
@@ -135,27 +178,36 @@ const useAddNode = (): UseAddNodeReturn => {
                   aliasName: '开始节点',
                 },
                 inputs: [],
-                outputs: [
-                  {
-                    id: uuid(),
-                    name: 'input',
-                    schema: {
-                      type: '',
-                      default: '',
-                    },
-                  },
-                ],
+                outputs: isLoop
+                  ? loopVariables.map(variable => ({
+                      id: variable.id,
+                      name: variable.name,
+                      schema: {
+                        type: variable.schema.type,
+                        default: '',
+                      },
+                    }))
+                  : [
+                      {
+                        id: uuid(),
+                        name: 'input',
+                        schema: {
+                          type: '',
+                          default: '',
+                        },
+                      },
+                    ],
                 nodeParam: {},
               },
             },
             {
-              id: getNodeId('iteration-node-end'),
+              id: getNodeId(endType),
               parentId: nodeId,
               extent: 'parent',
               draggable: false,
               zIndex: 1,
               type: 'custom',
-              nodeType: 'iteration-node-end',
+              nodeType: endType,
               selected: false,
               position: { x: 250, y: 150 },
               data: {
@@ -171,19 +223,31 @@ const useAddNode = (): UseAddNodeReturn => {
                   nodeType: '基础节点',
                   aliasName: '结束节点',
                 },
-                inputs: [
-                  {
-                    id: uuid(),
-                    name: 'output',
-                    schema: {
-                      type: '',
-                      value: {
-                        type: 'ref',
-                        content: {},
+                inputs: isLoop
+                  ? loopVariables.map(variable => ({
+                      id: variable.id,
+                      name: variable.name,
+                      schema: {
+                        type: variable.schema.type,
+                        value: {
+                          type: 'ref',
+                          content: {},
+                        },
                       },
-                    },
-                  },
-                ],
+                    }))
+                  : [
+                      {
+                        id: uuid(),
+                        name: 'output',
+                        schema: {
+                          type: '',
+                          value: {
+                            type: 'ref',
+                            content: {},
+                          },
+                        },
+                      },
+                    ],
                 outputs: [],
                 nodeParam: {
                   outputMode: 0,

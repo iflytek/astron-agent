@@ -1,323 +1,150 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project Overview
 
-## 项目概述
+Astron Agent is an enterprise-grade Agentic Workflow development platform. It includes the console frontend and backend, multiple core microservices, a plugin system, and deployment and infrastructure configuration. The repository uses a multi-language, multi-module structure. The primary languages are TypeScript, Java, Python, and Go.
 
-Astron Agent 是一个企业级 Agentic Workflow 开发平台,采用微服务架构,整合了 AI 工作流编排、模型管理、AI 工具、RPA 自动化和团队协作功能。
+## Repository Structure
 
-### 技术栈概览
+### Console
 
-- **前端**: TypeScript + React 18 + Vite + Ant Design (位于 `console/frontend/`)
-- **控制台后端**: Java 21 + Spring Boot 3.5.4 (位于 `console/backend/`)
-- **核心微服务**: Python 3.11+ + FastAPI (位于 `core/` 目录)
-- **租户服务**: Go 1.23 + Gin (位于 `core/tenant/`)
-- **基础设施**: MySQL, Redis, Kafka, MinIO
+- `console/frontend`
+  - React 18 + TypeScript + Vite frontend application
+  - Responsible for the console UI, agent creation, chat interface, workflow visualization, model management, plugin marketplace, and related features
+- `console/backend`
+  - Java Spring Boot backend
+  - Responsible for console REST APIs, SSE, authentication, management capabilities, and business aggregation
+  - Main submodules:
+    - `hub`
+    - `toolkit`
+    - `commons`
 
-## 常用开发命令
+### Core Microservices
 
-### 统一构建工具 (Makefile)
+- `core/agent`
+  - Python FastAPI service
+  - Responsible for the agent execution engine, Chat/CoT/CoT Process Agent, plugin invocation, and session context handling
+- `core/workflow`
+  - Python FastAPI service
+  - Responsible for workflow orchestration, execution, debugging, versioning, and event handling
+- `core/knowledge`
+  - Python FastAPI service
+  - Responsible for the knowledge base, document processing, vectorization, retrieval, and RAG integration
+- `core/memory`
+  - Python module
+  - Responsible for conversation history, short-term and long-term memory, and session persistence
+- `core/tenant`
+  - Go service
+  - Responsible for multi-tenancy, space isolation, organization management, and resource quota management
+- `core/plugin`
+  - Plugin capability directory
+  - Includes plugin services such as `aitools`, `rpa`, and `link`
+- `core/common`
+  - Python shared capability module
+  - Responsible for abstractions around authentication, logging, observability, databases, cache, message queues, object storage, and other infrastructure concerns
 
-项目使用统一的 Makefile 管理所有语言的构建、测试和质量检查:
+### Other Directories
 
-```bash
-# 一次性环境设置
-make setup              # 安装所有工具,配置 Git 钩子
-
-# 日常开发命令
-make format             # 格式化所有代码 (Go/Java/Python/TypeScript)
-make check              # 运行所有质量检查 (lint)
-make test               # 运行所有测试
-make build              # 构建所有项目
-make ci                 # 完整 CI 流程: format + check + test + build
-
-# 代码推送
-make push               # 安全推送 (带预检查)
-
-# 项目状态
-make status             # 显示项目信息
-make info               # 显示工具版本
-```
-
-### 本地开发配置
+- `docs`
+  - Project documentation, deployment, configuration, and module descriptions
+  - For architectural understanding, refer first to `docs/zh/PROJECT_MODULES.md`
+- `docker`
+  - Docker Compose and related infrastructure configuration
+- `helm`
+  - Helm Charts and Kubernetes deployment configuration
 
-为提高开发效率,可创建 `.localci.toml` 文件只启用正在开发的模块:
-
-```bash
-cp makefiles/localci.toml .localci.toml
-# 编辑 .localci.toml,设置 enabled = true/false 来启用/禁用模块
-```
+## Typical Communication Flows
 
-### 运行各服务
+- Frontend -> Console Backend: HTTP/REST, SSE
+- Console Backend -> Core Services: HTTP/REST
+- Core Services -> Core Services: Kafka event-driven communication
 
-```bash
-# Go 服务 (租户服务)
-cd core/tenant && go run cmd/main.go
-
-# Java 服务 (控制台后端)
-cd console/backend && mvn spring-boot:run
-
-# Python 服务 (Agent 服务)
-cd core/agent && python main.py
+## Behavioral Guidelines to Reduce Common LLM Coding Mistakes
 
-# Python 服务 (Workflow 服务)
-cd core/workflow && python main.py
+Merge these with project-specific instructions as needed.
 
-# Python 服务 (Knowledge 服务)
-cd core/knowledge && python main.py
-
-# TypeScript 前端
-cd console/frontend && npm run dev
-```
+Tradeoff: These guidelines prioritize caution over speed. Use judgment for trivial tasks.
 
-### Python 模块测试
+### 1. Think Before Coding
 
-```bash
-# 在各 Python 模块目录下运行
-pytest                          # 运行所有测试
-pytest tests/test_xxx.py        # 运行单个测试文件
-pytest -v --cov                 # 运行测试并生成覆盖率报告
-```
+Do not assume. Do not hide confusion. Surface tradeoffs.
 
-### Java 模块测试
+Before implementing:
 
-```bash
-cd console/backend
-mvn test                        # 运行所有测试
-mvn test -Dtest=ClassName       # 运行单个测试类
-```
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them instead of choosing silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Identify what is confusing and ask.
 
-### 前端开发
+### 2. Simplicity First
 
-```bash
-cd console/frontend
-npm run dev                     # 启动开发服务器 (端口 3000)
-npm run build                   # 生产构建
-npm run lint                    # ESLint 检查
-npm run format                  # Prettier 格式化
-npm run type-check              # TypeScript 类型检查
-npm run quality                 # 运行所有检查
-```
+Write the minimum code that solves the problem. Nothing speculative.
 
-## 项目架构
+- Do not add features beyond what was asked.
+- Do not add abstractions for single-use code.
+- Do not add "flexibility" or "configurability" that was not requested.
+- Do not add error handling for impossible scenarios.
+- If you write 200 lines and the same result could be achieved in 50, rewrite it.
+- Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-### 目录结构
-
-```
-astron-agent/
-├── console/                    # 控制台模块
-│   ├── frontend/              # React 前端 (TypeScript)
-│   └── backend/               # Spring Boot 后端 (Java)
-│       ├── hub/               # 主 API 服务
-│       ├── toolkit/           # 工具模块
-│       └── commons/           # 公共模块
-├── core/                      # 核心微服务
-│   ├── agent/                 # Agent 服务 (Python FastAPI)
-│   ├── workflow/              # 工作流服务 (Python FastAPI)
-│   ├── knowledge/             # 知识库服务 (Python FastAPI)
-│   ├── memory/                # 内存数据库服务 (Python)
-│   ├── tenant/                # 租户服务 (Go Gin)
-│   ├── common/                # 公共模块 (Python)
-│   └── plugin/                # 插件系统
-│       ├── aitools/           # AI 工具插件
-│       ├── rpa/               # RPA 插件
-│       └── link/              # 链接插件
-├── docker/                    # Docker 配置
-├── docs/                      # 文档
-├── helm/                      # Kubernetes Helm Charts
-└── makefiles/                 # Makefile 工具链
-```
-
-### 核心架构模式
-
-#### 1. 微服务通信
-
-- **Frontend → Backend**: HTTP/REST + SSE (服务端推送)
-- **Backend → Core Services**: HTTP/REST API
-- **Core Services ↔ Core Services**: Kafka 事件驱动 (异步)
-- **数据持久化**: MySQL (关系数据) + Redis (缓存/会话)
-- **文件存储**: MinIO (对象存储)
-
-#### 2. Kafka 事件主题
-
-- `workflow-events`: 工作流事件
-- `knowledge-events`: 知识库事件
-- `agent-events`: Agent 事件
-
-#### 3. Python 服务架构 (DDD)
-
-所有 Python 微服务遵循领域驱动设计 (DDD):
-
-```
-service/
-├── api/                       # API 层 (FastAPI 路由)
-├── service/                   # 服务层 (业务逻辑)
-├── domain/                    # 领域层 (领域模型)
-├── repository/                # 仓储层 (数据访问)
-└── main.py                    # 服务入口
-```
-
-#### 4. 公共模块 (core/common)
-
-为所有 Python 服务提供统一的基础设施:
-
-- 认证和审计系统 (MetrologyAuth)
-- 可观测性支持 (OpenTelemetry)
-- 数据库、缓存、消息队列连接管理
-- 统一日志系统
-- OSS 对象存储集成
-
-## 代码质量标准
-
-### Python 代码规范
-
-- **格式化**: Black + isort
-- **类型检查**: MyPy
-- **代码分析**: Pylint + Flake8
-- **测试覆盖率**: ≥ 70% (使用 pytest)
-- **架构**: DDD (领域驱动设计)
-
-### Java 代码规范
-
-- **格式化**: Maven Spotless
-- **代码分析**: Checkstyle + PMD + SpotBugs
-- **测试**: JUnit
-- **架构**: Spring Boot 分层架构
-
-### TypeScript 代码规范
-
-- **格式化**: Prettier
-- **代码检查**: ESLint
-- **类型检查**: TypeScript 严格模式
-- **测试**: Jest + React Testing Library
+### 3. Surgical Changes
 
-### Go 代码规范
+Touch only what you must. Clean up only your own mess.
 
-- **格式化**: gofmt + goimports + gofumpt + golines
-- **代码分析**: staticcheck + golangci-lint
-- **测试**: go test with coverage
+When editing existing code:
 
-## Git 工作流
+- Do not "improve" adjacent code, comments, or formatting.
+- Do not refactor things that are not broken.
+- Match the existing style, even if you would normally do it differently.
+- If you notice unrelated dead code, mention it. Do not delete it.
 
-### 分支命名规范
+When your changes create orphans:
 
-```bash
-feature/功能名              # 新功能开发
-bugfix/问题名               # Bug 修复
-hotfix/补丁名               # 紧急修复
-refactor/重构名             # 代码重构
-test/测试名                 # 测试开发
-doc/文档名                  # 文档更新
-```
+- Remove imports, variables, or functions that become unused because of your changes.
+- Do not remove pre-existing dead code unless asked.
+- Use this test: every changed line should trace directly to the user's request.
 
-### 提交消息规范
+### 4. Goal-Driven Execution
 
-使用 Conventional Commits 格式:
+Define success criteria. Iterate until verified.
 
-```
-<type>(<scope>): <description>
+Turn tasks into verifiable goals:
 
-[optional body]
+- "Add validation" -> "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" -> "Write a test that reproduces it, then make it pass"
+- "Refactor X" -> "Ensure tests pass before and after"
 
-[optional footer(s)]
-```
+For multi-step tasks, state a brief plan:
 
-**类型 (type)**:
-- `feat`: 新功能
-- `fix`: Bug 修复
-- `docs`: 文档更新
-- `style`: 代码格式
-- `refactor`: 代码重构
-- `perf`: 性能优化
-- `test`: 测试相关
-- `build`: 构建系统
-- `ci`: CI/CD 配置
-- `chore`: 杂项任务
+1. [Step] -> verify: [check]
+2. [Step] -> verify: [check]
+3. [Step] -> verify: [check]
 
-**示例**:
-```bash
-feat(auth): 添加 OAuth2 登录支持
-fix(api): 修复用户信息查询接口
-docs(guide): 完善快速开始指南
-```
+Strong success criteria allow you to work independently in a loop. Weak criteria such as "make it work" require constant clarification.
 
-### Git 钩子
+These guidelines are working if there are fewer unnecessary changes in diffs, fewer rewrites caused by overcomplication, and more clarifying questions before implementation rather than after mistakes.
 
-```bash
-make hooks-install              # 安装完整钩子 (格式化+检查)
-make hooks-install-basic        # 安装轻量级钩子 (仅格式化)
-make hooks-uninstall            # 卸载钩子
-```
+## Modification Recommendations
 
-## 部署
+- Before making changes, first identify the target module. Do not modify shared layers directly before understanding the call chain.
+- If a change involves multiple services, make the call chain and dependency direction explicit.
+- If Kafka, Redis, MinIO, or authentication is involved, evaluate the impact on other services first.
 
-### Docker Compose 部署 (推荐快速开始)
+## Important Notes
 
-```bash
-cd docker/astronAgent
-cp .env.example .env
-vim .env                        # 配置环境变量
+- Before implementation, first confirm the target module, upstream and downstream dependencies, and the verification approach.
+- **Always prioritize official frameworks, SDKs, and APIs.** When an official framework, SDK, or API exists for a task, you MUST use it instead of hand-rolling a custom implementation, reimplementing existing capabilities, or calling lower-level interfaces directly. Only fall back to a custom approach when no official option covers the need, and state explicitly why the official option was insufficient.
+- If it is a complete feature request or a complex bug, add logs at key points as much as reasonably possible to help with troubleshooting, but do not add excessive logging.
 
-# 启动所有服务 (包括 Casdoor 认证)
-docker compose -f docker-compose-with-auth.yaml up -d
+## Key Workflow Expectations
 
-# 访问地址
-# - 前端: http://localhost/
-# - Casdoor 管理: http://localhost:8000 (admin/123)
-```
+Once feature development and testing are complete, run the following release-and-acceptance loop **autonomously, end to end, without asking the user to confirm any step**. Steps 1–3 each dispatch a new subagent to run the named skill under `.claude\skills\`. Step 4 is different: the main agent reads and runs the skill itself, then spawns its own testing subagent as the skill directs — do not hand the whole skill to a single subagent. Repeat the loop until acceptance passes.
 
-### 必须配置的环境变量
+1. **Publish and merge** — Dispatch a subagent to execute the `astron-agent-pr-publish` skill. It commits the eligible local changes, pushes the current branch to `origin`, opens a same-branch pull request into `iflytek/astron-agent`, and merges it once the PR has no conflicts.
+2. **Wait for the image build** — Merging into the upstream branch triggers the image-build workflow `.github/workflows/build-push.yml` in `iflytek/astron-agent`, which builds and pushes all service images to GHCR and takes ~16 minutes. Do not deploy before it finishes. Poll the run with `gh run list` / `gh run watch -R iflytek/astron-agent` on the branch you merged into (rather than sleeping a fixed time), and proceed only when it concludes with `success`. If the build fails, fix the cause and restart from step 1.
+3. **Deploy** — After the build succeeds, dispatch a subagent to execute the `astron-agent-server-deploy` skill, which pulls the new images, restarts the stack, and prunes dangling images on the server. Wait until the deployment completes and all services are up.
+4. **Acceptance test** — Once all services are running, the **main agent itself** reads and runs the `astron-agent-e2e-acceptance` skill (do not delegate the whole skill to a subagent). Following the skill, the main agent selects the feature points to verify, dispatches a testing-only subagent (a full-tool type such as `general-purpose`) to drive the browser via the Playwright MCP tools, and uses the returned evidence to judge pass/fail.
+   - **Pass** → the loop is complete; report the result and stop.
+   - **Fail** → the main agent automatically diagnoses and fixes the issues surfaced by the subagent's evidence, then restarts from step 1. Keep iterating until acceptance passes.
 
-在 `.env` 文件中必须配置:
-
-1. **讯飞开放平台凭证** (需要申请):
-   - `PLATFORM_APP_ID`, `PLATFORM_API_KEY`, `PLATFORM_API_SECRET`
-   - `SPARK_API_PASSWORD`, `SPARK_RTASR_API_KEY`
-
-2. **Casdoor 认证配置**:
-   - `CONSOLE_CASDOOR_URL`, `CONSOLE_CASDOOR_ID`
-   - `CONSOLE_CASDOOR_APP`, `CONSOLE_CASDOOR_ORG`
-
-3. **RAGFlow 知识库配置** (如使用):
-   - `RAGFLOW_BASE_URL`, `RAGFLOW_API_TOKEN`
-
-4. **主机地址**:
-   - `HOST_BASE_ADDRESS` - 服务器地址或域名
-
-详细配置说明见 `docs/CONFIGURATION_zh.md`
-
-## 重要注意事项
-
-### 开发约定
-
-1. **禁止直接推送到 main/develop 分支** - 必须通过分支开发 + PR 流程
-2. **提交前必须通过所有质量检查** - 运行 `make format && make check`
-3. **使用规范的分支命名和提交消息** - 遵循上述规范
-4. **大功能拆分为小 commit** - 便于代码审查
-
-### 模块间依赖
-
-- **Common Module** 被所有 Python 服务依赖,修改时需谨慎
-- **Agent Service** 被 Workflow 服务调用
-- **Knowledge Service** 为 Agent 和 Workflow 提供 RAG 能力
-- **Tenant Service** 为所有服务提供租户上下文
-
-### 数据库迁移
-
-Python 服务使用 Alembic 进行数据库迁移:
-
-```bash
-# 在各服务目录下
-alembic upgrade head            # 应用迁移
-alembic revision -m "描述"      # 创建新迁移
-```
-
-## 相关文档
-
-- [项目模块说明](docs/PROJECT_MODULES_zh.md) - 详细架构说明
-- [部署指南](docs/DEPLOYMENT_GUIDE_WITH_AUTH_zh.md) - 完整部署步骤
-- [配置说明](docs/CONFIGURATION_zh.md) - 环境变量配置
-- [Makefile 使用指南](docs/Makefile-readme-zh.md) - 构建工具详解
-- [代码质量要求](.github/quality-requirements/code-requirements-zh.md) - 质量标准
-- [分支提交规范](.github/quality-requirements/branch-commit-standards-zh.md) - Git 规范
-- [前端开发指南](console/frontend/CLAUDE.md) - 前端特定指南
+Safety net: if the same failure persists across several full iterations with no progress, stop and report to the user instead of looping indefinitely.

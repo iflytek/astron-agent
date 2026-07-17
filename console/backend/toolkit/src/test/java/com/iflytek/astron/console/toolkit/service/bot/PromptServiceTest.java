@@ -40,6 +40,8 @@ class PromptServiceTest {
     private SparkBotMapper sparkBotMapper;
     @Mock
     private WorkflowMapper workflowMapper;
+    @Mock
+    private OpenAiModelProcessService openAiModelProcessService;
 
     @InjectMocks
     private PromptService service;
@@ -47,7 +49,7 @@ class PromptServiceTest {
     // --------------------- enhance ---------------------
 
     @Test
-    @DisplayName("enhance: Template placeholders should be replaced and Spark should be called to generate SSE")
+    @DisplayName("enhance: Template placeholders should be replaced and model process service should be called")
     void enhance_shouldFillTemplate_andCallSpark() {
         ConfigInfo cfg = new ConfigInfo();
         cfg.setValue("Hi {assistant_name} - {assistant_description}");
@@ -55,7 +57,7 @@ class PromptServiceTest {
 
         SseEmitter expected = new SseEmitter();
         ArgumentCaptor<String> msgCap = ArgumentCaptor.forClass(String.class);
-        when(sparkApiTool.onceChatReturnSseByWs(msgCap.capture())).thenReturn(expected);
+        when(openAiModelProcessService.processStreaming(msgCap.capture())).thenReturn(expected);
 
         SseEmitter out = service.enhance("alice", "a helpful bot");
 
@@ -72,8 +74,7 @@ class PromptServiceTest {
         cfg.setValue("Q: {q}");
         when(configInfoMapper.getByCategoryAndCode("TEMPLATE", "next-question-advice")).thenReturn(cfg);
 
-        when(sparkApiTool.onceChatReturnWholeByWs("Q: hello"))
-                .thenReturn("[\"a\",\"b\",\"c\"]");
+        when(openAiModelProcessService.processNonStreaming("Q: hello")).thenReturn("[\"a\",\"b\",\"c\"]");
 
         Object res = service.nextQuestionAdvice("hello");
 
@@ -89,8 +90,7 @@ class PromptServiceTest {
         cfg.setValue("MSG:{q}");
         when(configInfoMapper.getByCategoryAndCode("TEMPLATE", "next-question-advice")).thenReturn(cfg);
 
-        when(sparkApiTool.onceChatReturnWholeByWs("MSG:hi"))
-                .thenReturn("prefix blah [\"x\",\"y\",\"z\"] tail");
+        when(openAiModelProcessService.processNonStreaming("MSG:hi")).thenReturn("prefix blah [\"x\",\"y\",\"z\"] tail");
 
         Object res = service.nextQuestionAdvice("hi");
 
@@ -106,8 +106,7 @@ class PromptServiceTest {
         cfg.setValue("X:{q}");
         when(configInfoMapper.getByCategoryAndCode("TEMPLATE", "next-question-advice")).thenReturn(cfg);
 
-        when(sparkApiTool.onceChatReturnWholeByWs(anyString()))
-                .thenThrow(new RuntimeException("ws err"));
+        when(openAiModelProcessService.processNonStreaming(anyString())).thenThrow(new RuntimeException("ws err"));
 
         Object res = service.nextQuestionAdvice("whatever");
         assertThat(res).isInstanceOfAny(List.class);
@@ -129,7 +128,7 @@ class PromptServiceTest {
             SseEmitter out = service.aiGenerate(new AiGenerate());
 
             assertThat(out).isNotNull();
-            verifyNoInteractions(sparkApiTool);
+            verifyNoInteractions(openAiModelProcessService);
         }
 
         @Test
@@ -141,7 +140,7 @@ class PromptServiceTest {
 
             SseEmitter expected = new SseEmitter();
             ArgumentCaptor<String> msgCap = ArgumentCaptor.forClass(String.class);
-            when(sparkApiTool.onceChatReturnSseByWs(msgCap.capture())).thenReturn(expected);
+            when(openAiModelProcessService.processStreaming(msgCap.capture())).thenReturn(expected);
 
             AiGenerate req = new AiGenerate();
             req.setCode("some-code");
@@ -166,7 +165,7 @@ class PromptServiceTest {
 
             SseEmitter expected = new SseEmitter();
             ArgumentCaptor<String> msgCap = ArgumentCaptor.forClass(String.class);
-            when(sparkApiTool.onceChatReturnSseByWs(msgCap.capture())).thenReturn(expected);
+            when(openAiModelProcessService.processStreaming(msgCap.capture())).thenReturn(expected);
 
             AiGenerate req = new AiGenerate();
             req.setCode("prologue");
@@ -193,7 +192,7 @@ class PromptServiceTest {
 
             SseEmitter expected = new SseEmitter();
             ArgumentCaptor<String> msgCap = ArgumentCaptor.forClass(String.class);
-            when(sparkApiTool.onceChatReturnSseByWs(msgCap.capture())).thenReturn(expected);
+            when(openAiModelProcessService.processStreaming(msgCap.capture())).thenReturn(expected);
 
             AiGenerate req = new AiGenerate();
             req.setCode("prologue");
@@ -219,7 +218,7 @@ class PromptServiceTest {
             SseEmitter out = service.aiCode(new AiCode());
 
             assertThat(out).isNotNull();
-            verifyNoInteractions(sparkApiTool);
+            verifyNoInteractions(openAiModelProcessService);
         }
 
         @Test
@@ -232,75 +231,47 @@ class PromptServiceTest {
             SseEmitter out = service.aiCode(new AiCode());
 
             assertThat(out).isNotNull();
-            verifyNoInteractions(sparkApiTool);
+            verifyNoInteractions(openAiModelProcessService);
         }
 
         @Test
-        @DisplayName("aiCode: For create branch, should replace {var}/{prompt} and use provided URL/Domain")
+        @DisplayName("aiCode: For create branch, should replace {var}/{prompt}")
         void aiCode_create_shouldFillVars_andUseExplicitUrlDomain() {
-            // Template
             ConfigInfo cfg = new ConfigInfo();
             cfg.setValue("var={var};prompt={prompt}");
             when(configInfoMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(cfg);
 
-            // URL/Domain configuration
-            ConfigInfo url = new ConfigInfo();
-            url.setValue("http://code.url");
-            ConfigInfo domain = new ConfigInfo();
-            domain.setValue("code.domain");
-            when(configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_url")).thenReturn(url);
-            when(configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_domain")).thenReturn(domain);
-
             SseEmitter expected = new SseEmitter();
-            ArgumentCaptor<String> urlCap = ArgumentCaptor.forClass(String.class);
-            ArgumentCaptor<String> domainCap = ArgumentCaptor.forClass(String.class);
             ArgumentCaptor<String> msgCap = ArgumentCaptor.forClass(String.class);
-            when(sparkApiTool.onceChatReturnSseByWs(urlCap.capture(), domainCap.capture(), msgCap.capture()))
-                    .thenReturn(expected);
+            when(openAiModelProcessService.processStreaming(msgCap.capture())).thenReturn(expected);
 
             AiCode req = new AiCode();
             req.setPrompt("P");
             req.setVar("V");
-            // req.setCode("") remains empty action=create
 
             SseEmitter out = service.aiCode(req);
 
             assertThat(out).isSameAs(expected);
-            assertThat(urlCap.getValue()).isEqualTo("http://code.url");
-            assertThat(domainCap.getValue()).isEqualTo("code.domain");
             assertThat(msgCap.getValue()).isEqualTo("var=V;prompt=P");
         }
 
         @Test
-        @DisplayName("aiCode: For fix branch, should extract error fragment from after 2nd '(' to second-to-last character, and use default URL/Domain")
+        @DisplayName("aiCode: For fix branch, should extract error fragment from after 2nd '(' to second-to-last character")
         void aiCode_fix_shouldExtractError_andUseDefaults() {
-            // Template fix
             ConfigInfo cfg = new ConfigInfo();
             cfg.setValue("ERR={errMsg}");
             when(configInfoMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(cfg);
 
-            // URL/domain missing use SparkApiTool default constants
-            when(configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_url")).thenReturn(null);
-            when(configInfoMapper.getByCategoryAndCode("AI_CODE", "DS_V3_domain")).thenReturn(null);
-
             SseEmitter expected = new SseEmitter();
-            ArgumentCaptor<String> urlCap = ArgumentCaptor.forClass(String.class);
-            ArgumentCaptor<String> domainCap = ArgumentCaptor.forClass(String.class);
             ArgumentCaptor<String> msgCap = ArgumentCaptor.forClass(String.class);
-            when(sparkApiTool.onceChatReturnSseByWs(urlCap.capture(), domainCap.capture(), msgCap.capture()))
-                    .thenReturn(expected);
+            when(openAiModelProcessService.processStreaming(msgCap.capture())).thenReturn(expected);
 
-            // Construct error message that satisfies secLBracketIdx extraction logic
-            // From after the second '(' to the second-to-last character:
-            // "prefix first ValueError: bad)X" expect to extract "ValueError: bad"
             AiCode req = new AiCode();
             req.setErrMsg("prefix (first) (ValueError: bad)X");
 
             SseEmitter out = service.aiCode(req);
 
             assertThat(out).isSameAs(expected);
-            assertThat(urlCap.getValue()).isEqualTo(SparkApiTool.sparkCodeUrl);
-            assertThat(domainCap.getValue()).isEqualTo(SparkApiTool.CODE_DOMAIN);
             assertThat(msgCap.getValue()).isEqualTo("ERR=ValueError: bad");
         }
     }

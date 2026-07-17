@@ -26,7 +26,7 @@ SPAN_SIZE_LIMIT = 10 * 1024
 class Span:
     """
     A wrapper class for OpenTelemetry spans that provides additional functionality
-    for distributed tracing in the SparkFlow workflow system.
+    for distributed tracing in the Astron Agent workflow system.
 
     This class manages span lifecycle, attributes, events, and integrates with
     the node logging system for comprehensive observability.

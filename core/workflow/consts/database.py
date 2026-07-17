@@ -33,7 +33,7 @@ class DBMode(Enum):
     DELETE = 4
 
 
-PGSQL_INVALID_KEY = [
+DB_SQL_INVALID_KEY = [
     "all",
     "analyse",
     "analyze",

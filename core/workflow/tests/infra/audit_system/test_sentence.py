@@ -5,6 +5,7 @@ Test module for sentence processing functionality in the audit system.
 This module contains unit tests for the Sentence class, including tests for
 sentence detection, splitting, and delimiter handling.
 """
+
 import json
 
 import pytest

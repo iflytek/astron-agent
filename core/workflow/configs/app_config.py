@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from workflow.consts.database import PGSQL_INVALID_KEY
+from workflow.consts.database import DB_SQL_INVALID_KEY
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 
@@ -150,7 +150,7 @@ class PgsqlConfig(BaseSettings):
     """
 
     model_config = {"env_prefix": "", "case_sensitive": False}
-    keyword_list: List[str] = Field(default=PGSQL_INVALID_KEY, alias="KEYWORD_LIST")
+    keyword_list: List[str] = Field(default=DB_SQL_INVALID_KEY, alias="KEYWORD_LIST")
 
     def is_valid(self, key: str, field_type: str) -> None:
         """
@@ -161,11 +161,11 @@ class PgsqlConfig(BaseSettings):
         :raises CustomException: If the key is not valid
         """
         key_lower = key.lower()
-        if key_lower in PGSQL_INVALID_KEY:
+        if key_lower in DB_SQL_INVALID_KEY:
             raise CustomException(
                 err_code=CodeEnum.PG_SQL_PARAM_ERROR,
-                err_msg=f"Invalid {field_type}: {key} is a reserved keyword in PostgreSQL",
-                cause_error=f"Invalid {field_type}: {key} is a reserved keyword in PostgreSQL",
+                err_msg=f"Invalid {field_type}: {key} is a reserved keyword in database",
+                cause_error=f"Invalid {field_type}: {key} is a reserved keyword in database",
             )
 
 

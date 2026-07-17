@@ -20,6 +20,7 @@ categorized and handled according to the workflow system's error management
 standards, providing consistent error reporting and handling across all
 integrated services.
 """
+
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.exception.errors.third_api_code import ThirdApiCodeEnum
 

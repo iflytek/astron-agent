@@ -196,3 +196,23 @@ func newDeleteAuthReq(c *gin.Context) (*DeleteAuthReq, error) {
 	}
 	return req, nil
 }
+
+type VerifyAppAuthReq struct {
+	ApiKey    string `json:"api_key"`
+	ApiSecret string `json:"api_secret"`
+}
+
+func newVerifyAppAuthReq(c *gin.Context) (*VerifyAppAuthReq, error) {
+	req := &VerifyAppAuthReq{}
+	err := c.BindJSON(req)
+	if err != nil {
+		return nil, err
+	}
+	if len(req.ApiKey) == 0 {
+		return nil, errors.New("api_key must not been empty")
+	}
+	if len(req.ApiSecret) == 0 {
+		return nil, errors.New("api_secret must not been empty")
+	}
+	return req, nil
+}

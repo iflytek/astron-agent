@@ -19,7 +19,10 @@ import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.service.data.ChatHistoryService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotParamService;
+import com.iflytek.astron.console.commons.service.workflow.WorkflowVersionLookupService;
 import com.iflytek.astron.console.commons.workflow.WorkflowClient;
+import okhttp3.RequestBody;
+import okio.Buffer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +37,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -62,6 +66,9 @@ class WorkflowBotChatServiceImplTest {
 
     @Mock
     private WssListenerService wssListenerService;
+
+    @Mock
+    private WorkflowVersionLookupService workflowVersionLookupService;
 
     @Mock
     private SseEmitter sseEmitter;
@@ -105,6 +112,8 @@ class WorkflowBotChatServiceImplTest {
         userLangChainInfo.setFlowId("test-flow-id");
         userLangChainInfo.setExtraInputs("{}");
         userLangChainInfo.setExtraInputsConfig("[]");
+        lenient().when(workflowVersionLookupService.isPublishedVersion(anyString(), anyString()))
+                .thenReturn(Optional.of(true));
 
         chatReqRecords = new ChatReqRecords();
         chatReqRecords.setId(789L);
@@ -177,6 +186,71 @@ class WorkflowBotChatServiceImplTest {
             List<WorkflowClient> constructed = mockWorkflowClient.constructed();
             assertEquals(1, constructed.size());
             verify(constructed.get(0)).createWebSocketConnect(any());
+        }
+    }
+
+    @Test
+    void chatWorkflowBotShouldFallbackToLatestSuccessfulVersionWhenRequestVersionIsBlank() throws Exception {
+        when(userLangChainDataService.findOneByBotId(456)).thenReturn(userLangChainInfo);
+        when(chatDataService.createRequest(any(ChatReqRecords.class))).thenReturn(chatReqRecords);
+        when(workflowBotParamService.handleMultiFileParam(anyString(), anyLong(), isNull(), any(), any(), anyLong())).thenReturn(false);
+
+        List<ChatReqModelDto> reqList = new ArrayList<>();
+        when(chatDataService.getReqModelBotHistoryByChatId("testUser", 123L)).thenReturn(reqList);
+
+        ChatRequestDtoList requestDtoList = new ChatRequestDtoList();
+        requestDtoList.setMessages(new LinkedList<>());
+        when(chatHistoryService.getHistory("testUser", 123L, reqList)).thenReturn(requestDtoList);
+        when(workflowVersionLookupService.findLatestSuccessfulVersionName(456)).thenReturn(Optional.of("v1.0"));
+
+        ChatBotMarket market = new ChatBotMarket();
+        market.setBotStatus(ShelfStatusEnum.ON_SHELF.getCode());
+        when(chatBotDataService.findMarketBotByBotId(456)).thenReturn(market);
+
+        List<List<?>> constructorArgs = new ArrayList<>();
+        try (MockedConstruction<WorkflowClient> mockWorkflowClient = mockConstruction(
+                WorkflowClient.class,
+                (mock, context) -> constructorArgs.add(context.arguments()))) {
+            workflowBotChatService.chatWorkflowBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, "");
+
+            assertEquals(1, mockWorkflowClient.constructed().size());
+            RequestBody requestBody = (RequestBody) constructorArgs.get(0).get(4);
+            Buffer buffer = new Buffer();
+            requestBody.writeTo(buffer);
+            assertEquals("v1.0", JSON.parseObject(buffer.readUtf8()).getString("version"));
+        }
+    }
+
+    @Test
+    void chatWorkflowBotShouldFallbackToLatestSuccessfulVersionWhenRequestVersionIsNotPublished() throws Exception {
+        when(userLangChainDataService.findOneByBotId(456)).thenReturn(userLangChainInfo);
+        when(chatDataService.createRequest(any(ChatReqRecords.class))).thenReturn(chatReqRecords);
+        when(workflowBotParamService.handleMultiFileParam(anyString(), anyLong(), isNull(), any(), any(), anyLong())).thenReturn(false);
+
+        List<ChatReqModelDto> reqList = new ArrayList<>();
+        when(chatDataService.getReqModelBotHistoryByChatId("testUser", 123L)).thenReturn(reqList);
+
+        ChatRequestDtoList requestDtoList = new ChatRequestDtoList();
+        requestDtoList.setMessages(new LinkedList<>());
+        when(chatHistoryService.getHistory("testUser", 123L, reqList)).thenReturn(requestDtoList);
+        when(workflowVersionLookupService.isPublishedVersion("test-flow-id", "stale-version")).thenReturn(Optional.of(false));
+        when(workflowVersionLookupService.findLatestSuccessfulVersionName(456)).thenReturn(Optional.of("v1.0"));
+
+        ChatBotMarket market = new ChatBotMarket();
+        market.setBotStatus(ShelfStatusEnum.ON_SHELF.getCode());
+        when(chatBotDataService.findMarketBotByBotId(456)).thenReturn(market);
+
+        List<List<?>> constructorArgs = new ArrayList<>();
+        try (MockedConstruction<WorkflowClient> mockWorkflowClient = mockConstruction(
+                WorkflowClient.class,
+                (mock, context) -> constructorArgs.add(context.arguments()))) {
+            workflowBotChatService.chatWorkflowBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, "stale-version");
+
+            assertEquals(1, mockWorkflowClient.constructed().size());
+            RequestBody requestBody = (RequestBody) constructorArgs.get(0).get(4);
+            Buffer buffer = new Buffer();
+            requestBody.writeTo(buffer);
+            assertEquals("v1.0", JSON.parseObject(buffer.readUtf8()).getString("version"));
         }
     }
 

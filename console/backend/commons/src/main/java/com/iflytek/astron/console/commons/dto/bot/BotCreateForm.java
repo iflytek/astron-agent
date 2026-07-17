@@ -102,8 +102,20 @@ public class BotCreateForm {
      */
     private int isSentence;
 
-    @Schema(description = "Enabled tools, joined by comma, e.g.: ifly_search,text_to_image,codeinterpreter")
+    @Schema(description = "Enabled tools, joined by comma, e.g.: web_search,text_to_image,codeinterpreter")
     private String openedTool;
+
+    @Schema(description = "Custom MCP server URL list")
+    private List<String> mcpServerUrls;
+
+    @Schema(description = "Selected skills imported from resource management")
+    private List<BotSkill> skills;
+
+    @Schema(description = "Selected plugin tools imported from the tool square")
+    private List<BotTool> tools;
+
+    @Schema(description = "Selected workflows imported from the workflow list")
+    private List<BotWorkflow> workflows;
 
     @Schema(description = "Background image color scheme: 0 Light, 1 Dark")
     private Integer backgroundColor;
@@ -158,5 +170,31 @@ public class BotCreateForm {
     public static class PromptStruct {
         private String promptKey;
         private String promptValue;
+    }
+
+    @Data
+    public static class BotSkill {
+        @Schema(description = "Skill id (SkillImportDto.id)")
+        private Long skillId;
+        private String name;
+        private String description;
+    }
+
+    @Data
+    public static class BotTool {
+        @Schema(description = "Tool id from the tool square, e.g. tool@xxx")
+        private String toolId;
+        private String name;
+        private String description;
+        private String icon;
+    }
+
+    @Data
+    public static class BotWorkflow {
+        @Schema(description = "Business flow id of the published workflow")
+        private String flowId;
+        private String name;
+        private String description;
+        private String icon;
     }
 }

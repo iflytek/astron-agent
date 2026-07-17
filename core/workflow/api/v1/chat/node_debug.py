@@ -52,6 +52,8 @@ async def run_code(code_run_vo: CodeRunVo) -> JSONResponse:
                 code=code_run_vo.code,
                 appId=code_run_vo.app_id,
                 uid=code_run_vo.uid,
+                node_id=code_run_vo.node_id,
+                sandbox=code_run_vo.sandbox,
             )
             data = await cn.execute_code(var_dict, span_context)
 

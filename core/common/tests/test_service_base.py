@@ -218,12 +218,12 @@ class TestServiceIntegration:
         service = factory.create()  # type: ignore[func-returns-value]
 
         # Test initialization
-        assert service.initialized is True
-        assert service.ready is False
+        assert service.initialized is True  # type: ignore[attr-defined]
+        assert service.ready is False  # type: ignore[attr-defined]
 
         # Test setting ready
-        service.set_ready()
-        assert service.ready is True
+        service.set_ready()  # type: ignore[attr-defined]
+        assert service.ready is True  # type: ignore[attr-defined]
 
         # Test teardown
         service.teardown()

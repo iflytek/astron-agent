@@ -10,6 +10,7 @@ import {
   createApi,
   createApp,
 } from '@/services/spark-common';
+import { isPublishApprovalDecision } from '@/services/release-management';
 import { Select } from 'antd';
 import backIcon from '@/assets/svgs/back-create-bot.svg';
 import styles from './api.module.scss';
@@ -48,7 +49,11 @@ export default function BotApi({
 
   const createApiFn = async (publishBindId?: any, appIdParam?: any) => {
     try {
-      await createApi({ botId, appId: appIdParam || appId });
+      const result = await createApi({ botId, appId: appIdParam || appId });
+      if (isPublishApprovalDecision(result)) {
+        message.success('已提交发布审核，审核通过后将自动绑定并发布为 API');
+        return;
+      }
       setFreshCount(freshCount + 1);
       message.success('绑定成功');
     } catch (e: any) {

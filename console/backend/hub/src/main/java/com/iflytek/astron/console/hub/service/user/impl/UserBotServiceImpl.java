@@ -9,11 +9,13 @@ import com.iflytek.astron.console.commons.dto.bot.ChatBotApi;
 import com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo;
 import com.iflytek.astron.console.commons.entity.model.McpData;
 import com.iflytek.astron.console.commons.enums.bot.ReleaseTypeEnum;
+import com.iflytek.astron.console.commons.enums.space.SpaceRoleEnum;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotListMapper;
 import com.iflytek.astron.console.commons.service.bot.BotFavoriteService;
 import com.iflytek.astron.console.commons.service.bot.BotService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.mcp.McpDataService;
+import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.commons.util.BotUtil;
 import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
@@ -76,12 +78,16 @@ public class UserBotServiceImpl implements UserBotService {
     @Autowired
     private BotService botService;
 
+    @Autowired
+    private SpaceUserService spaceUserService;
+
     public static final String RECORD_BOT_ID = "recordFormBotId_";
 
     @Override
     public MyBotPageDTO listMyBots(MyBotParamDTO myBotParamDTO) {
         String uid = RequestContextUtil.getUID();
         Long spaceId = SpaceInfoUtil.getSpaceId();
+        boolean canOffline = canOfflinePublishedBot(uid, spaceId);
 
         // Build query parameters
         Map<String, Object> param = buildQueryParams(myBotParamDTO, uid, spaceId);
@@ -103,7 +109,7 @@ public class UserBotServiceImpl implements UserBotService {
         }
 
         // Convert to DTOs and return
-        Page<MyBotResponseDTO> myBotResponsesPage = createPageResult(list, count);
+        Page<MyBotResponseDTO> myBotResponsesPage = createPageResult(list, count, canOffline);
         return new MyBotPageDTO(
                 myBotResponsesPage.getRecords(),
                 Math.toIntExact(myBotResponsesPage.getTotal()),
@@ -278,8 +284,10 @@ public class UserBotServiceImpl implements UserBotService {
         list.forEach(map -> map.put("multiInput", multiInputMap.get(map.get("botId"))));
     }
 
-    private Page<MyBotResponseDTO> createPageResult(LinkedList<Map<String, Object>> list, Long count) {
-        List<MyBotResponseDTO> myBotResponseDTOList = list.stream().map(this::mapToMyBotDTO).collect(Collectors.toList());
+    private Page<MyBotResponseDTO> createPageResult(LinkedList<Map<String, Object>> list, Long count, boolean canOffline) {
+        List<MyBotResponseDTO> myBotResponseDTOList = list.stream()
+                .map(map -> mapToMyBotDTO(map, canOffline))
+                .collect(Collectors.toList());
 
         Page<MyBotResponseDTO> page = new Page<>();
         page.setTotal(count);
@@ -302,7 +310,7 @@ public class UserBotServiceImpl implements UserBotService {
         }
     }
 
-    private MyBotResponseDTO mapToMyBotDTO(Map<String, Object> map) {
+    private MyBotResponseDTO mapToMyBotDTO(Map<String, Object> map, boolean canOffline) {
         MyBotResponseDTO dto = new MyBotResponseDTO();
         dto.setBotId(Convert.toLong(map.get("botId")));
         dto.setUid(Convert.toStr(map.get("uid")));
@@ -318,12 +326,21 @@ public class UserBotServiceImpl implements UserBotService {
         dto.setBotStatus(Convert.toInt(map.get("botStatus")));
         dto.setBlockReason(Convert.toStr(map.get("blockReason")));
         dto.setReleaseType((List<Object>) map.get("releaseType"));
+        dto.setCanOffline(canOffline);
         dto.setHotNum(Convert.toStr(map.get("hotNum")));
         dto.setIsFavorite(Convert.toInt(map.get("isFavorite")));
         dto.setAf(Convert.toStr(map.get("af")));
         dto.setMaasId(Convert.toLong(map.get("maasId")));
         dto.setCreateTime((LocalDateTime) map.get("createTime"));
         return dto;
+    }
+
+    private boolean canOfflinePublishedBot(String uid, Long spaceId) {
+        if (spaceId == null) {
+            return true;
+        }
+        SpaceRoleEnum currentRole = spaceUserService.getRole(spaceId, uid);
+        return SpaceRoleEnum.OWNER == currentRole || SpaceRoleEnum.ADMIN == currentRole;
     }
 
     private static Map<String, Object> getBotCheckParam(MyBotParamDTO myBotParamDTO, String uid) {

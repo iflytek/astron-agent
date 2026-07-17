@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { postNewChat } from '@/services/chat';
 import { message } from 'antd';
+import useBotInfoStore from '@/store/bot-info-store';
 import DeleteModal from './delete-modal';
 import RecorderCom, { type RecorderRef } from './recorder-com';
 import useChatFileUpload from '@/hooks/use-chat-file-upload';
@@ -31,6 +32,7 @@ const ChatInput = (props: {
   const streamId = useChatStore(state => state.streamId); //  流式id
   const isLoading = useChatStore(state => state.isLoading); //  是否正在加载
   const currentChatId = useChatStore(state => state.currentChatId); //  当前聊天id
+  const setCurrentChatId = useChatStore(state => state.setCurrentChatId);
   const addMessage = useChatStore(state => state.addMessage); //  添加消息
   const workflowOperation = useChatStore(state => state.workflowOperation); //  工作流操作
   const isWorkflowOption = useChatStore(state => state.isWorkflowOption); //  是否有工作流选项
@@ -42,6 +44,7 @@ const ChatInput = (props: {
   const [isComposing, setIsComposing] = useState<boolean>(false); //  是否正在输入
   const [inputValue, setInputValue] = useState<string>(''); //  输入框值
   const textAreaRef = useRef<HTMLTextAreaElement>(null); //  输入框ref
+  const setBotInfo = useBotInfoStore(state => state.setBotInfo);
   const $record = useRef<RecorderRef>(null); //  录音ref
   const recordStartTextRef = useRef<string>(''); //  录音开始时的文本
   const { fileList, setFileList, handleFileSelect, removeFile, hasErrorFiles } =
@@ -96,7 +99,13 @@ const ChatInput = (props: {
       return;
     }
     try {
-      await postNewChat(currentChatId);
+      const res = await postNewChat(currentChatId);
+      const nextChatId = res?.data?.data?.id;
+      if (nextChatId) {
+        setCurrentChatId(nextChatId);
+        setBotInfo({ chatId: nextChatId });
+      }
+      setChatFileListNoReq([]);
       const startMessage: MessageListType = {
         id: new Date().getTime(),
         reqType: 'START',

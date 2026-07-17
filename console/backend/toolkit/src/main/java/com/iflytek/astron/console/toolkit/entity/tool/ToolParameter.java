@@ -9,4 +9,5 @@ public class ToolParameter {
     String toolId;
     @JSONField(name = "operation_id")
     String operationId;
+    String version;
 }

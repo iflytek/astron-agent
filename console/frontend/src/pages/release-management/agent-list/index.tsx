@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Table, message, Popover, Modal, Select } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import {
   getAgentList,
   type GetAgentListParams,
@@ -30,6 +32,7 @@ import weixinghaoImg from '@/assets/imgs/release/weixin-release.svg';
 import apiImg from '@/assets/imgs/release/api-release.svg';
 import agentHubIcon from '@/assets/imgs/workflow/agent-hub-icon.svg';
 import mcpImg from '@/assets/imgs/release/mcp-release.svg';
+import closeIcon from '@/assets/imgs/bot-center/new-close-icon.svg';
 import formSelect from '@/assets/imgs/main/icon_nav_dropdown.svg';
 import { useTranslation } from 'react-i18next';
 
@@ -38,6 +41,37 @@ import useScreenWidth from '@/hooks/use-screen-width';
 interface AgentListProps {
   AgentType?: 'agent' | 'workflow' | 'virtual' | 'all';
 }
+
+dayjs.extend(utc);
+
+const PUBLISHED_STATUSES = [1, 2, 4];
+
+const isPublishedBot = (botStatus?: number): boolean =>
+  botStatus !== undefined && PUBLISHED_STATUSES.includes(botStatus);
+
+const hasMarketRelease = (releaseType?: number[] | number): boolean => {
+  if (typeof releaseType === 'number') {
+    return releaseType === 1;
+  }
+  return Array.isArray(releaseType) && releaseType.includes(1);
+};
+
+const canTakeDownMarket = (bot: {
+  botStatus?: number;
+  releaseType?: number[] | number;
+  canOffline?: boolean;
+}): boolean =>
+  isPublishedBot(bot.botStatus) &&
+  hasMarketRelease(bot.releaseType) &&
+  bot.canOffline === true;
+
+const formatUtcListTime = (value?: string): string => {
+  if (!value) return '-';
+  return dayjs
+    .utc(value.replace(' ', 'T'))
+    .utcOffset(8)
+    .format('YYYY-MM-DD HH:mm');
+};
 
 const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const screenWidth = useScreenWidth();
@@ -54,7 +88,6 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const [loading, setLoading] = useState(false);
   const [botList, setBotList] = useState<(BotData & { action: BotData })[]>([]);
   const { t } = useTranslation();
-
   const [total, setTotal] = useState<number>();
   const reasonRef = useRef<string | undefined>(undefined);
   const [pageInfo, setPageInfo] = useState<{
@@ -120,11 +153,19 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
     botId?: number,
     releaseType?: number[] | number
   ): void => {
-    Modal.info({
+    Modal.confirm({
       wrapClassName: 'bot-center-confirm-modal set_bot-center-confirm-modal',
-      title: t('releaseManagement.applyTakeDownAgent'),
+      title: (
+        <div className={styles.confirmModalTitle}>
+          <ExclamationCircleOutlined className={styles.confirmModalTitleIcon} />
+          <span>{t('releaseManagement.applyTakeDownAgent')}</span>
+        </div>
+      ),
       closable: true,
-      closeIcon: <span className="close-icon" />,
+      maskClosable: true,
+      closeIcon: (
+        <img src={closeIcon} alt="close" className={styles.closeIcon} />
+      ),
       okType: 'primary',
       width: '461px',
       content: (
@@ -138,29 +179,33 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
         </div>
       ),
       okText: t('releaseManagement.submitApplication'),
-      onCancel: (close: () => void) => {
+      cancelText: t('releaseModal.cancel'),
+      onCancel: () => {
         reasonRef.current = undefined;
-        close && close();
       },
-      onOk: (close: () => void) => {
-        if (releaseType == 1 && botId) {
-          handleAgentStatus(botId, {
+      onOk: () => {
+        if (hasMarketRelease(releaseType) && botId) {
+          return handleAgentStatus(botId, {
             action: 'OFFLINE',
             publishType: 'MARKET',
             publishData: { reason: t('releaseManagement.maintenanceUpdate') },
           })
             .then(() => {
               reasonRef.current = undefined;
-              close && close();
               message.success(t('releaseManagement.submitApplicationSuccess'));
               setPageInfo(pre => ({ ...pre, pageIndex: 1 }));
+              updateBotList({ ...pageInfo, pageIndex: 1 });
             })
             .catch(err => {
               err?.msg && message.error(err.msg);
+              return Promise.reject(err);
             });
         } else {
           if (botInfo?.botId) {
-            cancelBindWx({ appid: botInfo?.wechatAppid, botId: botInfo.botId })
+            return cancelBindWx({
+              appid: botInfo?.wechatAppid,
+              botId: botInfo.botId,
+            })
               .then(res => {
                 getBotInfo({ botId: botInfo.botId }).then(res => {
                   setBotDetailInfo(res.data);
@@ -169,8 +214,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
               })
               .catch(error => {
                 message.error(error.msg);
+                return Promise.reject(error);
               });
           }
+          return Promise.resolve();
         }
       },
     });
@@ -192,7 +239,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 查看智能体 */
-  const checkAgent = (bot: { botId?: string; maasId?: string }): void => {
+  const checkAgent = (bot: {
+    botId?: string;
+    maasId?: string | number;
+  }): void => {
     if (AgentType === 'agent') {
       navigate(`/space/config/overview?botId=${bot.botId}&flag=true`);
     } else {
@@ -202,7 +252,10 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 编辑智能体 */
-  const updateAgent = (bot: { botId?: string; maasId?: string }): void => {
+  const updateAgent = (bot: {
+    botId?: string;
+    maasId?: string | number;
+  }): void => {
     if (AgentType === 'agent') {
       navigate(`/space/config/base?botId=${bot?.botId}`);
       // 记录选择状态
@@ -369,9 +422,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
               : t('releaseManagement.applyTime'),
         align: 'center',
         render: (time: string) => (
-          <span className={styles.timeColor}>
-            {time?.replace(/T/g, ' ').slice(0, 16)}
-          </span>
+          <span className={styles.timeColor}>{formatUtcListTime(time)}</span>
         ),
       });
     }
@@ -476,29 +527,26 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
           )}
 
           {/* 查看按钮 - 已发布状态显示 -- 都改为分析 */}
-          {bot.botStatus === 2 && (
+          {isPublishedBot(bot.botStatus) && (
             <span onClick={() => checkAgent(bot)}>
               {t('releaseManagement.analyze')}
             </span>
           )}
 
           {/* 下架按钮 - 已发布状态显示 */}
-          {bot.botStatus === 2 &&
-            Array.isArray(bot?.releaseType) &&
-            !bot.releaseType.includes(2) &&
-            !bot.releaseType.includes(4) && (
-              <span
-                style={{ marginRight: '10px' }}
-                onClick={() =>
-                  cancelUploadBot(
-                    bot?.botId as unknown as number,
-                    bot?.releaseType as unknown as number[]
-                  )
-                }
-              >
-                {t('releaseManagement.takeDown')}
-              </span>
-            )}
+          {canTakeDownMarket(bot) && (
+            <span
+              style={{ marginRight: '10px' }}
+              onClick={() =>
+                cancelUploadBot(
+                  bot?.botId as unknown as number,
+                  bot?.releaseType as unknown as number[]
+                )
+              }
+            >
+              {t('releaseManagement.takeDown')}
+            </span>
+          )}
 
           {/* 删除按钮 - 审核未通过状态显示  -- NOTE: 不需要显示，如果需要使用，则添加AgentPage中的删除逻辑*/}
           {/* {bot.botStatus === 3 && (

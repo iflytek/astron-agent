@@ -155,7 +155,7 @@ class AudioConverter:
                 return (
                     False,
                     f"WAV格式不符合要求: {audio.frame_rate}Hz,\
-                            {audio.sample_width*8}bit, {audio.channels}声道",
+                            {audio.sample_width * 8}bit, {audio.channels}声道",
                 )
             return False, f"音频格式为{format_type}，需要转换为WAV"
 

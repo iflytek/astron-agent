@@ -109,6 +109,14 @@ public class BotInfoDto {
 
     private Long modelId;
 
+    private String mcpServerUrls;
+
+    private String skills;
+
+    private String tools;
+
+    private String workflows;
+
     private String vcnCn;
 
     private String vcnEn;

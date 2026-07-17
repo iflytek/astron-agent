@@ -52,30 +52,6 @@ spec:
         {{- else if eq $key "ossRemoteEndpoint" }}
         - name: {{ upper (snakecase $key) }}
           value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.minio.service.nodePort | int) | quote }}
-        {{- else if or (eq $key "platformAppId") (eq $key "sparkAppId") (eq $key "sparkRtasrAppid") (eq $key "sparkImageAppId") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformAppId | quote }}
-        {{- else if or (eq $key "platformApiKey") (eq $key "sparkApiKey") (eq $key "sparkImageApiKey") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiKey | quote }}
-        {{- else if or (eq $key "platformApiSecret") (eq $key "sparkApiSecret") (eq $key "sparkImageApiSecret") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiSecret | quote }}
-        {{- else if eq $key "sparkApiPassword" }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.sparkApiPassword | quote }}
-        {{- else if eq $key "sparkRtasrKey" }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.sparkRtasrApiKey | quote }}
-        {{- else if eq $key "sparkVirtualManAppId" }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.sparkVirtualManAppId | quote }}
-        {{- else if eq $key "sparkVirtualManApiKey" }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.sparkVirtualManApiKey | quote }}
-        {{- else if eq $key "sparkVirtualManApiSecret" }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.sparkVirtualManApiSecret | quote }}
         {{- else if eq $key "botApiMaasBaseUrl" }}
         - name: {{ upper (snakecase $key) }}
           value: {{ printf "%s/workflow/v1/chat/completions" $.Values.global.hostBaseAddress | quote }}

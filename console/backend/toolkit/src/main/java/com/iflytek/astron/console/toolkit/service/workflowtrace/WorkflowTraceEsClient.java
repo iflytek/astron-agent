@@ -14,6 +14,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
@@ -45,12 +46,13 @@ public class WorkflowTraceEsClient {
         }
 
         try (Response response = getClient().newCall(requestBuilder.build()).execute()) {
-            if (!response.isSuccessful() || response.body() == null) {
-                String errorBody = response.body() == null ? "" : response.body().string();
+            ResponseBody responseBody = response.body();
+            if (!response.isSuccessful() || responseBody == null) {
+                String errorBody = responseBody == null ? "" : responseBody.string();
                 log.error("Workflow trace search failed, code={}, body={}", response.code(), errorBody);
                 throw new BusinessException(ResponseEnum.RESPONSE_FAILED, "workflow trace request failed");
             }
-            return objectMapper.readTree(response.body().string());
+            return objectMapper.readTree(responseBody.string());
         } catch (JsonProcessingException e) {
             log.error("Failed to parse workflow trace response", e);
             throw new BusinessException(ResponseEnum.RESPONSE_FAILED, "workflow trace response parse failed");

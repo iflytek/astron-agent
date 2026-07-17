@@ -4,18 +4,20 @@ import cn.hutool.core.util.IdUtil;
 import com.alibaba.fastjson2.JSON;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
 import com.iflytek.astron.console.toolkit.entity.spark.SparkApiProtocol;
 import com.iflytek.astron.console.toolkit.entity.spark.Text;
 import com.iflytek.astron.console.toolkit.entity.spark.chat.ChatResponse;
 import com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import com.iflytek.astron.console.toolkit.tool.http.HttpAuthTool;
 import com.iflytek.astron.console.toolkit.util.OkHttpUtil;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import okio.ByteString;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -43,14 +45,8 @@ public class SparkApiTool {
 
     public static final String CODE_DOMAIN = "iflycode.ge7btest";
 
-    @Value("${spark.app-id}")
-    private String appId;
-
-    @Value("${spark.api-key}")
-    private String apiKey;
-
-    @Value("${spark.api-secret}")
-    private String apiSecret;
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     /**
      * Send a chat message and return the complete response via WebSocket.
@@ -62,9 +58,12 @@ public class SparkApiTool {
     public String onceChatReturnWholeByWs(String content) throws InterruptedException {
         StringBuilder wholeMsg = new StringBuilder();
         CountDownLatch latch = new CountDownLatch(1);
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
 
         // Authentication and encryption
-        String signedSparkUrl = HttpAuthTool.assembleRequestUrl(sparkMaxUrl, HttpMethod.GET.name(), apiKey, apiSecret);
+        String signedSparkUrl = HttpAuthTool.assembleRequestUrl(
+                sparkMaxUrl, HttpMethod.GET.name(), config.getPlatformApiKey(), config.getPlatformApiSecret());
         Request request = (new Request.Builder()).url(signedSparkUrl).build();
         WebSocket webSocket = OkHttpUtil.getHttpClient().newWebSocket(request, new WebSocketListener() {
             @Override
@@ -117,7 +116,7 @@ public class SparkApiTool {
 
         });
 
-        String message = MessageBuilder.buildSparkApiRequest(content, appId);
+        String message = MessageBuilder.buildSparkApiRequest(content, config.getPlatformAppId());
         log.info("send msg = {}", message);
         webSocket.send(message);
         latch.await();
@@ -151,10 +150,13 @@ public class SparkApiTool {
 
         SseEmitter emitter = SseEmitterUtil.create(userId, 300_000L);
         String chatId = IdUtil.getSnowflakeNextIdStr();
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
 
         // Authentication and encryption
         String signedSparkUrl = null;
-        signedSparkUrl = HttpAuthTool.assembleRequestUrl(url, HttpMethod.GET.name(), apiKey, apiSecret);
+        signedSparkUrl = HttpAuthTool.assembleRequestUrl(
+                url, HttpMethod.GET.name(), config.getPlatformApiKey(), config.getPlatformApiSecret());
 
         Request request = (new Request.Builder()).url(signedSparkUrl).build();
         WebSocket webSocket = OkHttpUtil.getHttpClient().newWebSocket(request, new WebSocketListener() {
@@ -213,7 +215,7 @@ public class SparkApiTool {
             }
         });
         String message;
-        message = MessageBuilder.buildSparkApiRequest(content, appId, domain);
+        message = MessageBuilder.buildSparkApiRequest(content, config.getPlatformAppId(), domain);
         log.info("send msg = {}", message);
         webSocket.send(message);
 
@@ -231,9 +233,12 @@ public class SparkApiTool {
     @Deprecated
     public SseEmitter onceChatReturnStream(String content) throws InterruptedException {
         SseEmitter sseEmitter = new SseEmitter(180000L);
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
 
         // Authentication and encryption
-        String signedSparkUrl = HttpAuthTool.assembleRequestUrl(sparkMaxUrl, HttpMethod.GET.name(), apiKey, apiSecret);
+        String signedSparkUrl = HttpAuthTool.assembleRequestUrl(
+                sparkMaxUrl, HttpMethod.GET.name(), config.getPlatformApiKey(), config.getPlatformApiSecret());
         Request request = (new Request.Builder()).url(signedSparkUrl).build();
         WebSocket webSocket = OkHttpUtil.getHttpClient().newWebSocket(request, new WebSocketListener() {
             @Override
@@ -286,7 +291,7 @@ public class SparkApiTool {
             }
         });
 
-        String message = MessageBuilder.buildSparkApiRequest(content, appId);
+        String message = MessageBuilder.buildSparkApiRequest(content, config.getPlatformAppId());
         log.info("send msg = {}", message);
         webSocket.send(message);
 

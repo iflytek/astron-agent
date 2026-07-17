@@ -175,7 +175,9 @@ class HttpRun:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.request(self.method, url, **kwargs) as response:
+            async with session.request(
+                self.method, url, allow_redirects=False, **kwargs
+            ) as response:
                 response_text = await response.text()
                 status_code = response.status
 

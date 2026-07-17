@@ -1,0 +1,59 @@
+name: 💰 Reward Task
+description: Task issue with Reward
+title: '[Reward] '
+labels:
+    - reward
+body:
+    - type: markdown
+      attributes:
+          value: This form is created from https://github.com/idea2app/GitHub-reward
+
+    - type: textarea
+      id: description
+      attributes:
+          label: Task description
+      validations:
+          required: true
+
+    - type: input
+      id: source
+      attributes:
+          label: Task source
+          description: URL from an External System
+          placeholder: https://example.com/task/123
+
+    - type: dropdown
+      id: currency
+      attributes:
+          label: Reward currency
+          options:
+              - 'USD $'
+              - 'CAD C$'
+              - 'AUD A$'
+              - 'GBP £'
+              - 'EUR €'
+              - 'CNY ¥'
+              - 'HKD HK$'
+              - 'TWD NT$'
+              - 'SGD S$'
+              - 'KRW ₩'
+              - 'JPY ¥'
+              - 'INR ₹'
+              - 'UAH ₴'
+      validations:
+          required: true
+
+    - type: input
+      id: amount
+      attributes:
+          label: Reward amount
+      validations:
+          required: true
+
+    - type: input
+      id: payer
+      attributes:
+          label: Reward payer
+          description: GitHub username of the payer (optional, defaults to issue creator)
+      validations:
+          required: false

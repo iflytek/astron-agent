@@ -6,6 +6,7 @@ on:
       - main
       - master
       - bugfix/superteam
+      - feature/localization
   workflow_dispatch:
     inputs:
       push_images:
@@ -47,19 +48,23 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          # Mainline branches publish latest, bugfix branch publishes fix
+          # Mainline branches publish latest, specific feature branches use fixed tags
           VERSION="latest"
           if [[ "${{ github.ref }}" == "refs/heads/bugfix/superteam" ]]; then
             VERSION="fix"
+          elif [[ "${{ github.ref }}" == "refs/heads/feature/localization" ]]; then
+            VERSION="localization"
           fi
 
-          # Determine if should push (main/master/bugfix branch or manual dispatch)
+          # Determine if should push (main/master/specific branches or manual dispatch)
           SHOULD_PUSH="false"
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             SHOULD_PUSH="true"
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/master" ]]; then
             SHOULD_PUSH="true"
           elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/bugfix/superteam" ]]; then
+            SHOULD_PUSH="true"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/feature/localization" ]]; then
             SHOULD_PUSH="true"
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.push_images }}" == "true" ]]; then
             SHOULD_PUSH="true"

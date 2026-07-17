@@ -69,6 +69,8 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class RepoService extends ServiceImpl<RepoMapper, Repo> {
+    private static final int RAGFLOW_DATASET_NAME_MAX_LENGTH = 255;
+
     /**
      * Get single record by query wrapper
      *
@@ -135,17 +137,29 @@ public class RepoService extends ServiceImpl<RepoMapper, Repo> {
     @Resource
     private ApiUrl apiUrl;
 
-    /**
-     * Create a new repository with the provided repository information. Validates repository name
-     * uniqueness, tag validity, and creates the repository record.
-     *
-     * @param repoVO repository value object containing repository creation information
-     * @return created Repo object with generated IDs and default settings
-     * @throws BusinessException if repository name is duplicate or tag is invalid
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    /** Spring proxy used for internal transactional calls. */
+    @Resource
+    @Lazy
+    private RepoService self;
+
+    /** Create a repo and persist the RAGFlow dataset id for Ragflow-RAG. */
     public Repo createRepo(RepoVO repoVO) {
         Long spaceId = SpaceInfoUtil.getSpaceId();
+        validateRepoNameUnique(repoVO, spaceId);
+        validateTag(repoVO.getTag());
+
+        String coreRepoId = resolveCoreRepoId(repoVO);
+        String ragflowDatasetId = null;
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(repoVO.getTag())) {
+            String datasetName = buildRagflowDatasetName(repoVO.getName(), coreRepoId);
+            ragflowDatasetId = knowledgeV2ServiceCallHandler.createRagflowDataset(datasetName, repoVO.getName());
+        }
+
+        return self.persistRepo(repoVO, spaceId, coreRepoId, ragflowDatasetId);
+    }
+
+    /** Reject duplicate repo names in the current personal or space scope. */
+    private void validateRepoNameUnique(RepoVO repoVO, Long spaceId) {
         Repo existRepo;
         if (spaceId == null) {
             existRepo = this.getOnly(Wrappers.lambdaQuery(Repo.class).eq(Repo::getUserId, UserInfoManagerHandler.getUserId()).eq(Repo::getName, repoVO.getName()).eq(Repo::getDeleted, 0));
@@ -155,27 +169,48 @@ public class RepoService extends ServiceImpl<RepoMapper, Repo> {
         if (existRepo != null) {
             throw new BusinessException(ResponseEnum.REPO_NAME_DUPLICATE);
         }
+    }
 
-        // Check tag
-        if (!ProjectContent.isCbgRagCompatible(repoVO.getTag()) && !ProjectContent.isAiuiRagCompatible(repoVO.getTag())) {
+    /** Reject unsupported RAG tags. */
+    private void validateTag(String tag) {
+        if (!ProjectContent.isCbgRagCompatible(tag) && !ProjectContent.isAiuiRagCompatible(tag)) {
             throw new BusinessException(ResponseEnum.REPO_TYPE_NOT_MATCH);
         }
-        // 1. Create knowledge base
+    }
+
+    /** Ragflow-RAG always uses a server-generated core repo id. */
+    private String resolveCoreRepoId(RepoVO repoVO) {
+        if (ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR.equals(repoVO.getTag())) {
+            return UUID.randomUUID().toString().replace("-", "");
+        }
+        if (StringUtils.isEmpty(repoVO.getOuterRepoId())) {
+            return UUID.randomUUID().toString().replace("-", "");
+        }
+        return repoVO.getOuterRepoId();
+    }
+
+    /** Build {@code repoName-coreRepoId}, trimming only the readable prefix. */
+    private String buildRagflowDatasetName(String repoName, String coreRepoId) {
+        String suffix = coreRepoId;
+        String readableName = StringUtils.defaultIfBlank(repoName, "repo").trim();
+        int maxReadableLength = RAGFLOW_DATASET_NAME_MAX_LENGTH - suffix.length() - 1;
+        if (readableName.length() > maxReadableLength) {
+            readableName = readableName.substring(0, maxReadableLength);
+        }
+        return readableName + "-" + suffix;
+    }
+
+    /** Persist a new repo row and apply visibility settings in one transaction. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Repo persistRepo(RepoVO repoVO, Long spaceId, String coreRepoId, String ragflowDatasetId) {
         Repo repo = new Repo();
         repo.setAppId(repoVO.getAppId());
         repo.setSource(repoVO.getSource() == null ? 0 : repoVO.getSource());
         repo.setName(repoVO.getName());
         repo.setUserId(UserInfoManagerHandler.getUserId());
-        if (StringUtils.isEmpty(repoVO.getOuterRepoId())) {
-            String uuid = UUID.randomUUID().toString().replace("-", "");
-            repo.setCoreRepoId(uuid);
-            repo.setOuterRepoId(uuid);
-        } else {
-            repo.setCoreRepoId(repoVO.getOuterRepoId());
-            repo.setOuterRepoId(repoVO.getOuterRepoId());
-        }
-        // Boolean enableAudit = repoVO.getEnableAudit();
-        // repo.setEnableAudit(enableAudit == null || enableAudit);
+        repo.setCoreRepoId(coreRepoId);
+        repo.setOuterRepoId(coreRepoId);
+        repo.setRagflowDatasetId(ragflowDatasetId);
         repo.setEnableAudit(false);
         repo.setIcon(repoVO.getAvatarIcon());
         repo.setDescription(repoVO.getDesc());
@@ -194,19 +229,6 @@ public class RepoService extends ServiceImpl<RepoMapper, Repo> {
         this.save(repo);
 
         groupVisibilityService.setRepoVisibility(repo.getId(), 1, visibility, repoVO.getUids());
-
-        // 3. Core system knowledge base creation - removed knowledge base creation
-        /*
-         * JSONObject repoRequestObject = this.getRepoRequestObject();
-         * repoRequestObject.getJSONObject("header").put("businessId",repoAuthorizedConfig.getBusinessId());
-         * repoRequestObject.getJSONObject("parameter").put("type", ProjectContent.REPO_OPERATE_CREATED);
-         * repoRequestObject.getJSONObject("parameter").put("repoId", repo.getCoreRepoId()); JSONObject
-         * jsonObject = knowledgeServiceCallHandler.repoManage(repoRequestObject); if
-         * (jsonObject.getJSONObject("header").getInteger("code") !=0) {
-         * log.error("Knowledge base creation failed, message:{}",
-         * jsonObject.getJSONObject("header").getString("message")); throw new
-         * CustomException("Knowledge base creation failed"); }
-         */
         return repo;
     }
 
@@ -963,6 +985,11 @@ public class RepoService extends ServiceImpl<RepoMapper, Repo> {
         String coreRepoId = repo.getCoreRepoId();
         QueryMatchObj matchObj = new QueryMatchObj();
         matchObj.setRepoId(Collections.singletonList(coreRepoId));
+
+        String ragflowDatasetId = repo.getRagflowDatasetId();
+        if (StringUtils.isNotBlank(ragflowDatasetId)) {
+            matchObj.setDatasetId(Collections.singletonList(ragflowDatasetId));
+        }
 
         List<String> docIds = new ArrayList<>();
         List<FileInfoV2> fileInfos = fileInfoV2Mapper.getFileInfoV2ByRepoId(repo.getId());

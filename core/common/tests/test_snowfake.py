@@ -320,4 +320,4 @@ class TestSnowfake:
         for i in range(1, len(ids)):
             assert (
                 ids[i] > ids[i - 1]
-            ), f"ID not monotonically increasing: {ids[i-1]} -> {ids[i]}"
+            ), f"ID not monotonically increasing: {ids[i - 1]} -> {ids[i]}"

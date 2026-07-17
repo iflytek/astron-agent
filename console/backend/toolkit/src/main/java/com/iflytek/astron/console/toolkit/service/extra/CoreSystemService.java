@@ -473,7 +473,12 @@ public class CoreSystemService {
                 Map<String, Object> data = (Map<String, Object>) result.data();
                 JSONArray dataList = JSONArray.parseArray(data.get("exec_success").toString());
                 JSONObject countResult = (JSONObject) dataList.get(0);
-                return Long.valueOf(countResult.get("count").toString());
+                // Support both "count" (with AS count) and "COUNT(*)" (MySQL default column name)
+                Object countVal = countResult.get("count");
+                if (countVal == null) {
+                    countVal = countResult.get("COUNT(*)");
+                }
+                return Long.valueOf(countVal != null ? countVal.toString() : "0");
             } else {
                 return null;
             }

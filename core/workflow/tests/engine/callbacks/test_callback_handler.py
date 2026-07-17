@@ -236,6 +236,26 @@ class TestChatCallBacks:
             assert queued_item == mock_resp
 
     @pytest.mark.asyncio
+    async def test_on_sparkflow_end_variable_mode_uses_outputs(
+        self, callback_handler: ChatCallBacks
+    ) -> None:
+        """Variable-mode end nodes should put selected outputs in final content."""
+        callback_handler.end_node_output_mode = EndNodeOutputModeEnum.VARIABLE_MODE
+        message = NodeRunResult(
+            node_id="node-end::1",
+            alias_name="End",
+            node_type="node-end",
+            error=None,
+            outputs={"output": [{"name": "test"}]},
+            node_answer_content="",
+        )
+
+        await callback_handler.on_sparkflow_end(message)
+
+        queued_item = await callback_handler.stream_queue.get()
+        assert queued_item.choices[0].delta.content == '{"output":[{"name":"test"}]}'
+
+    @pytest.mark.asyncio
     async def test_on_sparkflow_end_with_error(
         self, callback_handler: ChatCallBacks
     ) -> None:

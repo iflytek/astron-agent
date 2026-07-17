@@ -3,10 +3,12 @@ package com.iflytek.astron.console.hub.controller.extra;
 import cn.xfyun.util.CryptTools;
 import com.iflytek.astron.console.commons.annotation.RateLimit;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,11 +29,8 @@ import java.util.Map;
 @RequestMapping(value = "/rtasr")
 public class RtasrController {
 
-    @Value("${spark.rtasr-appId}")
-    private String appId;
-
-    @Value("${spark.rtasr-key}")
-    private String rtasrApikey;
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     private static final String RTASR_URL = "wss://rtasr.xfyun.cn/v1/ws";
 
@@ -43,12 +42,14 @@ public class RtasrController {
     @RateLimit
     public ApiResult<Object> rtasrSign() {
         // Get signature and other prerequisite parameters
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
         String ts = String.valueOf(System.currentTimeMillis() / 1000L);
         // Package return result
         Map<String, String> resultMap = new HashMap<>(6);
-        resultMap.put("appid", appId);
+        resultMap.put("appid", config.getPlatformAppId());
         resultMap.put("ts", ts);
-        resultMap.put("signa", getSign(ts, rtasrApikey, appId));
+        resultMap.put("signa", getSign(ts, config.getSparkRtasrApiKey(), config.getPlatformAppId()));
         resultMap.put("url", RTASR_URL);
         return ApiResult.success(resultMap);
     }

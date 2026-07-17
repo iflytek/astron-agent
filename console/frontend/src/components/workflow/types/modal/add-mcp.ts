@@ -5,6 +5,7 @@ export type McpOperateType = '' | 'mcpDetail';
 export type McpTabType = 'offical';
 
 export interface McpItem {
+  id?: string;
   name: string;
   description: string;
   icon: string;

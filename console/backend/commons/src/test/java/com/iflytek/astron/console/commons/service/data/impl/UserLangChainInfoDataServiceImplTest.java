@@ -172,11 +172,22 @@ class UserLangChainInfoDataServiceImplTest {
         // Given
         when(userLangChainInfoMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 
-        // When & Then
-        assertThrows(NullPointerException.class, () -> {
-            userLangChainInfoDataService.findFlowIdByBotId(botId);
-        });
+        // When
+        String result = userLangChainInfoDataService.findFlowIdByBotId(botId);
+
+        // Then
+        assertNull(result);
         verify(userLangChainInfoMapper).selectOne(any(LambdaQueryWrapper.class));
+    }
+
+    @Test
+    void testFindFlowIdByBotId_NullInput() {
+        // When
+        String result = userLangChainInfoDataService.findFlowIdByBotId(null);
+
+        // Then
+        assertNull(result);
+        verify(userLangChainInfoMapper, never()).selectOne(any(LambdaQueryWrapper.class));
     }
 
     @Test

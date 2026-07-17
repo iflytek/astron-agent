@@ -30,16 +30,6 @@ global:
   # 例如: http://your-domain.com
   hostBaseAddress: "http://your-domain.com"
   
-  # 配置 讯飞开放平台 相关 APP_ID API_KEY 等信息
-  #获取文档详见：https://www.xfyun.cn/doc/platform/quickguide.html
-  platformAppId: "your-app-id"
-  platformApiKey: "your-api-key"
-  platformApiSecret: "your-api-secret"
-  # https://console.xfyun.cn/services/bm4
-  sparkApiPassword: "your-api-password"
-  # https://console.xfyun.cn/services/rta
-  sparkRtasrApiKey: "your-rtasr-api-key"
-
 # 修改ingress域名，与hostBaseAddress保持一致
 ingress:
   enabled: true
@@ -49,6 +39,8 @@ ingress:
       hosts:
         - your-domain.com
 ```
+
+讯飞开放平台、AI Ability Chat、虚拟人能力、知识库平台等业务能力账号在系统启动后进入「平台账号管理」配置。
 
 ### 3. 部署
 

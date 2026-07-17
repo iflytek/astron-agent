@@ -347,7 +347,6 @@ class FrameProcessorEnum(Enum):
 
     XINGHUO = ModelProviderEnum.XINGHUO.value
     OPENAI = ModelProviderEnum.OPENAI.value
-    DEEPSEEK = ModelProviderEnum.DEEPSEEK.value
     ANTHROPIC = ModelProviderEnum.ANTHROPIC.value
     GOOGLE = ModelProviderEnum.GOOGLE.value
     AGENT = NodeType.AGENT.value
@@ -367,7 +366,6 @@ class FrameProcessorFactory:
         FrameProcessorEnum.XINGHUO.value: AIPaaSFrameProcessor,
         FrameProcessorEnum.AGENT.value: AgentFrameProcessor,
         FrameProcessorEnum.OPENAI.value: OpenAIFrameProcessor,
-        FrameProcessorEnum.DEEPSEEK.value: OpenAIFrameProcessor,
         FrameProcessorEnum.ANTHROPIC.value: AnthropicFrameProcessor,
         FrameProcessorEnum.GOOGLE.value: GoogleFrameProcessor,
         FrameProcessorEnum.KNOWLEDGE_PRO.value: KnowledgeProFrameProcessor,

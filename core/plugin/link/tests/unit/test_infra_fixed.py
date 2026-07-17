@@ -3,6 +3,7 @@ Unit tests for infrastructure modules - Fixed version
 Tests CRUD operations with correct method names
 """
 
+import asyncio
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -219,6 +220,53 @@ class TestHttpRun:
 
         assert HttpRun is not None
         assert isinstance(HttpRun, type)
+
+    def test_execute_request_disables_http_redirects(
+        self, sample_http_run_params: Any
+    ) -> None:
+        """Test HTTP execution does not follow redirects automatically."""
+
+        class MockResponseContext:
+            status = 200
+
+            async def __aenter__(self) -> Any:
+                return self
+
+            async def __aexit__(self, *args: Any) -> None:
+                return None
+
+            async def text(self) -> str:
+                return "ok"
+
+        class MockSession:
+            def __init__(self) -> None:
+                self.request_kwargs: dict[str, Any] = {}
+
+            async def __aenter__(self) -> Any:
+                return self
+
+            async def __aexit__(self, *args: Any) -> None:
+                return None
+
+            def request(self, *args: Any, **kwargs: Any) -> MockResponseContext:
+                self.request_kwargs = kwargs
+                return MockResponseContext()
+
+        http_run = HttpRun(**sample_http_run_params)
+        span_context = Mock()
+        session = MockSession()
+
+        with patch(
+            "plugin.link.infra.tool_exector.process.aiohttp.ClientSession",
+            return_value=session,
+        ):
+            result, status_code = asyncio.run(
+                http_run._execute_request("https://api.example.com/test", span_context)
+            )
+
+        assert result == "ok"
+        assert status_code == 200
+        assert session.request_kwargs["allow_redirects"] is False
 
 
 @pytest.mark.unit

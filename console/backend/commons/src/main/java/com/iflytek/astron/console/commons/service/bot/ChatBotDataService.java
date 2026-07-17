@@ -183,5 +183,7 @@ public interface ChatBotDataService {
 
     ChatBotBase findOne(String uid, Long botId);
 
+    ChatBotBase findOne(String uid, Long botId, Long spaceId);
+
     void updateChatBotMarket(ChatBotBase chatBotBase);
 }

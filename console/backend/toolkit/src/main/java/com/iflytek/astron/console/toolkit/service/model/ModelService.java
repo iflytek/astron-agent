@@ -287,44 +287,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             // 3) Path completion
             String path = Optional.ofNullable(normalized.getPath()).orElse("");
             String cleanedPath = path.replaceAll("/+$", "");
-            String finalPath;
-            String quotedModelDomain = Pattern.quote(Optional.ofNullable(modelDomain).orElse(""));
-            if (PROVIDER_ANTHROPIC.equals(provider)) {
-                if (!cleanedPath.matches(".*/messages/?$")) {
-                    if (cleanedPath.matches(".*/v\\d+$")) {
-                        finalPath = cleanedPath + "/messages";
-                    } else {
-                        finalPath = cleanedPath + "/v1/messages";
-                    }
-                } else {
-                    finalPath = cleanedPath;
-                }
-            } else if (PROVIDER_GOOGLE.equals(provider)) {
-                if (StringUtils.isBlank(modelDomain)) {
-                    throw new BusinessException(ResponseEnum.PARAM_ERROR, "domain cannot be empty");
-                }
-                if (cleanedPath.contains(":generateContent")) {
-                    finalPath = cleanedPath;
-                } else if (cleanedPath.contains(":streamGenerateContent")) {
-                    finalPath = cleanedPath.replace(":streamGenerateContent", ":generateContent");
-                } else if (cleanedPath.matches(".*/v\\d+(beta)?/models/" + quotedModelDomain + "/?$")) {
-                    finalPath = cleanedPath + ":generateContent";
-                } else if (cleanedPath.matches(".*/v\\d+(beta)?/?$")) {
-                    finalPath = cleanedPath + "/models/" + modelDomain + ":generateContent";
-                } else {
-                    finalPath = appendPathSegment(cleanedPath, "/v1beta/models/" + modelDomain + ":generateContent");
-                }
-            } else {
-                if (!cleanedPath.matches(".*/chat/completions/?$")) {
-                    if (cleanedPath.matches(".*/v\\d+$")) {
-                        finalPath = cleanedPath + "/chat/completions";
-                    } else {
-                        finalPath = cleanedPath + "/v1/chat/completions";
-                    }
-                } else {
-                    finalPath = cleanedPath;
-                }
-            }
+            String finalPath = completeApiPath(cleanedPath, provider, modelDomain);
 
             // SECURITY FIX: Validate path to prevent directory traversal
             if (finalPath.contains("..") || finalPath.contains("//")) {
@@ -354,6 +317,54 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             return basePath.substring(0, basePath.length() - 1) + appendPath;
         }
         return basePath + appendPath;
+    }
+
+    private String completeApiPath(String cleanedPath, String provider, String modelDomain) {
+        if (PROVIDER_ANTHROPIC.equals(provider)) {
+            return completeAnthropicPath(cleanedPath);
+        }
+        if (PROVIDER_GOOGLE.equals(provider)) {
+            return completeGooglePath(cleanedPath, modelDomain);
+        }
+        return completeOpenAICompatiblePath(cleanedPath);
+    }
+
+    private String completeAnthropicPath(String cleanedPath) {
+        if (!cleanedPath.matches(".*/messages/?$")) {
+            return cleanedPath.matches(".*/v\\d+$")
+                    ? cleanedPath + "/messages"
+                    : cleanedPath + "/v1/messages";
+        }
+        return cleanedPath;
+    }
+
+    private String completeGooglePath(String cleanedPath, String modelDomain) {
+        if (StringUtils.isBlank(modelDomain)) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR, "domain cannot be empty");
+        }
+        if (cleanedPath.contains(":generateContent")) {
+            return cleanedPath;
+        }
+        if (cleanedPath.contains(":streamGenerateContent")) {
+            return cleanedPath.replace(":streamGenerateContent", ":generateContent");
+        }
+        String quotedDomain = Pattern.quote(modelDomain);
+        if (cleanedPath.matches(".*/v\\d+(beta)?/models/" + quotedDomain + "/?$")) {
+            return cleanedPath + ":generateContent";
+        }
+        if (cleanedPath.matches(".*/v\\d+(beta)?/?$")) {
+            return cleanedPath + "/models/" + modelDomain + ":generateContent";
+        }
+        return appendPathSegment(cleanedPath, "/v1beta/models/" + modelDomain + ":generateContent");
+    }
+
+    private String completeOpenAICompatiblePath(String cleanedPath) {
+        if (!cleanedPath.matches(".*/chat/completions/?$")) {
+            return cleanedPath.matches(".*/v\\d+$")
+                    ? cleanedPath + "/chat/completions"
+                    : cleanedPath + "/v1/chat/completions";
+        }
+        return cleanedPath;
     }
 
     private String doPostModelApi(String url, Map<String, Object> body, HttpHeaders headers) {
@@ -486,6 +497,11 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         // Set isThink field if available in the request
         if (request.getIsThink() != null) {
             model.setIsThink(request.getIsThink());
+        }
+
+        // Set multiMode field if available in the request
+        if (request.getMultiMode() != null) {
+            model.setMultiMode(request.getMultiMode());
         }
     }
 
@@ -894,7 +910,8 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             String currentUid = userInfo.getUid();
             Long currentSpaceId = SpaceInfoUtil.getSpaceId(); // Assuming this gets current space
 
-            // Verify that the user has access to this model by checking against the same filters as dealWithSelfModel
+            // Verify that the user has access to this model by checking against the same
+            // filters as dealWithSelfModel
             LambdaQueryWrapper<Model> wrapper = new LambdaQueryWrapper<Model>()
                     .eq(Model::getId, modelId)
                     .eq(Model::getIsDeleted, 0);
@@ -902,8 +919,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             if (currentSpaceId != null) {
                 wrapper.eq(Model::getSpaceId, currentSpaceId);
             } else {
-                wrapper.isNull(Model::getSpaceId)
-                      .eq(Model::getUid, currentUid);
+                wrapper.isNull(Model::getSpaceId).eq(Model::getUid, currentUid);
             }
 
             Model model = mapper.selectOne(wrapper);

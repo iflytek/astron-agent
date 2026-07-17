@@ -52,6 +52,7 @@ public interface BotPublishConverter {
      */
     @Mapping(target = "publishStatus", source = "botStatus")
     @Mapping(target = "publishChannels", source = "publishChannels", qualifiedByName = "parsePublishChannels")
+    @Mapping(target = "maasId", ignore = true)
     @Mapping(target = "wechatRelease", constant = "0")
     @Mapping(target = "wechatAppid", ignore = true)
     BotDetailResponseDto queryResultToDetailDto(BotPublishQueryResult queryResult);

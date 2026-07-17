@@ -22,9 +22,12 @@ export async function getBotInfoApi(
   botId: number,
   workflowVersion?: string
 ): Promise<BotInfoType> {
-  return http.get(
-    `/chat-list/v1/get-bot-info?botId=${botId}&workflowVersion=${workflowVersion}`
-  );
+  return http.get('/chat-list/v1/get-bot-info', {
+    params: {
+      botId,
+      ...(workflowVersion ? { workflowVersion } : {}),
+    },
+  });
 }
 
 /**

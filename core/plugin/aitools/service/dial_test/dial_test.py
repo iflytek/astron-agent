@@ -5,7 +5,7 @@ Dial test service module providing health checks and service availability monito
 # pylint: disable=line-too-long,broad-exception-caught,unused-argument
 from typing import Any, Dict, Optional
 
-import requests
+import requests  # type: ignore[import-untyped]
 from fastapi import Request
 from plugin.aitools.api.decorators.api_service import api_service
 from pydantic import BaseModel, Field

@@ -7,24 +7,6 @@ global:
   # Host base address for external access (e.g., http://your-domain.com)
   # Used for MinIO server URL and other external endpoints
   hostBaseAddress: "http://astron-agent.example.com"
-  # iFLYTEK Platform API Configuration
-  # You can get your own API key and secret on the iFLYTEK Open Platform official website
-  # SPARK LLM API: https://xinghuo.xfyun.cn/sparkapi
-  # IMAGE-GEN API: https://www.xfyun.cn/services/wtop
-  platformAppId: "your-app-id"
-  platformApiKey: "your-api-key"
-  platformApiSecret: "your-api-secret"
-  # For RTASR API, you need to apply for a separate API key from the console website
-  # https://console.xfyun.cn/services/rta
-  sparkRtasrApiKey: "your-rtasr-api-key"
-  # For Spark LLM API, there will be an additional API password from the console website
-  # https://console.xfyun.cn/services/bm4
-  sparkApiPassword: "your-api-password"
-  # For virtual-man API, you need to apply for a separate API key from the console website (https://virtual-man.xfyun.cn/console/applications)
-  sparkVirtualManAppId: "your-virtual-man-app-id"
-  sparkVirtualManApiKey: "your-virtual-man-api-key"
-  sparkVirtualManApiSecret: "your-virtual-man-api-secret"
-
 # Override the full name for consistent resource naming
 fullnameOverride: "astron-agent"
 
@@ -277,9 +259,6 @@ coreAitools:
   env:
     servicePort: 18668
     ossDownloadHost: ""
-    aiAppId: ""
-    aiApiKey: ""
-    aiApiSecret: ""
     ossType: s3
     ossEndpoint: "http://astron-agent-minio:9000"
     ossAccessKeyId: ""
@@ -288,6 +267,17 @@ coreAitools:
     ossTtl: "157788000"
     kafkaEnable: "0"
     kafkaServers: "astron-agent-kafka:29092"
+    redisClusterAddr: ""
+    redisAddr: "astron-agent-redis:6379"
+    redisPassword: ""
+    redisDatabase: "0"
+    redisDatabaseConsole: "0"
+    mysqlHost: "astron-agent-mysql"
+    mysqlPort: "3306"
+    mysqlUser: "root"
+    mysqlPassword: ""
+    consoleMysqlDb: "astron_console"
+    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true"
 
 coreAgent:
   enabled: true
@@ -364,14 +354,7 @@ coreKnowledge:
     port: 20010
   env:
     servicePort: 20010
-    xinghuoAppId: ""
-    xinghuoAppSecret: ""
     otlpEnable: "0"
-    ragflowBaseUrl: ""
-    ragflowApiToken: ""
-    ragflowTimeout: "60"
-    ragflowDefaultGroup: ""
-    xinghuoDatasetId: ""
 
 coreWorkflow:
   enabled: true
@@ -514,6 +497,7 @@ consoleHub:
     # Tenant APIs
     tenantCreateApp: "http://astron-agent-core-tenant:5052/v2/app"
     tenantGetAppDetail: "http://astron-agent-core-tenant:5052/v2/app/details"
+    tenantVerifyAppAuth: "http://astron-agent-core-tenant:5052/v2/app/key/verify"
     # MaaS Platform Configuration
     maasAppId: "680ab54f"
     maasApiKey: "7b709739e8da44536127a333c7603a83"
@@ -538,21 +522,6 @@ consoleHub:
     wechatToken: your-wechat-token
     wechatEncodingAesKey: your-wechat-encoding-aes-key
     adminUid: "9999"
-    platformAppId: ""
-    sparkAppId: ""
-    sparkRtasrAppid: ""
-    sparkImageAppId: ""
-    platformApiKey: ""
-    sparkApiKey: ""
-    sparkImageApiKey: ""
-    platformApiSecret: ""
-    sparkApiSecret: ""
-    sparkImageApiSecret: ""
-    sparkApiPassword: ""
-    sparkRtasrKey: ""
-    sparkVirtualManAppId: ""
-    sparkVirtualManApiKey: ""
-    sparkVirtualManApiSecret: ""
     botApiMaasBaseUrl: ""
 
 # Ingress configuration

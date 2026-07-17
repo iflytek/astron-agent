@@ -378,9 +378,9 @@ External Services
 
 ## Related Documentation
 
-- [Project README](../README.md)
-- [Deployment Guide](./DEPLOYMENT_GUIDE.md)
-- [Configuration Guide](./CONFIGURATION.md)
+- [Project README](/README)
+- [Deployment Guide](/DEPLOYMENT_GUIDE)
+- [Configuration Guide](/CONFIGURATION)
 - [Agent Development Guide](../core/agent/CLAUDE.md)
 - [Frontend Development Guide](../console/frontend/CLAUDE.md)
 

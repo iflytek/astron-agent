@@ -352,6 +352,7 @@ export const zh = {
     modelManagement: '模型管理',
     resourceManagement: '资源管理',
     appManagement: '应用管理',
+    platformAccountManagement: '平台账号管理',
 
     // 订单类型相关翻译
     orderTypes: {

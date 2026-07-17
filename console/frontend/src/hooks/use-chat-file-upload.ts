@@ -11,6 +11,7 @@ import type {
 } from '@/types/chat';
 import { message } from 'antd';
 import { useTranslation } from 'react-i18next';
+import useChatStore from '@/store/chat-store';
 
 type UseChatFileUploadReturn = {
   fileList: UploadFileInfo[];
@@ -27,12 +28,13 @@ type UseChatFileUploadReturn = {
 };
 
 export default function useChatFileUpload(
-  botInfo: BotInfoType
+  _botInfo: BotInfoType
 ): UseChatFileUploadReturn {
   const [fileList, setFileList] = useState<UploadFileInfo[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const activeUploads = useRef<Map<string, XMLHttpRequest>>(new Map());
   const activeBindings = useRef<Map<string, AbortController>>(new Map());
+  const currentChatId = useChatStore(state => state.currentChatId);
   // 追踪每种类型正在处理的文件数量，用于即时限制检查
   const processingCountRef = useRef<Map<string, number>>(new Map());
   const { t } = useTranslation();
@@ -268,7 +270,7 @@ export default function useChatFileUpload(
             try {
               const bindResult = await uploadFileBindChat(
                 {
-                  chatId: botInfo.chatId,
+                  chatId: currentChatId,
                   fileName: fileObj.fileName,
                   fileSize: fileObj.fileSize,
                   fileUrl: realFileUrl,
@@ -405,7 +407,7 @@ export default function useChatFileUpload(
   const removeFile = (file: UploadFileInfo) => {
     if (file.fileId) {
       // 已绑定，调用解绑
-      unBindChatFile({ chatId: botInfo.chatId, fileId: file.fileId });
+      unBindChatFile({ chatId: currentChatId, fileId: file.fileId });
       setFileList(prev => prev.filter(f => f.fileId !== file.fileId));
     } else {
       // 未绑定：取消上传与绑定

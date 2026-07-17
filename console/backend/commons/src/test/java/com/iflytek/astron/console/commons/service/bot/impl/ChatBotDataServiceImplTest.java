@@ -17,6 +17,7 @@ import com.iflytek.astron.console.commons.mapper.bot.*;
 import com.iflytek.astron.console.commons.mapper.chat.ChatListMapper;
 import com.iflytek.astron.console.commons.mapper.vcn.CustomVCNMapper;
 import com.iflytek.astron.console.commons.service.bot.BotFavoriteService;
+import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.IDatasetInfoService;
 import com.iflytek.astron.console.commons.service.mcp.McpDataService;
 import com.iflytek.astron.console.commons.util.MaasUtil;
@@ -58,6 +59,9 @@ class ChatBotDataServiceImplTest {
 
     @Mock
     private ChatListMapper chatListMapper;
+
+    @Mock
+    private ChatListDataService chatListDataService;
 
     @Mock
     private ChatBotPromptStructMapper promptStructMapper;
@@ -309,24 +313,52 @@ class ChatBotDataServiceImplTest {
     }
 
     @Test
+    void testDeleteBot_WithBotIdAndUid_ShouldStillDeleteMarketWhenIntermediateUpdatesMiss() {
+        when(chatBotBaseMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(chatBotListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(0);
+        when(chatListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(0);
+        when(chatBotMarketMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        boolean result = chatBotDataService.deleteBot(TEST_BOT_ID, TEST_UID);
+
+        assertTrue(result);
+        verify(chatBotBaseMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatBotListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatBotMarketMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+    }
+
+    @Test
     void testDeleteBot_WithBotIdAndSpaceId_Success() {
         when(chatBotBaseMapper.update(any(ChatBotBase.class), any(LambdaQueryWrapper.class))).thenReturn(1);
+        when(chatBotListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(chatListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(chatBotMarketMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         boolean result = chatBotDataService.deleteBot(TEST_BOT_ID, TEST_SPACE_ID);
 
         assertTrue(result);
         verify(chatBotBaseMapper).update(any(ChatBotBase.class), any(LambdaQueryWrapper.class));
+        verify(chatBotListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatBotMarketMapper).update(isNull(), any(LambdaUpdateWrapper.class));
     }
 
     @Test
     void testDeleteBotsByIds_Success() {
         List<Integer> botIds = Arrays.asList(1, 2, 3);
         when(chatBotBaseMapper.update(any(ChatBotBase.class), any(LambdaQueryWrapper.class))).thenReturn(3);
+        when(chatBotListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(3);
+        when(chatListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(3);
+        when(chatBotMarketMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(3);
 
         boolean result = chatBotDataService.deleteBotsByIds(botIds);
 
         assertTrue(result);
         verify(chatBotBaseMapper).update(any(ChatBotBase.class), any(LambdaQueryWrapper.class));
+        verify(chatBotListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatBotMarketMapper).update(isNull(), any(LambdaUpdateWrapper.class));
     }
 
     @Test
@@ -343,11 +375,17 @@ class ChatBotDataServiceImplTest {
     void testDeleteBotsByIds_WithSpaceId_Success() {
         List<Integer> botIds = Arrays.asList(1, 2, 3);
         when(chatBotBaseMapper.update(any(ChatBotBase.class), any(LambdaQueryWrapper.class))).thenReturn(3);
+        when(chatBotListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(3);
+        when(chatListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(3);
+        when(chatBotMarketMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(3);
 
         boolean result = chatBotDataService.deleteBotsByIds(botIds, TEST_SPACE_ID);
 
         assertTrue(result);
         verify(chatBotBaseMapper).update(any(ChatBotBase.class), any(LambdaQueryWrapper.class));
+        verify(chatBotListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatBotMarketMapper).update(isNull(), any(LambdaUpdateWrapper.class));
     }
 
     // ========== Statistics Method Tests ==========
@@ -687,6 +725,8 @@ class ChatBotDataServiceImplTest {
 
         when(chatBotBaseMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(bots);
         when(chatBotBaseMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(chatBotListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(chatListMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(chatBotMarketMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(botDatasetMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(maasUtil.deleteSynchronize(anyInt(), anyLong(), any())).thenReturn(null);
@@ -694,6 +734,8 @@ class ChatBotDataServiceImplTest {
         chatBotDataService.deleteBotForDeleteSpace(TEST_UID, TEST_SPACE_ID, request);
 
         verify(chatBotBaseMapper, atLeastOnce()).selectList(any(LambdaQueryWrapper.class));
+        verify(chatBotListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+        verify(chatListMapper).update(isNull(), any(LambdaUpdateWrapper.class));
         verify(chatBotMarketMapper).update(isNull(), any(LambdaUpdateWrapper.class));
         verify(botDatasetMapper).update(isNull(), any(LambdaUpdateWrapper.class));
         verify(maasUtil).deleteSynchronize(eq(TEST_BOT_ID), eq(TEST_SPACE_ID), eq(request));
@@ -738,6 +780,7 @@ class ChatBotDataServiceImplTest {
         assertEquals(TEST_SPACE_ID, result.getSpaceId());
         verify(chatBotBaseMapper).botDetail(TEST_BOT_ID);
         verify(chatBotBaseMapper).insert(any(ChatBotBase.class));
+        verify(chatListDataService).insertChatBotList(any(ChatBotBase.class));
     }
 
     // Note: testFindOne_WithSpaceId has been removed because it depends on the SpaceInfoUtil static

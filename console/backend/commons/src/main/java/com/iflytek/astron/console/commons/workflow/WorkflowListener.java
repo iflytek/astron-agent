@@ -102,7 +102,7 @@ public class WorkflowListener extends EventSourceListener {
         if (StringUtils.isNotBlank(reasoningContent)) {
             thinkingResult.append(content);
         }
-        processDeBugWorkFlow(jsonObject);
+        processEndNodeVariableOutput(jsonObject, content);
 
         // Handle error code cases
         if (code != null && code != 0) {
@@ -251,41 +251,38 @@ public class WorkflowListener extends EventSourceListener {
      *
      * @param jsonObject Input JSON object
      */
-    private void processDeBugWorkFlow(JSONObject jsonObject) {
-        // debug url has special handling for end frames, for detailed processing please consult Institute
-        if (isDebug) {
-            JSONObject node = Optional.ofNullable(jsonObject)
-                    .map(obj -> obj.getJSONObject("workflow_step"))
-                    .map(step -> step.getJSONObject("node"))
-                    .orElse(null);
-            if (node == null) {
-                return;
-            }
-            String nodeFinishReason = node.getString("finish_reason");
-            if (!"stop".equals(nodeFinishReason)) {
-                return;
-            }
-            JSONObject ext = node.getJSONObject("ext");
-            if (ext == null) {
-                return;
-            }
-            Integer answerMode = ext.getInteger("answer_mode");
-            if (!Integer.valueOf(0).equals(answerMode)) {
-                return;
-            }
-            String nodeId = node.getString("id");
-            if (StringUtils.isBlank(nodeId) || !nodeId.startsWith("node-end")) {
-                return;
-            }
-            JSONObject outputs = node.getJSONObject("outputs");
-            if (outputs == null) {
-                return;
-            }
-            String outString = JSON.toJSONString(outputs);
-            if (StringUtils.isNotEmpty(outString)) {
-                finalResult.append(outString);
-            }
+    private void processEndNodeVariableOutput(JSONObject jsonObject, String content) {
+        if (StringUtils.isNotBlank(content)) {
+            return;
         }
+        JSONObject node = Optional.ofNullable(jsonObject)
+                .map(obj -> obj.getJSONObject("workflow_step"))
+                .map(step -> step.getJSONObject("node"))
+                .orElse(null);
+        if (node == null) {
+            return;
+        }
+        String nodeFinishReason = node.getString("finish_reason");
+        if (!"stop".equals(nodeFinishReason)) {
+            return;
+        }
+        JSONObject ext = node.getJSONObject("ext");
+        if (ext == null) {
+            return;
+        }
+        Integer answerMode = ext.getInteger("answer_mode");
+        if (!Integer.valueOf(0).equals(answerMode)) {
+            return;
+        }
+        String nodeId = node.getString("id");
+        if (StringUtils.isBlank(nodeId) || !nodeId.startsWith("node-end")) {
+            return;
+        }
+        JSONObject outputs = node.getJSONObject("outputs");
+        if (outputs == null || outputs.isEmpty()) {
+            return;
+        }
+        finalResult.append(JSON.toJSONString(outputs));
     }
 
     /**

@@ -46,6 +46,8 @@ public class MyBotResponseDTO {
 
     private List<Object> releaseType;
 
+    private Boolean canOffline;
+
     // Statistics and user-related
     private String hotNum;
 

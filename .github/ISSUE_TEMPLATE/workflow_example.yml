@@ -1,0 +1,94 @@
+name: "🧩 Submit a Workflow Example"
+description: Share a reusable Astron workflow for the community examples gallery
+title: "[EXAMPLE] "
+labels:
+  - examples
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing a workflow! These power the community
+        [examples gallery](https://iflytek.github.io/astron-agent/examples).
+
+        **Fastest path:** if you're comfortable with Git, open a pull request directly by copying
+        [`examples/TEMPLATE`](https://github.com/iflytek/astron-agent/tree/main/examples/TEMPLATE) —
+        see the [examples guide](https://github.com/iflytek/astron-agent/tree/main/examples). CI then
+        validates your submission automatically.
+
+        Prefer a guided submission? Fill in this form and a maintainer will help land it as a PR
+        (you'll be credited as the author).
+  - type: input
+    id: title
+    attributes:
+      label: Workflow name
+      placeholder: e.g. AI Resume Assistant
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What it does
+      description: One or two sentences describing the problem it solves and the result it produces.
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - productivity
+        - creative
+        - learning
+        - entertainment
+        - health
+        - finance
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: features
+    attributes:
+      label: Key features
+      description: 3–5 short bullet points.
+      placeholder: |
+        - Parses a resume into structured fields
+        - Scores it against a target job description
+        - Suggests concrete rewrites
+    validations:
+      required: true
+  - type: textarea
+    id: dsl
+    attributes:
+      label: Workflow DSL
+      description: Drag your exported `workflow.yml` into this box to attach it, or paste a link to it.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Models, plugins/skills, or knowledge bases the workflow needs.
+      placeholder: e.g. a Spark chat model; text-to-speech plugin; no knowledge base
+  - type: input
+    id: author
+    attributes:
+      label: Your GitHub handle
+      description: For attribution in the example's metadata.
+      placeholder: "@your-handle"
+  - type: input
+    id: source
+    attributes:
+      label: Source / demo link
+      description: Optional — a blog post, video, or discussion that explains the workflow.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed all secrets (API keys, app ids, tokens) from the exported DSL and replaced them with `YOUR_*` placeholders.
+          required: true
+        - label: The workflow imports and runs in a current Astron Agent instance.
+          required: true
+        - label: I'm willing to open a pull request (or let a maintainer help) to add it under `examples/`.
+          required: true

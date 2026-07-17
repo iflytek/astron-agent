@@ -33,6 +33,7 @@ public class ChatBotMarketServiceImpl implements ChatBotMarketService {
         LambdaQueryWrapper<ChatBotMarket> queryWrapper = Wrappers.lambdaQuery(ChatBotMarket.class)
                 .eq(ChatBotMarket::getIsDelete, NOT_DELETED)
                 .eq(ChatBotMarket::getBotStatus, ShelfStatusEnum.ON_SHELF.getCode())
+                .apply("EXISTS (SELECT 1 FROM chat_bot_base base WHERE base.id = bot_id AND base.is_delete = 0)")
                 .orderByDesc(ChatBotMarket::getCreateTime);
         if (type != null) {
             queryWrapper.eq(ChatBotMarket::getBotType, type);

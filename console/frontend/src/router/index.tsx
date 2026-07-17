@@ -20,6 +20,7 @@ const WorkFlow = lazy(() => import('@/pages/workflow'));
 const WorkFlowAnalysis = lazy(
   () => import('@/pages/workflow/workflow-analysis')
 );
+const WorkFlowFiles = lazy(() => import('@/pages/workflow/workflow-files'));
 
 const ChatPage = lazy(() => import('@/pages/chat-page'));
 const PersonalSpace = lazy(() => import('@/pages/space/personal'));
@@ -32,6 +33,9 @@ const ReleaseManagement = lazy(() => import('@/pages/release-management'));
 const BotApi = lazy(() => import('@/pages/bot-api/api'));
 const SharePage = lazy(() => import('@/pages/share-page'));
 const AppListPage = lazy(() => import('@/pages/bot-api/app-list'));
+const PlatformAccountManagement = lazy(
+  () => import('@/pages/platform-account-management')
+);
 
 const routes = [
   {
@@ -137,6 +141,14 @@ const routes = [
           </Suspense>
         ),
       },
+      {
+        path: '/management/platform-account',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <PlatformAccountManagement />
+          </Suspense>
+        ),
+      },
     ],
   },
   {
@@ -237,6 +249,14 @@ const routes = [
     element: (
       <Suspense fallback={<Loading />}>
         <WorkFlowAnalysis />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/work_flow/:id/files',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <WorkFlowFiles />
       </Suspense>
     ),
   },

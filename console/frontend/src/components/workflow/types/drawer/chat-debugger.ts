@@ -375,6 +375,7 @@ export interface CodeRunParams {
   app_id?: string;
   uid?: string;
   flow_id?: string;
+  node_id?: string;
 }
 
 export interface CodeRunResponse {

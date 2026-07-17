@@ -13,6 +13,7 @@ import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
+import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowData;
 import com.iflytek.astron.console.toolkit.entity.core.workflow.FlowProtocol;
 import com.iflytek.astron.console.toolkit.entity.dto.WorkflowReq;
@@ -150,13 +151,29 @@ public class VersionService {
     // Exception database operation rollback
     @Transactional
     public ApiResult<JSONObject> create(WorkflowVersion createDto) {
-        log.info("Starting to add version, input data: {}", createDto);
-        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, createDto.getFlowId()));
-        if (workflow == null) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
-        }
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        return createForSpace(createDto, SpaceInfoUtil.getSpaceId());
+    }
 
+    @Transactional
+    public ApiResult<JSONObject> createForSpace(WorkflowVersion createDto, Long spaceId) {
+        log.info("Starting to add version, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
+        return createVersion(createDto, workflow);
+    }
+
+    /**
+     * Create a workflow version for a bot-bound publish flow after the caller has already verified bot
+     * publish permission and resolved the flowId from the bot binding.
+     */
+    @Transactional
+    public ApiResult<JSONObject> createForBoundBotPublish(WorkflowVersion createDto) {
+        log.info("Starting to add version for bound bot publish, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        return createVersion(createDto, workflow);
+    }
+
+    private ApiResult<JSONObject> createVersion(WorkflowVersion createDto, Workflow workflow) {
         try {
             // Create workflow version
             WorkflowVersion workflowVersion = new WorkflowVersion();
@@ -182,7 +199,7 @@ public class VersionService {
             workflowVersion.setData(workflow.getData());
             workflowVersion.setSysData(JSONObject.toJSONString(flowProtocol));
             workflowVersion.setPublishChannel(createDto.getPublishChannel());
-            workflowVersion.setPublishResult(createDto.getPublishResult());
+            workflowVersion.setPublishResult(WorkflowConst.PublishResult.normalize(createDto.getPublishResult()));
             workflowVersion.setFlowId(createDto.getFlowId());
             workflowVersion.setDescription(createDto.getDescription());
             // Set advanced configuration information
@@ -219,6 +236,14 @@ public class VersionService {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_ADD_FAILED);
         }
         //
+    }
+
+    private Workflow requireWorkflow(String flowId) {
+        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
+        if (workflow == null) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
+        }
+        return workflow;
     }
 
     /**
@@ -260,13 +285,27 @@ public class VersionService {
      * @return API result with suggested version name
      */
     public ApiResult<JSONObject> getVersionName(WorkflowVersion createDto) {
-        log.info("Starting to get workflow version name, input data: {}", createDto);
-        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, createDto.getFlowId()));
-        if (workflow == null) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
-        }
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        return getVersionNameForSpace(createDto, SpaceInfoUtil.getSpaceId());
+    }
 
+    public ApiResult<JSONObject> getVersionNameForSpace(WorkflowVersion createDto, Long spaceId) {
+        log.info("Starting to get workflow version name, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
+        return buildVersionName(createDto, workflow);
+    }
+
+    /**
+     * Get a workflow version name for a bot-bound publish flow after the caller has already verified
+     * bot publish permission and resolved the flowId from the bot binding.
+     */
+    public ApiResult<JSONObject> getVersionNameForBoundBotPublish(WorkflowVersion createDto) {
+        log.info("Starting to get workflow version name for bound bot publish, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        return buildVersionName(createDto, workflow);
+    }
+
+    private ApiResult<JSONObject> buildVersionName(WorkflowVersion createDto, Workflow workflow) {
         try {
             // Get the maximum version integer
             WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(Wrappers.lambdaQuery(WorkflowVersion.class)
@@ -365,7 +404,8 @@ public class VersionService {
         if (workflowVersions.isEmpty()) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
         }
-        boolean haveSysData = workflowVersions.stream().noneMatch(wv -> "Success".equals(wv.getPublishResult()));
+        boolean haveSysData = workflowVersions.stream()
+                .noneMatch(wv -> WorkflowConst.PublishResult.isSuccess(wv.getPublishResult()));
         return ApiResult.success(new JSONObject()
                 .fluentPut("haveSysData", haveSysData));
     }
@@ -529,7 +569,7 @@ public class VersionService {
             if (!addedChannels.contains(publishChannel)) {
                 Map<String, Object> map = new HashMap<>();
                 map.put("publishChannel", publishChannel);
-                map.put("publishResult", version.getPublishResult());
+                map.put("publishResult", WorkflowConst.PublishResult.normalize(version.getPublishResult()));
                 resultList.add(map);
                 addedChannels.add(publishChannel);
             }
@@ -560,7 +600,8 @@ public class VersionService {
             LambdaUpdateWrapper<WorkflowVersion> updateWrapper = new LambdaUpdateWrapper<>();
             // Update flowId corresponding records, set isVersion to 2
             updateWrapper.eq(WorkflowVersion::getId, createDto.getId())
-                    .set(WorkflowVersion::getPublishResult, createDto.getPublishResult())
+                    .set(WorkflowVersion::getPublishResult,
+                            WorkflowConst.PublishResult.normalize(createDto.getPublishResult()))
                     .set(WorkflowVersion::getUpdatedTime, new Date());
             // Execute update
             workflowVersionMapper.update(null, updateWrapper);
@@ -587,7 +628,10 @@ public class VersionService {
             WorkflowVersion latestVersion = workflowVersionMapper.selectOne(
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getBotId, botId)
-                            .eq(WorkflowVersion::getPublishResult, "Success")
+                            .in(WorkflowVersion::getPublishResult,
+                                    WorkflowConst.PublishResult.SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS,
+                                    WorkflowConst.PublishResult.LEGACY_SUCCESS_UPPER)
                             .orderByDesc(WorkflowVersion::getCreatedTime)
                             .last("LIMIT 1"));
 

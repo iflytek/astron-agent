@@ -27,6 +27,12 @@ from workflow.engine.nodes.knowledge.knowledge_expert_node import KnowledgeExper
 from workflow.engine.nodes.knowledge.knowledge_node import KnowledgeNode
 from workflow.engine.nodes.knowledge_pro.knowledge_pro_node import KnowledgeProNode
 from workflow.engine.nodes.llm.spark_llm_node import SparkLLMNode
+from workflow.engine.nodes.loop.loop_node import (
+    LoopEndNode,
+    LoopExitNode,
+    LoopNode,
+    LoopStartNode,
+)
 from workflow.engine.nodes.mcp.mcp_node import MCPNode
 from workflow.engine.nodes.memory import MemoryAddNode, MemorySearchNode
 from workflow.engine.nodes.message.message_node import MessageNode
@@ -59,6 +65,10 @@ tool_classes = {
     "iteration": IterationNode,  # Iteration node for loop operations
     "iteration-node-start": IterationStartNode,  # Iteration start node for loop initialization
     "iteration-node-end": IterationEndNode,  # Iteration end node for loop termination
+    "loop": LoopNode,  # Stateful loop node
+    "loop-node-start": LoopStartNode,  # Loop start node for loop initialization
+    "loop-node-end": LoopEndNode,  # Loop end node for loop termination
+    "loop-exit": LoopExitNode,  # Loop exit node for early loop termination
     "text-joiner": TextJoinerNode,  # Text joining node for content concatenation
     "node-variable": GlobalVariablesNode,  # Global variables node for state management
     "flow": FlowNode,  # Sub-flow node for nested workflow execution

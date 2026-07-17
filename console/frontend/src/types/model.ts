@@ -196,6 +196,7 @@ export interface ModelFormData {
   pid?: number;
   customName?: string;
   isThink?: boolean;
+  multiMode?: boolean;
 }
 
 // 模型卡片组件属性
@@ -325,6 +326,7 @@ export interface ModelCreateParams {
   apiKeyMasked?: boolean; // apikey是否更改，更新模型的时候必传
   modelCategoryReq?: ModelCategoryReq; // 模型分类请求参数
   isThink?: boolean; // 是否开启思考内容
+  multiMode?: boolean; // 是否具备多模态能力
 }
 
 // 模型详情查询参数
@@ -368,4 +370,5 @@ export interface LocalModelParams {
   acceleratorCount: number; // 加速器数量
   modelPath: string; // 模型路径
   config?: ConfigObject[]; // 模型配置参数
+  multiMode?: boolean; // 是否具备多模态能力
 }

@@ -23,9 +23,9 @@ try:
     from memory.database.domain.models.database_meta import DatabaseMeta  # noqa: F401
     from memory.database.domain.models.schema_meta import SchemaMeta  # noqa: F401
 
-    print("✅ SQLModel and models load success!")
+    print("SQLModel and models load success!")
 except ImportError as e:
-    print(f"❌ load failed: {e}")
+    print(f"load failed: {e}")
     sys.exit(1)
 
 # this is the Alembic Config object, which provides
@@ -33,14 +33,22 @@ except ImportError as e:
 config = context.config
 
 
+def _get_adapter():  # type: ignore[no-untyped-def]
+    """Get the database adapter based on DB_TYPE."""
+    from memory.database.repository.middleware.adapters import get_adapter
+
+    return get_adapter()
+
+
 def get_database_url() -> str:
-    user = os.getenv("PGSQL_USER", "")
-    password = os.getenv("PGSQL_PASSWORD", "")
-    database = os.getenv("PGSQL_DATABASE", "")
-    host = os.getenv("PGSQL_HOST", "")
-    port = int(os.getenv("PGSQL_PORT", ""))
-    # Use psycopg2 (sync) driver for Alembic migrations instead of asyncpg
-    database_url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}"
+    adapter = _get_adapter()
+    prefix = adapter.get_env_prefix()
+    user = os.getenv(f"{prefix}_USER", "")
+    password = os.getenv(f"{prefix}_PASSWORD", "")
+    database = os.getenv(f"{prefix}_DATABASE", "")
+    host = os.getenv(f"{prefix}_HOST", "")
+    port = int(os.getenv(f"{prefix}_PORT", str(adapter.get_default_port())))
+    database_url = adapter.build_sync_url(user, password, host, port, database)
     return database_url
 
 
@@ -78,13 +86,21 @@ def include_object(
     if type_ == "foreign_key_constraint":
         return False
 
-    # Only include objects from sparkdb_manager schema
-    if type_ == "schema":
-        return name == "sparkdb_manager"
+    adapter = _get_adapter()
+    db_type = adapter.get_db_type()
 
-    # For table objects, check the schema
-    if type_ == "table" and hasattr(object, "schema"):
-        return object.schema == "sparkdb_manager"
+    if db_type == "postgresql":
+        # Only include objects from sparkdb_manager schema
+        if type_ == "schema":
+            return name == "sparkdb_manager"
+
+        # For table objects, check the schema
+        if type_ == "table" and hasattr(object, "schema"):
+            return object.schema == "sparkdb_manager"
+    else:
+        # MySQL: include all tables (no schema qualifier)
+        if type_ == "schema":
+            return False
 
     return True
 
@@ -100,15 +116,19 @@ def run_migrations_offline() -> None:
     Calls to context.execute() here emit the given string to the
     script output.
     """
+    adapter = _get_adapter()
     url = config.get_main_option("sqlalchemy.url")
+    version_table_schema = adapter.get_alembic_version_table_schema()
+    include_schemas = adapter.get_alembic_include_schemas()
+
     context.configure(
         url=url,
         target_metadata=get_metadata(),
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_object=include_object,
-        version_table_schema="sparkdb_manager",
-        include_schemas=True,
+        version_table_schema=version_table_schema,
+        include_schemas=include_schemas,
     )
 
     with context.begin_transaction():
@@ -132,6 +152,10 @@ def run_migrations_online() -> None:
                 directives[:] = []
                 logger.info("No changes in schema detected.")
 
+    adapter = _get_adapter()
+    version_table_schema = adapter.get_alembic_version_table_schema()
+    include_schemas = adapter.get_alembic_include_schemas()
+
     configuration = config.get_section(config.config_ini_section) or {}
 
     connectable = engine_from_config(
@@ -148,8 +172,8 @@ def run_migrations_online() -> None:
             include_object=include_object,
             compare_type=True,
             compare_server_default=True,
-            version_table_schema="sparkdb_manager",
-            include_schemas=True,
+            version_table_schema=version_table_schema,
+            include_schemas=include_schemas,
         )
         with context.begin_transaction():
             context.run_migrations()

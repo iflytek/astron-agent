@@ -11,6 +11,7 @@ import {
   listToolSquare,
   getMcpServerList as getMcpServerListAPI,
 } from '@/services/plugin';
+import { listImportableSkills } from '@/services/skill';
 import { Button, Select, Spin, Tooltip, message } from 'antd';
 import { FlowInput } from '@/components/workflow/ui';
 import { debounce, throttle } from 'lodash';
@@ -26,6 +27,7 @@ import {
 } from '@/components/modal/plugin';
 import MCPDetail from './components/mcp-detail';
 import KnowledgeList from './components/knowledge-list';
+import SkillList from './components/skill-list';
 import { configListRepos } from '@/services/knowledge';
 import { useTranslation } from 'react-i18next';
 import { useAddPluginType } from '@/components/workflow/types';
@@ -194,6 +196,27 @@ const useToolData = ({
       });
   }
 
+  function getSkillsList(): void {
+    if (toolRef.current) {
+      toolRef.current.scrollTop = 0;
+    }
+    setLoading(true);
+    loadingRef.current = true;
+    listImportableSkills(contentRef?.current)
+      .then(data => {
+        const newData = (data || []).map(item => ({
+          ...item,
+          toolId: String(item?.id),
+        }));
+        setDataSource(() => [...newData]);
+        setHasMore(false);
+      })
+      .finally(() => {
+        setLoading(false);
+        loadingRef.current = false;
+      });
+  }
+
   function getMcpServerList(): void {
     if (toolRef.current) {
       toolRef.current.scrollTop = 0;
@@ -229,6 +252,8 @@ const useToolData = ({
         getMcpServerList();
       } else if (currentTab === 'knowledge') {
         getKnowledgesList();
+      } else if (currentTab === 'skill') {
+        getSkillsList();
       }
     }
   }, [currentTab, orderFlag, pagination, orderBy]);
@@ -288,7 +313,12 @@ const useAddPlugin = ({
     (tool): unknown => {
       handleAddTool({
         ...tool,
-        type: currentTab === 'mcp' ? 'mcp' : 'tool',
+        type:
+          currentTab === 'mcp'
+            ? 'mcp'
+            : currentTab === 'skill'
+              ? 'skill'
+              : 'tool',
         icon: tool?.icon,
       });
     },
@@ -400,6 +430,13 @@ const LeftNav = ({
           <span className="mt-0.5">
             {t('workflow.nodes.knowledgeNode.knowledgeBase')}
           </span>
+        </div>
+        <div
+          className={`create-tool-tab-normal ${currentTab === 'skill' ? 'create-tool-tab-active' : ''}`}
+          onClick={() => handleChangeTab('skill')}
+        >
+          <i className="knowledge"></i>
+          <span className="mt-0.5">Skill</span>
         </div>
       </div>
     </div>
@@ -779,6 +816,17 @@ const RightContent = ({
           toolRef={toolRef}
           orderBy={orderBy}
           setOrderBy={setOrderBy}
+          searchValue={searchValue}
+          handleInputChange={handleInputChange}
+          toolsList={toolsList}
+          loading={loading}
+          handleAddTool={handleAddTool}
+        />
+      )}
+      {!operate && currentTab === 'skill' && (
+        <SkillList
+          dataSource={dataSource}
+          toolRef={toolRef}
           searchValue={searchValue}
           handleInputChange={handleInputChange}
           toolsList={toolsList}

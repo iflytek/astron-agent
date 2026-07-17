@@ -11,6 +11,7 @@ import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.service.data.IDatasetFileService;
 import com.iflytek.astron.console.toolkit.common.constant.ProjectContent;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
+import com.iflytek.astron.console.toolkit.config.properties.BizConfig;
 import com.iflytek.astron.console.toolkit.config.properties.RepoAuthorizedConfig;
 import com.iflytek.astron.console.toolkit.entity.table.ConfigInfo;
 import com.iflytek.astron.console.toolkit.entity.table.group.GroupVisibility;
@@ -52,6 +53,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -174,6 +176,17 @@ class RepoServiceTest {
 
         // Set baseMapper for ServiceImpl - Required for MyBatis-Plus
         ReflectionTestUtils.setField(repoService, "baseMapper", repoMapper);
+        ReflectionTestUtils.setField(repoService, "self", repoService);
+
+        BizConfig bizConfig = new BizConfig();
+        bizConfig.setCbgRagCompatibleSources(Arrays.asList(
+                ProjectContent.FILE_SOURCE_CBG_RAG_STR,
+                ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR));
+        bizConfig.setAiuiRagCompatibleSources(
+                Arrays.asList(ProjectContent.FILE_SOURCE_AIUI_RAG2_STR));
+        bizConfig.setSparkRagCompatibleSources(
+                Arrays.asList(ProjectContent.FILE_SOURCE_SPARK_RAG_STR));
+        new ProjectContent().setBizConfig(bizConfig);
 
         // Initialize mock RepoVO
         mockRepoVO = new RepoVO();
@@ -207,12 +220,13 @@ class RepoServiceTest {
     }
 
     /**
-     * Clean up after each test method. Clears the RequestContextHolder to avoid side effects between
-     * tests.
+     * Clean up after each test method. Clears the RequestContextHolder and the static BizConfig on
+     * ProjectContent to avoid side effects between tests.
      */
     @AfterEach
     void tearDown() {
         RequestContextHolder.resetRequestAttributes();
+        new ProjectContent().setBizConfig(null);
     }
 
     /**
@@ -454,6 +468,133 @@ class RepoServiceTest {
                 // Then
                 assertThat(result).isNotNull();
                 verify(repoMapper, times(1)).insert(any(Repo.class));
+            }
+        }
+
+        @Test
+        @DisplayName("createRepo with Ragflow-RAG tag persists ragflow dataset id")
+        void createRepo_ragflowRag_persistsDatasetId() {
+            try (MockedStatic<UserInfoManagerHandler> userMock = mockStatic(UserInfoManagerHandler.class);
+                    MockedStatic<SpaceInfoUtil> spaceMock = mockStatic(SpaceInfoUtil.class)) {
+
+                userMock.when(UserInfoManagerHandler::getUserId).thenReturn("user-001");
+                spaceMock.when(SpaceInfoUtil::getSpaceId).thenReturn(null);
+
+                mockRepoVO.setName("kb_alpha");
+                mockRepoVO.setTag(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+                mockRepoVO.setOuterRepoId("caller-controlled-id");
+                mockRepoVO.setVisibility(0);
+
+                when(repoMapper.selectOne(any(), anyBoolean())).thenReturn(null);
+                when(knowledgeV2ServiceCallHandler.createRagflowDataset(anyString(), eq("kb_alpha")))
+                        .thenReturn("ds-real-id-001");
+                when(repoMapper.insert(any(Repo.class))).thenAnswer(invocation -> {
+                    Repo r = invocation.getArgument(0);
+                    r.setId(42L);
+                    return 1;
+                });
+                doNothing().when(groupVisibilityService).setRepoVisibility(anyLong(), anyInt(), anyInt(), anyList());
+
+                Repo saved = repoService.createRepo(mockRepoVO);
+
+                assertThat(saved.getRagflowDatasetId()).isEqualTo("ds-real-id-001");
+                assertThat(saved.getTag()).isEqualTo(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+                assertThat(saved.getCoreRepoId()).isNotEqualTo("caller-controlled-id");
+                assertThat(saved.getOuterRepoId()).isEqualTo(saved.getCoreRepoId());
+                assertThat(saved.getCoreRepoId()).hasSize(32);
+                ArgumentCaptor<String> datasetNameCaptor = ArgumentCaptor.forClass(String.class);
+                verify(knowledgeV2ServiceCallHandler).createRagflowDataset(datasetNameCaptor.capture(), eq("kb_alpha"));
+                assertThat(datasetNameCaptor.getValue()).isNotEqualTo(saved.getCoreRepoId());
+                assertThat(datasetNameCaptor.getValue()).isEqualTo("kb_alpha-" + saved.getCoreRepoId());
+                verify(repoMapper, times(1)).insert(any(Repo.class));
+            }
+        }
+
+        @Test
+        @DisplayName("createRepo with Ragflow-RAG tag keeps dataset name within max length")
+        void createRepo_ragflowRag_truncatesReadableDatasetNameOnly() {
+            try (MockedStatic<UserInfoManagerHandler> userMock = mockStatic(UserInfoManagerHandler.class);
+                    MockedStatic<SpaceInfoUtil> spaceMock = mockStatic(SpaceInfoUtil.class)) {
+
+                userMock.when(UserInfoManagerHandler::getUserId).thenReturn("user-001");
+                spaceMock.when(SpaceInfoUtil::getSpaceId).thenReturn(null);
+
+                String longRepoName = "k".repeat(300);
+                mockRepoVO.setName(longRepoName);
+                mockRepoVO.setTag(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+                mockRepoVO.setVisibility(0);
+
+                when(repoMapper.selectOne(any(), anyBoolean())).thenReturn(null);
+                when(knowledgeV2ServiceCallHandler.createRagflowDataset(anyString(), eq(longRepoName)))
+                        .thenReturn("ds-real-id-002");
+                when(repoMapper.insert(any(Repo.class))).thenAnswer(invocation -> {
+                    Repo r = invocation.getArgument(0);
+                    r.setId(43L);
+                    return 1;
+                });
+                doNothing().when(groupVisibilityService).setRepoVisibility(anyLong(), anyInt(), anyInt(), anyList());
+
+                Repo saved = repoService.createRepo(mockRepoVO);
+
+                ArgumentCaptor<String> datasetNameCaptor = ArgumentCaptor.forClass(String.class);
+                verify(knowledgeV2ServiceCallHandler).createRagflowDataset(datasetNameCaptor.capture(), eq(longRepoName));
+                assertThat(datasetNameCaptor.getValue()).hasSize(255);
+                assertThat(datasetNameCaptor.getValue()).endsWith("-" + saved.getCoreRepoId());
+            }
+        }
+
+        @Test
+        @DisplayName("createRepo rolls back when RAGFlow create fails")
+        void createRepo_ragflowFailure_doesNotPersist() {
+            try (MockedStatic<UserInfoManagerHandler> userMock = mockStatic(UserInfoManagerHandler.class);
+                    MockedStatic<SpaceInfoUtil> spaceMock = mockStatic(SpaceInfoUtil.class)) {
+
+                userMock.when(UserInfoManagerHandler::getUserId).thenReturn("user-001");
+                spaceMock.when(SpaceInfoUtil::getSpaceId).thenReturn(null);
+
+                mockRepoVO.setName("kb_failing");
+                mockRepoVO.setTag(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+
+                when(repoMapper.selectOne(any(), anyBoolean())).thenReturn(null);
+                when(knowledgeV2ServiceCallHandler.createRagflowDataset(anyString(), eq("kb_failing")))
+                        .thenThrow(new BusinessException(
+                                ResponseEnum.REPO_CREATE_RAGFLOW_FAILED,
+                                "RAGFlow unreachable"));
+
+                assertThatThrownBy(() -> repoService.createRepo(mockRepoVO))
+                        .isInstanceOf(BusinessException.class)
+                        .extracting("responseEnum")
+                        .isEqualTo(ResponseEnum.REPO_CREATE_RAGFLOW_FAILED);
+
+                verify(repoMapper, never()).insert(any(Repo.class));
+            }
+        }
+
+        @Test
+        @DisplayName("createRepo with non-Ragflow tag does not call RAGFlow")
+        void createRepo_nonRagflowTag_skipsRagflow() {
+            try (MockedStatic<UserInfoManagerHandler> userMock = mockStatic(UserInfoManagerHandler.class);
+                    MockedStatic<SpaceInfoUtil> spaceMock = mockStatic(SpaceInfoUtil.class)) {
+
+                userMock.when(UserInfoManagerHandler::getUserId).thenReturn("user-001");
+                spaceMock.when(SpaceInfoUtil::getSpaceId).thenReturn(null);
+
+                mockRepoVO.setName("cbg_kb");
+                mockRepoVO.setTag(ProjectContent.FILE_SOURCE_CBG_RAG_STR);
+                mockRepoVO.setVisibility(0);
+
+                when(repoMapper.selectOne(any(), anyBoolean())).thenReturn(null);
+                when(repoMapper.insert(any(Repo.class))).thenAnswer(invocation -> {
+                    Repo r = invocation.getArgument(0);
+                    r.setId(43L);
+                    return 1;
+                });
+                doNothing().when(groupVisibilityService).setRepoVisibility(anyLong(), anyInt(), anyInt(), anyList());
+
+                Repo saved = repoService.createRepo(mockRepoVO);
+
+                assertThat(saved.getRagflowDatasetId()).isNull();
+                verifyNoInteractions(knowledgeV2ServiceCallHandler);
             }
         }
     }

@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Literal, Union
+from typing import Any, Dict, List, Literal, Set, Union
 
 from pydantic import BaseModel, Field
 
@@ -50,11 +50,13 @@ class InputItem(BaseModel):
     :param id: ID of the input item
     :param name: Human-readable name for the input item
     :param input_schema: Input schema of the input item
+    :param fileType: File type for multimodal inputs (e.g., image, audio, video), can be empty
     """
 
     id: str = Field(default="")
     name: str = Field(..., min_length=1)
     input_schema: InputSchema = Field(alias="schema")
+    fileType: str = Field(default="")
 
 
 class OutputItem(BaseModel):
@@ -68,7 +70,7 @@ class OutputItem(BaseModel):
 
     id: str = Field(default="")
     name: str = Field(..., min_length=1)
-    output_schema: Dict[str, Any] = Field(..., default_factory=dict, alias="schema")
+    output_schema: Dict[str, Any] = Field(default_factory=dict, alias="schema")
     required: bool = Field(default=False)
 
 
@@ -159,3 +161,85 @@ class WorkflowDSL(BaseModel):
         raise CustomException(
             CodeEnum.PROTOCOL_BUILD_ERROR, err_msg=f"Node {node_id} does not exist"
         )
+
+    def extract_iteration_sub_dsl(self, iteration_node_id: str) -> "WorkflowDSL":
+        """
+        Extract the standalone DSL for an iteration subgraph.
+
+        :param iteration_node_id: The iteration container node ID
+        :return: WorkflowDSL containing only the iteration subgraph
+        :raises CustomException: If the iteration node or subgraph is invalid
+        """
+        from workflow.engine.entities.chains import Chains
+
+        chains = Chains(workflow_schema=self)
+        chains.gen()
+
+        iteration_chains = chains.iteration_chains.get(iteration_node_id)
+        if iteration_chains is None:
+            raise CustomException(
+                CodeEnum.PROTOCOL_BUILD_ERROR,
+                err_msg=f"Iteration node {iteration_node_id} sub dsl does not exist",
+            )
+
+        sub_node_ids: Set[str] = set()
+        for master_chain in iteration_chains.master_chains:
+            sub_node_ids.update(master_chain.node_id_list)
+
+        if not sub_node_ids:
+            raise CustomException(
+                CodeEnum.PROTOCOL_BUILD_ERROR,
+                err_msg=f"Iteration node {iteration_node_id} sub dsl is empty",
+            )
+
+        sub_nodes = [
+            node.model_copy(deep=True) for node in self.nodes if node.id in sub_node_ids
+        ]
+        sub_edges = [
+            edge.model_copy(deep=True)
+            for edge in self.edges
+            if edge.sourceNodeId in sub_node_ids and edge.targetNodeId in sub_node_ids
+        ]
+
+        return WorkflowDSL(nodes=sub_nodes, edges=sub_edges)
+
+    def extract_loop_sub_dsl(self, loop_node_id: str) -> "WorkflowDSL":
+        """
+        Extract the standalone DSL for a loop subgraph.
+
+        :param loop_node_id: The loop container node ID
+        :return: WorkflowDSL containing only the loop subgraph
+        :raises CustomException: If the loop node or subgraph is invalid
+        """
+        from workflow.engine.entities.chains import Chains
+
+        chains = Chains(workflow_schema=self)
+        chains.gen()
+
+        loop_chains = chains.loop_chains.get(loop_node_id)
+        if loop_chains is None:
+            raise CustomException(
+                CodeEnum.PROTOCOL_BUILD_ERROR,
+                err_msg=f"Loop node {loop_node_id} sub dsl does not exist",
+            )
+
+        sub_node_ids: Set[str] = set()
+        for master_chain in loop_chains.master_chains:
+            sub_node_ids.update(master_chain.node_id_list)
+
+        if not sub_node_ids:
+            raise CustomException(
+                CodeEnum.PROTOCOL_BUILD_ERROR,
+                err_msg=f"Loop node {loop_node_id} sub dsl is empty",
+            )
+
+        sub_nodes = [
+            node.model_copy(deep=True) for node in self.nodes if node.id in sub_node_ids
+        ]
+        sub_edges = [
+            edge.model_copy(deep=True)
+            for edge in self.edges
+            if edge.sourceNodeId in sub_node_ids and edge.targetNodeId in sub_node_ids
+        ]
+
+        return WorkflowDSL(nodes=sub_nodes, edges=sub_edges)

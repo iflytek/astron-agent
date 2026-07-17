@@ -34,7 +34,7 @@ public class WorkflowTraceServiceImpl implements WorkflowTraceService {
                 flowId, workflow.getId(), requestDto.getPage(), requestDto.getPageSize());
         return workflowTraceClient.queryExecutions(
                 flowId,
-                requestDto.getAppId() != null ? requestDto.getAppId() : workflow.getAppId(),
+                requestDto.getAppId(),
                 requestDto.getChatId(),
                 requestDto.getStartTime(),
                 requestDto.getEndTime(),
@@ -56,7 +56,7 @@ public class WorkflowTraceServiceImpl implements WorkflowTraceService {
         return workflowTraceClient.getExecutionDetail(
                 sid,
                 flowId,
-                appId != null ? appId : workflow.getAppId(),
+                appId,
                 headers);
     }
 

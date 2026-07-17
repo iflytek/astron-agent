@@ -16,6 +16,7 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionPluginInputs,
     CustomCompletionPluginKnowledgeInputs,
     CustomCompletionPluginKnowledgeMatchInputs,
+    CustomCompletionPluginSkillInputs,
 )
 from agent.service.builder.workflow_agent_builder import (
     KnowledgeQueryParams,
@@ -130,6 +131,73 @@ class TestWorkflowAgentRunnerBuilder:
                                 assert isinstance(runner, WorkflowAgentRunner)
                                 assert runner.chat_runner == mock_chat_runner
                                 assert runner.cot_runner == mock_cot_runner
+
+    @pytest.mark.asyncio
+    async def test_build_passes_skills_to_plugin_builder(
+        self, builder: WorkflowAgentRunnerBuilder
+    ) -> None:
+        """Test passing selected skills into plugin builder"""
+        builder.inputs.plugin.skills = [
+            CustomCompletionPluginSkillInputs(
+                skill_id="skill-1",
+                name="ui-ux-pro-max",
+                description="Design reference skill",
+                download_url="https://example.com/skill.md",
+            )
+        ]
+
+        mock_model = MagicMock()
+        mock_plugins: list[BasePlugin] = []
+        from agent.engine.nodes.chat.chat_runner import ChatRunner
+        from agent.engine.nodes.cot.cot_runner import CotRunner
+
+        mock_chat_runner = MagicMock(spec=ChatRunner)
+        mock_process_runner = MagicMock()
+        mock_cot_runner = MagicMock(spec=CotRunner)
+
+        with patch.object(
+            WorkflowAgentRunnerBuilder, "create_model", return_value=mock_model
+        ):
+            with patch.object(
+                WorkflowAgentRunnerBuilder,
+                "build_plugins",
+                AsyncMock(return_value=mock_plugins),
+            ) as mock_build_plugins:
+                with patch.object(
+                    WorkflowAgentRunnerBuilder,
+                    "query_knowledge_by_workflow",
+                    return_value=([], ""),
+                ):
+                    with patch.object(
+                        WorkflowAgentRunnerBuilder,
+                        "build_chat_runner",
+                        return_value=mock_chat_runner,
+                    ):
+                        with patch.object(
+                            WorkflowAgentRunnerBuilder,
+                            "build_process_runner",
+                            return_value=mock_process_runner,
+                        ):
+                            with patch.object(
+                                WorkflowAgentRunnerBuilder,
+                                "build_cot_runner",
+                                return_value=mock_cot_runner,
+                            ):
+                                await builder.build()
+
+        assert mock_build_plugins.await_count == 1
+        build_plugins_args = mock_build_plugins.await_args
+        assert build_plugins_args is not None
+        assert build_plugins_args.kwargs["skills"] == [
+            {
+                "skill_id": "skill-1",
+                "name": "ui-ux-pro-max",
+                "description": "Design reference skill",
+                "download_url": "https://example.com/skill.md",
+                "resources": [],
+                "sandbox": {},
+            }
+        ]
 
     @pytest.mark.asyncio
     async def test_query_knowledge_by_workflow_empty(
@@ -297,6 +365,7 @@ class TestWorkflowAgentRunnerBuilder:
         params = KnowledgeQueryParams(
             repo_ids=["repo1"],
             doc_ids=["doc1"],
+            dataset_ids=["dataset1"],
             top_k=3,
             score_threshold=0.3,
             rag_type="AIUI-RAG2",
@@ -314,6 +383,15 @@ class TestWorkflowAgentRunnerBuilder:
             result = await builder.exec_query_knowledge(params, span)
 
             assert result == mock_result
+            mock_factory.assert_called_once_with(
+                query=builder.inputs.get_last_message_content(),
+                top_k=3,
+                repo_ids=["repo1"],
+                doc_ids=["doc1"],
+                dataset_ids=["dataset1"],
+                score_threshold=0.3,
+                rag_type="AIUI-RAG2",
+            )
 
 
 class TestKnowledgeQueryParams:
@@ -324,6 +402,7 @@ class TestKnowledgeQueryParams:
         params = KnowledgeQueryParams(
             repo_ids=["repo1"],
             doc_ids=["doc1"],
+            dataset_ids=[],
             top_k=3,
             score_threshold=0.3,
             rag_type="AIUI-RAG2",
@@ -331,6 +410,7 @@ class TestKnowledgeQueryParams:
 
         assert params.repo_ids == ["repo1"]
         assert params.doc_ids == ["doc1"]
+        assert params.dataset_ids == []
         assert params.top_k == 3
         assert params.score_threshold == 0.3
         assert params.rag_type == "AIUI-RAG2"

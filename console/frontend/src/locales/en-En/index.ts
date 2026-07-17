@@ -8,6 +8,7 @@ import database from './database';
 import openPlatformEnModule from './openPlatformEnModule';
 import rpa from './rpa';
 import mcp from './mcp';
+import automation from './automation';
 
 export default {
   ...openPlatformEnModule,
@@ -20,4 +21,5 @@ export default {
   database,
   rpa,
   mcp,
+  automation,
 };

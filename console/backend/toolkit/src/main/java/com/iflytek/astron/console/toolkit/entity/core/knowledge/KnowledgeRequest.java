@@ -17,6 +17,9 @@ public class KnowledgeRequest {
      */
     String group;
 
+    /** RAGFlow dataset.id for Ragflow-RAG routing; blank uses the default dataset. */
+    String datasetId;
+
     /**
      * Required: No. User ID to which the document belongs, users can specify themselves
      */

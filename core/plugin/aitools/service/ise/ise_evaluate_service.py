@@ -3,7 +3,6 @@ ISE Service
 """
 
 import base64
-import os
 from enum import Enum
 
 from fastapi import Request
@@ -11,7 +10,7 @@ from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.exceptions.error.code_enums import BaseCodeEnum
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.const.const import AI_API_KEY_KEY, AI_API_SECRET_KEY, AI_APP_ID_KEY
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from plugin.aitools.service.ise.ise_client import ISEClient
 from pydantic import BaseModel, field_validator
 
@@ -70,12 +69,14 @@ class ISEInput(BaseModel):
 )
 async def ise_evaluate_service(body: ISEInput, request: Request) -> BaseResponse:
     """ISE Evaluation Service"""
-    app_id = os.getenv(AI_APP_ID_KEY, "")
-    app_key = os.getenv(AI_API_KEY_KEY, "")
-    app_secret = os.getenv(AI_API_SECRET_KEY, "")
+    credentials = get_iflytek_open_platform_credentials()
 
     audio_bytes = base64.b64decode(body.audio_data)
-    ise_client = ISEClient(app_id, app_key, app_secret)
+    ise_client = ISEClient(
+        credentials.app_id,
+        credentials.api_key,
+        credentials.api_secret,
+    )
     success, message, result = await ise_client.evaluate_audio(
         audio_data=audio_bytes,
         text=body.text,

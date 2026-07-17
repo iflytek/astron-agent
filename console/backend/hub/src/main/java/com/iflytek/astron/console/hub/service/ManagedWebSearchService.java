@@ -8,6 +8,9 @@ import cn.xfyun.model.sparkmodel.WebSearch;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -15,7 +18,6 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okio.BufferedSource;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -36,16 +38,18 @@ public class ManagedWebSearchService {
             """;
     private static final long SEARCH_TIMEOUT_SECONDS = 60L;
 
-    @Value("${spark.api.password}")
-    private String apiPassword;
+    @Resource
+    private PlatformAccountService platformAccountService;
 
     public SearchAugmentation search(String query, String userId) {
         if (StringUtils.isBlank(query)) {
             return SearchAugmentation.empty();
         }
 
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
         SparkChatClient client = new SparkChatClient.Builder()
-                .signatureHttp(apiPassword, SparkModel.SPARK_X1)
+                .signatureHttp(config.getSparkApiPassword(), SparkModel.SPARK_X1)
                 .build();
 
         SparkChatParam request = buildSearchRequest(query, userId);

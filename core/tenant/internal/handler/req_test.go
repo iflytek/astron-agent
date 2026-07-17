@@ -130,6 +130,20 @@ func TestDeleteAuthReq_Struct(t *testing.T) {
 	}
 }
 
+func TestVerifyAppAuthReq_Struct(t *testing.T) {
+	req := VerifyAppAuthReq{
+		ApiKey:    "api-key-123",
+		ApiSecret: "api-secret-123",
+	}
+
+	if req.ApiKey != "api-key-123" {
+		t.Errorf("Expected ApiKey 'api-key-123', got '%s'", req.ApiKey)
+	}
+	if req.ApiSecret != "api-secret-123" {
+		t.Errorf("Expected ApiSecret 'api-secret-123', got '%s'", req.ApiSecret)
+	}
+}
+
 func TestNewAddAppReq_ValidRequest(t *testing.T) {
 	reqData := AddAppReq{
 		RequestId: "test-request-123",
@@ -288,6 +302,40 @@ func TestNewDeleteAuthReq_ValidRequest(t *testing.T) {
 	}
 }
 
+func TestNewVerifyAppAuthReq_ValidRequest(t *testing.T) {
+	reqData := VerifyAppAuthReq{
+		ApiKey:    "api-key-123",
+		ApiSecret: "api-secret-123",
+	}
+
+	c, _ := createTestContext("POST", "/auth/verify", reqData)
+
+	req, err := newVerifyAppAuthReq(c)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if req.ApiKey != reqData.ApiKey {
+		t.Errorf("Expected ApiKey '%s', got '%s'", reqData.ApiKey, req.ApiKey)
+	}
+	if req.ApiSecret != reqData.ApiSecret {
+		t.Errorf("Expected ApiSecret '%s', got '%s'", reqData.ApiSecret, req.ApiSecret)
+	}
+}
+
+func TestNewVerifyAppAuthReq_EmptySecret(t *testing.T) {
+	reqData := VerifyAppAuthReq{
+		ApiKey: "api-key-123",
+	}
+
+	c, _ := createTestContext("POST", "/auth/verify", reqData)
+
+	_, err := newVerifyAppAuthReq(c)
+	if err == nil {
+		t.Fatal("Expected error for empty api_secret, got nil")
+	}
+}
+
 func TestRequestValidation_EmptyFields(t *testing.T) {
 	tests := []struct {
 		name string
@@ -299,6 +347,7 @@ func TestRequestValidation_EmptyFields(t *testing.T) {
 		{"empty DeleteAppReq", DeleteAppReq{}},
 		{"empty AddAuthReq", AddAuthReq{}},
 		{"empty DeleteAuthReq", DeleteAuthReq{}},
+		{"empty VerifyAppAuthReq", VerifyAppAuthReq{}},
 	}
 
 	for _, tt := range tests {

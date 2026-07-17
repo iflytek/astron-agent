@@ -72,9 +72,9 @@ docker compose up -d
 - Elasticsearch is used by default. To use opensearch or infinity, modify the DOC_ENGINE configuration in .env
 - GPU acceleration is supported, start with `docker-compose-gpu.yml`
 
-### Step 3: Integrate Casdoor and RagFlow Services Configuration (Configure as needed)
+### Step 3: Integrate Casdoor and Basic Environment Configuration (Configure as needed)
 
-Before starting astronAgent services, configure the relevant connection information to integrate Casdoor and RagFlow.
+Before starting astronAgent services, configure Casdoor, access addresses, and other infrastructure connection information.
 
 ```bash
 # Navigate to astronAgent directory
@@ -84,9 +84,9 @@ cd docker/astronAgent
 cp .env.example .env
 ```
 
-#### 3.1 Configure Knowledge Base Service Connection (Optional)
+The `.env` file is only used for startup, access addresses, authentication, database, Redis, object storage, and other infrastructure settings. Business capability accounts such as RAGFlow, iFLYTEK Open Platform, AI Ability Chat, Virtual Man, and Spark Knowledge Base are no longer configured in `.env`. Configure them in **Platform Account Management** after astronAgent starts.
 
-Edit the docker/astronAgent/.env file to configure RagFlow connection information:
+#### 3.1 Configure Service Host Address
 
 ```bash
 # Navigate to astronAgent directory
@@ -96,21 +96,15 @@ cd docker/astronAgent
 vim .env
 ```
 
-**Key Configuration Items:**
+Configure the astronAgent service host address:
 
 ```env
-# RAGFlow Configuration
-RAGFLOW_BASE_URL=http://localhost:18080
-RAGFLOW_API_TOKEN=ragflow-your-api-token-here
-RAGFLOW_TIMEOUT=60
-RAGFLOW_DEFAULT_GROUP=星辰知识库
+HOST_BASE_ADDRESS=http://localhost
 ```
 
-**Obtaining RagFlow API Token:**
-1. Visit RagFlow Web Interface: http://localhost:18080
-2. Log in and click on your avatar to enter user settings
-3. Click API to generate an API KEY
-4. Update the generated API KEY to RAGFLOW_API_TOKEN in the .env file
+**Notes:**
+- If you use a domain name for access, replace `localhost` with your domain name
+- Ensure nginx and minio ports are properly exposed
 
 #### 3.2 Configure Casdoor Authentication Integration (Required)
 
@@ -158,7 +152,23 @@ vim .env
 
 ### Step 4: Start astronAgent Core Services (Required Deployment Step)
 
-#### 4.1 Configure iFLYTEK Open Platform APP_ID, API_KEY, and Related Information
+#### 4.1 Start astronAgent Services
+
+To start astronAgent services, run our [docker-compose.yaml](/docker/astronAgent/docker-compose.yaml) file. Before running the installation commands, please ensure that Docker and Docker Compose are installed on your machine.
+
+```bash
+# Navigate to astronAgent directory
+cd docker/astronAgent
+
+# Start all services
+docker compose up -d
+```
+
+#### 4.2 Configure Platform Account Management (Optional, configure business capabilities as needed)
+
+After astronAgent starts, access the console and log in. Open **Platform Account Management** from the left menu. Platform Account Management is at the same menu level as **Application Management** and **Resource Management**, and contains the following four configuration cards. After saving, the configuration takes effect globally immediately. The system automatically refreshes the cache, and containers do not need to be restarted. If a feature depends on a capability that has not been configured, the system prompts the user to configure it in Platform Account Management and does not block system startup.
+
+**iFLYTEK Open Platform** (used by built-in Spark model, real-time speech recognition, image generation, and related capabilities):
 
 For documentation, see: https://www.xfyun.cn/doc/platform/quickguide.html
 
@@ -173,22 +183,36 @@ DeepSeek V3: https://maas.xfyun.cn/modelSquare)
 - Image Generation API: https://www.xfyun.cn/services/wtop
 - Talk Agent: https://www.xfyun.cn/services/VirtualHumans
 
-Edit the docker/astronAgent/.env file and update the relevant environment variables:
-```env
-PLATFORM_APP_ID=your-app-id
-PLATFORM_API_KEY=your-api-key
-PLATFORM_API_SECRET=your-api-secret
+Prepare and fill in the following fields under **Platform Account Management - iFLYTEK Open Platform**:
+- `PLATFORM_APP_ID`
+- `PLATFORM_API_KEY`
+- `PLATFORM_API_SECRET`
+- `SPARK_API_PASSWORD`
+- `SPARK_RTASR_API_KEY`
 
-SPARK_API_PASSWORD=your-api-password
-SPARK_RTASR_API_KEY=your-rtasr-api-key
+**AI Ability Chat** (used by platform AI generation capabilities, compatible with OpenAI protocols, such as prompt optimization and one-sentence agent creation):
+- `AI_ABILITY_CHAT_BASE_URL`
+- `AI_ABILITY_CHAT_MODEL`
+- `AI_ABILITY_CHAT_API_KEY`
 
-# For configuring platform AI generation capabilities (compatible with OpenAI protocols), such as prompt optimization and one-sentence agent creation.
-AI_ABILITY_CHAT_BASE_URL=your-model-url
-AI_ABILITY_CHAT_MODEL=your-model-id
-AI_ABILITY_CHAT_API_KEY=your-api-key
-```
+**Virtual Man capability**:
+- `SPARK_VIRTUAL_MAN_APP_ID`
+- `SPARK_VIRTUAL_MAN_API_KEY`
+- `SPARK_VIRTUAL_MAN_API_SECRET`
 
-#### 4.2 If You Want to Use Spark RAG Cloud Service, Configure as Follows (Optional)
+**Knowledge Base Platform**:
+- RAGFlow: `RAGFLOW_BASE_URL`, `RAGFLOW_API_TOKEN`, `RAGFLOW_TIMEOUT`, `RAGFLOW_DEFAULT_GROUP`
+- Spark Knowledge Base: `XINGHUO_DATASET_ID`
+
+When creating a knowledge base, users choose **RAGFlow** or **Spark Knowledge Base**. Only the platform actually used needs to be configured.
+
+**Obtaining RagFlow API Token:**
+1. Visit RagFlow Web Interface: http://localhost:18080
+2. Log in and click on your avatar to enter user settings
+3. Click API to generate an API KEY
+4. Fill it in as `RAGFLOW_API_TOKEN` under **Platform Account Management - Knowledge Base Platform**
+
+**Obtaining Spark Knowledge Base Dataset ID:**
 
 Spark RAG cloud service provides two usage methods:
 
@@ -215,36 +239,7 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 - Please replace `your_app_id` with your actual APP ID
 - Please replace `your_api_secret` with your actual API Secret
 
-After obtaining the dataset ID, please update it in the docker/astronAgent/.env file:
-```env
-XINGHUO_DATASET_ID=
-```
-
-#### 4.3 Start astronAgent Services
-
-Before starting, please configure some required environment variables and ensure nginx and minio ports are exposed
-
-```bash
-# Navigate to astronAgent directory
-cd docker/astronAgent
-
-# Modify configuration as needed
-vim .env
-```
-
-```env
-HOST_BASE_ADDRESS=http://localhost (astronAgent service host address)
-```
-
-To start astronAgent services, run our [docker-compose.yaml](/docker/astronAgent/docker-compose.yaml) file. Before running the installation commands, please ensure that Docker and Docker Compose are installed on your machine.
-
-```bash
-# Navigate to astronAgent directory
-cd docker/astronAgent
-
-# Start all services
-docker compose up -d
-```
+After obtaining the dataset ID, fill it in as `XINGHUO_DATASET_ID` under **Platform Account Management - Knowledge Base Platform**.
 
 ## 📊 Service Access Addresses
 

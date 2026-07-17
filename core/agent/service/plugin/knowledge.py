@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 import aiohttp
 from common.otlp.trace.span import Span
 from openai import BaseModel
+from pydantic import Field
 
 from agent.exceptions.plugin_exc import KnowledgeQueryExc, PluginExc
 from agent.service.plugin.base import BasePlugin
@@ -20,6 +21,7 @@ class KnowledgePluginFactory(BaseModel):
     top_k: int
     repo_ids: List[str]
     doc_ids: List[str]
+    dataset_ids: List[str] = Field(default_factory=list)
     score_threshold: float
     rag_type: str
 
@@ -44,6 +46,8 @@ class KnowledgePluginFactory(BaseModel):
                 if "match" not in data:
                     data["match"] = {}
                 data["match"]["docIds"] = self.doc_ids
+            if self.rag_type == "Ragflow-RAG" and self.dataset_ids:
+                data["match"]["datasetId"] = self.dataset_ids
 
             sp.add_info_events({"request-data": json.dumps(data, ensure_ascii=False)})
 
@@ -62,8 +66,9 @@ class KnowledgePluginFactory(BaseModel):
                     timeout = aiohttp.ClientTimeout(
                         total=int(os.getenv("KNOWLEDGE_CALL_TIMEOUT", "90"))
                     )
+                    headers = self._headers()
                     async with session.post(
-                        query_url, json=data, timeout=timeout
+                        query_url, headers=headers, json=data, timeout=timeout
                     ) as response:
 
                         sp.add_info_events(
@@ -81,3 +86,6 @@ class KnowledgePluginFactory(BaseModel):
                         raise KnowledgeQueryExc
             except asyncio.TimeoutError as e:
                 raise KnowledgeQueryExc from e
+
+    def _headers(self) -> Dict[str, str]:
+        return {"Content-Type": "application/json"}

@@ -41,14 +41,6 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
-          # SSE API for workflow chat completions
-          - path: /workflow/v1/chat/completions
-            pathType: Prefix
-            backend:
-              service:
-                name: {{ include "astron-agent.fullname" $ }}-core-workflow
-                port:
-                  number: {{ $.Values.coreWorkflow.service.port }}
           # Frontend (default)
           - path: /
             pathType: Prefix
@@ -57,6 +49,66 @@ spec:
                 name: {{ include "astron-agent.fullname" $ }}-console-frontend
                 port:
                   number: {{ $.Values.consoleFrontend.service.port }}
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-workflow-api
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+  annotations:
+    # SSE support for long-lived connections
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/auth-url: "http://{{ include "astron-agent.fullname" . }}-console-hub.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.consoleHub.service.port }}/internal/gateway/auth/workflow"
+    nginx.ingress.kubernetes.io/auth-method: "GET"
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Consumer-Username"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Authorization "";
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header X-Content-Type-Options "nosniff" always;
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- range .Values.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          - path: /workflow/v1/chat/completions
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-core-workflow
+                port:
+                  number: {{ $.Values.coreWorkflow.service.port }}
+          - path: /workflow/v1/resume
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-core-workflow
+                port:
+                  number: {{ $.Values.coreWorkflow.service.port }}
     {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -120,6 +172,10 @@ metadata:
       add_header X-Frame-Options "SAMEORIGIN" always;
       add_header X-XSS-Protection "1; mode=block" always;
       add_header X-Content-Type-Options "nosniff" always;
+    nginx.ingress.kubernetes.io/server-snippet: |
+      location = /console-api/internal/gateway/auth/workflow {
+        return 404;
+      }
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

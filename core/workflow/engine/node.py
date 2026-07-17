@@ -109,7 +109,7 @@ class NodeExecutionTemplate:
     def __init__(self, node: "SparkFlowEngineNode") -> None:
         """Initialize the node execution template.
 
-        :param node: The SparkFlow engine node to execute
+        :param node: The workflow engine node to execute
         """
         self.node = node
         self.parameter_strategies = self._init_parameter_strategies()
@@ -127,6 +127,7 @@ class NodeExecutionTemplate:
             NodeType.KNOWLEDGE_PRO.value: MessageNodeParameterStrategy(),
             NodeType.FLOW.value: MessageNodeParameterStrategy(),
             NodeType.ITERATION.value: IterationNodeParameterStrategy(),
+            NodeType.LOOP.value: IterationNodeParameterStrategy(),
         }
 
     async def execute(self, **kwargs: Any) -> NodeRunResult:
@@ -189,6 +190,7 @@ class NodeExecutionTemplate:
             "variable_pool": kwargs.get("variable_pool"),
             "span": span_context,
             "iteration_engine": kwargs.get("iteration_engine"),
+            "loop_engine": kwargs.get("loop_engine"),
             "event_log_node_trace": self.node.node_log,
             "event_log_trace": kwargs.get("event_log_trace"),
             "callbacks": kwargs.get("callbacks"),
@@ -457,7 +459,7 @@ class NodeExecutionTemplate:
 
 class SparkFlowEngineNode(BaseModel):
     """
-    Spark Flow Engine Node class.
+    Astron Agent workflow engine node class.
 
     Manages individual nodes in a workflow, including node execution, logging,
     and relationship management. Uses strategy pattern and template method pattern
@@ -498,7 +500,7 @@ class SparkFlowEngineNode(BaseModel):
     ]
 
     def __init__(self, **kwargs: Any) -> None:
-        """Initialize the SparkFlow engine node.
+        """Initialize the workflow engine node.
 
         :param kwargs: Node initialization parameters including node_id, node_type, etc.
         """
@@ -624,6 +626,7 @@ class SparkFlowEngineNode(BaseModel):
         span: Span,
         callbacks: ChatCallBacks,
         iteration_engine: Any,
+        loop_engine: Any,
         event_log_trace: WorkflowLog,
         msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo],
         node_run_status: Dict[str, NodeRunningStatus],
@@ -637,6 +640,7 @@ class SparkFlowEngineNode(BaseModel):
         :param span: Tracing span
         :param callbacks: Callback handler
         :param iteration_engine: Iteration engine
+        :param loop_engine: Loop engine
         :param event_log_trace: Event log trace
         :param msg_or_end_node_deps: Message or end node dependencies
         :param node_run_status: Node running status
@@ -651,6 +655,7 @@ class SparkFlowEngineNode(BaseModel):
             span=span,
             callbacks=callbacks,
             iteration_engine=iteration_engine,
+            loop_engine=loop_engine,
             event_log_trace=event_log_trace,
             msg_or_end_node_deps=msg_or_end_node_deps or {},
             node_run_status=node_run_status or {},
@@ -660,7 +665,7 @@ class SparkFlowEngineNode(BaseModel):
 
 
 class NodeFactory:
-    """Factory class for creating SparkFlow engine nodes."""
+    """Factory class for creating workflow engine nodes."""
 
     @staticmethod
     def create(node: Node, span_context: Span) -> SparkFlowEngineNode:
@@ -965,7 +970,7 @@ class NodeFactory:
         input_keys: list[Any] = []
         output_keys = [node_output.name for node_output in outputs]
 
-        # Special handling for if-else nodes
+        # Build input_identifier list
         if node.get_node_type() == NodeType.IF_ELSE.value:
             id_name_dict = {}
             for node_input in inputs:
@@ -973,6 +978,14 @@ class NodeFactory:
             input_keys.append(id_name_dict)
         else:
             input_keys = [node_input.name for node_input in inputs]
+
+        # Build input_to_filetype_map from input definitions
+        input_to_filetype_map = {}
+        for node_input in inputs:
+            input_name = node_input.name
+            file_type = node_input.fileType
+            if file_type:  # Only add to map if fileType is not empty
+                input_to_filetype_map[input_name] = file_type
 
         return node_class(
             node_id=node.id,
@@ -982,5 +995,6 @@ class NodeFactory:
             output_identifier=output_keys,
             retry_config=retry_config,
             span=span_context,
+            input_to_filetype_map=input_to_filetype_map,  # Pass the filetype mapping
             **node.data.nodeParam,
         )

@@ -3,7 +3,7 @@ import os
 import re
 from typing import Any, Dict, Literal
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.nodes.base_node import BaseNode
@@ -46,6 +46,9 @@ class CodeNode(BaseNode):
     code: str = Field(..., description="Code")
     appId: str = Field(..., description="App ID")
     uid: str = Field(..., description="User ID")
+    sandbox: "CodeSandboxConfig | None" = Field(
+        default=None, description="Runtime script sandbox configuration"
+    )
 
     async def _get_actual_parameter(
         self, variable_pool: VariablePool, span_context: Span
@@ -128,9 +131,11 @@ class CodeNode(BaseNode):
         await span_context.add_info_event_async(f"runner code: {runner}")
 
         # Create appropriate code executor based on environment configuration
-        code_executor = CodeExecutorFactory.create_executor(
-            os.getenv("CODE_EXEC_TYPE", "local")
+        sandbox_config = self._runtime_sandbox_config(span_context)
+        executor_type = (
+            "e2b" if sandbox_config else os.getenv("CODE_EXEC_TYPE", "local")
         )
+        code_executor = CodeExecutorFactory.create_executor(executor_type)
         # Execute code with timeout configuration
         result_str = await code_executor.execute(
             language="python",
@@ -143,6 +148,7 @@ class CodeNode(BaseNode):
             span=span_context,
             app_id=self.appId,
             uid=self.uid,
+            sandbox=sandbox_config,
         )
 
         # If the result is not a valid JSON string, return the result as a string
@@ -153,6 +159,20 @@ class CodeNode(BaseNode):
             return {
                 self.output_identifier[0]: result_str,
             }
+
+    def _runtime_sandbox_config(self, span_context: Span) -> dict[str, Any] | None:
+        if (
+            self.sandbox is None
+            or not self.sandbox.enabled
+            or self.sandbox.provider != "e2b"
+            or not self.sandbox.api_key
+        ):
+            return None
+        data = self.sandbox.model_dump()
+        data["uid"] = data.get("uid") or self.uid
+        data["node_id"] = data.get("node_id") or self.node_id
+        data["run_id"] = data.get("run_id") or getattr(span_context, "sid", "")
+        return data
 
     def _check_and_set_variable_pool(
         self, variable_pool: VariablePool, code_result_dict: dict, span: Span
@@ -265,3 +285,20 @@ def _parser_code_parameter(python_code: str) -> list[str]:
             re_param = re_param.split(":")[0].strip()
             variables.append(re_param)
     return variables
+
+
+class CodeSandboxConfig(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: str = "e2b"
+    enabled: bool = False
+    api_key: str = Field(default="", alias="apiKey")
+    timeout_seconds: int = Field(default=60, alias="timeoutSeconds")
+    allow_internet_access: bool = Field(default=False, alias="allowInternetAccess")
+    artifact_upload_url: str = Field(default="", alias="artifactUploadUrl")
+    artifact_upload_token: str = Field(default="", alias="artifactUploadToken")
+    workflow_id: str = Field(default="", alias="workflowId")
+    run_id: str = Field(default="", alias="runId")
+    node_id: str = Field(default="", alias="nodeId")
+    uid: str = ""
+    space_id: str = Field(default="", alias="spaceId")

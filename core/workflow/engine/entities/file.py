@@ -1,5 +1,5 @@
 import re
-from typing import Tuple
+from typing import Mapping, Tuple
 
 from pydantic import BaseModel
 
@@ -110,6 +110,24 @@ class File(BaseModel):
         # TODO: Implement
         raise NotImplementedError
 
+    @staticmethod
+    def _extract_content_length(headers: Mapping[str, str]) -> str | None:
+        """
+        Extract file size from common response headers.
+
+        Some object storage gateways omit ``Content-Length`` on ``HEAD`` but still
+        expose the total size in ``Content-Range``.
+        """
+        content_length = headers.get("Content-Length")
+        if content_length:
+            return content_length
+
+        content_range = headers.get("Content-Range", "")
+        match = re.search(r"/(\d+)$", content_range)
+        if match:
+            return match.group(1)
+        return None
+
     @classmethod
     def get_file_size(cls, input_file_url: str) -> str:
         """
@@ -119,20 +137,35 @@ class File(BaseModel):
         :return: File size in bytes as string
         """
         try:
-            # Send HEAD request
             import requests  # type: ignore
 
-            response = requests.head(input_file_url)
-            # Get file metadata from response headers
-            content_length = response.headers.get(
-                "Content-Length"
-            )  # File size in bytes
-            if not content_length:
-                raise CustomException(
-                    err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
-                    cause_error="File content is empty",
-                )
-            return content_length
+            timeout = 10
+            response = requests.head(
+                input_file_url, allow_redirects=True, timeout=timeout
+            )
+            response.raise_for_status()
+            content_length = cls._extract_content_length(response.headers)
+            if content_length:
+                return content_length
+
+            # Some OSS gateways do not return Content-Length for HEAD requests.
+            response = requests.get(
+                input_file_url,
+                allow_redirects=True,
+                stream=True,
+                timeout=timeout,
+            )
+            try:
+                response.raise_for_status()
+                content_length = cls._extract_content_length(response.headers)
+                if not content_length:
+                    raise CustomException(
+                        err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
+                        cause_error="File size is missing from response headers",
+                    )
+                return content_length
+            finally:
+                response.close()
         except CustomException as err:
             raise err
         except Exception as e:

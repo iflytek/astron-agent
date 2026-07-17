@@ -3,6 +3,7 @@ from typing import Dict, List
 
 from pydantic import BaseModel, Field
 
+from workflow.engine.entities.node_entities import NodeType
 from workflow.engine.entities.workflow_dsl import Node, WorkflowDSL
 
 
@@ -32,6 +33,8 @@ class Chains(BaseModel):
     master_chains: List[SimplePath] = []
     # Internal chains for iteration nodes, key: iteration node ID, value: chains
     iteration_chains: Dict[str, "Chains"] = {}
+    # Internal chains for loop nodes, key: loop node ID, value: chains
+    loop_chains: Dict[str, "Chains"] = {}
     workflow_schema: WorkflowDSL
 
     # Edge mapping relationships
@@ -96,7 +99,9 @@ class Chains(BaseModel):
                     node_chains.append(simple_path)
         return node_chains
 
-    def _deal_edges(self) -> tuple[str, str, Dict[str, List[str]], Dict[str, str]]:
+    def _deal_edges(
+        self,
+    ) -> tuple[str, str, Dict[str, List[str]], Dict[str, str], Dict[str, str]]:
         """
         Process the edges of the workflow graph.
 
@@ -108,39 +113,129 @@ class Chains(BaseModel):
         """
 
         edge_dict: Dict[str, List[str]] = {}
-        node_dict: Dict[str, Node] = {}
+        node_dict = self._build_node_dict()
         iteration_dict: Dict[str, str] = {}
+        loop_dict: Dict[str, str] = {}
 
         start_node_id = ""
         end_node_id = ""
 
-        for node in self.workflow_schema.nodes:
-            node_dict[node.id] = node
-
         for edge in self.workflow_schema.edges:
-
             source_node_id = edge.sourceNodeId
             target_node_id = edge.targetNodeId
-            if source_node_id not in edge_dict:
-                edge_dict[source_node_id] = []
-            if target_node_id not in edge_dict[source_node_id]:
-                edge_dict[source_node_id].append(target_node_id)
+            self._append_edge(edge_dict, source_node_id, target_node_id)
+            start_node_id = self._resolve_start_node_id(start_node_id, source_node_id)
+            end_node_id = self._resolve_end_node_id(end_node_id, target_node_id)
+            self._record_iteration_start(
+                iteration_dict=iteration_dict,
+                node_dict=node_dict,
+                source_node_id=source_node_id,
+            )
+            self._record_loop_start(
+                loop_dict=loop_dict,
+                node_dict=node_dict,
+                source_node_id=source_node_id,
+            )
 
-            source_node_id_prefix = source_node_id.split("::")[0]
-            target_node_id_prefix = target_node_id.split("::")[0]
-            if source_node_id_prefix == "node-start":
-                start_node_id = source_node_id
-            if target_node_id_prefix == "node-end":
-                end_node_id = target_node_id
+        return start_node_id, end_node_id, edge_dict, iteration_dict, loop_dict
 
-            if source_node_id_prefix == "iteration":
-                iter_node: Node | None = node_dict.get(source_node_id)
-                if iter_node is None:
-                    raise ValueError(f"{source_node_id} node is not exist")
-                start_id = iter_node.data.nodeParam.get("IterationStartNodeId")
-                iteration_dict[source_node_id] = str(start_id or "")
+    def _build_node_dict(self) -> Dict[str, Node]:
+        """
+        Build a node lookup map keyed by node ID.
+        """
+        return {node.id: node for node in self.workflow_schema.nodes}
 
-        return start_node_id, end_node_id, edge_dict, iteration_dict
+    def _append_edge(
+        self,
+        edge_dict: Dict[str, List[str]],
+        source_node_id: str,
+        target_node_id: str,
+    ) -> None:
+        """
+        Store a source-to-target edge without duplicates.
+        """
+        if source_node_id not in edge_dict:
+            edge_dict[source_node_id] = []
+        if target_node_id not in edge_dict[source_node_id]:
+            edge_dict[source_node_id].append(target_node_id)
+
+    def _resolve_start_node_id(
+        self, current_start_node_id: str, source_node_id: str
+    ) -> str:
+        """
+        Resolve the workflow start node ID while preferring the main start node.
+        """
+        source_node_id_prefix = source_node_id.split("::")[0]
+        if source_node_id_prefix == NodeType.START.value:
+            return source_node_id
+        if (
+            source_node_id_prefix
+            in (NodeType.ITERATION_START.value, NodeType.LOOP_START.value)
+            and not current_start_node_id
+        ):
+            return source_node_id
+        return current_start_node_id
+
+    def _resolve_end_node_id(
+        self, current_end_node_id: str, target_node_id: str
+    ) -> str:
+        """
+        Resolve the workflow end node ID while preferring the main end node.
+        """
+        target_node_id_prefix = target_node_id.split("::")[0]
+        if target_node_id_prefix == NodeType.END.value:
+            return target_node_id
+        if (
+            target_node_id_prefix
+            in (
+                NodeType.ITERATION_END.value,
+                NodeType.LOOP_END.value,
+                NodeType.LOOP_EXIT.value,
+            )
+            and not current_end_node_id
+        ):
+            return target_node_id
+        return current_end_node_id
+
+    def _record_iteration_start(
+        self,
+        iteration_dict: Dict[str, str],
+        node_dict: Dict[str, Node],
+        source_node_id: str,
+    ) -> None:
+        """
+        Record the start node configured for an iteration node.
+        """
+        source_node_id_prefix = source_node_id.split("::")[0]
+        if source_node_id_prefix != NodeType.ITERATION.value:
+            return
+
+        iter_node: Node | None = node_dict.get(source_node_id)
+        if iter_node is None:
+            raise ValueError(f"{source_node_id} node is not exist")
+
+        start_id = iter_node.data.nodeParam.get("IterationStartNodeId")
+        iteration_dict[source_node_id] = str(start_id or "")
+
+    def _record_loop_start(
+        self,
+        loop_dict: Dict[str, str],
+        node_dict: Dict[str, Node],
+        source_node_id: str,
+    ) -> None:
+        """
+        Record the start node configured for a loop node.
+        """
+        source_node_id_prefix = source_node_id.split("::")[0]
+        if source_node_id_prefix != NodeType.LOOP.value:
+            return
+
+        loop_node: Node | None = node_dict.get(source_node_id)
+        if loop_node is None:
+            raise ValueError(f"{source_node_id} node is not exist")
+
+        start_id = loop_node.data.nodeParam.get("LoopStartNodeId")
+        loop_dict[source_node_id] = str(start_id or "")
 
     def _get_next_node(
         self, node_id: str, edge_dict: Dict[str, List[str]]
@@ -184,7 +279,13 @@ class Chains(BaseModel):
         Generate execution chains from the workflow schema.
         This method processes the workflow graph and creates both master chains and iteration chains.
         """
-        start_node_id, end_node_id, self.edge_dict, iteration_dict = self._deal_edges()
+        (
+            start_node_id,
+            end_node_id,
+            self.edge_dict,
+            iteration_dict,
+            loop_dict,
+        ) = self._deal_edges()
 
         next_root_results = self._get_next_node(start_node_id, self.edge_dict)
 
@@ -205,6 +306,22 @@ class Chains(BaseModel):
                 )
                 self.iteration_chains[iteration_node_id].master_chains.append(sp)
                 self.iteration_chains[iteration_node_id].edge_dict = self.edge_dict
+
+        # Process loop node chains
+        for loop_node_id, loop_start_node_id in loop_dict.items():
+            next_results = self._get_next_node(loop_start_node_id, self.edge_dict)
+            if loop_node_id not in self.loop_chains:
+                self.loop_chains[loop_node_id] = Chains(
+                    workflow_schema=self.workflow_schema
+                )
+            for next_result in next_results:
+                node_id_list = [loop_start_node_id, *next_result]
+                sp = SimplePath(
+                    node_id_list=node_id_list,
+                    every_node_index=self._get_every_node_index(node_id_list),
+                )
+                self.loop_chains[loop_node_id].master_chains.append(sp)
+                self.loop_chains[loop_node_id].edge_dict = self.edge_dict
 
         for next_root_result in next_root_results:
             node_id_list = [start_node_id, *next_root_result]

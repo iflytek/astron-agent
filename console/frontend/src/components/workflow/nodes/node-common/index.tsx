@@ -27,6 +27,7 @@ import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useTranslation } from 'react-i18next';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 import { Iterator } from '@/components/workflow/nodes/iterator';
+import { Loop } from '@/components/workflow/nodes/loop';
 import { IfElse } from '@/components/workflow/nodes/if-else';
 import { DecisionMaking } from '@/components/workflow/nodes/decision-making';
 import { Knowledge } from '@/components/workflow/nodes/knowledge';
@@ -462,6 +463,7 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
     isDecisionMakingNode,
     isIfElseNode,
     isIteratorNode,
+    isLoopNode,
     isAgentNode,
     showInputs,
     showOutputs,
@@ -496,6 +498,7 @@ export const NodeContent = memo<NodeContentProps>(({ id, data }) => {
       {isDecisionMakingNode && <DecisionMaking id={id} data={data} />}
       {isIfElseNode && <IfElse id={id} data={data} />}
       {isIteratorNode && <Iterator id={id} data={data} />}
+      {isLoopNode && <Loop id={id} data={data} />}
       {isAgentNode && <Agent id={id} data={data} />}
       {showExceptionFlow && <ExceptionContent id={id} data={data} />}
     </div>
@@ -511,7 +514,10 @@ interface NodeWrapperProps {
 
 // 节点包装器组件
 export const NodeWrapper = memo<NodeWrapperProps>(({ id, data, children }) => {
-  const { handleNodeClick, isIteratorNode } = useNodeCommon({ id, data });
+  const { handleNodeClick, isIteratorNode, isLoopNode } = useNodeCommon({
+    id,
+    data,
+  });
 
   return (
     <div
@@ -519,7 +525,7 @@ export const NodeWrapper = memo<NodeWrapperProps>(({ id, data, children }) => {
       className="min-w-[360px] pb-[14px]"
       onClick={handleNodeClick}
       style={{
-        maxWidth: isIteratorNode ? '' : '360px',
+        maxWidth: isIteratorNode || isLoopNode ? '' : '360px',
       }}
     >
       {data?.nodeParam?.remarkVisible && <Remark id={id} data={data} />}

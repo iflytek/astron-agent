@@ -12,6 +12,8 @@ import com.iflytek.astron.console.commons.dto.workflow.WorkflowEventData;
 import com.iflytek.astron.console.commons.dto.workflow.WorkflowResumeReq;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.Call;
@@ -19,7 +21,6 @@ import okhttp3.Callback;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okio.BufferedSource;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -35,13 +36,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class WorkflowChatService {
 
-    @Value("${spark.api-key}")
-    private String apiKey;
-
-    @Value("${spark.api-secret}")
-    private String apiSecret;
-
     private final ChatDataService chatDataService;
+    private final PlatformAccountService platformAccountService;
 
     /**
      * Create workflow conversation stream
@@ -75,7 +71,10 @@ public class WorkflowChatService {
 
         try {
             // Create AgentClient
-            AgentClient agentClient = new AgentClient.Builder(apiKey, apiSecret).build();
+            PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                    platformAccountService.requireIflytekOpenPlatform();
+            AgentClient agentClient = new AgentClient.Builder(
+                    config.getPlatformApiKey(), config.getPlatformApiSecret()).build();
 
             // Build workflow conversation parameters
             AgentChatParam chatParam = buildAgentChatParam(request);
@@ -102,7 +101,10 @@ public class WorkflowChatService {
 
         try {
             // Create AgentClient
-            AgentClient agentClient = new AgentClient.Builder(apiKey, apiSecret).build();
+            PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                    platformAccountService.requireIflytekOpenPlatform();
+            AgentClient agentClient = new AgentClient.Builder(
+                    config.getPlatformApiKey(), config.getPlatformApiSecret()).build();
 
             // Build resume parameters
             AgentResumeParam resumeParam = buildAgentResumeParam(request);

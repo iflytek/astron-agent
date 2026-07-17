@@ -14,6 +14,7 @@ export interface GetAgentListParams {
 
 export interface BotData {
   botId: number;
+  maasId: number;
   uid: string;
   marketBotId: number;
   botName: string;
@@ -27,6 +28,7 @@ export interface BotData {
   botStatus: number;
   blockReason: string;
   releaseType: Array<Record<string, unknown>>;
+  canOffline?: boolean;
   hotNum: string;
   isFavorite: number;
   af: string;

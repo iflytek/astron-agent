@@ -46,8 +46,15 @@ class ChatCallBackStreamResult:
     node_answer_content: LLMGenerate
     """Generated content from the node execution."""
 
+    ordered_stream_key: str = ""
+    """Internal queue key used to isolate ordered streaming sessions."""
+
     finish_reason: str = ""
     """Reason for node completion. 'stop' indicates normal completion, empty string otherwise."""
+
+    def __post_init__(self) -> None:
+        if not self.ordered_stream_key:
+            self.ordered_stream_key = self.node_id
 
 
 class ChatCallBacks:
@@ -74,6 +81,7 @@ class ChatCallBacks:
         chains: Chains,
         event_id: str,
         flow_id: str,
+        ordered_stream_namespace: str = "",
     ):
         """
         Initialize the chat callback handler.
@@ -97,6 +105,7 @@ class ChatCallBacks:
         self.chains = chains
         self.event_id = event_id
         self.flow_id = flow_id
+        self.ordered_stream_namespace = ordered_stream_namespace
 
         if chains:
             self.all_simple_paths_node_cnt = chains.get_all_simple_paths_node_cnt()
@@ -145,6 +154,20 @@ class ChatCallBacks:
             code=message.error.code if message.error else CodeEnum.Success.code,
             message=message.error.message if message.error else CodeEnum.Success.msg,
         )
+        choices = getattr(resp, "choices", None)
+        if not message.error and isinstance(choices, list) and choices:
+            content = getattr(message, "node_answer_content", "")
+            if (
+                not content
+                and self.end_node_output_mode == EndNodeOutputModeEnum.VARIABLE_MODE
+                and getattr(message, "outputs", None)
+            ):
+                content = json.dumps(
+                    message.outputs,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+            resp.choices[0].delta.content = content
         await self.stream_queue.put(resp)
 
     async def on_node_start(self, code: int, node_id: str, alias_name: str) -> None:
@@ -302,8 +325,8 @@ class ChatCallBacks:
         if node_type in [NodeType.LLM.value, NodeType.DECISION_MAKING.value]:
             if message.raw_output:
                 ext = {"raw_output": message.raw_output}
-            if node_type == NodeType.END.value:
-                ext.update({"answer_mode": self.end_node_output_mode.value})
+        if node_type == NodeType.END.value:
+            ext = {"answer_mode": self.end_node_output_mode.value}
 
         content = message.node_answer_content
         if (
@@ -411,12 +434,21 @@ class ChatCallBacks:
             await self.order_stream_result_q.put(
                 ChatCallBackStreamResult(
                     node_id=node_id,
+                    ordered_stream_key=self._build_ordered_stream_key(node_id),
                     node_answer_content=resp,
                     finish_reason=finish_reason,
                 )
             )
         else:
             await self.stream_queue.put(resp)
+
+    def _build_ordered_stream_key(self, node_id: str) -> str:
+        """
+        Build the internal ordered-stream queue key for one node execution session.
+        """
+        if not self.ordered_stream_namespace:
+            return node_id
+        return f"{self.ordered_stream_namespace}::{node_id}"
 
 
 class ChatCallBackConsumer:
@@ -464,11 +496,12 @@ class ChatCallBackConsumer:
                 result: ChatCallBackStreamResult = (
                     await self.need_order_stream_result_q.get()
                 )
-                if result.node_id not in self.support_stream_node_id_set:
-                    await self._add_node_in_q(result.node_id)
-                if result.node_id not in self.structured_data:
-                    self.structured_data[result.node_id] = Queue()
-                await self.structured_data[result.node_id].put(result)
+                stream_key = result.ordered_stream_key
+                if stream_key not in self.support_stream_node_id_set:
+                    await self._add_node_in_q(stream_key)
+                if stream_key not in self.structured_data:
+                    self.structured_data[stream_key] = Queue()
+                await self.structured_data[stream_key].put(result)
                 # Workflow execution completed
                 if (
                     result.node_id.split("::")[0] == NodeType.END.value
@@ -577,7 +610,7 @@ class StructuredConsumer:
                 if isinstance(result, ChatCallBackStreamResult):
                     await self.stream_queue.put(result.node_answer_content)
                     if result.finish_reason == ChatStatus.FINISH_REASON.value:
-                        self.support_stream_node_id_set.remove(node_id)
+                        self.support_stream_node_id_set.discard(node_id)
                         self.structured_data.pop(node_id)
                         break
                 else:

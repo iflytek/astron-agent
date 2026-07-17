@@ -51,21 +51,6 @@ spec:
         {{- if and (eq $key "ossDownloadHost") (or (eq $serviceName "coreAitools") (eq $serviceName "coreWorkflow")) }}
         - name: {{ upper (snakecase $key) }}
           value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.minio.service.nodePort | int) | quote }}
-        {{- else if and (eq $key "aiAppId") (eq $serviceName "coreAitools") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformAppId | quote }}
-        {{- else if and (eq $key "aiApiKey") (eq $serviceName "coreAitools") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiKey | quote }}
-        {{- else if and (eq $key "aiApiSecret") (eq $serviceName "coreAitools") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiSecret | quote }}
-        {{- else if and (eq $key "xinghuoAppId") (eq $serviceName "coreKnowledge") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformAppId | quote }}
-        {{- else if and (eq $key "xinghuoAppSecret") (eq $serviceName "coreKnowledge") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ $.Values.global.platformApiSecret | quote }}
         {{- else if or (eq $key "mysqlPassword") (eq $key "databasePassword") }}
         - name: {{ upper (snakecase $key) }}
           valueFrom:
@@ -105,6 +90,24 @@ spec:
         - name: http
           containerPort: {{ $serviceConfig.service.port }}
           protocol: TCP
+        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreKnowledge") (eq $serviceName "coreWorkflow") }}
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- else }}
         livenessProbe:
           tcpSocket:
             port: http
@@ -119,6 +122,7 @@ spec:
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 6
+        {{- end }}
         resources:
           {{- toYaml $serviceConfig.resources | nindent 10 }}
         volumeMounts:

@@ -151,7 +151,7 @@ const OcrModal: React.FC<OcrModalProps> = ({ visible, onCancel, record }) => {
   // 自定义树节点渲染
   const titleRender = (nodeData: OcrNodeData) => {
     // 为不同的节点设置合适的类型
-    let nodeType = nodeData.node_type;
+    const nodeType = nodeData.node_type;
 
     return (
       <TreeNode

@@ -9,7 +9,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlalchemy.sql.schema import SchemaItem
 from sqlmodel import SQLModel
 
-from alembic import context
+from alembic import context  # type: ignore[attr-defined]
 
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))

@@ -30,9 +30,9 @@ services:
     container_name: astron-agent-mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${CONSOLE_MYSQL_DB:-astron_console}
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./mysql/:/docker-entrypoint-initdb.d/
     networks:
       - astron-agent-network
     restart: always
@@ -199,11 +199,17 @@ services:
     container_name: astron-agent-core-database
     environment:
       SERVICE_PORT: "${CORE_DATABASE_PORT:-7990}"
+      DB_TYPE: "${DB_TYPE:-postgresql}"
       PGSQL_HOST: "${POSTGRES_HOST:-postgres}"
       PGSQL_PORT: "${POSTGRES_PORT:-5432}"
       PGSQL_USER: "${POSTGRES_USER:-spark}"
       PGSQL_PASSWORD: "${POSTGRES_PASSWORD:-spark123}"
       PGSQL_DATABASE: "${DATABASE_POSTGRES_DATABASE:-sparkdb_manager}"
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_USER: "${MYSQL_USER:-root}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_DATABASE: "${DATABASE_MYSQL_DATABASE:-sparkdb_manager}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
@@ -303,9 +309,17 @@ services:
       OSS_TTL: "${OSS_TTL:-157788000}"
       KAFKA_ENABLE: "${KAFKA_ENABLE:-0}"
       KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
-      AI_APP_ID: "${PLATFORM_APP_ID}"
-      AI_API_KEY: "${PLATFORM_API_KEY}"
-      AI_API_SECRET: "${PLATFORM_API_SECRET}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
+      REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_DATABASE: "${REDIS_DATABASE:-0}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_USER: "${MYSQL_USER:-root}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
+      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -383,6 +397,11 @@ services:
       - ./config/agent/config.env:/opt/core/agent/config.env
     networks:
       - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health/ready' % os.getenv('SERVICE_PORT', '17870'), timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
   # Knowledge Base Service
@@ -395,13 +414,6 @@ services:
     environment:
       SERVICE_PORT: "${CORE_KNOWLEDGE_PORT:-20010}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
-      RAGFLOW_BASE_URL: "${RAGFLOW_BASE_URL}"
-      RAGFLOW_API_TOKEN: "${RAGFLOW_API_TOKEN}"
-      RAGFLOW_TIMEOUT: "${RAGFLOW_TIMEOUT:-60}"
-      RAGFLOW_DEFAULT_GROUP: "${RAGFLOW_DEFAULT_GROUP}"
-      XINGHUO_DATASET_ID: "${XINGHUO_DATASET_ID:-}"
-      XINGHUO_APP_ID: "${PLATFORM_APP_ID}"
-      XINGHUO_APP_SECRET: "${PLATFORM_API_SECRET}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -416,6 +428,11 @@ services:
       - ./config/knowledge/logs/:/opt/core/logs
     networks:
       - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health/ready' % os.getenv('SERVICE_PORT', '20010'), timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
   # Workflow Service
@@ -477,6 +494,11 @@ services:
       - ./config/workflow/logs/:/opt/core/logs
     networks:
       - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; urllib.request.urlopen('http://localhost:%s/health/ready' % os.getenv('SERVICE_PORT', '7880'), timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
   # ============================================================================
@@ -517,8 +539,6 @@ services:
       CONSOLE_CASDOOR_ID: "${CONSOLE_CASDOOR_ID:-}"
       CONSOLE_CASDOOR_APP: "${CONSOLE_CASDOOR_APP:-}"
       CONSOLE_CASDOOR_ORG: "${CONSOLE_CASDOOR_ORG:-}"
-      SPARK_APP_ID: "${SPARK_APP_ID:-}"
-      SPARK_VIRTUAL_MAN_APP_ID: "${SPARK_VIRTUAL_MAN_APP_ID:-}"
     expose:
       - "1881"
     networks:
@@ -554,24 +574,6 @@ services:
       OAUTH2_ISSUER_URI: "${OAUTH2_ISSUER_URI:-http://auth-server:8000}"
       OAUTH2_JWK_SET_URI: "${OAUTH2_JWK_SET_URI:-http://auth-server:8000/.well-known/jwks}"
       OAUTH2_AUDIENCE: "${OAUTH2_AUDIENCE:-your-oauth2-client-id}"
-      PLATFORM_APP_ID: "${PLATFORM_APP_ID:-your-app-id}"
-      PLATFORM_API_KEY: "${PLATFORM_API_KEY:-your-api-key}"
-      PLATFORM_API_SECRET: "${PLATFORM_API_SECRET:-your-api-secret}"
-      AI_ABILITY_CHAT_BASE_URL: "${AI_ABILITY_CHAT_BASE_URL:-https://spark-api-open.xf-yun.com/v1}"
-      AI_ABILITY_CHAT_MODEL: "${AI_ABILITY_CHAT_MODEL:- model-id}"
-      AI_ABILITY_CHAT_API_KEY: "${AI_ABILITY_CHAT_API_KEY:-your-ai-ability-api-key}"
-      SPARK_APP_ID: "${SPARK_APP_ID:-your-spark-app-id}"
-      SPARK_API_KEY: "${SPARK_API_KEY:-your-spark-api-key}"
-      SPARK_API_SECRET: "${SPARK_API_SECRET:-your-spark-api-secret}"
-      SPARK_API_PASSWORD: "${SPARK_API_PASSWORD:-your-spark-api-password}"
-      SPARK_RTASR_KEY: "${SPARK_RTASR_KEY:-your-spark-rtasr-key}"
-      SPARK_RTASR_APPID: "${SPARK_RTASR_APPID:-your-spark-rtasr-appid}"
-      SPARK_IMAGE_APP_ID: "${SPARK_IMAGE_APP_ID:-your-image-appid}"
-      SPARK_IMAGE_API_KEY: "${SPARK_IMAGE_API_KEY:-your-image-api-key}"
-      SPARK_IMAGE_API_SECRET: "${SPARK_IMAGE_API_SECRET:-your-image-api-secret}"
-      SPARK_VIRTUAL_MAN_APP_ID: "${SPARK_VIRTUAL_MAN_APP_ID:-your-virtual-man-app-id}"
-      SPARK_VIRTUAL_MAN_API_KEY: "${SPARK_VIRTUAL_MAN_API_KEY:-your-virtual-man-api-key}"
-      SPARK_VIRTUAL_MAN_API_SECRET: "${SPARK_VIRTUAL_MAN_API_SECRET:-your-virtual-man-api-secret}"
       WECHAT_COMPONENT_APPID: "${WECHAT_COMPONENT_APPID:-your-wechat-component-appid}"
       WECHAT_COMPONENT_SECRET: "${WECHAT_COMPONENT_SECRET:-your-wechat-component-secret}"
       WECHAT_TOKEN: "${WECHAT_TOKEN:-your-wechat-token}"
@@ -589,9 +591,11 @@ services:
       APP_URL: "${APP_URL:-}"
       KNOWLEDGE_URL: "${KNOWLEDGE_URL:-}"
       TOOL_URL: "${TOOL_URL:-}"
+      AGENT_URL: "${AGENT_URL:-http://core-agent:${CORE_AGENT_PORT}}"
       TOOL_RPA_URL: "${TOOL_RPA_URL:-}"
       WORKFLOW_URL: "${WORKFLOW_URL:-}"
       SPARK_DB_URL: "${SPARK_DB_URL:-}"
+      SPARK_DB_TYPE: "${SPARK_DB_TYPE:-postgresql}"
       LOCAL_MODEL_URL: "${LOCAL_MODEL_URL:-}"
       RPA_URL: "${RPA_URL_INTERNAL:-${RPA_URL}}"
       MAAS_APP_ID: "${MAAS_APP_ID:-your-maas-app-id}"
@@ -614,6 +618,7 @@ services:
       BOT_API_MAAS_BASE_URL: "${BOT_API_MAAS_BASE_URL:-}"
       TENANT_CREATE_APP: "${TENANT_CREATE_APP:-}"
       TENANT_GET_APP_DETAIL: "${TENANT_GET_APP_DETAIL:-}"
+      TENANT_VERIFY_APP_AUTH: "${TENANT_VERIFY_APP_AUTH:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/key/verify}"
       
     expose:
       - "8080"

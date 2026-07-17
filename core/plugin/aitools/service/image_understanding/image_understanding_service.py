@@ -17,12 +17,8 @@ from plugin.aitools.common.clients.aiohttp_client import HttpClient
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.const.const import (
-    AI_API_KEY_KEY,
-    AI_API_SECRET_KEY,
-    AI_APP_ID_KEY,
-    IMAGE_UNDERSTANDING_URL_KEY,
-)
+from plugin.aitools.const.const import IMAGE_UNDERSTANDING_URL_KEY
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from pydantic import BaseModel
 
 
@@ -79,9 +75,10 @@ async def image_understanding_service(
     node_trace: Optional[NodeTraceLog] = None,
 ) -> BaseResponse:
     imageunderstanding_url = os.getenv(IMAGE_UNDERSTANDING_URL_KEY, "")
+    credentials = get_iflytek_open_platform_credentials()
 
     params = await gen_params(
-        app_id=os.getenv(AI_APP_ID_KEY),
+        app_id=credentials.app_id,
         question=body.question,
         image_url=body.image_url,
         span=span,
@@ -91,8 +88,8 @@ async def image_understanding_service(
         url=imageunderstanding_url,
         span=span,
         auth="ASE",
-        api_key=os.getenv(AI_API_KEY_KEY),
-        api_secret=os.getenv(AI_API_SECRET_KEY),
+        api_key=credentials.api_key,
+        api_secret=credentials.api_secret,
     ).start() as client:
 
         await client.send(params)

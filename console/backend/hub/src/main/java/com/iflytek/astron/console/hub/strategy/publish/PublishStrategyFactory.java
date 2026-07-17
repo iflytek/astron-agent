@@ -34,7 +34,8 @@ public class PublishStrategyFactory {
      * @throws IllegalArgumentException if publish type is not supported
      */
     public PublishStrategy getStrategy(String publishType) {
-        PublishStrategy strategy = strategyMap.get(publishType);
+        String normalizedType = normalizePublishType(publishType);
+        PublishStrategy strategy = strategyMap.get(normalizedType);
         if (strategy == null) {
             throw new IllegalArgumentException("Unsupported publish type: " + publishType);
         }
@@ -48,7 +49,7 @@ public class PublishStrategyFactory {
      * @return true if supported, false otherwise
      */
     public boolean isSupported(String publishType) {
-        return strategyMap.containsKey(publishType);
+        return strategyMap.containsKey(normalizePublishType(publishType));
     }
 
     /**
@@ -58,5 +59,13 @@ public class PublishStrategyFactory {
      */
     public java.util.Set<String> getSupportedTypes() {
         return strategyMap.keySet();
+    }
+
+    private String normalizePublishType(String publishType) {
+        if (publishType == null) {
+            return null;
+        }
+        String normalizedType = publishType.trim().toUpperCase();
+        return "API".equals(normalizedType) ? "BOT_API" : normalizedType;
     }
 }

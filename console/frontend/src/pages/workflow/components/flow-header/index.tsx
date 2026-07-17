@@ -16,14 +16,17 @@ import flowFailedIcon from '@/assets/imgs/workflow/flow-failed-icon.png';
 import flowEditNormal from '@/assets/imgs/workflow/flow-edit-normal.svg';
 import { TFunction } from 'i18next';
 interface FlowHeaderProps {
-  currentTab?: 'arrange' | 'overview';
+  currentTab?: 'arrange' | 'overview' | 'files';
   children?: ReactNode;
+  currentFlow?: any;
 }
 
 interface FlowStatusProps {
-  flowResult: unknown;
+  flowResult: any;
   t: TFunction;
 }
+
+type FlowTabKey = 'arrange' | 'overview' | 'files';
 
 const FlowStatus: React.FC<FlowStatusProps> = ({ flowResult, t }) => {
   const statusStyle = useMemo(() => {
@@ -84,27 +87,31 @@ const FlowStatus: React.FC<FlowStatusProps> = ({ flowResult, t }) => {
 };
 
 interface FlowTabsProps {
-  currentTab: 'arrange' | 'overview';
+  currentTab: FlowTabKey;
   id: string;
   t: TFunction;
   navigate: ReturnType<typeof useNavigate>;
 }
 
 const FlowTabs: React.FC<FlowTabsProps> = ({ currentTab, id, t, navigate }) => (
-  <div className="flex items-center justify-center w-1/4 gap-4">
-    {['arrange', 'overview'].map(tab => (
+  <div className="flex items-center justify-center w-auto gap-3">
+    {(['arrange', 'overview', 'files'] as FlowTabKey[]).map(tab => (
       <div
         key={tab}
-        className={`flex items-center justify-center py-2.5 px-8 rounded-xl font-medium cursor-pointer ${
+        className={`flex min-w-[106px] items-center justify-center py-2.5 px-5 rounded-xl font-medium cursor-pointer ${
           currentTab === tab ? 'config-tabs-active' : 'config-tabs-normal'
         }`}
         onClick={() => navigate(`/work_flow/${id}/${tab}`, { replace: true })}
       >
         <span className={`${tab}-icon`}></span>
         <span className="ml-2">
-          {t(
-            `workflow.nodes.header.${tab === 'arrange' ? 'arrange' : 'analysis'}`
-          )}
+          {tab === 'files'
+            ? '文件'
+            : t(
+                `workflow.nodes.header.${
+                  tab === 'arrange' ? 'arrange' : 'analysis'
+                }`
+              )}
         </span>
       </div>
     ))}
@@ -120,7 +127,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
   const historyVersion = useFlowsManager(state => state.historyVersion);
   const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const setCurrentFlow = useFlowsManager(state => state.setCurrentFlow);
-  const [currentTab, setCurrentTab] = useState('arrange');
+  const [currentTab, setCurrentTab] = useState<FlowTabKey>('arrange');
   const [modalType, setModalType] = useState<string>('');
 
   const isVirtualFlow = useMemo(() => {
@@ -133,7 +140,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       : {};
   }, [currentFlow?.flowConfig]);
 
-  const handleEditSumbit = fields => {
+  const handleEditSumbit = (fields: any) => {
     const config = {
       ...fields.talkAgentConfig,
     };
@@ -146,10 +153,10 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       category: fields.botType,
       flowConfig: config,
     };
-    let advancedConfig = JSON.parse(currentFlow?.advancedConfig);
+    const advancedConfig = JSON.parse(currentFlow?.advancedConfig);
     saveFlowAPI(params).then(data => {
       setModalType('');
-      setCurrentFlow(currentFlow => ({
+      setCurrentFlow((currentFlow: any) => ({
         ...currentFlow,
         name: fields.name,
         description: fields.botDesc,
@@ -166,7 +173,12 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
   };
 
   useEffect(() => {
-    setCurrentTab(location?.pathname?.split('/')?.pop());
+    const tab = location?.pathname?.split('/')?.pop();
+    setCurrentTab(
+      tab === 'overview' || tab === 'files' || tab === 'arrange'
+        ? tab
+        : 'arrange'
+    );
   }, [location]);
 
   return (
@@ -179,22 +191,24 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
         onCancel={() => {
           setModalType('');
         }}
-        formValues={{
-          flowId: currentFlow?.flowId,
-          name: currentFlow?.name,
-          botType: currentFlow?.category,
-          avatar: currentFlow?.avatarIcon,
-          botDesc: currentFlow?.description,
-          talkAgentConfig: {
-            interactType: flowConfig?.interactType,
-            vcn: flowConfig?.vcn,
-            sceneId: flowConfig?.sceneId,
-            sceneMode: flowConfig?.sceneMode,
-            sceneEnable: flowConfig?.sceneEnable,
-            vcnEnable: flowConfig?.vcnEnable,
-            callSceneId: flowConfig?.callSceneId,
-          },
-        }}
+        formValues={
+          {
+            flowId: currentFlow?.flowId,
+            name: currentFlow?.name,
+            botType: currentFlow?.category,
+            avatar: currentFlow?.avatarIcon,
+            botDesc: currentFlow?.description,
+            talkAgentConfig: {
+              interactType: flowConfig?.interactType,
+              vcn: flowConfig?.vcn,
+              sceneId: flowConfig?.sceneId,
+              sceneMode: flowConfig?.sceneMode,
+              sceneEnable: flowConfig?.sceneEnable,
+              vcnEnable: flowConfig?.vcnEnable,
+              callSceneId: flowConfig?.callSceneId,
+            },
+          } as any
+        }
         onSubmit={handleEditSumbit}
       />
       <div
@@ -239,7 +253,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
                 )}
                 {historyVersion && (
                   <span className="bg-[#E9EEFF] w-[30px] h-[18px] text-[#6356EA] text-[10px] flex items-center justify-center rounded-[7px]">
-                    {historyVersionData?.name}
+                    {(historyVersionData as any)?.name}
                   </span>
                 )}
               </div>
@@ -250,7 +264,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
                     title={currentFlow?.description}
                   >
                     {historyVersion
-                      ? historyVersionData?.description
+                      ? (historyVersionData as any)?.description
                       : currentFlow?.description}
                   </p>
                   {historyVersion == false && (

@@ -1,6 +1,179 @@
+.capabilitySection {
+  width: 100%;
+}
+
+.capabilitySectionOffset {
+  margin-top: 24px;
+}
+
+.capabilitySectionCompact {
+  margin-top: 16px;
+}
+
+.capabilityBlock {
+  width: 100%;
+  padding: 22px 24px;
+  border: 1px solid #dbe6ff;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.capabilityBlockHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.capabilityTitleGroup {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.capabilityCollapseIcon {
+  width: 16px;
+  height: 16px;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.capabilityIcon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 20px;
+
+  img {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.knowledgeIcon {
+  color: #0f9f36;
+  background: #ecfdf3;
+}
+
+.mcpIcon {
+  color: #4f46e5;
+  background: #eef2ff;
+}
+
+.capabilityTitleRow {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.capabilityTitle {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 24px;
+  color: #0f172a;
+}
+
+.capabilityDescription {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  color: #64748b;
+}
+
+.capabilityStatus {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.statusReady {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.statusMuted {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.capabilityActionButton {
+  height: 34px;
+  flex: 0 0 auto;
+  border-color: #bfdbfe;
+  border-radius: 8px;
+  color: #2563eb;
+  font-weight: 500;
+  box-shadow: none;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease;
+
+  &:hover {
+    border-color: #93c5fd !important;
+    background: #eff6ff !important;
+    color: #1d4ed8 !important;
+  }
+}
+
+.capabilityEmptyState {
+  display: flex;
+  width: 100%;
+  min-height: 76px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px 18px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    outline: none;
+  }
+}
+
+.capabilityEmptyTitle {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: #334155;
+}
+
+.capabilityEmptyDescription {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 20px;
+  color: #64748b;
+}
+
 .selectDataset {
-  margin-bottom: 22px;
-  width: 75%;
+  width: 100%;
+  margin-bottom: 0;
+
   .selectDatasetBtn {
     height: 39px;
     padding: 10px 41px;
@@ -25,15 +198,15 @@
   }
 
   .selectDatasetBox {
-    padding: 11.5px 15px;
-    background-color: #ffffff;
+    padding: 14px 16px;
+    background-color: #f8fafc;
     opacity: 0.95;
-    border: 1px solid #d2dbe7;
-    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
 
     .selectDatasetBoxBtn {
       font-size: 12px;
-      color: #43436b;
+      color: #2563eb;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -51,12 +224,12 @@
       justify-content: space-between;
 
       .dataset {
-        width: 45%;
+        width: calc(50% - 6px);
         margin-bottom: 10px;
         padding: 10px 12px;
-        border: 0.8px solid #eceef4;
-        border-radius: 6px;
-        background: #f8f8fa;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        background: #ffffff;
 
         .datasetNameBox {
           display: flex;
@@ -99,6 +272,221 @@
     }
   }
 }
+
+.mcpServerList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+}
+
+.mcpServerRow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) 40px;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover {
+    border-color: #bfdbfe;
+    background: #ffffff;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  }
+
+  :global {
+    .ant-input {
+      height: 40px;
+      border-radius: 8px;
+    }
+
+    .ant-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      color: #5f6f86;
+    }
+  }
+}
+
+.mcpServerMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.mcpServerName {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: #334155;
+}
+
+.mcpServerState {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  color: #64748b;
+}
+
+.mcpServerStateReady {
+  color: #067647;
+}
+
+.mcpServerStateError {
+  color: #dc2626;
+}
+
+.mcpInputWrap {
+  min-width: 0;
+}
+
+.mcpDeleteButton {
+  background: #ffffff;
+
+  &:hover {
+    border-color: #fecaca !important;
+    color: #dc2626 !important;
+  }
+}
+
+.mcpErrorText {
+  grid-column: 2 / -1;
+  margin-top: -2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #f53f3f;
+}
+
+.skillIcon {
+  background: #eef2ff;
+  color: #6356ea;
+}
+
+.skillList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skillRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e5e6eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.skillRowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.skillRowName {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.skillRowDesc {
+  font-size: 12px;
+  color: #8a8f99;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skillModalList {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skillModalRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5e6eb;
+  border-radius: 8px;
+}
+
+.skillModalMeta {
+  min-width: 0;
+}
+
+.skillModalName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2129;
+}
+
+.skillModalDesc {
+  font-size: 12px;
+  color: #8a8f99;
+}
+
+.skillModalEmpty {
+  text-align: center;
+  color: #8a8f99;
+  padding: 24px 0;
+}
+
+@media (max-width: 768px) {
+  .capabilityBlock {
+    padding: 18px;
+  }
+
+  .capabilityBlockHeader {
+    flex-direction: column;
+  }
+
+  .capabilityActionButton {
+    width: 100%;
+  }
+
+  .mcpServerRow {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .mcpServerMeta {
+    grid-column: 1 / -1;
+  }
+
+  .mcpErrorText {
+    grid-column: 1 / -1;
+  }
+
+  .selectDataset {
+    .selectDatasetBox {
+      .datasetList {
+        .dataset {
+          width: 100%;
+        }
+      }
+    }
+  }
+}
+
 .datasetModalWrap {
   :global {
     .ant-modal-content {

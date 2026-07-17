@@ -507,7 +507,8 @@ function index({ reactFlowInstance, zoom, setZoom }): React.ReactElement {
     const currentNode = nodes.find(
       node =>
         node.id?.startsWith('node-start') ||
-        node.id?.startsWith('iteration-node-start')
+        node.id?.startsWith('iteration-node-start') ||
+        node.id?.startsWith('loop-node-start')
     );
     const zoom = 0.8;
     const xPos = currentNode?.position.x;

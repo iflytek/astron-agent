@@ -5,9 +5,12 @@ import java.util.*;
 
 public class JooqRetry {
 
-    // PG common retryable SQLState: 40001 serialization failure; 40P01 deadlock; 55P03 lock not
+    // PG retryable SQLState: 40001 serialization failure; 40P01 deadlock; 55P03 lock not
     // available; 57014 query cancelled; 53300 too many connections
-    private static final Set<String> RETRYABLE_STATES = new HashSet<>(Arrays.asList("40001", "40P01", "55P03", "57014", "53300"));
+    // MySQL retryable SQLState: 41000 deadlock; HY000 lock wait timeout; 40001 serialization failure
+    private static final Set<String> RETRYABLE_STATES = new HashSet<>(Arrays.asList(
+            "40001", "40P01", "55P03", "57014", "53300",
+            "41000", "HY000"));
 
     public static boolean isRetryable(Throwable t) {
         Throwable root = unwrap(t);

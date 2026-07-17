@@ -17,6 +17,16 @@ public class BotDebugRequest {
     private String text;
 
     /**
+     * Bot ID for scoped debug capabilities such as memory.
+     */
+    private Integer botId;
+
+    /**
+     * Debug session ID for scoped memory run metadata.
+     */
+    private String debugSessionId;
+
+    /**
      * Prompt
      */
     private String prompt;
@@ -45,6 +55,26 @@ public class BotDebugRequest {
      * Open tools
      */
     private String openedTool;
+
+    /**
+     * Custom MCP server URL list
+     */
+    private String mcpServerUrls;
+
+    /**
+     * Selected skills JSON list
+     */
+    private String skills;
+
+    /**
+     * Selected plugin tools (tool square) JSON list
+     */
+    private String tools;
+
+    /**
+     * Selected workflows JSON list
+     */
+    private String workflows;
 
     /**
      * Model name

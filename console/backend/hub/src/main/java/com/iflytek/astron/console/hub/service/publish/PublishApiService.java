@@ -18,5 +18,9 @@ public interface PublishApiService {
 
     BotApiInfoDTO createBotApi(CreateBotApiVo createBotApiVo, HttpServletRequest request);
 
+    BotApiInfoDTO createBotApi(CreateBotApiVo createBotApiVo, HttpServletRequest request, String uid);
+
+    BotApiInfoDTO createBotApi(CreateBotApiVo createBotApiVo, HttpServletRequest request, String uid, Long spaceId);
+
     BotApiInfoDTO getApiInfo(Long botId);
 }

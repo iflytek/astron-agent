@@ -50,6 +50,9 @@ public class SplitRequest {
      */
     Integer resourceType;
 
+    /** RAGFlow dataset.id for Ragflow-RAG routing; blank uses the default dataset. */
+    String datasetId;
+
     // Default to AIUI value
     public SplitRequest() {
         this.ragType = ProjectContent.FILE_SOURCE_AIUI_RAG2_STR;

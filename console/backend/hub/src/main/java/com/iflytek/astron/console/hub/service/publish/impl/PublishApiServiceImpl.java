@@ -31,6 +31,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
@@ -115,15 +116,24 @@ public class PublishApiServiceImpl implements PublishApiService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public BotApiInfoDTO createBotApi(CreateBotApiVo createBotApiVo, HttpServletRequest request) {
         String uid = RequestContextUtil.getUID();
-        String uuid = UUID.randomUUID().toString();
-        // Only the space creator can publish APIs
-        if (!uid.equals(SpaceInfoUtil.getUidByCurrentSpaceId())) {
-            throw new BusinessException(ResponseEnum.USER_NO_APPROVEL);
-        }
+        return createBotApi(createBotApiVo, request, uid);
+    }
 
-        ChatBotBase botBase = chatBotDataService.findOne(uid, createBotApiVo.getBotId());
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BotApiInfoDTO createBotApi(CreateBotApiVo createBotApiVo, HttpServletRequest request, String uid) {
+        return createBotApi(createBotApiVo, request, uid, SpaceInfoUtil.getSpaceId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BotApiInfoDTO createBotApi(CreateBotApiVo createBotApiVo, HttpServletRequest request, String uid, Long spaceId) {
+        String uuid = UUID.randomUUID().toString();
+
+        ChatBotBase botBase = chatBotDataService.findOne(uid, createBotApiVo.getBotId(), spaceId);
         AppMst appMst = appMstService.getByAppId(uid, createBotApiVo.getAppId());
         if (Objects.isNull(botBase) || Objects.isNull(appMst)) {
             throw new BusinessException(ResponseEnum.USER_APP_ID_NOT_EXISTE);
@@ -135,7 +145,7 @@ public class PublishApiServiceImpl implements PublishApiService {
         try {
             List<Integer> maasSupportedVersions = List.of(BotVersionEnum.WORKFLOW.getVersion());
             if (maasSupportedVersions.contains(botBase.getVersion())) {
-                return createMaasApi(uid, appMst, botBase, request);
+                return createMaasApi(uid, appMst, botBase, spaceId, request);
             } else {
                 throw new BusinessException(ResponseEnum.BOT_TYPE_NOT_SUPPORT);
             }
@@ -151,10 +161,6 @@ public class PublishApiServiceImpl implements PublishApiService {
     @Override
     public BotApiInfoDTO getApiInfo(Long botId) {
         String uid = RequestContextUtil.getUID();
-        // Only the space creator can publish APIs
-        if (!uid.equals(SpaceInfoUtil.getUidByCurrentSpaceId())) {
-            throw new BusinessException(ResponseEnum.USER_NO_APPROVEL);
-        }
         ChatBotBase botBase = chatBotDataService.findOne(uid, botId);
         if (Objects.isNull(botBase)) {
             throw new BusinessException(ResponseEnum.BOT_NOT_EXISTS);
@@ -180,8 +186,12 @@ public class PublishApiServiceImpl implements PublishApiService {
                 .build();
     }
 
-    private BotApiInfoDTO createMaasApi(String uid, AppMst appMst, ChatBotBase botBase, HttpServletRequest request) {
-        Long spaceId = SpaceInfoUtil.getSpaceId();
+    private BotApiInfoDTO createMaasApi(
+            String uid,
+            AppMst appMst,
+            ChatBotBase botBase,
+            Long spaceId,
+            HttpServletRequest request) {
         Integer botId = botBase.getId();
         List<UserLangChainInfo> userLangChainInfoList = userLangChainDataService.findListByBotId(botId);
         if (Objects.isNull(userLangChainInfoList) || userLangChainInfoList.isEmpty()) {
@@ -193,9 +203,8 @@ public class PublishApiServiceImpl implements PublishApiService {
         String flowId = userLangChainInfo.getFlowId();
         // Synchronize with Maas service
         String versionName = releaseManageClientService.getVersionNameByBotId(Long.valueOf(botId), spaceId, request);
-        maasUtil.createApi(flowId, appMst.getAppId(), versionName);
-
         releaseManageClientService.releaseBotApi(botId, flowId, versionName, spaceId, request);
+        maasUtil.createApi(flowId, appMst.getAppId(), versionName);
 
         ChatBotApi chatBotApi = ChatBotApi.builder()
                 .uid(uid)

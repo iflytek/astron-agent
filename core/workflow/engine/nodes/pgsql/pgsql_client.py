@@ -24,6 +24,7 @@ class PGSqlConfig:
         uid: str,
         spaceId: str,
         dml: str,
+        params: Dict[str, Any] | None = None,
         env: str = ExecuteEnv.TEXT.value,
     ):
         """Initialize PostgreSQL configuration.
@@ -34,6 +35,7 @@ class PGSqlConfig:
         :param uid: User identifier for the operation
         :param spaceId: Workspace or space identifier
         :param dml: Data Manipulation Language statement to execute
+        :param params: Optional SQL binding parameters
         :param env: Execution environment (defaults to TEXT environment)
         """
         self.appId = appId
@@ -42,6 +44,7 @@ class PGSqlConfig:
         self.uid = uid
         self.spaceId = spaceId
         self.dml = dml
+        self.params = params or {}
         self.env = env
         self.url = f"{os.getenv('PGSQL_BASE_URL')}/xingchen-db/v1/exec_dml"
 
@@ -155,6 +158,7 @@ class PGSqlClient:
             "database_id": self.config.database_id,
             "uid": self.config.uid,
             "dml": self.config.dml,
+            "params": self.config.params,
             "env": self.config.env,
         }
 

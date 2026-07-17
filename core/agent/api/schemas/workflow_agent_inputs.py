@@ -20,6 +20,7 @@ class CustomCompletionInstructionInputs(BaseModel):
 class CustomCompletionPluginKnowledgeMatchInputs(BaseModel):
     repo_ids: list[str] = Field(default_factory=list[str])
     doc_ids: list[str] = Field(default_factory=list[str])
+    dataset_ids: list[str] = Field(default_factory=list[str])
 
 
 class CustomCompletionPluginKnowledgeInputs(BaseModel):
@@ -32,6 +33,22 @@ class CustomCompletionPluginKnowledgeInputs(BaseModel):
     repo_type: int = Field(..., ge=1, le=3)
 
 
+class CustomCompletionPluginSkillInputs(BaseModel):
+    class ResourceInputs(BaseModel):
+        path: str = Field(..., min_length=1)
+        name: str = Field(default="")
+        download_url: str = Field(default="")
+        file_ext: str = Field(default="")
+        file_size: int = Field(default=0)
+
+    skill_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=128)
+    description: str = Field(default="", min_length=0, max_length=1024)
+    download_url: str = Field(default="")
+    resources: list[ResourceInputs] = Field(default_factory=list)
+    sandbox: dict[str, Any] = Field(default_factory=dict)
+
+
 class CustomCompletionPluginInputs(BaseModel):
     tools: List[Union[str, Dict[str, Any]]] = Field(default_factory=list)
     mcp_server_ids: list[str] = Field(default_factory=list)
@@ -39,6 +56,9 @@ class CustomCompletionPluginInputs(BaseModel):
     workflow_ids: list[str] = Field(default_factory=list)
     knowledge: list[CustomCompletionPluginKnowledgeInputs] = Field(
         default_factory=list[CustomCompletionPluginKnowledgeInputs]
+    )
+    skills: list[CustomCompletionPluginSkillInputs] = Field(
+        default_factory=list[CustomCompletionPluginSkillInputs]
     )
 
 

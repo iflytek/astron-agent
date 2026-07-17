@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   handleAgentStatus,
+  isPublishApprovalDecision,
   // getPreparationData,
   // getAgentPublishStatus,
   // type AgentInputParam,
@@ -236,10 +237,14 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
       publishType: 'MARKET' as const,
       publishData: {},
     })
-      .then(() => {
+      .then(result => {
         // onCancel();
         setIsClickFabu(true);
-        message.success(t('releaseModal.submitAuditSuccess'));
+        message.success(
+          isPublishApprovalDecision(result)
+            ? t('releaseModal.submitApprovalPending')
+            : t('releaseModal.submitAuditSuccess')
+        );
         onCancel();
         if (setPageInfo) {
           setPageInfo((pre: any) => ({

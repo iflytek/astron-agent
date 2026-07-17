@@ -23,12 +23,8 @@ from plugin.aitools.common.clients.aiohttp_client import HttpClient
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
-from plugin.aitools.const.const import (
-    AI_API_KEY_KEY,
-    AI_API_SECRET_KEY,
-    AI_APP_ID_KEY,
-    OCR_LLM_HTTP_URL_KEY,
-)
+from plugin.aitools.const.const import OCR_LLM_HTTP_URL_KEY
+from plugin.aitools.platform_account_config import get_iflytek_open_platform_credentials
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -534,9 +530,7 @@ async def req_ase_ability_ocr_service(
         OCR_LLM_HTTP_URL_KEY,
         "https://cbm01.cn-huabei-1.xf-yun.com/v1/private/se75ocrbm",
     )
-    app_id = os.getenv(AI_APP_ID_KEY)
-    api_key = os.getenv(AI_API_KEY_KEY)
-    api_secret = os.getenv(AI_API_SECRET_KEY)
+    credentials = get_iflytek_open_platform_credentials()
 
     pngs_list = []
     texts_list = []
@@ -555,9 +549,9 @@ async def req_ase_ability_ocr_service(
                 ocr_tasks_list.append(
                     OcrLLMTask(
                         url=url,
-                        app_id=app_id,
-                        api_key=api_key,
-                        api_secret=api_secret,
+                        app_id=credentials.app_id,
+                        api_key=credentials.api_key,
+                        api_secret=credentials.api_secret,
                         data=pngs[j],
                         # span=span,
                         file_index=i,
@@ -569,9 +563,9 @@ async def req_ase_ability_ocr_service(
             ocr_tasks_list.append(
                 OcrLLMTask(
                     url=url,
-                    app_id=app_id,
-                    api_key=api_key,
-                    api_secret=api_secret,
+                    app_id=credentials.app_id,
+                    api_key=credentials.api_key,
+                    api_secret=credentials.api_secret,
                     data=pngs[0],
                     # span=span,
                 )

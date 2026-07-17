@@ -1,5 +1,6 @@
 import { ModelInfo, ModelProviderType } from '@/types/model';
 import i18next from 'i18next';
+import { mapProviderToVendor } from './provider-group';
 
 export const DEFAULT_MODEL_PROVIDER = ModelProviderType.OPENAI;
 
@@ -44,4 +45,26 @@ export function getModelProviderLabel(provider?: string | null): string {
 
 export function getModelProviderFromInfo(model: ModelInfo): string {
   return String(normalizeModelProvider(model.provider));
+}
+
+/**
+ * 获取模型的厂商分组标识符
+ */
+export function getModelVendorIdentifier(model: ModelInfo): string {
+  return mapProviderToVendor(model.provider);
+}
+
+/**
+ * 获取厂商分组的显示标签
+ */
+export function getVendorGroupLabel(vendor: string): string {
+  switch (vendor) {
+    case ModelProviderType.ANTHROPIC:
+      return i18next.t('model.providerAnthropic');
+    case ModelProviderType.GOOGLE:
+      return i18next.t('model.providerGoogle');
+    case ModelProviderType.OPENAI:
+    default:
+      return i18next.t('model.providerOpenAI'); // 使用"OpenAI兼容"作为统一分组
+  }
 }

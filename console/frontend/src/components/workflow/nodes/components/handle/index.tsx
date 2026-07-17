@@ -30,6 +30,7 @@ export const SourceHandle = ({
   const nodeList = useFlowsManager(state => state.nodeList);
   const currentStore = useFlowsManager(state => state.getCurrentStore());
   const showIterativeModal = useFlowsManager(state => state.showIterativeModal);
+  const iteratorId = useFlowsManager(state => state.iteratorId);
   const nodes = currentStore(state => state.nodes);
   const setNodes = currentStore(state => state.setNodes);
   const reactFlowInstance = currentStore(state => state.reactFlowInstance);
@@ -46,16 +47,22 @@ export const SourceHandle = ({
     return nodes?.find(node => node.id === nodeId);
   }, [nodeId, nodes]);
 
+  const isLoopContainer = useMemo(() => {
+    return nodes?.find(node => node.id === iteratorId)?.nodeType === 'loop';
+  }, [iteratorId, nodes]);
+
   const canAddNodes = useMemo(() => {
+    const hiddenNodeTypes = showIterativeModal
+      ? isLoopContainer
+        ? ['iteration', 'loop']
+        : ['iteration', 'loop', 'loop-exit']
+      : ['loop-exit'];
+
     return nodeList
       ?.filter(node => node?.name !== '固定节点')
       ?.flatMap(item => item?.nodes)
-      ?.filter(
-        item =>
-          !showIterativeModal ||
-          (showIterativeModal && item?.nodeType !== 'iteration')
-      );
-  }, [nodeList, showIterativeModal]);
+      ?.filter(item => !hiddenNodeTypes.includes(item?.idType));
+  }, [nodeList, showIterativeModal, isLoopContainer]);
 
   const generatePosition = useCallback(() => {
     const nodeElement = showIterativeModal

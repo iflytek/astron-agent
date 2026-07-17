@@ -7,6 +7,7 @@
 compose up -d atlas  或手动执行 SQL 补全字段。
 3. 常见错误: SQLSyntaxErrorException  通常是代码更新了但数据库未自动迁移。查看日志中
 的 SQL 错误，手动在数据库执行缺少的字段添加操作。
+4. 字段名限制: 数据库节点的表字段名只能使用字母和下划线；传入的需是完整合法的 SQL 语句。若 SQL 由大模型生成，常因语句不合法（如表单/表处理模式下生成了不完整语句）而报错（如 err code 25030），可在提示词中加强约束或检查生成结果。
 
 ## 数据库迁移失败 "Validate failed: Migrations have failed validation"？
 

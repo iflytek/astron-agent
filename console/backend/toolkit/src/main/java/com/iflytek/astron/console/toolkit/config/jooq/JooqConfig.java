@@ -1,15 +1,19 @@
 package com.iflytek.astron.console.toolkit.config.jooq;
 
+import com.iflytek.astron.console.toolkit.util.database.dialect.DbDialect;
 import org.jooq.DSLContext;
-import org.jooq.SQLDialect;
 import org.jooq.conf.RenderQuotedNames;
 import org.jooq.conf.Settings;
 import org.jooq.impl.DSL;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class JooqConfig {
+
+    @Autowired
+    private DbDialect dbDialect;
 
     @Bean
     public DSLContext dslContext() {
@@ -23,6 +27,6 @@ public class JooqConfig {
                 .withStatementType(org.jooq.conf.StatementType.STATIC_STATEMENT);
         // STATIC_STATEMENT: Only construct SQL template/parameters, do not attempt actual execution
 
-        return DSL.using(SQLDialect.POSTGRES, settings);
+        return DSL.using(dbDialect.jooqDialect(), settings);
     }
 }

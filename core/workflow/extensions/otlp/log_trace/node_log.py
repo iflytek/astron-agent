@@ -15,6 +15,11 @@ from pydantic import BaseModel, Field
 from workflow.extensions.otlp.log_trace.base import Usage
 
 
+class KeyValueData(BaseModel):
+    name: str = ""
+    value: Any = ""
+
+
 class Data(BaseModel):
     """
     Workflow node data container.
@@ -25,6 +30,8 @@ class Data(BaseModel):
 
     input: Dict[str, Any] = {}
     output: Dict[str, Any] = {}
+    input_vars: list[KeyValueData] = Field(default_factory=list)
+    output_vars: list[KeyValueData] = Field(default_factory=list)
     config: Dict[str, Any] = {}
     usage: Usage = Usage()
 
@@ -149,9 +156,8 @@ class NodeLog(BaseModel):
         :param key: Key identifier for the input data
         :param data: Input data value to be stored
         """
-        if not isinstance(data, str):
-            data = json.dumps(data, ensure_ascii=False)
-        self.data.input.update({key: data})
+        data = self._serialize_trace_value(data)
+        self.data.input_vars.append(KeyValueData(name=key, value=data))
 
     def append_output_data(self, key: str, data: Any) -> None:
         """
@@ -160,9 +166,13 @@ class NodeLog(BaseModel):
         :param key: Key identifier for the output data
         :param data: Output data value to be stored
         """
+        data = self._serialize_trace_value(data)
+        self.data.output_vars.append(KeyValueData(name=key, value=data))
+
+    def _serialize_trace_value(self, data: Any) -> Any:
         if not isinstance(data, str):
-            data = json.dumps(data, ensure_ascii=False)
-        self.data.output.update({key: data})
+            return json.dumps(data, ensure_ascii=False)
+        return data
 
     def append_usage_data(self, data: Any) -> None:
         """

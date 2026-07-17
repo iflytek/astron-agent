@@ -80,7 +80,7 @@ export function getEdgeId(sourceId: string, targetId: string): string {
 
 export function extractTargetAndSource(inputString: string): string[] | null {
   const regex =
-    /([a-zA-Z]+-(llm|start|end|making|code|base|else|parameter|joiner|aggregation)|plugin|message|iteration|variable)::[0-9a-fA-F-]{36}/g;
+    /([a-zA-Z]+-(llm|start|end|making|code|base|else|parameter|joiner|aggregation)|plugin|message|iteration|loop|loop-node-start|loop-node-end|loop-exit|variable)::[0-9a-fA-F-]{36}/g;
   return inputString.match(regex);
 }
 
@@ -499,6 +499,45 @@ function validateIfElseParams(currentCheckNode: unknown): boolean {
   return passFlag;
 }
 
+function validateLoopParams(currentCheckNode: unknown): boolean {
+  if (currentCheckNode?.nodeType !== 'loop') {
+    return true;
+  }
+
+  let passFlag = true;
+  const nodeParam = currentCheckNode.data.nodeParam;
+  const maxLoopCount = Number(nodeParam?.maxLoopCount ?? 10);
+  if (
+    !Number.isInteger(maxLoopCount) ||
+    maxLoopCount < 1 ||
+    maxLoopCount > 100
+  ) {
+    nodeParam.maxLoopCountErrMsg = i18next.t(
+      'workflow.nodes.validation.valueCannotBeEmpty'
+    );
+    passFlag = false;
+  } else {
+    nodeParam.maxLoopCountErrMsg = '';
+  }
+
+  if (!nodeParam?.loopVariables?.length) {
+    passFlag = false;
+  }
+
+  nodeParam?.termination?.conditions?.forEach((condition: unknown) => {
+    if (!condition.compareOperator) {
+      condition.compareOperatorErrMsg = i18next.t(
+        'workflow.nodes.validation.valueCannotBeEmpty'
+      );
+      passFlag = false;
+    } else {
+      condition.compareOperatorErrMsg = '';
+    }
+  });
+
+  return passFlag;
+}
+
 function validateTextJoinerParams(currentCheckNode: unknown): boolean {
   if (currentCheckNode?.nodeType !== 'text-joiner') {
     return true;
@@ -722,6 +761,7 @@ export const checkedNodeParams = (currentCheckNode: unknown): boolean => {
     validateKnowledgeBaseParams,
     validateIflyCodeParams,
     validateIfElseParams,
+    validateLoopParams,
     validateTextJoinerParams,
     validateAgentParams,
     validateQuestionAnswerOptions,
@@ -1611,37 +1651,35 @@ function buildSchemaReferences(
   }
 
   // object 节点（自身保留 + children）
-  if (Array.isArray(schema.properties)) {
-    return [
-      {
-        originId: parent.originId,
-        id: schema.id,
-        label: schema.name,
-        value: baseValue,
-        type: schema?.type,
-        parentType: parent.parentType,
-        fileType: schema.allowedFileType?.[0] || '',
-        children: schema.properties.flatMap((prop: unknown) =>
-          buildSchemaReferences(
-            {
-              ...prop,
-              ...prop.schema,
-              name: prop.name,
-              id: prop.id,
-              allowedFileType: prop.allowedFileType,
-            },
-            {
-              originId: parent.originId,
-              prefix: baseValue,
-              parentType: 'object',
-            }
+  return [
+    {
+      originId: parent.originId,
+      id: schema.id,
+      label: schema.name,
+      value: baseValue,
+      type: schema?.type,
+      parentType: parent.parentType,
+      fileType: schema.allowedFileType?.[0] || '',
+      children: Array.isArray(schema.properties)
+        ? schema.properties.flatMap((prop: unknown) =>
+            buildSchemaReferences(
+              {
+                ...prop,
+                ...prop.schema,
+                name: prop.name,
+                id: prop.id,
+                allowedFileType: prop.allowedFileType,
+              },
+              {
+                originId: parent.originId,
+                prefix: baseValue,
+                parentType: 'object',
+              }
+            )
           )
-        ),
-      },
-    ];
-  }
-
-  return [];
+        : undefined,
+    },
+  ];
 }
 
 function buildOwnReferences(

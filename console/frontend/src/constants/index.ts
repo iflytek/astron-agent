@@ -138,6 +138,13 @@ export const createMenuList = (): {
         activeTab: 'app',
         path: '/management/app',
       },
+      {
+        icon: resourceManagement,
+        iconAct: resourceManagementAct,
+        subTitle: getTranslation('sidebar.platformAccountManagement'),
+        activeTab: 'platform-account',
+        path: '/management/platform-account',
+      },
     ],
   },
 ];

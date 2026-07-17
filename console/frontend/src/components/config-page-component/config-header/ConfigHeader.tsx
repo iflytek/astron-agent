@@ -32,6 +32,11 @@ interface ConfigHeaderProps {
   children?: React.ReactNode;
 }
 
+const PUBLISHED_BOT_STATUSES = [1, 2, 4];
+
+const isPublishedBotStatus = (botStatus?: number): boolean =>
+  botStatus !== undefined && PUBLISHED_BOT_STATUSES.includes(botStatus);
+
 function ConfigHeader(props: ConfigHeaderProps) {
   const [searchParams] = useSearchParams();
   const { currentRobot, currentTab } = props;
@@ -39,6 +44,7 @@ function ConfigHeader(props: ConfigHeaderProps) {
   const navigate = useNavigate();
   const optionsRef = useRef<HTMLDivElement | null>(null);
   const [showDropList, setShowDropList] = useState(false);
+  const isPublished = isPublishedBotStatus(props.detailInfo?.botStatus);
 
   useEffect(() => {
     document.body.addEventListener('click', clickOutside);
@@ -90,12 +96,10 @@ function ConfigHeader(props: ConfigHeaderProps) {
             <div>
               <span
                 className={`${styles.botStatu_fabu} ${
-                  props.detailInfo?.botStatus === 2
-                    ? ''
-                    : styles.botStatu_weifabu
+                  isPublished ? '' : styles.botStatu_weifabu
                 }`}
               >
-                {props.detailInfo?.botStatus === 2
+                {isPublished
                   ? t('configBase.botStatus2')
                   : t('configBase.botStatus0')}
               </span>
@@ -148,7 +152,7 @@ function ConfigHeader(props: ConfigHeaderProps) {
             }
             if (props.botId) {
               navigate(
-                props.detailInfo?.botStatus === 2
+                isPublished
                   ? `/space/config/base?botId=${props.botId}&save=true`
                   : `/space/config/base?botId=${props.botId}`,
                 {

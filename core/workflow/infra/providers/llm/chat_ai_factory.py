@@ -2,16 +2,18 @@
 Chat AI Factory Module
 
 This module provides a factory class for creating chat AI instances based on different model providers.
-It supports multiple AI providers including Xinghuo (Spark) and OpenAI.
+It supports multiple AI providers including Xinghuo (Spark), OpenAI, Anthropic, and Google.
 """
 
 from typing import Any
 
 from workflow.consts.engine.model_provider import ModelProviderEnum
 from workflow.infra.providers.llm.anthropic.anthropic_chat_llm import (
-    AnthropicChatAI,
+    AnthropicChatAI,  # Changed to use new implementation
 )
-from workflow.infra.providers.llm.google.google_chat_llm import GoogleChatAI
+from workflow.infra.providers.llm.google.google_chat_llm import (
+    GoogleChatAI,  # Changed to use new implementation
+)
 from workflow.infra.providers.llm.iflytek_spark.spark_chat_llm import SparkChatAi
 from workflow.infra.providers.llm.openai.openai_chat_llm import OpenAIChatAI
 
@@ -43,23 +45,9 @@ class ChatAIFactory:
             return SparkChatAi(**kwargs)
         elif model_source == ModelProviderEnum.OPENAI.value:
             return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.DEEPSEEK.value:
-            return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.MINIMAX.value:
-            return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.ZHIPU.value:
-            return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.QWEN.value:
-            return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.MOONSHOT.value:
-            return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.CHATGPT.value:
-            return OpenAIChatAI(**kwargs)
-        elif model_source == ModelProviderEnum.DOUBAO.value:
-            return OpenAIChatAI(**kwargs)
         elif model_source == ModelProviderEnum.ANTHROPIC.value:
-            return AnthropicChatAI(**kwargs)
+            return AnthropicChatAI(**kwargs)  # Use new implementation
         elif model_source == ModelProviderEnum.GOOGLE.value:
-            return GoogleChatAI(**kwargs)
+            return GoogleChatAI(**kwargs)  # Use new implementation
         else:
             raise ValueError(f"Unsupported model source: {model_source}")

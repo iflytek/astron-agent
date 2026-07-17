@@ -2,7 +2,6 @@ import { useState, useMemo, useCallback, JSX, Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Switch, message, Button } from 'antd';
-import JSEncrypt from 'jsencrypt';
 
 import { DeleteModal, CreateModal } from './modal-component';
 import StatusTag from './status-tag';
@@ -27,16 +26,15 @@ import i18next from 'i18next';
 import styles from './model-card.module.scss';
 import classNames from 'classnames';
 import { getModelProviderLabel } from '../utils/provider';
+import { encryptApiKey as encryptLongApiKey } from '../utils/encrypt-api-key';
 
 // 加密API密钥工具函数
 const encryptApiKey = (publicKey: string, apiKey: string): string => {
-  const encrypt = new JSEncrypt();
-  encrypt.setPublicKey(publicKey);
-  const encrypted = encrypt.encrypt(apiKey);
-  if (!encrypted) {
+  return encryptLongApiKey(publicKey, apiKey); /*
     throw new Error('API密钥加密失败');
   }
   return encrypted;
+*/
 };
 
 // 重新发布模型函数

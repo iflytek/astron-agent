@@ -6,10 +6,11 @@ import com.iflytek.astron.console.hub.entity.PronunciationPersonConfig;
 import com.iflytek.astron.console.hub.enums.TtsTypeEnum;
 import com.iflytek.astron.console.hub.mapper.PronunciationPersonConfigMapper;
 import com.iflytek.astron.console.hub.service.bot.VoiceService;
+import com.iflytek.astron.console.toolkit.entity.platform.PlatformAccountConfigDto;
+import com.iflytek.astron.console.toolkit.service.platform.PlatformAccountService;
 import com.iflytek.astron.console.toolkit.tool.http.HttpAuthTool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
@@ -27,22 +28,17 @@ public class VoiceServiceImpl implements VoiceService {
 
     private static final String TTS_API_URL = "wss://cbm01.cn-huabei-1.xf-yun.com/v1/private/mcd9m97e6";
 
-    @Value("${spark.app-id}")
-    private String appId;
-
-    @Value("${spark.api-key}")
-    private String apiKey;
-
-    @Value("${spark.api-secret}")
-    private String apiSecret;
-
     private final PronunciationPersonConfigMapper pronunciationPersonConfigMapper;
+    private final PlatformAccountService platformAccountService;
 
     @Override
     public Map<String, String> getTtsSign() {
+        PlatformAccountConfigDto.IflytekOpenPlatformConfig config =
+                platformAccountService.requireIflytekOpenPlatform();
         Map<String, String> resultMap = new HashMap<>();
-        String url = HttpAuthTool.assembleRequestUrl(TTS_API_URL, apiKey, apiSecret);
-        resultMap.put("appId", appId);
+        String url = HttpAuthTool.assembleRequestUrl(
+                TTS_API_URL, config.getPlatformApiKey(), config.getPlatformApiSecret());
+        resultMap.put("appId", config.getPlatformAppId());
         resultMap.put("url", url);
         resultMap.put("type", TtsTypeEnum.ORIGINAL.name());
         return resultMap;

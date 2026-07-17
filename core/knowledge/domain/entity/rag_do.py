@@ -3,6 +3,7 @@
 RAG data object module
 Defines data model classes related to Retrieval-Augmented Generation (RAG)
 """
+
 from typing import Union
 
 

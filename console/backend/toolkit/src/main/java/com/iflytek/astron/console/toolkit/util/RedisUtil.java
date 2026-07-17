@@ -215,6 +215,11 @@ public class RedisUtil {
         redisTemplate.opsForValue().set(key, val);
     }
 
+    public void putString(String key, String val) {
+        requireKey(key);
+        stringRedisTemplate.opsForValue().set(key, val);
+    }
+
     /**
      * Set value with expiration (seconds).
      *
@@ -319,6 +324,12 @@ public class RedisUtil {
     public boolean remove(String key) {
         requireKey(key);
         Boolean ok = redisTemplate.delete(key);
+        return Boolean.TRUE.equals(ok);
+    }
+
+    public boolean removeString(String key) {
+        requireKey(key);
+        Boolean ok = stringRedisTemplate.delete(key);
         return Boolean.TRUE.equals(ok);
     }
 

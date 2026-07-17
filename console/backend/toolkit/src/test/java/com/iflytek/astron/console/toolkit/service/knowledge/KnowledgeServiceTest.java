@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.toolkit.common.constant.ProjectContent;
+import com.iflytek.astron.console.toolkit.config.properties.BizConfig;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
 import com.iflytek.astron.console.toolkit.entity.core.knowledge.*;
 import com.iflytek.astron.console.toolkit.entity.mongo.Knowledge;
@@ -29,15 +30,18 @@ import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.util.S3Util;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -133,6 +137,7 @@ class KnowledgeServiceTest {
         mockRepo.setId(100L);
         mockRepo.setName("Test Repository");
         mockRepo.setCoreRepoId("core-repo-001");
+        mockRepo.setRagflowDatasetId("ds-real-id-001");
         mockRepo.setTag("AIUI-RAG2");
         mockRepo.setDeleted(false);
         mockRepo.setEnableAudit(false);
@@ -271,6 +276,92 @@ class KnowledgeServiceTest {
             verify(knowledgeMapper, times(1)).insert(any(MysqlKnowledge.class));
         }
 
+        @Test
+        @DisplayName("Create knowledge with Ragflow-RAG passes datasetId to saveChunk")
+        void testCreateKnowledge_RagflowRAG_PassesDatasetId() {
+            BizConfig bizConfig = new BizConfig();
+            bizConfig.setCbgRagCompatibleSources(Arrays.asList(
+                    ProjectContent.FILE_SOURCE_CBG_RAG_STR,
+                    ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR));
+            new ProjectContent().setBizConfig(bizConfig);
+            try {
+                mockRepo.setTag(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+                mockFileInfo.setSource(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+
+                when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
+                when(repoService.getById(anyLong())).thenReturn(mockRepo);
+                when(repoService.getOnly(any(LambdaQueryWrapper.class))).thenReturn(mockRepo);
+                doNothing().when(dataPermissionCheckTool).checkRepoBelong(any(Repo.class));
+                when(fileInfoV2Mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(mockFileInfo);
+
+                KnowledgeResponse knowledgeResponse = new KnowledgeResponse();
+                knowledgeResponse.setCode(0);
+                knowledgeResponse.setMessage("success");
+                JSONArray dataArray = new JSONArray();
+                JSONObject cbgData = new JSONObject();
+                cbgData.put("id", "ragflow-knowledge-001");
+                cbgData.put("dataIndex", "0");
+                dataArray.add(cbgData);
+                knowledgeResponse.setData(dataArray);
+
+                ArgumentCaptor<KnowledgeRequest> requestCaptor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+                when(knowledgeV2ServiceCallHandler.saveChunk(requestCaptor.capture()))
+                        .thenReturn(knowledgeResponse);
+                when(knowledgeMapper.insert(any(MysqlKnowledge.class))).thenReturn(1);
+
+                Knowledge result = knowledgeService.createKnowledge(mockKnowledgeVO);
+
+                assertThat(result).isNotNull();
+                assertThat(requestCaptor.getValue().getGroup()).isEqualTo("core-repo-001");
+                assertThat(requestCaptor.getValue().getDatasetId()).isEqualTo("ds-real-id-001");
+            } finally {
+                new ProjectContent().setBizConfig(null);
+            }
+        }
+
+        @Test
+        @DisplayName("Create knowledge with legacy Ragflow-RAG repo leaves datasetId unset")
+        void testCreateKnowledge_RagflowRAG_LegacyNullDatasetId() {
+            BizConfig bizConfig = new BizConfig();
+            bizConfig.setCbgRagCompatibleSources(Arrays.asList(
+                    ProjectContent.FILE_SOURCE_CBG_RAG_STR,
+                    ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR));
+            new ProjectContent().setBizConfig(bizConfig);
+            try {
+                mockRepo.setTag(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+                mockRepo.setRagflowDatasetId(null);
+                mockFileInfo.setSource(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+
+                when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
+                when(repoService.getById(anyLong())).thenReturn(mockRepo);
+                when(repoService.getOnly(any(LambdaQueryWrapper.class))).thenReturn(mockRepo);
+                doNothing().when(dataPermissionCheckTool).checkRepoBelong(any(Repo.class));
+                when(fileInfoV2Mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(mockFileInfo);
+
+                KnowledgeResponse knowledgeResponse = new KnowledgeResponse();
+                knowledgeResponse.setCode(0);
+                knowledgeResponse.setMessage("success");
+                JSONArray dataArray = new JSONArray();
+                JSONObject cbgData = new JSONObject();
+                cbgData.put("id", "ragflow-knowledge-001");
+                cbgData.put("dataIndex", "0");
+                dataArray.add(cbgData);
+                knowledgeResponse.setData(dataArray);
+
+                ArgumentCaptor<KnowledgeRequest> requestCaptor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+                when(knowledgeV2ServiceCallHandler.saveChunk(requestCaptor.capture()))
+                        .thenReturn(knowledgeResponse);
+                when(knowledgeMapper.insert(any(MysqlKnowledge.class))).thenReturn(1);
+
+                Knowledge result = knowledgeService.createKnowledge(mockKnowledgeVO);
+
+                assertThat(result).isNotNull();
+                assertThat(requestCaptor.getValue().getDatasetId()).isNull();
+            } finally {
+                new ProjectContent().setBizConfig(null);
+            }
+        }
+
         /**
          * Test knowledge creation with audit enabled and pass.
          */
@@ -392,6 +483,35 @@ class KnowledgeServiceTest {
             assertThat(result.getContent().getString("content")).isEqualTo("Updated content");
             verify(knowledgeMapper, times(1)).updateById(any(MysqlKnowledge.class));
             verify(knowledgeV2ServiceCallHandler, times(1)).updateChunk(any());
+        }
+
+        @Test
+        @DisplayName("Update knowledge with Ragflow-RAG passes datasetId to updateChunk")
+        void testUpdateKnowledge_RagflowRAG_PassesDatasetId() {
+            mockRepo.setTag(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+            mockFileInfo.setSource(ProjectContent.FILE_SOURCE_RAG_FLOW_RAG_STR);
+            mockKnowledgeVO.setId("knowledge-001");
+            mockKnowledgeVO.setContent("Updated content");
+
+            when(knowledgeMapper.selectById(anyString())).thenReturn(mockMysqlKnowledge);
+            when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
+            when(repoService.getById(anyLong())).thenReturn(mockRepo);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(mockFileInfo);
+            when(repoService.getOnly(any(LambdaQueryWrapper.class))).thenReturn(mockRepo);
+            doNothing().when(dataPermissionCheckTool).checkRepoBelong(any(Repo.class));
+
+            KnowledgeResponse knowledgeResponse = new KnowledgeResponse();
+            knowledgeResponse.setCode(0);
+            ArgumentCaptor<KnowledgeRequest> requestCaptor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            when(knowledgeV2ServiceCallHandler.updateChunk(requestCaptor.capture()))
+                    .thenReturn(knowledgeResponse);
+            when(knowledgeMapper.updateById(any(MysqlKnowledge.class))).thenReturn(1);
+
+            Knowledge result = knowledgeService.updateKnowledge(mockKnowledgeVO);
+
+            assertThat(result).isNotNull();
+            assertThat(requestCaptor.getValue().getGroup()).isEqualTo("core-repo-001");
+            assertThat(requestCaptor.getValue().getDatasetId()).isEqualTo("ds-real-id-001");
         }
 
         /**
@@ -1773,6 +1893,17 @@ class KnowledgeServiceTest {
             mockSliceConfig = new SliceConfig();
             mockSliceConfig.setLengthRange(Arrays.asList(300, 800));
             mockSliceConfig.setSeperator(Arrays.asList("\n"));
+
+            // Mirror production wiring so Ragflow-RAG routes through
+            // doCbgUploadSplit instead of the literal-only fallback.
+            BizConfig bizConfig = new BizConfig();
+            bizConfig.setCbgRagCompatibleSources(Arrays.asList("CBG-RAG", "Ragflow-RAG"));
+            new ProjectContent().setBizConfig(bizConfig);
+        }
+
+        @AfterEach
+        void tearDown() {
+            new ProjectContent().setBizConfig(null);
         }
 
         /**
@@ -1796,7 +1927,7 @@ class KnowledgeServiceTest {
             dataArray.add(JSON.parseObject(JSON.toJSONString(chunk)));
             response.setData(dataArray);
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
             when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
             when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
@@ -1807,7 +1938,7 @@ class KnowledgeServiceTest {
             knowledgeService.knowledgeExtractAsync(contentType, url, mockSliceConfig, mockFileInfo, mockExtractTask);
 
             // Then
-            verify(knowledgeV2ServiceCallHandler, times(1)).documentSplit(any());
+            verify(knowledgeV2ServiceCallHandler, times(1)).documentSplit(any(), any());
             verify(previewKnowledgeMapper, times(1)).insertBatch(anyList());
             verify(fileInfoV2Service, times(1)).updateById(any(FileInfoV2.class));
         }
@@ -1823,6 +1954,8 @@ class KnowledgeServiceTest {
             String url = "http://example.com/document.txt";
             mockFileInfo.setSource("CBG-RAG");
             mockFileInfo.setType("text/plain");
+            // Regression guard: CBG-RAG must not forward oldDocId even if lastUuid exists.
+            mockFileInfo.setLastUuid("cbg-previous-doc-id");
 
             KnowledgeResponse response = new KnowledgeResponse();
             response.setCode(0);
@@ -1835,7 +1968,7 @@ class KnowledgeServiceTest {
             response.setData(dataArray);
 
             when(s3Util.getObject(anyString())).thenReturn(new java.io.ByteArrayInputStream("test".getBytes()));
-            when(knowledgeV2ServiceCallHandler.documentUpload(any(), any(), any(), any(), any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentUpload(any(), any(), any(), any(), any(), any(), any())).thenReturn(response);
             when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
             when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
             when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
@@ -1847,7 +1980,82 @@ class KnowledgeServiceTest {
 
             // Then
             verify(s3Util, times(1)).getObject(anyString());
-            verify(knowledgeV2ServiceCallHandler, times(1)).documentUpload(any(), any(), any(), any(), any());
+            // CBG-RAG multipart form must not carry documentId; datasetId is
+            // null because CBG-RAG keeps the legacy single-dataset behavior.
+            verify(knowledgeV2ServiceCallHandler, times(1)).documentUpload(
+                    any(), any(), any(), any(), any(), isNull(), isNull());
+        }
+
+        /** Ragflow-RAG first slice: lastUuid=null forwards as oldDocId=null. */
+        @Test
+        @DisplayName("Extract knowledge with Ragflow-RAG source, first slice (lastUuid=null)")
+        void testKnowledgeExtractAsync_RagflowRAG_FirstSlice() {
+            // Given
+            String contentType = "text/plain";
+            String url = "http://example.com/document.txt";
+            mockFileInfo.setSource("Ragflow-RAG");
+            mockFileInfo.setType("text/plain");
+            mockFileInfo.setLastUuid(null);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            JSONArray dataArray = new JSONArray();
+            ChunkInfo chunk = new ChunkInfo();
+            chunk.setContent("First slice chunk");
+            chunk.setDocId("ragflow-doc-001");
+            dataArray.add(JSON.parseObject(JSON.toJSONString(chunk)));
+            response.setData(dataArray);
+
+            when(s3Util.getObject(anyString())).thenReturn(new java.io.ByteArrayInputStream("test".getBytes()));
+            when(knowledgeV2ServiceCallHandler.documentUpload(any(), any(), any(), any(), any(), any(), any())).thenReturn(response);
+            when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
+            when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
+            when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
+            when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
+            when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
+            when(repoService.getById(mockFileInfo.getRepoId())).thenReturn(mockRepo);
+
+            // When
+            knowledgeService.knowledgeExtractAsync(contentType, url, mockSliceConfig, mockFileInfo, mockExtractTask);
+
+            verify(knowledgeV2ServiceCallHandler, times(1)).documentUpload(
+                    any(), any(), any(), any(), any(), isNull(), eq("ds-real-id-001"));
+        }
+
+        /** Ragflow-RAG re-slice: existing lastUuid forwards as oldDocId. */
+        @Test
+        @DisplayName("Extract knowledge with Ragflow-RAG source, re-slice forwards lastUuid")
+        void testKnowledgeExtractAsync_RagflowRAG_ReSlice() {
+            // Given
+            String contentType = "text/plain";
+            String url = "http://example.com/document.txt";
+            mockFileInfo.setSource("Ragflow-RAG");
+            mockFileInfo.setType("text/plain");
+            mockFileInfo.setLastUuid("doc-old-ragflow");
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            JSONArray dataArray = new JSONArray();
+            ChunkInfo chunk = new ChunkInfo();
+            chunk.setContent("Re-slice chunk");
+            chunk.setDocId("doc-new-ragflow");
+            dataArray.add(JSON.parseObject(JSON.toJSONString(chunk)));
+            response.setData(dataArray);
+
+            when(s3Util.getObject(anyString())).thenReturn(new java.io.ByteArrayInputStream("test".getBytes()));
+            when(knowledgeV2ServiceCallHandler.documentUpload(any(), any(), any(), any(), any(), any(), any())).thenReturn(response);
+            when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
+            when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
+            when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
+            when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
+            when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
+            when(repoService.getById(mockFileInfo.getRepoId())).thenReturn(mockRepo);
+
+            // When
+            knowledgeService.knowledgeExtractAsync(contentType, url, mockSliceConfig, mockFileInfo, mockExtractTask);
+
+            verify(knowledgeV2ServiceCallHandler, times(1)).documentUpload(
+                    any(), any(), any(), any(), any(), eq("doc-old-ragflow"), eq("ds-real-id-001"));
         }
 
         /**
@@ -1865,7 +2073,7 @@ class KnowledgeServiceTest {
             response.setCode(1);
             response.setMessage("Extraction failed");
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
 
@@ -1892,7 +2100,7 @@ class KnowledgeServiceTest {
             response.setCode(11111);
             response.setMessage("Error (inner error message)");
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
 
@@ -1918,7 +2126,7 @@ class KnowledgeServiceTest {
             response.setCode(0);
             response.setData(new JSONArray());
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
 
@@ -1945,7 +2153,7 @@ class KnowledgeServiceTest {
             response.setCode(0);
             response.setData(new JSONArray());
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
 
@@ -2002,7 +2210,7 @@ class KnowledgeServiceTest {
             dataArray.add(JSON.parseObject(JSON.toJSONString(chunk)));
             response.setData(dataArray);
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
             when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
             when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
@@ -2013,7 +2221,7 @@ class KnowledgeServiceTest {
             knowledgeService.knowledgeExtractAsync(contentType, url, mockSliceConfig, mockFileInfo, mockExtractTask);
 
             // Then
-            verify(knowledgeV2ServiceCallHandler, times(1)).documentSplit(any());
+            verify(knowledgeV2ServiceCallHandler, times(1)).documentSplit(any(), any());
         }
     }
 
@@ -2062,7 +2270,7 @@ class KnowledgeServiceTest {
             dealFileResult.setParseSuccess(true);
             dealFileResult.setTaskId("task-001");
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
             when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
             when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
@@ -2076,7 +2284,7 @@ class KnowledgeServiceTest {
                     mockFileInfo, mockExtractTask, mockFileService);
 
             // Then
-            verify(knowledgeV2ServiceCallHandler, times(1)).documentSplit(any());
+            verify(knowledgeV2ServiceCallHandler, times(1)).documentSplit(any(), any());
             verify(mockFileService, times(1)).saveTaskAndUpdateFileStatus(mockFileInfo.getId());
             verify(mockFileService, times(1)).embeddingFile(mockFileInfo.getId(), mockFileInfo.getSpaceId());
         }
@@ -2096,7 +2304,7 @@ class KnowledgeServiceTest {
             response.setCode(1);
             response.setMessage("Extraction failed");
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
 
@@ -2137,7 +2345,7 @@ class KnowledgeServiceTest {
             dealFileResult.setTaskId("task-001");
 
             when(s3Util.getObject(anyString())).thenReturn(new java.io.ByteArrayInputStream("test".getBytes()));
-            when(knowledgeV2ServiceCallHandler.documentUpload(any(), any(), any(), any(), any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentUpload(any(), any(), any(), any(), any(), any(), any())).thenReturn(response);
             when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
             when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
             when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
@@ -2171,7 +2379,7 @@ class KnowledgeServiceTest {
             response.setCode(0);
             response.setData(new JSONArray());
 
-            when(knowledgeV2ServiceCallHandler.documentSplit(any())).thenReturn(response);
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
 
@@ -2182,6 +2390,290 @@ class KnowledgeServiceTest {
             // Then
             verify(mockFileService, never()).saveTaskAndUpdateFileStatus(anyLong());
             verify(mockFileService, never()).embeddingFile(anyLong(), anyLong());
+        }
+    }
+
+    /**
+     * datasetId routing tests.
+     *
+     * <p>
+     * Tests for {@code datasetId} resolution and forwarding through delete paths.
+     */
+    @Nested
+    @DisplayName("datasetId routing tests")
+    class DatasetIdRoutingTests {
+
+        @BeforeEach
+        void resetBizConfig() {
+            // These tests assert the legacy fallback routing where only CBG-RAG is
+            // CBG-compatible, so pin the static BizConfig to null instead of relying
+            // on test execution order.
+            new ProjectContent().setBizConfig(null);
+        }
+
+        @Test
+        @DisplayName("resolveRagflowDatasetIdOrNull returns null for non-Ragflow-RAG sources")
+        void resolveRagflowDatasetIdOrNull_NonRagflowRAG_returnsNull() {
+            FileInfoV2 file = new FileInfoV2();
+            file.setSource("CBG-RAG");
+            file.setRepoId(42L);
+            String result = ReflectionTestUtils.invokeMethod(
+                    knowledgeService, "resolveRagflowDatasetIdOrNull", file);
+            assertThat(result).isNull();
+        }
+
+        @Test
+        @DisplayName("resolveRagflowDatasetIdOrNull throws when Ragflow-RAG file lacks repoId")
+        void resolveRagflowDatasetIdOrNull_RagflowRAG_nullRepoId_throws() {
+            FileInfoV2 file = new FileInfoV2();
+            file.setSource("Ragflow-RAG");
+            file.setRepoId(null);
+            file.setId(99L);
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> ReflectionTestUtils.invokeMethod(
+                            knowledgeService, "resolveRagflowDatasetIdOrNull", file));
+            assertThat(ex.getResponseEnum()).isEqualTo(ResponseEnum.REPO_STATUS_ILLEGAL);
+        }
+
+        @Test
+        @DisplayName("resolveRagflowDatasetIdOrNull throws when Repo missing")
+        void resolveRagflowDatasetIdOrNull_RagflowRAG_repoNotFound_throws() {
+            FileInfoV2 file = new FileInfoV2();
+            file.setSource("Ragflow-RAG");
+            file.setRepoId(42L);
+            when(repoService.getById(42L)).thenReturn(null);
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> ReflectionTestUtils.invokeMethod(
+                            knowledgeService, "resolveRagflowDatasetIdOrNull", file));
+            assertThat(ex.getResponseEnum()).isEqualTo(ResponseEnum.REPO_STATUS_ILLEGAL);
+        }
+
+        @Test
+        @DisplayName("resolveRagflowDatasetIdOrNull returns null when ragflowDatasetId blank (legacy fallback)")
+        void resolveRagflowDatasetIdOrNull_RagflowRAG_blankDatasetId_returnsNull() {
+            FileInfoV2 file = new FileInfoV2();
+            file.setSource("Ragflow-RAG");
+            file.setRepoId(42L);
+            Repo repo = new Repo();
+            repo.setCoreRepoId("abc-uuid");
+            repo.setRagflowDatasetId(null);
+            when(repoService.getById(42L)).thenReturn(repo);
+            String result = ReflectionTestUtils.invokeMethod(
+                    knowledgeService, "resolveRagflowDatasetIdOrNull", file);
+            assertThat(result).isNull();
+        }
+
+        @Test
+        @DisplayName("resolveRagflowDatasetIdOrNull returns ragflowDatasetId on happy path")
+        void resolveRagflowDatasetIdOrNull_happyPath_returnsDatasetId() {
+            FileInfoV2 file = new FileInfoV2();
+            file.setSource("Ragflow-RAG");
+            file.setRepoId(42L);
+            Repo repo = new Repo();
+            repo.setCoreRepoId("abc-uuid");
+            repo.setRagflowDatasetId("ds-real-id-001");
+            when(repoService.getById(42L)).thenReturn(repo);
+            String result = ReflectionTestUtils.invokeMethod(
+                    knowledgeService, "resolveRagflowDatasetIdOrNull", file);
+            assertThat(result).isEqualTo("ds-real-id-001");
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeDoc sets datasetId on Ragflow-RAG request")
+        void deleteKnowledgeDoc_RagflowRAG_setsDatasetIdOnRequest() {
+            JSONArray deleteDocIds = new JSONArray();
+            deleteDocIds.add("doc-ragflow-001");
+
+            FileInfoV2 ragflowFile = new FileInfoV2();
+            ragflowFile.setSource("Ragflow-RAG");
+            ragflowFile.setRepoId(100L);
+            ragflowFile.setId(1L);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(ragflowFile);
+
+            Repo ragflowRepo = new Repo();
+            ragflowRepo.setId(100L);
+            ragflowRepo.setCoreRepoId("ragflow-core-uuid");
+            ragflowRepo.setRagflowDatasetId("ds-real-id-001");
+            when(repoService.getById(100L)).thenReturn(ragflowRepo);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            when(knowledgeV2ServiceCallHandler.deleteDocOrChunk(any())).thenReturn(response);
+
+            knowledgeService.deleteKnowledgeDoc(deleteDocIds, null);
+
+            ArgumentCaptor<KnowledgeRequest> captor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            verify(knowledgeV2ServiceCallHandler).deleteDocOrChunk(captor.capture());
+            assertThat(captor.getValue().getDatasetId()).isEqualTo("ds-real-id-001");
+            assertThat(captor.getValue().getGroup()).isNull();
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeDoc leaves datasetId null for non-Ragflow-RAG (AIUI/CBG)")
+        void deleteKnowledgeDoc_NonRagflowRAG_doesNotSetDatasetId() {
+            JSONArray deleteDocIds = new JSONArray();
+            deleteDocIds.add("doc-aiui-001");
+
+            FileInfoV2 aiuiFile = new FileInfoV2();
+            aiuiFile.setSource("AIUI-RAG2");
+            aiuiFile.setRepoId(100L);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(aiuiFile);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            when(knowledgeV2ServiceCallHandler.deleteDocOrChunk(any())).thenReturn(response);
+
+            knowledgeService.deleteKnowledgeDoc(deleteDocIds, null);
+
+            ArgumentCaptor<KnowledgeRequest> captor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            verify(knowledgeV2ServiceCallHandler).deleteDocOrChunk(captor.capture());
+            assertThat(captor.getValue().getDatasetId()).isNull();
+            // Repo should not be loaded for non-Ragflow-RAG sources.
+            verify(repoService, never()).getById(anyLong());
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeDoc leaves datasetId null for Ragflow-RAG with legacy NULL repo")
+        void deleteKnowledgeDoc_RagflowRAG_legacyNullDatasetId_skipsDatasetId() {
+            JSONArray deleteDocIds = new JSONArray();
+            deleteDocIds.add("doc-ragflow-legacy");
+
+            FileInfoV2 ragflowFile = new FileInfoV2();
+            ragflowFile.setSource("Ragflow-RAG");
+            ragflowFile.setRepoId(100L);
+            ragflowFile.setId(1L);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(ragflowFile);
+
+            Repo legacyRepo = new Repo();
+            legacyRepo.setId(100L);
+            legacyRepo.setCoreRepoId("legacy-core-uuid");
+            legacyRepo.setRagflowDatasetId(null);
+            when(repoService.getById(100L)).thenReturn(legacyRepo);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            when(knowledgeV2ServiceCallHandler.deleteDocOrChunk(any())).thenReturn(response);
+
+            knowledgeService.deleteKnowledgeDoc(deleteDocIds, null);
+
+            ArgumentCaptor<KnowledgeRequest> captor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            verify(knowledgeV2ServiceCallHandler).deleteDocOrChunk(captor.capture());
+            assertThat(captor.getValue().getDatasetId()).isNull();
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeDoc skips invalid Ragflow-RAG metadata and continues")
+        void deleteKnowledgeDoc_RagflowRAG_invalidMetadata_skipsAndContinues() {
+            JSONArray deleteDocIds = new JSONArray();
+            deleteDocIds.add("doc-ragflow-invalid");
+            deleteDocIds.add("doc-ragflow-valid");
+
+            FileInfoV2 invalidFile = new FileInfoV2();
+            invalidFile.setSource("Ragflow-RAG");
+            invalidFile.setRepoId(404L);
+            invalidFile.setId(1L);
+            invalidFile.setUuid("doc-ragflow-invalid");
+
+            FileInfoV2 validFile = new FileInfoV2();
+            validFile.setSource("Ragflow-RAG");
+            validFile.setRepoId(100L);
+            validFile.setId(2L);
+            validFile.setUuid("doc-ragflow-valid");
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(invalidFile, validFile);
+
+            Repo ragflowRepo = new Repo();
+            ragflowRepo.setId(100L);
+            ragflowRepo.setCoreRepoId("ragflow-core-uuid");
+            ragflowRepo.setRagflowDatasetId("ds-real-id-001");
+            when(repoService.getById(anyLong())).thenAnswer(invocation -> {
+                Long repoId = invocation.getArgument(0);
+                return Long.valueOf(100L).equals(repoId) ? ragflowRepo : null;
+            });
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            when(knowledgeV2ServiceCallHandler.deleteDocOrChunk(any())).thenReturn(response);
+
+            knowledgeService.deleteKnowledgeDoc(deleteDocIds, null);
+
+            ArgumentCaptor<KnowledgeRequest> captor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            verify(knowledgeV2ServiceCallHandler).deleteDocOrChunk(captor.capture());
+            assertThat(captor.getValue().getDocId()).isEqualTo("doc-ragflow-valid");
+            assertThat(captor.getValue().getDatasetId()).isEqualTo("ds-real-id-001");
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeChunks sets datasetId on Ragflow-RAG request")
+        void deleteKnowledgeChunks_RagflowRAG_setsDatasetIdOnRequest() {
+            String docId = "doc-ragflow-001";
+            JSONArray chunkIds = new JSONArray();
+            chunkIds.add("chunk-001");
+
+            FileInfoV2 ragflowFile = new FileInfoV2();
+            ragflowFile.setSource("Ragflow-RAG");
+            ragflowFile.setRepoId(100L);
+            ragflowFile.setId(1L);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(ragflowFile);
+
+            Repo ragflowRepo = new Repo();
+            ragflowRepo.setId(100L);
+            ragflowRepo.setCoreRepoId("ragflow-core-uuid");
+            ragflowRepo.setRagflowDatasetId("ds-real-id-001");
+            when(repoService.getById(100L)).thenReturn(ragflowRepo);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            when(knowledgeV2ServiceCallHandler.deleteDocOrChunk(any())).thenReturn(response);
+
+            knowledgeService.deleteKnowledgeChunks(docId, chunkIds);
+
+            ArgumentCaptor<KnowledgeRequest> captor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            verify(knowledgeV2ServiceCallHandler).deleteDocOrChunk(captor.capture());
+            assertThat(captor.getValue().getDatasetId()).isEqualTo("ds-real-id-001");
+            assertThat(captor.getValue().getGroup()).isNull();
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeChunks leaves datasetId null for non-Ragflow-RAG (AIUI/CBG)")
+        void deleteKnowledgeChunks_NonRagflowRAG_doesNotSetDatasetId() {
+            String docId = "doc-aiui-001";
+            JSONArray chunkIds = new JSONArray();
+            chunkIds.add("chunk-001");
+
+            FileInfoV2 aiuiFile = new FileInfoV2();
+            aiuiFile.setSource("AIUI-RAG2");
+            aiuiFile.setRepoId(100L);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(aiuiFile);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            when(knowledgeV2ServiceCallHandler.deleteDocOrChunk(any())).thenReturn(response);
+
+            knowledgeService.deleteKnowledgeChunks(docId, chunkIds);
+
+            ArgumentCaptor<KnowledgeRequest> captor = ArgumentCaptor.forClass(KnowledgeRequest.class);
+            verify(knowledgeV2ServiceCallHandler).deleteDocOrChunk(captor.capture());
+            assertThat(captor.getValue().getDatasetId()).isNull();
+            verify(repoService, never()).getById(anyLong());
+        }
+
+        @Test
+        @DisplayName("deleteKnowledgeChunks skips invalid Ragflow-RAG metadata")
+        void deleteKnowledgeChunks_RagflowRAG_invalidMetadata_skipsDelete() {
+            String docId = "doc-ragflow-invalid";
+            JSONArray chunkIds = new JSONArray();
+            chunkIds.add("chunk-001");
+
+            FileInfoV2 invalidFile = new FileInfoV2();
+            invalidFile.setSource("Ragflow-RAG");
+            invalidFile.setRepoId(404L);
+            invalidFile.setId(1L);
+            invalidFile.setUuid(docId);
+            when(fileInfoV2Service.getOnly(any(QueryWrapper.class))).thenReturn(invalidFile);
+
+            knowledgeService.deleteKnowledgeChunks(docId, chunkIds);
+
+            verify(knowledgeV2ServiceCallHandler, never()).deleteDocOrChunk(any());
         }
     }
 }

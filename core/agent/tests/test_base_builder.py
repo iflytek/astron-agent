@@ -119,6 +119,31 @@ class TestBaseApiBuilder:
             assert len(plugins) > 0
 
     @pytest.mark.asyncio
+    async def test_build_plugins_with_skills(self, builder: BaseApiBuilder) -> None:
+        """Test building plugins (skills)"""
+        plugins = await builder.build_plugins(
+            [],
+            [],
+            [],
+            [],
+            skills=[
+                {
+                    "skill_id": "skill-1",
+                    "name": "ui-ux-pro-max",
+                    "description": "Design reference skill",
+                    "download_url": "https://example.com/skill.md",
+                }
+            ],
+        )
+
+        assert len(plugins) == 2
+        assert [plugin.typ for plugin in plugins] == ["skill", "skill"]
+        assert [plugin.name for plugin in plugins] == [
+            "read_skill_skill-1",
+            "run_skill_skill-1",
+        ]
+
+    @pytest.mark.asyncio
     async def test_build_plugins_filters_empty_mcp_urls(
         self, builder: BaseApiBuilder
     ) -> None:

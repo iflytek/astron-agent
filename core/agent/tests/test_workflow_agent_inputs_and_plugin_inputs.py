@@ -32,6 +32,7 @@ class TestWorkflowAgentInputsModels:
         m = CustomCompletionPluginKnowledgeMatchInputs()
         assert m.repo_ids == []
         assert m.doc_ids == []
+        assert m.dataset_ids == []
 
     def test_plugin_knowledge_inputs_constraints(self) -> None:
         k = CustomCompletionPluginKnowledgeInputs(

@@ -25,6 +25,7 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.*;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -54,7 +55,8 @@ class ModelServiceTest {
 
     @Mock
     private ModelMapper mapper;
-    @Mock
+    @Spy
+    @InjectMocks
     private LLMService llmService;
     @Mock
     private ConfigInfoMapper configInfoMapper;
@@ -87,6 +89,7 @@ class ModelServiceTest {
         MockHttpServletRequest mockReq = new MockHttpServletRequest();
         mockReq.addHeader("space-id", 1);
         RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(mockReq));
+        ReflectionTestUtils.setField(modelService, "llmService", llmService);
     }
 
     /**

@@ -12,7 +12,7 @@ from pathlib import Path
 
 def run_command(command: str, description: str) -> bool:
     """Run command and return result."""
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"Running: {description}")
     print(f"Command: {command}")
     print("=" * 50)
@@ -66,9 +66,9 @@ def main() -> int:
         else:
             failed += 1
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("🎯 Test Summary")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     print(f"✅ Passed: {passed}")
     print(f"❌ Failed: {failed}")
     print(f"📊 Total: {passed + failed}")

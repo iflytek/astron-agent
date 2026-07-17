@@ -1,6 +1,6 @@
 """
 Database operator API endpoints
-for creating, cloning, dropping and modifying databases.
+for creating, dropping and modifying databases.
 """
 
 import sqlalchemy
@@ -9,7 +9,7 @@ from common.otlp.trace.span import Span
 from common.service import get_otlp_metric_service, get_otlp_span_service
 from common.utils.snowfake import get_id
 from fastapi import APIRouter, Depends
-from memory.database.api.schemas.clone_db_types import CloneDBInput
+from loguru import logger
 from memory.database.api.schemas.create_db_types import CreateDBInput
 from memory.database.api.schemas.drop_db_types import DropDBInput
 from memory.database.api.schemas.modify_db_desc_types import ModifyDBDescInput
@@ -21,22 +21,17 @@ from memory.database.domain.entity.database_meta import (
     get_uid_by_space_id,
     update_database_meta_by_did_uid,
 )
-from memory.database.domain.entity.schema_meta import (
-    del_schema_meta_by_did,
-    get_schema_name_by_did,
-)
+from memory.database.domain.entity.schema_meta import del_schema_meta_by_did
 from memory.database.domain.entity.views.http_resp import format_response
 from memory.database.domain.models.database_meta import DatabaseMeta
 from memory.database.domain.models.schema_meta import SchemaMeta
 from memory.database.exceptions.error_code import CodeEnum
+from memory.database.repository.middleware.adapters import get_adapter
 from memory.database.repository.middleware.getters import get_session
 from pydantic import BaseModel
-from sqlalchemy import text
-from sqlalchemy.sql import quoted_name
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.responses import JSONResponse
 
-clone_db_router = APIRouter(tags=["CLONE_DB"])
 create_db_router = APIRouter(tags=["CREATE_DB"])
 drop_db_router = APIRouter(tags=["DROP_DB"])
 modify_db_description_router = APIRouter(tags=["MODIFY_DB_DESC"])
@@ -44,176 +39,24 @@ modify_db_description_router = APIRouter(tags=["MODIFY_DB_DESC"])
 
 def safe_create_schema_sql(schema_name: str) -> sqlalchemy.sql.elements.TextClause:
     """
-    Safely create CREATE SCHEMA SQL using SQLAlchemy's quoted_name.
+    Safely create CREATE SCHEMA/DATABASE SQL using the configured adapter.
 
     :param schema_name: Schema name to create
     :return: SQLAlchemy text construct with properly quoted identifier
     """
-    # Use SQLAlchemy's quoted_name to properly escape identifiers
-    safe_name = quoted_name(schema_name, quote=True)
-    return text(f'CREATE SCHEMA IF NOT EXISTS "{safe_name}"')
+    adapter = get_adapter()
+    return adapter.safe_create_schema_sql(schema_name)
 
 
 def safe_drop_schema_sql(schema_name: str) -> sqlalchemy.sql.elements.TextClause:
     """
-    Safely create DROP SCHEMA SQL using SQLAlchemy's quoted_name.
+    Safely create DROP SCHEMA/DATABASE SQL using the configured adapter.
 
     :param schema_name: Schema name to drop
     :return: SQLAlchemy text construct with properly quoted identifier
     """
-    # Use SQLAlchemy's quoted_name to properly escape identifiers
-    safe_name = quoted_name(schema_name, quote=True)
-    return text(f'DROP SCHEMA IF EXISTS "{safe_name}" CASCADE')
-
-
-def generate_copy_table_structures_sql(source_schema: str, target_schema: str) -> str:
-    """Generate SQL for copying table structures from source to target schema."""
-    copy_table_structures_sql = f"""
-        DO $$
-        DECLARE
-            tbl RECORD;
-        BEGIN
-            FOR tbl IN
-                SELECT tablename
-                FROM pg_tables
-                WHERE schemaname = '{source_schema}'
-            LOOP
-                EXECUTE format(
-                    'CREATE TABLE {target_schema}.%I
-                    (LIKE {source_schema}.%I INCLUDING ALL)',
-                    tbl.tablename, tbl.tablename
-                );
-            END LOOP;
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-    return copy_table_structures_sql
-
-
-def generate_copy_data_sql(source_schema: str, target_schema: str) -> str:
-    """Generate SQL for copying data from source to target schema."""
-    copy_data_sql = f"""
-        DO $$
-        DECLARE
-            tbl RECORD;
-        BEGIN
-            FOR tbl IN
-                SELECT tablename
-                FROM pg_tables
-                WHERE schemaname = '{source_schema}'
-            LOOP
-                EXECUTE format(
-                    'INSERT INTO {target_schema}.%I SELECT * FROM {source_schema}.%I',
-                    tbl.tablename, tbl.tablename
-                );
-            END LOOP;
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-    return copy_data_sql
-
-
-@clone_db_router.post("/clone_database", response_class=JSONResponse)
-async def clone_db(
-    clone_input: CloneDBInput, db: AsyncSession = Depends(get_session)
-) -> JSONResponse:
-    """Clone an existing database with all its schemas and data."""
-    database_id = clone_input.database_id
-    uid = clone_input.uid
-    new_database_name = clone_input.new_database_name
-    metric_service = get_otlp_metric_service()
-    m = metric_service.get_meter()(func="clone_database")
-    span_service = get_otlp_span_service()
-    span = span_service.get_span()(uid=uid)
-    with span.start(
-        func_name="clone_db",
-        add_source_function_name=True,
-        attributes={"database_id": database_id, "uid": uid},
-    ) as span_context:
-        need_check = {
-            "database_id": database_id,
-            "uid": uid,
-            "new_database_name": new_database_name,
-        }
-        span_context.add_info_events(need_check)
-        span_context.add_info_event(f"database_id: {database_id}")
-        span_context.add_info_event(f"uid: {uid}")
-
-        # Validate database
-        _, error_resp = await check_database_exists_by_did_uid(
-            db, database_id, uid, span_context
-        )
-        if error_resp:
-            return error_resp  # type: ignore[no-any-return]
-
-        try:
-            old_database_meta = await db.execute(  # type: ignore[call-overload]
-                text(
-                    """
-                    SELECT uid, name, description FROM database_meta
-                    WHERE id=:database_id
-                    """
-                ),
-                {"database_id": database_id},
-            )
-            old_database_meta = old_database_meta.first()  # type: ignore[assignment]
-            old_prod_test_schema_meta = await get_schema_name_by_did(db, database_id)
-            uid, old_name, old_description = old_database_meta
-            span_context.add_info_events({"old_database_uid": uid})
-            span_context.add_info_events({"old_database_name": old_name})
-            span_context.add_info_events({"old_database_description": old_description})
-            create_db_input = CreateDBInput(
-                uid=uid, database_name=new_database_name, description=old_description
-            )
-            new_database_info = await exec_generate_schema(create_db_input, span, db)
-            # Use SQLAlchemy quoted_name to safely escape schema identifiers
-            prod_sql = safe_create_schema_sql(new_database_info.prod_schema)
-            test_sql = safe_create_schema_sql(new_database_info.test_schema)
-            await db.exec(prod_sql)  # type: ignore[call-overload]
-            await db.exec(test_sql)  # type: ignore[call-overload]
-            for schema in old_prod_test_schema_meta:
-                if "prod" in schema[0]:
-                    target_schema = new_database_info.prod_schema
-                else:
-                    target_schema = new_database_info.test_schema
-                copy_table_structures_sql = generate_copy_table_structures_sql(
-                    source_schema=schema[0], target_schema=target_schema
-                )
-                copy_data_sql = generate_copy_data_sql(
-                    source_schema=schema[0], target_schema=target_schema
-                )
-                await db.execute(text(copy_table_structures_sql))  # type: ignore[call-overload]
-                await db.execute(text(copy_data_sql))  # type: ignore[call-overload]
-            await db.commit()
-            m.in_success_count(lables={"uid": uid})
-            return format_response(  # type: ignore[no-any-return]
-                CodeEnum.Successes.code,
-                message=CodeEnum.Successes.msg,
-                data={"database_id": new_database_info.database_id},
-                sid=span_context.sid,
-            )
-        except sqlalchemy.exc.IntegrityError as e:
-            await db.rollback()
-            span_context.record_exception(e)
-            m.in_error_count(
-                CodeEnum.DatabaseExecutionError.code,
-                lables={"uid": uid},
-                span=span_context,
-            )
-            return format_response(  # type: ignore[no-any-return]
-                CodeEnum.DatabaseExecutionError.code,
-                message=f"Database consistency error, {e}",
-                sid=span_context.sid,
-            )
-        except Exception as e:  # pylint: disable=broad-except
-            await db.rollback()
-            m.in_error_count(
-                CodeEnum.HttpError.code, lables={"uid": uid}, span=span_context
-            )
-            span_context.record_exception(e)
-            return format_response(  # type: ignore[no-any-return]
-                CodeEnum.HttpError.code, message=str(e), sid=span_context.sid
-            )
+    adapter = get_adapter()
+    return adapter.safe_drop_schema_sql(schema_name)
 
 
 class DatabaseInfo(BaseModel):
@@ -240,9 +83,11 @@ async def exec_generate_schema(
         prod_schema = f"prod_{uid}_{database_id}"
         dev_schema = f"test_{uid}_{database_id}"
         span_context.add_info_event(f"prod_schema: {prod_schema}")
+        logger.info(f"prod_schema: {prod_schema}")
         span_context.add_info_event(f"dev_schema: {dev_schema}")
+        logger.info(f"dev_schema: {dev_schema}")
 
-        # Use SQLAlchemy quoted_name to safely escape schema identifiers
+        # Create schema/database for prod and dev environments
         prod_sql = safe_create_schema_sql(prod_schema)
         dev_sql = safe_create_schema_sql(dev_schema)
         await db.exec(prod_sql)  # type: ignore[call-overload]
@@ -298,7 +143,9 @@ async def create_db(
         }
         span_context.add_info_events(need_check)
         span_context.add_info_event(f"database_name: {database_name}")
+        logger.info(f"database_name: {database_name}")
         span_context.add_info_event(f"uid: {uid}")
+        logger.info(f"uid: {uid}")
 
         try:
             database_info = await exec_generate_schema(create_input, span_context, db)
@@ -356,10 +203,13 @@ async def drop_db(
         need_check = {"database_id": database_id, "uid": uid, "space_id": space_id}
         span_context.add_info_events(need_check)
         span_context.add_info_event(f"database_id: {database_id}")
+        logger.info(f"database_id: {database_id}")
         span_context.add_info_event(f"uid: {uid}")
+        logger.info(f"uid: {uid}")
 
         if space_id:
             span_context.add_info_event(f"space_id: {space_id}")
+            logger.info(f"space_id: {space_id}")
             create_uid_res = await get_uid_by_did_space_id(db, database_id, space_id)
             if not create_uid_res:
                 m.in_error_count(
@@ -368,6 +218,7 @@ async def drop_db(
                     span=span_context,
                 )
                 span_context.add_error_event(f"space_id: {space_id} does not exist")
+                logger.error(f"space_id: {space_id} does not exist")
                 return format_response(  # type: ignore[no-any-return]
                     code=CodeEnum.SpaceIDNotExistError.code,
                     message=f"Team space space_id: {space_id} does not exist",
@@ -399,7 +250,7 @@ async def drop_db(
             )
 
         try:
-            # Use SQLAlchemy quoted_name to safely escape schema identifiers
+            # Drop all schemas/databases associated with the database
             for schema in schema_list:
                 drop_sql = safe_drop_schema_sql(schema[0])
                 await db.exec(drop_sql)  # type: ignore[call-overload]
@@ -451,11 +302,14 @@ async def modify_db_description(
         }
         span_context.add_info_events(need_check)
         span_context.add_info_event(f"database_id: {database_id}")
+        logger.info(f"database_id: {database_id}")
         span_context.add_info_event(f"uid: {uid}")
+        logger.info(f"uid: {uid}")
 
         try:
             if space_id:
                 span_context.add_info_event(f"space_id: {space_id}")
+                logger.info(f"space_id: {space_id}")
                 create_uid_res = await get_uid_by_did_space_id(
                     db, database_id, space_id
                 )
@@ -466,6 +320,7 @@ async def modify_db_description(
                         span=span_context,
                     )
                     span_context.add_error_event(f"space_id: {space_id} does not exist")
+                    logger.error(f"space_id: {space_id} does not exist")
                     return format_response(  # type: ignore[no-any-return]
                         code=CodeEnum.SpaceIDNotExistError.code,
                         message=f"Team space space_id: {space_id} does not exist",
@@ -485,6 +340,7 @@ async def modify_db_description(
                 span_context.add_error_event(
                     f"User: {uid} does not have database: {database_id}"
                 )
+                logger.error(f"User: {uid} does not have database: {database_id}")
                 return format_response(  # type: ignore[no-any-return]
                     code=CodeEnum.DatabaseNotExistError.code,
                     message=f"uid: {uid} or database_id: {database_id} error, "

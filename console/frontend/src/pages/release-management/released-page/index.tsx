@@ -24,6 +24,10 @@ export default function Index() {
     location.pathname === '/management/release/virtual' ||
     location.pathname === '/management/release/virtual/';
 
+  const isApprovalPage =
+    location.pathname === '/management/release/approval' ||
+    location.pathname === '/management/release/approval/';
+
   const isAPIPage =
     location.pathname === '/management/release/apikey' ||
     location.pathname === '/management/release/apikey/';
@@ -36,13 +40,14 @@ export default function Index() {
 
   useEffect(() => {
     if (isAgentListPage) setActiveKey('1');
+    else if (isApprovalPage) setActiveKey('3');
     else if (isAPIPage) setActiveKey('2');
   }, [location.pathname]);
   return (
     <div className={styles.releasePage}>
       <div className={styles.releasePageTop}>
         <div className={styles.content}>
-          {isAgentListPage && (
+          {(isAgentListPage || isApprovalPage) && (
             <>
               <div className={styles.title}>
                 <div className={styles.aff}>
@@ -100,6 +105,16 @@ export default function Index() {
                   }}
                 >
                   {t('releaseManagement.virtual')}
+                </div>
+                <div
+                  className={`${styles.changeBox} ${
+                    isApprovalPage && styles.activeBox
+                  }`}
+                  onClick={(): void => {
+                    navigate('/management/release/approval');
+                  }}
+                >
+                  {t('releaseManagement.publishApproval')}
                 </div>
               </div>
             </>

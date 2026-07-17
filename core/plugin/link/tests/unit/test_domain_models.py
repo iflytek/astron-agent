@@ -26,11 +26,16 @@ from sqlalchemy.exc import NoSuchTableError, OperationalError
 class TestManager:
     """Test class for manager module functions"""
 
+    @patch("plugin.link.domain.models.manager.create_engine")
     @patch("plugin.link.domain.models.manager.os.getenv")
     @patch("plugin.link.domain.models.manager.DatabaseService")
     @patch("plugin.link.domain.models.manager.RedisService")
     def test_init_data_base_with_cluster_addr(
-        self, mock_redis_service: Any, mock_db_service: Any, mock_getenv: Any
+        self,
+        mock_redis_service: Any,
+        mock_db_service: Any,
+        mock_getenv: Any,
+        mock_create_engine: Any,
     ) -> None:
         """Test init_data_base with Redis cluster address"""
         # Mock environment variables
@@ -56,18 +61,22 @@ class TestManager:
             "mysql+pymysql://test_user:test_pass@localhost:3306/test_db?charset=utf8mb4"
         )
         mock_db_service.assert_called_once_with(database_url=expected_db_url)
-        mock_db_instance.create_db_and_tables.assert_called_once()
 
         # Verify Redis service initialization with cluster address
         mock_redis_service.assert_called_once_with(
             cluster_addr="host1:7001,host2:7001", password="redis_pass"
         )
 
+    @patch("plugin.link.domain.models.manager.create_engine")
     @patch("plugin.link.domain.models.manager.os.getenv")
     @patch("plugin.link.domain.models.manager.DatabaseService")
     @patch("plugin.link.domain.models.manager.RedisService")
     def test_init_data_base_fallback_to_single_redis(
-        self, mock_redis_service: Any, mock_db_service: Any, mock_getenv: Any
+        self,
+        mock_redis_service: Any,
+        mock_db_service: Any,
+        mock_getenv: Any,
+        mock_create_engine: Any,
     ) -> None:
         """Test init_data_base falls back to single Redis address when cluster not available"""
         # Mock environment variables without cluster address
@@ -507,7 +516,7 @@ class TestRedisService:
                 )
 
                 mock_redis.assert_called_with(
-                    host="localhost", port="6379", password="password"
+                    host="localhost", port=6379, password="password"
                 )
                 assert redis_service._client == mock_client
 

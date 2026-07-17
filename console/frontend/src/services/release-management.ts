@@ -78,6 +78,23 @@ export interface PublishRequest {
   publishData: PublishData;
 }
 
+export interface PublishApprovalDecision {
+  approvalRequired?: boolean;
+  approvalId?: number;
+  status?: string;
+}
+
+export const isPublishApprovalDecision = (
+  result: unknown
+): result is PublishApprovalDecision => {
+  return Boolean(
+    result &&
+      typeof result === 'object' &&
+      'approvalRequired' in result &&
+      (result as PublishApprovalDecision).approvalRequired
+  );
+};
+
 /** ## Release agents to different platform
  * @param botId Agent ID -- url use
  * @param params 发布请求参数
@@ -86,8 +103,90 @@ export interface PublishRequest {
 export const handleAgentStatus = async (
   botId: number,
   params: PublishRequest
-): Promise<void> => {
+): Promise<unknown> => {
   return await http.post(`/publish/bots/${botId}`, params);
+};
+
+export interface PublishApproval {
+  id: number;
+  spaceId: number;
+  resourceType: string;
+  resourceId: string;
+  resourceName?: string;
+  publishType: string;
+  publishAction: string;
+  targetId?: string;
+  approvalStatus: string;
+  requesterUid: string;
+  reviewerUid?: string;
+  appOwnerUid?: string;
+  requestReason?: string;
+  reviewComment?: string;
+  publishSnapshot?: string;
+  executionResult?: string;
+  canReview?: boolean;
+  canCancel?: boolean;
+  createdTime?: string;
+  reviewedTime?: string;
+  executedTime?: string;
+  updatedTime?: string;
+}
+
+export interface PublishApprovalQuery {
+  page?: number;
+  size?: number;
+  approvalStatus?: string;
+  resourceType?: string;
+  publishType?: string;
+  publishAction?: string;
+  resourceId?: string;
+  requesterUid?: string;
+}
+
+export interface PageResponse<T> {
+  page: number;
+  size: number;
+  total: number;
+  totalPages: number;
+  records: T[];
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export const getPublishApprovals = async (
+  params: PublishApprovalQuery
+): Promise<PageResponse<PublishApproval>> => {
+  return await http.get('/publish/approvals', { params });
+};
+
+export const getPublishApprovalDetail = async (
+  approvalId: number
+): Promise<PublishApproval> => {
+  return await http.get(`/publish/approvals/${approvalId}`);
+};
+
+export const approvePublishApproval = async (
+  approvalId: number,
+  reviewComment?: string
+): Promise<PublishApprovalDecision> => {
+  return await http.post(`/publish/approvals/${approvalId}/approve`, {
+    reviewComment,
+  });
+};
+
+export const rejectPublishApproval = async (
+  approvalId: number,
+  reviewComment?: string
+): Promise<PublishApprovalDecision> => {
+  return await http.post(`/publish/approvals/${approvalId}/reject`, {
+    reviewComment,
+  });
+};
+
+export const cancelPublishApproval = async (
+  approvalId: number
+): Promise<PublishApprovalDecision> => {
+  return await http.post(`/publish/approvals/${approvalId}/cancel`);
 };
 
 /** ## Agent input parameter type */

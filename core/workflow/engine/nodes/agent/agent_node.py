@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 
 import aiohttp
 from aiohttp import ClientResponse, ClientTimeout
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from workflow.consts.engine.chat_status import ChatStatus
 from workflow.consts.engine.model_provider import ModelProviderEnum
@@ -13,7 +13,7 @@ from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.entities.history import EnableChatHistoryV2
 from workflow.engine.entities.msg_or_end_dep_info import MsgOrEndDepInfo
 from workflow.engine.entities.private_config import PrivateConfig
-from workflow.engine.entities.variable_pool import VariablePool
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.base_node import BaseNode
 from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
@@ -65,6 +65,7 @@ class Match(BaseModel):
 
     repoIds: List[str] = Field(min_length=1)
     docIds: List[str] | None = Field(default=None, min_length=1)
+    datasetIds: List[str] | None = Field(default=None, min_length=1)
 
 
 class Knowledge(BaseModel):
@@ -93,6 +94,43 @@ class Knowledge(BaseModel):
         return self
 
 
+class Skill(BaseModel):
+    """Skill metadata passed to agent runtime.
+
+    :param skillId: Skill file identifier
+    :param name: Skill display name
+    :param description: Short summary injected into system prompt
+    :param downloadUrl: Presigned URL for lazily reading full SKILL.md content
+    :param resources: Relative-path resource manifest for referenced files
+    """
+
+    class Resource(BaseModel):
+        path: str = Field(min_length=1)
+        name: str = Field(default="")
+        downloadUrl: str = Field(default="")
+        fileExt: str = Field(default="")
+        fileSize: int = Field(default=0)
+
+    skillId: str = Field(..., min_length=1)
+    name: str = Field(min_length=1, max_length=128)
+    description: str = Field(min_length=0, max_length=1024)
+    downloadUrl: str = Field(default="")
+    resources: List[Resource] = Field(default_factory=list)
+    sandbox: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("skillId", mode="before")
+    @classmethod
+    def normalize_skill_id(cls, value: Any) -> str:
+        if value is None:
+            raise ValueError("skillId is required")
+        return str(value)
+
+    @field_validator("description", "downloadUrl", mode="before")
+    @classmethod
+    def normalize_optional_string_fields(cls, value: Any) -> str:
+        return "" if value is None else str(value)
+
+
 class AgentNodePlugin(BaseModel):
     """Plugin configuration for agent node.
 
@@ -108,6 +146,7 @@ class AgentNodePlugin(BaseModel):
     tools: list = Field(...)
     workflowIds: List[str] = Field(...)
     knowledge: List[Knowledge] = Field(default_factory=list)
+    skills: List[Skill] = Field(default_factory=list)
 
 
 class AgentNodeMessage:
@@ -146,6 +185,9 @@ class AgentMetaData(BaseModel):
 
     caller: str = Field(default="workflow-agent-node")
     callerSid: str = Field(default="")
+    workflowId: str = Field(default="")
+    runId: str = Field(default="")
+    nodeId: str = Field(default="")
 
 
 class AgentNode(BaseNode):
@@ -208,6 +250,9 @@ class AgentNode(BaseNode):
         reasoning_instruction, answer_instruction, query_instruction = (
             self._prepare_instructions(variable_pool, span)
         )
+        reasoning_instruction, answer_instruction = self._append_skill_context(
+            reasoning_instruction, answer_instruction
+        )
 
         messages = await self._deal_history(inputs, variable_pool, span)
         messages.append(AgentNodeMessage("user", query_instruction).to_dict())
@@ -222,7 +267,7 @@ class AgentNode(BaseNode):
         }
 
         req_body = self._generate_agent_request(
-            reasoning_instruction, answer_instruction, messages, span
+            reasoning_instruction, answer_instruction, messages, variable_pool, span
         )
         await span.add_info_event_async(f"req header: {headers}")
         await span.add_info_event_async(f"req body: {req_body}")
@@ -312,6 +357,24 @@ class AgentNode(BaseNode):
             query_instruction,
         )
 
+    def _append_skill_context(
+        self, reasoning_instruction: str, answer_instruction: str
+    ) -> Tuple[str, str]:
+        if not self.plugin.skills:
+            return reasoning_instruction, answer_instruction
+
+        skill_lines = [
+            f"- {skill.name}: {skill.description}".rstrip(": ").rstrip()
+            for skill in self.plugin.skills
+        ]
+        skill_context = (
+            "\n\nAvailable Skills:\n"
+            + "\n".join(skill_lines)
+            + "\nIf detailed procedures are required, call the corresponding skill tool to read SKILL.md and the resource manifest."
+            + "\nWhen SKILL.md references a relative file path like references/beijing.md, call the same tool again with that path."
+        )
+        return reasoning_instruction + skill_context, answer_instruction + skill_context
+
     async def _process_stream_response(
         self,
         response: ClientResponse,
@@ -384,6 +447,7 @@ class AgentNode(BaseNode):
         reasoning_instruction: str,
         answer_instruction: str,
         messages: List[Dict],
+        variable_pool: VariablePool,
         span: Span,
     ) -> dict:
         """Generate request body for agent service call.
@@ -416,12 +480,18 @@ class AgentNode(BaseNode):
                 "knowledge": keys_to_snake_case(
                     [k.dict() for k in self.plugin.knowledge]
                 ),
+                "skills": keys_to_snake_case([s.dict() for s in self.plugin.skills]),
             },
             "uid": span.uid,
             "messages": messages,
             "meta_data": {
                 "caller": self.metaData.caller,
                 "caller_sid": self.metaData.callerSid,
+                "workflow_id": variable_pool.system_params.get(
+                    ParamKey.FlowId, default=""
+                ),
+                "run_id": self.metaData.callerSid,
+                "node_id": self.node_id,
             },
             "stream": True,
             "max_loop_count": self.maxLoopCount,
@@ -532,14 +602,12 @@ class AgentNode(BaseNode):
                 )
                 inputs.update({input_key: input_value})
 
-            (content_list, reasoning_content_list, token_usage) = (
-                await self._call_agent(
-                    inputs,
-                    variable_pool,
-                    msg_or_end_node_deps,
-                    span,
-                    event_log_node_trace=event_log_node_trace,
-                )
+            content_list, reasoning_content_list, token_usage = await self._call_agent(
+                inputs,
+                variable_pool,
+                msg_or_end_node_deps,
+                span,
+                event_log_node_trace=event_log_node_trace,
             )
 
             outputs = {}

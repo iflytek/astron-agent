@@ -114,7 +114,12 @@ class RedisCache(BaseCacheService, Service):
         Returns:
             True if the key was set, False if the key already exists
         """
-        result = self._client.set(key, value, ex=expire_time if expire_time != 0 else self.expiration_time, nx=True)
+        result = self._client.set(
+            key,
+            value,
+            ex=expire_time if expire_time != 0 else self.expiration_time,
+            nx=True,
+        )
 
         return bool(result)
 

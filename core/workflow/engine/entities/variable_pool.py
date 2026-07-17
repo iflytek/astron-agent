@@ -291,10 +291,20 @@ class VariablePool:
         new_vp.input_variable_mapping = copy.deepcopy(src.input_variable_mapping)
         new_vp.output_variable_mapping = copy.deepcopy(src.output_variable_mapping)
         new_vp.history_mapping = copy.deepcopy(src.history_mapping)
-        new_vp.stream_data = src.stream_data
+
+        # Deep copy stream_data to prevent queue sharing in parallel iterations
+        # Each iteration needs its own set of queues to avoid data mixing
+        new_vp.stream_data = {}
+        for node_id, queues_dict in src.stream_data.items():
+            new_vp.stream_data[node_id] = {
+                key: asyncio.Queue() for key in queues_dict.keys()
+            }
+
         new_vp.chat_id = src.chat_id
         new_vp.history_v2 = copy.deepcopy(src.history_v2)
-        new_vp.system_params = src.system_params
+
+        # Deep copy system_params to prevent shared state in parallel iterations
+        new_vp.system_params = copy.deepcopy(src.system_params)
 
         return new_vp
 
@@ -418,7 +428,7 @@ class VariablePool:
         :param history_lists: List of HistoryItem objects to initialize history
         """
         self.history_v2 = History()
-        self.history_v2.init_history(history=history_lists)
+        self.history_v2.init_history(history=copy.deepcopy(history_lists))
 
     def get_history(self, node_id: str) -> list[SparkAiMessage]:
         """

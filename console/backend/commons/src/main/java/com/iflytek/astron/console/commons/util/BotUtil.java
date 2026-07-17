@@ -8,6 +8,7 @@ import com.iflytek.astron.console.commons.entity.bot.ChatBotBase;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.service.bot.BotService;
 import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
+import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -22,6 +23,9 @@ public class BotUtil {
 
     @Autowired
     private BotService botService;
+
+    @Autowired
+    private ChatListDataService chatListDataService;
 
     public static final String BOT_INPUT_EXAMPLE_SPLIT = "%%split%%";
 
@@ -49,6 +53,7 @@ public class BotUtil {
         botBase.setBotName(workflow.getName());
         botBase.setAvatar(workflow.getAvatarIcon());
         botBase.setBotDesc(workflow.getDescription());
+        botBase.setBotType(workflow.getCategory());
         botBase.setPromptType(0);
         botBase.setSupportContext(0);
         botBase.setSpaceId(spaceId);
@@ -59,6 +64,7 @@ public class BotUtil {
         botBase.setVersion(3);
         botBase.setBotwebStatus(1);
         chatBotDataService.createBot(botBase);
+        chatListDataService.insertChatBotList(botBase);
 
         String flowId = workflow.getFlowId();
         JSONObject maas = new JSONObject();

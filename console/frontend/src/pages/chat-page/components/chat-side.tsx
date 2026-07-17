@@ -3,7 +3,6 @@ import { Tooltip } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { BotInfoType } from '@/types/chat';
 import codeIcon from '@/assets/imgs/chat/plugin/code.svg';
-import netIcon from '@/assets/imgs/chat/plugin/network.svg';
 import genPicIcon from '@/assets/imgs/chat/plugin/gen-pic.svg';
 import sparkIcon from '@/assets/imgs/chat/plugin/spark-logo.png';
 
@@ -29,7 +28,7 @@ type ModelConfig =
   | 'flow';
 
 // 工具类型
-type ToolType = 'ifly_search' | 'text_to_image' | 'codeinterpreter';
+type ToolType = 'text_to_image' | 'codeinterpreter';
 
 // 模型信息接口
 interface ModelInfo {
@@ -369,22 +368,8 @@ const ChatSide: React.FC<ChatSideProps> = ({ botInfo }) => {
             </>
           ) : (
             /* 兼容旧版工具配置 */
-            toolList.map((tool: ToolType, index: number) => (
+            toolList.map((tool: string, index: number) => (
               <div key={`${tool}-${index}`}>
-                {tool === 'ifly_search' && (
-                  <Tooltip
-                    title={t('chatPage.chatSide.webSearch')}
-                    placement="top"
-                    overlayClassName="black-tooltip"
-                  >
-                    <img
-                      src={netIcon}
-                      alt="网络搜索"
-                      className="w-5 h-5 mr-2"
-                    />
-                  </Tooltip>
-                )}
-
                 {tool === 'text_to_image' && (
                   <Tooltip
                     title={t('chatPage.chatSide.aiImage')}

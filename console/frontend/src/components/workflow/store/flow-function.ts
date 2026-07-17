@@ -264,7 +264,7 @@ const copyNode = (
     y: copyNode.position.y + 50,
   };
   copyNode.selected = true;
-  if (currentNode?.nodeType === 'iteration') {
+  if (['iteration', 'loop'].includes(currentNode?.nodeType)) {
     const idsMap = {};
     const childNodes = get()?.nodes?.filter(
       node => node?.data?.parentId === currentNode?.id
@@ -285,11 +285,20 @@ const copyNode = (
       }),
       idsMap
     );
+    const startNodeType =
+      currentNode?.nodeType === 'loop'
+        ? 'loop-node-start'
+        : 'iteration-node-start';
     const iterationNodeStartKey = Object.keys(idsMap)?.find(item =>
-      item?.startsWith('iteration-node-start')
+      item?.startsWith(startNodeType)
     );
-    copyNode.data.nodeParam.IterationStartNodeId =
-      idsMap[iterationNodeStartKey as string];
+    if (currentNode?.nodeType === 'loop') {
+      copyNode.data.nodeParam.LoopStartNodeId =
+        idsMap[iterationNodeStartKey as string];
+    } else {
+      copyNode.data.nodeParam.IterationStartNodeId =
+        idsMap[iterationNodeStartKey as string];
+    }
     get().setNodes(old => {
       return cloneDeep([
         ...old.map(item => ({ ...item, selected: false })),
@@ -356,7 +365,7 @@ const deleteNode = (
     }
   });
   get().setNodes(
-    currentNode?.nodeType !== 'iteration'
+    !['iteration', 'loop'].includes(currentNode?.nodeType)
       ? get().nodes.filter(node =>
           typeof nodeId === 'string'
             ? node.id !== nodeId
@@ -503,7 +512,8 @@ const paste = async (
       });
     }, 500);
   } catch (error) {
-    message.error('[Clipboard] 复制失败', error);
+    console.error('[Clipboard] 复制失败', error);
+    message.error('[Clipboard] 复制失败');
     return;
   }
 };
@@ -527,6 +537,9 @@ const updateNodeRef = (id: string, get): void => {
       if (item?.nodeType === 'iteration') {
         updateIterationOutputs(item, old);
       }
+      if (item?.nodeType === 'loop') {
+        updateLoopOutputs(item, old);
+      }
     });
 
     return cloneDeep(old);
@@ -543,18 +556,40 @@ function processInputReference(item, input, references): void {
     ref => ref.value === input.schema.value.content.nodeId
   );
 
-  const reference = findItemById(
-    node ? node?.children[0]?.references : [],
-    input.schema.value.content.id
-  );
+  const nodeReferences = node?.children?.[0]?.references || [];
+  const reference =
+    findItemById(nodeReferences, input.schema.value.content.id) ||
+    findReferenceByValue(nodeReferences, input.schema.value.content.name);
 
   if (shouldResetIteration(item, input, reference)) {
     resetContent(input);
   } else if (node && reference) {
-    applyReference(item, input, reference);
+    applyReference(item, input, reference, node.value);
   } else if (typeof input.schema.value.content === 'object') {
     resetContent(input);
   }
+}
+
+function findReferenceByValue(references, value) {
+  if (!value) {
+    return null;
+  }
+
+  for (const reference of references) {
+    if (reference?.value === value) {
+      return reference;
+    }
+
+    const childReference = findReferenceByValue(
+      reference?.children || [],
+      value
+    );
+    if (childReference) {
+      return childReference;
+    }
+  }
+
+  return null;
 }
 // Should Reset Iteration
 function shouldResetIteration(item, input, reference): boolean {
@@ -567,13 +602,16 @@ function shouldResetIteration(item, input, reference): boolean {
 
 // Reset Content
 function resetContent(input): void {
+  input.schema.value.content.id = '';
   input.schema.value.content.name = '';
   input.schema.value.content.nodeId = '';
 }
 
 // Apply Reference
-function applyReference(item, input, reference): void {
+function applyReference(item, input, reference, nodeId): void {
+  input.schema.value.content.id = reference?.id;
   input.schema.value.content.name = reference?.value;
+  input.schema.value.content.nodeId = nodeId;
   if (item?.nodeType !== 'plugin' && item?.nodeType !== 'flow') {
     input.schema.type = reference?.type;
     input.fileType = reference?.fileType;
@@ -597,6 +635,27 @@ function updateIterationOutputs(item, old): void {
 
   if (iteratorStartNode) {
     iteratorStartNode.data.outputs = outputs;
+  }
+}
+
+function updateLoopOutputs(item, old): void {
+  const loopVariables = item?.data?.nodeParam?.loopVariables || [];
+  const outputs = loopVariables?.map(variable => ({
+    id: variable?.id || uuid(),
+    name: variable?.name,
+    schema: variable?.schema || {
+      type: 'string',
+      default: '',
+    },
+  }));
+
+  const loopStartNode = old?.find(
+    node =>
+      node?.data?.parentId === item?.id && node?.nodeType === 'loop-node-start'
+  );
+
+  if (loopStartNode) {
+    loopStartNode.data.outputs = outputs;
   }
 }
 

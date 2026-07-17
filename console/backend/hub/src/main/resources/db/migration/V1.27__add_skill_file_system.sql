@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS `skill_file` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT 'Primary key',
+    `uid` VARCHAR(128) NOT NULL COMMENT 'Owner user id',
+    `space_id` BIGINT DEFAULT NULL COMMENT 'Current space id, null means personal space',
+    `parent_id` BIGINT NOT NULL DEFAULT 0 COMMENT 'Parent directory id, 0 means root',
+    `name` VARCHAR(255) NOT NULL COMMENT 'Displayed file or folder name',
+    `entry_type` VARCHAR(16) NOT NULL COMMENT 'folder or file',
+    `sort_order` INT NOT NULL DEFAULT 0 COMMENT 'Sibling order',
+    `object_key` VARCHAR(512) DEFAULT NULL COMMENT 'OSS object key for file content',
+    `content_type` VARCHAR(128) DEFAULT NULL COMMENT 'Stored content type',
+    `file_ext` VARCHAR(32) DEFAULT NULL COMMENT 'File extension',
+    `file_size` BIGINT NOT NULL DEFAULT 0 COMMENT 'File size in bytes',
+    `skill_name` VARCHAR(128) DEFAULT NULL COMMENT 'Parsed skill name from SKILL.md',
+    `skill_description` VARCHAR(1024) DEFAULT NULL COMMENT 'Parsed skill description from SKILL.md',
+    `deleted` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Logical deletion flag',
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Create time',
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
+    PRIMARY KEY (`id`),
+    KEY `idx_skill_file_scope_parent` (`space_id`, `uid`, `parent_id`, `deleted`),
+    KEY `idx_skill_file_scope_name` (`space_id`, `uid`, `name`, `deleted`),
+    KEY `idx_skill_file_skill_name` (`space_id`, `uid`, `skill_name`, `deleted`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Skill filesystem entries';

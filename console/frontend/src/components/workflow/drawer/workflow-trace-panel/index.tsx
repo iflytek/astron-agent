@@ -440,7 +440,6 @@ function WorkflowTracePanel(): React.ReactElement {
     let cancelled = false;
     setLoadingExecutions(true);
     getWorkflowTraceExecutions(currentFlow.flowId, {
-      appId: currentFlow.appId,
       page: 1,
       pageSize: 20,
     })
@@ -461,12 +460,7 @@ function WorkflowTracePanel(): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [
-    workflowTracePanelOpen,
-    currentFlow?.flowId,
-    currentFlow?.appId,
-    reloadSeq,
-  ]);
+  }, [workflowTracePanelOpen, currentFlow?.flowId, reloadSeq]);
 
   useEffect(() => {
     if (
@@ -481,9 +475,7 @@ function WorkflowTracePanel(): React.ReactElement {
 
     let cancelled = false;
     setLoadingDetail(true);
-    getWorkflowTraceExecutionDetail(currentFlow.flowId, selectedExecutionId, {
-      appId: currentFlow.appId,
-    })
+    getWorkflowTraceExecutionDetail(currentFlow.flowId, selectedExecutionId)
       .then(result => {
         if (cancelled) {
           return;
@@ -509,12 +501,7 @@ function WorkflowTracePanel(): React.ReactElement {
     return () => {
       cancelled = true;
     };
-  }, [
-    workflowTracePanelOpen,
-    currentFlow?.flowId,
-    currentFlow?.appId,
-    selectedExecutionId,
-  ]);
+  }, [workflowTracePanelOpen, currentFlow?.flowId, selectedExecutionId]);
 
   const closePanel = (): void => {
     setWorkflowTracePanelOpen(false);

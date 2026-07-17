@@ -38,6 +38,10 @@ docker compose up -d
 注意: 如果涉及数据库字段变更，可能需要执行数据库迁移。如果测试环境允许，可使用
 docker compose down -v 清空数据重新初始化（慎用，会删除所有数据）。
 
+## Windows 上运行对 Docker Desktop 版本有要求吗？
+
+建议使用 Docker Desktop 4.x 及以上版本，最好使用最新的稳定版，以避免 API 版本不匹配等兼容性问题。
+
 ## 启动时遇到 request returned 500 Internal Server Error  报错？
 
 这通常是环境状态不一致导致的，请尝试以下步骤：

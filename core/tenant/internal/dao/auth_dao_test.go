@@ -116,6 +116,13 @@ func TestAuthDao_SqlOptions(t *testing.T) {
 			checkParams: func(params []interface{}) bool { return params[0] == "test-api-key-123" },
 		},
 		{
+			name:        "WithApiSecret",
+			createFunc:  func(dao *AuthDao) SqlOption { return dao.WithApiSecret("test-api-secret-123") },
+			expectedSQL: "api_secret=?",
+			expectedLen: 1,
+			checkParams: func(params []interface{}) bool { return params[0] == "test-api-secret-123" },
+		},
+		{
 			name:        "WithUpdateTime",
 			createFunc:  func(dao *AuthDao) SqlOption { return dao.WithUpdateTime("2023-01-01 12:00:00") },
 			expectedSQL: "update_time=?",

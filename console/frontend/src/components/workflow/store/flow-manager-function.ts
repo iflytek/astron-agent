@@ -20,6 +20,7 @@ import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
 import { FlowStoreType } from '../types/zustand/flow';
 import { UseBoundStore, StoreApi } from 'zustand';
+import loopNodeIcon from '@/assets/imgs/workflow/loop-node-icon.svg';
 
 export const initialStatus = {
   willAddNode: null, //Pending Node Information
@@ -281,6 +282,23 @@ export const initFlowData = async (id: string, set): Promise<void> => {
     getAgentStrategyAPI(),
     getKnowledgeProStrategyAPI(),
   ]);
+  const nodeList = appendVariableAggregationNodeTemplate(nodeTemplate).map(
+    category => ({
+      ...category,
+      nodes: category.nodes?.map(node =>
+        node?.idType === 'loop'
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                icon: loopNodeIcon,
+              },
+              icon: loopNodeIcon,
+            }
+          : node
+      ),
+    })
+  );
 
   set({
     currentFlow: {
@@ -288,7 +306,7 @@ export const initFlowData = async (id: string, set): Promise<void> => {
       originData: flow?.data,
     },
     isLoading: false,
-    nodeList: appendVariableAggregationNodeTemplate(nodeTemplate),
+    nodeList,
     textNodeConfigList,
     agentStrategy,
     knowledgeProStrategy,
@@ -567,6 +585,10 @@ function validateOutgoingEdges({
   cycleEdges,
   dfs,
 }): void | boolean {
+  if (currentCheckNode?.nodeType === 'loop-exit') {
+    recStack.delete(currentCheckNode.id);
+    return;
+  }
   if (outgoingEdges?.length === 0) {
     addErrNode({
       errNodes,
@@ -598,7 +620,7 @@ function validateOutgoingEdges({
   recStack.delete(currentCheckNode.id);
 }
 
-// Check Iterator Node
+// Check Iterator/Loop Node
 function checkIteratorNode({ iteratorId, outerErrNodes, cycleEdges }): void {
   const {
     nodes: allNodes,
@@ -611,10 +633,20 @@ function checkIteratorNode({ iteratorId, outerErrNodes, cycleEdges }): void {
     edge => nodeIds?.includes(edge?.source) || nodeIds?.includes(edge?.target)
   );
 
-  const startNode = nodes.find(
-    node => node.nodeType === 'iteration-node-start'
+  const iteratorNodeInfo = useFlowStore
+    .getState()
+    .nodes.find(node => node?.id === iteratorId);
+  const isLoop = iteratorNodeInfo?.nodeType === 'loop';
+  const startNode = nodes.find(node =>
+    isLoop
+      ? node.nodeType === 'loop-node-start'
+      : node.nodeType === 'iteration-node-start'
   );
-  const endNode = nodes.find(node => node.nodeType === 'iteration-node-end');
+  const endNode = nodes.find(node =>
+    isLoop
+      ? node.nodeType === 'loop-node-end'
+      : node.nodeType === 'iteration-node-end'
+  );
 
   const visitedNodes = new Set();
   const errNodes: unknown = [];
@@ -691,9 +723,6 @@ function checkIteratorNode({ iteratorId, outerErrNodes, cycleEdges }): void {
     const currentIteratorNode = outerErrNodes?.find(
       node => node?.id === iteratorId
     );
-    const iteratorNodeInfo = useFlowStore
-      .getState()
-      .nodes.find(node => node?.id === iteratorId);
     if (currentIteratorNode) currentIteratorNode.childErrList = errNodes;
     else {
       iteratorNodeInfo.childErrList = errNodes;
@@ -735,7 +764,7 @@ export function checkFlow(get): boolean {
 
     validateNodeBase({ currentCheckNode, variableNodes, checkNode, errNodes });
 
-    if (currentCheckNode?.nodeType === 'iteration') {
+    if (['iteration', 'loop'].includes(currentCheckNode?.nodeType)) {
       checkIteratorNode({
         iteratorId: currentCheckNode.id,
         outerErrNodes: errNodes,

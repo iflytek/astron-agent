@@ -53,7 +53,9 @@ class Edge(BaseModel):
 
     sourceNodeId: str = Field(..., description="The ID of the source node")
     targetNodeId: str = Field(..., description="The ID of the target node")
-    sourceHandle: str = Field(None, description="The handle of the source node")
+    sourceHandle: Optional[str] = Field(
+        None, description="The handle of the source node"
+    )
 
 
 class WorkflowData(BaseModel):
@@ -69,7 +71,7 @@ class WorkflowData(BaseModel):
 
     id: str = Field(..., min_length=1, description="Unique identifier for the workflow")
     name: str = Field(..., min_length=1, description="Name of the workflow")
-    description: str = Field(None, description="Description of the workflow")
+    description: Optional[str] = Field(None, description="Description of the workflow")
     version: str = Field(
         ..., pattern=r"^v3(\.\d+)*(\.\d+)$", description="Version of the workflow"
     )

@@ -415,6 +415,8 @@ export function ChatDebuggerContent({
     useChatDebuggerContent({
       currentFlow,
     });
+  const interactType = Number(talkAgentConfig?.interactType);
+  const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;
   const [callStatus, setCallStatus] = useState('hangup');
   const [loadingVms, setLoadingVms] = useState<boolean>(false);
   const vmsInteractionCmpRef = useRef<any>(null);
@@ -426,17 +428,30 @@ export function ChatDebuggerContent({
   );
 
   useEffect(() => {
-    if (talkAgentConfig?.interactType === 0) {
+    if (interactType === 0) {
       handleChatTypeChange('phone');
       setCallStatus('ringing');
-    } else if (talkAgentConfig?.interactType === 1) {
+    } else if (interactType === 1) {
       handleChatTypeChange('text');
-    } else if (talkAgentConfig?.interactType === 2) {
+      setCallStatus('hangup');
+    } else if (interactType === 2) {
       handleChatTypeChange('vms');
+      setCallStatus('hangup');
+    } else {
+      handleChatTypeChange('text');
+      setCallStatus('hangup');
     }
     sdkTTSInfo.vcn = talkAgentConfig?.vcn;
     //如果开启了虚拟人，可能是语音通话虚拟人，也可能是语音通话，但是都需要初始化虚拟人必要的参数
-    if (talkAgentConfig?.sceneEnable === 1 && open) {
+    if (!hasVirtualScene) {
+      vmsInteractionCmpRef?.current?.instance &&
+        vmsInteractionCmpRef?.current?.dispose();
+      sdkAvatarInfo.avatar_id = '';
+      setVmsInteractiveRefStatus('init');
+      chatAnswer = '';
+      return;
+    }
+    if (open) {
       setTimeout(() => {
         if (
           sdkAvatarInfo.avatar_id !== talkAgentConfig?.sceneId &&
@@ -460,7 +475,7 @@ export function ChatDebuggerContent({
             chatAnswer = '';
             setVmsInteractiveRefStatus('init');
           }
-          talkAgentConfig?.interactType === 2 &&
+          interactType === 2 &&
             vmsInteractionCmpRef?.current?.initAvatar({
               sdkAvatarInfo,
               sdkTTSInfo,
@@ -484,7 +499,7 @@ export function ChatDebuggerContent({
           }
           // });
         } else {
-          if (talkAgentConfig?.interactType !== 2) {
+          if (interactType !== 2) {
             vmsInteractionCmpRef?.current?.instance &&
               vmsInteractionCmpRef?.current?.dispose();
             chatAnswer = '';
@@ -492,7 +507,16 @@ export function ChatDebuggerContent({
         }
       });
     }
-  }, [talkAgentConfig, open]);
+  }, [
+    currentFlow?.advancedConfig,
+    handleChatTypeChange,
+    hasVirtualScene,
+    interactType,
+    open,
+    setVmsInteractiveRefStatus,
+    talkAgentConfig?.sceneId,
+    talkAgentConfig?.vcn,
+  ]);
   useChatDebuggerEffect(
     currentFlow,
     open,
@@ -588,7 +612,7 @@ export function ChatDebuggerContent({
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {talkAgentConfig?.sceneEnable === 1 && (
+          {hasVirtualScene && (
             <>
               {chatType !== 'vms' && (
                 <img
@@ -671,7 +695,7 @@ export function ChatDebuggerContent({
             position: 'absolute',
             bottom: '80px',
             left: 0,
-            display: chatType === 'vms' ? 'block' : 'none',
+            display: hasVirtualScene && chatType === 'vms' ? 'block' : 'none',
             textAlign: 'center',
           }}
         >

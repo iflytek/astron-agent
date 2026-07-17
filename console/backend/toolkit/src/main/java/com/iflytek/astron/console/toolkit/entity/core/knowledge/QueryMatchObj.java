@@ -16,6 +16,9 @@ public class QueryMatchObj {
      */
     List<String> repoId;
 
+    /** RAGFlow dataset.id values for Ragflow-RAG routing. */
+    List<String> datasetId;
+
     /**
      * Required: No. Knowledge base score threshold, default 0
      */
