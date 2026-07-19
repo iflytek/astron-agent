@@ -230,6 +230,60 @@ class ChatHistoryServiceImplTest {
     }
 
     @Test
+    void testGetHistory_WithBlankRequestMessage_ShouldSkipExchange() {
+        // Given: a failed exchange whose request has no content, followed by a normal one
+        ChatReqModelDto blankReq = new ChatReqModelDto();
+        blankReq.setId(3L);
+        blankReq.setMessage("");
+
+        ChatRespModelDto errorResp = new ChatRespModelDto();
+        errorResp.setReqId(3L);
+        errorResp.setMessage("Workflow error: required input is missing");
+
+        ChatReqModelDto normalReq = new ChatReqModelDto();
+        normalReq.setId(4L);
+        normalReq.setMessage("Normal question");
+
+        ChatRespModelDto normalResp = new ChatRespModelDto();
+        normalResp.setReqId(4L);
+        normalResp.setMessage("Normal answer");
+
+        when(chatDataService.getChatRespModelBotHistoryByChatId(uid, chatId, Arrays.asList(4L, 3L)))
+                .thenReturn(Arrays.asList(errorResp, normalResp));
+
+        // When
+        ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, Arrays.asList(normalReq, blankReq));
+
+        // Then: the blank exchange is dropped, the normal one is kept
+        assertEquals(2, result.getMessages().size());
+        assertEquals("user", result.getMessages().get(0).getRole());
+        assertEquals("Normal question", result.getMessages().get(0).getContent());
+        assertEquals("assistant", result.getMessages().get(1).getRole());
+        assertEquals("Normal answer", result.getMessages().get(1).getContent());
+    }
+
+    @Test
+    void testGetHistory_WithBlankResponse_ShouldSkipExchange() {
+        // Given: a response that saved no content at all
+        ChatReqModelDto req = new ChatReqModelDto();
+        req.setId(5L);
+        req.setMessage("Question with lost answer");
+
+        ChatRespModelDto blankResp = new ChatRespModelDto();
+        blankResp.setReqId(5L);
+        blankResp.setMessage("");
+
+        when(chatDataService.getChatRespModelBotHistoryByChatId(uid, chatId, Arrays.asList(5L)))
+                .thenReturn(Arrays.asList(blankResp));
+
+        // When
+        ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, Arrays.asList(req));
+
+        // Then
+        assertTrue(result.getMessages().isEmpty());
+    }
+
+    @Test
     void testGetHistory_WithNullReqList_ShouldReturnEmptyList() {
         // When
         ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, null);

@@ -127,6 +127,17 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
                 continue;
             }
 
+            // Skip failed or empty exchanges. A request that carries no content (for
+            // example an API call rejected for a missing required input) must not be
+            // replayed, otherwise the blank message fails validation on every
+            // following turn and permanently breaks the chat
+            if (StringUtils.isBlank(reqDto.getMessage()) && StringUtils.isBlank(reqDto.getUrl())) {
+                continue;
+            }
+            if (StringUtils.isBlank(respDto.getMessage()) && StringUtils.isBlank(respDto.getContent())) {
+                continue;
+            }
+
             // Add answer, history records answer first then question
             String answer = respDto.getMessage();
             int answerLength = answer == null ? 0 : answer.length();
