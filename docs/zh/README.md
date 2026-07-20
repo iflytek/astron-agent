@@ -195,4 +195,4 @@ npm run docs:build
 
 ## 📄 开源协议
 
-本项目基于 [Apache 2.0 License](../../LICENSE) 协议开源，允许自由使用、修改、分发 ，并可无限制地进行商业使用。
+本项目基于 [Apache 2.0 License](../../LICENSE) 协议开源，允许自由使用、修改、分发，并可无限制地进行商业使用。
