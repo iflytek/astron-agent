@@ -131,10 +131,7 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
             // example an API call rejected for a missing required input) must not be
             // replayed, otherwise the blank message fails validation on every
             // following turn and permanently breaks the chat
-            if (StringUtils.isBlank(reqDto.getMessage()) && StringUtils.isBlank(reqDto.getUrl())) {
-                continue;
-            }
-            if (StringUtils.isBlank(respDto.getMessage()) && StringUtils.isBlank(respDto.getContent())) {
+            if (isBlankExchange(reqDto, respDto)) {
                 continue;
             }
 
@@ -193,6 +190,19 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
         }
         chatRecordList.setLength(tempLength);
         return chatRecordList;
+    }
+
+    /**
+     * Determine whether a question/answer pair carries no usable content
+     *
+     * @param reqDto Request record of the exchange
+     * @param respDto Response record of the exchange
+     * @return Returns true when either side is empty and the pair should not be replayed
+     */
+    private boolean isBlankExchange(ChatReqModelDto reqDto, ChatRespModelDto respDto) {
+        boolean blankRequest = StringUtils.isBlank(reqDto.getMessage()) && StringUtils.isBlank(reqDto.getUrl());
+        boolean blankResponse = StringUtils.isBlank(respDto.getMessage()) && StringUtils.isBlank(respDto.getContent());
+        return blankRequest || blankResponse;
     }
 
     /**
