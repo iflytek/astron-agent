@@ -208,10 +208,10 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
      * Determine whether this response actually contributes an assistant message
      *
      * <p>
-     * Mirrors the branches that append the assistant turn below. Multimodal responses only append
-     * for {@code needHis} 0 and 2, so a response can be non-empty and still add nothing. Replaying
-     * such a pair would append the question without its answer, leaving two consecutive user
-     * messages that the model API rejects.
+     * Mirrors the branches that append the assistant turn below. Multimodal responses only append for
+     * {@code needHis} 0 and 2, so a response can be non-empty and still add nothing. Replaying such a
+     * pair would append the question without its answer, leaving two consecutive user messages that the
+     * model API rejects.
      *
      * @param respDto Response record of the exchange
      * @return Returns true when an assistant message with content will be appended

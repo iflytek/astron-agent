@@ -352,10 +352,10 @@ class ChatHistoryServiceImplTest {
         // When
         ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, Arrays.asList(req));
 
-        // Then
+        // Then: both turns survive; the question is inserted last so it leads
         assertEquals(2, result.getMessages().size());
-        assertEquals("assistant", result.getMessages().get(0).getRole());
-        assertEquals("user", result.getMessages().get(1).getRole());
+        assertEquals("user", result.getMessages().get(0).getRole());
+        assertEquals("assistant", result.getMessages().get(1).getRole());
     }
 
     @Test
