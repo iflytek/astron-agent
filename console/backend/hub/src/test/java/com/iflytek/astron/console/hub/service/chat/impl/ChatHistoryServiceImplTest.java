@@ -284,6 +284,81 @@ class ChatHistoryServiceImplTest {
     }
 
     @Test
+    void testGetHistory_WithMultimodalContentAndNeedHis1_ShouldSkipExchange() {
+        // Given: needHis == 1 appends no assistant message at all, so replaying the
+        // question alone would leave two consecutive user turns
+        ChatReqModelDto req = new ChatReqModelDto();
+        req.setId(6L);
+        req.setMessage("Question");
+
+        ChatRespModelDto resp = new ChatRespModelDto();
+        resp.setReqId(6L);
+        resp.setMessage("Answer");
+        resp.setContent("multimodal content");
+        resp.setNeedHis(1);
+
+        when(chatDataService.getChatRespModelBotHistoryByChatId(uid, chatId, Arrays.asList(6L)))
+                .thenReturn(Arrays.asList(resp));
+
+        // When
+        ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, Arrays.asList(req));
+
+        // Then
+        assertTrue(result.getMessages().isEmpty());
+    }
+
+    @Test
+    void testGetHistory_WithMultimodalContentAndNeedHis2ButBlankMessage_ShouldSkipExchange() {
+        // Given: needHis == 2 appends respDto.getMessage(), which is blank here
+        ChatReqModelDto req = new ChatReqModelDto();
+        req.setId(7L);
+        req.setMessage("Question");
+
+        ChatRespModelDto resp = new ChatRespModelDto();
+        resp.setReqId(7L);
+        resp.setMessage("");
+        resp.setContent("multimodal content");
+        resp.setNeedHis(2);
+
+        when(chatDataService.getChatRespModelBotHistoryByChatId(uid, chatId, Arrays.asList(7L)))
+                .thenReturn(Arrays.asList(resp));
+
+        // When
+        ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, Arrays.asList(req));
+
+        // Then
+        assertTrue(result.getMessages().isEmpty());
+    }
+
+    @Test
+    void testGetHistory_WithMultimodalContentAndNeedHis0_ShouldKeepExchange() {
+        // Given: needHis == 0 appends the multimodal assistant turn, so it must survive
+        ChatReqModelDto req = new ChatReqModelDto();
+        req.setId(8L);
+        req.setMessage("Question");
+
+        ChatRespModelDto resp = new ChatRespModelDto();
+        resp.setReqId(8L);
+        resp.setMessage("");
+        resp.setContent("multimodal content");
+        resp.setUrl("http://example.com/response.jpg");
+        resp.setType("image");
+        resp.setDataId("data456");
+        resp.setNeedHis(0);
+
+        when(chatDataService.getChatRespModelBotHistoryByChatId(uid, chatId, Arrays.asList(8L)))
+                .thenReturn(Arrays.asList(resp));
+
+        // When
+        ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, Arrays.asList(req));
+
+        // Then
+        assertEquals(2, result.getMessages().size());
+        assertEquals("assistant", result.getMessages().get(0).getRole());
+        assertEquals("user", result.getMessages().get(1).getRole());
+    }
+
+    @Test
     void testGetHistory_WithNullReqList_ShouldReturnEmptyList() {
         // When
         ChatRequestDtoList result = chatHistoryService.getHistory(uid, chatId, null);

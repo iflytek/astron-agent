@@ -201,8 +201,30 @@ public class ChatHistoryServiceImpl implements ChatHistoryService {
      */
     private boolean isBlankExchange(ChatReqModelDto reqDto, ChatRespModelDto respDto) {
         boolean blankRequest = StringUtils.isBlank(reqDto.getMessage()) && StringUtils.isBlank(reqDto.getUrl());
-        boolean blankResponse = StringUtils.isBlank(respDto.getMessage()) && StringUtils.isBlank(respDto.getContent());
-        return blankRequest || blankResponse;
+        return blankRequest || !addsAssistantMessage(respDto);
+    }
+
+    /**
+     * Determine whether this response actually contributes an assistant message
+     *
+     * <p>
+     * Mirrors the branches that append the assistant turn below. Multimodal responses only append
+     * for {@code needHis} 0 and 2, so a response can be non-empty and still add nothing. Replaying
+     * such a pair would append the question without its answer, leaving two consecutive user
+     * messages that the model API rejects.
+     *
+     * @param respDto Response record of the exchange
+     * @return Returns true when an assistant message with content will be appended
+     */
+    private boolean addsAssistantMessage(ChatRespModelDto respDto) {
+        if (StringUtils.isBlank(respDto.getContent())) {
+            return StringUtils.isNotBlank(respDto.getMessage());
+        }
+        int needHis = respDto.getNeedHis();
+        if (needHis == 0) {
+            return true;
+        }
+        return needHis == 2 && StringUtils.isNotBlank(respDto.getMessage());
     }
 
     /**
