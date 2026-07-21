@@ -4,9 +4,18 @@ This module contains Pydantic models for MCP tool operations including
 tool listing and tool execution requests and responses.
 """
 
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
+
+
+class MCPTransport(str, Enum):
+    """Supported transports for connecting to an MCP server."""
+
+    AUTO = "auto"
+    STREAMABLE_HTTP = "streamable_http"
+    SSE = "sse"
 
 
 # MCPToolList Request and Response
@@ -19,6 +28,7 @@ class MCPToolListRequest(BaseModel):
 
     mcp_server_ids: list[str] | None = None
     mcp_server_urls: list[str] | None = None
+    transport: MCPTransport = MCPTransport.AUTO
 
 
 class MCPInfo(BaseModel):
@@ -80,6 +90,7 @@ class MCPCallToolRequest(BaseModel):
     mcp_server_url: str | None = None
     tool_name: str
     tool_args: dict[str, Any] | None = None
+    transport: MCPTransport = MCPTransport.AUTO
 
 
 class MCPTextResponse(BaseModel):
