@@ -187,6 +187,52 @@ export default defineConfig({
           copyright: "Copyright © iFLYTEK Astron Agent"
         }
       }
+    },
+    ja: {
+      label: "日本語",
+      lang: "ja-JP",
+      link: "/ja/",
+      title: "Astron Agent",
+      description: "エンタープライズ向け・商用フレンドリーな Agentic Workflow 開発プラットフォームのドキュメントサイト。",
+      themeConfig: {
+        logo: "/logo-square.png",
+        siteTitle: "Astron Agent",
+        nav: [
+          { text: "ホーム", link: "/ja/" },
+          { text: "プロジェクト概要", link: "/ja/README" }
+        ],
+        sidebar: [
+          {
+            text: "はじめに",
+            items: [
+              { text: "プロジェクト概要", link: "/ja/README" }
+            ]
+          }
+        ],
+        socialLinks,
+        search: {
+          provider: "local"
+        },
+        editLink: {
+          pattern: editLinkPattern,
+          text: "GitHub でこのページを編集"
+        },
+        langMenuLabel: "言語",
+        returnToTopLabel: "ページトップに戻る",
+        sidebarMenuLabel: "メニュー",
+        darkModeSwitchLabel: "テーマ",
+        outline: {
+          label: "ページ内ナビゲーション"
+        },
+        docFooter: {
+          prev: "前のページ",
+          next: "次のページ"
+        },
+        footer: {
+          message: "Apache 2.0 Licensed.",
+          copyright: "Copyright © iFLYTEK Astron Agent"
+        }
+      }
     }
   }
 });
