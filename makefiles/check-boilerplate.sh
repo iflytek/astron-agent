@@ -75,11 +75,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Paths that are vendored, generated or otherwise not ours to license
+# Paths that are vendored, generated or otherwise not ours to license.
+# Each directory is listed twice so it matches at the repository root as well
+# as nested, because '*/name/*' cannot match a path that starts with 'name/'.
 is_excluded() {
     case "$1" in
-        */node_modules/*|*/dist/*|*/build/*|*/target/*|*/.venv/*|*/venv/*) return 0 ;;
-        */__pycache__/*|*/migrations/*|helm/*|*/generated/*|*.min.js) return 0 ;;
+        node_modules/*|*/node_modules/*) return 0 ;;
+        dist/*|*/dist/*|build/*|*/build/*|target/*|*/target/*) return 0 ;;
+        .venv/*|*/.venv/*|venv/*|*/venv/*) return 0 ;;
+        __pycache__/*|*/__pycache__/*) return 0 ;;
+        migrations/*|*/migrations/*|generated/*|*/generated/*) return 0 ;;
+        helm/*|*.min.js) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -104,11 +110,15 @@ collect_files() {
         git -C "$REPO_ROOT" ls-files
     else
         local merge_base
-        if merge_base="$(git -C "$REPO_ROOT" merge-base "$BASE_REF" HEAD 2>/dev/null)"; then
-            git -C "$REPO_ROOT" diff --diff-filter=A --name-only "$merge_base" HEAD
-        else
-            echo -e "${YELLOW}⚠️  Cannot resolve $BASE_REF, nothing to check${RESET}" >&2
+        if ! merge_base="$(git -C "$REPO_ROOT" merge-base "$BASE_REF" HEAD 2>/dev/null)"; then
+            # Failing closed matters: a shallow clone would otherwise check
+            # nothing and report success, silently disabling the CI gate
+            echo -e "${RED}❌ Cannot resolve a merge base with $BASE_REF.${RESET}" >&2
+            echo -e "${YELLOW}   Fetch the base branch first (fetch-depth: 0 in GitHub Actions),${RESET}" >&2
+            echo -e "${YELLOW}   or pass --all to scan every tracked file instead.${RESET}" >&2
+            return 1
         fi
+        git -C "$REPO_ROOT" diff --diff-filter=A --name-only "$merge_base" HEAD
     fi
 }
 
@@ -195,6 +205,12 @@ missing=0
 checked=0
 fixed=0
 
+# Collect first rather than piping through process substitution: a subshell
+# would swallow a non-zero exit from collect_files and report a false pass
+if ! files_list="$(collect_files)"; then
+    exit 1
+fi
+
 while IFS= read -r file; do
     [[ -z "$file" || ! -f "$REPO_ROOT/$file" ]] && continue
     is_excluded "$file" && continue
@@ -215,7 +231,7 @@ while IFS= read -r file; do
         echo -e "${RED}  ✗ missing header: $file${RESET}"
         missing=$((missing + 1))
     fi
-done < <(collect_files)
+done <<< "$files_list"
 
 echo ""
 echo -e "${BLUE}   Files inspected: $checked${RESET}"
