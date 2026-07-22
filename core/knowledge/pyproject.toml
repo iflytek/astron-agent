@@ -29,6 +29,7 @@ dependencies = [
     "pydantic==2.9.2",
     "pydantic-settings==2.10.1",
     "pylint>=3.3.8",
+    "pymysql>=1.1.1",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
