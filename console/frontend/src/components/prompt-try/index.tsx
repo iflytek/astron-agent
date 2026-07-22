@@ -14,6 +14,7 @@ import { getLanguageCode } from '@/utils/http';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import eventBus from '@/utils/event-bus';
 import { baseURL } from '@/utils/http';
+import useSpaceStore from '@/store/space-store';
 import { ModelListData } from '@/services/spark-common';
 import {
   hasInvalidMcpServerUrls,
@@ -267,10 +268,20 @@ const PromptTry = forwardRef<
       let toolsName: string = ''; //工具名称
       const controller = new AbortController();
       controllerRef.current = controller;
-      const headerConfig = {
+      const headerConfig: Record<string, string> = {
         'Accept-Language': getLanguageCode(),
         authorization: `Bearer ${localStorage.getItem('accessToken')}`,
       };
+      // Carry the current space context, mirroring the axios interceptor in
+      // utils/http.ts. Without space-id the backend resolves models in the
+      // personal scope and a space-scoped custom model reports "模型不存在".
+      const { spaceId, spaceType, enterpriseId } = useSpaceStore.getState();
+      if (spaceType === 'team' && enterpriseId) {
+        headerConfig['enterprise-id'] = enterpriseId;
+      }
+      if (spaceId) {
+        headerConfig['space-id'] = spaceId;
+      }
       setIsLoading(true);
       setIsCompleted(false);
       // 先追加用户消息
