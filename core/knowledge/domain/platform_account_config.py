@@ -26,6 +26,13 @@ def set_platform_account_config(config: Dict[str, Any]) -> None:
 
 def get_config_value(section: str, key: str, default: Optional[Any] = None) -> Any:
     value = _section_value(_PLATFORM_ACCOUNT_CONFIG.get({}), section, key)
+    return default if value in (None, "") else value
+
+
+def get_managed_config_value(
+    section: str, key: str, default: Optional[Any] = None
+) -> Any:
+    value = get_config_value(section, key)
     if value not in (None, ""):
         return value
 

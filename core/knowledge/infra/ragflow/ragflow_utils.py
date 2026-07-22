@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Union
 import aiohttp
 from fastapi import UploadFile
 
-from knowledge.domain.platform_account_config import get_config_value
+from knowledge.domain.platform_account_config import get_managed_config_value
 from knowledge.infra.ragflow.ragflow_client import (
     create_dataset,
     list_datasets,
@@ -42,7 +42,7 @@ class RagflowUtils:
     def get_default_dataset_name() -> str:
         """Return ``RAGFLOW_DEFAULT_GROUP`` or ``DEFAULT_RAGFLOW_DATASET_NAME`` (unset/empty fall back)."""
         return (
-            get_config_value("ragflow", "default_group")
+            get_managed_config_value("ragflow", "default_group")
             or os.getenv("RAGFLOW_DEFAULT_GROUP")
             or DEFAULT_RAGFLOW_DATASET_NAME
         )

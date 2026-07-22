@@ -15,7 +15,9 @@ def test_request_header_config_takes_precedence_over_redis() -> None:
     )
 
     with patch.object(platform_account_config, "_load_from_redis") as loader:
-        value = platform_account_config.get_config_value("ragflow", "base_url")
+        value = platform_account_config.get_managed_config_value(
+            "ragflow", "base_url"
+        )
 
     assert value == "http://request-ragflow"
     loader.assert_not_called()
@@ -41,16 +43,21 @@ def test_missing_request_headers_fall_back_to_shared_platform_account_config() -
         platform_account_config, "_redis_client", return_value=redis_client
     ):
         assert (
-            platform_account_config.get_config_value("ragflow", "base_url")
+            platform_account_config.get_managed_config_value("ragflow", "base_url")
             == "http://managed-ragflow"
         )
         assert (
-            platform_account_config.get_config_value("ragflow", "api_token")
+            platform_account_config.get_managed_config_value("ragflow", "api_token")
             == "managed-token"
         )
-        assert platform_account_config.get_config_value("ragflow", "timeout") == 45
         assert (
-            platform_account_config.get_config_value("ragflow", "default_group")
+            platform_account_config.get_managed_config_value("ragflow", "timeout")
+            == 45
+        )
+        assert (
+            platform_account_config.get_managed_config_value(
+                "ragflow", "default_group"
+            )
             == "managed-group"
         )
 
@@ -75,11 +82,11 @@ def test_redis_miss_falls_back_to_persistent_database_config() -> None:
         return_value=database_config,
     ) as database_loader:
         assert (
-            platform_account_config.get_config_value("ragflow", "base_url")
+            platform_account_config.get_managed_config_value("ragflow", "base_url")
             == "http://database-ragflow"
         )
         assert (
-            platform_account_config.get_config_value("ragflow", "api_token")
+            platform_account_config.get_managed_config_value("ragflow", "api_token")
             == "database-token"
         )
 
@@ -121,8 +128,18 @@ def test_invalid_redis_config_preserves_caller_default() -> None:
     with patch.object(
         platform_account_config, "_redis_client", return_value=redis_client
     ), patch.object(platform_account_config, "_load_from_database", return_value=None):
-        value = platform_account_config.get_config_value(
+        value = platform_account_config.get_managed_config_value(
             "ragflow", "base_url", "legacy-default"
         )
 
     assert value == "legacy-default"
+
+
+def test_request_only_config_does_not_read_managed_fallback() -> None:
+    with patch.object(platform_account_config, "_load_from_redis") as loader:
+        value = platform_account_config.get_config_value(
+            "xinghuo", "app_id", "legacy-default"
+        )
+
+    assert value == "legacy-default"
+    loader.assert_not_called()
