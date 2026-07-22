@@ -15,9 +15,7 @@ def test_request_header_config_takes_precedence_over_redis() -> None:
     )
 
     with patch.object(platform_account_config, "_load_from_redis") as loader:
-        value = platform_account_config.get_managed_config_value(
-            "ragflow", "base_url"
-        )
+        value = platform_account_config.get_managed_config_value("ragflow", "base_url")
 
     assert value == "http://request-ragflow"
     loader.assert_not_called()
@@ -51,13 +49,10 @@ def test_missing_request_headers_fall_back_to_shared_platform_account_config() -
             == "managed-token"
         )
         assert (
-            platform_account_config.get_managed_config_value("ragflow", "timeout")
-            == 45
+            platform_account_config.get_managed_config_value("ragflow", "timeout") == 45
         )
         assert (
-            platform_account_config.get_managed_config_value(
-                "ragflow", "default_group"
-            )
+            platform_account_config.get_managed_config_value("ragflow", "default_group")
             == "managed-group"
         )
 
