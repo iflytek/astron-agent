@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from workflow.engine.nodes.knowledge import platform_account_config
 
@@ -33,8 +33,7 @@ def test_ragflow_headers_fall_back_to_database_after_redis_loss() -> None:
         platform_account_config,
         "_load_from_database",
         return_value=(
-            '{"ragflow":{"baseUrl":"http://ragflow",'
-            '"apiToken":"database-secret"}}'
+            '{"ragflow":{"baseUrl":"http://ragflow",' '"apiToken":"database-secret"}}'
         ),
     ):
         headers = platform_account_config.get_platform_account_headers("Ragflow-RAG")
@@ -46,7 +45,7 @@ def test_ragflow_headers_fall_back_to_database_after_redis_loss() -> None:
 def test_database_result_backfills_redis() -> None:
     fake_cursor = Mock()
     fake_cursor.fetchone.return_value = {"value": '{"ragflow":{"baseUrl":"url"}}'}
-    fake_connection = Mock()
+    fake_connection = MagicMock()
     fake_connection.cursor.return_value.__enter__.return_value = fake_cursor
 
     with patch("pymysql.connect", return_value=fake_connection), patch.object(

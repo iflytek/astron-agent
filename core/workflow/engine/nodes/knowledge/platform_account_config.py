@@ -31,9 +31,7 @@ def get_platform_account_headers(rag_type: str) -> dict[str, str]:
         "x-ragflow-default-group": ragflow.get("defaultGroup"),
     }
     return {
-        key: str(value)
-        for key, value in headers.items()
-        if value not in (None, "")
+        key: str(value) for key, value in headers.items() if value not in (None, "")
     }
 
 
@@ -164,9 +162,7 @@ def _console_mysql_database() -> str:
 
 
 def _redis_database() -> int:
-    value = (
-        os.getenv("REDIS_DATABASE_CONSOLE") or os.getenv("REDIS_DATABASE") or "0"
-    )
+    value = os.getenv("REDIS_DATABASE_CONSOLE") or os.getenv("REDIS_DATABASE") or "0"
     try:
         return int(value)
     except ValueError:
