@@ -2,6 +2,9 @@ import json
 from typing import Any
 
 from workflow.domain.entities.chat import HistoryItem
+from workflow.engine.nodes.knowledge.platform_account_config import (
+    get_platform_account_headers,
+)
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.fastapi.lifespan.http_client import HttpClient
@@ -85,17 +88,22 @@ class KnowledgeClient:
         """
         url = self.config.url
         payload = self.payload()
+        request_headers = self.headers()
         await request_span.add_info_events_async({"url": url})
         await request_span.add_info_events_async({"request_data": payload})
         try:
             event_log_node_trace = kwargs.get("event_log_node_trace")
             if event_log_node_trace:
                 event_log_node_trace.append_config_data(
-                    {"url": url, "req_headers": self.headers(), "req_body": payload}
+                    {
+                        "url": url,
+                        "req_headers": self.trace_headers(request_headers),
+                        "req_body": payload,
+                    }
                 )
             session = HttpClient.get_session()
             async with session.post(
-                url, headers=self.headers(), json=json.loads(payload)
+                url, headers=request_headers, json=json.loads(payload)
             ) as resp:
                 background_json = json.loads(await resp.text())
                 # background_json = requests.request("POST", url, headers=self.headers, data=payload).json()
@@ -157,4 +165,14 @@ class KnowledgeClient:
         return _payload
 
     def headers(self) -> dict[str, str]:
-        return dict(self.BASE_HEADERS)
+        return {
+            **self.BASE_HEADERS,
+            **get_platform_account_headers(self.config.rag_type),
+        }
+
+    @staticmethod
+    def trace_headers(headers: dict[str, str]) -> dict[str, str]:
+        trace_headers = dict(headers)
+        if "x-ragflow-api-token" in trace_headers:
+            trace_headers["x-ragflow-api-token"] = "******"
+        return trace_headers
