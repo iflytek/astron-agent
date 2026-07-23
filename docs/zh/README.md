@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](../LICENSE)
+[![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](../../LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/iflytek/astron-agent?style=social)](https://github.com/iflytek/astron-agent/stargazers)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/iflytek/astron-agent)
 
@@ -195,4 +195,4 @@ npm run docs:build
 
 ## 📄 开源协议
 
-本项目基于 [Apache 2.0 License](../LICENSE) 协议开源，允许自由使用、修改、分发，并可无限制地进行商业使用。
+本项目基于 [Apache 2.0 License](../../LICENSE) 协议开源，允许自由使用、修改、分发，并可无限制地进行商业使用。

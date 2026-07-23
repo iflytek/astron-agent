@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](../LICENSE)
+[![License](https://img.shields.io/badge/license-apache2.0-blue.svg)](../../LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/iflytek/astron-agent?style=social)](https://github.com/iflytek/astron-agent/stargazers)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/iflytek/astron-agent)
 
@@ -138,4 +138,4 @@ docker compose -f docker-compose-with-auth.yaml up -d
 
 ## 📄 オープンソースライセンス
 
-本プロジェクトは [Apache 2.0 ライセンス](../LICENSE)の下で公開されています。自由に使用、変更、配布、商用利用が可能で、制限はありません。
+本プロジェクトは [Apache 2.0 ライセンス](../../LICENSE)の下で公開されています。自由に使用、変更、配布、商用利用が可能で、制限はありません。

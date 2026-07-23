@@ -414,6 +414,16 @@ services:
     environment:
       SERVICE_PORT: "${CORE_KNOWLEDGE_PORT:-20010}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
+      REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      MYSQL_USER: "${MYSQL_USER:-root}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
+      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -447,9 +457,11 @@ services:
       MYSQL_USER: "${MYSQL_USER:-root}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
       MYSQL_DB: "${WORKFLOW_MYSQL_DB:-workflow}"
+      CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
       REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
       REDIS_EXPIRE: "${REDIS_EXPIRE:-3600}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"

@@ -23,7 +23,7 @@ except ImportError:
     RAGFlow = None  # type: ignore[assignment]
 
 from knowledge.consts.error_code import CodeEnum
-from knowledge.domain.platform_account_config import get_config_value
+from knowledge.domain.platform_account_config import get_managed_config_value
 from knowledge.exceptions.exception import ThirdPartyException
 
 # Import constants module to ensure environment variables are loaded properly
@@ -387,7 +387,7 @@ def reload_config() -> None:
 
 
 def _config_value(key: str, env_name: str, default: str = "") -> str:
-    value = get_config_value("ragflow", key)
+    value = get_managed_config_value("ragflow", key)
     if value not in (None, ""):
         return str(value)
     return os.getenv(env_name, default)

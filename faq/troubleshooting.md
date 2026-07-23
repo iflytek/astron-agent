@@ -63,3 +63,29 @@ console-hub , astron-agent-core-tenant )。
 - 注意区分 App ID  和 Flow ID 。
 - 确认请求 URL 中的 Host 和 Port 是否正确（指向 console-hub  或网关端口）。
 3. 参数替换：如果是从示例代码复制，确保 xxx  等占位符已替换为实际值。
+
+## 私有化部署中 AITools 服务连接 MinIO/OSS 报错 403 Forbidden？
+
+这通常是域名转发配置问题。请检查 Nginx 等代理服务的域名和路径转发规则，确保正确配置了 MinIO/OSS 的访问路径，并正确传递了鉴权头。
+
+## 代码节点报错 `ModuleNotFoundError: No module named 'json5'` 或缺少其他依赖？
+
+代码节点运行在工作流容器中，报错说明该容器内缺少对应的 Python 依赖包。
+
+**临时解决（容器重建后失效）：**
+
+```bash
+docker exec -it astron-agent-core-workflow \
+  pip install json5 -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+安装完成后回到页面重新运行即可。
+
+**永久生效：** 基于官方镜像创建自定义 `Dockerfile`：
+
+```dockerfile
+FROM ghcr.io/iflytek/astron-agent-core-workflow:latest
+RUN pip install json5
+```
+
+然后修改 `docker-compose.yaml` 使用该镜像，并重新构建：`docker compose up -d --build`。

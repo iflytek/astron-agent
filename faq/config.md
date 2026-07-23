@@ -27,3 +27,18 @@ docker compose down  然后 docker compose up -d 。
 ## 客户端可以切换组织吗？
 
 可以。客户端登录基于 Casdoor 认证。请参考 带认证的部署指南，在 Casdoor 管理页面进行组织和用户的配置。
+
+## 开源版可以关闭注册账号功能吗？
+
+可以，在 Casdoor 中关闭：
+
+1. 登录 Casdoor 控制台（默认 8000 端口）。
+2. 进入 `astron-agent-app` 应用的编辑页面。
+
+![Casdoor 应用编辑入口](assets/casdoor_app_edit.png)
+
+3. 找到「启用注册」开关并关闭，保存退出即可。
+
+![关闭启用注册](assets/casdoor_disable_signup.png)
+
+关闭后新用户无法自助注册，只能由管理员在 Casdoor 中添加。
