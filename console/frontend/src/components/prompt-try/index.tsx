@@ -22,6 +22,8 @@ import {
 import type { AgentSkill } from '@/types/skill';
 import type { AgentTool } from '@/types/plugin-store';
 import type { AgentWorkflow } from '@/types/agent-workflow';
+import useSpaceStore from '@/store/space-store';
+import { buildDebugSseHeaders } from './request-headers';
 
 // PromptTry组件暴露的方法接口
 export interface PromptTryRef {
@@ -267,10 +269,14 @@ const PromptTry = forwardRef<
       let toolsName: string = ''; //工具名称
       const controller = new AbortController();
       controllerRef.current = controller;
-      const headerConfig = {
-        'Accept-Language': getLanguageCode(),
-        authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-      };
+      const { spaceId, spaceType, enterpriseId } = useSpaceStore.getState();
+      const headerConfig = buildDebugSseHeaders({
+        languageCode: getLanguageCode(),
+        accessToken: localStorage.getItem('accessToken'),
+        spaceId,
+        spaceType,
+        enterpriseId,
+      });
       setIsLoading(true);
       setIsCompleted(false);
       // 先追加用户消息
