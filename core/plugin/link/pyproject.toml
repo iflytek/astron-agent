@@ -39,6 +39,7 @@ dependencies = [
     "cryptography>=46.0.1",
     "redis==3.5.3",
     "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
     "types-pyyaml>=6.0.12.20250915",
     "boto3>=1.40.53",
     "botocore>=1.40.53",

@@ -1,13 +1,15 @@
 """Tests for MCP client transport selection and fallback behavior."""
 
 import ssl
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import httpx
 import pytest
 from mcp import ClientSession as RealClientSession
+from mcp.server.fastmcp import FastMCP
 from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import (
     MCPCallToolRequest,
     MCPToolListRequest,
@@ -51,9 +53,9 @@ def transport_factory(
     *,
     initialize_error: BaseException | None = None,
     include_session_callback: bool = False,
-):
+) -> Callable[..., AbstractAsyncContextManager[tuple[object, ...]]]:
     @asynccontextmanager
-    async def transport(*_: Any, **__: Any):
+    async def transport(*_: Any, **__: Any) -> AsyncIterator[tuple[object, ...]]:
         attempts.append(name)
         streams: tuple[object, ...] = (
             FakeReadStream(initialize_error),
@@ -66,14 +68,16 @@ def transport_factory(
     return transport
 
 
-def sdk_session_factory(read: object, write: object, **kwargs: Any):
+def sdk_session_factory(
+    read: object, write: object, **kwargs: Any
+) -> FakeSession | RealClientSession:
     """Use a fake session for fake streams and the SDK session for real streams."""
     if isinstance(read, FakeReadStream):
         return FakeSession(read, write, **kwargs)
-    return RealClientSession(read, write, **kwargs)
+    return RealClientSession(cast(Any, read), cast(Any, write), **kwargs)
 
 
-def mock_http_client_factory(status_code: int):
+def mock_http_client_factory(status_code: int) -> Callable[..., httpx.AsyncClient]:
     """Create an AsyncClient factory that preserves connector event hooks."""
     real_async_client = httpx.AsyncClient
 
@@ -261,6 +265,67 @@ async def test_auto_does_not_fallback_on_certificate_failure(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_auto_does_not_fallback_on_tls_handshake_failure(
+    monkeypatch: pytest.MonkeyPatch, fake_session: None
+) -> None:
+    attempts: list[str] = []
+    request = httpx.Request("POST", "https://example.com/mcp")
+    error = httpx.ConnectError("TLS handshake failed", request=request)
+    error.__cause__ = ssl.SSLError(1, "tlsv1 alert protocol version")
+    monkeypatch.setattr(
+        mcp_transport,
+        "streamable_http_client",
+        transport_factory(attempts, "streamable_http", initialize_error=error),
+    )
+    monkeypatch.setattr(mcp_transport, "sse_client", transport_factory(attempts, "sse"))
+
+    with pytest.raises(mcp_transport.MCPTransportError) as exc_info:
+        async with mcp_transport.initialized_mcp_session(
+            "https://example.com/mcp", MCPTransport.AUTO
+        ):
+            pytest.fail("the session should not initialize")
+
+    assert exc_info.value.phase == "initialization"
+    assert isinstance(exc_info.value.cause, httpx.ConnectError)
+    assert attempts == ["streamable_http"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_real_sdk_streamable_http_success_round_trip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    server = FastMCP("test-server", host="testserver", stateless_http=True)
+
+    @server.tool()
+    def echo(value: str) -> str:
+        return value
+
+    app = server.streamable_http_app()
+    real_async_client = httpx.AsyncClient
+
+    def create_client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        kwargs["transport"] = httpx.ASGITransport(app=app)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(mcp_transport.httpx, "AsyncClient", create_client)
+
+    async with app.router.lifespan_context(app):
+        async with mcp_transport.initialized_mcp_session(
+            "http://testserver/mcp", MCPTransport.STREAMABLE_HTTP
+        ) as (session, selected):
+            tools = await session.list_tools()
+            result = await session.call_tool("echo", arguments={"value": "hello"})
+
+    assert selected is MCPTransport.STREAMABLE_HTTP
+    assert [tool.name for tool in tools.tools] == ["echo"]
+    assert result.isError is False
+    assert result.content[0].type == "text"
+    assert result.content[0].text == "hello"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_explicit_streamable_http_never_falls_back(
     monkeypatch: pytest.MonkeyPatch, fake_session: None
 ) -> None:
@@ -323,7 +388,7 @@ async def test_auto_reports_final_sse_connection_failure(
     )
 
     @asynccontextmanager
-    async def failing_sse(*_: Any, **__: Any):
+    async def failing_sse(*_: Any, **__: Any) -> AsyncIterator[None]:
         attempts.append("sse")
         raise httpx.ConnectError("connection refused", request=request)
         yield  # pragma: no cover

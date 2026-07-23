@@ -54,7 +54,7 @@ def _fallback_reason(
     """Return a credential-free fallback category for negotiation failures."""
     nested = tuple(_walk_exceptions(error))
 
-    if any(isinstance(item, ssl.SSLCertVerificationError) for item in nested):
+    if any(isinstance(item, ssl.SSLError) for item in nested):
         return None
 
     statuses = {
