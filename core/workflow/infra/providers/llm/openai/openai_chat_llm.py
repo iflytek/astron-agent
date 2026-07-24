@@ -81,11 +81,15 @@ class OpenAIChatAI(ChatAI):
         :param msg: Raw message dictionary from OpenAI API
         :return: Tuple containing (index, status, content, reasoning_content, token_usage)
         """
-        delta = msg["choices"][0]["delta"]
-        status = msg["choices"][0]["finish_reason"]
+        token_usage = msg.get("usage") or {}
+        choices = msg.get("choices") or []
+        if not choices:
+            return "", "", "", token_usage
+
+        delta = choices[0]["delta"]
+        status = choices[0]["finish_reason"]
         content = delta["content"]
         reasoning_content = delta.get("reasoning_content", "")
-        token_usage = {} if not msg["usage"] else msg["usage"]
         return status, content, reasoning_content, token_usage
 
     async def _recv_messages(
@@ -151,6 +155,7 @@ class OpenAIChatAI(ChatAI):
         timeout: float | None = None,
     ) -> AsyncIterator[LLMResponse]:
         last_frame_data = {}
+        latest_usage = {}
         is_first_frame = True
         start_time = None
 
@@ -178,22 +183,47 @@ class OpenAIChatAI(ChatAI):
                     {"recv": json.dumps(chunk.dict(), ensure_ascii=False)}
                 )
 
+                frame_data = chunk.dict()
+                usage = frame_data.get("usage") or {}
+                if usage:
+                    latest_usage = usage
+
+                # Usage-only chunks have no delta and cannot be consumed downstream.
+                if not (frame_data.get("choices") or []):
+                    continue
+
+                if latest_usage and not usage:
+                    frame_data = {**frame_data, "usage": latest_usage}
+
                 # Update last frame data and yield response
-                last_frame_data = chunk.dict()
+                last_frame_data = frame_data
                 yield LLMResponse(
                     msg=last_frame_data,
                 )
 
             except StopAsyncIteration:
                 # Stream ended, mark as finished and yield final response
-                last_frame_data["choices"] = [
-                    {
-                        "finish_reason": ChatStatus.FINISH_REASON.value,
-                        "delta": {"content": "", "reasoning_content": ""},
-                    }
-                ]
+                if not last_frame_data:
+                    raise CustomException(
+                        err_code=CodeEnum.OPEN_AI_REQUEST_ERROR,
+                        err_msg="LLM stream returned no data",
+                        cause_error="LLM stream returned no data",
+                    )
+                if last_frame_data["choices"][0].get("finish_reason"):
+                    break
+
+                final_frame_data = {
+                    **last_frame_data,
+                    "usage": latest_usage or last_frame_data.get("usage"),
+                    "choices": [
+                        {
+                            "finish_reason": ChatStatus.FINISH_REASON.value,
+                            "delta": {"content": "", "reasoning_content": ""},
+                        }
+                    ],
+                }
                 yield LLMResponse(
-                    msg=last_frame_data,
+                    msg=final_frame_data,
                 )
                 break
 
