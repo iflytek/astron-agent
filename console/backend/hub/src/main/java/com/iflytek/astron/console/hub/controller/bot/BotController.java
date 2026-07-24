@@ -92,7 +92,7 @@ public class BotController {
         if (bot.getBotId() != null) {
             botPermissionUtil.checkBot(bot.getBotId());
             if (botService.updateWorkflowBot(uid, bot, request, spaceId)) {
-                syncWorkflowRuntimeModel(bot, request, spaceId);
+                syncWorkflowRuntimeModel(bot, request, uid, spaceId);
                 return ApiResult.success();
             }
         } else {
@@ -104,17 +104,18 @@ public class BotController {
             dto.setFlowId(maas.getJSONObject("data").getLong("flowId"));
             dto.setMaasId(maas.getJSONObject("data").getLong("id"));
             botService.addMaasInfo(uid, maas, botId, spaceId);
-            syncWorkflowRuntimeModel(bot, request, spaceId);
+            syncWorkflowRuntimeModel(bot, request, uid, spaceId);
             return ApiResult.success(dto);
         }
         return ApiResult.error(ResponseEnum.CREATE_BOT_FAILED);
     }
 
-    private void syncWorkflowRuntimeModel(BotCreateForm bot, HttpServletRequest request, Long spaceId) {
+    private void syncWorkflowRuntimeModel(
+            BotCreateForm bot, HttpServletRequest request, String uid, Long spaceId) {
         if (bot == null || bot.getBotId() == null) {
             return;
         }
-        LLMInfoVo llmInfoVo = resolveSelectedModel(bot, request, spaceId);
+        LLMInfoVo llmInfoVo = resolveSelectedModel(bot, request, uid, spaceId);
         if (llmInfoVo == null) {
             log.warn("Skip workflow runtime model sync because selected model cannot be resolved, botId={}, modelId={}, model={}",
                     bot.getBotId(), bot.getModelId(), bot.getModel());
@@ -129,9 +130,10 @@ public class BotController {
         workflowService.syncWorkflowModelConfig(userLangChainInfo.getFlowId(), llmInfoVo);
     }
 
-    private LLMInfoVo resolveSelectedModel(BotCreateForm bot, HttpServletRequest request, Long spaceId) {
+    private LLMInfoVo resolveSelectedModel(
+            BotCreateForm bot, HttpServletRequest request, String uid, Long spaceId) {
         if (bot.getModelId() != null) {
-            LLMInfoVo llmInfoVo = (LLMInfoVo) modelService.getDetail(0, bot.getModelId(), request).data();
+            LLMInfoVo llmInfoVo = modelService.getRuntimeModelDetail(bot.getModelId(), uid, spaceId);
             if (llmInfoVo != null) {
                 return llmInfoVo;
             }
@@ -144,7 +146,7 @@ public class BotController {
         modelDto.setPageSize(1000);
         modelDto.setType(0);
         modelDto.setFilter(0);
-        modelDto.setUid(RequestContextUtil.getUID());
+        modelDto.setUid(uid);
         modelDto.setSpaceId(spaceId);
         ApiResult<Page<LLMInfoVo>> result = modelService.getList(modelDto, request);
         Page<LLMInfoVo> page = result.data();

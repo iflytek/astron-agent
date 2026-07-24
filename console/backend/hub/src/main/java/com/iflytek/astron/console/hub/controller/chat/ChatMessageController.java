@@ -7,6 +7,7 @@ import com.iflytek.astron.console.commons.entity.bot.ChatBotBase;
 import com.iflytek.astron.console.commons.dto.chat.ChatListCreateResponse;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.commons.util.I18nUtil;
 import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
@@ -412,15 +413,14 @@ public class ChatMessageController {
         debugChatReqDto.setMaasDatasetList(maasDatasetList);
         debugChatReqDto.setPersonalityConfig(debugRequest.getPersonalityConfig());
 
-        // Debug requests carry workflows straight from the client; enforce the same ownership
-        // gate as save, otherwise any user could run another owner's workflow via crafted input.
         Long spaceId = SpaceInfoUtil.getSpaceId();
-        // space-id is a client-supplied header and botDebug has no @SpacePreAuth membership
-        // aspect; without verified membership the same-space leg of the ownership check must
-        // not apply.
         if (spaceId != null && !SpaceInfoUtil.checkUserBelongSpace()) {
-            spaceId = null;
+            log.warn("Reject bot debug request from non-member, uid: {}, spaceId: {}", uid, spaceId);
+            SseEmitterUtil.completeWithError(sseEmitter,
+                    I18nUtil.getMessage(ResponseEnum.PERMISSION_NOT_BELONG_SPACE.getMessageKey()));
+            return sseEmitter;
         }
+        debugChatReqDto.setSpaceId(spaceId);
         if (!agentWorkflowRuntimeService.checkWorkflowsAccessible(uid, spaceId, debugRequest.getWorkflows())) {
             SseEmitterUtil.completeWithError(sseEmitter, "Workflow not accessible");
             return sseEmitter;

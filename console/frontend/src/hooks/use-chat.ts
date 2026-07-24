@@ -1,10 +1,11 @@
 import useChatStore from '@/store/chat-store';
 import { getLanguageCode } from '@/utils/http';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useRef } from 'react';
 import type { Option } from '@/types/chat';
 import { useNavigate } from 'react-router-dom';
 import { baseURL } from '@/utils/http';
+import useSpaceStore from '@/store/space-store';
+import { fetchSseWithContext } from '@/utils/sse-request';
 
 // SSE 数据类型定义
 interface SSEData {
@@ -94,10 +95,6 @@ const useChat = () => {
     const controller = new AbortController();
     controllerRef.current = controller;
     setControllerRef(controllerRef.current);
-    const headerConfig = {
-      'Accept-Language': getLanguageCode(),
-      authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-    };
     if (isnewchat) {
       addMessage({
         id: Date.now(),
@@ -130,12 +127,19 @@ const useChat = () => {
       reqId: 0,
       updateTime: new Date().toISOString(),
     });
-    fetchEventSource(url, {
+    fetchSseWithContext(url, {
+      getContext: () => {
+        const { spaceId, spaceType, enterpriseId } = useSpaceStore.getState();
+        return {
+          languageCode: getLanguageCode(),
+          accessToken: localStorage.getItem('accessToken'),
+          spaceId,
+          spaceType,
+          enterpriseId,
+        };
+      },
       method: 'POST',
       body: form,
-      headers: {
-        ...headerConfig,
-      },
       openWhenHidden: true,
       signal: controller.signal,
       onopen(): Promise<void> {

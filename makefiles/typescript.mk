@@ -95,17 +95,11 @@ test-typescript: ## Run TypeScript tests
 		for dir in $(TS_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Testing $$dir...$(RESET)"; \
-				cd $$dir; \
-				if [ -f package.json ] && grep -q '"test"' package.json; then \
-					if grep -q '"test":.*vite.*--host' package.json || grep -q '"test":.*dev' package.json; then \
-						echo "$(BLUE)    Test script appears to be dev server, skipping$(RESET)"; \
-					else \
-						$(NPM) test; \
-					fi; \
+				if [ -f "$$dir/package.json" ] && grep -q '"test:unit"' "$$dir/package.json"; then \
+					(cd "$$dir" && $(NPM) run test:unit) || exit 1; \
 				else \
-					echo "$(BLUE)    No test script found in package.json$(RESET)"; \
+					echo "$(BLUE)    No test:unit script found in package.json$(RESET)"; \
 				fi; \
-				cd - > /dev/null; \
 			else \
 				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
 			fi; \

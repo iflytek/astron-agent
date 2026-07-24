@@ -47,6 +47,11 @@ public class DebugChatBotReqDto {
     private String uid;
 
     /**
+     * Space ID verified by the controller
+     */
+    private Long spaceId;
+
+    /**
      * Opened tool
      */
     private String openedTool;

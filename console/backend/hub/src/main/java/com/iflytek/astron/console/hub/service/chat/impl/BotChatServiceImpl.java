@@ -26,7 +26,6 @@ import com.iflytek.astron.console.commons.service.data.ChatListDataService;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.service.workflow.WorkflowBotChatService;
 import com.iflytek.astron.console.commons.util.I18nUtil;
-import com.iflytek.astron.console.commons.util.RequestContextUtil;
 import com.iflytek.astron.console.commons.util.SseEmitterUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
@@ -129,14 +128,16 @@ public class BotChatServiceImpl implements BotChatService {
     public void chatMessageBot(ChatBotReqDto chatBotReqDto, SseEmitter sseEmitter, String sseId, String workflowOperation, String workflowVersion) {
         try {
             log.info("Processing chat request, sseId: {}, chatId: {}, uid: {}", sseId, chatBotReqDto.getChatId(), chatBotReqDto.getUid());
+            Long spaceId = SpaceInfoUtil.getSpaceId();
 
             BotConfiguration botConfig = getBotConfiguration(chatBotReqDto.getBotId());
             if (botConfig.version.equals(BotTypeEnum.WORKFLOW_BOT.getType()) || botConfig.version.equals(BotTypeEnum.TALK.getType())) {
-                syncWorkflowRuntimeModel(chatBotReqDto.getBotId(), botConfig, sseEmitter);
+                syncWorkflowRuntimeModel(chatBotReqDto.getBotId(), botConfig, chatBotReqDto.getUid(), spaceId, sseEmitter);
                 workflowBotChatService.chatWorkflowBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, workflowVersion);
             } else {
                 ChatReqRecords chatReqRecords = createChatRequest(chatBotReqDto);
-                ModelConfigResult modelConfig = resolveChatModelConfiguration(botConfig.modelId, botConfig.model, sseEmitter);
+                ModelConfigResult modelConfig = resolveChatModelConfiguration(
+                        botConfig.modelId, botConfig.model, chatBotReqDto.getUid(), spaceId, sseEmitter);
                 int maxInputTokens = modelConfig == null ? this.maxInputTokens : modelConfig.maxInputTokens();
                 List<SparkChatRequest.MessageDto> messages = buildMessageList(chatBotReqDto, botConfig.supportContext,
                         botConfig.supportDocument, botConfig.prompt, maxInputTokens, chatReqRecords.getId());
@@ -152,7 +153,7 @@ public class BotChatServiceImpl implements BotChatService {
                         .userId(chatBotReqDto.getUid())
                         .chatId(chatBotReqDto.getChatId())
                         .botId(chatBotReqDto.getBotId())
-                        .spaceId(SpaceInfoUtil.getSpaceId())
+                        .spaceId(spaceId)
                         .rawUserText(chatBotReqDto.getAsk())
                         .chatReqRecords(chatReqRecords)
                         .edit(false)
@@ -188,7 +189,9 @@ public class BotChatServiceImpl implements BotChatService {
             chatBotReqDto.setUid(chatReqRecords.getUid());
             chatBotReqDto.setAsk(chatReqRecords.getMessage());
             chatBotReqDto.setEdit(true);
-            ModelConfigResult modelConfig = resolveChatModelConfiguration(botConfig.modelId, botConfig.model, sseEmitter);
+            Long spaceId = SpaceInfoUtil.getSpaceId();
+            ModelConfigResult modelConfig = resolveChatModelConfiguration(
+                    botConfig.modelId, botConfig.model, chatBotReqDto.getUid(), spaceId, sseEmitter);
             int maxInputTokens = modelConfig == null ? this.maxInputTokens : modelConfig.maxInputTokens();
             List<SparkChatRequest.MessageDto> messages = buildMessageList(chatBotReqDto, botConfig.supportContext,
                     botConfig.supportDocument, botConfig.prompt, maxInputTokens, chatReqRecords.getId());
@@ -204,7 +207,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .userId(chatBotReqDto.getUid())
                     .chatId(chatBotReqDto.getChatId())
                     .botId(botId)
-                    .spaceId(SpaceInfoUtil.getSpaceId())
+                    .spaceId(spaceId)
                     .rawUserText(chatBotReqDto.getAsk())
                     .chatReqRecords(chatReqRecords)
                     .edit(true)
@@ -231,14 +234,14 @@ public class BotChatServiceImpl implements BotChatService {
             List<SparkChatRequest.MessageDto> messageList;
             // get personality config prompt
             String prompt = personalityConfigService.getChatPrompt(request.getPersonalityConfig(), request.getPrompt());
-            ModelConfigResult modelConfig = resolveChatModelConfiguration(request.getModelId(), request.getModel(), sseEmitter);
+            ModelConfigResult modelConfig = resolveChatModelConfiguration(
+                    request.getModelId(), request.getModel(), request.getUid(), request.getSpaceId(), sseEmitter);
             int maxInputTokens = modelConfig == null ? this.maxInputTokens : modelConfig.maxInputTokens();
             messageList = buildDebugMessageList(request.getText(), prompt, request.getMessages(), maxInputTokens,
                     request.getMaasDatasetList());
             if (modelConfig != null) {
-                Long spaceId = SpaceInfoUtil.getSpaceId();
                 if (!modelService.checkModelBase(modelConfig.llmInfoVo().getLlmId(),
-                        modelConfig.llmInfoVo().getServiceId(), modelConfig.llmInfoVo().getUrl(), request.getUid(), spaceId)) {
+                        modelConfig.llmInfoVo().getServiceId(), modelConfig.llmInfoVo().getUrl(), request.getUid(), request.getSpaceId())) {
                     throw new BusinessException(ResponseEnum.MODEL_CHECK_FAILED);
                 }
             }
@@ -254,7 +257,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .userId(request.getUid())
                     .chatId(null)
                     .botId(request.getBotId())
-                    .spaceId(SpaceInfoUtil.getSpaceId())
+                    .spaceId(request.getSpaceId())
                     .debugSessionId(request.getDebugSessionId())
                     .rawUserText(request.getText())
                     .chatReqRecords(null)
@@ -314,31 +317,33 @@ public class BotChatServiceImpl implements BotChatService {
      * @param sseEmitter SSE emitter for error handling
      * @return ModelConfigResult containing LLMInfoVo and maxInputTokens, or null if model doesn't exist
      */
-    private ModelConfigResult getModelConfiguration(Long modelId, SseEmitter sseEmitter) {
-        LLMInfoVo llmInfoVo = (LLMInfoVo) modelService.getDetail(0, modelId, null).data();
+    private ModelConfigResult getModelConfiguration(Long modelId, String uid, Long spaceId, SseEmitter sseEmitter) {
+        LLMInfoVo llmInfoVo = modelService.getRuntimeModelDetail(modelId, uid, spaceId);
         if (llmInfoVo == null) {
             throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
         }
         return buildModelConfigResult(llmInfoVo);
     }
 
-    private ModelConfigResult resolveChatModelConfiguration(Long modelId, String model, SseEmitter sseEmitter) {
+    private ModelConfigResult resolveChatModelConfiguration(
+            Long modelId, String model, String uid, Long spaceId, SseEmitter sseEmitter) {
         if (modelId != null) {
-            return getModelConfiguration(modelId, sseEmitter);
+            return getModelConfiguration(modelId, uid, spaceId, sseEmitter);
         }
         if (isSparkModel(model)) {
             return null;
         }
-        return getModelConfigurationByDomain(model, sseEmitter);
+        return getModelConfigurationByDomain(model, uid, spaceId, sseEmitter);
     }
 
-    private ModelConfigResult getModelConfigurationByDomain(String modelDomain, SseEmitter sseEmitter) {
+    private ModelConfigResult getModelConfigurationByDomain(
+            String modelDomain, String uid, Long spaceId, SseEmitter sseEmitter) {
         ModelDto modelDto = new ModelDto();
         modelDto.setType(0);
         modelDto.setPage(1);
         modelDto.setPageSize(1000);
-        modelDto.setUid(RequestContextUtil.getUID());
-        modelDto.setSpaceId(SpaceInfoUtil.getSpaceId());
+        modelDto.setUid(uid);
+        modelDto.setSpaceId(spaceId);
         ApiResult<Page<LLMInfoVo>> listResult = modelService.getList(modelDto, null);
         Page<LLMInfoVo> page = listResult == null ? null : listResult.data();
         if (page == null || page.getRecords() == null) {
@@ -360,7 +365,8 @@ public class BotChatServiceImpl implements BotChatService {
         throw new BusinessException(ResponseEnum.MODEL_CHECK_FAILED);
     }
 
-    private void syncWorkflowRuntimeModel(Integer botId, BotConfiguration botConfig, SseEmitter sseEmitter) {
+    private void syncWorkflowRuntimeModel(
+            Integer botId, BotConfiguration botConfig, String uid, Long spaceId, SseEmitter sseEmitter) {
         if (botId == null || botConfig == null) {
             return;
         }
@@ -369,7 +375,8 @@ public class BotChatServiceImpl implements BotChatService {
             return;
         }
         boolean remoteSynced = false;
-        ModelConfigResult modelConfigResult = resolveChatModelConfiguration(botConfig.modelId, botConfig.model, sseEmitter);
+        ModelConfigResult modelConfigResult = resolveChatModelConfiguration(
+                botConfig.modelId, botConfig.model, uid, spaceId, sseEmitter);
         if (modelConfigResult != null) {
             remoteSynced = workflowService.syncWorkflowModelConfig(userLangChainInfo.getFlowId(), modelConfigResult.llmInfoVo());
         }

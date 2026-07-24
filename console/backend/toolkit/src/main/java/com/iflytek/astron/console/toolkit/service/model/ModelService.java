@@ -16,6 +16,7 @@ import com.iflytek.astron.console.commons.entity.user.UserInfo;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.commons.service.space.EnterpriseSpaceService;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.toolkit.common.constant.CommonConst;
 import com.iflytek.astron.console.toolkit.entity.biz.modelconfig.Config;
@@ -124,6 +125,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
     private final ModelCategoryService modelCategoryService;
     private final ModelCommonService modelCommonService;
     private final LocalModelHandler modelHandler;
+    private final EnterpriseSpaceService enterpriseSpaceService;
 
     // ======== Environment Variables ========
     @Value("${spring.profiles.active}")
@@ -915,46 +917,68 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             String currentUid = userInfo.getUid();
             Long currentSpaceId = SpaceInfoUtil.getSpaceId(); // Assuming this gets current space
 
-            // Verify that the user has access to this model by checking against the same
-            // filters as dealWithSelfModel
-            LambdaQueryWrapper<Model> wrapper = new LambdaQueryWrapper<Model>()
-                    .eq(Model::getId, modelId)
-                    .eq(Model::getIsDeleted, 0);
-
-            if (currentSpaceId != null) {
-                wrapper.eq(Model::getSpaceId, currentSpaceId);
-            } else {
-                wrapper.isNull(Model::getSpaceId).eq(Model::getUid, currentUid);
-            }
-
-            Model model = mapper.selectOne(wrapper);
+            Model model = findAccessibleModel(modelId, currentUid, currentSpaceId);
             if (model == null) {
                 // Model doesn't exist or user doesn't have access to it
                 return ApiResult.error(ResponseEnum.MODEL_NOT_EXIST);
             }
 
-            LLMInfoVo modelVo = buildLLMInfoVoFromModel(model, userInfo);
+            LLMInfoVo modelVo = buildPublicLLMInfoVoFromModel(model, userInfo);
             return ApiResult.success(modelVo);
         }
+    }
+
+    public LLMInfoVo getRuntimeModelDetail(Long modelId, String authenticatedUid, Long authorizedSpaceId) {
+        UserInfo userInfo = UserInfoManagerHandler.get();
+        if (!Objects.equals(userInfo.getUid(), authenticatedUid)) {
+            throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+        }
+
+        Model model = findAccessibleModel(modelId, authenticatedUid, authorizedSpaceId);
+        if (model == null) {
+            throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
+        }
+        return buildRuntimeLLMInfoVoFromModel(model, userInfo);
+    }
+
+    private Model findAccessibleModel(Long modelId, String uid, Long spaceId) {
+        if (spaceId != null && enterpriseSpaceService.checkUserBelongSpace(spaceId, uid) == null) {
+            return null;
+        }
+
+        LambdaQueryWrapper<Model> wrapper = new LambdaQueryWrapper<Model>()
+                .eq(Model::getId, modelId)
+                .eq(Model::getIsDeleted, 0);
+        if (spaceId != null) {
+            wrapper.eq(Model::getSpaceId, spaceId);
+        } else {
+            wrapper.isNull(Model::getSpaceId).eq(Model::getUid, uid);
+        }
+        return mapper.selectOne(wrapper);
     }
 
     /**
      * Build LLMInfoVo from Model entity
      */
-    private @NotNull LLMInfoVo buildLLMInfoVoFromModel(Model model, UserInfo userInfo) {
-        LLMInfoVo vo = new LLMInfoVo();
-        String apiKey = model.getApiKey();
-        if (StringUtils.isNotBlank(apiKey) && apiKey.length() > 8) {
-            // First 4 digits + asterisks + last 4 digits
-            apiKey = apiKey.substring(0, 4) + "********" + apiKey.substring(apiKey.length() - 4);
+    private @NotNull LLMInfoVo buildPublicLLMInfoVoFromModel(Model model, UserInfo userInfo) {
+        LLMInfoVo vo = buildRuntimeLLMInfoVoFromModel(model, userInfo);
+        String apiKey = vo.getApiKey();
+        if (StringUtils.isNotBlank(apiKey)) {
+            vo.setApiKey(apiKey.length() > 8
+                    ? apiKey.substring(0, 4) + "********" + apiKey.substring(apiKey.length() - 4)
+                    : "********");
         }
+        return vo;
+    }
+
+    private @NotNull LLMInfoVo buildRuntimeLLMInfoVoFromModel(Model model, UserInfo userInfo) {
+        LLMInfoVo vo = new LLMInfoVo();
         if (model.getType() == 2 && !Objects.equals(model.getStatus(), ModelStatusEnum.RUNNING.getCode())) {
             this.flushStatus(model);
         }
         vo.setName(model.getName());
         vo.setServiceId(model.getDomain());
         vo.setConfig(JSONArray.parseArray(model.getConfig()));
-        vo.setApiKey(apiKey);
         vo.setLlmSource(0);
         vo.setAddress(s3UtilClient.getS3Prefix());
         BeanUtils.copyProperties(model, vo);

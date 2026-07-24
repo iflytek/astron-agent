@@ -11,7 +11,6 @@ import com.iflytek.astron.console.commons.dto.chat.ChatListCreateResponse;
 import com.iflytek.astron.console.commons.entity.chat.ChatReqRecords;
 import com.iflytek.astron.console.commons.enums.ShelfStatusEnum;
 import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
-import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.service.bot.BotService;
 import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
@@ -163,7 +162,7 @@ class BotChatServiceImplUnitTest {
         when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
         when(chatDataService.createRequest(any())).thenReturn(createChatReqRecords());
         when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        when(modelService.getRuntimeModelDetail(1L, "test-uid", 1L)).thenReturn(llmInfoVo);
 
         botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
 
@@ -188,7 +187,7 @@ class BotChatServiceImplUnitTest {
         when(chatBotDataService.findById(anyInt())).thenReturn(Optional.of(chatBotBase));
         when(chatDataService.createRequest(any())).thenReturn(createChatReqRecords());
         when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", createLLMInfoVo(), 1L));
+        when(modelService.getRuntimeModelDetail(1L, "test-uid", 1L)).thenReturn(createLLMInfoVo());
 
         botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
 
@@ -235,6 +234,7 @@ class BotChatServiceImplUnitTest {
         request.setPrompt("test prompt");
         request.setMessages(Arrays.asList("message1", "message2"));
         request.setUid("test-uid");
+        request.setSpaceId(42L);
         request.setOpenedTool("web_search");
         request.setModel("x1");
         request.setModelId(null);
@@ -262,6 +262,7 @@ class BotChatServiceImplUnitTest {
         request.setPrompt("test prompt");
         request.setMessages(Arrays.asList("message1", "message2"));
         request.setUid("test-uid");
+        request.setSpaceId(42L);
         request.setOpenedTool("web_search");
         request.setModel("test-model");
         request.setModelId(1L);
@@ -274,16 +275,18 @@ class BotChatServiceImplUnitTest {
         llmInfoVo.setLlmId(100L);
         llmInfoVo.setServiceId("test-service-id");
         when(personalityConfigService.getChatPrompt(isNull(), eq("test prompt"))).thenReturn("test prompt");
-        when(modelService.getDetail(anyInt(), anyLong(), any())).thenReturn(new ApiResult<>(0, "success", llmInfoVo, 1L));
+        when(modelService.getRuntimeModelDetail(1L, "test-uid", 42L)).thenReturn(llmInfoVo);
         when(modelService.checkModelBase(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(knowledgeService.getChuncks(any(), anyString(), anyInt(), anyBoolean())).thenReturn(Arrays.asList("knowledge"));
 
         botChatService.debugChatMessageBot(request, sseEmitter, "sse");
 
-        verify(modelService).checkModelBase(anyLong(), anyString(), anyString(), anyString(), any());
+        verify(modelService).getRuntimeModelDetail(1L, "test-uid", 42L);
+        verify(modelService).checkModelBase(anyLong(), anyString(), anyString(), eq("test-uid"), eq(42L));
         AgentChatTask task = captureTask();
         assertTrue(task.isDebug());
         assertNotNull(task.getLlmInfoVo());
+        assertEquals(42L, task.getSpaceId());
     }
 
     @Test

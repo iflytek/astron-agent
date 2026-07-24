@@ -288,19 +288,8 @@ jobs:
             typescript)
               echo "📦 Installing dependencies..."
               npm ci --legacy-peer-deps
-              echo "🧪 Running TypeScript tests with coverage..."
-              if [ -f package.json ] && grep -q '"test"' package.json; then
-                # Check if test script is actually for unit testing (not dev server)
-                if grep -q '"test":.*vite.*--host' package.json || grep -q '"test":.*dev' package.json; then
-                  echo "Test script appears to be dev server, skipping"
-                else
-                  npm test -- --coverage --coverageReporters=text --coverageReporters=lcov || \
-                  npm test -- --coverage || \
-                  npm test
-                fi
-              else
-                echo "No test script found in package.json"
-              fi
+              echo "🧪 Running TypeScript unit tests..."
+              npm run test:unit
               ;;
             go)
               echo "🧪 Running Go tests with coverage..."

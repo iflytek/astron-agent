@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --mode development --host",
     "test": "vite --mode test --host localhost",
+    "test:unit": "node --test --loader ts-node/esm",
     "build": "vite build --mode production",
     "build:dev": "vite build --mode development",
     "build-dev": "vite build --mode development",

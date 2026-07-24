@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.commons.entity.space.SpaceUser;
+import com.iflytek.astron.console.commons.service.space.EnterpriseSpaceService;
 import com.iflytek.astron.console.toolkit.entity.biz.modelconfig.*;
 import com.iflytek.astron.console.toolkit.entity.table.ConfigInfo;
 import com.iflytek.astron.console.toolkit.entity.table.model.Model;
@@ -74,6 +76,8 @@ class ModelServiceTest {
     private ModelCommonService modelCommonService;
     @Mock
     private LocalModelHandler modelHandler;
+    @Mock
+    private EnterpriseSpaceService enterpriseSpaceService;
 
     @Spy
     @InjectMocks
@@ -382,11 +386,14 @@ class ModelServiceTest {
         when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(model);
         when(modelCategoryService.getTree(12L)).thenReturn(Collections.emptyList());
         when(s3UtilClient.getS3Prefix()).thenReturn("s3://x");
+        lenient().when(enterpriseSpaceService.checkUserBelongSpace(1L, "u1"))
+                .thenReturn(new SpaceUser());
 
         try (MockedStatic<com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler> user =
                 mockStatic(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler.class)) {
             com.iflytek.astron.console.commons.entity.user.UserInfo userInfo =
                     new com.iflytek.astron.console.commons.entity.user.UserInfo();
+            userInfo.setUid("u1");
             userInfo.setUsername("tester");
             user.when(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler::get)
                     .thenReturn(userInfo);
@@ -395,6 +402,119 @@ class ModelServiceTest {
             LLMInfoVo vo = (LLMInfoVo) ret.data();
             assertEquals("openai", vo.getProvider());
         }
+    }
+
+    @Test
+    void testGetDetail_customModel_masksLongApiKey() {
+        Model model = customModelWithApiKey("sk-12345678");
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(model);
+        when(modelCategoryService.getTree(12L)).thenReturn(Collections.emptyList());
+        when(s3UtilClient.getS3Prefix()).thenReturn("s3://x");
+        lenient().when(enterpriseSpaceService.checkUserBelongSpace(1L, "u1"))
+                .thenReturn(new SpaceUser());
+
+        try (MockedStatic<com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler> user =
+                mockStatic(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler.class)) {
+            com.iflytek.astron.console.commons.entity.user.UserInfo userInfo =
+                    new com.iflytek.astron.console.commons.entity.user.UserInfo();
+            userInfo.setUid("u1");
+            userInfo.setUsername("tester");
+            user.when(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler::get)
+                    .thenReturn(userInfo);
+
+            LLMInfoVo vo = (LLMInfoVo) modelService.getDetail(0, 12L, null).data();
+
+            assertEquals("sk-1********5678", vo.getApiKey());
+        }
+    }
+
+    @Test
+    void testGetDetail_customModel_masksShortApiKey() {
+        Model model = customModelWithApiKey("short");
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(model);
+        when(modelCategoryService.getTree(12L)).thenReturn(Collections.emptyList());
+        when(s3UtilClient.getS3Prefix()).thenReturn("s3://x");
+        lenient().when(enterpriseSpaceService.checkUserBelongSpace(1L, "u1"))
+                .thenReturn(new SpaceUser());
+
+        try (MockedStatic<com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler> user =
+                mockStatic(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler.class)) {
+            com.iflytek.astron.console.commons.entity.user.UserInfo userInfo =
+                    new com.iflytek.astron.console.commons.entity.user.UserInfo();
+            userInfo.setUid("u1");
+            userInfo.setUsername("tester");
+            user.when(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler::get)
+                    .thenReturn(userInfo);
+
+            LLMInfoVo vo = (LLMInfoVo) modelService.getDetail(0, 12L, null).data();
+
+            assertEquals("********", vo.getApiKey());
+        }
+    }
+
+    @Test
+    void testGetDetail_customModel_rejectsNonMemberSpaceHeader() {
+        lenient().when(enterpriseSpaceService.checkUserBelongSpace(1L, "u1"))
+                .thenReturn(null);
+
+        try (MockedStatic<com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler> user =
+                mockStatic(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler.class)) {
+            com.iflytek.astron.console.commons.entity.user.UserInfo userInfo =
+                    new com.iflytek.astron.console.commons.entity.user.UserInfo();
+            userInfo.setUid("u1");
+            user.when(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler::get)
+                    .thenReturn(userInfo);
+
+            ApiResult result = modelService.getDetail(0, 12L, null);
+
+            assertNull(result.data());
+            verify(mapper, never()).selectOne(any(LambdaQueryWrapper.class));
+        }
+    }
+
+    @Test
+    void testGetRuntimeModelDetail_usesExplicitAuthorizedSpaceAndKeepsApiKey() throws Exception {
+        Model model = customModelWithApiKey("sk-12345678");
+        model.setSpaceId(42L);
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(model);
+        when(modelCategoryService.getTree(12L)).thenReturn(Collections.emptyList());
+        when(s3UtilClient.getS3Prefix()).thenReturn("s3://x");
+        when(enterpriseSpaceService.checkUserBelongSpace(42L, "u1"))
+                .thenReturn(new SpaceUser());
+
+        try (MockedStatic<com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler> user =
+                mockStatic(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler.class)) {
+            com.iflytek.astron.console.commons.entity.user.UserInfo userInfo =
+                    new com.iflytek.astron.console.commons.entity.user.UserInfo();
+            userInfo.setUid("u1");
+            userInfo.setUsername("tester");
+            user.when(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler::get)
+                    .thenReturn(userInfo);
+
+            var runtimeDetailMethod = ModelService.class.getMethod(
+                    "getRuntimeModelDetail", Long.class, String.class, Long.class);
+            LLMInfoVo vo = (LLMInfoVo) runtimeDetailMethod.invoke(modelService, 12L, "u1", 42L);
+
+            assertEquals("sk-12345678", vo.getApiKey());
+            verify(enterpriseSpaceService).checkUserBelongSpace(42L, "u1");
+        }
+    }
+
+    private Model customModelWithApiKey(String apiKey) {
+        Model model = new Model();
+        model.setId(12L);
+        model.setUid("u1");
+        model.setSpaceId(1L);
+        model.setName("custom");
+        model.setType(1);
+        model.setApiKey(apiKey);
+        model.setDomain("custom-domain");
+        model.setConfig("[]");
+        model.setDesc("desc");
+        model.setImageUrl("icon");
+        model.setCreateTime(new Date());
+        model.setUpdateTime(new Date());
+        return model;
     }
 
     /**

@@ -78,7 +78,7 @@ smart_test: ## 🧪 Intelligent test execution (detect active projects)
 			go) echo "  - Running Go tests..." && $(MAKE) --no-print-directory test-go ;; \
 			java) echo "  - Running Java tests..." && $(MAKE) --no-print-directory test-java ;; \
 			python) echo "  - Running Python tests..." && $(MAKE) --no-print-directory test-python ;; \
-			typescript) echo "  - Skipping TypeScript tests (not configured yet)" ;; \
+			typescript) echo "  - Running TypeScript tests..." && $(MAKE) --no-print-directory test-typescript ;; \
 		esac; \
 	done
 	@echo "$(GREEN)✅ Testing complete: $(ACTIVE_PROJECTS)$(RESET)"
