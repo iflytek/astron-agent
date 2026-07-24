@@ -191,14 +191,14 @@ export default defineConfig({
     ja: {
       label: "日本語",
       lang: "ja-JP",
-      link: "/ja/",
+      link: "/ja/README",
       title: "Astron Agent",
       description: "エンタープライズ向け・商用フレンドリーな Agentic Workflow 開発プラットフォームのドキュメントサイト。",
       themeConfig: {
         logo: "/logo-square.png",
         siteTitle: "Astron Agent",
         nav: [
-          { text: "ホーム", link: "/ja/" },
+          { text: "ホーム", link: "/ja/README" },
           { text: "プロジェクト概要", link: "/ja/README" }
         ],
         sidebar: [
