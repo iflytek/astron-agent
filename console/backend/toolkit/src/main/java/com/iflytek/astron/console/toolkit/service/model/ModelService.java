@@ -61,6 +61,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.interfaces.RSAPrivateKey;
 import java.util.*;
@@ -110,6 +111,8 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
     private static final String PROVIDER_OPENAI = "openai";
     private static final String PROVIDER_ANTHROPIC = "anthropic";
     private static final String PROVIDER_GOOGLE = "google";
+    private static final String PROVIDER_OLLAMA = "ollama";
+    private static final int OLLAMA_DEFAULT_PORT = 11434;
     private static final String ANTHROPIC_VERSION = "2023-06-01";
 
     private static final String CODE_XINGCHEN = "xingchen";
@@ -147,7 +150,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         }
 
         // 2) Construct/validate URL + request body/headers
-        final String provider = normalizeProvider(request.getProvider(), true);
+        final String provider = resolveValidationProvider(request.getProvider(), request.getEndpoint());
         final String url = buildModelApiUrlNew(request.getEndpoint(), provider, request.getDomain());
         final Map<String, Object> requestBody =
                 buildValidationPayload(request.getDomain(), provider);
@@ -258,6 +261,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             // compatibility
             ssrfProperties.setIpBlaklist(ipBlacklist);
             ssrfProperties.setIpWhitelist(ipWhitelist);
+            ssrfProperties.setBlockPrivate(!PROVIDER_OLLAMA.equals(provider));
 
             // 0) Remove userInfo and normalize
             String stripped = SsrfValidators.stripUserInfo(baseUrl);
@@ -390,7 +394,41 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         if (PROVIDER_GOOGLE.equals(provider)) {
             return root.has("candidates") && root.get("candidates").isArray();
         }
+        if (PROVIDER_OLLAMA.equals(provider)) {
+            return root.has("choices") && root.get("choices").isArray();
+        }
         return root.has("choices") && root.get("choices").isArray() && root.has("usage");
+    }
+
+    /**
+     * Resolve the provider used for validation. Ollama endpoints are detected explicitly or from the
+     * endpoint URL so they use a dedicated validation path instead of the strict OpenAI check.
+     */
+    private String resolveValidationProvider(String provider, String endpoint) {
+        String normalized = normalizeProvider(provider, true);
+        if (PROVIDER_OLLAMA.equals(normalized) || looksLikeOllamaEndpoint(endpoint)) {
+            return PROVIDER_OLLAMA;
+        }
+        return normalized;
+    }
+
+    private static boolean looksLikeOllamaEndpoint(String endpoint) {
+        if (StringUtils.isBlank(endpoint)) {
+            return false;
+        }
+        String trimmed = endpoint.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        if (lower.contains("ollama")) {
+            return true;
+        }
+        try {
+            URL url = new URL(trimmed.contains("://") ? trimmed : "http://" + trimmed);
+            int port = url.getPort();
+            return port == OLLAMA_DEFAULT_PORT
+                    || (port == -1 && lower.matches(".*:11434(?:/|$).*"));
+        } catch (MalformedURLException e) {
+            return lower.matches(".*:11434(?:/|$).*");
+        }
     }
 
     private void saveOrUpdateModel(ModelValidationRequest request) {

@@ -828,6 +828,71 @@ class ModelServiceTest {
                 "local-model"));
     }
 
+    @Test
+    void buildModelApiUrlAllowsPrivateIpForOllamaEndpoint() {
+        ConfigInfo emptyConfig = new ConfigInfo();
+        emptyConfig.setValue("");
+        when(configInfoMapper.getListByCategory("NETWORK_SEGMENT_BLACK_LIST"))
+                .thenReturn(List.of(emptyConfig));
+        when(configInfoMapper.getListByCategory("IP_WHITE_LIST"))
+                .thenReturn(List.of(emptyConfig));
+
+        String url = ReflectionTestUtils.invokeMethod(
+                modelService,
+                "buildModelApiUrlNew",
+                "http://127.0.0.1:11434",
+                "ollama",
+                "llama3.2");
+
+        assertEquals("http://127.0.0.1:11434/v1/chat/completions", url);
+    }
+
+    @Test
+    void testValidateModel_ollamaResponseWithoutUsage_success() {
+        ModelValidationRequest req = new ModelValidationRequest();
+        req.setId(110L);
+        req.setApiKeyMasked(false);
+        req.setEndpoint("http://127.0.0.1:11434");
+        req.setDomain("llama3.2");
+        req.setModelName("local-ollama");
+        req.setUid("u1");
+        req.setTag(Collections.emptyList());
+        req.setConfig(Collections.emptyList());
+
+        Model dbModel = new Model();
+        dbModel.setId(110L);
+        dbModel.setUid("u1");
+        dbModel.setApiKey("ollama");
+        dbModel.setIsDeleted(false);
+        doReturn(dbModel).when(modelService).getById(110L);
+
+        when(configInfoMapper.getListByCategory("NETWORK_SEGMENT_BLACK_LIST"))
+                .thenReturn(Collections.singletonList(new ConfigInfo()));
+        when(configInfoMapper.getListByCategory("IP_WHITE_LIST"))
+                .thenReturn(Collections.emptyList());
+
+        doReturn(dbModel)
+                .doReturn(null)
+                .when(modelService)
+                .getOne(any(LambdaQueryWrapper.class));
+        when(mapper.updateById(any(Model.class))).thenReturn(1);
+        doNothing().when(modelCategoryService).saveAll(any(ModelCategoryReq.class));
+
+        String ollamaResp = """
+                {"choices":[{"message":{"role":"assistant","content":"hi"}}],"model":"llama3.2"}
+                """;
+        ResponseEntity<String> httpOk = new ResponseEntity<>(ollamaResp, HttpStatus.OK);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), any(HttpEntity.class), eq(String.class)))
+                .thenReturn(httpOk);
+
+        String result = modelService.validateModel(req);
+
+        assertEquals("Model validation passed", result);
+        ArgumentCaptor<Model> modelCaptor = ArgumentCaptor.forClass(Model.class);
+        verify(mapper).updateById(modelCaptor.capture());
+        assertEquals("ollama", modelCaptor.getValue().getProvider());
+    }
+
     /**
      * Test {@link ModelService#(ModelDto, String)} to ensure public and owner models are merged, sorted
      * and paginated correctly.

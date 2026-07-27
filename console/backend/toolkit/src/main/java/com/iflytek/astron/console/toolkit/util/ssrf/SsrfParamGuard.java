@@ -64,8 +64,13 @@ public class SsrfParamGuard {
 
             // 2) IP blacklist (compatible with hostnames and IPs)
             List<String> ipBlacklist = props.getIpBlaklist();
-            if (SsrfValidators.isHostDeniedByIpPolicy(
-                    u.getHost(), ipBlacklist, props.getIpWhitelist(), Dns.SYSTEM)) {
+            List<String> ipWhitelist = props.getIpWhitelist();
+            boolean denied = props.isBlockPrivate()
+                    ? SsrfValidators.isHostDeniedByIpPolicy(
+                            u.getHost(), ipBlacklist, ipWhitelist, Dns.SYSTEM)
+                    : SsrfValidators.isHostBlockedByIpBlacklist(
+                            u.getHost(), ipBlacklist, ipWhitelist, Dns.SYSTEM);
+            if (denied) {
                 throw new BusinessException(ResponseEnum.MODEL_URL_CHECK_FAILED);
             }
 
