@@ -161,13 +161,9 @@ class OpenAIChatAI(ChatAI):
 
         while True:
             try:
-                if timeout is not None:
-                    if is_first_frame:
-                        start_time = asyncio.get_event_loop().time()
-                    # Frame timeout control
-                    chunk = await asyncio.wait_for(stream.__anext__(), timeout=timeout)
-                else:
-                    chunk = await stream.__anext__()
+                if is_first_frame and timeout is not None:
+                    start_time = asyncio.get_event_loop().time()
+                chunk = await self._next_stream_chunk(stream, timeout)
 
                 # Track first frame timing for performance monitoring
                 if is_first_frame:
@@ -184,16 +180,11 @@ class OpenAIChatAI(ChatAI):
                 )
 
                 frame_data = chunk.dict()
-                usage = frame_data.get("usage") or {}
-                if usage:
-                    latest_usage = usage
-
-                # Usage-only chunks have no delta and cannot be consumed downstream.
-                if not (frame_data.get("choices") or []):
+                frame_data, latest_usage = self._normalize_stream_frame(
+                    frame_data, latest_usage
+                )
+                if frame_data is None:
                     continue
-
-                if latest_usage and not usage:
-                    frame_data = {**frame_data, "usage": latest_usage}
 
                 # Update last frame data and yield response
                 last_frame_data = frame_data
@@ -203,25 +194,12 @@ class OpenAIChatAI(ChatAI):
 
             except StopAsyncIteration:
                 # Stream ended, mark as finished and yield final response
-                if not last_frame_data:
-                    raise CustomException(
-                        err_code=CodeEnum.OPEN_AI_REQUEST_ERROR,
-                        err_msg="LLM stream returned no data",
-                        cause_error="LLM stream returned no data",
-                    )
-                if last_frame_data["choices"][0].get("finish_reason"):
+                final_frame_data = self._build_final_stream_frame(
+                    last_frame_data, latest_usage
+                )
+                if final_frame_data is None:
                     break
 
-                final_frame_data = {
-                    **last_frame_data,
-                    "usage": latest_usage or last_frame_data.get("usage"),
-                    "choices": [
-                        {
-                            "finish_reason": ChatStatus.FINISH_REASON.value,
-                            "delta": {"content": "", "reasoning_content": ""},
-                        }
-                    ],
-                }
                 yield LLMResponse(
                     msg=final_frame_data,
                 )
@@ -234,6 +212,52 @@ class OpenAIChatAI(ChatAI):
                     err_msg=f"LLM response timeout ({timeout}s)",
                     cause_error=f"LLM response timeout ({timeout}s)",
                 ) from e
+
+    @staticmethod
+    async def _next_stream_chunk(stream: Any, timeout: float | None) -> Any:
+        if timeout is None:
+            return await stream.__anext__()
+        return await asyncio.wait_for(stream.__anext__(), timeout=timeout)
+
+    @staticmethod
+    def _normalize_stream_frame(
+        frame_data: dict, latest_usage: dict
+    ) -> tuple[dict | None, dict]:
+        usage = frame_data.get("usage") or {}
+        if usage:
+            latest_usage = usage
+
+        # Usage-only chunks have no delta and cannot be consumed downstream.
+        if not (frame_data.get("choices") or []):
+            return None, latest_usage
+
+        if latest_usage and not usage:
+            frame_data = {**frame_data, "usage": latest_usage}
+        return frame_data, latest_usage
+
+    @staticmethod
+    def _build_final_stream_frame(
+        last_frame_data: dict, latest_usage: dict
+    ) -> dict | None:
+        if not last_frame_data:
+            raise CustomException(
+                err_code=CodeEnum.OPEN_AI_REQUEST_ERROR,
+                err_msg="LLM stream returned no data",
+                cause_error="LLM stream returned no data",
+            )
+        if last_frame_data["choices"][0].get("finish_reason"):
+            return None
+
+        return {
+            **last_frame_data,
+            "usage": latest_usage or last_frame_data.get("usage"),
+            "choices": [
+                {
+                    "finish_reason": ChatStatus.FINISH_REASON.value,
+                    "delta": {"content": "", "reasoning_content": ""},
+                }
+            ],
+        }
 
     async def achat(  # noqa: C901
         self,
