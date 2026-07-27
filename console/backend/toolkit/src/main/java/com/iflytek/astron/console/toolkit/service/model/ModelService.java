@@ -417,17 +417,28 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
             return false;
         }
         String trimmed = endpoint.trim();
-        String lower = trimmed.toLowerCase(Locale.ROOT);
-        if (lower.contains("ollama")) {
-            return true;
-        }
         try {
             URL url = new URL(trimmed.contains("://") ? trimmed : "http://" + trimmed);
+            String host = url.getHost();
+            if (host != null && host.toLowerCase(Locale.ROOT).contains("ollama")) {
+                return true;
+            }
             int port = url.getPort();
-            return port == OLLAMA_DEFAULT_PORT
-                    || (port == -1 && lower.matches(".*:11434(?:/|$).*"));
+            if (port == OLLAMA_DEFAULT_PORT) {
+                return true;
+            }
+            if (port == -1) {
+                String authority = url.getAuthority();
+                return authority != null && authority.endsWith(":" + OLLAMA_DEFAULT_PORT);
+            }
+            return false;
         } catch (MalformedURLException e) {
-            return lower.matches(".*:11434(?:/|$).*");
+            String authority = trimmed.split("/", 2)[0];
+            String lowerAuthority = authority.toLowerCase(Locale.ROOT);
+            if (lowerAuthority.contains("ollama")) {
+                return true;
+            }
+            return lowerAuthority.matches(".*:" + OLLAMA_DEFAULT_PORT + "$");
         }
     }
 

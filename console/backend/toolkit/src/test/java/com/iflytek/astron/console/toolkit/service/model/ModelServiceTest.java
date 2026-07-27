@@ -829,6 +829,43 @@ class ModelServiceTest {
     }
 
     @Test
+    void resolveValidationProvider_doesNotInferOllamaFromPathSegment() {
+        String provider = ReflectionTestUtils.invokeMethod(
+                modelService,
+                "resolveValidationProvider",
+                "openai",
+                "http://192.168.60.12/v1/ollama/chat");
+        assertEquals("openai", provider);
+    }
+
+    @Test
+    void looksLikeOllamaEndpoint_detectsHostAndPortOnly() {
+        assertTrue(ReflectionTestUtils.invokeMethod(
+                ModelService.class, "looksLikeOllamaEndpoint", "http://127.0.0.1:11434"));
+        assertTrue(ReflectionTestUtils.invokeMethod(
+                ModelService.class, "looksLikeOllamaEndpoint", "http://ollama.local"));
+        assertFalse(ReflectionTestUtils.invokeMethod(
+                ModelService.class, "looksLikeOllamaEndpoint", "http://192.168.60.12/v1/ollama/chat"));
+    }
+
+    @Test
+    void buildModelApiUrlRejectsPrivateIpWhenPathContainsOllama() {
+        ConfigInfo emptyConfig = new ConfigInfo();
+        emptyConfig.setValue("");
+        when(configInfoMapper.getListByCategory("NETWORK_SEGMENT_BLACK_LIST"))
+                .thenReturn(List.of(emptyConfig));
+        when(configInfoMapper.getListByCategory("IP_WHITE_LIST"))
+                .thenReturn(List.of(emptyConfig));
+
+        assertThrows(BusinessException.class, () -> ReflectionTestUtils.invokeMethod(
+                modelService,
+                "buildModelApiUrlNew",
+                "http://192.168.60.12/v1/ollama/chat",
+                "openai",
+                "local-model"));
+    }
+
+    @Test
     void buildModelApiUrlAllowsPrivateIpForOllamaEndpoint() {
         ConfigInfo emptyConfig = new ConfigInfo();
         emptyConfig.setValue("");
