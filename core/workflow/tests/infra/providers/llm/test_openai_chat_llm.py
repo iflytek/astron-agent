@@ -2,7 +2,7 @@
 
 import importlib
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from openai.types.chat import ChatCompletionChunk
@@ -16,7 +16,10 @@ OPENAI_CHAT_MODULE = "workflow.infra.providers.llm.openai.openai_chat_llm"
 if getattr(sys.modules.get(OPENAI_CHAT_MODULE), "__spec__", None) is None:
     # The factory tests install a spec-less fake module during test collection.
     sys.modules.pop(OPENAI_CHAT_MODULE, None)
-OpenAIChatAI = importlib.import_module(OPENAI_CHAT_MODULE).OpenAIChatAI
+if TYPE_CHECKING:
+    from workflow.infra.providers.llm.openai.openai_chat_llm import OpenAIChatAI
+else:
+    OpenAIChatAI = importlib.import_module(OPENAI_CHAT_MODULE).OpenAIChatAI
 
 
 class EmptyAsyncStream:

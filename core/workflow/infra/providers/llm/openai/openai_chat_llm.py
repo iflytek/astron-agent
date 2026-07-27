@@ -154,8 +154,8 @@ class OpenAIChatAI(ChatAI):
         span: Span,
         timeout: float | None = None,
     ) -> AsyncIterator[LLMResponse]:
-        last_frame_data = {}
-        latest_usage = {}
+        last_frame_data: dict[str, Any] = {}
+        latest_usage: dict[str, Any] = {}
         is_first_frame = True
         start_time = None
 
@@ -221,8 +221,8 @@ class OpenAIChatAI(ChatAI):
 
     @staticmethod
     def _normalize_stream_frame(
-        frame_data: dict, latest_usage: dict
-    ) -> tuple[dict | None, dict]:
+        frame_data: dict[str, Any], latest_usage: dict[str, Any]
+    ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
         usage = frame_data.get("usage") or {}
         if usage:
             latest_usage = usage
@@ -237,8 +237,8 @@ class OpenAIChatAI(ChatAI):
 
     @staticmethod
     def _build_final_stream_frame(
-        last_frame_data: dict, latest_usage: dict
-    ) -> dict | None:
+        last_frame_data: dict[str, Any], latest_usage: dict[str, Any]
+    ) -> dict[str, Any] | None:
         if not last_frame_data:
             raise CustomException(
                 err_code=CodeEnum.OPEN_AI_REQUEST_ERROR,
