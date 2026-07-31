@@ -211,6 +211,8 @@ class CotRunner(RunnerBase):
                         content=reasoning_content,
                         model=self.model.name,
                     )
+
+                if not content:
                     continue
 
                 step_content += content

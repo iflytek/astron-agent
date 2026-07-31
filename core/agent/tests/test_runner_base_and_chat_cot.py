@@ -18,7 +18,7 @@ from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 from agent.exceptions import cot_exc
-from agent.service.plugin.base import BasePlugin
+from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
 @dataclass
@@ -106,6 +106,67 @@ class UsageOnlyFinalChunkLLM(BaseLLMModel):
         usage_chunk.choices = []
         usage_chunk.usage = usage
         yield usage_chunk
+
+
+class FinalAnswerThenReasoningOnlyLLM(BaseLLMModel):
+    """Fake a final answer followed by a reasoning-only stream chunk."""
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        for delta_data in (
+            {"reasoning_content": "", "content": "Final Answer: done"},
+            {"reasoning_content": "trailing thought", "content": ""},
+        ):
+            delta = MagicMock()
+            delta.dict.return_value = delta_data
+            chunk = MagicMock()
+            chunk.choices = [MagicMock(delta=delta)]
+            chunk.usage = None
+            yield chunk
+
+
+class ReasoningActionThenFinalAnswerLLM(BaseLLMModel):
+    """Fake the complete action, observation, and final-answer model flow."""
+
+    stream_call_count: int = 0
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        if self.stream_call_count == 1:
+            delta_data = {
+                "reasoning_content": "Need to read the sensor.",
+                "content": (
+                    "Thought: Read the current temperature.\n"
+                    "Action: tool1\n"
+                    'Action Input: {"scenario": "normal"}'
+                ),
+            }
+        elif self.stream_call_count == 2:
+            delta_data = {
+                "reasoning_content": "",
+                "content": (
+                    "Thought: The sensor reading is available.\n"
+                    "Final Answer: Ready to answer."
+                ),
+            }
+        elif self.stream_call_count == 3:
+            delta_data = {
+                "reasoning_content": "",
+                "content": "Current temperature: 26.2°C",
+            }
+        else:
+            raise AssertionError("Unexpected extra model stream call")
+
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
 
 
 @pytest.fixture
@@ -364,6 +425,114 @@ class TestCotRunnerParseStep:
         assert usage.prompt_tokens == 12
         assert usage.completion_tokens == 8
         assert usage.total_tokens == 20
+
+    @pytest.mark.asyncio
+    async def test_read_response_does_not_repeat_final_answer_for_reasoning_only_chunk(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        cot_runner.model = FinalAnswerThenReasoningOnlyLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+        )
+        messages = MagicMock()
+        messages.list.return_value = []
+
+        responses = [
+            response
+            async for response in cot_runner.read_response(
+                messages,
+                first_loop=True,
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert [(response.typ, response.content) for response in responses] == [
+            ("content", " done"),
+            ("reasoning_content", "trailing thought"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_read_response_parses_content_sharing_reasoning_chunk(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        cot_runner.model = ReasoningActionThenFinalAnswerLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+        )
+        messages = MagicMock()
+        messages.list.return_value = []
+
+        responses = [
+            response
+            async for response in cot_runner.read_response(
+                messages,
+                first_loop=True,
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert [response.typ for response in responses] == [
+            "reasoning_content",
+            "cot_step",
+        ]
+        assert responses[0].content == "Need to read the sensor."
+        cot_step = responses[-1].content
+        assert isinstance(cot_step, CotStep)
+        assert cot_step.action == "tool1"
+        assert cot_step.action_input == {"scenario": "normal"}
+
+    @pytest.mark.asyncio
+    async def test_run_executes_action_when_reasoning_shares_content_chunk(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = ReasoningActionThenFinalAnswerLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        plugin_run = AsyncMock(
+            return_value=PluginResponse(
+                result={"temperature": 26.2},
+                log=[],
+            )
+        )
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert responses[0].typ == "reasoning_content"
+        assert responses[0].content == "Need to read the sensor."
+        plugin_run.assert_awaited_once()
+        assert plugin_run.await_args.args[0] == {"scenario": "normal"}
+        assert any(
+            response.typ == "cot_step"
+            and isinstance(response.content, CotStep)
+            and response.content.action_output == {"temperature": 26.2}
+            for response in responses
+        )
+        assert responses[-1].typ == "content"
+        assert responses[-1].content == "Current temperature: 26.2°C"
+        assert model.stream_call_count == 3
 
     @pytest.mark.asyncio
     async def test_is_valid_plugin(self, cot_runner: CotRunner) -> None:
