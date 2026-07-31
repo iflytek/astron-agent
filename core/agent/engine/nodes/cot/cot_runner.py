@@ -161,6 +161,7 @@ class CotRunner(RunnerBase):
 
             step_content = ""
             final_answer = False
+            step_content_complete = False
 
             # node赋值
             node_id = ""
@@ -178,12 +179,6 @@ class CotRunner(RunnerBase):
             node_data_usage = Usage()
 
             async for chunk in self.model.stream(messages.list(), True, sp):
-                delta = chunk.choices[0].delta.dict()
-                reasoning_content = delta.get("reasoning_content", "") or ""
-                content: str = delta.get("content", "") or ""
-                thinks += reasoning_content
-                answers += content
-
                 if chunk.usage:
                     usage_data = chunk.usage.model_dump()
                     node_data_usage.completion_tokens += usage_data.get(
@@ -191,6 +186,18 @@ class CotRunner(RunnerBase):
                     )
                     node_data_usage.prompt_tokens += usage_data.get("prompt_tokens", 0)
                     node_data_usage.total_tokens += usage_data.get("total_tokens", 0)
+
+                if not chunk.choices:
+                    continue
+
+                if step_content_complete:
+                    continue
+
+                delta = chunk.choices[0].delta.dict()
+                reasoning_content = delta.get("reasoning_content", "") or ""
+                content: str = delta.get("content", "") or ""
+                thinks += reasoning_content
+                answers += content
 
                 if final_answer and content:
                     yield AgentResponse(
@@ -218,7 +225,7 @@ class CotRunner(RunnerBase):
                         continue
 
                 if "Observation:" in step_content or "Final Answer:" in step_content:
-                    break
+                    step_content_complete = True
 
             node_end_time = int(round(time.time() * 1000))
             data_llm_output = answers

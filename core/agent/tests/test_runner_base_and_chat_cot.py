@@ -80,6 +80,34 @@ class DummyLLM(BaseLLMModel):
         yield chunk
 
 
+class UsageOnlyFinalChunkLLM(BaseLLMModel):
+    """Fake an OpenAI-compatible stream ending with a usage-only chunk."""
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        content_delta = MagicMock()
+        content_delta.dict.return_value = {
+            "reasoning_content": "",
+            "content": "Final Answer: 26.2°C",
+        }
+        content_chunk = MagicMock()
+        content_chunk.choices = [MagicMock(delta=content_delta)]
+        content_chunk.usage = None
+        yield content_chunk
+
+        usage = MagicMock()
+        usage.model_dump.return_value = {
+            "completion_tokens": 8,
+            "prompt_tokens": 12,
+            "total_tokens": 20,
+        }
+        usage_chunk = MagicMock()
+        usage_chunk.choices = []
+        usage_chunk.usage = usage
+        yield usage_chunk
+
+
 @pytest.fixture
 def span() -> Span:
     return Span(app_id="app", uid="u")
@@ -273,6 +301,69 @@ class TestCotRunnerParseStep:
 
         with pytest.raises(cot_exc.CotFormatIncorrectExc):
             await cot_runner.parse_cot_step("no action here")
+
+    @pytest.mark.asyncio
+    async def test_read_response_accepts_usage_only_final_chunk(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        cot_runner.model = UsageOnlyFinalChunkLLM.model_construct(
+            name="gpt-5.2-chat", llm=MagicMock()
+        )
+        messages = MagicMock()
+        messages.list.return_value = []
+
+        responses = [
+            response
+            async for response in cot_runner.read_response(
+                messages,
+                first_loop=True,
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert [(response.typ, response.content) for response in responses] == [
+            ("content", " 26.2°C")
+        ]
+        usage = node_trace.trace[-1].data.usage
+        assert usage.prompt_tokens == 12
+        assert usage.completion_tokens == 8
+        assert usage.total_tokens == 20
+
+    @pytest.mark.asyncio
+    async def test_read_response_collects_usage_after_later_final_answer(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        cot_runner.model = UsageOnlyFinalChunkLLM.model_construct(
+            name="gpt-5.2-chat", llm=MagicMock()
+        )
+        messages = MagicMock()
+        messages.list.return_value = []
+
+        responses = [
+            response
+            async for response in cot_runner.read_response(
+                messages,
+                first_loop=False,
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert len(responses) == 1
+        assert responses[0].typ == "cot_step"
+        assert isinstance(responses[0].content, CotStep)
+        assert responses[0].content.finished_cot is True
+        usage = node_trace.trace[-1].data.usage
+        assert usage.prompt_tokens == 12
+        assert usage.completion_tokens == 8
+        assert usage.total_tokens == 20
 
     @pytest.mark.asyncio
     async def test_is_valid_plugin(self, cot_runner: CotRunner) -> None:
