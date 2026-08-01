@@ -19,22 +19,17 @@ class BaseLLMModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def create_completion(self, messages: list, stream: bool) -> Any:
-        llm_object = await self.llm.chat.completions.create(
-            messages=messages,
-            stream=stream,
-            model=self.name,
-            timeout=int(os.getenv("DEFAULT_LLM_TIMEOUT", "90")),
-        )
-        if os.getenv("DEFAULT_LLM_MAX_TOKEN"):
-            llm_object = await self.llm.chat.completions.create(
-                messages=messages,
-                stream=stream,
-                model=self.name,
-                timeout=int(os.getenv("DEFAULT_LLM_TIMEOUT", "90")),
-                max_tokens=int(os.getenv("DEFAULT_LLM_MAX_TOKEN", "8000")),
-            )
+        request_kwargs = {
+            "messages": messages,
+            "stream": stream,
+            "model": self.name,
+            "timeout": int(os.getenv("DEFAULT_LLM_TIMEOUT", "90")),
+        }
+        max_tokens = os.getenv("DEFAULT_LLM_MAX_TOKEN")
+        if max_tokens:
+            request_kwargs["max_tokens"] = int(max_tokens)
 
-        return llm_object
+        return await self.llm.chat.completions.create(**request_kwargs)
 
     def _log_messages_to_span(self, sp: Span, messages: list) -> None:
         for message in messages:

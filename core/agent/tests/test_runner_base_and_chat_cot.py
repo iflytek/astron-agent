@@ -149,17 +149,294 @@ class ReasoningActionThenFinalAnswerLLM(BaseLLMModel):
                 "reasoning_content": "",
                 "content": (
                     "Thought: The sensor reading is available.\n"
-                    "Final Answer: Ready to answer."
+                    "Final Answer: Current temperature: 26.2°C"
+                ),
+            }
+        else:
+            raise AssertionError("Unexpected extra model stream call")
+
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class PlainFinalAnswerAfterActionLLM(BaseLLMModel):
+    """Fake a provider that omits Final Answer after a successful tool call."""
+
+    stream_call_count: int = 0
+    received_user_prompts: list[str] = []
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        self.received_user_prompts.append(messages[-1]["content"])
+        if self.stream_call_count == 1:
+            delta_data = {
+                "reasoning_content": "",
+                "content": (
+                    "Thought: Read the current temperature.\n"
+                    "Action: tool1\n"
+                    'Action Input: {"scenario": "normal"}'
+                ),
+            }
+        elif self.stream_call_count == 2:
+            delta_data = {
+                "reasoning_content": "",
+                "content": "The tool succeeded and the temperature is 26.2°C.",
+            }
+        else:
+            raise AssertionError("Unexpected extra model stream call")
+
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class InvalidThenCorrectedActionLLM(BaseLLMModel):
+    """Fake one malformed first step followed by a corrected ReAct step."""
+
+    stream_call_count: int = 0
+    received_user_prompts: list[str] = []
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        self.received_user_prompts.append(messages[-1]["content"])
+        if self.stream_call_count == 1:
+            delta_data = {
+                "reasoning_content": "",
+                "content": "I should read the current temperature first.",
+            }
+        elif self.stream_call_count == 2:
+            delta_data = {
+                "reasoning_content": "",
+                "content": (
+                    "Thought: Read the current temperature.\n"
+                    "Action: tool1\n"
+                    'Action Input: {"scenario": "normal"}'
                 ),
             }
         elif self.stream_call_count == 3:
             delta_data = {
                 "reasoning_content": "",
-                "content": "Current temperature: 26.2°C",
+                "content": (
+                    "Thought: The reading is available.\n"
+                    "Final Answer: Current temperature: 26.2°C"
+                ),
             }
         else:
             raise AssertionError("Unexpected extra model stream call")
 
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class PartialActionAfterSuccessfulActionLLM(BaseLLMModel):
+    """Fake a truncated post-tool step followed by a corrected final answer."""
+
+    stream_call_count: int = 0
+    received_user_prompts: list[str] = []
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        self.received_user_prompts.append(messages[-1]["content"])
+        if self.stream_call_count == 1:
+            content = (
+                "Thought: Read the current temperature.\n"
+                "Action: tool1\n"
+                'Action Input: {"scenario": "normal"}'
+            )
+        elif self.stream_call_count == 2:
+            content = "Thought: Continue with another tool.\nAction: tool1"
+        elif self.stream_call_count == 3:
+            content = (
+                "Thought: The previous tool result is sufficient.\n"
+                "Final Answer: Current temperature: 26.2°C"
+            )
+        else:
+            raise AssertionError("Unexpected extra model stream call")
+
+        delta_data = {"reasoning_content": "", "content": content}
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class ReasoningOnlyProtocolLLM(BaseLLMModel):
+    """Fake a provider that puts a complete ReAct step in reasoning_content."""
+
+    stream_call_count: int = 0
+    received_user_prompts: list[str] = []
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        self.received_user_prompts.append(messages[-1]["content"])
+        if self.stream_call_count == 1:
+            delta_data = {
+                "reasoning_content": (
+                    "Thought: Read the current temperature.\n"
+                    "Action: tool1\n"
+                    'Action Input: {"scenario": "normal"}'
+                ),
+                "content": "",
+            }
+        elif self.stream_call_count == 2:
+            delta_data = {
+                "reasoning_content": "",
+                "content": (
+                    "Thought: The reading is available.\n"
+                    "Final Answer: Current temperature: 26.2°C"
+                ),
+            }
+        else:
+            raise AssertionError("Unexpected extra model stream call")
+
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class AlwaysInvalidProtocolLLM(BaseLLMModel):
+    """Fake a provider that answers in plain text even after format correction."""
+
+    stream_call_count: int = 0
+    received_user_prompts: list[str] = []
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        self.received_user_prompts.append(messages[-1]["content"])
+        delta_data = {
+            "reasoning_content": "",
+            "content": "I will not follow the required protocol.",
+        }
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class AlwaysPartialProtocolLLM(BaseLLMModel):
+    """Fake a provider that returns an unsafe partial action twice."""
+
+    stream_call_count: int = 0
+    received_user_prompts: list[str] = []
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        self.received_user_prompts.append(messages[-1]["content"])
+        delta_data = {
+            "reasoning_content": "",
+            "content": "Thought: I should call a tool.\nAction: tool1",
+        }
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class MixedReasoningActionContentLLM(BaseLLMModel):
+    """Fake a provider that puts the action in reasoning and prose in content."""
+
+    stream_call_count: int = 0
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        self.stream_call_count += 1
+        if self.stream_call_count == 1:
+            delta_data = {
+                "reasoning_content": (
+                    "Thought: Read the current temperature.\n"
+                    "Action: tool1\n"
+                    'Action Input: {"scenario": "normal"}'
+                ),
+                "content": "I will check the sensor now.",
+            }
+        elif self.stream_call_count == 2:
+            delta_data = {
+                "reasoning_content": "",
+                "content": "Final Answer: Current temperature: 26.2°C",
+            }
+        else:
+            raise AssertionError("Unexpected extra model stream call")
+
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class ReasoningFinalWithContentLLM(BaseLLMModel):
+    """Fake a reasoning model that emits its user-facing answer in content."""
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        delta_data = {
+            "reasoning_content": "Thought: Enough context.\nFinal Answer: internal",
+            "content": "User-facing answer",
+        }
+        delta = MagicMock()
+        delta.dict.return_value = delta_data
+        delta.model_dump.return_value = delta_data
+        chunk = MagicMock()
+        chunk.choices = [MagicMock(delta=delta)]
+        chunk.usage = None
+        yield chunk
+
+
+class ReasoningOnlyFinalLLM(BaseLLMModel):
+    """Fake a provider that places the whole final protocol in reasoning."""
+
+    async def stream(  # type: ignore[override]
+        self, messages: list, stream: bool, span: Optional[Span] = None
+    ) -> AsyncIterator[Any]:
+        delta_data = {
+            "reasoning_content": (
+                "Thought: Enough context.\nFinal Answer: Reasoning-channel answer"
+            ),
+            "content": "",
+        }
         delta = MagicMock()
         delta.dict.return_value = delta_data
         delta.model_dump.return_value = delta_data
@@ -357,6 +634,36 @@ class TestCotRunnerParseStep:
         assert step.action_input == {"x": 1}
 
     @pytest.mark.asyncio
+    async def test_parse_cot_step_accepts_common_marker_variations(
+        self, cot_runner: CotRunner
+    ) -> None:
+        content = (
+            "**thought**： read the sensor\n"
+            "**ACTION**： tool1\n"
+            "**Action_Input**： ```json\n"
+            '{"x": 1}\n'
+            "```"
+        )
+
+        step = await cot_runner.parse_cot_step(content)
+
+        assert step.thought == "read the sensor"
+        assert step.action == "tool1"
+        assert step.action_input == {"x": 1}
+
+    @pytest.mark.asyncio
+    async def test_parse_cot_step_accepts_inline_markers(
+        self, cot_runner: CotRunner
+    ) -> None:
+        content = "Thought: read the sensor Action: tool1 " 'Action Input: {"x": 1}'
+
+        step = await cot_runner.parse_cot_step(content)
+
+        assert step.thought == "read the sensor"
+        assert step.action == "tool1"
+        assert step.action_input == {"x": 1}
+
+    @pytest.mark.asyncio
     async def test_parse_cot_step_invalid_format(self, cot_runner: CotRunner) -> None:
         from agent.exceptions import cot_exc
 
@@ -387,7 +694,7 @@ class TestCotRunnerParseStep:
         ]
 
         assert [(response.typ, response.content) for response in responses] == [
-            ("content", " 26.2°C")
+            ("content", "26.2°C")
         ]
         usage = node_trace.trace[-1].data.usage
         assert usage.prompt_tokens == 12
@@ -417,10 +724,9 @@ class TestCotRunnerParseStep:
             )
         ]
 
-        assert len(responses) == 1
-        assert responses[0].typ == "cot_step"
-        assert isinstance(responses[0].content, CotStep)
-        assert responses[0].content.finished_cot is True
+        assert [(response.typ, response.content) for response in responses] == [
+            ("content", "26.2°C")
+        ]
         usage = node_trace.trace[-1].data.usage
         assert usage.prompt_tokens == 12
         assert usage.completion_tokens == 8
@@ -451,7 +757,7 @@ class TestCotRunnerParseStep:
         ]
 
         assert [(response.typ, response.content) for response in responses] == [
-            ("content", " done"),
+            ("content", "done"),
             ("reasoning_content", "trailing thought"),
         ]
 
@@ -532,7 +838,307 @@ class TestCotRunnerParseStep:
         )
         assert responses[-1].typ == "content"
         assert responses[-1].content == "Current temperature: 26.2°C"
+        assert model.stream_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_recovers_plain_final_answer_after_successful_action(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = PlainFinalAnswerAfterActionLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+            received_user_prompts=[],
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        plugin_run = AsyncMock(
+            return_value=PluginResponse(
+                result={"temperature": 26.2},
+                log=[],
+            )
+        )
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        plugin_run.assert_awaited_once()
+        assert responses[-1].typ == "content"
+        assert (
+            responses[-1].content == "The tool succeeded and the temperature is 26.2°C."
+        )
+        assert model.stream_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_retries_one_invalid_first_step_with_format_correction(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = InvalidThenCorrectedActionLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+            received_user_prompts=[],
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        plugin_run = AsyncMock(
+            return_value=PluginResponse(
+                result={"temperature": 26.2},
+                log=[],
+            )
+        )
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        plugin_run.assert_awaited_once()
+        assert "上一次输出格式无法解析" not in model.received_user_prompts[0]
+        assert "上一次输出格式无法解析" in model.received_user_prompts[1]
+        assert all(
+            "上一次输出格式无法解析" not in prompt
+            for prompt in model.received_user_prompts[2:]
+        )
+        assert responses[-1].typ == "content"
+        assert responses[-1].content == "Current temperature: 26.2°C"
         assert model.stream_call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_run_retries_partial_protocol_without_repeating_successful_action(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = PartialActionAfterSuccessfulActionLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+            received_user_prompts=[],
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        plugin_run = AsyncMock(
+            return_value=PluginResponse(
+                result={"temperature": 26.2},
+                log=[],
+            )
+        )
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        plugin_run.assert_awaited_once()
+        assert "上一次输出格式无法解析" in model.received_user_prompts[2]
+        assert responses[-1].content == "Current temperature: 26.2°C"
+        assert model.stream_call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_run_parses_complete_protocol_from_reasoning_content(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = ReasoningOnlyProtocolLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+            received_user_prompts=[],
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        plugin_run = AsyncMock(
+            return_value=PluginResponse(
+                result={"temperature": 26.2},
+                log=[],
+            )
+        )
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        plugin_run.assert_awaited_once()
+        assert plugin_run.await_args.args[0] == {"scenario": "normal"}
+        assert "上一次输出格式无法解析" not in model.received_user_prompts[1]
+        assert responses[-1].content == "Current temperature: 26.2°C"
+        assert model.stream_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_accepts_plain_answer_after_one_format_correction(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = AlwaysInvalidProtocolLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+            received_user_prompts=[],
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        cot_runner.max_loop = 1
+        plugin_run = AsyncMock()
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        plugin_run.assert_not_awaited()
+        assert "上一次输出格式无法解析" not in model.received_user_prompts[0]
+        assert "上一次输出格式无法解析" in model.received_user_prompts[1]
+        assert responses[-1].content == "I will not follow the required protocol."
+        assert model.stream_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_limits_partial_protocol_correction_to_one_retry(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = AlwaysPartialProtocolLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+            received_user_prompts=[],
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        cot_runner.max_loop = 1
+        plugin_run = AsyncMock()
+        cot_runner.plugins[0].run = plugin_run
+
+        with pytest.raises(cot_exc.CotExc):
+            async for _ in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            ):
+                pass
+
+        plugin_run.assert_not_awaited()
+        assert "上一次输出格式无法解析" in model.received_user_prompts[1]
+        assert model.stream_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_run_prefers_complete_reasoning_action_over_plain_content(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        model = MixedReasoningActionContentLLM.model_construct(
+            name="gpt-5.2-chat",
+            llm=MagicMock(),
+            stream_call_count=0,
+        )
+        cot_runner.model = model
+        cot_runner.process_runner.model = model
+        plugin_run = AsyncMock(
+            return_value=PluginResponse(result={"temperature": 26.2}, log=[])
+        )
+        cot_runner.plugins[0].run = plugin_run
+
+        responses = [
+            response
+            async for response in cot_runner.run(
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        plugin_run.assert_awaited_once()
+        assert plugin_run.await_args.args[0] == {"scenario": "normal"}
+        assert responses[-1].content == "Current temperature: 26.2°C"
+        assert model.stream_call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_read_response_uses_content_when_reasoning_has_final_protocol(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        cot_runner.model = ReasoningFinalWithContentLLM.model_construct(
+            name="gpt-5.2-chat", llm=MagicMock()
+        )
+        messages = MagicMock()
+        messages.list.return_value = []
+
+        responses = [
+            response
+            async for response in cot_runner.read_response(
+                messages,
+                first_loop=False,
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert responses[-1].typ == "content"
+        assert responses[-1].content == "User-facing answer"
+
+    @pytest.mark.asyncio
+    async def test_read_response_uses_reasoning_only_final_answer(
+        self,
+        cot_runner: CotRunner,
+        span: Span,
+        node_trace: NodeTraceLog,
+    ) -> None:
+        cot_runner.model = ReasoningOnlyFinalLLM.model_construct(
+            name="gpt-5.2-chat", llm=MagicMock()
+        )
+        messages = MagicMock()
+        messages.list.return_value = []
+
+        responses = [
+            response
+            async for response in cot_runner.read_response(
+                messages,
+                first_loop=False,
+                span=span,
+                node_trace_log=node_trace,
+            )
+        ]
+
+        assert responses[-1].typ == "content"
+        assert responses[-1].content == "Reasoning-channel answer"
 
     @pytest.mark.asyncio
     async def test_is_valid_plugin(self, cot_runner: CotRunner) -> None:

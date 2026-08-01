@@ -1,6 +1,7 @@
 import json
+import re
 import time
-from typing import Any, AsyncIterator, Union
+from typing import Any, AsyncIterator, Match, Union
 
 from common.otlp.log_trace.base import Usage
 
@@ -8,6 +9,7 @@ from common.otlp.log_trace.base import Usage
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
+from loguru import logger
 from pydantic import Field
 
 from agent.api.schemas.agent_response import AgentResponse, CotStep
@@ -28,6 +30,36 @@ from agent.service.plugin.mcp import McpPlugin
 from agent.service.plugin.workflow import WorkflowPlugin
 
 default_cot_step = CotStep(empty=True)
+
+FORMAT_CORRECTION_PROMPT = """
+
+上一次输出格式无法解析。请仅重新输出当前步骤，并严格采用以下两种格式之一：
+Thought: <当前思考>
+Action: <一个可访问工具名>
+Action Input: <单行合法 JSON>
+或
+Thought: <当前思考>
+Final Answer: <最终回答>
+不要省略上述英文标识字段，也不要用 Markdown 包裹标识字段。
+"""
+
+
+def _protocol_marker(label: str) -> re.Pattern[str]:
+    """Match common provider variations without matching prose mid-line."""
+    return re.compile(
+        rf"(?<![\w\"'])[ \t]*(?:(?:[-*]|\d+[.)])[ \t]+)?(?:\*\*)?{label}"
+        rf"(?:\*\*)?[ \t]*[:：](?:\*\*)?[ \t]*",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
+
+PROTOCOL_MARKERS = {
+    "thought": _protocol_marker(r"thought"),
+    "action": _protocol_marker(r"action"),
+    "action_input": _protocol_marker(r"action[ \t_-]+input"),
+    "observation": _protocol_marker(r"observation"),
+    "final_answer": _protocol_marker(r"final[ \t_-]+answer"),
+}
 
 
 class CotRunner(RunnerBase):
@@ -70,78 +102,112 @@ class CotRunner(RunnerBase):
 
     async def _parse_action_input(self, action_input_raw: str) -> dict[str, Any]:
         """解析并验证 action_input JSON 格式"""
+        normalized_input = action_input_raw.strip()
+        normalized_input = re.sub(
+            r"^```(?:json)?\s*", "", normalized_input, flags=re.IGNORECASE
+        )
+        normalized_input = re.sub(r"\s*```$", "", normalized_input)
         try:
-            return json.loads(action_input_raw.strip())
+            return json.loads(normalized_input)
         except json.decoder.JSONDecodeError:
             raise cot_exc.CotFormatIncorrectExc(
                 f"无效的插件参数JSON格式: {action_input_raw}"
             )
 
+    @staticmethod
+    def _find_marker(step_content: str, marker: str) -> Match[str] | None:
+        return PROTOCOL_MARKERS[marker].search(step_content)
+
+    def _has_complete_action(self, step_content: str) -> bool:
+        action = self._find_marker(step_content, "action")
+        action_input = self._find_marker(step_content, "action_input")
+        return bool(action and action_input and action.end() <= action_input.start())
+
+    def _extract_final_answer(self, step_content: str) -> str | None:
+        marker = self._find_marker(step_content, "final_answer")
+        if marker is None:
+            return None
+        return step_content[marker.end() :]
+
+    def _marker_presence(self, step_content: str) -> dict[str, bool]:
+        return {
+            marker: self._find_marker(step_content, marker) is not None
+            for marker in PROTOCOL_MARKERS
+        }
+
     async def _parse_action_and_input(
-        self, step_content: str, has_thought: bool = False
+        self, step_content: str
     ) -> tuple[str, str, dict[str, Any]]:
         """解析 action、action_input 和 thought"""
-        if has_thought:
-            thought_raw, right = step_content.split("Action:")
-            thought = thought_raw.split("Thought:")[1].strip()
-        else:
-            thought = ""
-            _, right = step_content.split("Action:")
+        action_marker = self._find_marker(step_content, "action")
+        action_input_marker = self._find_marker(step_content, "action_input")
+        if (
+            action_marker is None
+            or action_input_marker is None
+            or action_marker.end() > action_input_marker.start()
+        ):
+            raise cot_exc.CotFormatIncorrectExc("无效的推理格式，Action字段不完整")
 
-        action_raw, right = right.split("Action Input:")
-        action = action_raw.strip()
+        thought = ""
+        thought_marker = self._find_marker(step_content, "thought")
+        if thought_marker is not None and thought_marker.end() <= action_marker.start():
+            thought = step_content[thought_marker.end() : action_marker.start()].strip()
+
+        action = step_content[action_marker.end() : action_input_marker.start()].strip()
+        action = action.strip("`*_")
 
         if not await self.is_valid_plugin(action):
             raise cot_exc.CotFormatIncorrectExc(f"无效的插件名称'{action}'")
 
-        action_input_raw = right.split("Observation:")[0].strip()
+        action_input_end = len(step_content)
+        observation_marker = self._find_marker(step_content, "observation")
+        if (
+            observation_marker is not None
+            and observation_marker.start() >= action_input_marker.end()
+        ):
+            action_input_end = observation_marker.start()
+        action_input_raw = step_content[
+            action_input_marker.end() : action_input_end
+        ].strip()
         action_input = await self._parse_action_input(action_input_raw)
         return thought, action, action_input
 
-    async def parse_cot_step(self, step_content: str) -> CotStep:
-        # 处理包含 Thought 和 Final Answer 的情况
-        if all([k in step_content for k in ("Thought:", "Final Answer:")]):
-            thought = step_content.split("Final Answer:")[0].split("Thought:")[1]
+    async def parse_cot_step(
+        self, step_content: str, allow_plain_final_answer: bool = False
+    ) -> CotStep:
+        final_answer_marker = self._find_marker(step_content, "final_answer")
+        if final_answer_marker is not None:
+            thought = ""
+            thought_marker = self._find_marker(step_content, "thought")
+            if (
+                thought_marker is not None
+                and thought_marker.end() <= final_answer_marker.start()
+            ):
+                thought = step_content[
+                    thought_marker.end() : final_answer_marker.start()
+                ].strip()
             return CotStep(thought=thought, finished_cot=True)
 
-        # 处理只有 Final Answer 的情况
-        if "Final Answer:" in step_content:
-            return CotStep(finished_cot=True)
+        if self._has_complete_action(step_content):
+            thought, action, action_input = await self._parse_action_and_input(
+                step_content
+            )
+            return CotStep(thought=thought, action=action, action_input=action_input)
 
-        # 处理包含 Thought、Action、Action Input 和 Observation 的情况
-        if all(
-            [
-                k in step_content
-                for k in ("Thought:", "Action:", "Action Input:", "Observation:")
-            ]
+        normalized_content = step_content.strip()
+        if (
+            allow_plain_final_answer
+            and normalized_content
+            and not any(self._marker_presence(normalized_content).values())
         ):
-            thought, action, action_input = await self._parse_action_and_input(
-                step_content, has_thought=True
+            logger.warning(
+                "Recovering unmarked final answer after {} completed tool steps; "
+                "model={}, content_length={}",
+                len(self.scratchpad.steps),
+                self.model.name,
+                len(normalized_content),
             )
-            return CotStep(thought=thought, action=action, action_input=action_input)
-
-        # 处理包含 Thought、Action 和 Action Input 的情况
-        if all([k in step_content for k in ("Thought:", "Action:", "Action Input:")]):
-            thought, action, action_input = await self._parse_action_and_input(
-                step_content, has_thought=True
-            )
-            return CotStep(thought=thought, action=action, action_input=action_input)
-
-        # 处理包含 Action、Action Input 和 Observation 的情况
-        if all(
-            [k in step_content for k in ("Action:", "Action Input:", "Observation:")]
-        ):
-            thought, action, action_input = await self._parse_action_and_input(
-                step_content, has_thought=False
-            )
-            return CotStep(thought=thought, action=action, action_input=action_input)
-
-        # 处理包含 Action 和 Action Input 的情况
-        if all([k in step_content for k in ("Action:", "Action Input:")]):
-            thought, action, action_input = await self._parse_action_and_input(
-                step_content, has_thought=False
-            )
-            return CotStep(thought=thought, action=action, action_input=action_input)
+            return CotStep(thought=normalized_content, finished_cot=True)
 
         # 其他情况都视为无效格式
         raise cot_exc.CotFormatIncorrectExc("无效的推理格式，缺少必要的标识字段")
@@ -152,6 +218,7 @@ class CotRunner(RunnerBase):
         first_loop: bool,
         span: Span,
         node_trace_log: NodeTraceLog,
+        allow_plain_final_answer: bool = False,
     ) -> AsyncIterator[AgentResponse]:
 
         with span.start("MakingStep") as sp:
@@ -216,17 +283,17 @@ class CotRunner(RunnerBase):
                     continue
 
                 step_content += content
-                if first_loop:
-                    if "Final Answer:" in step_content:
-                        yield AgentResponse(
-                            typ="content",
-                            content=step_content.split("Final Answer:")[1],
-                            model=self.model.name,
-                        )
-                        final_answer = True
-                        continue
+                extracted_final_answer = self._extract_final_answer(step_content)
+                if extracted_final_answer is not None:
+                    yield AgentResponse(
+                        typ="content",
+                        content=extracted_final_answer,
+                        model=self.model.name,
+                    )
+                    final_answer = True
+                    continue
 
-                if "Observation:" in step_content or "Final Answer:" in step_content:
+                if self._find_marker(step_content, "observation") is not None:
                     step_content_complete = True
 
             node_end_time = int(round(time.time() * 1000))
@@ -257,9 +324,94 @@ class CotRunner(RunnerBase):
 
             if not final_answer:
                 # 解析 step_content
+                protocol_content = step_content
+                reasoning_action_complete = self._has_complete_action(thinks)
+                content_action_complete = self._has_complete_action(step_content)
+                reasoning_final_answer = self._extract_final_answer(thinks)
+
+                if reasoning_action_complete and not content_action_complete:
+                    protocol_content = thinks
+                    logger.warning(
+                        "Using reasoning_content as CoT action protocol; model={}, "
+                        "content_length={}, reasoning_length={}, completed_steps={}",
+                        self.model.name,
+                        len(step_content),
+                        len(thinks),
+                        len(self.scratchpad.steps),
+                    )
+
+                if (
+                    not content_action_complete
+                    and reasoning_final_answer is not None
+                    and step_content.strip()
+                ):
+                    yield AgentResponse(
+                        typ="content",
+                        content=step_content,
+                        model=self.model.name,
+                    )
+                    return
+
+                if (
+                    not content_action_complete
+                    and not reasoning_action_complete
+                    and allow_plain_final_answer
+                    and step_content.strip()
+                    and not any(self._marker_presence(step_content).values())
+                ):
+                    logger.warning(
+                        "Recovering unmarked final answer; model={}, "
+                        "content_length={}, completed_steps={}",
+                        self.model.name,
+                        len(step_content.strip()),
+                        len(self.scratchpad.steps),
+                    )
+                    yield AgentResponse(
+                        typ="content",
+                        content=step_content,
+                        model=self.model.name,
+                    )
+                    return
+
+                if (
+                    not step_content.strip()
+                    and reasoning_final_answer is not None
+                    and reasoning_final_answer.strip()
+                ):
+                    logger.warning(
+                        "Using final answer from reasoning_content because content is "
+                        "empty; model={}, reasoning_length={}, completed_steps={}",
+                        self.model.name,
+                        len(thinks),
+                        len(self.scratchpad.steps),
+                    )
+                    yield AgentResponse(
+                        typ="content",
+                        content=reasoning_final_answer,
+                        model=self.model.name,
+                    )
+                    return
+
+                try:
+                    cot_step = await self.parse_cot_step(
+                        protocol_content,
+                        allow_plain_final_answer=allow_plain_final_answer,
+                    )
+                except cot_exc.CotExc:
+                    logger.warning(
+                        "CoT response format validation failed; model={}, "
+                        "content_length={}, reasoning_length={}, completed_steps={}, "
+                        "markers={}",
+                        self.model.name,
+                        len(protocol_content),
+                        len(thinks),
+                        len(self.scratchpad.steps),
+                        self._marker_presence(protocol_content),
+                    )
+                    raise
                 yield AgentResponse(
                     typ="cot_step",
-                    content=await self.parse_cot_step(step_content),
+                    content=cot_step,
                     model=self.model.name,
                 )
 
@@ -269,13 +421,18 @@ class CotRunner(RunnerBase):
         first_loop: bool,
         span: Span,
         node_trace_log: NodeTraceLog,
+        allow_plain_final_answer: bool = False,
     ) -> AsyncIterator[tuple[AgentResponse | None, CotStep, bool]]:
         """处理 agent 响应，yield (agent_response, cot_step, yield_answer)"""
         cot_step: CotStep = default_cot_step
         yield_answer = False
 
         async for agent_response in self.read_response(
-            msgs, first_loop, span, node_trace_log
+            msgs,
+            first_loop,
+            span,
+            node_trace_log,
+            allow_plain_final_answer=allow_plain_final_answer,
         ):
             if agent_response.typ in ["reasoning_content", "log"]:
                 yield agent_response, cot_step, yield_answer
@@ -322,11 +479,14 @@ class CotRunner(RunnerBase):
             user_prompt_template = await self.create_user_prompt()
 
             loop_count = 0
+            format_retry_used = False
+            format_correction = ""
             while self.max_loop > loop_count:
                 loop_count += 1
                 user_prompt = user_prompt_template.replace(
                     "{scratchpad}", await self.scratchpad.template()
                 )
+                user_prompt += format_correction
 
                 msgs = LLMMessages(
                     messages=[
@@ -337,17 +497,39 @@ class CotRunner(RunnerBase):
 
                 cot_step = default_cot_step
                 yield_answer = False
-                async for (
-                    agent_response,
-                    step,
-                    answer_flag,
-                ) in self._process_agent_responses(
-                    msgs, loop_count == 1, sp, node_trace_log
-                ):
-                    if agent_response is not None:
-                        yield agent_response
-                    cot_step = step
-                    yield_answer = answer_flag
+                try:
+                    async for (
+                        agent_response,
+                        step,
+                        answer_flag,
+                    ) in self._process_agent_responses(
+                        msgs,
+                        loop_count == 1,
+                        sp,
+                        node_trace_log,
+                        allow_plain_final_answer=bool(self.scratchpad.steps)
+                        or format_retry_used,
+                    ):
+                        if agent_response is not None:
+                            yield agent_response
+                        cot_step = step
+                        yield_answer = answer_flag
+                except cot_exc.CotExc:
+                    if format_retry_used:
+                        raise
+                    format_retry_used = True
+                    format_correction = FORMAT_CORRECTION_PROMPT
+                    loop_count -= 1
+                    logger.warning(
+                        "Retrying CoT step once with format correction; "
+                        "model={}, completed_steps={}",
+                        self.model.name,
+                        len(self.scratchpad.steps),
+                    )
+                    continue
+
+                format_retry_used = False
+                format_correction = ""
 
                 if yield_answer:
                     return
