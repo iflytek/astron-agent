@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -75,11 +76,11 @@ def test_release_filter_keeps_workflow_end_content() -> None:
 
 @pytest.mark.asyncio
 async def test_idle_workflow_sends_heartbeat_before_30_seconds(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     observed_timeouts: list[float] = []
 
-    async def timeout_immediately(awaitable, *, timeout: float):
+    async def timeout_immediately(awaitable: Any, *, timeout: float) -> None:
         observed_timeouts.append(timeout)
         awaitable.close()
         raise asyncio.TimeoutError

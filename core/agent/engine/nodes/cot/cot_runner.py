@@ -212,7 +212,8 @@ class CotRunner(RunnerBase):
         # 其他情况都视为无效格式
         raise cot_exc.CotFormatIncorrectExc("无效的推理格式，缺少必要的标识字段")
 
-    async def read_response(
+    # Keep the streaming protocol transitions together as one state machine.
+    async def read_response(  # noqa: C901
         self,
         messages: LLMMessages,
         first_loop: bool,
@@ -468,7 +469,8 @@ class CotRunner(RunnerBase):
             cot_step.action_output = plugin_response.result
             yield AgentResponse(typ="cot_step", content=cot_step, model=self.model.name)
 
-    async def run(
+    # Keep the retry, tool-execution, and completion transitions together.
+    async def run(  # noqa: C901
         self, span: Span, node_trace_log: NodeTraceLog
     ) -> AsyncIterator[AgentResponse]:
         """cot run"""
