@@ -520,6 +520,41 @@ const handleMessageEnd = (data: WebSocketMessageData, get): void => {
   get().setInterruptChat({ ...initInterruptChat });
   handleRunningNodeStatus();
 };
+const handleWorkflowSseError = (
+  error: unknown,
+  get,
+  finalizeExecution = true
+): never => {
+  const requestError =
+    error instanceof Error ? error : new Error(String(error));
+  console.error('[Workflow SSE] Request failed', requestError);
+  if (finalizeExecution && get().wsMessageStatus !== 'end') {
+    handleFlowStop(
+      {
+        code: -1,
+        message: i18n.t(
+          'workflow.nodes.chatDebugger.workflowConnectionInterrupted'
+        ),
+      },
+      get
+    );
+  }
+  throw requestError;
+};
+const handleWorkflowSseClose = (get): void => {
+  if (get().wsMessageStatus === 'end') return;
+
+  console.error('[Workflow SSE] Connection closed before completion');
+  handleFlowStop(
+    {
+      code: -1,
+      message: i18n.t(
+        'workflow.nodes.chatDebugger.workflowConnectionInterrupted'
+      ),
+    },
+    get
+  );
+};
 const handleResumeChat = (content, get, set): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
   const nodes = useFlowStore.getState().nodes;
@@ -560,7 +595,7 @@ const handleResumeChat = (content, get, set): void => {
     params.version = get().versionId;
     params.promptDebugger = true;
   }
-  fetchEventSource(url, {
+  void fetchEventSource(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -569,13 +604,16 @@ const handleResumeChat = (content, get, set): void => {
     body: JSON.stringify(params),
     signal: get().controllerRef?.signal,
     openWhenHidden: true,
-    onerror() {
-      get().controllerRef?.abort();
+    onerror(error) {
+      handleWorkflowSseError(error, get);
+    },
+    onclose() {
+      handleWorkflowSseClose(get);
     },
     onmessage(e) {
       handleMessage(nodes, edges, e, get, set);
     },
-  });
+  }).catch(() => undefined);
   clearNodeStatus(get);
 };
 const runDebugger = (obj: unknown): void => {
@@ -614,7 +652,7 @@ const runDebugger = (obj: unknown): void => {
     params.version = get().versionId;
     params.promptDebugger = true;
   }
-  fetchEventSource(url, {
+  void fetchEventSource(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -623,13 +661,16 @@ const runDebugger = (obj: unknown): void => {
     body: JSON.stringify(params),
     signal: get().controllerRef?.signal,
     openWhenHidden: true,
-    onerror() {
-      get().controllerRef?.abort();
+    onerror(error) {
+      handleWorkflowSseError(error, get);
+    },
+    onclose() {
+      handleWorkflowSseClose(get);
     },
     onmessage(e) {
       handleMessage(nodes, edges, e, get, set);
     },
-  });
+  }).catch(() => undefined);
   clearNodeStatus(get);
 };
 const advancedConfig = (): unknown => {
@@ -899,19 +940,18 @@ const handleStopConversation = (get): void => {
       eventId: get().interruptChat?.eventId,
       eventType: 'abort',
     };
-    fetchEventSource(url, {
+    void fetchEventSource(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: getAuthorization(),
       },
       body: JSON.stringify(params),
-      signal: get().controllerRef?.signal,
       openWhenHidden: true,
-      onerror() {
-        get().controllerRef?.abort();
+      onerror(error) {
+        handleWorkflowSseError(error, get, false);
       },
-    });
+    }).catch(() => undefined);
   }
   get().setChatList(chatList => [
     ...chatList,

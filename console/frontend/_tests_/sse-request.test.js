@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { fetchSseWithContext } from '../src/utils/sse-request.ts';
+
+const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const workflowChatSource = readFileSync(
+  resolve(frontendRoot, 'src/components/workflow/store/flow-chat-function.ts'),
+  'utf8'
+);
 
 const originalDocument = globalThis.document;
 const originalWindow = globalThis.window;
@@ -11,8 +21,8 @@ globalThis.document = {
   hidden: false,
 };
 globalThis.window = {
-  clearTimeout,
-  setTimeout,
+  clearTimeout: globalThis.clearTimeout,
+  setTimeout: globalThis.setTimeout,
 };
 
 test.after(() => {
@@ -48,10 +58,10 @@ const captureRequest = async (path, getContext) => {
     fetch: async (input, init) => {
       capturedRequest = {
         input: input.toString(),
-        headers: new Headers(init?.headers),
+        headers: new globalThis.Headers(init?.headers),
       };
 
-      return new Response('data: {}\n\n', {
+      return new globalThis.Response('data: {}\n\n', {
         headers: { 'content-type': 'text/event-stream' },
       });
     },
@@ -119,4 +129,61 @@ test('non-team SSE requests omit stale enterprise context', async () => {
 
   assert.equal(requestWithoutSpace.headers.get('space-id'), null);
   assert.equal(requestWithoutSpace.headers.get('enterprise-id'), null);
+});
+
+test('throwing from an SSE error callback prevents POST request replay', async () => {
+  const transportError = new Error('socket closed');
+  let requestCount = 0;
+
+  await assert.rejects(
+    fetchEventSource('/workflow/chat', {
+      method: 'POST',
+      openWhenHidden: true,
+      fetch: async () => {
+        requestCount += 1;
+        throw transportError;
+      },
+      onerror(error) {
+        throw error;
+      },
+    }),
+    transportError
+  );
+
+  assert.equal(requestCount, 1);
+});
+
+test('workflow POST streams stop retries and finalize active UI state', () => {
+  assert.doesNotMatch(
+    workflowChatSource,
+    /onerror\(\)\s*\{\s*get\(\)\.controllerRef\?\.abort\(\);\s*\}/,
+    'aborting and returning from onerror still schedules the default retry'
+  );
+  assert.equal(
+    workflowChatSource.match(/handleWorkflowSseError\(error, get/g)?.length,
+    3,
+    'chat, resume, and interrupt-abort POST streams must share no-retry handling'
+  );
+  assert.match(
+    workflowChatSource,
+    /get\(\)\.wsMessageStatus\s*!==\s*'end'[\s\S]*handleFlowStop\([\s\S]*throw requestError/,
+    'transport failures must finalize an active workflow before rejecting'
+  );
+  assert.equal(
+    workflowChatSource.match(/void fetchEventSource\(/g)?.length,
+    3,
+    'all workflow POST stream promises must be handled explicitly'
+  );
+  assert.equal(
+    workflowChatSource.match(
+      /onclose\(\) \{\s*handleWorkflowSseClose\(get\);\s*\}/g
+    )?.length,
+    2,
+    'chat and resume streams must finalize when the connection closes early'
+  );
+  assert.equal(
+    workflowChatSource.match(/\.catch\(\(\) => undefined\);/g)?.length,
+    3,
+    'expected workflow SSE rejections must not become unhandled promises'
+  );
 });

@@ -747,6 +747,8 @@ const translation = {
       userIgnoredQuestion: 'User ignored this question',
       userCurrentRoundInput: 'User current round dialogue input content',
       workflowTerminated: 'Workflow terminated',
+      workflowConnectionInterrupted:
+        'Workflow connection interrupted. Try again.',
       startNewConversation: 'Start New Conversation',
       deepThinking: 'Deep Thinking',
       generating: 'Generating',

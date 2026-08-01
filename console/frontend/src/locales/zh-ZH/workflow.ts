@@ -717,6 +717,7 @@ const translation = {
       userIgnoredQuestion: '用户已忽略此次问答',
       userCurrentRoundInput: '用户本轮对话输入内容',
       workflowTerminated: '工作流终止运行',
+      workflowConnectionInterrupted: '工作流连接中断，请重试',
       startNewConversation: '开启新对话',
       deepThinking: '已深度思考',
       generating: '生成中',
