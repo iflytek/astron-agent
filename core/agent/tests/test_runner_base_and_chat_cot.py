@@ -829,7 +829,9 @@ class TestCotRunnerParseStep:
         assert responses[0].typ == "reasoning_content"
         assert responses[0].content == "Need to read the sensor."
         plugin_run.assert_awaited_once()
-        assert plugin_run.await_args.args[0] == {"scenario": "normal"}
+        await_args = plugin_run.await_args
+        assert await_args is not None
+        assert await_args.args[0] == {"scenario": "normal"}
         assert any(
             response.typ == "cot_step"
             and isinstance(response.content, CotStep)
@@ -988,7 +990,9 @@ class TestCotRunnerParseStep:
         ]
 
         plugin_run.assert_awaited_once()
-        assert plugin_run.await_args.args[0] == {"scenario": "normal"}
+        await_args = plugin_run.await_args
+        assert await_args is not None
+        assert await_args.args[0] == {"scenario": "normal"}
         assert "上一次输出格式无法解析" not in model.received_user_prompts[1]
         assert responses[-1].content == "Current temperature: 26.2°C"
         assert model.stream_call_count == 2
@@ -1084,7 +1088,9 @@ class TestCotRunnerParseStep:
         ]
 
         plugin_run.assert_awaited_once()
-        assert plugin_run.await_args.args[0] == {"scenario": "normal"}
+        await_args = plugin_run.await_args
+        assert await_args is not None
+        assert await_args.args[0] == {"scenario": "normal"}
         assert responses[-1].content == "Current temperature: 26.2°C"
         assert model.stream_call_count == 2
 
