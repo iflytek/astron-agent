@@ -31,6 +31,11 @@ import i18n from 'i18next';
 import { cloneDeep } from 'lodash';
 import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import {
+  createWorkflowSseLifecycle,
+  throwFatalWorkflowSseError,
+  type WorkflowSseLifecycle,
+} from './workflow-sse';
 
 const initInterruptChat: InterruptChatType = {
   eventId: '',
@@ -520,48 +525,37 @@ const handleMessageEnd = (data: WebSocketMessageData, get): void => {
   get().setInterruptChat({ ...initInterruptChat });
   handleRunningNodeStatus();
 };
-const handleWorkflowSseError = (
-  error: unknown,
+const createActiveWorkflowSseLifecycle = (
+  controller: AbortController,
   get,
-  finalizeExecution = true
-): never => {
-  const requestError =
-    error instanceof Error ? error : new Error(String(error));
-  console.error('[Workflow SSE] Request failed', requestError);
-  if (finalizeExecution && get().wsMessageStatus !== 'end') {
-    handleFlowStop(
-      {
-        code: -1,
-        message: i18n.t(
-          'workflow.nodes.chatDebugger.workflowConnectionInterrupted'
-        ),
-      },
-      get
-    );
-  }
-  throw requestError;
-};
-const handleWorkflowSseClose = (get): void => {
-  if (get().wsMessageStatus === 'end') return;
-
-  console.error('[Workflow SSE] Connection closed before completion');
-  handleFlowStop(
-    {
-      code: -1,
-      message: i18n.t(
-        'workflow.nodes.chatDebugger.workflowConnectionInterrupted'
+  handleSseMessage: (event: MessageEvent) => boolean
+): WorkflowSseLifecycle<MessageEvent> =>
+  createWorkflowSseLifecycle({
+    isCurrent: () => get().controllerRef === controller,
+    finalize: () =>
+      handleFlowStop(
+        {
+          code: -1,
+          message: i18n.t(
+            'workflow.nodes.chatDebugger.workflowConnectionInterrupted'
+          ),
+        },
+        get
       ),
-    },
-    get
-  );
-};
+    handleMessage: handleSseMessage,
+    onTransportError: error =>
+      console.error('[Workflow SSE] Request failed', error),
+  });
 const handleResumeChat = (content, get, set): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
   const nodes = useFlowStore.getState().nodes;
   const edges = useFlowStore.getState().edges;
+  get().controllerRef?.abort();
+  const controller = new AbortController();
   set({
     wsMessageStatus: 'start',
     debuggering: true,
+    controllerRef: controller,
   });
   pushAskToChatList(
     [
@@ -595,6 +589,14 @@ const handleResumeChat = (content, get, set): void => {
     params.version = get().versionId;
     params.promptDebugger = true;
   }
+  const sseLifecycle = createActiveWorkflowSseLifecycle(
+    controller,
+    get,
+    event => {
+      handleMessage(nodes, edges, event, get, set);
+      return get().wsMessageStatus === 'end';
+    }
+  );
   void fetchEventSource(url, {
     method: 'POST',
     headers: {
@@ -602,16 +604,16 @@ const handleResumeChat = (content, get, set): void => {
       Authorization: getAuthorization(),
     },
     body: JSON.stringify(params),
-    signal: get().controllerRef?.signal,
+    signal: controller.signal,
     openWhenHidden: true,
     onerror(error) {
-      handleWorkflowSseError(error, get);
+      sseLifecycle.onError(error);
     },
     onclose() {
-      handleWorkflowSseClose(get);
+      sseLifecycle.onClose();
     },
     onmessage(e) {
-      handleMessage(nodes, edges, e, get, set);
+      sseLifecycle.onMessage(e);
     },
   }).catch(() => undefined);
   clearNodeStatus(get);
@@ -621,8 +623,10 @@ const runDebugger = (obj: unknown): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const url = getFixedUrl('/workflow/chat');
+  get().controllerRef?.abort();
+  const controller = new AbortController();
   set({
-    controllerRef: new AbortController(),
+    controllerRef: controller,
   });
   const inputs = {};
   const enterlist = enters ?? get().startNodeParams;
@@ -652,6 +656,14 @@ const runDebugger = (obj: unknown): void => {
     params.version = get().versionId;
     params.promptDebugger = true;
   }
+  const sseLifecycle = createActiveWorkflowSseLifecycle(
+    controller,
+    get,
+    event => {
+      handleMessage(nodes, edges, event, get, set);
+      return get().wsMessageStatus === 'end';
+    }
+  );
   void fetchEventSource(url, {
     method: 'POST',
     headers: {
@@ -659,16 +671,16 @@ const runDebugger = (obj: unknown): void => {
       Authorization: getAuthorization(),
     },
     body: JSON.stringify(params),
-    signal: get().controllerRef?.signal,
+    signal: controller.signal,
     openWhenHidden: true,
     onerror(error) {
-      handleWorkflowSseError(error, get);
+      sseLifecycle.onError(error);
     },
     onclose() {
-      handleWorkflowSseClose(get);
+      sseLifecycle.onClose();
     },
     onmessage(e) {
-      handleMessage(nodes, edges, e, get, set);
+      sseLifecycle.onMessage(e);
     },
   }).catch(() => undefined);
   clearNodeStatus(get);
@@ -949,9 +961,11 @@ const handleStopConversation = (get): void => {
       body: JSON.stringify(params),
       openWhenHidden: true,
       onerror(error) {
-        handleWorkflowSseError(error, get, false);
+        throwFatalWorkflowSseError(error);
       },
-    }).catch(() => undefined);
+    }).catch(error =>
+      console.error('[Workflow SSE] Abort request failed', error)
+    );
   }
   get().setChatList(chatList => [
     ...chatList,

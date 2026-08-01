@@ -1,16 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { fetchSseWithContext } from '../src/utils/sse-request.ts';
-
-const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const workflowChatSource = readFileSync(
-  resolve(frontendRoot, 'src/components/workflow/store/flow-chat-function.ts'),
-  'utf8'
-);
+import { createWorkflowSseLifecycle } from '../src/components/workflow/store/workflow-sse.ts';
 
 const originalDocument = globalThis.document;
 const originalWindow = globalThis.window;
@@ -153,37 +145,52 @@ test('throwing from an SSE error callback prevents POST request replay', async (
   assert.equal(requestCount, 1);
 });
 
-test('workflow POST streams stop retries and finalize active UI state', () => {
-  assert.doesNotMatch(
-    workflowChatSource,
-    /onerror\(\)\s*\{\s*get\(\)\.controllerRef\?\.abort\(\);\s*\}/,
-    'aborting and returning from onerror still schedules the default retry'
-  );
-  assert.equal(
-    workflowChatSource.match(/handleWorkflowSseError\(error, get/g)?.length,
-    3,
-    'chat, resume, and interrupt-abort POST streams must share no-retry handling'
-  );
-  assert.match(
-    workflowChatSource,
-    /get\(\)\.wsMessageStatus\s*!==\s*'end'[\s\S]*handleFlowStop\([\s\S]*throw requestError/,
-    'transport failures must finalize an active workflow before rejecting'
-  );
-  assert.equal(
-    workflowChatSource.match(/void fetchEventSource\(/g)?.length,
-    3,
-    'all workflow POST stream promises must be handled explicitly'
-  );
-  assert.equal(
-    workflowChatSource.match(
-      /onclose\(\) \{\s*handleWorkflowSseClose\(get\);\s*\}/g
-    )?.length,
-    2,
-    'chat and resume streams must finalize when the connection closes early'
-  );
-  assert.equal(
-    workflowChatSource.match(/\.catch\(\(\) => undefined\);/g)?.length,
-    3,
-    'expected workflow SSE rejections must not become unhandled promises'
-  );
+test('late callbacks from a completed request cannot finalize its successor', () => {
+  let activeRequest = 'request-a';
+  const finalized = [];
+  const handledMessages = [];
+  const requestA = createWorkflowSseLifecycle({
+    isCurrent: () => activeRequest === 'request-a',
+    finalize: () => finalized.push('request-a'),
+    handleMessage: message => {
+      handledMessages.push(`request-a:${message}`);
+      return message === 'terminal frame';
+    },
+  });
+
+  requestA.onMessage('terminal frame');
+  activeRequest = 'request-b';
+  const requestB = createWorkflowSseLifecycle({
+    isCurrent: () => activeRequest === 'request-b',
+    finalize: () => finalized.push('request-b'),
+    handleMessage: message => {
+      handledMessages.push(`request-b:${message}`);
+      return false;
+    },
+  });
+
+  requestA.onMessage('late frame');
+  requestA.onClose();
+  assert.throws(() => requestA.onError(new Error('late socket error')));
+  requestB.onMessage('current frame');
+  assert.deepEqual(finalized, []);
+  assert.deepEqual(handledMessages, [
+    'request-a:terminal frame',
+    'request-b:current frame',
+  ]);
+});
+
+test('an active stream that closes early is finalized only once', () => {
+  let finalizeCount = 0;
+  const lifecycle = createWorkflowSseLifecycle({
+    isCurrent: () => true,
+    finalize: () => {
+      finalizeCount += 1;
+    },
+  });
+
+  lifecycle.onClose();
+  assert.equal(finalizeCount, 1);
+  assert.throws(() => lifecycle.onError(new Error('late socket error')));
+  assert.equal(finalizeCount, 1);
 });
