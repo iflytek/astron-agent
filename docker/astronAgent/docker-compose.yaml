@@ -294,6 +294,27 @@ services:
       - astron-agent-network
     restart: always
 
+  plugin-tool-ppt:
+    image: ghcr.io/iflytek/astron-agent/plugin-tool-ppt:${ASTRON_AGENT_VERSION:-latest}
+    container_name: astron-agent-plugin-tool-ppt
+    environment:
+      PPT_MCP_HOST: "0.0.0.0"
+      PPT_MCP_PORT: "3000"
+      REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-1}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; socket.create_connection(('127.0.0.1', 3000), 3).close()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
+    restart: always
+
   # AI Tools Plugin Service
   core-aitools:
     image: ghcr.io/iflytek/astron-agent/core-aitools:${ASTRON_AGENT_VERSION:-latest}
