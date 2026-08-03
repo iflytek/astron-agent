@@ -67,12 +67,17 @@ export type ServerMessage =
       type: "tool_completed";
       callId: string;
       name: string;
+      arguments: Record<string, unknown>;
       result: unknown;
       isError: boolean;
     }
   | { type: "usage"; inputTokens: number; outputTokens: number; totalTokens: number }
   | { type: "error"; code: string; message: string }
   | { type: "done" };
+
+export type SendServerMessage = (
+  message: ServerMessage,
+) => Promise<void> | void;
 
 export class ProtocolError extends Error {
   readonly code: string;
