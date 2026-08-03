@@ -5,10 +5,70 @@ import pytest
 from workflow.consts.engine.chat_status import ChatStatus, SparkLLMStatus
 from workflow.consts.engine.model_provider import ModelProviderEnum
 from workflow.engine.nodes.util.frame_processor import (
+    AgentFrameProcessor,
     AnthropicFrameProcessor,
     FrameProcessorFactory,
     GoogleFrameProcessor,
 )
+
+
+def test_agent_frame_processor_preserves_structured_agent_event() -> None:
+    processor = AgentFrameProcessor()
+    event = {
+        "version": 1,
+        "type": "segment_delta",
+        "runId": "run-1",
+        "seq": 3,
+        "turnId": "turn-1",
+        "segmentId": "segment-1",
+        "delta": "hello",
+    }
+
+    frame = processor.process_frame(
+        {
+            "choices": [
+                {
+                    "delta": {"agent_event": event},
+                    "finish_reason": None,
+                }
+            ]
+        }
+    )
+
+    assert frame.text == {
+        "content": "",
+        "reasoning_content": "",
+        "agent_event": event,
+    }
+
+
+def test_agent_frame_processor_does_not_render_legacy_tool_calls_as_reasoning() -> None:
+    processor = AgentFrameProcessor()
+
+    frame = processor.process_frame(
+        {
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "type": "mcp",
+                                "reason": "query",
+                                "function": {
+                                    "name": "lookup",
+                                    "arguments": '{"query":"large"}',
+                                    "response": '{"data":{"content":[]}}',
+                                },
+                            }
+                        ]
+                    },
+                    "finish_reason": None,
+                }
+            ]
+        }
+    )
+
+    assert frame.text == {"content": "", "reasoning_content": ""}
 
 
 def test_anthropic_frame_processor_handles_delta_frame() -> None:

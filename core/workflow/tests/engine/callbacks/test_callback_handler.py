@@ -341,6 +341,63 @@ class TestChatCallBacks:
                     mock_put.assert_called_once_with("test_node", mock_resp)
 
     @pytest.mark.asyncio
+    async def test_on_node_process_forwards_structured_agent_event(
+        self, callback_handler: ChatCallBacks
+    ) -> None:
+        callback_handler.node_execute_start_time["test_node"] = 1000.0
+        event = {
+            "version": 1,
+            "type": "tool_start",
+            "runId": "run-1",
+            "seq": 4,
+            "turnId": "turn-1",
+            "callId": "call-1",
+            "name": "lookup",
+            "arguments": {"query": "hello"},
+        }
+
+        with patch.object(
+            callback_handler, "_put_frame_into_queue", new_callable=AsyncMock
+        ):
+            with patch.object(LLMGenerate, "node_process") as mock_node_process:
+                with patch("time.time", return_value=1005.0):
+                    await callback_handler.on_node_process(
+                        0,
+                        "test_node",
+                        "Test Node",
+                        "",
+                        agent_event=event,
+                    )
+
+        assert mock_node_process.call_args.kwargs["agent_event"] == event
+
+    def test_node_process_serializes_structured_agent_event(self) -> None:
+        event = {
+            "version": 1,
+            "type": "turn_commit",
+            "runId": "run-1",
+            "seq": 5,
+            "turnId": "turn-1",
+            "channel": "content",
+            "partial": False,
+            "reason": "terminal",
+        }
+
+        response = LLMGenerate.node_process(
+            sid="test_sid",
+            node_id="test_node",
+            alias_name="Test Node",
+            node_executed_time=1.0,
+            node_ext=None,
+            progress=0.5,
+            content="",
+            reasoning_content="",
+            agent_event=event,
+        )
+
+        assert response.choices[0].delta.agent_event == event
+
+    @pytest.mark.asyncio
     async def test_on_node_process_error(self, callback_handler: ChatCallBacks) -> None:
         """Test node process event handling with error."""
         callback_handler.node_execute_start_time["test_node"] = 1000.0

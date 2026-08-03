@@ -6,7 +6,7 @@ OpenAI's streaming API format, used for workflow execution streaming responses.
 """
 
 import time
-from typing import List, Literal, Optional, cast
+from typing import Any, List, Literal, Optional, cast
 
 from pydantic import BaseModel, Field
 
@@ -121,6 +121,9 @@ class Delta(BaseModel):
     reasoning_content: str = ""
     """Reasoning or intermediate content for explainability."""
 
+    agent_event: Optional[dict[str, Any]] = None
+    """Structured Pi Agent segment or tool lifecycle event."""
+
 
 class Choice(BaseModel):
     """
@@ -205,6 +208,7 @@ class LLMGenerate(BaseModel):
         progress: float = 1,
         content: str = "",
         reasoning_content: str = "",
+        agent_event: Optional[dict[str, Any]] = None,
         finish_reason: Optional[str] = None,
     ) -> "LLMGenerate":
         """
@@ -228,7 +232,10 @@ class LLMGenerate(BaseModel):
         )
         choice = Choice(
             delta=Delta(
-                role="assistant", content=content, reasoning_content=reasoning_content
+                role="assistant",
+                content=content,
+                reasoning_content=reasoning_content,
+                agent_event=agent_event,
             ),
             index=0,
             finish_reason=cast(
@@ -498,6 +505,7 @@ class LLMGenerate(BaseModel):
         reasoning_content: str,
         code: int = 0,
         message: str = "Success",
+        agent_event: Optional[dict[str, Any]] = None,
     ) -> "LLMGenerate":
         """
         Build node execution process event response result.
@@ -531,6 +539,7 @@ class LLMGenerate(BaseModel):
             progress=progress,
             content=content,
             reasoning_content=reasoning_content,
+            agent_event=agent_event,
         )
 
     @staticmethod

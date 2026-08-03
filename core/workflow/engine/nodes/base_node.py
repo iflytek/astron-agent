@@ -255,6 +255,8 @@ class OutputNodeFrameData(BaseModel):
     content: str = ""
     # Model reasoning content
     reasoning_content: str = ""
+    # Structured Pi Agent lifecycle event
+    agent_event: Optional[Dict[str, Any]] = None
     # Data type
     data_type: str = "text"
     # Whether this is the end frame
@@ -462,6 +464,7 @@ class BaseOutputNode(BaseNode):
                         alias_name=self.alias_name,
                         message=output_node_frame_data.content,
                         reasoning_content=output_node_frame_data.reasoning_content,
+                        agent_event=output_node_frame_data.agent_event,
                     )
         return None
 
@@ -883,12 +886,6 @@ class BaseOutputNode(BaseNode):
                 status = int(frame.status)
                 text = frame.text
 
-                llm_output_status[dep_node_id] = (
-                    True
-                    if status == SparkLLMStatus.END.value
-                    else llm_output_status[dep_node_id]
-                )
-
                 content = text.get("content", "")
                 reasoning_content = text.get("reasoning_content", "")
 
@@ -907,6 +904,18 @@ class BaseOutputNode(BaseNode):
                             exception_occurred=True,
                         )
                     break
+
+                agent_event = text.get("agent_event")
+                if agent_event is not None:
+                    yield OutputNodeFrameData(agent_event=agent_event)
+                    if not content and not reasoning_content:
+                        continue
+
+                llm_output_status[dep_node_id] = (
+                    True
+                    if status == SparkLLMStatus.END.value
+                    else llm_output_status[dep_node_id]
+                )
                 async for data in self._yield_output(
                     dep_node_id,
                     status,

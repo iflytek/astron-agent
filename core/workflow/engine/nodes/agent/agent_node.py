@@ -20,7 +20,6 @@ from workflow.engine.nodes.entities.node_run_result import (
     WorkflowNodeExecutionStatus,
 )
 from workflow.engine.nodes.util.dict_util import keys_to_snake_case
-from workflow.engine.nodes.util.frame_processor import extract_tool_calls_content
 from workflow.engine.nodes.util.prompt import prompt_template_replace
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
@@ -417,14 +416,10 @@ class AgentNode(BaseNode):
 
             content = choices[0].get("delta", {}).get("content", "")
             reasoning_content = choices[0].get("delta", {}).get("reasoning_content", "")
-            tool_calls = choices[0].get("delta", {}).get("tool_calls", [])
             if content:
                 content_list.append(content)
             if reasoning_content:
                 reasoning_content_list.append(reasoning_content)
-            if tool_calls:
-                tool_calls_optimize = extract_tool_calls_content(tool_calls)
-                reasoning_content_list.append(tool_calls_optimize)
 
             finish_reason = choices[0].get("finish_reason", ChatStatus.FINISH_REASON)
             # Put frame content into msg_or_end_node_deps for streaming

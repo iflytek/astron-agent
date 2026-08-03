@@ -198,6 +198,7 @@ class ChatCallBacks:
         alias_name: str,
         message: str,
         reasoning_content: str = "",
+        agent_event: Optional[dict[str, Any]] = None,
     ) -> None:
         """
         Handle node processing event.
@@ -220,7 +221,7 @@ class ChatCallBacks:
             if self.end_node_output_mode == EndNodeOutputModeEnum.VARIABLE_MODE:
                 content = ""
 
-        resp = LLMGenerate.node_process(
+        node_process_args: dict[str, Any] = dict(
             sid=self.sid,
             node_id=node_id,
             alias_name=alias_name,
@@ -234,6 +235,9 @@ class ChatCallBacks:
             code=code,
             message="Success" if code == 0 else message,
         )
+        if agent_event is not None:
+            node_process_args["agent_event"] = agent_event
+        resp = LLMGenerate.node_process(**node_process_args)
         await self._put_frame_into_queue(node_id, resp)
 
     async def on_node_interrupt(

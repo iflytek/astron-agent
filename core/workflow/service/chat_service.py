@@ -753,7 +753,9 @@ def _filter_response_frame(
     choice = response_frame.choices[0]
     delta = choice.delta
     is_stop = choice.finish_reason == ChatStatus.FINISH_REASON.value
-    is_content_empty = not delta.content and not delta.reasoning_content
+    is_content_empty = (
+        not delta.content and not delta.reasoning_content and delta.agent_event is None
+    )
     is_interrupted = choice.finish_reason == ChatStatus.INTERRUPT.value
     is_ping = choice.finish_reason == ChatStatus.PING.value
 

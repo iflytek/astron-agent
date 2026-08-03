@@ -185,13 +185,12 @@ class AgentFrameProcessor(FrameProcessor):
         if is_finish == ChatStatus.FINISH_REASON.value:
             status = SparkLLMStatus.END.value
         delta = llm_response["choices"][0].get("delta", {})
+        if delta.get("agent_event") is not None:
+            text["agent_event"] = delta["agent_event"]
         if delta.get("content"):
             text["content"] = delta["content"]
         elif delta.get("reasoning_content"):
             text["reasoning_content"] = delta["reasoning_content"]
-        elif delta.get("tool_calls"):
-            # Process tool calls and format as reasoning content
-            text["reasoning_content"] = extract_tool_calls_content(delta["tool_calls"])
         return UnionFrame(code, status, text)
 
 
