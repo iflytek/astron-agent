@@ -7,6 +7,7 @@ import { baseURL } from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import { fetchSseWithContext } from '@/utils/sse-request';
 import { parseAgentEvent, selectLiveContent } from '@/components/agent-stream';
+import { shouldIgnoreChatStreamCallback } from './chat-stream-guard';
 
 // SSE 数据类型定义
 interface SSEData {
@@ -150,6 +151,9 @@ const useChat = () => {
         return Promise.resolve();
       },
       onmessage(event: SSEEvent): void {
+        if (shouldIgnoreChatStreamCallback(streamSettled, controller.signal)) {
+          return;
+        }
         const deCodedData: SSEData = JSON.parse(event.data);
         const {
           code,
