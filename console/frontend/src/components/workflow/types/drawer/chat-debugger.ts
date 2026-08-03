@@ -1,6 +1,8 @@
 // Chat Debugger 模块的类型定义
 import React from 'react';
 
+import type { AgentStreamState } from '@/components/agent-stream/types';
+
 // 开始节点参数类型定义
 export interface StartNodeType {
   name: string;
@@ -53,6 +55,7 @@ export interface ChatInfoType {
     messageContent: string;
     reasoningContent: string;
     content: string;
+    agentStream?: AgentStreamState;
     option?: OptionItem[];
   };
   answerItem: string;
@@ -68,6 +71,7 @@ export interface ChatListItem {
   messageContent?: string;
   reasoningContent?: string;
   content?: string;
+  agentStream?: AgentStreamState;
   option?: OptionItem[];
   showResponse?: boolean;
   chatId?: string;
@@ -90,6 +94,7 @@ export interface ResponseResult {
   rawOutput?: unknown;
   nodeAnswerContent?: string;
   reasoningContent?: string;
+  agentEvent?: unknown;
   status: 'success' | 'failed';
   failedReason?: string;
   answerMode?: number;
@@ -428,6 +433,7 @@ export interface WebSocketMessageData {
     delta?: {
       content?: string;
       reasoning_content?: string;
+      agent_event?: unknown;
     };
   }>;
   workflow_step?: {

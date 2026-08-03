@@ -31,6 +31,16 @@ import i18n from 'i18next';
 import { cloneDeep } from 'lodash';
 import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import {
+  createAgentStreamState,
+  finalizePendingSegments,
+  parseAgentEvent,
+  reduceAgentEvent,
+} from '@/components/agent-stream';
+import type {
+  AgentFinalizeReason,
+  AgentStreamState,
+} from '@/components/agent-stream/types';
 
 const initInterruptChat: InterruptChatType = {
   eventId: '',
@@ -47,6 +57,7 @@ const initChatInfo: ChatInfoType = {
     messageContent: '',
     reasoningContent: '',
     content: '',
+    agentStream: createAgentStreamState(),
   },
   answerItem: '',
   option: null,
@@ -87,6 +98,11 @@ const getDialogues = (id: string, set, shouldAddDivider = false): void => {
     let chatId = data?.[0]?.chatId || null;
     data?.forEach(chat => {
       const currentChatId = chat?.chatId;
+      const answer = JSON.parse(chat?.answer);
+      const agentStream =
+        answer?.agentStream?.hasStructuredEvents === true
+          ? (answer.agentStream as AgentStreamState)
+          : undefined;
       if (currentChatId !== chatId) {
         chatList.unshift({
           id: uuid(),
@@ -98,10 +114,11 @@ const getDialogues = (id: string, set, shouldAddDivider = false): void => {
         ...chat,
         id: chat?.id,
         type: 'answer',
-        messageContent: JSON.parse(chat?.answer)?.messageContent || '',
-        reasoningContent: JSON.parse(chat?.answer)?.reasoningContent || '',
-        content: JSON.parse(chat?.answer)?.content || '',
-        option: JSON.parse(chat?.answer)?.option,
+        messageContent: answer?.messageContent || '',
+        reasoningContent: answer?.reasoningContent || '',
+        content: answer?.content || '',
+        agentStream,
+        option: answer?.option,
       });
       chatList.unshift({
         ...chat,
@@ -151,6 +168,7 @@ const pushAnswerToChatList = (get): unknown => {
       messageContent: '',
       content: '',
       reasoningContent: '',
+      agentStream: createAgentStreamState(),
     };
     chatList.push(answerParams);
     return [...chatList];
@@ -158,6 +176,33 @@ const pushAnswerToChatList = (get): unknown => {
 };
 const pushContentToAnswer = (key, content, get): void => {
   get()[key] = get()[key] + content;
+};
+
+const updateCurrentAgentStream = (agentStream: AgentStreamState, get): void => {
+  get().chatInfoRef.answer.agentStream = agentStream;
+  get().setChatList(chatList => {
+    const currentIndex = chatList.length - 1;
+    const current = chatList[currentIndex];
+    if (!current || current.type !== 'answer') return chatList;
+    const next = [...chatList];
+    next[currentIndex] = { ...current, agentStream };
+    return next;
+  });
+};
+
+const applyCurrentAgentEvent = (value: unknown, get): boolean => {
+  const event = parseAgentEvent(value);
+  if (!event) return false;
+  const current =
+    get().chatInfoRef.answer.agentStream ?? createAgentStreamState();
+  updateCurrentAgentStream(reduceAgentEvent(current, event), get);
+  return true;
+};
+
+const finalizeCurrentAgentStream = (reason: AgentFinalizeReason, get): void => {
+  const current = get().chatInfoRef.answer.agentStream;
+  if (!current?.hasStructuredEvents) return;
+  updateCurrentAgentStream(finalizePendingSegments(current, reason), get);
 };
 const clearNodeStatus = (get): void => {
   if (get().userInput) {
@@ -204,6 +249,7 @@ const handleAuditFailed = (data, get): void => {
       messageContent: '',
       reasoningContent: '',
       content: data?.message,
+      agentStream: get().chatInfoRef.answer.agentStream,
     };
     chatList[chatList.length - 1].messageContent = '';
     chatList[chatList.length - 1].reasoningContent = '';
@@ -249,6 +295,7 @@ const handleInterrupt = ({
 };
 const handleFlowStop = (data, get): void => {
   if (data.code !== 0) {
+    finalizeCurrentAgentStream('error', get);
     pushContentToAnswer('endNodeTextQueue', data?.message, get);
   }
   handleMessageEnd(data, get);
@@ -258,7 +305,7 @@ const extractNodeInfo = (data): unknown => {
   const node = data?.['workflow_step']?.node;
   const nodeId = node?.id;
   const nodeStatus = node?.['finish_reason'];
-  const content = data.choices?.[0]?.delta?.content;
+  const content = data.choices?.[0]?.delta?.content || '';
   const responseResult = {
     timeCost: node?.['executed_time'],
     tokenCost: node?.usage?.['total_tokens'],
@@ -268,6 +315,7 @@ const extractNodeInfo = (data): unknown => {
     rawOutput: node?.ext?.['raw_output'],
     nodeAnswerContent: content,
     reasoningContent: data?.choices?.[0]?.delta?.['reasoning_content'] || '',
+    agentEvent: data?.choices?.[0]?.delta?.['agent_event'],
     status: data?.code === 0 ? 'success' : 'failed',
     failedReason: data?.message,
     answerMode: node?.id?.startsWith('message')
@@ -442,6 +490,16 @@ const handleMessage = (
   const { flowResult, nodeId, nodeStatus, responseResult } =
     extractNodeInfo(data);
   get().chatInfoRef.sid = data?.id;
+  if (responseResult?.agentEvent !== undefined) {
+    applyCurrentAgentEvent(responseResult.agentEvent, get);
+    if (
+      !responseResult.nodeAnswerContent &&
+      !responseResult.reasoningContent &&
+      (flowResult === null || flowResult === undefined)
+    ) {
+      return;
+    }
+  }
   if (data?.code === 21103) {
     handleAuditFailed(data, get);
     return;
@@ -503,6 +561,9 @@ const handleMessageEnd = (data: WebSocketMessageData, get): void => {
     timeCost: (data?.executedTime || 0).toString(),
     totalTokens: (data?.usage?.['total_tokens'] || 0).toString(),
   };
+  if (typeof data.code === 'number' && data.code !== 0) {
+    finalizeCurrentAgentStream('error', get);
+  }
   get().wsMessageStatus = 'end';
   setShowNodeList(true);
   setFlowResult(flowResult);
@@ -570,7 +631,15 @@ const handleResumeChat = (content, get, set): void => {
     signal: get().controllerRef?.signal,
     openWhenHidden: true,
     onerror() {
+      finalizeCurrentAgentStream('error', get);
+      get().setWsMessageStatus('end');
       get().controllerRef?.abort();
+    },
+    onclose() {
+      if (get().wsMessageStatus !== 'end') {
+        finalizeCurrentAgentStream('transport_closed', get);
+        get().setWsMessageStatus('end');
+      }
     },
     onmessage(e) {
       handleMessage(nodes, edges, e, get, set);
@@ -624,7 +693,15 @@ const runDebugger = (obj: unknown): void => {
     signal: get().controllerRef?.signal,
     openWhenHidden: true,
     onerror() {
+      finalizeCurrentAgentStream('error', get);
+      get().setWsMessageStatus('end');
       get().controllerRef?.abort();
+    },
+    onclose() {
+      if (get().wsMessageStatus !== 'end') {
+        finalizeCurrentAgentStream('transport_closed', get);
+        get().setWsMessageStatus('end');
+      }
     },
     onmessage(e) {
       handleMessage(nodes, edges, e, get, set);
@@ -891,6 +968,7 @@ const handleStopConversation = (get): void => {
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
+  finalizeCurrentAgentStream('cancelled', get);
   get().chatIdRef = uuid().replace(/-/g, '');
   if (get().interruptChat?.interrupt) {
     const url = getFixedUrl('/workflow/resume');
