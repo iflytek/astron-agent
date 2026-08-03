@@ -85,13 +85,50 @@ describe("ToolBridge", () => {
     await expect(execution).rejects.toThrow("client disconnected");
   });
 
-  it("rejects a tool call that is not bound to an assistant turn", async () => {
+  it("waits for the streamed assistant turn before sending a tool call", async () => {
+    const sent: unknown[] = [];
+    const bridge = new ToolBridge(async (message) => {
+      sent.push(message);
+    });
+    const [tool] = createRemoteTools([statusTool], bridge);
+
+    const execution = tool.execute("call-late-turn", { job_id: "job-7" });
+    await Promise.resolve();
+    expect(sent).toEqual([]);
+
+    bridge.bindTurn("call-late-turn", "turn-3");
+    await Promise.resolve();
+    expect(sent).toEqual([
+      {
+        type: "tool_call",
+        callId: "call-late-turn",
+        turnId: "turn-3",
+        name: "query_status",
+        arguments: { job_id: "job-7" },
+      },
+    ]);
+
+    bridge.handleToolResult({
+      type: "tool_result",
+      callId: "call-late-turn",
+      result: { status: "ready" },
+      isError: false,
+    });
+    await expect(execution).resolves.toEqual({
+      content: [{ type: "text", text: '{"status":"ready"}' }],
+      details: { status: "ready" },
+    });
+  });
+
+  it("rejects a tool call waiting for its turn when the run is aborted", async () => {
     const bridge = new ToolBridge(async () => undefined);
     const [tool] = createRemoteTools([statusTool], bridge);
 
-    await expect(tool.execute("call-unbound", { job_id: "job-7" })).rejects.toThrow(
-      "Missing turn id",
-    );
+    const execution = tool.execute("call-waiting", { job_id: "job-7" });
+    await Promise.resolve();
+    bridge.abort(new Error("client disconnected"));
+
+    await expect(execution).rejects.toThrow("client disconnected");
   });
 });
 

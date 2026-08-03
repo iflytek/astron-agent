@@ -13,6 +13,12 @@ type PendingTool = {
   cleanup: () => void;
 };
 
+type PendingTurn = {
+  resolve: (turnId: string) => void;
+  reject: (error: Error) => void;
+  cleanup: () => void;
+};
+
 function resultText(result: unknown): string {
   if (typeof result === "string") return result;
   return JSON.stringify(result) ?? "null";
@@ -32,29 +38,40 @@ function resultError(result: unknown): Error {
 
 export class ToolBridge {
   private readonly pending = new Map<string, PendingTool>();
+  private readonly pendingTurns = new Map<string, PendingTurn>();
   private readonly turnIds = new Map<string, string>();
+  private abortError?: Error;
 
   constructor(private readonly send: SendServerMessage) {}
 
   bindTurn(callId: string, turnId: string): void {
+    if (this.abortError) return;
     this.turnIds.set(callId, turnId);
+    const pendingTurn = this.pendingTurns.get(callId);
+    if (!pendingTurn) return;
+    this.pendingTurns.delete(callId);
+    pendingTurn.cleanup();
+    pendingTurn.resolve(turnId);
   }
 
-  execute(
+  async execute(
     callId: string,
     name: string,
     arguments_: Record<string, unknown>,
     signal?: AbortSignal,
   ): Promise<AgentToolResult<unknown>> {
-    if (this.pending.has(callId)) {
+    if (this.pending.has(callId) || this.pendingTurns.has(callId)) {
       return Promise.reject(new Error(`Duplicate tool call id: ${callId}`));
     }
+    if (this.abortError) return Promise.reject(this.abortError);
     if (signal?.aborted) {
       return Promise.reject(new Error("tool execution aborted"));
     }
-    const turnId = this.turnIds.get(callId);
-    if (!turnId) {
-      return Promise.reject(new Error(`Missing turn id for tool call: ${callId}`));
+    const turnId =
+      this.turnIds.get(callId) ?? (await this.waitForTurn(callId, signal));
+    if (this.abortError) return Promise.reject(this.abortError);
+    if (signal?.aborted) {
+      return Promise.reject(new Error("tool execution aborted"));
     }
 
     return new Promise<AgentToolResult<unknown>>((resolve, reject) => {
@@ -103,9 +120,37 @@ export class ToolBridge {
   }
 
   abort(error: Error = new Error("Pi tool bridge aborted")): void {
+    this.abortError = error;
+    for (const callId of [...this.pendingTurns.keys()]) {
+      this.rejectPendingTurn(callId, error);
+    }
     for (const callId of [...this.pending.keys()]) {
       this.rejectPending(callId, error);
     }
+    this.turnIds.clear();
+  }
+
+  private waitForTurn(callId: string, signal?: AbortSignal): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      const onAbort = () => {
+        this.rejectPendingTurn(callId, new Error("tool execution aborted"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
+      this.pendingTurns.set(callId, {
+        resolve,
+        reject,
+        cleanup: () => signal?.removeEventListener("abort", onAbort),
+      });
+      if (signal?.aborted) onAbort();
+    });
+  }
+
+  private rejectPendingTurn(callId: string, error: Error): void {
+    const pendingTurn = this.pendingTurns.get(callId);
+    if (!pendingTurn) return;
+    this.pendingTurns.delete(callId);
+    pendingTurn.cleanup();
+    pendingTurn.reject(error);
   }
 
   private rejectPending(callId: string, error: Error): void {
