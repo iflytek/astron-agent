@@ -146,7 +146,7 @@ describe("runPiAgent", () => {
       },
       { role: "user", content: "Current question", timestamp: expect.any(Number) },
     ]);
-    expect(sent).toEqual([
+    expect(sent.filter((message: any) => message.type !== "agent_event")).toEqual([
       { type: "reasoning_delta", delta: "checking" },
       { type: "content_delta", delta: "ready" },
       { type: "usage", inputTokens: 12, outputTokens: 5, totalTokens: 17 },
@@ -221,6 +221,22 @@ describe("runPiAgent", () => {
             partial: { ...initial, content: [text] },
           });
         }
+        const toolCall = message.content.find(
+          (block) => block.type === "toolCall",
+        );
+        if (toolCall?.type === "toolCall") {
+          stream.push({
+            type: "toolcall_start",
+            contentIndex: 1,
+            partial: { ...initial, content: [text!, toolCall] },
+          });
+          stream.push({
+            type: "toolcall_end",
+            contentIndex: 1,
+            toolCall,
+            partial: { ...initial, content: [text!, toolCall] },
+          });
+        }
         stream.push({
           type: "done",
           reason: message.stopReason === "stop" ? "stop" : "toolUse",
@@ -259,6 +275,54 @@ describe("runPiAgent", () => {
       { type: "reasoning_delta", delta: "I will inspect the source." },
       { type: "content_delta", delta: "The status is ready." },
     ]);
+    const agentEvents = sent.flatMap((message) =>
+      message.type === "agent_event" ? [message.event] : [],
+    );
+    expect(agentEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "segment_delta",
+          turnId: "turn-1",
+          segmentId: "turn-1-text-0",
+          delta: "I will inspect the source.",
+        }),
+        expect.objectContaining({
+          type: "turn_commit",
+          turnId: "turn-1",
+          channel: "reasoning",
+          reason: "tool_call",
+        }),
+        expect.objectContaining({
+          type: "segment_delta",
+          turnId: "turn-2",
+          segmentId: "turn-2-text-0",
+          delta: "The status is ready.",
+        }),
+        expect.objectContaining({
+          type: "turn_commit",
+          turnId: "turn-2",
+          channel: "content",
+          reason: "message_end",
+        }),
+      ]),
+    );
+    const firstDelta = sent.findIndex(
+      (message) =>
+        message.type === "agent_event" &&
+        message.event.type === "segment_delta" &&
+        message.event.turnId === "turn-1",
+    );
+    const firstLegacyReasoning = sent.findIndex(
+      (message) => message.type === "reasoning_delta",
+    );
+    expect(firstDelta).toBeGreaterThanOrEqual(0);
+    expect(firstDelta).toBeLessThan(firstLegacyReasoning);
+    expect(
+      sent.find(
+        (message): message is Extract<ServerMessage, { type: "tool_call" }> =>
+          message.type === "tool_call" && message.name === "lookup",
+      ),
+    ).toMatchObject({ callId: "lookup-1", turnId: "turn-1" });
   });
 
   it("retains remote create state across a local wait before polling", async () => {

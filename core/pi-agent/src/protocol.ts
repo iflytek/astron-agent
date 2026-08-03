@@ -46,14 +46,51 @@ export interface ToolResultMessage {
   isError: boolean;
 }
 
+export type PiStreamEvent =
+  | {
+      version: 1;
+      runId: string;
+      type: "segment_start";
+      turnId: string;
+      segmentId: string;
+      source: "text" | "thinking";
+      channel: "pending" | "reasoning" | "content";
+    }
+  | {
+      version: 1;
+      runId: string;
+      type: "segment_delta";
+      turnId: string;
+      segmentId: string;
+      delta: string;
+    }
+  | {
+      version: 1;
+      runId: string;
+      type: "segment_end";
+      turnId: string;
+      segmentId: string;
+    }
+  | {
+      version: 1;
+      runId: string;
+      type: "turn_commit";
+      turnId: string;
+      channel: "reasoning" | "content";
+      partial: boolean;
+      reason: "tool_call" | "message_end" | "cancelled" | "error";
+    };
+
 export type ClientMessage = StartMessage | ToolResultMessage;
 
 export type ServerMessage =
   | { type: "content_delta"; delta: string }
   | { type: "reasoning_delta"; delta: string }
+  | { type: "agent_event"; event: PiStreamEvent }
   | {
       type: "tool_call";
       callId: string;
+      turnId: string;
       name: string;
       arguments: Record<string, unknown>;
     }

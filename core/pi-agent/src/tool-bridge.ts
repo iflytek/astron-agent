@@ -32,8 +32,13 @@ function resultError(result: unknown): Error {
 
 export class ToolBridge {
   private readonly pending = new Map<string, PendingTool>();
+  private readonly turnIds = new Map<string, string>();
 
   constructor(private readonly send: SendServerMessage) {}
+
+  bindTurn(callId: string, turnId: string): void {
+    this.turnIds.set(callId, turnId);
+  }
 
   execute(
     callId: string,
@@ -46,6 +51,10 @@ export class ToolBridge {
     }
     if (signal?.aborted) {
       return Promise.reject(new Error("tool execution aborted"));
+    }
+    const turnId = this.turnIds.get(callId);
+    if (!turnId) {
+      return Promise.reject(new Error(`Missing turn id for tool call: ${callId}`));
     }
 
     return new Promise<AgentToolResult<unknown>>((resolve, reject) => {
@@ -63,6 +72,7 @@ export class ToolBridge {
         this.send({
           type: "tool_call",
           callId,
+          turnId,
           name,
           arguments: arguments_,
         }),
@@ -79,6 +89,7 @@ export class ToolBridge {
     const pending = this.pending.get(message.callId);
     if (!pending) return false;
     this.pending.delete(message.callId);
+    this.turnIds.delete(message.callId);
     pending.cleanup();
     if (message.isError) {
       pending.reject(resultError(message.result));
@@ -101,6 +112,7 @@ export class ToolBridge {
     const pending = this.pending.get(callId);
     if (!pending) return;
     this.pending.delete(callId);
+    this.turnIds.delete(callId);
     pending.cleanup();
     pending.reject(error);
   }

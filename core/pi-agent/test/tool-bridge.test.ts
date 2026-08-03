@@ -26,6 +26,7 @@ describe("ToolBridge", () => {
       sent.push(message);
     });
     const [tool] = createRemoteTools([statusTool], bridge);
+    bridge.bindTurn("call-1", "turn-1");
 
     const execution = tool.execute("call-1", { job_id: "job-7" });
     await Promise.resolve();
@@ -33,6 +34,7 @@ describe("ToolBridge", () => {
       {
         type: "tool_call",
         callId: "call-1",
+        turnId: "turn-1",
         name: "query_status",
         arguments: { job_id: "job-7" },
       },
@@ -57,6 +59,7 @@ describe("ToolBridge", () => {
   it("turns a Python tool error into a rejected Pi tool execution", async () => {
     const bridge = new ToolBridge(async () => undefined);
     const [tool] = createRemoteTools([statusTool], bridge);
+    bridge.bindTurn("call-error", "turn-1");
     const execution = tool.execute("call-error", { job_id: "missing" });
     await Promise.resolve();
 
@@ -73,12 +76,22 @@ describe("ToolBridge", () => {
   it("rejects pending executions when the run is aborted", async () => {
     const bridge = new ToolBridge(async () => undefined);
     const [tool] = createRemoteTools([statusTool], bridge);
+    bridge.bindTurn("call-abort", "turn-1");
     const execution = tool.execute("call-abort", { job_id: "job-7" });
     await Promise.resolve();
 
     bridge.abort(new Error("client disconnected"));
 
     await expect(execution).rejects.toThrow("client disconnected");
+  });
+
+  it("rejects a tool call that is not bound to an assistant turn", async () => {
+    const bridge = new ToolBridge(async () => undefined);
+    const [tool] = createRemoteTools([statusTool], bridge);
+
+    await expect(tool.execute("call-unbound", { job_id: "job-7" })).rejects.toThrow(
+      "Missing turn id",
+    );
   });
 });
 

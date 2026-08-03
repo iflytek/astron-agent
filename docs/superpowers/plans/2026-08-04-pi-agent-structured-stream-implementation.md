@@ -139,7 +139,7 @@ it("reclassifies pre-tool text and keeps aborted partial text", () => {
 
 - [ ] **Step 2: Run the focused tests and confirm RED**
 
-Run: `cd core/pi-agent && npm test -- --run test/turn-stream.test.ts`
+Run: `cd core/pi-agent && npm test -- test/turn-stream.test.ts`
 
 Expected: FAIL because `TurnStreamProjector` and `PiStreamEvent` do not exist.
 
@@ -198,7 +198,7 @@ Run:
 
 ```bash
 cd core/pi-agent
-npm test -- --run test/turn-stream.test.ts test/run-agent.test.ts test/tool-bridge.test.ts
+npm test -- test/turn-stream.test.ts test/run-agent.test.ts test/tool-bridge.test.ts
 npm run typecheck
 ```
 

@@ -17,6 +17,7 @@ import {
   type StartMessage,
 } from "./protocol.js";
 import { ConsecutiveToolCallGuard } from "./safety.js";
+import { TurnStreamProjector, type TurnProjection } from "./turn-stream.js";
 import {
   createRemoteTools,
   createWaitTool,
@@ -114,12 +115,35 @@ export async function runPiAgent(
 
   let failed = false;
   const toolArguments = new Map<string, Record<string, unknown>>();
+  const toolTurnIds = new Map<string, string>();
+  const projector = new TurnStreamProjector(start.runId);
+  let turnNumber = 0;
+  const sendProjection = async (projection: TurnProjection) => {
+    for (const event of projection.events) {
+      await send({ type: "agent_event", event });
+    }
+    if (projection.legacyReasoning) {
+      await send({
+        type: "reasoning_delta",
+        delta: projection.legacyReasoning,
+      });
+    }
+    if (projection.legacyContent) {
+      await send({ type: "content_delta", delta: projection.legacyContent });
+    }
+  };
   try {
     for await (const event of stream) {
-      if (event.type === "message_update") {
+      if (event.type === "turn_start") {
+        projector.startTurn(`turn-${++turnNumber}`);
+      } else if (event.type === "message_update") {
         const update = event.assistantMessageEvent;
-        if (update.type === "thinking_delta") {
-          await send({ type: "reasoning_delta", delta: update.delta });
+        await sendProjection(projector.handle(update));
+        if (update.type === "toolcall_start") {
+          await sendProjection(projector.markToolCall());
+        } else if (update.type === "toolcall_end") {
+          toolTurnIds.set(update.toolCall.id, projector.turnId);
+          toolBridge.bindTurn(update.toolCall.id, projector.turnId);
         }
       } else if (
         event.type === "message_end" &&
@@ -129,12 +153,13 @@ export async function runPiAgent(
           (block) => block.type === "toolCall",
         );
         for (const block of event.message.content) {
-          if (block.type !== "text" || !block.text) continue;
-          await send({
-            type: hasToolCall ? "reasoning_delta" : "content_delta",
-            delta: block.text,
-          });
+          if (block.type !== "toolCall") continue;
+          toolTurnIds.set(block.id, projector.turnId);
+          toolBridge.bindTurn(block.id, projector.turnId);
         }
+        await sendProjection(
+          projector.finishMessage(event.message.stopReason, hasToolCall),
+        );
       } else if (event.type === "tool_execution_start") {
         const arguments_ = event.args as Record<string, unknown>;
         toolArguments.set(event.toolCallId, arguments_);
@@ -142,6 +167,7 @@ export async function runPiAgent(
           await send({
             type: "tool_call",
             callId: event.toolCallId,
+            turnId: toolTurnIds.get(event.toolCallId) ?? projector.turnId,
             name: event.toolName,
             arguments: arguments_,
           });
@@ -164,6 +190,7 @@ export async function runPiAgent(
           isError: event.isError,
         });
         toolArguments.delete(event.toolCallId);
+        toolTurnIds.delete(event.toolCallId);
       } else if (event.type === "turn_end" && event.message.role === "assistant") {
         const usage = event.message.usage;
         await send({
@@ -187,6 +214,9 @@ export async function runPiAgent(
     }
     await stream.result();
   } finally {
+    await sendProjection(
+      projector.flushPartial(signal?.aborted ? "cancelled" : "error"),
+    );
     toolBridge.abort(new Error("Pi agent run ended"));
   }
   if (!failed) {
