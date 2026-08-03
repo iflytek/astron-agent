@@ -362,3 +362,21 @@ Implementation follows test-driven development.
    copies the complete value.
 6. Agent `output`, `REASONING_CONTENT`, and Trace remain semantically correct.
 7. Existing non-structured workflow/chat streams still render normally.
+
+## Rollout, compatibility, and rollback
+
+The Console SSE bridge must preserve the optional `choices[].delta.agent_event`
+object when it parses and re-emits Workflow responses. The field is additive:
+legacy streams without it continue to use `content` and `reasoning_content`, and
+non-Pi workflow nodes do not create structured events.
+
+Deploy the Pi runtime, Agent, Workflow, Console Hub, and Console Frontend from
+the same release. During rollout, verify one non-quota tool call in both workflow
+debug and published chat, then confirm the saved message has
+`agentStream.hasStructuredEvents=true` and that Trace opens for the same run.
+
+Rollback is image-level: restore the previous versions of those five services.
+Persisted messages remain readable because `agentStream` and `agent_event` are
+optional. Rolling back only Console Hub or Frontend temporarily removes tool
+cards but does not change the legacy final `output` or `REASONING_CONTENT` node
+fields.
