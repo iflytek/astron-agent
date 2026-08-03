@@ -154,6 +154,113 @@ describe("runPiAgent", () => {
     ]);
   });
 
+  it("classifies tool-turn text as reasoning and terminal text as content", async () => {
+    const transcriptStart: StartMessage = {
+      ...start,
+      tools: [
+        {
+          name: "lookup",
+          description: "Look up one value",
+          toolType: "mcp",
+          parameters: {
+            type: "object",
+            properties: { query: { type: "string" } },
+            required: ["query"],
+          },
+        },
+      ],
+    };
+    const assistantTurns: AssistantMessage[] = [
+      {
+        role: "assistant",
+        content: [
+          { type: "text", text: "I will inspect the source." },
+          {
+            type: "toolCall",
+            id: "lookup-1",
+            name: "lookup",
+            arguments: { query: "status" },
+          },
+        ],
+        api: "openai-completions",
+        provider: "openai",
+        model: "fake-model",
+        usage: usage(),
+        stopReason: "toolUse",
+        timestamp: 1,
+      },
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "The status is ready." }],
+        api: "openai-completions",
+        provider: "openai",
+        model: "fake-model",
+        usage: usage(),
+        stopReason: "stop",
+        timestamp: 2,
+      },
+    ];
+    let turnIndex = 0;
+    const streamFn = () => {
+      const message = assistantTurns[turnIndex++];
+      if (!message) throw new Error("unexpected extra model turn");
+      const stream = new MockAssistantStream();
+      queueMicrotask(() => {
+        const initial: AssistantMessage = {
+          ...message,
+          content: [],
+          stopReason: "pending",
+        };
+        const text = message.content.find((block) => block.type === "text");
+        stream.push({ type: "start", partial: initial });
+        if (text?.type === "text") {
+          stream.push({
+            type: "text_delta",
+            contentIndex: 0,
+            delta: text.text,
+            partial: { ...initial, content: [text] },
+          });
+        }
+        stream.push({
+          type: "done",
+          reason: message.stopReason === "stop" ? "stop" : "toolUse",
+          message,
+        });
+      });
+      return stream;
+    };
+
+    const sent: ServerMessage[] = [];
+    let bridge: ToolBridge;
+    const send = async (message: ServerMessage) => {
+      sent.push(message);
+      if (message.type === "tool_call") {
+        bridge.handleToolResult({
+          type: "tool_result",
+          callId: message.callId,
+          result: { status: "ready" },
+          isError: false,
+        });
+      }
+    };
+    bridge = new ToolBridge(send);
+
+    await runPiAgent(transcriptStart, send, undefined, {
+      modelRuntime: { model: model(), streamFn },
+      toolBridge: bridge,
+    });
+
+    expect(
+      sent.filter(
+        (message) =>
+          message.type === "reasoning_delta" || message.type === "content_delta",
+      ),
+    ).toEqual([
+      { type: "reasoning_delta", delta: "I will inspect the source." },
+      { type: "content_delta", delta: "The status is ready." },
+    ]);
+  });
+
   it("retains remote create state across a local wait before polling", async () => {
     vi.useFakeTimers();
     try {

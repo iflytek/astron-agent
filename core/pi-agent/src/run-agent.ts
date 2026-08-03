@@ -118,10 +118,22 @@ export async function runPiAgent(
     for await (const event of stream) {
       if (event.type === "message_update") {
         const update = event.assistantMessageEvent;
-        if (update.type === "text_delta") {
-          await send({ type: "content_delta", delta: update.delta });
-        } else if (update.type === "thinking_delta") {
+        if (update.type === "thinking_delta") {
           await send({ type: "reasoning_delta", delta: update.delta });
+        }
+      } else if (
+        event.type === "message_end" &&
+        event.message.role === "assistant"
+      ) {
+        const hasToolCall = event.message.content.some(
+          (block) => block.type === "toolCall",
+        );
+        for (const block of event.message.content) {
+          if (block.type !== "text" || !block.text) continue;
+          await send({
+            type: hasToolCall ? "reasoning_delta" : "content_delta",
+            delta: block.text,
+          });
         }
       } else if (event.type === "tool_execution_start") {
         const arguments_ = event.args as Record<string, unknown>;
