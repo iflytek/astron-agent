@@ -1,0 +1,37 @@
+[project]
+name = "astron-zwppt-mcp"
+version = "0.1.0"
+description = "Internal Zhiwen PPT MCP service for AstronAgent"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "mcp[cli]==1.6.0",
+  "redis==5.2.1",
+  "requests==2.32.5",
+  "requests-toolbelt==1.0.0",
+]
+
+[project.scripts]
+zwppt-mcp = "zwppt_mcp.server:main"
+
+[dependency-groups]
+dev = [
+  "mypy==1.17.1",
+  "pytest==8.4.2",
+  "types-requests==2.32.4.20250913",
+]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/zwppt_mcp"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["zwppt_mcp"]
