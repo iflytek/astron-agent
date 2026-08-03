@@ -18,6 +18,7 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionPluginKnowledgeMatchInputs,
     CustomCompletionPluginSkillInputs,
 )
+from agent.engine.nodes.pi.pi_runner import PiRunner
 from agent.service.builder.workflow_agent_builder import (
     KnowledgeQueryParams,
     WorkflowAgentRunnerBuilder,
@@ -88,21 +89,17 @@ class TestWorkflowAgentRunnerBuilder:
         )
 
     @pytest.mark.asyncio
-    async def test_build(self, builder: WorkflowAgentRunnerBuilder) -> None:
-        """Test building WorkflowAgentRunner"""
+    async def test_build_without_plugins_uses_chat_runner(
+        self, builder: WorkflowAgentRunnerBuilder
+    ) -> None:
         mock_model = MagicMock()
         mock_plugins: list[BasePlugin] = []
         from agent.engine.nodes.chat.chat_runner import ChatRunner
-        from agent.engine.nodes.cot.cot_runner import CotRunner
 
         mock_chat_runner = MagicMock(spec=ChatRunner)
-        mock_process_runner = MagicMock()
-        mock_cot_runner = MagicMock(spec=CotRunner)
-
-        # Patching Pydantic BaseModel instance triggers __setattr__/__delattr__ restrictions, change to patch class method
         with patch.object(
             WorkflowAgentRunnerBuilder, "create_model", return_value=mock_model
-        ):
+        ) as create_model:
             with patch.object(
                 WorkflowAgentRunnerBuilder, "build_plugins", return_value=mock_plugins
             ):
@@ -116,21 +113,56 @@ class TestWorkflowAgentRunnerBuilder:
                         "build_chat_runner",
                         return_value=mock_chat_runner,
                     ):
-                        with patch.object(
-                            WorkflowAgentRunnerBuilder,
-                            "build_process_runner",
-                            return_value=mock_process_runner,
-                        ):
-                            with patch.object(
-                                WorkflowAgentRunnerBuilder,
-                                "build_cot_runner",
-                                return_value=mock_cot_runner,
-                            ):
-                                runner = await builder.build()
+                        runner = await builder.build()
 
-                                assert isinstance(runner, WorkflowAgentRunner)
-                                assert runner.chat_runner == mock_chat_runner
-                                assert runner.cot_runner == mock_cot_runner
+        assert isinstance(runner, WorkflowAgentRunner)
+        assert runner.chat_runner == mock_chat_runner
+        assert runner.pi_runner is None
+        create_model.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("max_loop_count", [1, 100])
+    async def test_build_with_plugins_always_uses_pi_and_ignores_legacy_loop_limit(
+        self, builder: WorkflowAgentRunnerBuilder, max_loop_count: int
+    ) -> None:
+        async def tool_run(*args: Any, **kwargs: Any) -> None:
+            return None
+
+        builder.inputs.max_loop_count = max_loop_count
+        built_plugin = BasePlugin(
+            name="lookup",
+            description="Lookup",
+            schema_template="legacy",
+            parameters={"type": "object", "properties": {}, "required": []},
+            typ="mcp",
+            run=tool_run,
+        )
+        with patch.object(
+            WorkflowAgentRunnerBuilder,
+            "build_plugins",
+            AsyncMock(return_value=[built_plugin]),
+        ):
+            with patch.object(
+                WorkflowAgentRunnerBuilder,
+                "query_knowledge_by_workflow",
+                AsyncMock(return_value=([], "facts")),
+            ):
+                with patch.object(
+                    WorkflowAgentRunnerBuilder,
+                    "resolve_api_key",
+                    AsyncMock(return_value="resolved-key"),
+                ):
+                    with patch.object(
+                        WorkflowAgentRunnerBuilder, "create_model", AsyncMock()
+                    ) as create_model:
+                        runner = await builder.build()
+
+        assert isinstance(runner.pi_runner, PiRunner)
+        assert runner.chat_runner is None
+        assert runner.pi_runner.plugins == [built_plugin]
+        assert runner.pi_runner.model_config.api_key == "resolved-key"
+        assert not hasattr(runner.pi_runner, "max_loop")
+        create_model.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_build_passes_skills_to_plugin_builder(
@@ -149,12 +181,8 @@ class TestWorkflowAgentRunnerBuilder:
         mock_model = MagicMock()
         mock_plugins: list[BasePlugin] = []
         from agent.engine.nodes.chat.chat_runner import ChatRunner
-        from agent.engine.nodes.cot.cot_runner import CotRunner
 
         mock_chat_runner = MagicMock(spec=ChatRunner)
-        mock_process_runner = MagicMock()
-        mock_cot_runner = MagicMock(spec=CotRunner)
-
         with patch.object(
             WorkflowAgentRunnerBuilder, "create_model", return_value=mock_model
         ):
@@ -173,17 +201,7 @@ class TestWorkflowAgentRunnerBuilder:
                         "build_chat_runner",
                         return_value=mock_chat_runner,
                     ):
-                        with patch.object(
-                            WorkflowAgentRunnerBuilder,
-                            "build_process_runner",
-                            return_value=mock_process_runner,
-                        ):
-                            with patch.object(
-                                WorkflowAgentRunnerBuilder,
-                                "build_cot_runner",
-                                return_value=mock_cot_runner,
-                            ):
-                                await builder.build()
+                        await builder.build()
 
         assert mock_build_plugins.await_count == 1
         build_plugins_args = mock_build_plugins.await_args

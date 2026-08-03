@@ -9,11 +9,8 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
     CustomCompletionPluginKnowledgeInputs,
 )
-from agent.service.builder.base_builder import (
-    BaseApiBuilder,
-    CotRunnerParams,
-    RunnerParams,
-)
+from agent.engine.nodes.pi.pi_runner import PiModelConfig, PiRunner
+from agent.service.builder.base_builder import BaseApiBuilder, RunnerParams
 from agent.service.plugin.knowledge import KnowledgePluginFactory
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
@@ -36,14 +33,6 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
     async def build(self) -> WorkflowAgentRunner:
         """构建"""
         with self.span.start("BuildRunner") as sp:
-            model = await self.create_model(
-                app_id=self.app_id,
-                model_name=self.inputs.model_config_inputs.domain,
-                base_url=self.inputs.model_config_inputs.api,
-                provider=self.inputs.model_config_inputs.provider,
-                api_key=self.inputs.model_config_inputs.api_key,
-            )
-
             skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
             self._inject_skill_runtime_context(skills)
             plugins = await self.build_plugins(
@@ -56,40 +45,70 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             metadata_list, knowledge = await self.query_knowledge_by_workflow(
                 self.inputs.plugin.knowledge, sp
             )
+            history = self.inputs.get_chat_history()
+            question = self.inputs.get_last_message_content()
+
+            if plugins:
+                model_inputs = self.inputs.model_config_inputs
+                api_key = await self.resolve_api_key(
+                    self.app_id,
+                    model_inputs.domain,
+                    model_inputs.api_key,
+                )
+                pi_runner = PiRunner(
+                    app_id=self.app_id,
+                    uid=self.uid,
+                    run_id=(
+                        self.inputs.meta_data.run_id
+                        or self.inputs.meta_data.caller_sid
+                        or self.span.sid
+                    ),
+                    model_config=PiModelConfig(
+                        id=model_inputs.domain,
+                        provider=model_inputs.provider or "openai",
+                        base_url=model_inputs.api,
+                        api_key=api_key,
+                    ),
+                    chat_history=history,
+                    instruct=(
+                        self.inputs.instruction.reasoning
+                        or self.inputs.instruction.answer
+                    ),
+                    knowledge=knowledge,
+                    question=question,
+                    plugins=plugins,
+                )
+                return WorkflowAgentRunner(
+                    chat_runner=None,
+                    pi_runner=pi_runner,
+                    plugins=plugins,
+                    knowledge_metadata_list=metadata_list,
+                    question=question,
+                )
+
+            model = await self.create_model(
+                app_id=self.app_id,
+                model_name=self.inputs.model_config_inputs.domain,
+                base_url=self.inputs.model_config_inputs.api,
+                provider=self.inputs.model_config_inputs.provider,
+                api_key=self.inputs.model_config_inputs.api_key,
+            )
 
             chat_params = RunnerParams(
                 model=model,
-                chat_history=self.inputs.get_chat_history(),
+                chat_history=history,
                 instruct=self.inputs.instruction.answer,
                 knowledge=knowledge,
-                question=self.inputs.get_last_message_content(),
+                question=question,
             )
             chat_runner = await self.build_chat_runner(chat_params)
-            process_params = RunnerParams(
-                model=model,
-                chat_history=self.inputs.get_chat_history(),
-                instruct=self.inputs.instruction.answer,
-                knowledge=knowledge,
-                question=self.inputs.get_last_message_content(),
-            )
-            process_runner = await self.build_process_runner(process_params)
-            cot_params = CotRunnerParams(
-                model=model,
-                plugins=plugins,
-                chat_history=self.inputs.get_chat_history(),
-                instruct=self.inputs.instruction.reasoning,
-                knowledge=knowledge,
-                question=self.inputs.get_last_message_content(),
-                process_runner=process_runner,
-                max_loop=self.inputs.max_loop_count,
-            )
-            cot_runner = await self.build_cot_runner(cot_params)
 
             return WorkflowAgentRunner(
                 chat_runner=chat_runner,
-                cot_runner=cot_runner,
+                pi_runner=None,
                 plugins=plugins,
                 knowledge_metadata_list=metadata_list,
+                question=question,
             )
 
     def _inject_skill_runtime_context(self, skills: list[dict[str, Any]]) -> None:

@@ -1,7 +1,7 @@
 import datetime
 import json
 import time
-from typing import Any, AsyncIterator, List
+from typing import Any, AsyncIterator
 
 from common.otlp.log_trace.base import Usage
 
@@ -9,9 +9,9 @@ from common.otlp.log_trace.base import Usage
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from agent.api.schemas.agent_response import AgentResponse, CotStep
+from agent.api.schemas.agent_response import AgentResponse
 from agent.api.schemas.llm_message import LLMMessage
 from agent.domain.models.base import BaseLLMModel
 
@@ -134,21 +134,3 @@ class RunnerBase(BaseModel):
             #     content=[{"messages": messages, "think": thinks, "answer": answers}],
             #     model=self.model.name
             # )
-
-
-class Scratchpad(BaseModel):
-    steps: List[CotStep] = Field(default_factory=list)
-
-    async def template(self) -> str:
-        step_templates = []
-        for step in self.steps:
-            action_input_text = json.dumps(step.action_input, ensure_ascii=False)
-            action_output_text = json.dumps(step.action_output, ensure_ascii=False)
-            step_template = (
-                f"Thought: {step.thought}\n"
-                f"Action: {step.action}\n"
-                f"Action Input: {action_input_text}\n"
-                f"Observation: {action_output_text}"
-            )
-            step_templates.append(step_template)
-        return "\n".join(step_templates)

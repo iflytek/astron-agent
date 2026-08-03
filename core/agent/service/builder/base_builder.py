@@ -2,7 +2,7 @@ import json
 import os
 import ssl
 from dataclasses import dataclass
-from typing import ClassVar, Sequence, Union, cast
+from typing import ClassVar, Union, cast
 
 import httpx
 from common.otlp.trace.span import Span
@@ -11,10 +11,7 @@ from pydantic import BaseModel, Field
 
 from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
 from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
-from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 from agent.infra.app_auth import MaasAuth
-from agent.service.plugin.base import BasePlugin
 from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
 from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
@@ -30,15 +27,6 @@ class RunnerParams:
     instruct: str
     knowledge: str
     question: str
-
-
-@dataclass
-class CotRunnerParams(RunnerParams):
-    """Parameters for CoT Runner construction"""
-
-    plugins: Sequence[BasePlugin]
-    process_runner: CotProcessRunner
-    max_loop: int = 30
 
 
 class BaseApiBuilder(BaseModel):
@@ -183,82 +171,6 @@ class BaseApiBuilder(BaseModel):
             )
             return chat_runner
 
-    async def build_cot_runner(
-        self,
-        params: CotRunnerParams,
-    ) -> CotRunner:
-        with self.span.start("BuildCotRunner") as sp:
-            sp.add_info_events(
-                {
-                    "model": params.model.name,
-                    "plugins": json.dumps(
-                        [
-                            f"{plugin.typ}\n{plugin.schema_template}"
-                            for plugin in params.plugins
-                        ],
-                        ensure_ascii=False,
-                    ),
-                    "chat-history": json.dumps(
-                        [history.model_dump() for history in params.chat_history],
-                        ensure_ascii=False,
-                    ),
-                    "instruct": params.instruct,
-                    "knowledge": params.knowledge,
-                    "question": params.question,
-                }
-            )
-
-            plugins_list = cast(
-                list[
-                    Union[
-                        BasePlugin,
-                        McpPlugin,
-                        LinkPlugin,
-                        WorkflowPlugin,
-                        SkillPlugin,
-                    ]
-                ],
-                list(params.plugins),
-            )
-            cot_runner = CotRunner(
-                model=params.model,
-                plugins=plugins_list,
-                chat_history=params.chat_history,
-                instruct=params.instruct,
-                knowledge=params.knowledge,
-                question=params.question,
-                process_runner=params.process_runner,
-                max_loop=params.max_loop,
-            )
-            return cot_runner
-
-    async def build_process_runner(
-        self,
-        params: RunnerParams,
-    ) -> CotProcessRunner:
-        with self.span.start("BuildProcessRunner") as sp:
-            sp.add_info_events(
-                {
-                    "model": params.model.name,
-                    "chat-history": json.dumps(
-                        [history.model_dump() for history in params.chat_history],
-                        ensure_ascii=False,
-                    ),
-                    "instruct": params.instruct,
-                    "knowledge": params.knowledge,
-                    "question": params.question,
-                }
-            )
-
-            cot_runner = CotProcessRunner(
-                model=params.model,
-                chat_history=params.chat_history,
-                instruct=params.instruct,
-                knowledge=params.knowledge,
-                question=params.question,
-            )
-            return cot_runner
-
     async def query_maas_sk(self, app_id: str, model_name: str) -> str:
 
         with self.span.start("BuildSk") as sp:
@@ -271,6 +183,14 @@ class BaseApiBuilder(BaseModel):
 
             return sk
 
+    async def resolve_api_key(
+        self, app_id: str, model_name: str, api_key: str
+    ) -> str:
+        """Resolve an explicit key or retrieve the MaaS key for a model."""
+        if api_key:
+            return api_key
+        return await self.query_maas_sk(app_id, model_name)
+
     async def create_model(
         self,
         app_id: str,
@@ -281,10 +201,7 @@ class BaseApiBuilder(BaseModel):
     ) -> BaseLLMModel:
 
         with self.span.start("BuildModel") as sp:
-            if api_key:
-                sk = api_key
-            else:
-                sk = await self.query_maas_sk(app_id, model_name)
+            sk = await self.resolve_api_key(app_id, model_name, api_key)
 
             normalized_provider = (provider or "").strip().lower()
             normalized_base_url = base_url
@@ -310,7 +227,7 @@ class BaseApiBuilder(BaseModel):
                     "model": model_name,
                     "base_url": normalized_base_url,
                     "provider": normalized_provider or "openai",
-                    "api_key": sk,
+                    "api_key_configured": bool(sk),
                     "app_id": app_id,
                 }
             )

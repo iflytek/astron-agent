@@ -11,16 +11,12 @@ from common.otlp.trace.span import Span
 
 from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
 from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
-from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 from agent.infra.app_auth import MaasAuth
 from agent.service.builder.base_builder import (
     BaseApiBuilder,
-    CotRunnerParams,
     RunnerParams,
 )
 from agent.service.plugin.base import BasePlugin
-from agent.service.plugin.base import BasePlugin as RealBasePlugin
 
 
 @dataclass
@@ -184,56 +180,6 @@ class TestBaseApiBuilder:
         assert runner.question == "question"
 
     @pytest.mark.asyncio
-    async def test_build_cot_runner(self, builder: BaseApiBuilder) -> None:
-        """Test building CotRunner"""
-        mock_model = BaseLLMModel.model_construct(name="m", llm=MagicMock())
-
-        mock_plugin = RealBasePlugin(
-            name="p",
-            description="d",
-            schema_template="st",
-            typ="tool",
-            run=AsyncMock(),
-        )
-        mock_plugins = [mock_plugin]
-        mock_process_runner = MagicMock(spec=CotProcessRunner)
-
-        params = CotRunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-            plugins=mock_plugins,
-            process_runner=mock_process_runner,
-            max_loop=10,
-        )
-
-        runner = await builder.build_cot_runner(params)
-
-        assert isinstance(runner, CotRunner)
-        assert runner.model == mock_model
-        assert runner.plugins == mock_plugins
-        assert runner.max_loop == 10
-
-    @pytest.mark.asyncio
-    async def test_build_process_runner(self, builder: BaseApiBuilder) -> None:
-        """Test building CotProcessRunner"""
-        mock_model = BaseLLMModel.model_construct(name="m", llm=MagicMock())
-        params = RunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-        )
-
-        runner = await builder.build_process_runner(params)
-
-        assert isinstance(runner, CotProcessRunner)
-        assert runner.model == mock_model
-
-    @pytest.mark.asyncio
     async def test_query_maas_sk(self, builder: BaseApiBuilder) -> None:
         """Test querying MaaS SK"""
         mock_sk = "test_key:test_secret"
@@ -242,6 +188,34 @@ class TestBaseApiBuilder:
             sk = await builder.query_maas_sk("test_app", "test_model")
 
             assert sk == mock_sk
+
+    @pytest.mark.asyncio
+    async def test_resolve_api_key_prefers_explicit_key(
+        self, builder: BaseApiBuilder
+    ) -> None:
+        with patch.object(BaseApiBuilder, "query_maas_sk", AsyncMock()) as query:
+            key = await builder.resolve_api_key(
+                app_id="test_app", model_name="test_model", api_key="provided"
+            )
+
+        assert key == "provided"
+        query.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_resolve_api_key_queries_maas_when_missing(
+        self, builder: BaseApiBuilder
+    ) -> None:
+        with patch.object(
+            BaseApiBuilder,
+            "query_maas_sk",
+            AsyncMock(return_value="queried"),
+        ) as query:
+            key = await builder.resolve_api_key(
+                app_id="test_app", model_name="test_model", api_key=""
+            )
+
+        assert key == "queried"
+        query.assert_awaited_once_with("test_app", "test_model")
 
     @pytest.mark.asyncio
     async def test_create_model_with_api_key(self, builder: BaseApiBuilder) -> None:
@@ -391,29 +365,3 @@ class TestRunnerParams:
         assert params.instruct == "instruction"
         assert params.knowledge == "knowledge"
         assert params.question == "question"
-
-
-class TestCotRunnerParams:
-    """Test CotRunnerParams dataclass"""
-
-    def test_cot_runner_params_creation(self) -> None:
-        """Test creating CotRunnerParams"""
-        mock_model = MagicMock(spec=BaseLLMModel)
-        mock_plugins = [MagicMock(spec=BasePlugin)]
-        mock_process_runner = MagicMock(spec=CotProcessRunner)
-
-        params = CotRunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-            plugins=mock_plugins,
-            process_runner=mock_process_runner,
-            max_loop=15,
-        )
-
-        assert params.plugins == mock_plugins
-        assert params.process_runner == mock_process_runner
-        assert params.max_loop == 15
-        assert params.max_loop == 15  # Default value test

@@ -16,19 +16,21 @@ from agent.api.schemas.completion_chunk import (
     ReasonChoiceDeltaToolCallFunction,
 )
 from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
+from agent.engine.nodes.pi.pi_runner import PiRunner
+from agent.exceptions.agent_exc import AgentInternalExc
 from agent.service.plugin.base import BasePlugin
 
 
 class WorkflowAgentRunner(BaseModel):
     """Workflow Agent runner"""
 
-    chat_runner: ChatRunner
-    cot_runner: CotRunner
+    chat_runner: ChatRunner | None = None
+    pi_runner: PiRunner | None = None
 
     plugins: Sequence[BasePlugin]
 
     knowledge_metadata_list: list[Any] = Field(default_factory=list)
+    question: str = ""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -57,10 +59,14 @@ class WorkflowAgentRunner(BaseModel):
         self, span: Span, node_trace_log: NodeTraceLog
     ) -> AsyncGenerator[AgentResponse, None]:
         if not self.plugins:
+            if self.chat_runner is None:
+                raise AgentInternalExc("Chat runner is not configured")
             async for message in self.chat_runner.run(span, node_trace_log):
                 yield message
         else:
-            async for message in self.cot_runner.run(span, node_trace_log):
+            if self.pi_runner is None:
+                raise AgentInternalExc("Pi runner is not configured")
+            async for message in self.pi_runner.run(span, node_trace_log):
                 yield message
 
     async def convert_message(
@@ -225,7 +231,7 @@ class WorkflowAgentRunner(BaseModel):
                 function=ReasonChoiceDeltaToolCallFunction(
                     name="knowledge",
                     arguments=json.dumps(
-                        {"query": getattr(self.chat_runner, "question", "")},
+                        {"query": self.question},
                         ensure_ascii=False,
                     ),
                     response=json.dumps(
