@@ -13,6 +13,7 @@ from agent.api.schemas.llm_message import LLMMessage
 from agent.engine.nodes.pi.pi_runner import PiModelConfig, PiRunner
 from agent.exceptions.agent_exc import AgentExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
+from agent.service.plugin.mcp import McpPlugin
 
 
 @dataclass
@@ -225,6 +226,89 @@ async def test_remote_tool_call_executes_python_plugin_and_returns_result(
     assert tool_step.action == "lookup"
     assert tool_step.action_input == {"value": "job-7"}
     assert tool_step.action_output == {"state": "ready"}
+
+
+@pytest.mark.asyncio
+async def test_mcp_plugin_round_trips_through_pi_bridge(
+    unused_tcp_port: int,
+) -> None:
+    received_result: dict[str, Any] = {}
+    called_with: dict[str, Any] = {}
+
+    async def mcp_run(
+        action_input: dict[str, Any], span: Span
+    ) -> PluginResponse:
+        called_with.update(action_input)
+        return PluginResponse(
+            code=0,
+            sid="mcp-sid",
+            result={"content": [{"type": "text", "text": "ready"}]},
+        )
+
+    mcp_plugin = McpPlugin(
+        server_id="server-1",
+        server_url="https://mcp.example/mcp",
+        name="query_status",
+        description="Query asynchronous job status",
+        schema_template="legacy prompt is not parsed",
+        parameters={
+            "type": "object",
+            "properties": {"job_id": {"type": "string"}},
+            "required": ["job_id"],
+        },
+        typ="mcp",
+        run=mcp_run,
+    )
+
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        start = await ws.receive_json()
+        assert start["tools"] == [
+            {
+                "name": "query_status",
+                "description": "Query asynchronous job status",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"job_id": {"type": "string"}},
+                    "required": ["job_id"],
+                },
+                "toolType": "mcp",
+            }
+        ]
+        await ws.send_json(
+            {
+                "type": "tool_call",
+                "callId": "mcp-call",
+                "name": "query_status",
+                "arguments": {"job_id": "job-9"},
+            }
+        )
+        received_result.update(await ws.receive_json())
+        await ws.send_json({"type": "done"})
+        return ws
+
+    async with serve_pi(unused_tcp_port, handler) as url:
+        responses = [
+            response
+            async for response in pi_runner(url, [mcp_plugin]).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            )
+        ]
+
+    assert called_with == {"job_id": "job-9"}
+    assert received_result == {
+        "type": "tool_result",
+        "callId": "mcp-call",
+        "result": {"content": [{"type": "text", "text": "ready"}]},
+        "isError": False,
+    }
+    tool_step = next(item.content for item in responses if item.typ == "cot_step")
+    assert tool_step.action == "query_status"
+    assert tool_step.action_input == {"job_id": "job-9"}
+    assert tool_step.action_output == {
+        "content": [{"type": "text", "text": "ready"}]
+    }
 
 
 @pytest.mark.asyncio
