@@ -21,9 +21,20 @@ function normalizedProvider(provider: string): string {
 }
 
 function normalizedBaseUrl(provider: string, baseUrl: string): string {
-  const trimmed = baseUrl.replace(/\/+$/u, "");
-  if (provider === "anthropic" || provider === "google") {
-    return trimmed;
+  const trimmed = baseUrl.trim().replace(/\/+$/u, "");
+  if (provider === "anthropic") {
+    return trimmed.replace(/\/v1\/messages$/u, "");
+  }
+  if (provider === "google") {
+    const withoutQuery = trimmed.replace(/[?#].*$/u, "");
+    const withoutMethod = withoutQuery.replace(
+      /\/models\/[^/]+:(?:stream)?generateContent$/u,
+      "",
+    );
+    if (/\/v\d+(?:beta\d*)?$/u.test(withoutMethod)) {
+      return withoutMethod;
+    }
+    return `${withoutMethod}/v1beta`;
   }
   return trimmed.replace(/\/(?:chat\/)?completions$/u, "");
 }

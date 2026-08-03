@@ -21,17 +21,33 @@ describe("createModelRuntime", () => {
   });
 
   it.each([
-    ["anthropic", "anthropic-messages"],
-    ["google", "google-generative-ai"],
-  ] as const)("maps %s to its native Pi API", (provider, api) => {
-    const runtime = createModelRuntime({
-      id: "native-model",
-      provider,
-      baseUrl: "https://native.example/v1",
-      apiKey: "model-key",
-    });
+    [
+      "anthropic",
+      "anthropic-messages",
+      "claude-sonnet-4",
+      "https://api.anthropic.com/v1/messages",
+      "https://api.anthropic.com",
+    ],
+    [
+      "google",
+      "google-generative-ai",
+      "gemini-2.5-flash",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta",
+    ],
+  ] as const)(
+    "maps %s to its native Pi API and normalizes the console endpoint",
+    (provider, api, id, baseUrl, expectedBaseUrl) => {
+      const runtime = createModelRuntime({
+        id,
+        provider,
+        baseUrl,
+        apiKey: "model-key",
+      });
 
-    expect(runtime.model.api).toBe(api);
-    expect(runtime.model.provider).toBe(provider);
-  });
+      expect(runtime.model.api).toBe(api);
+      expect(runtime.model.provider).toBe(provider);
+      expect(runtime.model.baseUrl).toBe(expectedBaseUrl);
+    },
+  );
 });
