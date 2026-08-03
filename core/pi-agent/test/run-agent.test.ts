@@ -306,9 +306,12 @@ describe("runPiAgent", () => {
       expect(toolCalls.filter((message) => message.name === "create_task")).toHaveLength(
         1,
       );
-      expect(toolCalls.find((message) => message.name === "get_progress")).toEqual(
-        expect.objectContaining({ arguments: { sid: "sid-1" } }),
+      const progressCalls = toolCalls.filter(
+        (message) => message.name === "get_progress",
       );
+      expect(progressCalls).toEqual([
+        expect.objectContaining({ arguments: { sid: "sid-1" } }),
+      ]);
       expect(modelContexts[1].messages).toContainEqual(
         expect.objectContaining({
           role: "toolResult",

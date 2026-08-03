@@ -4,7 +4,6 @@ import shlex
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -65,16 +64,12 @@ def parse_nginx_config(config: str) -> Block:
     return Block("root", (), parse_children())
 
 
-def find_exact_location(root: Block, path: str) -> Optional[Block]:
-    for child in root.children:
-        if not isinstance(child, Block):
-            continue
-        if child.name == "location" and child.arguments == ("=", path):
-            return child
-        match = find_exact_location(child, path)
-        if match is not None:
-            return match
-    return None
+def direct_blocks(block: Block, name: str) -> list[Block]:
+    return [
+        child
+        for child in block.children
+        if isinstance(child, Block) and child.name == name
+    ]
 
 
 def direct_directives(block: Block, name: str) -> list[tuple[str, ...]]:
@@ -90,9 +85,42 @@ class NginxSseRoutesTest(unittest.TestCase):
         config_path = Path(__file__).resolve().parents[1] / "nginx" / "nginx.conf"
         root = parse_nginx_config(config_path.read_text(encoding="utf-8"))
 
-        location = find_exact_location(root, "/console-api/workflow/chat")
-        self.assertIsNotNone(location, "missing exact workflow-chat SSE location")
-        assert location is not None
+        http_blocks = direct_blocks(root, "http")
+        self.assertEqual(len(http_blocks), 1, "expected one top-level http block")
+        servers = [
+            server
+            for server in direct_blocks(http_blocks[0], "server")
+            if ("80",) in direct_directives(server, "listen")
+            and ("localhost",) in direct_directives(server, "server_name")
+        ]
+        self.assertEqual(len(servers), 1, "expected one localhost:80 server")
+
+        locations = [
+            (index, child)
+            for index, child in enumerate(servers[0].children)
+            if isinstance(child, Block) and child.name == "location"
+        ]
+        exact_locations = [
+            entry
+            for entry in locations
+            if entry[1].arguments == ("=", "/console-api/workflow/chat")
+        ]
+        generic_locations = [
+            entry for entry in locations if entry[1].arguments == ("/console-api/",)
+        ]
+        self.assertEqual(
+            len(exact_locations), 1, "missing direct exact workflow-chat SSE location"
+        )
+        self.assertEqual(
+            len(generic_locations), 1, "missing direct generic console-api location"
+        )
+        exact_index, location = exact_locations[0]
+        generic_index, _ = generic_locations[0]
+        self.assertLess(
+            exact_index,
+            generic_index,
+            "workflow-chat SSE location must precede the generic console-api route",
+        )
 
         self.assertIn(
             ("http://console-hub:8080/workflow/chat",),
