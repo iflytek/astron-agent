@@ -255,7 +255,12 @@ export const finalizePendingSegments = (
   const pending = Object.values(state.segments).filter(
     segment => segment.channel === 'pending'
   );
-  if (pending.length === 0 && state.interrupted) return state;
+  const hasRunningTools = Object.values(state.tools).some(
+    tool => tool.status === 'running'
+  );
+  if (pending.length === 0 && !hasRunningTools && state.interrupted) {
+    return state;
+  }
 
   const next = cloneState(state);
   for (const segment of Object.values(next.segments)) {
@@ -265,6 +270,13 @@ export const finalizePendingSegments = (
       : 'content';
     segment.partial = true;
     segment.commitReason = reason;
+  }
+  for (const tool of Object.values(next.tools)) {
+    if (tool.status !== 'running') continue;
+    tool.status =
+      reason === 'error' || reason === 'transport_closed'
+        ? 'error'
+        : 'cancelled';
   }
   next.interrupted = true;
   next.interruptionReason = reason;
@@ -279,6 +291,11 @@ export const selectLiveContent = (state: AgentStreamState): string =>
     .sort((left, right) => left.order - right.order)
     .map(segment => segment.text)
     .join('');
+
+export const selectHasPartialContent = (state: AgentStreamState): boolean =>
+  Object.values(state.segments).some(
+    segment => segment.channel === 'content' && segment.partial
+  );
 
 export const selectReasoningTimeline = (
   state: AgentStreamState

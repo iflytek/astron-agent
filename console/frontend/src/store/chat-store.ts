@@ -6,6 +6,11 @@ import type {
   Option,
   UploadFileInfo,
 } from '@/types/chat';
+import {
+  createAgentStreamState,
+  finalizePendingSegments,
+  reduceAgentEvent,
+} from '@/components/agent-stream';
 const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   // 状态
   messageList: [],
@@ -71,7 +76,13 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   // 流式消息管理
   startStreamingMessage: (message: MessageListType): void =>
     set(state => ({
-      messageList: [...state.messageList, message],
+      messageList: [
+        ...state.messageList,
+        {
+          ...message,
+          agentStream: message.agentStream ?? createAgentStreamState(),
+        },
+      ],
       streamingMessage: null, // 清除单独的streamingMessage
       isLoading: true,
     })),
@@ -98,6 +109,42 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       }
 
       return state;
+    }),
+
+  applyAgentStreamEvent: event =>
+    set(state => {
+      const currentIndex = state.messageList.length - 1;
+      const current = state.messageList[currentIndex];
+      if (!current || current.sid || current.reqType !== 'BOT') return state;
+
+      const agentStream = reduceAgentEvent(
+        current.agentStream ?? createAgentStreamState(),
+        event
+      );
+      const messageList = [...state.messageList];
+      messageList[currentIndex] = { ...current, agentStream };
+      return { messageList };
+    }),
+
+  finalizeAgentStream: reason =>
+    set(state => {
+      const currentIndex = state.messageList.length - 1;
+      const current = state.messageList[currentIndex];
+      if (
+        !current ||
+        current.sid ||
+        current.reqType !== 'BOT' ||
+        !current.agentStream?.hasStructuredEvents
+      ) {
+        return state;
+      }
+
+      const messageList = [...state.messageList];
+      messageList[currentIndex] = {
+        ...current,
+        agentStream: finalizePendingSegments(current.agentStream, reason),
+      };
+      return { messageList };
     }),
 
   finishStreamingMessage: (sid?: string, reqId?: number): void =>
@@ -152,6 +199,10 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         streamingMessage: null,
         isLoading: false,
         answerPercent: 0,
+        streamId: '',
+        currentToolName: '',
+        traceSource: '',
+        deepThinkText: '',
         workflowOperation: [],
         isWorkflowOption: false,
         workflowOption: {

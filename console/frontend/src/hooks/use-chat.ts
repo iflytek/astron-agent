@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { baseURL } from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import { fetchSseWithContext } from '@/utils/sse-request';
+import { parseAgentEvent, selectLiveContent } from '@/components/agent-stream';
 
 // SSE 数据类型定义
 interface SSEData {
@@ -16,6 +17,7 @@ interface SSEData {
     delta?: {
       content?: string;
       reasoning_content?: string;
+      agent_event?: unknown;
       tool_calls?: Array<{
         deskToolName: string;
       }>;
@@ -60,6 +62,10 @@ const useChat = () => {
   const updateStreamingMessage = useChatStore(
     state => state.updateStreamingMessage
   ); //更新流式消息
+  const applyAgentStreamEvent = useChatStore(
+    state => state.applyAgentStreamEvent
+  );
+  const finalizeAgentStream = useChatStore(state => state.finalizeAgentStream);
   const finishStreamingMessage = useChatStore(
     state => state.finishStreamingMessage
   ); //完成流式消息
@@ -92,6 +98,7 @@ const useChat = () => {
     let nodeChatContent: string = '';
     let messageContent: string = '';
     let completeFinalResult: string = '';
+    let streamSettled = false;
     const controller = new AbortController();
     controllerRef.current = controller;
     setControllerRef(controllerRef.current);
@@ -177,6 +184,11 @@ const useChat = () => {
           return;
         }
         setIsLoading(false);
+        const agentEvent = parseAgentEvent(choices?.[0]?.delta?.agent_event);
+        if (agentEvent) {
+          applyAgentStreamEvent(agentEvent);
+          updateStreamingMessage(ans);
+        }
         //工具  模型返回溯源结果
         if (
           choices?.[1]?.delta?.tool_calls &&
@@ -213,6 +225,7 @@ const useChat = () => {
           ignore && workflowOperation.push('ignore');
           abort && workflowOperation.push('abort');
           setWorkflowOperation(workflowOperation);
+          if (abort) finalizeAgentStream('cancelled');
         }
         nodeChatContent += content || '';
         //判断是否是选项
@@ -230,6 +243,7 @@ const useChat = () => {
               updateStreamingMessage(ans);
             }
             // 完成流式消息，添加sid和id
+            streamSettled = true;
             finishStreamingMessage(sidRef.current, reqIdRef.current);
             controller.abort('结束');
             return;
@@ -239,18 +253,38 @@ const useChat = () => {
           updateStreamingMessage(ans);
         } else {
           //统一的报错处理
-          updateStreamingMessage(ERROR_TEXT);
+          finalizeAgentStream('error');
+          const current = useChatStore.getState().messageList.at(-1);
+          const partialContent = current?.agentStream?.hasStructuredEvents
+            ? selectLiveContent(current.agentStream)
+            : '';
+          if (ans || !partialContent) {
+            updateStreamingMessage(ans || ERROR_TEXT);
+          }
+          streamSettled = true;
           finishStreamingMessage(sidRef.current, reqIdRef.current);
           controller.abort('错误结束');
           return;
         }
       },
       onerror(err: Error): void {
+        if (streamSettled) return;
+        streamSettled = true;
+        finalizeAgentStream('error');
         clearStreamingMessage();
         controllerRef.current.abort('连接错误');
         console.warn('esError', err);
       },
+      onclose(): void {
+        if (streamSettled) return;
+        streamSettled = true;
+        finalizeAgentStream('transport_closed');
+        clearStreamingMessage();
+      },
     }).catch((err: Error) => {
+      if (streamSettled) return;
+      streamSettled = true;
+      finalizeAgentStream('error');
       clearStreamingMessage();
       controllerRef.current.abort('请求失败');
       console.error('fetchError', err);

@@ -4,6 +4,7 @@ export {
   finalizePendingSegments,
   parseAgentEvent,
   reduceAgentEvent,
+  selectHasPartialContent,
   selectLiveContent,
   selectReasoningTimeline,
 } from './reducer';

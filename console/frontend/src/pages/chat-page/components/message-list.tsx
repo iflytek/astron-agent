@@ -28,6 +28,11 @@ import FilePreview from './file-preview';
 import ResqBottomButtons from './resq-bottom-buttons';
 import { useTranslation } from 'react-i18next';
 import FileGridDisplay from './file-grid-display';
+import {
+  AgentTimeline,
+  selectHasPartialContent,
+  selectLiveContent,
+} from '@/components/agent-stream';
 const MessageList = (props: {
   messageList: MessageListType[];
   botInfo: BotInfoType;
@@ -205,12 +210,21 @@ const MessageList = (props: {
     messageIndex: number
   ): ReactElement => {
     const isLastMessage = messageIndex === messageList.length - 1; //是否是最后一条消息
+    const agentStream = item.agentStream;
+    const structured = agentStream?.hasStructuredEvents === true;
     // Only the current (last) answer bubble may show the loading spinner; otherwise a previous
     // unfinished/errored bubble (no sid) would also spin when a new question starts streaming.
     const showLoading =
-      isLastMessage && !item.sid && (isLoading || !!answerPercent);
+      isLastMessage &&
+      !item.sid &&
+      !structured &&
+      (isLoading || !!answerPercent);
     const workflowContent = item?.workflowEventData?.content;
-    const messageContent = workflowContent ? workflowContent : item.message;
+    const liveDraft = structured ? selectLiveContent(agentStream) : '';
+    const messageContent = workflowContent || item.message || liveDraft;
+    const hasPartialContent = structured
+      ? selectHasPartialContent(agentStream)
+      : false;
     return (
       <div
         className="mt-[14px] w-[inherit] max-w-full"
@@ -247,18 +261,32 @@ const MessageList = (props: {
               </div>
             )}
 
-            {/* 使用工具 */}
-            <UseToolsInfo
-              allToolsList={item?.tools || []}
-              loading={!isLoading && !!streamId}
-            />
-            {/* 思考链 */}
-            <DeepThinkProgress answerItem={item} />
+            {structured ? (
+              <AgentTimeline
+                state={agentStream}
+                isStreaming={!!streamId && !item.sid}
+              />
+            ) : (
+              <>
+                {/* 使用工具 */}
+                <UseToolsInfo
+                  allToolsList={item?.tools || []}
+                  loading={!isLoading && !!streamId}
+                />
+                {/* 思考链 */}
+                <DeepThinkProgress answerItem={item} />
+              </>
+            )}
             {/* 回答内容 */}
             <MarkdownRender
               content={messageContent}
               isSending={!!streamId && !item.sid}
             />
+            {hasPartialContent && (
+              <span className="mt-1 inline-block text-xs text-[#9a6b16]">
+                此段内容因任务中断而提前结束
+              </span>
+            )}
             <WorkflowNodeOptions
               message={item}
               isLastMessage={isLastMessage}

@@ -6,6 +6,7 @@ import {
   finalizePendingSegments,
   parseAgentEvent,
   reduceAgentEvent,
+  selectHasPartialContent,
   selectLiveContent,
   selectReasoningTimeline,
 } from '../src/components/agent-stream/reducer.ts';
@@ -121,6 +122,7 @@ test('transport finalization preserves partial text and classifies by tool use',
   );
   answerState = finalizePendingSegments(answerState, 'transport_closed');
   assert.equal(selectLiveContent(answerState), 'Partial answer');
+  assert.equal(selectHasPartialContent(answerState), true);
   assert.equal(answerState.segments['turn-1-text-0']?.partial, true);
   assert.equal(answerState.interrupted, true);
 
@@ -133,6 +135,8 @@ test('transport finalization preserves partial text and classifies by tool use',
   reasoningState = reduceAgentEvent(reasoningState, toolStarted(3));
   reasoningState = finalizePendingSegments(reasoningState, 'cancelled');
   assert.equal(selectLiveContent(reasoningState), '');
+  assert.equal(selectHasPartialContent(reasoningState), false);
+  assert.equal(reasoningState.tools['call-1']?.status, 'cancelled');
   const item = selectReasoningTimeline(reasoningState)[0];
   assert.equal(item?.kind, 'reasoning');
   assert.equal(item?.kind === 'reasoning' ? item.text : '', 'Checking');

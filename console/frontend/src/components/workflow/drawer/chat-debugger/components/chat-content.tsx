@@ -18,6 +18,7 @@ import { typeList } from '@/constants';
 import FeedbackDialog from '@/components/workflow/modal/feedback-dialog';
 import {
   AgentTimeline,
+  selectHasPartialContent,
   selectLiveContent,
   selectReasoningTimeline,
 } from '@/components/agent-stream';
@@ -160,6 +161,9 @@ const MessageReplyContent = ({
     structured && !chat?.content
       ? selectLiveContent(chat.agentStream)
       : chat?.content || '';
+  const hasPartialContent = structured
+    ? selectHasPartialContent(chat.agentStream)
+    : false;
 
   return (
     <>
@@ -210,6 +214,11 @@ const MessageReplyContent = ({
                 content={liveContent}
                 isSending={debuggering && index === chatList?.length - 1}
               />
+            )}
+            {hasPartialContent && (
+              <span className="mt-1 inline-block text-xs text-[#9a6b16]">
+                此段内容因任务中断而提前结束
+              </span>
             )}
             {chat?.option && (
               <div className="flex flex-col items-center gap-2 my-2">
