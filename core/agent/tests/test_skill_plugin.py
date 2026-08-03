@@ -72,6 +72,38 @@ class TestSkillPluginFactory:
         assert plugins[1].typ == "skill"
         assert "working_dir" not in plugins[1].schema_template
         assert "output_dir" not in plugins[1].schema_template
+        assert plugins[0].parameters == {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": (
+                        "Optional relative resource path under the skill folder, for "
+                        "example references/beijing.md. Leave empty to read SKILL.md "
+                        "and list available resources."
+                    ),
+                }
+            },
+            "required": [],
+        }
+        assert plugins[1].parameters == {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": (
+                        "Command to execute from the Skill workspace root, for example "
+                        "python -m scripts.clean_csv. Choose this from SKILL.md instructions."
+                    ),
+                },
+                "stdin": {
+                    "description": (
+                        "Optional JSON-serializable input to pass to the command stdin."
+                    )
+                },
+            },
+            "required": ["command"],
+        }
 
     def test_gen_skips_invalid_skills(self) -> None:
         """Test skipping invalid skill definitions"""

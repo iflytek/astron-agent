@@ -16,6 +16,13 @@ class BasePlugin(BaseModel):
     name: str
     description: str
     schema_template: str
+    parameters: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
+    )
     typ: str
     run: Callable
     run_result: Optional[PluginResponse] = Field(default=None)

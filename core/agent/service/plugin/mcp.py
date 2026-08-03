@@ -122,12 +122,14 @@ class McpPluginFactory(BaseModel):
                 continue
 
             for tool in server.get("tools", []):
+                parameters = self.tool_parameters(tool)
                 mcp_plugin = McpPlugin(
                     server_id=server_id,
                     server_url=server_url,
                     name=tool.get("name", ""),
                     description=tool.get("description", ""),
                     schema_template=await self.convert_tool(tool),
+                    parameters=parameters,
                     typ="mcp",
                     run=McpPluginRunner(
                         server_id=server_id,
@@ -197,13 +199,21 @@ class McpPluginFactory(BaseModel):
             )
 
     @staticmethod
-    async def convert_tool(tool: dict) -> str:
+    def tool_parameters(tool: dict) -> dict[str, Any]:
+        input_schema = tool.get("inputSchema", {})
+        if not isinstance(input_schema, dict):
+            input_schema = {}
+        return {
+            **input_schema,
+            "type": "object",
+            "properties": input_schema.get("properties", {}),
+            "required": input_schema.get("required", []),
+        }
+
+    @classmethod
+    async def convert_tool(cls, tool: dict) -> str:
         property_template = json.dumps(
-            {
-                "type": "object",
-                "properties": tool.get("inputSchema", {}).get("properties", {}),
-                "required": tool.get("inputSchema", {}).get("required", []),
-            },
+            cls.tool_parameters(tool),
             ensure_ascii=False,
         )
         action_name = tool.get("name", "")

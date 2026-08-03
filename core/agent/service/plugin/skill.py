@@ -39,6 +39,38 @@ class SkillPluginFactory(BaseModel):
             sandbox_config = self._normalize_sandbox_config(skill.get("sandbox"))
             if not (skill_id and name and download_url):
                 continue
+            read_parameters = {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": (
+                            "Optional relative resource path under the skill folder, for "
+                            "example references/beijing.md. Leave empty to read SKILL.md "
+                            "and list available resources."
+                        ),
+                    }
+                },
+                "required": [],
+            }
+            run_parameters = {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": (
+                            "Command to execute from the Skill workspace root, for example "
+                            "python -m scripts.clean_csv. Choose this from SKILL.md instructions."
+                        ),
+                    },
+                    "stdin": {
+                        "description": (
+                            "Optional JSON-serializable input to pass to the command stdin."
+                        )
+                    },
+                },
+                "required": ["command"],
+            }
             plugins.extend(
                 [
                     SkillPlugin(
@@ -53,6 +85,7 @@ class SkillPluginFactory(BaseModel):
                             f"If SKILL.md references a relative path like references/beijing.md, call again with that path. "
                             'tool_parameters:{"type":"object","properties":{"path":{"type":"string","description":"Optional relative resource path under the skill folder, for example references/beijing.md. Leave empty to read SKILL.md and list available resources."}},"required":[]}'
                         ),
+                        parameters=read_parameters,
                         typ="skill",
                         download_url=download_url,
                         resources=resources,
@@ -72,6 +105,7 @@ class SkillPluginFactory(BaseModel):
                             "If the environment has no script sandbox configured, this tool returns a fixed unsupported-environment message. "
                             'tool_parameters:{"type":"object","properties":{"command":{"type":"string","description":"Command to execute from the Skill workspace root, for example python -m scripts.clean_csv. Choose this from SKILL.md instructions."},"stdin":{"description":"Optional JSON-serializable input to pass to the command stdin."}},"required":["command"]}'
                         ),
+                        parameters=run_parameters,
                         typ="skill",
                         download_url=download_url,
                         resources=resources,

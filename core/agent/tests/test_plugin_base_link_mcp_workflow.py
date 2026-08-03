@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from common.otlp import sid as sid_module
@@ -63,6 +64,11 @@ class TestPluginBase:
         )
         assert plugin.name == "p"
         assert plugin.run_result is None
+        assert plugin.parameters == {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
 
 
 class TestLinkPluginRunner:
@@ -170,6 +176,31 @@ class TestLinkPluginFactoryParseSchemas:
         assert "f1" in props and "f2" in props
         assert "f1" in required
 
+    @pytest.mark.asyncio
+    async def test_generated_plugin_exposes_native_json_schema(
+        self, factory: LinkPluginFactory, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tool_schema = {
+            "id": "tool-7",
+            "version": "V1.0",
+            "schema": """{"paths":{"/weather":{"get":{"operationId":"weather_lookup","description":"Look up weather","parameters":[{"name":"city","in":"query","description":"City name","required":true,"schema":{"type":"string","x-from":0}}]}}}}""",
+        }
+        monkeypatch.setattr(
+            LinkPluginFactory,
+            "tool_schema_list",
+            AsyncMock(return_value=[tool_schema]),
+        )
+
+        [plugin] = await factory.gen(Span(app_id="app", uid="u"))
+
+        assert plugin.parameters == {
+            "type": "object",
+            "properties": {
+                "city": {"description": "City name", "type": "string"}
+            },
+            "required": ["city"],
+        }
+
 
 class TestMcpPluginRunnerAndFactory:
     """Test McpPluginRunner and McpPluginFactory partial logic"""
@@ -220,6 +251,48 @@ class TestMcpPluginRunnerAndFactory:
         schema = await McpPluginFactory.convert_tool(tool)
         assert "tool_name:t" in schema
         assert "tool_description:d" in schema
+
+    @pytest.mark.asyncio
+    async def test_mcp_plugin_exposes_native_input_schema(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from agent.service.plugin.mcp import McpPluginFactory
+
+        monkeypatch.setattr(
+            McpPluginFactory,
+            "query_servers",
+            AsyncMock(
+                return_value=[
+                    {
+                        "server_status": 0,
+                        "server_id": "server-1",
+                        "server_url": "https://mcp.example/mcp",
+                        "tools": [
+                            {
+                                "name": "echo",
+                                "description": "Echo text",
+                                "inputSchema": {
+                                    "type": "object",
+                                    "properties": {"text": {"type": "string"}},
+                                    "required": ["text"],
+                                },
+                            }
+                        ],
+                    }
+                ]
+            ),
+        )
+        factory = McpPluginFactory(
+            app_id="app", mcp_server_ids=["server-1"], mcp_server_urls=[]
+        )
+
+        [plugin] = await factory.gen(Span(app_id="app", uid="u"))
+
+        assert plugin.parameters == {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"],
+        }
 
 
 class TestWorkflowPluginRunnerAndFactory:
@@ -311,3 +384,45 @@ class TestWorkflowPluginRunnerAndFactory:
         plugin = await factory.create_workflow_plugin(schema)
         assert plugin.flow_id == "fid"
         assert plugin.typ == "workflow"
+        assert plugin.parameters == {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        }
+
+    @pytest.mark.asyncio
+    async def test_workflow_plugin_exposes_start_node_schema(self) -> None:
+        factory = WorkflowPluginFactory(app_id="app", uid="u", workflow_ids=[])
+        schema = {
+            "data": {
+                "data": {
+                    "id": "fid",
+                    "name": "collect_order",
+                    "description": "Collect an order",
+                    "data": {
+                        "nodes": [
+                            {
+                                "id": "node-start::1",
+                                "data": {
+                                    "outputs": [
+                                        {
+                                            "name": "order_id",
+                                            "schema": {"type": "string"},
+                                            "required": True,
+                                        }
+                                    ]
+                                },
+                            }
+                        ]
+                    },
+                }
+            }
+        }
+
+        plugin = await factory.create_workflow_plugin(schema)
+
+        assert plugin.parameters == {
+            "type": "object",
+            "properties": {"order_id": {"type": "string"}},
+            "required": ["order_id"],
+        }

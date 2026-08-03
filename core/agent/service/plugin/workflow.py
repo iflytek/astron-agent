@@ -238,12 +238,13 @@ class WorkflowPluginFactory(BaseModel):
                     react_parameters[output.get("name")] = output.get("schema", {})
                     if output.get("required", False):
                         required_list.append(output.get("name"))
+                parameters_schema = {
+                    "type": "object",
+                    "properties": react_parameters,
+                    "required": required_list,
+                }
                 t_p = json.dumps(
-                    {
-                        "type": "object",
-                        "properties": react_parameters,
-                        "required": required_list,
-                    },
+                    parameters_schema,
                     ensure_ascii=False,
                 )
                 react_plugin_prompt = (
@@ -256,6 +257,7 @@ class WorkflowPluginFactory(BaseModel):
                     name=flow_name,
                     description=flow_description,
                     schema_template=react_plugin_prompt,
+                    parameters=parameters_schema,
                     typ="workflow",
                     run=WorkflowPluginRunner(
                         app_id=self.app_id, uid=self.uid, flow_id=flow_id
@@ -272,6 +274,7 @@ class WorkflowPluginFactory(BaseModel):
                 "tool_name:unknown, tool_description:unknown workflow, "
                 "tool_parameters:{}"
             ),
+            parameters={"type": "object", "properties": {}, "required": []},
             typ="workflow",
             run=WorkflowPluginRunner(
                 app_id=self.app_id, uid=self.uid, flow_id=flow_id

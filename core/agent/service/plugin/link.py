@@ -390,14 +390,15 @@ class LinkPluginFactory(BaseModel):
                             **query_parameters,
                             **body_parameters,
                         }
-                        required = [*query_required, *body_required]
+                        required = sorted([*query_required, *body_required])
 
+                        parameters_schema = {
+                            "type": "object",
+                            "properties": parameters,
+                            "required": required,
+                        }
                         property_template = json.dumps(
-                            {
-                                "type": "object",
-                                "properties": parameters,
-                                "required": required,
-                            },
+                            parameters_schema,
                             ensure_ascii=False,
                         )
                         schema_template = (
@@ -412,6 +413,7 @@ class LinkPluginFactory(BaseModel):
                             name=action_name,
                             description=action_description,
                             schema_template=schema_template,
+                            parameters=parameters_schema,
                             typ="link",
                             run=LinkPluginRunner(
                                 app_id=self.app_id,
