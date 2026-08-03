@@ -360,6 +360,52 @@ jobs:
             BUILD_TIME=${{ github.run_id }}
           no-cache: true
 
+  build-core-pi-agent:
+    name: 🧭 Build Core Pi Agent
+    runs-on: ubuntu-latest
+    needs: detect-and-prepare
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: needs.detect-and-prepare.outputs.should-push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_GHCR }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-pi-agent
+          tags: |
+            type=raw,value=${{ needs.detect-and-prepare.outputs.version }}
+
+      - name: Build and push Core Pi Agent image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./core/pi-agent
+          file: ./core/pi-agent/Dockerfile
+          platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
+          push: ${{ needs.detect-and-prepare.outputs.should-push }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.detect-and-prepare.outputs.version }}
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_TIME=${{ github.run_id }}
+          no-cache: true
+
   build-core-knowledge:
     name: 📚 Build Core Knowledge
     runs-on: ubuntu-latest
@@ -562,6 +608,7 @@ jobs:
       - build-core-link
       - build-core-aitools
       - build-core-agent
+      - build-core-pi-agent
       - build-core-knowledge
       - build-core-workflow
       - build-console-frontend
@@ -585,6 +632,7 @@ jobs:
           echo "  🔗 Core Link: ${{ needs.build-core-link.result }}"
           echo "  🛠️ Core AI Tools: ${{ needs.build-core-aitools.result }}"
           echo "  🤖 Core Agent: ${{ needs.build-core-agent.result }}"
+          echo "  🧭 Core Pi Agent: ${{ needs.build-core-pi-agent.result }}"
           echo "  📚 Core Knowledge: ${{ needs.build-core-knowledge.result }}"
           echo "  ⚡ Core Workflow: ${{ needs.build-core-workflow.result }}"
           echo "  🌐 Console Frontend: ${{ needs.build-console-frontend.result }}"
@@ -593,7 +641,7 @@ jobs:
 
           # Count successful builds
           SUCCESS_COUNT=0
-          TOTAL_COUNT=10
+          TOTAL_COUNT=11
 
           [[ "${{ needs.build-core-tenant.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
           [[ "${{ needs.build-core-database.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
@@ -601,6 +649,7 @@ jobs:
           [[ "${{ needs.build-core-link.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
           [[ "${{ needs.build-core-aitools.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
           [[ "${{ needs.build-core-agent.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+          [[ "${{ needs.build-core-pi-agent.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
           [[ "${{ needs.build-core-knowledge.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
           [[ "${{ needs.build-core-workflow.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
           [[ "${{ needs.build-console-frontend.result }}" == "success" ]] && SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
@@ -617,6 +666,7 @@ jobs:
             [[ "${{ needs.build-core-link.result }}" == "success" ]] && echo "  🔗 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-link:${{ needs.detect-and-prepare.outputs.version }}"
             [[ "${{ needs.build-core-aitools.result }}" == "success" ]] && echo "  🛠️ ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-aitools:${{ needs.detect-and-prepare.outputs.version }}"
             [[ "${{ needs.build-core-agent.result }}" == "success" ]] && echo "  🤖 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-agent:${{ needs.detect-and-prepare.outputs.version }}"
+            [[ "${{ needs.build-core-pi-agent.result }}" == "success" ]] && echo "  🧭 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-pi-agent:${{ needs.detect-and-prepare.outputs.version }}"
             [[ "${{ needs.build-core-knowledge.result }}" == "success" ]] && echo "  📚 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-knowledge:${{ needs.detect-and-prepare.outputs.version }}"
             [[ "${{ needs.build-core-workflow.result }}" == "success" ]] && echo "  ⚡ ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/core-workflow:${{ needs.detect-and-prepare.outputs.version }}"
             [[ "${{ needs.build-console-frontend.result }}" == "success" ]] && echo "  🌐 ${{ env.REGISTRY_GHCR }}/${{ github.repository }}/console-frontend:${{ needs.detect-and-prepare.outputs.version }}"

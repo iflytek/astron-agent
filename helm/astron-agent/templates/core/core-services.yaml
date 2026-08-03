@@ -1,4 +1,4 @@
-{{- $services := list "coreTenant" "coreDatabase" "coreRpa" "coreLink" "coreAitools" "coreAgent" "coreKnowledge" "coreWorkflow" }}
+{{- $services := list "coreTenant" "coreDatabase" "coreRpa" "coreLink" "coreAitools" "corePiAgent" "coreAgent" "coreKnowledge" "coreWorkflow" }}
 {{- range $serviceName := $services }}
 {{- $serviceConfig := index $.Values $serviceName }}
 {{- if $serviceConfig.enabled }}
@@ -81,6 +81,12 @@ spec:
             secretKeyRef:
               name: {{ include "astron-agent.fullname" $ }}-minio-secret
               key: root-password
+        {{- else if eq $key "piAgentInternalSecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-core-pi-agent-secret
+              key: internal-secret
         {{- else }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $value | quote }}
@@ -90,7 +96,24 @@ spec:
         - name: http
           containerPort: {{ $serviceConfig.service.port }}
           protocol: TCP
-        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreKnowledge") (eq $serviceName "coreWorkflow") }}
+        {{- if eq $serviceName "corePiAgent" }}
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- else if or (eq $serviceName "coreAgent") (eq $serviceName "coreKnowledge") (eq $serviceName "coreWorkflow") }}
         livenessProbe:
           httpGet:
             path: /health/live
@@ -125,6 +148,7 @@ spec:
         {{- end }}
         resources:
           {{- toYaml $serviceConfig.resources | nindent 10 }}
+        {{- if ne $serviceName "corePiAgent" }}
         volumeMounts:
         {{- if eq $serviceName "coreTenant" }}
         - name: config
@@ -205,6 +229,7 @@ spec:
         hostPath:
           path: /etc/localtime
           type: File
+      {{- end }}
       {{- end }}
 ---
 apiVersion: v1
