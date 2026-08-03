@@ -103,8 +103,50 @@ def test_methods_send_documented_requests_and_return_documented_results(
         "query": "topic", "outline": {"title": "outline"}, "templateId": "template-1",
         "author": "XXXX", "isCardNote": True, "search": False, "isFigure": True, "aiImage": "normal",
     }
-    assert b'name="query"\r\n\r\ntopic' in session.calls[1]["body"]
-    assert b'name="file"; filename="source.docx"' in session.calls[4]["body"]
+    create_body = session.calls[1]["body"]
+    assert b'name="query"\r\n\r\ntopic' in create_body
+    assert b'name="templateId"\r\n\r\ntemplate-1' in create_body
+    assert b'name="author"\r\n\r\nXXXX' in create_body
+    assert b'name="isCardNote"\r\n\r\nTrue' in create_body
+    assert b'name="search"\r\n\r\nFalse' in create_body
+    assert b'name="isFigure"\r\n\r\nTrue' in create_body
+    assert b'name="aiImage"\r\n\r\nnormal' in create_body
+    outline_body = session.calls[3]["body"]
+    assert b'name="query"\r\n\r\ntopic' in outline_body
+    assert b'name="language"\r\n\r\ncn' in outline_body
+    assert b'name="search"\r\n\r\nFalse' in outline_body
+    document_body = session.calls[4]["body"]
+    assert b'name="fileName"\r\n\r\nsource.docx' in document_body
+    assert b'name="query"\r\n\r\ntopic' in document_body
+    assert b'name="language"\r\n\r\ncn' in document_body
+    assert b'name="search"\r\n\r\nFalse' in document_body
+    assert b'name="file"; filename="source.docx"' in document_body
+
+
+def test_create_outline_by_doc_sends_url_source_form() -> None:
+    session = RecordingSession(
+        iter([RecordingResponse(payload={"code": 0, "data": {"outline": []}})])
+    )
+    client = ZhiwenClient(Credentials("app-1", "secret-1"), session=session)
+
+    assert client.create_outline_by_doc(
+        "source.docx",
+        "topic",
+        file_url="https://files.example/source.docx",
+        language="en",
+        search=True,
+    ) == {"code": 0, "data": {"outline": []}}
+
+    call = session.calls[0]
+    assert call["method"] == "POST"
+    assert call["url"] == "https://zwapi.xfyun.cn/api/ppt/v2/createOutlineByDoc"
+    assert call["headers"]["Content-Type"].startswith("multipart/form-data; boundary=")
+    assert b'name="fileName"\r\n\r\nsource.docx' in call["body"]
+    assert b'name="query"\r\n\r\ntopic' in call["body"]
+    assert b'name="fileUrl"\r\n\r\nhttps://files.example/source.docx' in call["body"]
+    assert b'name="language"\r\n\r\nen' in call["body"]
+    assert b'name="search"\r\n\r\nTrue' in call["body"]
+    assert b'name="file";' not in call["body"]
 
 
 @pytest.mark.parametrize(
