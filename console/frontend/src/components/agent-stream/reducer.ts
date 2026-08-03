@@ -44,6 +44,29 @@ const isFinishedToolStatus = (
 const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
+const isAgentSegmentRecord = (value: unknown): boolean =>
+  isRecord(value) &&
+  isNonEmptyString(value.runId) &&
+  isNonEmptyString(value.segmentId) &&
+  isNonEmptyString(value.turnId) &&
+  isSegmentSource(value.source) &&
+  isSegmentChannel(value.channel) &&
+  typeof value.text === 'string' &&
+  typeof value.order === 'number' &&
+  Number.isSafeInteger(value.order) &&
+  typeof value.ended === 'boolean' &&
+  typeof value.partial === 'boolean';
+
+const isAgentToolRecord = (value: unknown): boolean =>
+  isRecord(value) &&
+  isNonEmptyString(value.runId) &&
+  isNonEmptyString(value.callId) &&
+  isNonEmptyString(value.turnId) &&
+  isNonEmptyString(value.name) &&
+  (value.status === 'running' || isFinishedToolStatus(value.status)) &&
+  typeof value.order === 'number' &&
+  Number.isSafeInteger(value.order);
+
 export const parseAgentEvent = (value: unknown): AgentEventV1 | null => {
   if (
     !isRecord(value) ||
@@ -125,40 +148,36 @@ export const parseAgentEvent = (value: unknown): AgentEventV1 | null => {
 };
 
 export const createAgentStreamState = (): AgentStreamState => ({
+  schemaVersion: 2,
   hasStructuredEvents: false,
   segments: {},
   tools: {},
-  seen: {},
+  lastSeqByRun: {},
+  nextOrder: 0,
   hasObservedToolByTurn: {},
   interrupted: false,
   interruptionReason: null,
 });
 
-const cloneState = (state: AgentStreamState): AgentStreamState => ({
-  ...state,
-  segments: Object.fromEntries(
-    Object.entries(state.segments).map(([id, segment]) => [id, { ...segment }])
-  ),
-  tools: Object.fromEntries(
-    Object.entries(state.tools).map(([id, tool]) => [id, { ...tool }])
-  ),
-  seen: { ...state.seen },
-  hasObservedToolByTurn: { ...state.hasObservedToolByTurn },
-});
+const entityKey = (runId: string, id: string): string =>
+  JSON.stringify([runId, id]);
 
 const applyToolFinish = (
-  next: AgentStreamState,
+  existing: AgentToolRecord | undefined,
+  order: number,
   event: AgentToolFinishEvent
-): void => {
-  const existing = next.tools[event.callId];
-  const tool: AgentToolRecord = existing ?? {
-    callId: event.callId,
-    turnId: event.turnId,
-    name: event.name ?? 'unknown',
-    arguments: null,
-    status: event.status,
-    order: event.seq,
-  };
+): AgentToolRecord => {
+  const tool: AgentToolRecord = existing
+    ? { ...existing }
+    : {
+        runId: event.runId,
+        callId: event.callId,
+        turnId: event.turnId,
+        name: event.name ?? 'unknown',
+        arguments: null,
+        status: event.status,
+        order,
+      };
 
   tool.status = event.status;
   if (event.name) tool.name = event.name;
@@ -167,83 +186,184 @@ const applyToolFinish = (
   }
   if (event.finishedAt !== undefined) tool.finishedAt = event.finishedAt;
   if (event.durationMs !== undefined) tool.durationMs = event.durationMs;
-  next.tools[event.callId] = tool;
+  return tool;
+};
+
+export const parseAgentStreamState = (
+  value: unknown
+): AgentStreamState | null => {
+  if (
+    !isRecord(value) ||
+    value.schemaVersion !== 2 ||
+    typeof value.hasStructuredEvents !== 'boolean' ||
+    !isRecord(value.segments) ||
+    !isRecord(value.tools) ||
+    !isRecord(value.lastSeqByRun) ||
+    typeof value.nextOrder !== 'number' ||
+    !Number.isSafeInteger(value.nextOrder) ||
+    !isRecord(value.hasObservedToolByTurn) ||
+    typeof value.interrupted !== 'boolean' ||
+    (value.interruptionReason !== null &&
+      !isCommitReason(value.interruptionReason) &&
+      value.interruptionReason !== 'transport_closed')
+  ) {
+    return null;
+  }
+  if (
+    !Object.values(value.segments).every(isAgentSegmentRecord) ||
+    !Object.values(value.tools).every(isAgentToolRecord) ||
+    !Object.values(value.lastSeqByRun).every(
+      seq => typeof seq === 'number' && Number.isSafeInteger(seq) && seq >= 0
+    ) ||
+    !Object.values(value.hasObservedToolByTurn).every(flag => flag === true)
+  ) {
+    return null;
+  }
+  return value as unknown as AgentStreamState;
+};
+
+const acceptEvent = (
+  state: AgentStreamState,
+  event: AgentEventV1
+): AgentStreamState | null => {
+  const lastSeq = state.lastSeqByRun[event.runId] ?? 0;
+  if (event.seq <= lastSeq) return null;
+  return {
+    ...state,
+    hasStructuredEvents: true,
+    lastSeqByRun: { ...state.lastSeqByRun, [event.runId]: event.seq },
+    nextOrder: state.nextOrder + 1,
+  };
 };
 
 export const reduceAgentEvent = (
   state: AgentStreamState,
   event: AgentEventV1
 ): AgentStreamState => {
-  const eventKey = `${event.runId}:${event.seq}`;
-  if (state.seen[eventKey]) return state;
-
-  const next = cloneState(state);
-  next.seen[eventKey] = true;
-  next.hasStructuredEvents = true;
+  const next = acceptEvent(state, event);
+  if (!next) return state;
+  const order = state.nextOrder;
 
   switch (event.type) {
-    case 'segment_start':
-      if (!next.segments[event.segmentId]) {
-        next.segments[event.segmentId] = {
-          segmentId: event.segmentId,
-          turnId: event.turnId,
-          source: event.source,
-          channel: event.channel,
-          text: '',
-          order: event.seq,
-          ended: false,
-          partial: false,
-        };
-      }
-      break;
+    case 'segment_start': {
+      const key = entityKey(event.runId, event.segmentId);
+      if (state.segments[key]) return next;
+      return {
+        ...next,
+        segments: {
+          ...state.segments,
+          [key]: {
+            runId: event.runId,
+            segmentId: event.segmentId,
+            turnId: event.turnId,
+            source: event.source,
+            channel: event.channel,
+            text: '',
+            order,
+            ended: false,
+            partial: false,
+          },
+        },
+      };
+    }
     case 'segment_delta': {
-      const segment = next.segments[event.segmentId];
-      if (segment) segment.text += event.delta;
-      break;
+      const key = entityKey(event.runId, event.segmentId);
+      const segment = state.segments[key];
+      if (!segment) return next;
+      return {
+        ...next,
+        segments: {
+          ...state.segments,
+          [key]: { ...segment, text: segment.text + event.delta },
+        },
+      };
     }
     case 'segment_end': {
-      const segment = next.segments[event.segmentId];
-      if (segment) segment.ended = true;
-      break;
+      const key = entityKey(event.runId, event.segmentId);
+      const segment = state.segments[key];
+      if (!segment) return next;
+      return {
+        ...next,
+        segments: {
+          ...state.segments,
+          [key]: { ...segment, ended: true },
+        },
+      };
     }
-    case 'turn_commit':
-      for (const segment of Object.values(next.segments)) {
-        if (segment.turnId === event.turnId && segment.channel === 'pending') {
-          segment.channel = event.channel;
-          segment.partial = event.partial;
-          segment.commitReason = event.reason;
+    case 'turn_commit': {
+      let segments = state.segments;
+      for (const [key, segment] of Object.entries(state.segments)) {
+        if (
+          segment.runId === event.runId &&
+          segment.turnId === event.turnId &&
+          segment.channel === 'pending'
+        ) {
+          if (segments === state.segments) segments = { ...state.segments };
+          segments[key] = {
+            ...segment,
+            channel: event.channel,
+            partial: event.partial,
+            commitReason: event.reason,
+          };
         }
       }
-      if (event.partial) {
-        next.interrupted = true;
-        next.interruptionReason = event.reason;
-      }
-      break;
-    case 'tool_start':
-      next.hasObservedToolByTurn[event.turnId] = true;
-      next.tools[event.callId] = {
-        callId: event.callId,
-        turnId: event.turnId,
-        name: event.name,
-        arguments: event.arguments,
-        status: 'running',
-        order: next.tools[event.callId]?.order ?? event.seq,
-        ...(event.startedAt === undefined
-          ? {}
-          : { startedAt: event.startedAt }),
+      return {
+        ...next,
+        segments,
+        ...(event.partial
+          ? { interrupted: true, interruptionReason: event.reason }
+          : {}),
       };
-      break;
-    case 'tool_progress': {
-      const tool = next.tools[event.callId];
-      if (tool) tool.progress = event.summary;
-      break;
     }
-    case 'tool_finish':
-      applyToolFinish(next, event);
-      break;
+    case 'tool_start': {
+      const key = entityKey(event.runId, event.callId);
+      const turnKey = entityKey(event.runId, event.turnId);
+      return {
+        ...next,
+        hasObservedToolByTurn: {
+          ...state.hasObservedToolByTurn,
+          [turnKey]: true,
+        },
+        tools: {
+          ...state.tools,
+          [key]: {
+            runId: event.runId,
+            callId: event.callId,
+            turnId: event.turnId,
+            name: event.name,
+            arguments: event.arguments,
+            status: 'running',
+            order: state.tools[key]?.order ?? order,
+            ...(event.startedAt === undefined
+              ? {}
+              : { startedAt: event.startedAt }),
+          },
+        },
+      };
+    }
+    case 'tool_progress': {
+      const key = entityKey(event.runId, event.callId);
+      const tool = state.tools[key];
+      if (!tool) return next;
+      return {
+        ...next,
+        tools: {
+          ...state.tools,
+          [key]: { ...tool, progress: event.summary },
+        },
+      };
+    }
+    case 'tool_finish': {
+      const key = entityKey(event.runId, event.callId);
+      return {
+        ...next,
+        tools: {
+          ...state.tools,
+          [key]: applyToolFinish(state.tools[key], order, event),
+        },
+      };
+    }
   }
-
-  return next;
 };
 
 export const finalizePendingSegments = (
@@ -262,25 +382,40 @@ export const finalizePendingSegments = (
     return state;
   }
 
-  const next = cloneState(state);
-  for (const segment of Object.values(next.segments)) {
+  let segments = state.segments;
+  for (const [key, segment] of Object.entries(state.segments)) {
     if (segment.channel !== 'pending') continue;
-    segment.channel = next.hasObservedToolByTurn[segment.turnId]
-      ? 'reasoning'
-      : 'content';
-    segment.partial = true;
-    segment.commitReason = reason;
+    if (segments === state.segments) segments = { ...state.segments };
+    segments[key] = {
+      ...segment,
+      channel: state.hasObservedToolByTurn[
+        entityKey(segment.runId, segment.turnId)
+      ]
+        ? 'reasoning'
+        : 'content',
+      partial: true,
+      commitReason: reason,
+    };
   }
-  for (const tool of Object.values(next.tools)) {
+  let tools = state.tools;
+  for (const [key, tool] of Object.entries(state.tools)) {
     if (tool.status !== 'running') continue;
-    tool.status =
-      reason === 'error' || reason === 'transport_closed'
-        ? 'error'
-        : 'cancelled';
+    if (tools === state.tools) tools = { ...state.tools };
+    tools[key] = {
+      ...tool,
+      status:
+        reason === 'error' || reason === 'transport_closed'
+          ? 'error'
+          : 'cancelled',
+    };
   }
-  next.interrupted = true;
-  next.interruptionReason = reason;
-  return next;
+  return {
+    ...state,
+    segments,
+    tools,
+    interrupted: true,
+    interruptionReason: reason,
+  };
 };
 
 export const selectLiveContent = (state: AgentStreamState): string =>
@@ -308,6 +443,7 @@ export const selectReasoningTimeline = (
   const tools: AgentReasoningTimelineItem[] = Object.values(state.tools).map(
     tool => ({
       kind: 'tool',
+      runId: tool.runId,
       callId: tool.callId,
       turnId: tool.turnId,
       order: tool.order,

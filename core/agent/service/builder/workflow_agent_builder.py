@@ -2,6 +2,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, cast
+from uuid import uuid4
 
 from common.otlp.trace.span import Span
 
@@ -55,14 +56,18 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     model_inputs.domain,
                     model_inputs.api_key,
                 )
+                workflow_run_id = (
+                    self.inputs.meta_data.run_id
+                    or self.inputs.meta_data.caller_sid
+                    or self.span.sid
+                )
+                node_id = self.inputs.meta_data.node_id or "agent"
                 pi_runner = PiRunner(
                     app_id=self.app_id,
                     uid=self.uid,
-                    run_id=(
-                        self.inputs.meta_data.run_id
-                        or self.inputs.meta_data.caller_sid
-                        or self.span.sid
-                    ),
+                    # Pi restarts local sequence and turn identifiers for every
+                    # execution, so every node attempt needs a distinct stream.
+                    run_id=f"{workflow_run_id}:{node_id}:{uuid4().hex}",
                     model_config=PiModelConfig(
                         id=model_inputs.domain,
                         provider=model_inputs.provider or "openai",

@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -354,6 +355,53 @@ async def test_plugin_failure_finishes_tool_card_and_returns_model_error(
 
 
 @pytest.mark.asyncio
+async def test_cancelled_plugin_finishes_tool_card_before_propagating_cancel() -> None:
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def tool_run(action_input: dict[str, Any], span: Span) -> PluginResponse:
+        entered.set()
+        await release.wait()
+        return PluginResponse(result={"ready": True})
+
+    class _WebSocket:
+        async def send_json(self, payload: dict[str, Any]) -> None:
+            raise AssertionError(f"cancelled tool must not return a result: {payload}")
+
+    runner = pi_runner(
+        "ws://runtime.invalid/internal/v1/runs",
+        [plugin("lookup", tool_run)],
+    )
+    responses = runner._handle_tool_call(
+        {
+            "type": "tool_call",
+            "callId": "cancelled-call",
+            "turnId": "turn-1",
+            "name": "lookup",
+            "arguments": {"value": "job-7"},
+        },
+        {"lookup": runner.plugins[0]},
+        _WebSocket(),  # type: ignore[arg-type]
+        Span(app_id="app", uid="uid"),
+    )
+
+    started = await anext(responses)
+    assert started.typ == "agent_event"
+    assert started.content.type == "tool_start"
+
+    pending = asyncio.create_task(anext(responses))
+    await entered.wait()
+    pending.cancel()
+    finished = await pending
+    assert finished.typ == "agent_event"
+    assert finished.content.type == "tool_finish"
+    assert finished.content.status == "cancelled"
+
+    with pytest.raises(asyncio.CancelledError):
+        await anext(responses)
+
+
+@pytest.mark.asyncio
 async def test_mcp_plugin_round_trips_through_pi_bridge(
     unused_tcp_port: int,
 ) -> None:
@@ -596,6 +644,80 @@ async def test_wait_completion_is_visible_without_python_tool_execution(
     events = [item.content for item in responses if item.typ == "agent_event"]
     assert [event.type for event in events] == ["tool_start", "tool_finish"]
     assert events[1].response == {"seconds": 0.01}
+
+
+@pytest.mark.asyncio
+async def test_cancelled_wait_finishes_tool_card_before_propagating_cancel(
+    unused_tcp_port: int,
+) -> None:
+    wait_sent = asyncio.Event()
+
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "tool_call",
+                "callId": "wait-call",
+                "turnId": "turn-1",
+                "name": "wait",
+                "arguments": {"seconds": 30},
+            }
+        )
+        wait_sent.set()
+        await ws.receive()
+        return ws
+
+    async with serve_pi(unused_tcp_port, handler) as url:
+        responses = pi_runner(url, []).run(Span(app_id="app", uid="uid"), node_trace())
+        started = await anext(responses)
+        assert started.content.type == "tool_start"
+        await wait_sent.wait()
+
+        pending = asyncio.create_task(anext(responses))
+        await asyncio.sleep(0)
+        pending.cancel()
+        finished = await pending
+        assert finished.content.type == "tool_finish"
+        assert finished.content.status == "cancelled"
+        assert finished.content.callId == "wait-call"
+
+        with pytest.raises(asyncio.CancelledError):
+            await anext(responses)
+
+
+@pytest.mark.asyncio
+async def test_runtime_error_finishes_pending_wait_card_before_unwinding(
+    unused_tcp_port: int,
+) -> None:
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "tool_call",
+                "callId": "wait-call",
+                "turnId": "turn-1",
+                "name": "wait",
+                "arguments": {"seconds": 30},
+            }
+        )
+        await ws.send_json({"type": "error", "message": "runtime stopped"})
+        return ws
+
+    async with serve_pi(unused_tcp_port, handler) as url:
+        responses = pi_runner(url, []).run(Span(app_id="app", uid="uid"), node_trace())
+        started = await anext(responses)
+        assert started.content.type == "tool_start"
+        finished = await anext(responses)
+        assert finished.content.type == "tool_finish"
+        assert finished.content.status == "error"
+        assert finished.content.callId == "wait-call"
+
+        with pytest.raises(AgentExc, match="runtime stopped"):
+            await anext(responses)
 
 
 @pytest.mark.asyncio

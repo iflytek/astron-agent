@@ -21,12 +21,14 @@ export const AgentTimeline = ({
     <div className="my-2.5 flex flex-col gap-2 text-sm text-[#5b6472]">
       {timeline.map(item => {
         if (item.kind === 'tool') {
-          return <ToolCard key={item.callId} tool={item.tool} />;
+          return (
+            <ToolCard key={`${item.runId}:${item.callId}`} tool={item.tool} />
+          );
         }
 
         return (
           <div
-            key={item.segmentId}
+            key={`${item.runId}:${item.segmentId}`}
             className="border-l-2 border-[#dfe3eb] pl-3 reasoning-markdown"
           >
             <MarkdownRender

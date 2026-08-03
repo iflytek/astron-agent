@@ -76,6 +76,7 @@ export type AgentEventV1 =
   | AgentToolFinishEvent;
 
 export interface AgentSegment {
+  runId: string;
   segmentId: string;
   turnId: string;
   source: AgentSegmentSource;
@@ -88,6 +89,7 @@ export interface AgentSegment {
 }
 
 export interface AgentToolRecord {
+  runId: string;
   callId: string;
   turnId: string;
   name: string;
@@ -102,10 +104,12 @@ export interface AgentToolRecord {
 }
 
 export interface AgentStreamState {
+  schemaVersion: 2;
   hasStructuredEvents: boolean;
   segments: Record<string, AgentSegment>;
   tools: Record<string, AgentToolRecord>;
-  seen: Record<string, true>;
+  lastSeqByRun: Record<string, number>;
+  nextOrder: number;
   hasObservedToolByTurn: Record<string, true>;
   interrupted: boolean;
   interruptionReason: AgentFinalizeReason | null;
@@ -115,6 +119,7 @@ export type AgentReasoningTimelineItem =
   | ({ kind: 'reasoning' } & AgentSegment)
   | {
       kind: 'tool';
+      runId: string;
       callId: string;
       turnId: string;
       order: number;

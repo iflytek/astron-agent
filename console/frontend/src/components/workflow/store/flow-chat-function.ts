@@ -35,6 +35,7 @@ import {
   createAgentStreamState,
   finalizePendingSegments,
   parseAgentEvent,
+  parseAgentStreamState,
   reduceAgentEvent,
 } from '@/components/agent-stream';
 import type {
@@ -100,9 +101,7 @@ const getDialogues = (id: string, set, shouldAddDivider = false): void => {
       const currentChatId = chat?.chatId;
       const answer = JSON.parse(chat?.answer);
       const agentStream =
-        answer?.agentStream?.hasStructuredEvents === true
-          ? (answer.agentStream as AgentStreamState)
-          : undefined;
+        parseAgentStreamState(answer?.agentStream) ?? undefined;
       if (currentChatId !== chatId) {
         chatList.unshift({
           id: uuid(),

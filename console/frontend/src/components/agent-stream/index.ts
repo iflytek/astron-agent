@@ -3,6 +3,7 @@ export {
   createAgentStreamState,
   finalizePendingSegments,
   parseAgentEvent,
+  parseAgentStreamState,
   reduceAgentEvent,
   selectHasPartialContent,
   selectLiveContent,

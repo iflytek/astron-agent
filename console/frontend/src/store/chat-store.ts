@@ -5,12 +5,13 @@ import type {
   ChatActions,
   Option,
   UploadFileInfo,
-} from '@/types/chat';
+} from '../types/chat';
 import {
   createAgentStreamState,
   finalizePendingSegments,
+  parseAgentStreamState,
   reduceAgentEvent,
-} from '@/components/agent-stream';
+} from '../components/agent-stream/reducer.js';
 const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   // 状态
   messageList: [],
@@ -57,7 +58,15 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   },
 
   setMessageList: (messageList: MessageListType[]): void =>
-    set({ messageList }),
+    set({
+      messageList: messageList.map(message => {
+        if (!message.agentStream) return message;
+        const agentStream = parseAgentStreamState(message.agentStream);
+        return agentStream
+          ? { ...message, agentStream }
+          : { ...message, agentStream: undefined };
+      }),
+    }),
   setChatFileListNoReq: (
     updater: UploadFileInfo[] | ((prev: UploadFileInfo[]) => UploadFileInfo[])
   ): void => {
@@ -81,6 +90,7 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
         {
           ...message,
           agentStream: message.agentStream ?? createAgentStreamState(),
+          streamStatus: 'streaming',
         },
       ],
       streamingMessage: null, // 清除单独的streamingMessage
@@ -94,8 +104,7 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       const updatedMessageList = [...state.messageList];
       const lastMessage = updatedMessageList[updatedMessageList.length - 1];
 
-      // 只更新最后一条消息（正在流式输出的消息，特征：没有sid）
-      if (lastMessage && !lastMessage.sid) {
+      if (lastMessage?.streamStatus === 'streaming') {
         updatedMessageList[updatedMessageList.length - 1] = {
           ...lastMessage,
           message: content,
@@ -115,7 +124,13 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     set(state => {
       const currentIndex = state.messageList.length - 1;
       const current = state.messageList[currentIndex];
-      if (!current || current.sid || current.reqType !== 'BOT') return state;
+      if (
+        !current ||
+        current.streamStatus !== 'streaming' ||
+        current.reqType !== 'BOT'
+      ) {
+        return state;
+      }
 
       const agentStream = reduceAgentEvent(
         current.agentStream ?? createAgentStreamState(),
@@ -132,7 +147,7 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       const current = state.messageList[currentIndex];
       if (
         !current ||
-        current.sid ||
+        current.streamStatus !== 'streaming' ||
         current.reqType !== 'BOT' ||
         !current.agentStream?.hasStructuredEvents
       ) {
@@ -147,7 +162,11 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       return { messageList };
     }),
 
-  finishStreamingMessage: (sid?: string, reqId?: number): void =>
+  finishStreamingMessage: (
+    sid?: string,
+    reqId?: number,
+    status: 'completed' | 'cancelled' | 'error' = 'completed'
+  ): void =>
     set(state => {
       if (state.messageList.length === 0) return state;
 
@@ -155,12 +174,13 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
       const lastMessage = updatedMessageList[updatedMessageList.length - 1];
 
       // 完成流式消息，添加sid和id
-      if (lastMessage && !lastMessage.sid) {
+      if (lastMessage?.streamStatus === 'streaming') {
         updatedMessageList[updatedMessageList.length - 1] = {
           ...lastMessage,
           message: lastMessage.message || '', // 确保message字段存在
           sid,
           reqId,
+          streamStatus: status,
           workflowEventData: {
             workflowOperation: state.workflowOperation,
             option: state.workflowOption?.option,

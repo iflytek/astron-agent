@@ -69,9 +69,6 @@ const useChat = () => {
   const finishStreamingMessage = useChatStore(
     state => state.finishStreamingMessage
   ); //完成流式消息
-  const clearStreamingMessage = useChatStore(
-    state => state.clearStreamingMessage
-  ); //清除流式消息
   const setCurrentToolName = useChatStore(state => state.setCurrentToolName); //当前调用工具名称
   const setTraceSource = useChatStore(state => state.setTraceSource); //溯源结果
   const setDeepThinkText = useChatStore(state => state.setDeepThinkText); //深度思考
@@ -262,30 +259,42 @@ const useChat = () => {
             updateStreamingMessage(ans || ERROR_TEXT);
           }
           streamSettled = true;
-          finishStreamingMessage(sidRef.current, reqIdRef.current);
+          finishStreamingMessage(sidRef.current, reqIdRef.current, 'error');
           controller.abort('错误结束');
           return;
         }
       },
       onerror(err: Error): void {
         if (streamSettled) return;
+        if (controller.signal.aborted) {
+          streamSettled = true;
+          return;
+        }
         streamSettled = true;
         finalizeAgentStream('error');
-        clearStreamingMessage();
+        finishStreamingMessage(sidRef.current, reqIdRef.current, 'error');
         controllerRef.current.abort('连接错误');
         console.warn('esError', err);
       },
       onclose(): void {
         if (streamSettled) return;
+        if (controller.signal.aborted) {
+          streamSettled = true;
+          return;
+        }
         streamSettled = true;
         finalizeAgentStream('transport_closed');
-        clearStreamingMessage();
+        finishStreamingMessage(sidRef.current, reqIdRef.current, 'error');
       },
     }).catch((err: Error) => {
       if (streamSettled) return;
+      if (controller.signal.aborted) {
+        streamSettled = true;
+        return;
+      }
       streamSettled = true;
       finalizeAgentStream('error');
-      clearStreamingMessage();
+      finishStreamingMessage(sidRef.current, reqIdRef.current, 'error');
       controllerRef.current.abort('请求失败');
       console.error('fetchError', err);
     });

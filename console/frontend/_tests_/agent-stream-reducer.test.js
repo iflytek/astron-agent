@@ -5,6 +5,7 @@ import {
   createAgentStreamState,
   finalizePendingSegments,
   parseAgentEvent,
+  parseAgentStreamState,
   reduceAgentEvent,
   selectHasPartialContent,
   selectLiveContent,
@@ -96,7 +97,7 @@ test('duplicate seq and repeated tool finish are idempotent', () => {
   const finished = reduceAgentEvent(twice, toolFinished(2));
   const repeated = reduceAgentEvent(finished, toolFinished(3));
   assert.equal(Object.keys(repeated.tools).length, 1);
-  assert.equal(repeated.tools['call-1']?.status, 'success');
+  assert.equal(Object.values(repeated.tools)[0]?.status, 'success');
 });
 
 test('reasoning segments and tools retain chronological order', () => {
@@ -123,7 +124,7 @@ test('transport finalization preserves partial text and classifies by tool use',
   answerState = finalizePendingSegments(answerState, 'transport_closed');
   assert.equal(selectLiveContent(answerState), 'Partial answer');
   assert.equal(selectHasPartialContent(answerState), true);
-  assert.equal(answerState.segments['turn-1-text-0']?.partial, true);
+  assert.equal(Object.values(answerState.segments)[0]?.partial, true);
   assert.equal(answerState.interrupted, true);
 
   let reasoningState = createAgentStreamState();
@@ -136,7 +137,7 @@ test('transport finalization preserves partial text and classifies by tool use',
   reasoningState = finalizePendingSegments(reasoningState, 'cancelled');
   assert.equal(selectLiveContent(reasoningState), '');
   assert.equal(selectHasPartialContent(reasoningState), false);
-  assert.equal(reasoningState.tools['call-1']?.status, 'cancelled');
+  assert.equal(Object.values(reasoningState.tools)[0]?.status, 'cancelled');
   const item = selectReasoningTimeline(reasoningState)[0];
   assert.equal(item?.kind, 'reasoning');
   assert.equal(item?.kind === 'reasoning' ? item.text : '', 'Checking');
@@ -202,4 +203,88 @@ test('state remains JSON serializable after every event type', () => {
   for (const event of events) state = reduceAgentEvent(state, event);
 
   assert.deepEqual(JSON.parse(JSON.stringify(state)), state);
+  assert.deepEqual(
+    parseAgentStreamState(JSON.parse(JSON.stringify(state))),
+    state
+  );
+  assert.equal(
+    parseAgentStreamState({ hasStructuredEvents: true, segments: 'broken' }),
+    null
+  );
+  assert.equal(
+    parseAgentStreamState({
+      ...state,
+      segments: { broken: null },
+    }),
+    null
+  );
+});
+
+test('different Pi executions keep identical runtime identifiers isolated', () => {
+  let state = createAgentStreamState();
+  state = reduceAgentEvent(state, segmentStart(1));
+  state = reduceAgentEvent(state, segmentDelta(2, 'first'));
+  state = reduceAgentEvent(state, {
+    ...segmentStart(1),
+    runId: 'run-2',
+  });
+  state = reduceAgentEvent(state, {
+    ...segmentDelta(2, 'second'),
+    runId: 'run-2',
+  });
+
+  assert.equal(Object.keys(state.segments).length, 2);
+  assert.deepEqual(
+    Object.values(state.segments).map(segment => segment.text),
+    ['first', 'second']
+  );
+  assert.equal(selectLiveContent(state), 'firstsecond');
+});
+
+test('timeline order follows global arrival order across Pi executions', () => {
+  let state = createAgentStreamState();
+  state = reduceAgentEvent(state, segmentStart(50));
+  state = reduceAgentEvent(state, segmentDelta(51, 'first'));
+  state = reduceAgentEvent(state, reasoningCommit(52));
+  state = reduceAgentEvent(state, {
+    ...toolStarted(1),
+    runId: 'run-2',
+  });
+
+  const timeline = selectReasoningTimeline(state);
+  assert.deepEqual(
+    timeline.map(item => item.kind),
+    ['reasoning', 'tool']
+  );
+});
+
+test('token updates preserve unrelated records and large tool responses by reference', () => {
+  const largeResponse = { body: 'x'.repeat(32 * 1024) };
+  let state = createAgentStreamState();
+  state = reduceAgentEvent(state, segmentStart(1));
+  state = reduceAgentEvent(state, toolStarted(2));
+  state = reduceAgentEvent(state, {
+    ...toolFinished(3),
+    response: largeResponse,
+  });
+  state = reduceAgentEvent(state, {
+    ...segmentStart(1),
+    runId: 'run-2',
+  });
+
+  const preservedSegment = Object.values(state.segments).find(
+    segment => segment.runId === 'run-1'
+  );
+  const preservedTool = Object.values(state.tools)[0];
+  state = reduceAgentEvent(state, {
+    ...segmentDelta(2, 'next token'),
+    runId: 'run-2',
+  });
+
+  assert.equal(
+    Object.values(state.segments).find(segment => segment.runId === 'run-1'),
+    preservedSegment
+  );
+  assert.equal(Object.values(state.tools)[0], preservedTool);
+  assert.equal(Object.values(state.tools)[0]?.response, largeResponse);
 });

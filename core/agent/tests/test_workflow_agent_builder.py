@@ -165,6 +165,45 @@ class TestWorkflowAgentRunnerBuilder:
         create_model.assert_not_awaited()
 
     @pytest.mark.asyncio
+    async def test_each_pi_node_execution_receives_a_unique_stream_run_id(
+        self, builder: WorkflowAgentRunnerBuilder
+    ) -> None:
+        async def tool_run(*args: Any, **kwargs: Any) -> None:
+            return None
+
+        builder.inputs.meta_data.run_id = "workflow-run"
+        builder.inputs.meta_data.node_id = "agent-node-1"
+        built_plugin = BasePlugin(
+            name="lookup",
+            description="Lookup",
+            schema_template="legacy",
+            parameters={"type": "object", "properties": {}, "required": []},
+            typ="mcp",
+            run=tool_run,
+        )
+        with patch.object(
+            WorkflowAgentRunnerBuilder,
+            "build_plugins",
+            AsyncMock(return_value=[built_plugin]),
+        ), patch.object(
+            WorkflowAgentRunnerBuilder,
+            "query_knowledge_by_workflow",
+            AsyncMock(return_value=([], "")),
+        ), patch.object(
+            WorkflowAgentRunnerBuilder,
+            "resolve_api_key",
+            AsyncMock(return_value="resolved-key"),
+        ):
+            first = await builder.build()
+            second = await builder.build()
+
+        assert first.pi_runner is not None
+        assert second.pi_runner is not None
+        assert first.pi_runner.run_id.startswith("workflow-run:agent-node-1:")
+        assert second.pi_runner.run_id.startswith("workflow-run:agent-node-1:")
+        assert first.pi_runner.run_id != second.pi_runner.run_id
+
+    @pytest.mark.asyncio
     async def test_build_passes_skills_to_plugin_builder(
         self, builder: WorkflowAgentRunnerBuilder
     ) -> None:

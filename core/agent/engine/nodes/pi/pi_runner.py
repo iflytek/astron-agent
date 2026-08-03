@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import json
 import os
@@ -230,6 +231,19 @@ class PiRunner:
                         )
                     if event.result is not None:
                         result = event.result
+        except asyncio.CancelledError:
+            finished_at = self._now_ms()
+            yield self._agent_event(
+                "tool_finish",
+                turnId=turn_id,
+                callId=call_id,
+                name=plugin.name,
+                response={"message": "Tool execution cancelled"},
+                status="cancelled",
+                finishedAt=finished_at,
+                durationMs=max(0, finished_at - started_at),
+            )
+            raise
         except Exception as error:  # Plugin failures are model-visible tool errors.
             result = PluginResponse(
                 code=500,
@@ -289,6 +303,34 @@ class PiRunner:
             ),
             model=self.model_config.id,
         )
+
+    def _finish_pending_wait_calls(
+        self,
+        wait_calls: dict[str, dict[str, Any]],
+        *,
+        status: str,
+        message: str,
+    ) -> list[AgentResponse]:
+        responses: list[AgentResponse] = []
+        for call_id, wait_call in wait_calls.items():
+            finished_at = self._now_ms()
+            responses.append(
+                self._agent_event(
+                    "tool_finish",
+                    turnId=str(wait_call.get("turnId") or ""),
+                    callId=call_id,
+                    name=str(wait_call.get("name") or "wait"),
+                    response={"message": message},
+                    status=status,
+                    finishedAt=finished_at,
+                    durationMs=max(
+                        0,
+                        finished_at - int(wait_call.get("startedAt") or finished_at),
+                    ),
+                )
+            )
+        wait_calls.clear()
+        return responses
 
     async def run(
         self, span: Span, node_trace_log: NodeTraceLog
@@ -428,10 +470,36 @@ class PiRunner:
                             raise AgentInternalExc(
                                 f"Pi runtime returned unknown event: {event_type}"
                             )
+        except asyncio.CancelledError:
+            for response in self._finish_pending_wait_calls(
+                wait_calls,
+                status="cancelled",
+                message="Tool execution cancelled",
+            ):
+                yield response
+            raise
         except AgentExc:
+            for response in self._finish_pending_wait_calls(
+                wait_calls,
+                status="error",
+                message="Pi runtime stopped before the wait completed",
+            ):
+                yield response
             raise
         except (aiohttp.ClientError, OSError) as error:
+            for response in self._finish_pending_wait_calls(
+                wait_calls,
+                status="error",
+                message="Pi runtime disconnected before the wait completed",
+            ):
+                yield response
             raise AgentInternalExc(f"Pi runtime unavailable: {error}") from error
 
         if not completed:
+            for response in self._finish_pending_wait_calls(
+                wait_calls,
+                status="error",
+                message="Pi runtime disconnected before the wait completed",
+            ):
+                yield response
             raise AgentInternalExc("Pi runtime disconnected before done")
