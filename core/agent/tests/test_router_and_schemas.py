@@ -6,7 +6,7 @@ import pytest
 from fastapi import APIRouter
 
 from agent.api import router as api_router
-from agent.api.schemas.agent_response import AgentResponse, CotStep
+from agent.api.schemas.agent_response import AgentResponse, AgentStreamEvent, CotStep
 from agent.api.schemas.completion_chunk import (
     ReasonChatCompletionChunk,
     ReasonChoice,
@@ -92,6 +92,22 @@ class TestLLMMessages:
 
 class TestCompletionChunkModels:
     """Test ReasonChatCompletionChunk and related types"""
+
+    def test_agent_stream_event_keeps_structured_values(self) -> None:
+        event = AgentStreamEvent(
+            version=1,
+            runId="run-1",
+            seq=3,
+            type="tool_finish",
+            turnId="turn-1",
+            callId="call-1",
+            response={"ready": True},
+            status="success",
+        )
+        response = AgentResponse(typ="agent_event", content=event, model="model")
+
+        assert response.content == event
+        assert event.response == {"ready": True}
 
     def test_reason_choice_delta_tool_call_function(self) -> None:
         fn = ReasonChoiceDeltaToolCallFunction(

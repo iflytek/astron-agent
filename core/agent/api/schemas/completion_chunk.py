@@ -1,5 +1,5 @@
 # pyright: reportIncompatibleVariableOverride=false
-from typing import Literal, Optional, Sequence
+from typing import Any, Literal, Optional, Sequence
 
 from openai.types.chat.chat_completion_chunk import (
     ChatCompletionChunk,
@@ -23,6 +23,7 @@ class ReasonChoiceDeltaToolCall(ChoiceDeltaToolCall):
 
 class ReasonChoiceDelta(ChoiceDelta):
     reasoning_content: Optional[str] = None
+    agent_event: Optional[dict[str, Any]] = None
 
     tool_calls: Optional[Sequence[ReasonChoiceDeltaToolCall]] = None  # type: ignore[assignment]
     role: Optional[Literal["assistant"]] = Field(default="assistant")

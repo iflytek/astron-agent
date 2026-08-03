@@ -177,6 +177,58 @@ async def test_start_payload_uses_native_schema_and_projects_stream_events(
 
 
 @pytest.mark.asyncio
+async def test_structured_runtime_events_receive_one_public_sequence(
+    unused_tcp_port: int,
+) -> None:
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "agent_event",
+                "event": {
+                    "version": 1,
+                    "runId": "runtime-value-is-not-authoritative",
+                    "type": "segment_start",
+                    "turnId": "turn-1",
+                    "segmentId": "turn-1-text-0",
+                    "source": "text",
+                    "channel": "pending",
+                },
+            }
+        )
+        await ws.send_json(
+            {
+                "type": "agent_event",
+                "event": {
+                    "version": 1,
+                    "runId": "runtime-value-is-not-authoritative",
+                    "type": "segment_delta",
+                    "turnId": "turn-1",
+                    "segmentId": "turn-1-text-0",
+                    "delta": "Hi",
+                },
+            }
+        )
+        await ws.send_json({"type": "done"})
+        return ws
+
+    async with serve_pi(unused_tcp_port, handler) as url:
+        responses = [
+            response
+            async for response in pi_runner(url, []).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            )
+        ]
+
+    events = [item.content for item in responses if item.typ == "agent_event"]
+    assert [event.seq for event in events] == [1, 2]
+    assert [event.runId for event in events] == ["run-1", "run-1"]
+    assert events[1].delta == "Hi"
+
+
+@pytest.mark.asyncio
 async def test_remote_tool_call_executes_python_plugin_and_returns_result(
     unused_tcp_port: int,
 ) -> None:
@@ -198,8 +250,23 @@ async def test_remote_tool_call_executes_python_plugin_and_returns_result(
         await ws.receive_json()
         await ws.send_json(
             {
+                "type": "agent_event",
+                "event": {
+                    "version": 1,
+                    "runId": "run-1",
+                    "type": "turn_commit",
+                    "turnId": "turn-1",
+                    "channel": "reasoning",
+                    "partial": False,
+                    "reason": "tool_call",
+                },
+            }
+        )
+        await ws.send_json(
+            {
                 "type": "tool_call",
                 "callId": "call-1",
+                "turnId": "turn-1",
                 "name": "lookup",
                 "arguments": {"value": "job-7"},
             }
@@ -226,6 +293,64 @@ async def test_remote_tool_call_executes_python_plugin_and_returns_result(
     assert tool_step.action == "lookup"
     assert tool_step.action_input == {"value": "job-7"}
     assert tool_step.action_output == {"state": "ready"}
+    events = [item.content for item in responses if item.typ == "agent_event"]
+    assert [event.type for event in events] == [
+        "turn_commit",
+        "tool_start",
+        "tool_finish",
+    ]
+    assert [event.seq for event in events] == [1, 2, 3]
+    assert events[1].callId == "call-1"
+    assert events[1].turnId == "turn-1"
+    assert events[1].arguments == {"value": "job-7"}
+    assert events[2].status == "success"
+    assert events[2].response == {"state": "ready"}
+    assert events[2].durationMs >= 0
+
+
+@pytest.mark.asyncio
+async def test_plugin_failure_finishes_tool_card_and_returns_model_error(
+    unused_tcp_port: int,
+) -> None:
+    received_result: dict[str, Any] = {}
+
+    async def tool_run(action_input: dict[str, Any], span: Span) -> PluginResponse:
+        raise RuntimeError("tool exploded")
+
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "tool_call",
+                "callId": "call-error",
+                "turnId": "turn-1",
+                "name": "lookup",
+                "arguments": {"value": "job-7"},
+            }
+        )
+        received_result.update(await ws.receive_json())
+        await ws.send_json({"type": "done"})
+        return ws
+
+    async with serve_pi(unused_tcp_port, handler) as url:
+        responses = [
+            response
+            async for response in pi_runner(url, [plugin("lookup", tool_run)]).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            )
+        ]
+
+    assert received_result["isError"] is True
+    assert received_result["result"] == {
+        "message": "tool exploded",
+        "type": "RuntimeError",
+    }
+    events = [item.content for item in responses if item.typ == "agent_event"]
+    assert events[-1].type == "tool_finish"
+    assert events[-1].status == "error"
+    assert events[-1].response == received_result["result"]
 
 
 @pytest.mark.asyncio
@@ -235,9 +360,7 @@ async def test_mcp_plugin_round_trips_through_pi_bridge(
     received_result: dict[str, Any] = {}
     called_with: dict[str, Any] = {}
 
-    async def mcp_run(
-        action_input: dict[str, Any], span: Span
-    ) -> PluginResponse:
+    async def mcp_run(action_input: dict[str, Any], span: Span) -> PluginResponse:
         called_with.update(action_input)
         return PluginResponse(
             code=0,
@@ -280,6 +403,7 @@ async def test_mcp_plugin_round_trips_through_pi_bridge(
             {
                 "type": "tool_call",
                 "callId": "mcp-call",
+                "turnId": "turn-1",
                 "name": "query_status",
                 "arguments": {"job_id": "job-9"},
             }
@@ -306,9 +430,7 @@ async def test_mcp_plugin_round_trips_through_pi_bridge(
     tool_step = next(item.content for item in responses if item.typ == "cot_step")
     assert tool_step.action == "query_status"
     assert tool_step.action_input == {"job_id": "job-9"}
-    assert tool_step.action_output == {
-        "content": [{"type": "text", "text": "ready"}]
-    }
+    assert tool_step.action_output == {"content": [{"type": "text", "text": "ready"}]}
 
 
 @pytest.mark.asyncio
@@ -341,6 +463,7 @@ async def test_subworkflow_stream_stays_visible_and_is_accumulated_for_pi(
             {
                 "type": "tool_call",
                 "callId": "workflow-call",
+                "turnId": "turn-1",
                 "name": "subflow",
                 "arguments": {"value": "x"},
             }
@@ -363,11 +486,23 @@ async def test_subworkflow_stream_stays_visible_and_is_accumulated_for_pi(
         "result": {"reasoning_content": "checking", "content": "part-1part-2"},
         "isError": False,
     }
-    assert [(item.typ, item.content) for item in responses[:3]] == [
-        ("reasoning_content", "checking"),
-        ("content", "part-1"),
-        ("content", "part-2"),
+    assert not any(
+        item.typ in {"reasoning_content", "content"} and item.content
+        for item in responses
+    )
+    events = [item.content for item in responses if item.typ == "agent_event"]
+    assert [event.type for event in events] == [
+        "tool_start",
+        "tool_progress",
+        "tool_progress",
+        "tool_finish",
     ]
+    assert events[1].summary == '{"reasoning_content":"checking","content":"part-1"}'
+    assert events[2].summary == '{"reasoning_content":"","content":"part-2"}'
+    assert events[3].response == {
+        "reasoning_content": "checking",
+        "content": "part-1part-2",
+    }
 
 
 @pytest.mark.asyncio
@@ -392,6 +527,7 @@ async def test_duplicate_normalized_names_invoke_the_correct_plugin(
             {
                 "type": "tool_call",
                 "callId": "duplicate-call",
+                "turnId": "turn-1",
                 "name": "query_status__2",
                 "arguments": {"value": "x"},
             }
@@ -427,6 +563,7 @@ async def test_wait_completion_is_visible_without_python_tool_execution(
             {
                 "type": "tool_call",
                 "callId": "wait-call",
+                "turnId": "turn-1",
                 "name": "wait",
                 "arguments": {"seconds": 0.01},
             }
@@ -456,6 +593,9 @@ async def test_wait_completion_is_visible_without_python_tool_execution(
     assert tool_step.action == "wait"
     assert tool_step.action_input == {"seconds": 0.01}
     assert tool_step.action_output == {"seconds": 0.01}
+    events = [item.content for item in responses if item.typ == "agent_event"]
+    assert [event.type for event in events] == ["tool_start", "tool_finish"]
+    assert events[1].response == {"seconds": 0.01}
 
 
 @pytest.mark.asyncio
