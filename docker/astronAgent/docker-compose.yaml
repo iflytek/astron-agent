@@ -59,24 +59,26 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-60}
 
   # Elasticsearch Search Engine
-#  elasticsearch:
-#    image: elasticsearch:7.16.2
-#    container_name: astron-agent-elasticsearch
-#    environment:
-#      - discovery.type=single-node
-#      - "ES_JAVA_OPTS=${ES_JAVA_OPTS:--Xms512m -Xmx512m}"
-#      - xpack.security.enabled=${ELASTICSEARCH_SECURITY_ENABLED:-false}
-#      - cluster.name=astron-agent-cluster
-#    volumes:
-#      - elasticsearch_data:/usr/share/elasticsearch/data
-#    networks:
-#      - astron-agent-network
-#    restart: always
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
-#      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-#      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-#      retries: ${HEALTH_CHECK_RETRIES:-60}
+  elasticsearch:
+    image: elasticsearch:7.16.2
+    container_name: astron-agent-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=${WORKFLOW_TRACE_ES_JAVA_OPTS:--Xms256m -Xmx256m}"
+      - xpack.security.enabled=${ELASTICSEARCH_SECURITY_ENABLED:-false}
+      - xpack.ml.enabled=false
+      - ingest.geoip.downloader.enabled=false
+      - cluster.name=astron-agent-cluster
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - astron-agent-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
 
   # Kibana (Elasticsearch Observability)
 #  kibana:
@@ -95,32 +97,33 @@ services:
 #        condition: service_healthy
 
   # Kafka Message Queue
-#  kafka:
-#    image: apache/kafka:3.7.0
-#    container_name: astron-agent-kafka
-#    environment:
-#      KAFKA_NODE_ID: 1
-#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
-#      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
-#      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-#      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-#      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-#      KAFKA_PROCESS_ROLES: broker,controller
-#      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
-#      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
-#      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
-#    volumes:
-#      - kafka_data:/var/lib/kafka/data
-#    networks:
-#      - astron-agent-network
-#    restart: always
-#    healthcheck:
-#      test: ["CMD-SHELL", "netstat -tulpn | grep 29092 || exit 1"]
-#      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-#      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-#      retries: ${HEALTH_CHECK_RETRIES:-60}
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: astron-agent-kafka
+    profiles: ["trace-kafka"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - astron-agent-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:29092 >/dev/null 2>&1"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
 
   # MinIO Object Storage
   minio:
@@ -146,16 +149,27 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-60}
 
   # Logstash (Kafka -> Elasticsearch)
-#  logstash:
-#    image: docker.elastic.co/logstash/logstash:7.16.2
-#    container_name: astron-agent-logstash
-#    environment:
-#      LS_JAVA_OPTS: "${LS_JAVA_OPTS:--Xms256m -Xmx256m}"
-#    volumes:
-#      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
-#    networks:
-#      - astron-agent-network
-#    restart: always
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.16.2
+    container_name: astron-agent-logstash
+    profiles: ["trace-kafka"]
+    environment:
+      LS_JAVA_OPTS: "${LS_JAVA_OPTS:--Xms256m -Xmx256m}"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    depends_on:
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - astron-agent-network
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/pipelines >/dev/null"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
 
   # ============================================================================
   # astron-agent Core Services
@@ -524,10 +538,15 @@ services:
       OSS_BUCKET_NAME: "${OSS_BUCKET_NAME}"
       OSS_DOWNLOAD_HOST: "${OSS_REMOTE_ENDPOINT}"
       OSS_TTL: "${OSS_TTL:-157788000}"
-      KAFKA_ENABLE: "${KAFKA_ENABLE:-0}"
+      KAFKA_ENABLE: "${WORKFLOW_TRACE_KAFKA_ENABLE:-0}"
       KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
       KAFKA_TIMEOUT: "${KAFKA_TIMEOUT:-60}"
       KAFKA_TOPIC: "${WORKFLOW_KAFKA_TOPIC:-spark-agent-builder}"
+      WORKFLOW_TRACE_ES_URL: "${WORKFLOW_TRACE_ES_URL:-http://elasticsearch:9200}"
+      WORKFLOW_TRACE_ES_INDEX_PREFIX: "${WORKFLOW_TRACE_ES_INDEX_PREFIX:-spark-agent-builder-}"
+      WORKFLOW_TRACE_ES_USERNAME: "${WORKFLOW_TRACE_ES_USERNAME:-}"
+      WORKFLOW_TRACE_ES_PASSWORD: "${WORKFLOW_TRACE_ES_PASSWORD:-}"
+      WORKFLOW_TRACE_ES_TIMEOUT_SECONDS: "${WORKFLOW_TRACE_ES_TIMEOUT_SECONDS:-5}"
       KNOWLEDGE_BASE_URL: "${KNOWLEDGE_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT}}"
       KNOWLEDGE_PRO_BASE_URL: "${KNOWLEDGE_PRO_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT}}"
       PLUGIN_BASE_URL: "${PLUGIN_BASE_URL:-http://core-link:${CORE_LINK_PORT}}"
@@ -544,6 +563,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     volumes:
       - ./config/workflow/config.env:/opt/core/workflow/config.env
@@ -637,6 +658,11 @@ services:
       WORKFLOW_CHAT_URL: "${WORKFLOW_CHAT_URL:-http://core-workflow:7880/workflow/v1/chat/completions}"
       WORKFLOW_DEBUG_URL: "${WORKFLOW_DEBUG_URL:-http://core-workflow:7880/workflow/v1/debug/chat/completions}"
       WORKFLOW_RESUME_URL: "${WORKFLOW_RESUME_URL:-http://core-workflow:7880/workflow/v1/resume}"
+      WORKFLOW_TRACE_ES_URL: "${WORKFLOW_TRACE_ES_URL:-http://elasticsearch:9200}"
+      WORKFLOW_TRACE_ES_INDEX: "${WORKFLOW_TRACE_ES_INDEX:-spark-agent-builder-*}"
+      WORKFLOW_TRACE_ES_USERNAME: "${WORKFLOW_TRACE_ES_USERNAME:-}"
+      WORKFLOW_TRACE_ES_PASSWORD: "${WORKFLOW_TRACE_ES_PASSWORD:-}"
+      WORKFLOW_TRACE_ES_TIMEOUT_SECONDS: "${WORKFLOW_TRACE_ES_TIMEOUT_SECONDS:-5}"
       COMMON_APPID: "${COMMON_APPID:-appid}"
       COMMON_APIKEY: "${COMMON_APIKEY:-apiKey}"
       COMMON_API_SECRET: "${COMMON_API_SECRET:-apiSecret}"
@@ -686,6 +712,8 @@ services:
       redis:
         condition: service_healthy
       minio:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     networks:
       - astron-agent-network
