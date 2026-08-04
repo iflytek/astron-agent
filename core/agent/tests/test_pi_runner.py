@@ -10,6 +10,8 @@ from common.otlp import sid as sid_module
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
 
+from agent.api.schemas.agent_event import AgentEventBase
+from agent.api.schemas.agent_response import AgentResponse
 from agent.api.schemas.llm_message import LLMMessage
 from agent.engine.nodes.pi.pi_runner import PiModelConfig, PiRunner
 from agent.exceptions.agent_exc import AgentExc
@@ -104,6 +106,15 @@ def pi_runner(runtime_url: str, plugins: list[BasePlugin]) -> PiRunner:
     )
 
 
+def public_events(responses: list[AgentResponse]) -> list[AgentEventBase]:
+    return [
+        response.content
+        for response in responses
+        if response.typ == "agent_event"
+        and isinstance(response.content, AgentEventBase)
+    ]
+
+
 @pytest.mark.asyncio
 async def test_start_payload_uses_native_schema_and_projects_stream_events(
     unused_tcp_port: int,
@@ -169,12 +180,25 @@ async def test_start_payload_uses_native_schema_and_projects_stream_events(
             }
         ],
     }
-    assert [(item.typ, item.content) for item in responses[:2]] == [
+    legacy_responses = [
+        response for response in responses if response.typ != "agent_event"
+    ]
+    assert [(item.typ, item.content) for item in legacy_responses[:2]] == [
         ("reasoning_content", "thinking"),
         ("content", "answer"),
     ]
-    assert responses[2].usage is not None
-    assert responses[2].usage.total_tokens == 13
+    assert legacy_responses[2].usage is not None
+    assert legacy_responses[2].usage.total_tokens == 13
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "usage_update",
+        "execution_end",
+    ]
+    assert [event.seq for event in events] == [1, 2, 3]
+    assert events[1].totalTokens == 13
+    assert events[-1].status == "success"
+    assert events[-1].durationMs >= 0
 
 
 @pytest.mark.asyncio
@@ -224,11 +248,17 @@ async def test_structured_runtime_events_receive_one_public_sequence(
             )
         ]
 
-    events = [item.content for item in responses if item.typ == "agent_event"]
-    assert events[0].visibility == "user"
-    assert [event.seq for event in events] == [1, 2]
-    assert [event.runId for event in events] == ["run-1", "run-1"]
-    assert events[1].delta == "Hi"
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "segment_start",
+        "segment_delta",
+        "execution_end",
+    ]
+    assert events[1].visibility == "user"
+    assert [event.seq for event in events] == [1, 2, 3, 4]
+    assert [event.runId for event in events] == ["run-1"] * 4
+    assert events[2].delta == "Hi"
 
 
 @pytest.mark.asyncio
@@ -296,19 +326,21 @@ async def test_remote_tool_call_executes_python_plugin_and_returns_result(
     assert tool_step.action == "lookup"
     assert tool_step.action_input == {"value": "job-7"}
     assert tool_step.action_output == {"state": "ready"}
-    events = [item.content for item in responses if item.typ == "agent_event"]
+    events = public_events(responses)
     assert [event.type for event in events] == [
+        "execution_start",
         "turn_commit",
         "tool_start",
         "tool_finish",
+        "execution_end",
     ]
-    assert [event.seq for event in events] == [1, 2, 3]
-    assert events[1].callId == "call-1"
-    assert events[1].turnId == "turn-1"
-    assert events[1].arguments == {"value": "job-7"}
-    assert events[2].status == "success"
-    assert events[2].response == {"state": "ready"}
-    assert events[2].durationMs >= 0
+    assert [event.seq for event in events] == [1, 2, 3, 4, 5]
+    assert events[2].callId == "call-1"
+    assert events[2].turnId == "turn-1"
+    assert events[2].arguments == {"value": "job-7"}
+    assert events[3].status == "success"
+    assert events[3].response == {"state": "ready"}
+    assert events[3].durationMs >= 0
 
 
 @pytest.mark.asyncio
@@ -350,10 +382,15 @@ async def test_plugin_failure_finishes_tool_card_and_returns_model_error(
         "message": "tool exploded",
         "type": "RuntimeError",
     }
-    events = [item.content for item in responses if item.typ == "agent_event"]
-    assert events[-1].type == "tool_finish"
-    assert events[-1].status == "error"
-    assert events[-1].response == received_result["result"]
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "tool_start",
+        "tool_finish",
+        "execution_end",
+    ]
+    assert events[-2].status == "error"
+    assert events[-2].response == received_result["result"]
 
 
 @pytest.mark.asyncio
@@ -540,16 +577,18 @@ async def test_subworkflow_stream_stays_visible_and_is_accumulated_for_pi(
         item.typ in {"reasoning_content", "content"} and item.content
         for item in responses
     )
-    events = [item.content for item in responses if item.typ == "agent_event"]
+    events = public_events(responses)
     assert [event.type for event in events] == [
+        "execution_start",
         "tool_start",
         "tool_progress",
         "tool_progress",
         "tool_finish",
+        "execution_end",
     ]
-    assert events[1].summary == '{"reasoning_content":"checking","content":"part-1"}'
-    assert events[2].summary == '{"reasoning_content":"","content":"part-2"}'
-    assert events[3].response == {
+    assert events[2].summary == '{"reasoning_content":"checking","content":"part-1"}'
+    assert events[3].summary == '{"reasoning_content":"","content":"part-2"}'
+    assert events[4].response == {
         "reasoning_content": "checking",
         "content": "part-1part-2",
     }
@@ -643,9 +682,14 @@ async def test_wait_completion_is_visible_without_python_tool_execution(
     assert tool_step.action == "wait"
     assert tool_step.action_input == {"seconds": 0.01}
     assert tool_step.action_output == {"seconds": 0.01}
-    events = [item.content for item in responses if item.typ == "agent_event"]
-    assert [event.type for event in events] == ["tool_start", "tool_finish"]
-    assert events[1].response == {"seconds": 0.01}
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "tool_start",
+        "tool_finish",
+        "execution_end",
+    ]
+    assert events[2].response == {"seconds": 0.01}
 
 
 @pytest.mark.asyncio
@@ -673,20 +717,30 @@ async def test_cancelled_wait_finishes_tool_card_before_propagating_cancel(
 
     async with serve_pi(unused_tcp_port, handler) as url:
         responses = pi_runner(url, []).run(Span(app_id="app", uid="uid"), node_trace())
-        started = await anext(responses)
-        assert started.content.type == "tool_start"
+        yielded = [await anext(responses)]
+        if yielded[-1].content.type == "execution_start":
+            yielded.append(await anext(responses))
         await wait_sent.wait()
 
         pending = asyncio.create_task(anext(responses))
         await asyncio.sleep(0)
         pending.cancel()
-        finished = await pending
-        assert finished.content.type == "tool_finish"
-        assert finished.content.status == "cancelled"
-        assert finished.content.callId == "wait-call"
-
+        yielded.append(await pending)
         with pytest.raises(asyncio.CancelledError):
-            await anext(responses)
+            while True:
+                yielded.append(await anext(responses))
+
+    events = public_events(yielded)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "tool_start",
+        "tool_finish",
+        "execution_end",
+    ]
+    assert events[-2].status == "cancelled"
+    assert events[-2].callId == "wait-call"
+    assert events[-1].status == "cancelled"
+    assert not any(event.type == "execution_error" for event in events)
 
 
 @pytest.mark.asyncio
@@ -710,26 +764,72 @@ async def test_runtime_error_finishes_pending_wait_card_before_unwinding(
         return ws
 
     async with serve_pi(unused_tcp_port, handler) as url:
-        responses = pi_runner(url, []).run(Span(app_id="app", uid="uid"), node_trace())
-        started = await anext(responses)
-        assert started.content.type == "tool_start"
-        finished = await anext(responses)
-        assert finished.content.type == "tool_finish"
-        assert finished.content.status == "error"
-        assert finished.content.callId == "wait-call"
-
+        responses: list[AgentResponse] = []
         with pytest.raises(AgentExc, match="runtime stopped"):
-            await anext(responses)
+            async for response in pi_runner(url, []).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            ):
+                responses.append(response)
+
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "tool_start",
+        "tool_finish",
+        "execution_error",
+        "execution_end",
+    ]
+    assert events[2].status == "error"
+    assert events[2].callId == "wait-call"
+    assert events[-2].code == "PI_RUNTIME_ERROR"
+    assert events[-2].message == "Pi agent runtime failed"
+    assert events[-1].status == "error"
 
 
 @pytest.mark.asyncio
 async def test_unavailable_pi_runtime_raises_explicit_error() -> None:
     runner = pi_runner("ws://127.0.0.1:1/internal/v1/runs", [])
+    responses: list[AgentResponse] = []
 
     with pytest.raises(AgentExc, match="Pi runtime unavailable"):
-        _ = [
-            response
-            async for response in runner.run(
+        async for response in runner.run(Span(app_id="app", uid="uid"), node_trace()):
+            responses.append(response)
+
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "execution_error",
+        "execution_end",
+    ]
+    assert events[-2].code == "PI_RUNTIME_UNAVAILABLE"
+    assert events[-2].message == "Pi agent runtime unavailable"
+    assert events[-1].status == "error"
+
+
+@pytest.mark.asyncio
+async def test_pi_runtime_disconnect_emits_sanitized_error_before_unwinding(
+    unused_tcp_port: int,
+) -> None:
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        return ws
+
+    responses: list[AgentResponse] = []
+    async with serve_pi(unused_tcp_port, handler) as url:
+        with pytest.raises(AgentExc, match="disconnected before done"):
+            async for response in pi_runner(url, []).run(
                 Span(app_id="app", uid="uid"), node_trace()
-            )
-        ]
+            ):
+                responses.append(response)
+
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "execution_error",
+        "execution_end",
+    ]
+    assert events[-2].code == "PI_RUNTIME_DISCONNECTED"
+    assert events[-2].message == "Pi agent runtime disconnected"
+    assert events[-1].status == "error"

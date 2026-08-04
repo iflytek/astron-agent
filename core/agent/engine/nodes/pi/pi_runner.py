@@ -330,6 +330,7 @@ class PiRunner:
             run_id=self.run_id,
             started_at=self._now_ms(),
         )
+        yield self._event_response(self._event_adapter.execution_started())
         timeout = aiohttp.ClientTimeout(total=None, connect=10, sock_read=None)
         completed = False
         handled_calls: set[str] = set()
@@ -381,16 +382,24 @@ class PiRunner:
                                 model=self.model_config.id,
                             )
                         elif event_type == "usage":
+                            input_tokens = int(payload.get("inputTokens") or 0)
+                            output_tokens = int(payload.get("outputTokens") or 0)
+                            total_tokens = int(payload.get("totalTokens") or 0)
+                            yield self._event_response(
+                                self._event_adapter.usage_updated(
+                                    input_tokens=input_tokens,
+                                    output_tokens=output_tokens,
+                                    total_tokens=total_tokens,
+                                )
+                            )
                             yield AgentResponse(
                                 typ="content",
                                 content="",
                                 model=self.model_config.id,
                                 usage=CompletionUsage(
-                                    prompt_tokens=int(payload.get("inputTokens") or 0),
-                                    completion_tokens=int(
-                                        payload.get("outputTokens") or 0
-                                    ),
-                                    total_tokens=int(payload.get("totalTokens") or 0),
+                                    prompt_tokens=input_tokens,
+                                    completion_tokens=output_tokens,
+                                    total_tokens=total_tokens,
                                 ),
                             )
                         elif event_type == "tool_call":
@@ -463,6 +472,12 @@ class PiRunner:
                                 f"Pi runtime error: {payload.get('message') or 'unknown'}"
                             )
                         elif event_type == "done":
+                            finished_at = self._now_ms()
+                            yield self._event_response(
+                                self._event_adapter.execution_finished(
+                                    status="success", finished_at=finished_at
+                                )
+                            )
                             completed = True
                             return
                         else:
@@ -476,6 +491,12 @@ class PiRunner:
                 message="Tool execution cancelled",
             ):
                 yield response
+            cancelled_at = self._now_ms()
+            yield self._event_response(
+                self._event_adapter.execution_finished(
+                    status="cancelled", finished_at=cancelled_at
+                )
+            )
             raise
         except AgentExc:
             for response in self._finish_pending_wait_calls(
@@ -484,6 +505,19 @@ class PiRunner:
                 message="Pi runtime stopped before the wait completed",
             ):
                 yield response
+            failed_at = self._now_ms()
+            yield self._event_response(
+                self._event_adapter.execution_failed(
+                    code="PI_RUNTIME_ERROR",
+                    message="Pi agent runtime failed",
+                    occurred_at=failed_at,
+                )
+            )
+            yield self._event_response(
+                self._event_adapter.execution_finished(
+                    status="error", finished_at=failed_at
+                )
+            )
             raise
         except (aiohttp.ClientError, OSError) as error:
             for response in self._finish_pending_wait_calls(
@@ -492,6 +526,19 @@ class PiRunner:
                 message="Pi runtime disconnected before the wait completed",
             ):
                 yield response
+            failed_at = self._now_ms()
+            yield self._event_response(
+                self._event_adapter.execution_failed(
+                    code="PI_RUNTIME_UNAVAILABLE",
+                    message="Pi agent runtime unavailable",
+                    occurred_at=failed_at,
+                )
+            )
+            yield self._event_response(
+                self._event_adapter.execution_finished(
+                    status="error", finished_at=failed_at
+                )
+            )
             raise AgentInternalExc(f"Pi runtime unavailable: {error}") from error
 
         if not completed:
@@ -501,4 +548,17 @@ class PiRunner:
                 message="Pi runtime disconnected before the wait completed",
             ):
                 yield response
+            failed_at = self._now_ms()
+            yield self._event_response(
+                self._event_adapter.execution_failed(
+                    code="PI_RUNTIME_DISCONNECTED",
+                    message="Pi agent runtime disconnected",
+                    occurred_at=failed_at,
+                )
+            )
+            yield self._event_response(
+                self._event_adapter.execution_finished(
+                    status="error", finished_at=failed_at
+                )
+            )
             raise AgentInternalExc("Pi runtime disconnected before done")
