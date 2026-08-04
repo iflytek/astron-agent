@@ -13,6 +13,7 @@ import {
 import { nextQuestionAdvice } from '@/services/common';
 import { v4 as uuid } from 'uuid';
 import { moveToPosition } from './flow-function';
+import { settleRunningNodes } from './workflow-terminal-status';
 import {
   ChatInfoType,
   WebSocketMessageData,
@@ -525,19 +526,15 @@ const handleMessage = (
     handleFlowStop(data, get);
   }
 };
-const handleRunningNodeStatus = (): void => {
+const handleRunningNodeStatus = (succeeded: boolean): void => {
   const setNodes = useFlowStore.getState().setNodes;
-  setNodes(nodes => {
-    nodes.forEach(node => {
-      if (node?.data?.status === 'running') {
-        node.data.debuggerResult.cancelReason = i18n.t(
-          'workflow.nodes.chatDebugger.workflowTerminated'
-        );
-        node.data.status = 'cancel';
-      }
-    });
-    return cloneDeep(nodes);
-  });
+  setNodes(nodes =>
+    settleRunningNodes(
+      nodes,
+      succeeded,
+      i18n.t('workflow.nodes.chatDebugger.workflowTerminated')
+    )
+  );
 };
 const handleSynchronizeDataToXfyun = (): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
@@ -578,7 +575,7 @@ const handleMessageEnd = (data: WebSocketMessageData, get): void => {
   );
   !historyVersion && setCanvasesDisabled(false);
   get().setInterruptChat({ ...initInterruptChat });
-  handleRunningNodeStatus();
+  handleRunningNodeStatus(data.code === 0);
 };
 const handleResumeChat = (content, get, set): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
