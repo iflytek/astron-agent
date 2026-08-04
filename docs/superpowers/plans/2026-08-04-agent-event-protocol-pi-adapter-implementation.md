@@ -806,7 +806,6 @@ responses = [
 ]
 events = [item.content for item in responses if item.typ == "agent_event"]
 assert events[0].visibility == "user"
-assert not hasattr(runner, "_event_seq")
 ```
 
 In the remote tool, subworkflow progress, wait, plugin failure, and cancellation tests, keep the exact current event order and payload assertions. Change progress expectations to prove the adapter serializes the raw streamed value:
@@ -847,7 +846,7 @@ cd core/agent
 uv run pytest tests/test_pi_runner.py tests/test_workflow_agent_runner.py -q
 ```
 
-Expected: failure because `PiRunner` still owns `_event_seq`, runtime segment starts have no explicit public visibility, and `WorkflowAgentRunner` still checks `AgentStreamEvent`.
+Expected: failure because runtime segment starts have no explicit public visibility and `WorkflowAgentRunner` still checks `AgentStreamEvent`. Existing public identity and sequence assertions continue to verify that the adapter is the sole public sequencing authority without coupling tests to private fields.
 
 - [ ] **Step 3: Replace PiRunner's public event constructor with adapter delegation**
 
