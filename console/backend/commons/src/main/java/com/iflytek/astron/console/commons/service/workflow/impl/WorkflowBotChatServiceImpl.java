@@ -48,6 +48,8 @@ import java.util.List;
 @Slf4j
 public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
 
+    private static final String DEBUGGER_VERSION = "debugger";
+
     @Autowired
     private UserLangChainDataService userLangChainDataService;
 
@@ -121,7 +123,10 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
             throw new BusinessException(ResponseEnum.BOT_CHAIN_SUBMIT_ERROR);
         }
         String flowId = userLangChainInfo.getFlowId();
-        String effectiveWorkflowVersion = resolveWorkflowVersion(botId, flowId, workflowVersion);
+        boolean draftPreview = isDraftPreview(workflowVersion);
+        String effectiveWorkflowVersion = draftPreview
+                ? null
+                : resolveWorkflowVersion(botId, flowId, workflowVersion);
         // Record current question
         ChatReqRecords chatReqRecords = new ChatReqRecords();
         chatReqRecords.setChatId(chatId);
@@ -157,7 +162,7 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
         String apiUsedUrl;
         // If not submitted for publishing, use debug interface, otherwise use chat interface
         boolean isDebug = false;
-        if (market == null || ShelfStatusEnum.isOffShelf(market.getBotStatus())) {
+        if (draftPreview || market == null || ShelfStatusEnum.isOffShelf(market.getBotStatus())) {
             apiUsedUrl = debugUrl;
             isDebug = true;
         } else {
@@ -190,6 +195,10 @@ public class WorkflowBotChatServiceImpl implements WorkflowBotChatService {
         WorkflowClient client = new WorkflowClient(apiUsedUrl, appId, appKey, appSecret, body);
         WorkflowListener listener = new WorkflowListener(client, chatReqRecords, sseId, wssListenerService, isDebug, sseEmitter);
         client.createWebSocketConnect(listener);
+    }
+
+    private boolean isDraftPreview(String workflowVersion) {
+        return DEBUGGER_VERSION.equalsIgnoreCase(StrUtil.trim(workflowVersion));
     }
 
     private String resolveWorkflowVersion(Integer botId, String flowId, String workflowVersion) {

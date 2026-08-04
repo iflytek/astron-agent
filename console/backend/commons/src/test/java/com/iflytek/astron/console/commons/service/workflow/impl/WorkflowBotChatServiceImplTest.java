@@ -260,6 +260,40 @@ class WorkflowBotChatServiceImplTest {
     }
 
     @Test
+    void chatWorkflowBotShouldExecuteDebuggerDraftWithoutPublishedVersion() throws Exception {
+        when(userLangChainDataService.findOneByBotId(456)).thenReturn(userLangChainInfo);
+        when(chatDataService.createRequest(any(ChatReqRecords.class))).thenReturn(chatReqRecords);
+        when(workflowBotParamService.handleMultiFileParam(
+                anyString(), anyLong(), isNull(), any(), any(), anyLong())).thenReturn(false);
+
+        List<ChatReqModelDto> reqList = new ArrayList<>();
+        when(chatDataService.getReqModelBotHistoryByChatId("testUser", 123L)).thenReturn(reqList);
+        ChatRequestDtoList history = new ChatRequestDtoList();
+        history.setMessages(new LinkedList<>());
+        when(chatHistoryService.getHistory("testUser", 123L, reqList)).thenReturn(history);
+
+        ChatBotMarket market = new ChatBotMarket();
+        market.setBotStatus(ShelfStatusEnum.ON_SHELF.getCode());
+        when(chatBotDataService.findMarketBotByBotId(456)).thenReturn(market);
+
+        List<List<?>> constructorArgs = new ArrayList<>();
+        try (MockedConstruction<WorkflowClient> clients = mockConstruction(
+                WorkflowClient.class,
+                (mock, context) -> constructorArgs.add(context.arguments()))) {
+            workflowBotChatService.chatWorkflowBot(
+                    chatBotReqDto, sseEmitter, sseId, workflowOperation, "debugger");
+
+            assertEquals(1, clients.constructed().size());
+            assertEquals("http://test-debug.com", constructorArgs.get(0).get(0));
+            RequestBody body = (RequestBody) constructorArgs.get(0).get(4);
+            Buffer buffer = new Buffer();
+            body.writeTo(buffer);
+            assertNull(JSON.parseObject(buffer.readUtf8()).getString("version"));
+            verifyNoInteractions(workflowVersionLookupService);
+        }
+    }
+
+    @Test
     void testChatWorkflowBot_WithResumeWorkflow() {
         // Given
         String resumeOperation = "resumeDial";
