@@ -335,6 +335,9 @@ class PiRunner:
         completed = False
         handled_calls: set[str] = set()
         wait_calls: dict[str, dict[str, Any]] = {}
+        cumulative_input_tokens = 0
+        cumulative_output_tokens = 0
+        cumulative_total_tokens = 0
         try:
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.ws_connect(
@@ -385,11 +388,14 @@ class PiRunner:
                             input_tokens = int(payload.get("inputTokens") or 0)
                             output_tokens = int(payload.get("outputTokens") or 0)
                             total_tokens = int(payload.get("totalTokens") or 0)
+                            cumulative_input_tokens += input_tokens
+                            cumulative_output_tokens += output_tokens
+                            cumulative_total_tokens += total_tokens
                             yield self._event_response(
                                 self._event_adapter.usage_updated(
-                                    input_tokens=input_tokens,
-                                    output_tokens=output_tokens,
-                                    total_tokens=total_tokens,
+                                    input_tokens=cumulative_input_tokens,
+                                    output_tokens=cumulative_output_tokens,
+                                    total_tokens=cumulative_total_tokens,
                                 )
                             )
                             yield AgentResponse(

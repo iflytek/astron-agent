@@ -202,6 +202,58 @@ async def test_start_payload_uses_native_schema_and_projects_stream_events(
 
 
 @pytest.mark.asyncio
+async def test_usage_events_are_cumulative_while_legacy_usage_remains_per_turn(
+    unused_tcp_port: int,
+) -> None:
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "usage",
+                "inputTokens": 10,
+                "outputTokens": 5,
+                "totalTokens": 15,
+            }
+        )
+        await ws.send_json(
+            {
+                "type": "usage",
+                "inputTokens": 4,
+                "outputTokens": 3,
+                "totalTokens": 7,
+            }
+        )
+        await ws.send_json({"type": "done"})
+        return ws
+
+    async with serve_pi(unused_tcp_port, handler) as url:
+        responses = [
+            response
+            async for response in pi_runner(url, []).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            )
+        ]
+
+    usage_events = [
+        event for event in public_events(responses) if event.type == "usage_update"
+    ]
+    assert [
+        (event.inputTokens, event.outputTokens, event.totalTokens)
+        for event in usage_events
+    ] == [(10, 5, 15), (14, 8, 22)]
+
+    legacy_usages = [
+        response.usage for response in responses if response.usage is not None
+    ]
+    assert [
+        (usage.prompt_tokens, usage.completion_tokens, usage.total_tokens)
+        for usage in legacy_usages
+    ] == [(10, 5, 15), (4, 3, 7)]
+
+
+@pytest.mark.asyncio
 async def test_structured_runtime_events_receive_one_public_sequence(
     unused_tcp_port: int,
 ) -> None:
