@@ -260,6 +260,12 @@ const useChat = () => {
         } else {
           //统一的报错处理
           finalizeAgentStream('error');
+          const errorMessage =
+            typeof message === 'string'
+              ? message
+              : typeof error === 'string'
+                ? error
+                : undefined;
           const current = useChatStore.getState().messageList.at(-1);
           const partialContent = current?.agentStream?.hasStructuredEvents
             ? selectLiveContent(current.agentStream)
@@ -268,7 +274,12 @@ const useChat = () => {
             updateStreamingMessage(ans || ERROR_TEXT);
           }
           streamSettled = true;
-          finishStreamingMessage(sidRef.current, reqIdRef.current, 'error');
+          finishStreamingMessage(
+            sidRef.current,
+            reqIdRef.current,
+            'error',
+            errorMessage
+          );
           controller.abort('错误结束');
           return;
         }

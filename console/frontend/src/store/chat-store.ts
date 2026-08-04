@@ -165,7 +165,8 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
   finishStreamingMessage: (
     sid?: string,
     reqId?: number,
-    status: 'completed' | 'cancelled' | 'error' = 'completed'
+    status: 'completed' | 'cancelled' | 'error' = 'completed',
+    errorMessage?: string
   ): void =>
     set(state => {
       if (state.messageList.length === 0) return state;
@@ -181,6 +182,7 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
           sid,
           reqId,
           streamStatus: status,
+          ...(errorMessage ? { errorMessage } : {}),
           workflowEventData: {
             workflowOperation: state.workflowOperation,
             option: state.workflowOption?.option,

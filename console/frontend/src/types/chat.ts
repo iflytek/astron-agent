@@ -179,6 +179,7 @@ export interface MessageListType {
   workflowEventData?: WorkflowEventData;
   agentStream?: AgentStreamState;
   streamStatus?: ChatStreamStatus;
+  errorMessage?: string;
 }
 
 // 溯源数据
@@ -289,7 +290,8 @@ export interface ChatActions {
   finishStreamingMessage: (
     sid?: string,
     reqId?: number,
-    status?: Exclude<ChatStreamStatus, 'streaming'>
+    status?: Exclude<ChatStreamStatus, 'streaming'>,
+    errorMessage?: string
   ) => void; //完成流式消息
   clearStreamingMessage: () => void; //清除流式消息
   setStreamId: (streamId: string) => void; //设置对话流id

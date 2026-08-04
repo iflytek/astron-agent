@@ -69,3 +69,19 @@ test('aborted queued SSE callback is rejected before ancillary side effects', ()
     false
   );
 });
+
+test('failed chat stream preserves the server diagnostic reason', () => {
+  const store = useChatStore.getState();
+  store.initChatStore();
+  store.startStreamingMessage({ message: '', reqType: 'BOT' });
+  store.finishStreamingMessage(
+    'sid-1',
+    11,
+    'error',
+    '未查询到对应的工作流版本'
+  );
+
+  const failed = useChatStore.getState().messageList.at(-1);
+  assert.equal(failed?.streamStatus, 'error');
+  assert.equal(failed?.errorMessage, '未查询到对应的工作流版本');
+});
