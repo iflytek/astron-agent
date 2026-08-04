@@ -55,8 +55,11 @@ class TestBaseLLMModel:
         return Span(app_id="test_app", uid="test_uid")
 
     @pytest.mark.asyncio
-    async def test_create_completion(self, model: BaseLLMModel) -> None:
+    async def test_create_completion(
+        self, model: BaseLLMModel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test creating completion request"""
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
         mock_response = AsyncMock()
         model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
 
@@ -68,6 +71,27 @@ class TestBaseLLMModel:
             stream=True,
             model="test_model",
             timeout=90,
+        )
+        assert result == mock_response
+
+    @pytest.mark.asyncio
+    async def test_create_completion_with_max_tokens_sends_one_request(
+        self, model: BaseLLMModel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A configured token limit must not duplicate the upstream request."""
+        monkeypatch.setenv("DEFAULT_LLM_MAX_TOKEN", "2048")
+        mock_response = AsyncMock()
+        model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "test"}]
+        result = await model.create_completion(messages, stream=True)
+
+        model.llm.chat.completions.create.assert_awaited_once_with(
+            messages=messages,
+            stream=True,
+            model="test_model",
+            timeout=90,
+            max_tokens=2048,
         )
         assert result == mock_response
 

@@ -43,6 +43,11 @@ import type {
   AgentFinalizeReason,
   AgentStreamState,
 } from '@/components/agent-stream/types';
+import {
+  createWorkflowSseLifecycle,
+  throwFatalWorkflowSseError,
+  type WorkflowSseLifecycle,
+} from './workflow-sse';
 
 const initInterruptChat: InterruptChatType = {
   eventId: '',
@@ -577,13 +582,37 @@ const handleMessageEnd = (data: WebSocketMessageData, get): void => {
   get().setInterruptChat({ ...initInterruptChat });
   handleRunningNodeStatus(data.code === 0);
 };
+const createActiveWorkflowSseLifecycle = (
+  controller: AbortController,
+  get,
+  handleSseMessage: (event: MessageEvent) => boolean
+): WorkflowSseLifecycle<MessageEvent> =>
+  createWorkflowSseLifecycle({
+    isCurrent: () => get().controllerRef === controller,
+    finalize: () =>
+      handleFlowStop(
+        {
+          code: -1,
+          message: i18n.t(
+            'workflow.nodes.chatDebugger.workflowConnectionInterrupted'
+          ),
+        },
+        get
+      ),
+    handleMessage: handleSseMessage,
+    onTransportError: error =>
+      console.error('[Workflow SSE] Request failed', error),
+  });
 const handleResumeChat = (content, get, set): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
   const nodes = useFlowStore.getState().nodes;
   const edges = useFlowStore.getState().edges;
+  get().controllerRef?.abort();
+  const controller = new AbortController();
   set({
     wsMessageStatus: 'start',
     debuggering: true,
+    controllerRef: controller,
   });
   pushAskToChatList(
     [
@@ -617,30 +646,33 @@ const handleResumeChat = (content, get, set): void => {
     params.version = get().versionId;
     params.promptDebugger = true;
   }
-  fetchEventSource(url, {
+  const sseLifecycle = createActiveWorkflowSseLifecycle(
+    controller,
+    get,
+    event => {
+      handleMessage(nodes, edges, event, get, set);
+      return get().wsMessageStatus === 'end';
+    }
+  );
+  void fetchEventSource(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: getAuthorization(),
     },
     body: JSON.stringify(params),
-    signal: get().controllerRef?.signal,
+    signal: controller.signal,
     openWhenHidden: true,
-    onerror() {
-      finalizeCurrentAgentStream('error', get);
-      get().setWsMessageStatus('end');
-      get().controllerRef?.abort();
+    onerror(error) {
+      sseLifecycle.onError(error);
     },
     onclose() {
-      if (get().wsMessageStatus !== 'end') {
-        finalizeCurrentAgentStream('transport_closed', get);
-        get().setWsMessageStatus('end');
-      }
+      sseLifecycle.onClose();
     },
     onmessage(e) {
-      handleMessage(nodes, edges, e, get, set);
+      sseLifecycle.onMessage(e);
     },
-  });
+  }).catch(() => undefined);
   clearNodeStatus(get);
 };
 const runDebugger = (obj: unknown): void => {
@@ -648,8 +680,10 @@ const runDebugger = (obj: unknown): void => {
   const currentFlow = useFlowsManager.getState().currentFlow;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const url = getFixedUrl('/workflow/chat');
+  get().controllerRef?.abort();
+  const controller = new AbortController();
   set({
-    controllerRef: new AbortController(),
+    controllerRef: controller,
   });
   const inputs = {};
   const enterlist = enters ?? get().startNodeParams;
@@ -679,30 +713,33 @@ const runDebugger = (obj: unknown): void => {
     params.version = get().versionId;
     params.promptDebugger = true;
   }
-  fetchEventSource(url, {
+  const sseLifecycle = createActiveWorkflowSseLifecycle(
+    controller,
+    get,
+    event => {
+      handleMessage(nodes, edges, event, get, set);
+      return get().wsMessageStatus === 'end';
+    }
+  );
+  void fetchEventSource(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: getAuthorization(),
     },
     body: JSON.stringify(params),
-    signal: get().controllerRef?.signal,
+    signal: controller.signal,
     openWhenHidden: true,
-    onerror() {
-      finalizeCurrentAgentStream('error', get);
-      get().setWsMessageStatus('end');
-      get().controllerRef?.abort();
+    onerror(error) {
+      sseLifecycle.onError(error);
     },
     onclose() {
-      if (get().wsMessageStatus !== 'end') {
-        finalizeCurrentAgentStream('transport_closed', get);
-        get().setWsMessageStatus('end');
-      }
+      sseLifecycle.onClose();
     },
     onmessage(e) {
-      handleMessage(nodes, edges, e, get, set);
+      sseLifecycle.onMessage(e);
     },
-  });
+  }).catch(() => undefined);
   clearNodeStatus(get);
 };
 const advancedConfig = (): unknown => {
@@ -973,19 +1010,20 @@ const handleStopConversation = (get): void => {
       eventId: get().interruptChat?.eventId,
       eventType: 'abort',
     };
-    fetchEventSource(url, {
+    void fetchEventSource(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: getAuthorization(),
       },
       body: JSON.stringify(params),
-      signal: get().controllerRef?.signal,
       openWhenHidden: true,
-      onerror() {
-        get().controllerRef?.abort();
+      onerror(error) {
+        throwFatalWorkflowSseError(error);
       },
-    });
+    }).catch(error =>
+      console.error('[Workflow SSE] Abort request failed', error)
+    );
   }
   get().setChatList(chatList => [
     ...chatList,

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { fetchSseWithContext } from '../src/utils/sse-request.ts';
+import { createWorkflowSseLifecycle } from '../src/components/workflow/store/workflow-sse.ts';
 
 const originalDocument = globalThis.document;
 const originalWindow = globalThis.window;
@@ -11,8 +13,8 @@ globalThis.document = {
   hidden: false,
 };
 globalThis.window = {
-  clearTimeout,
-  setTimeout,
+  clearTimeout: globalThis.clearTimeout,
+  setTimeout: globalThis.setTimeout,
 };
 
 test.after(() => {
@@ -48,10 +50,10 @@ const captureRequest = async (path, getContext) => {
     fetch: async (input, init) => {
       capturedRequest = {
         input: input.toString(),
-        headers: new Headers(init?.headers),
+        headers: new globalThis.Headers(init?.headers),
       };
 
-      return new Response('data: {}\n\n', {
+      return new globalThis.Response('data: {}\n\n', {
         headers: { 'content-type': 'text/event-stream' },
       });
     },
@@ -119,4 +121,76 @@ test('non-team SSE requests omit stale enterprise context', async () => {
 
   assert.equal(requestWithoutSpace.headers.get('space-id'), null);
   assert.equal(requestWithoutSpace.headers.get('enterprise-id'), null);
+});
+
+test('throwing from an SSE error callback prevents POST request replay', async () => {
+  const transportError = new Error('socket closed');
+  let requestCount = 0;
+
+  await assert.rejects(
+    fetchEventSource('/workflow/chat', {
+      method: 'POST',
+      openWhenHidden: true,
+      fetch: async () => {
+        requestCount += 1;
+        throw transportError;
+      },
+      onerror(error) {
+        throw error;
+      },
+    }),
+    transportError
+  );
+
+  assert.equal(requestCount, 1);
+});
+
+test('late callbacks from a completed request cannot finalize its successor', () => {
+  let activeRequest = 'request-a';
+  const finalized = [];
+  const handledMessages = [];
+  const requestA = createWorkflowSseLifecycle({
+    isCurrent: () => activeRequest === 'request-a',
+    finalize: () => finalized.push('request-a'),
+    handleMessage: message => {
+      handledMessages.push(`request-a:${message}`);
+      return message === 'terminal frame';
+    },
+  });
+
+  requestA.onMessage('terminal frame');
+  activeRequest = 'request-b';
+  const requestB = createWorkflowSseLifecycle({
+    isCurrent: () => activeRequest === 'request-b',
+    finalize: () => finalized.push('request-b'),
+    handleMessage: message => {
+      handledMessages.push(`request-b:${message}`);
+      return false;
+    },
+  });
+
+  requestA.onMessage('late frame');
+  requestA.onClose();
+  assert.throws(() => requestA.onError(new Error('late socket error')));
+  requestB.onMessage('current frame');
+  assert.deepEqual(finalized, []);
+  assert.deepEqual(handledMessages, [
+    'request-a:terminal frame',
+    'request-b:current frame',
+  ]);
+});
+
+test('an active stream that closes early is finalized only once', () => {
+  let finalizeCount = 0;
+  const lifecycle = createWorkflowSseLifecycle({
+    isCurrent: () => true,
+    finalize: () => {
+      finalizeCount += 1;
+    },
+  });
+
+  lifecycle.onClose();
+  assert.equal(finalizeCount, 1);
+  assert.throws(() => lifecycle.onError(new Error('late socket error')));
+  assert.equal(finalizeCount, 1);
 });
