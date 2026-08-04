@@ -13,6 +13,11 @@ from agent.api.schemas.agent_event import (
 _RUNTIME_SEGMENT_TYPES = frozenset(
     {"segment_start", "segment_delta", "segment_end", "turn_commit"}
 )
+_PUBLIC_EXECUTION_ERRORS = {
+    "PI_RUNTIME_ERROR": "Pi agent runtime failed",
+    "PI_RUNTIME_UNAVAILABLE": "Pi agent runtime unavailable",
+    "PI_RUNTIME_DISCONNECTED": "Pi agent runtime disconnected",
+}
 
 
 class PiEventAdapterError(ValueError):
@@ -148,12 +153,12 @@ class PiEventAdapter:
     def execution_failed(
         self, *, code: str, message: str, occurred_at: int
     ) -> AgentEventV1:
-        public_message = " ".join(message.split())[:500]
+        safe_code = code if code in _PUBLIC_EXECUTION_ERRORS else "PI_RUNTIME_ERROR"
         return self._next(
             {
                 "type": "execution_error",
-                "code": code,
-                "message": public_message,
+                "code": safe_code,
+                "message": _PUBLIC_EXECUTION_ERRORS[safe_code],
                 "occurredAt": occurred_at,
             }
         )

@@ -59,15 +59,27 @@ def test_adapter_builds_bounded_tool_progress_and_terminal_tool() -> None:
     assert finished.status == "success"
 
 
-def test_adapter_normalizes_public_error_text() -> None:
+def test_adapter_uses_allowlisted_public_error_text() -> None:
     adapter = PiEventAdapter(run_id="run-1", started_at=100)
     event = adapter.execution_failed(
         code="PI_RUNTIME_ERROR",
-        message="  Pi agent runtime failed\n",
+        message="Traceback: Authorization: Bearer secret-token",
         occurred_at=120,
     )
     assert event.code == "PI_RUNTIME_ERROR"
     assert event.message == "Pi agent runtime failed"
+
+
+def test_adapter_replaces_unknown_error_code_and_sensitive_text() -> None:
+    adapter = PiEventAdapter(run_id="run-1", started_at=100)
+    event = adapter.execution_failed(
+        code="Authorization: Bearer secret-token",
+        message="headers={'api-key': 'secret'} raw_request={'prompt': 'private'}",
+        occurred_at=120,
+    )
+    assert event.code == "PI_RUNTIME_ERROR"
+    assert event.message == "Pi agent runtime failed"
+    assert "secret" not in str(event.model_dump())
 
 
 @pytest.mark.parametrize(
