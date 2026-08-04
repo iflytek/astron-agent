@@ -12,7 +12,7 @@ AgentVisibility: TypeAlias = Literal["user", "debug", "runtime"]
 class AgentEventBase(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    version: Literal[1] = 1
+    version: Literal[1]
     runId: str = Field(min_length=1)
     seq: int = Field(gt=0)
 

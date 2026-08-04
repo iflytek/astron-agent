@@ -96,4 +96,23 @@ describe("loadRuntimeConfig", () => {
   it("requires an internal secret", () => {
     expect(() => loadRuntimeConfig({})).toThrow("PI_AGENT_INTERNAL_SECRET is required");
   });
+
+  it("rejects the published deployment placeholder outside explicit development", () => {
+    expect(() =>
+      loadRuntimeConfig({
+        NODE_ENV: "production",
+        PI_AGENT_INTERNAL_SECRET: "change-me-in-production",
+      }),
+    ).toThrow("PI_AGENT_INTERNAL_SECRET must not use the published placeholder");
+  });
+
+  it("allows the placeholder only behind the explicit local-development gate", () => {
+    expect(
+      loadRuntimeConfig({
+        NODE_ENV: "development",
+        PI_AGENT_ALLOW_INSECURE_DEVELOPMENT_SECRET: "true",
+        PI_AGENT_INTERNAL_SECRET: "change-me-in-production",
+      }).internalSecret,
+    ).toBe("change-me-in-production");
+  });
 });

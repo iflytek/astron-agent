@@ -400,9 +400,10 @@ async def test_plugin_failure_finishes_tool_card_and_returns_model_error(
     unused_tcp_port: int,
 ) -> None:
     received_result: dict[str, Any] = {}
+    credential = "Authorization: Bearer plugin-secret"
 
     async def tool_run(action_input: dict[str, Any], span: Span) -> PluginResponse:
-        raise RuntimeError("tool exploded")
+        raise RuntimeError(f"tool exploded with {credential}")
 
     async def handler(request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse()
@@ -430,10 +431,7 @@ async def test_plugin_failure_finishes_tool_card_and_returns_model_error(
         ]
 
     assert received_result["isError"] is True
-    assert received_result["result"] == {
-        "message": "tool exploded",
-        "type": "RuntimeError",
-    }
+    assert received_result["result"] == {"message": "Tool execution failed"}
     events = public_events(responses)
     assert [event.type for event in events] == [
         "execution_start",
@@ -443,6 +441,11 @@ async def test_plugin_failure_finishes_tool_card_and_returns_model_error(
     ]
     assert events[-2].status == "error"
     assert events[-2].response == received_result["result"]
+    tool_step = next(item.content for item in responses if item.typ == "cot_step")
+    assert tool_step.action_output == {"message": "Tool execution failed"}
+    assert credential not in str(received_result)
+    assert credential not in str(events[-2].model_dump())
+    assert credential not in str(tool_step.model_dump())
 
 
 @pytest.mark.asyncio
@@ -817,7 +820,7 @@ async def test_runtime_error_finishes_pending_wait_card_before_unwinding(
 
     async with serve_pi(unused_tcp_port, handler) as url:
         responses: list[AgentResponse] = []
-        with pytest.raises(AgentExc, match="runtime stopped"):
+        with pytest.raises(AgentExc, match="Pi agent runtime failed"):
             async for response in pi_runner(url, []).run(
                 Span(app_id="app", uid="uid"), node_trace()
             ):
@@ -839,11 +842,97 @@ async def test_runtime_error_finishes_pending_wait_card_before_unwinding(
 
 
 @pytest.mark.asyncio
+async def test_malformed_usage_finishes_pending_wait_and_execution_once(
+    unused_tcp_port: int,
+) -> None:
+    credential = "Authorization: Bearer malformed-usage-secret"
+
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "tool_call",
+                "callId": "wait-call",
+                "turnId": "turn-1",
+                "name": "wait",
+                "arguments": {"seconds": 30},
+            }
+        )
+        await ws.send_json(
+            {
+                "type": "usage",
+                "inputTokens": credential,
+                "outputTokens": 1,
+                "totalTokens": 2,
+            }
+        )
+        return ws
+
+    responses: list[AgentResponse] = []
+    async with serve_pi(unused_tcp_port, handler) as url:
+        with pytest.raises(AgentExc) as raised:
+            async for response in pi_runner(url, []).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            ):
+                responses.append(response)
+
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "tool_start",
+        "tool_finish",
+        "execution_error",
+        "execution_end",
+    ]
+    assert events[2].status == "error"
+    assert events[-2].message == "Pi agent runtime failed"
+    assert sum(event.type == "execution_end" for event in events) == 1
+    assert credential not in str(raised.value)
+    assert credential not in str([event.model_dump() for event in events])
+
+
+@pytest.mark.asyncio
+async def test_malformed_wait_tool_message_terminates_execution_once(
+    unused_tcp_port: int,
+) -> None:
+    async def handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.receive_json()
+        await ws.send_json(
+            {
+                "type": "tool_call",
+                "name": "wait",
+                "arguments": {"seconds": 30},
+            }
+        )
+        return ws
+
+    responses: list[AgentResponse] = []
+    async with serve_pi(unused_tcp_port, handler) as url:
+        with pytest.raises(AgentExc, match="Pi agent runtime failed"):
+            async for response in pi_runner(url, []).run(
+                Span(app_id="app", uid="uid"), node_trace()
+            ):
+                responses.append(response)
+
+    events = public_events(responses)
+    assert [event.type for event in events] == [
+        "execution_start",
+        "execution_error",
+        "execution_end",
+    ]
+    assert sum(event.type == "execution_end" for event in events) == 1
+
+
+@pytest.mark.asyncio
 async def test_unavailable_pi_runtime_raises_explicit_error() -> None:
     runner = pi_runner("ws://127.0.0.1:1/internal/v1/runs", [])
     responses: list[AgentResponse] = []
 
-    with pytest.raises(AgentExc, match="Pi runtime unavailable"):
+    with pytest.raises(AgentExc, match="Pi agent runtime unavailable"):
         async for response in runner.run(Span(app_id="app", uid="uid"), node_trace()):
             responses.append(response)
 
@@ -870,7 +959,7 @@ async def test_pi_runtime_disconnect_emits_sanitized_error_before_unwinding(
 
     responses: list[AgentResponse] = []
     async with serve_pi(unused_tcp_port, handler) as url:
-        with pytest.raises(AgentExc, match="disconnected before done"):
+        with pytest.raises(AgentExc, match="Pi agent runtime disconnected"):
             async for response in pi_runner(url, []).run(
                 Span(app_id="app", uid="uid"), node_trace()
             ):

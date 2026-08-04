@@ -39,12 +39,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -92,12 +92,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -133,12 +133,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -181,12 +181,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -227,12 +227,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -289,7 +289,6 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         },
@@ -305,6 +304,7 @@
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -395,12 +395,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -448,12 +448,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -513,12 +513,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -578,12 +578,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",
@@ -630,12 +630,12 @@
         },
         "version": {
           "const": 1,
-          "default": 1,
           "title": "Version",
           "type": "integer"
         }
       },
       "required": [
+        "version",
         "runId",
         "seq",
         "type",

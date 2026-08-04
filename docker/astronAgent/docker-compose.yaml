@@ -376,8 +376,10 @@ services:
     image: ghcr.io/iflytek/astron-agent/core-pi-agent:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-core-pi-agent
     environment:
+      NODE_ENV: "${PI_AGENT_NODE_ENV:-production}"
       PI_AGENT_PORT: "${PI_AGENT_PORT:-8090}"
-      PI_AGENT_INTERNAL_SECRET: "${PI_AGENT_INTERNAL_SECRET:-change-me-in-production}"
+      PI_AGENT_INTERNAL_SECRET: "${PI_AGENT_INTERNAL_SECRET:?Set PI_AGENT_INTERNAL_SECRET to a high-entropy value}"
+      PI_AGENT_ALLOW_INSECURE_DEVELOPMENT_SECRET: "${PI_AGENT_ALLOW_INSECURE_DEVELOPMENT_SECRET:-false}"
       PI_AGENT_MAX_RUN_MS: "${PI_AGENT_MAX_RUN_MS:-1500000}"
       PI_AGENT_MAX_WAIT_SECONDS: "${PI_AGENT_MAX_WAIT_SECONDS:-120}"
       PI_AGENT_REPEAT_TOOL_CALL_LIMIT: "${PI_AGENT_REPEAT_TOOL_CALL_LIMIT:-8}"
@@ -435,7 +437,7 @@ services:
       LIST_MCP_PLUGIN_URL: "${LIST_MCP_PLUGIN_URL:-http://core-link:18888/api/v1/mcp/tool_list}"
       RUN_MCP_PLUGIN_URL: "${RUN_MCP_PLUGIN_URL:-http://core-link:18888/api/v1/mcp/call_tool}"
       PI_AGENT_RUNTIME_URL: "${PI_AGENT_RUNTIME_URL:-ws://core-pi-agent:${PI_AGENT_PORT:-8090}/internal/v1/runs}"
-      PI_AGENT_INTERNAL_SECRET: "${PI_AGENT_INTERNAL_SECRET:-change-me-in-production}"
+      PI_AGENT_INTERNAL_SECRET: "${PI_AGENT_INTERNAL_SECRET:?Set PI_AGENT_INTERNAL_SECRET to a high-entropy value}"
       APP_AUTH_HOST: "${APP_AUTH_HOST:-core-tenant}"
       APP_AUTH_PROT: "${APP_AUTH_PROT:-http}"
       APP_AUTH_API_KEY: "${APP_AUTH_API_KEY:-YOUR_APP_AUTH_API_KEY}"

@@ -1,11 +1,13 @@
 """Test CompletionBase class and its methods in base_api module"""
 
+import json
 import time
 from dataclasses import dataclass
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiohttp import web
 from common.otlp import sid as sid_module
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
@@ -15,7 +17,10 @@ from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.node_trace_patch import NodeTracePatch as NodeTrace
 from agent.api.v1.base_api import CompletionBase, json_serializer
+from agent.engine.nodes.pi.pi_runner import PiModelConfig, PiRunner
 from agent.exceptions.agent_exc import AgentInternalExc, AgentNormalExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
+from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 
 @dataclass
@@ -338,6 +343,99 @@ class TestCompletionBase:
             # Error message should contain sid
             results_str = "".join(results)
             assert span.sid in results_str or "test error" in results_str
+
+    @pytest.mark.asyncio
+    async def test_pi_runtime_error_is_sanitized_in_event_and_outer_stop_sse(
+        self,
+        completion: ConcreteCompletion,
+        span: Span,
+        node_trace: NodeTrace,
+        unused_tcp_port: int,
+    ) -> None:
+        credential = "Authorization: Bearer provider-secret"
+
+        async def handler(request: web.Request) -> web.WebSocketResponse:
+            websocket = web.WebSocketResponse()
+            await websocket.prepare(request)
+            await websocket.receive_json()
+            await websocket.send_json({"type": "error", "message": credential})
+            return websocket
+
+        app = web.Application()
+        app.router.add_get("/internal/v1/runs", handler)
+        server = web.AppRunner(app)
+        await server.setup()
+        site = web.TCPSite(server, "127.0.0.1", unused_tcp_port)
+        await site.start()
+
+        async def unused_tool(
+            action_input: dict[str, object], tool_span: Span
+        ) -> PluginResponse:
+            return PluginResponse(result=action_input)
+
+        plugin = BasePlugin(
+            name="lookup",
+            description="Lookup a value",
+            schema_template="legacy",
+            parameters={"type": "object", "properties": {}, "required": []},
+            typ="mcp",
+            run=unused_tool,
+        )
+        pi_runner = PiRunner(
+            app_id="app",
+            uid="uid",
+            run_id="run-1",
+            model_config=PiModelConfig(
+                id="model-1",
+                base_url="https://models.example/v1",
+                api_key="model-secret",
+            ),
+            chat_history=[],
+            instruct="",
+            knowledge="",
+            question="question",
+            plugins=[plugin],
+            runtime_url=(f"ws://127.0.0.1:{unused_tcp_port}/internal/v1/runs"),
+            internal_secret="bridge-secret",
+        )
+        workflow_runner = WorkflowAgentRunner(
+            chat_runner=None,
+            pi_runner=pi_runner,
+            plugins=[plugin],
+        )
+
+        try:
+            with patch.object(
+                ConcreteCompletion, "build_runner", return_value=workflow_runner
+            ):
+                results = [
+                    item
+                    async for item in completion.run_runner(
+                        node_trace, Meter("app", "func"), span
+                    )
+                ]
+        finally:
+            await server.cleanup()
+
+        chunks = [
+            json.loads(item.removeprefix("data: "))
+            for item in results
+            if item != "data: [DONE]\n\n"
+        ]
+        execution_error = next(
+            chunk["choices"][0]["delta"]["agent_event"]
+            for chunk in chunks
+            if chunk["choices"][0]["delta"].get("agent_event", {}).get("type")
+            == "execution_error"
+        )
+        stop = chunks[-1]
+
+        assert execution_error["message"] == "Pi agent runtime failed"
+        assert stop["code"] == 40500
+        assert stop["message"] == (
+            f"Agent internal service error,Pi agent runtime failed,{span.sid}"
+        )
+        assert credential not in json.dumps(chunks)
 
     @pytest.mark.asyncio
     async def test_run_runner_always_produces_stop_and_done(

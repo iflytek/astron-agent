@@ -134,6 +134,18 @@ def test_event_models_accept_additive_metadata() -> None:
     }
 
 
+def test_missing_protocol_version_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        validate_agent_event_v1(
+            {
+                "runId": "run-1",
+                "seq": 1,
+                "type": "execution_start",
+                "startedAt": 100,
+            }
+        )
+
+
 @pytest.mark.parametrize(
     "payload",
     [

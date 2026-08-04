@@ -31,6 +31,17 @@ export function loadRuntimeConfig(
   if (!internalSecret) {
     throw new Error("PI_AGENT_INTERNAL_SECRET is required");
   }
+  const insecureDevelopmentSecretAllowed =
+    environment.NODE_ENV === "development" &&
+    environment.PI_AGENT_ALLOW_INSECURE_DEVELOPMENT_SECRET === "true";
+  if (
+    internalSecret === "change-me-in-production" &&
+    !insecureDevelopmentSecretAllowed
+  ) {
+    throw new Error(
+      "PI_AGENT_INTERNAL_SECRET must not use the published placeholder",
+    );
+  }
 
   return {
     port: positiveNumber(environment, "PI_AGENT_PORT", 8090),

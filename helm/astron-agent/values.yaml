@@ -283,7 +283,8 @@ corePiAgent:
   enabled: true
   image: core-pi-agent
   replicaCount: 1
-  internalSecret: change-me-in-production
+  # Required when enabled. Generate a unique value, for example: openssl rand -hex 32
+  internalSecret: ""
   resources:
     requests:
       memory: "256Mi"

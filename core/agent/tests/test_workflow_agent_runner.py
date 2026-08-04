@@ -213,6 +213,77 @@ async def test_structured_agent_event_is_exposed_on_public_delta(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("visibility", ["runtime", "debug"])
+async def test_non_user_segment_lifecycle_is_suppressed_from_public_delta(
+    visibility: str,
+    mock_chat_runner: ChatRunner,
+    span: Span,
+    node_trace: NodeTraceLog,
+) -> None:
+    result = runner(mock_chat_runner, None, [])
+    payloads = [
+        {
+            "version": 1,
+            "runId": "run-1",
+            "seq": 1,
+            "type": "segment_start",
+            "turnId": "turn-private",
+            "segmentId": "segment-private",
+            "source": "thinking",
+            "channel": "pending",
+            "visibility": visibility,
+        },
+        {
+            "version": 1,
+            "runId": "run-1",
+            "seq": 2,
+            "type": "segment_delta",
+            "turnId": "turn-private",
+            "segmentId": "segment-private",
+            "delta": "Authorization: Bearer private-reasoning",
+        },
+        {
+            "version": 1,
+            "runId": "run-1",
+            "seq": 3,
+            "type": "segment_end",
+            "turnId": "turn-private",
+            "segmentId": "segment-private",
+        },
+        {
+            "version": 1,
+            "runId": "run-1",
+            "seq": 4,
+            "type": "turn_commit",
+            "turnId": "turn-private",
+            "channel": "reasoning",
+            "partial": False,
+            "reason": "message_end",
+        },
+    ]
+
+    chunks = [
+        await result.convert_message(
+            AgentResponse(
+                typ="agent_event",
+                content=validate_agent_event_v1(payload),
+                model="model",
+            ),
+            span,
+            node_trace,
+        )
+        for payload in payloads
+    ]
+
+    assert [chunk.choices[0].delta.agent_event for chunk in chunks] == [
+        None,
+        None,
+        None,
+        None,
+    ]
+
+
+@pytest.mark.asyncio
 async def test_pi_tool_step_keeps_existing_tool_call_chunk_and_trace(
     mock_pi_runner: PiRunner,
     mock_plugin: BasePlugin,
