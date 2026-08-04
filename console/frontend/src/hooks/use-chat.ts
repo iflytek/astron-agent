@@ -2,12 +2,16 @@ import useChatStore from '@/store/chat-store';
 import { getLanguageCode } from '@/utils/http';
 import { useRef } from 'react';
 import type { Option } from '@/types/chat';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { baseURL } from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import { fetchSseWithContext } from '@/utils/sse-request';
 import { parseAgentEvent, selectLiveContent } from '@/components/agent-stream';
 import { shouldIgnoreChatStreamCallback } from './chat-stream-guard';
+import {
+  buildWorkflowChatUrl,
+  resolveWorkflowChatVersion,
+} from './chat-preview-version';
 
 // SSE 数据类型定义
 interface SSEData {
@@ -47,6 +51,7 @@ const ERROR_TEXT =
   '抱歉,您这个问题我暂时无法回答,我抓紧学习一下,争取下次给您满意的答复。';
 
 const useChat = () => {
+  const { version: routeVersion } = useParams<{ version?: string }>();
   const controllerRef = useRef<AbortController>(new AbortController()); //sse请求控制器
   const sidRef = useRef<string>(''); //sid
   const reqIdRef = useRef<number>(0); //reqId
@@ -319,7 +324,10 @@ const useChat = () => {
     const form = new FormData();
     form.append('text', msg || '');
     form.append('chatId', `${currentChatId}`);
-    form.append('workflowVersion', version || '');
+    form.append(
+      'workflowVersion',
+      resolveWorkflowChatVersion(version, routeVersion)
+    );
     workflowOperation && form.append('workflowOperation', workflowOperation);
     // 执行回调函数
     onSendCallback && onSendCallback();
@@ -342,10 +350,11 @@ const useChat = () => {
   };
 
   const handleFlowToChat = (item: any) => {
-    let url = `${window.location.origin}/chat/${item?.botId}`;
-    if (item?.version) {
-      url += `?version=${item?.version}`;
-    }
+    const url = buildWorkflowChatUrl(
+      window.location.origin,
+      item?.botId,
+      item?.version
+    );
     window.open(url, '_blank');
   };
 
