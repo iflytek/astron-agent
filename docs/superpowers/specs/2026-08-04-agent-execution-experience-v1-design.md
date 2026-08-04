@@ -120,7 +120,7 @@ interpret the event union or branch on a runtime name.
 ### Normative contract
 
 The Pydantic discriminated union in
-`core/agent/agent/api/schemas/agent_event.py` is the executable source of truth.
+`core/agent/api/schemas/agent_event.py` is the executable source of truth.
 Its generated JSON Schema is committed at
 `docs/contracts/agent-event-protocol-v1.schema.json` so TypeScript and other
 services can validate the same contract without importing Python.
@@ -230,7 +230,7 @@ for the existing detail disclosure and Trace projection.
 
 ## Pi Adapter contract
 
-Create `core/agent/agent/engine/nodes/pi/event_adapter.py` with one concrete
+Create `core/agent/engine/nodes/pi/event_adapter.py` with one concrete
 `PiEventAdapter`. It owns the public sequence and event validation for one Pi
 execution.
 
