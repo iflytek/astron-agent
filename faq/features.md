@@ -100,9 +100,9 @@ module_id varchar(50) DEFAULT NULL ）。
 
 有，默认未开启，按以下步骤启用：
 
-1. 在 docker-compose.yaml 中取消 elasticsearch、kibana、kafka、logstash 四个组件容器的注释。
-2. 将环境变量 KAFKA_ENABLE 置为 1。
-3. 重新启动项目，即可在工作流的 Trace 日志中查看对应的调用链路。
+1. 在 `.env` 中显式设置 `WORKFLOW_TRACE_ES_URL=http://elasticsearch:9200`。Trace 记录可能包含提示词、推理过程、工具输入/输出和错误信息，请仅在确认需要持久化时开启。
+2. 重新启动 `core-workflow` 和 `console-hub`，即可在工作流的 Trace 日志中查看对应的调用链路。
+3. 如需 Kafka/Logstash 链路，另设 `WORKFLOW_TRACE_KAFKA_ENABLE=1` 并使用 `--profile trace-kafka` 启动。
 
 ## 怎么使用https协议访问项目？
 
@@ -458,12 +458,9 @@ http {
 
 ## 工作流的调用链路日志（Trace）怎么开启？
 
-1. 在 `docker-compose.yaml` 中取消 `elasticsearch`、`kibana`、`kafka`、`logstash` 四个组件容器的注释。
-
-![取消四个可观测性组件的注释](assets/trace_compose_components.png)
-
-2. 将环境变量 `KAFKA_ENABLE` 置为 `1`。
-3. 重新启动项目，编排页右上角会出现「Trace日志」入口，点击即可查看对应的调用链路。
+1. 在 `.env` 中显式设置 `WORKFLOW_TRACE_ES_URL=http://elasticsearch:9200`。Trace 记录可能包含提示词、推理过程、工具输入/输出和错误信息，请仅在确认需要持久化时开启。
+2. 重新启动 `core-workflow` 和 `console-hub`。编排页右上角会出现「Trace日志」入口，点击即可查看对应的调用链路。
+3. 如需 Kafka/Logstash 链路，另设 `WORKFLOW_TRACE_KAFKA_ENABLE=1` 并使用 `--profile trace-kafka` 启动。
 
 ![编排页的 Trace 日志入口](assets/trace_log_view.png)
 

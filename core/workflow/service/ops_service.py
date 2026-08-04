@@ -12,7 +12,7 @@ from workflow.extensions.otlp.trace.span import Span
 
 
 def _report_to_elasticsearch(workflow_data: str) -> None:
-    base_url = os.environ["WORKFLOW_TRACE_ES_URL"].rstrip("/")
+    base_url = os.environ["WORKFLOW_TRACE_ES_URL"].strip().rstrip("/")
     index_prefix = os.getenv(
         "WORKFLOW_TRACE_ES_INDEX_PREFIX", "spark-agent-builder-"
     )
@@ -50,6 +50,14 @@ def kafka_report(
     :param code: Status code indicating the execution result (default: 0 for success)
     :param message: Status message describing the execution result (default: "success")
     """
+    es_enabled = bool(os.getenv("WORKFLOW_TRACE_ES_URL", "").strip())
+    kafka_enabled = os.getenv("KAFKA_ENABLE", "0").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if not es_enabled and not kafka_enabled:
+        return
 
     def _report() -> None:
         """
@@ -65,7 +73,7 @@ def kafka_report(
         try:
             workflow_data = workflow_log.to_json()
             logger.info(f"Workflow trace data: {workflow_data}")
-            if os.getenv("WORKFLOW_TRACE_ES_URL"):
+            if es_enabled:
                 _report_to_elasticsearch(workflow_data)
             else:
                 topic = os.getenv("KAFKA_TOPIC") or ""

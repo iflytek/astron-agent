@@ -39,3 +39,23 @@ def test_trace_is_written_directly_to_elasticsearch_when_configured(monkeypatch)
     assert post.call_args.kwargs["timeout"] == 5.0
     response.raise_for_status.assert_called_once_with()
     kafka.assert_not_called()
+
+
+def test_trace_reporting_does_nothing_when_all_persistence_is_disabled(monkeypatch):
+    monkeypatch.delenv("WORKFLOW_TRACE_ES_URL", raising=False)
+    monkeypatch.setenv("KAFKA_ENABLE", "0")
+    thread = Mock()
+    post = Mock()
+    kafka = Mock()
+    monkeypatch.setattr(ops_service.threading, "Thread", thread)
+    monkeypatch.setattr(ops_service.requests, "post", post)
+    monkeypatch.setattr(ops_service, "get_kafka_producer_service", kafka)
+
+    ops_service.kafka_report(
+        workflow_log=WorkflowLog(sid="trace-sid", flow_id="trace-flow"),
+        span=Mock(),
+    )
+
+    thread.assert_not_called()
+    post.assert_not_called()
+    kafka.assert_not_called()

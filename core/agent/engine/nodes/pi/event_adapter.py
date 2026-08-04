@@ -13,6 +13,12 @@ from agent.api.schemas.agent_event import (
 _RUNTIME_SEGMENT_TYPES = frozenset(
     {"segment_start", "segment_delta", "segment_end", "turn_commit"}
 )
+_RUNTIME_EVENT_FIELDS: dict[str, tuple[str, ...]] = {
+    "segment_start": ("type", "turnId", "segmentId", "source", "channel"),
+    "segment_delta": ("type", "turnId", "segmentId", "delta"),
+    "segment_end": ("type", "turnId", "segmentId"),
+    "turn_commit": ("type", "turnId", "channel", "partial", "reason"),
+}
 _PUBLIC_EXECUTION_ERRORS = {
     "PI_RUNTIME_ERROR": "Pi agent runtime failed",
     "PI_RUNTIME_UNAVAILABLE": "Pi agent runtime unavailable",
@@ -66,9 +72,7 @@ class PiEventAdapter:
                 f"Pi runtime returned unsupported agent event: {event_type}"
             )
         normalized = {
-            key: value
-            for key, value in event.items()
-            if key not in {"version", "runId", "seq"}
+            key: event[key] for key in _RUNTIME_EVENT_FIELDS[event_type] if key in event
         }
         if event_type == "segment_start":
             normalized["visibility"] = "user"

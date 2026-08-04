@@ -1,5 +1,7 @@
 from typing import Any
 
+import pytest
+
 from zwppt_mcp.server import ServerSettings, create_mcp
 
 
@@ -192,7 +194,9 @@ def test_create_outline_by_doc_forwards_parameters_and_result() -> None:
     client = RecordingZhiwenClient()
     tool = create_mcp(client)._tool_manager.get_tool("create_outline_by_doc")
 
-    result = tool.fn("source.docx", "topic", "https://files.example/source.docx", None, "en", True)
+    result = tool.fn(
+        "source.docx", "topic", "https://files.example/source.docx", "en", True
+    )
 
     assert result == {
         "method": "create_outline_by_doc",
@@ -206,6 +210,36 @@ def test_create_outline_by_doc_forwards_parameters_and_result() -> None:
         ),
         "kwargs": {},
     }
+
+
+def test_create_outline_by_doc_schema_requires_url_and_hides_local_path() -> None:
+    tool = create_mcp(RecordingZhiwenClient())._tool_manager.get_tool(
+        "create_outline_by_doc"
+    )
+
+    assert "file_path" not in tool.parameters["properties"]
+    assert "file_url" in tool.parameters["required"]
+
+
+@pytest.mark.parametrize(
+    "file_path",
+    ["../secret.env", "/proc/self/environ", "/uploads/link-to-external-secret"],
+)
+def test_create_outline_by_doc_rejects_model_supplied_local_paths(
+    file_path: str,
+) -> None:
+    client = RecordingZhiwenClient()
+    tool = create_mcp(client)._tool_manager.get_tool("create_outline_by_doc")
+
+    with pytest.raises(TypeError):
+        tool.fn(
+            "source.docx",
+            "topic",
+            "https://files.example/source.docx",
+            file_path=file_path,
+        )
+
+    assert client.calls == []
 
 
 def test_create_ppt_by_outline_forwards_parameters_and_result() -> None:

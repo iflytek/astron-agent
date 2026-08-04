@@ -11,7 +11,7 @@ from .credentials import load_credentials
 
 
 class ZhiwenTools(Protocol):
-    """The Zhiwen operations exposed through MCP."""
+    """Trusted Zhiwen client contract; the MCP wrapper exposes a URL-only API."""
 
     def get_theme_list(
         self,
@@ -200,8 +200,7 @@ def create_mcp(client: ZhiwenTools, settings: ServerSettings | None = None) -> F
     def create_outline_by_doc(
         file_name: str,
         text: str,
-        file_url: str | None = None,
-        file_path: str | None = None,
+        file_url: str,
         language: str = "cn",
         search: bool = False,
     ) -> dict[str, Any]:
@@ -209,7 +208,7 @@ def create_mcp(client: ZhiwenTools, settings: ServerSettings | None = None) -> F
 
         使用说明：
         1. 用于根据文档内容生成PPT大纲。
-        2. 支持通过file_url或file_path上传文档。
+        2. 仅支持通过file_url导入文档，不接受服务器本地文件路径。
         3. 文档格式支持：pdf(不支持扫描件)、doc、docx、txt、md。
         4. 文档大小限制：10M以内，字数限制8000字以内。
         5. 生成的大纲可用于create_ppt_by_outline工具。
@@ -217,8 +216,7 @@ def create_mcp(client: ZhiwenTools, settings: ServerSettings | None = None) -> F
 
         参数：
         - file_name: 文档文件名，必须包含文件后缀名。
-        - file_url: 文档文件的URL地址，与file_path二选一必填。
-        - file_path: 文档文件的本地路径，与file_url二选一必填。
+        - file_url: 文档文件的URL地址。
         - text: 补充的文本内容，用于指导大纲生成。
         - language: 大纲生成的语言，目前支持cn(中文)。
         - search: 是否联网搜索，True表示联网搜索补充内容，False表示不联网。
@@ -227,7 +225,11 @@ def create_mcp(client: ZhiwenTools, settings: ServerSettings | None = None) -> F
         包含生成的大纲内容的字典。
         """
         return client.create_outline_by_doc(
-            file_name, text, file_url, file_path, language, search
+            file_name,
+            text,
+            file_url=file_url,
+            language=language,
+            search=search,
         )
 
     @server.tool()

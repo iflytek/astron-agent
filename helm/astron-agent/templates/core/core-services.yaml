@@ -48,7 +48,8 @@ spec:
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
         env:
         {{- range $key, $value := $serviceConfig.env }}
-        {{- if and (eq $key "ossDownloadHost") (or (eq $serviceName "coreAitools") (eq $serviceName "coreWorkflow")) }}
+        {{- if and (eq $key "piAgentInternalSecret") (not $.Values.corePiAgent.enabled) }}
+        {{- else if and (eq $key "ossDownloadHost") (or (eq $serviceName "coreAitools") (eq $serviceName "coreWorkflow")) }}
         - name: {{ upper (snakecase $key) }}
           value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.minio.service.nodePort | int) | quote }}
         {{- else if or (eq $key "mysqlPassword") (eq $key "databasePassword") }}

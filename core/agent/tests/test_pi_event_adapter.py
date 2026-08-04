@@ -38,6 +38,102 @@ def test_adapter_assigns_one_public_identity_and_sequence() -> None:
     assert finished.durationMs == 20
 
 
+@pytest.mark.parametrize(
+    ("runtime_event", "expected"),
+    [
+        (
+            {
+                "type": "segment_start",
+                "turnId": "turn-1",
+                "segmentId": "segment-1",
+                "source": "thinking",
+                "channel": "pending",
+            },
+            {
+                "version": 1,
+                "runId": "public-run",
+                "seq": 1,
+                "type": "segment_start",
+                "turnId": "turn-1",
+                "segmentId": "segment-1",
+                "source": "thinking",
+                "channel": "pending",
+                "visibility": "user",
+            },
+        ),
+        (
+            {
+                "type": "segment_delta",
+                "turnId": "turn-1",
+                "segmentId": "segment-1",
+                "delta": "Checking",
+            },
+            {
+                "version": 1,
+                "runId": "public-run",
+                "seq": 1,
+                "type": "segment_delta",
+                "turnId": "turn-1",
+                "segmentId": "segment-1",
+                "delta": "Checking",
+            },
+        ),
+        (
+            {
+                "type": "segment_end",
+                "turnId": "turn-1",
+                "segmentId": "segment-1",
+            },
+            {
+                "version": 1,
+                "runId": "public-run",
+                "seq": 1,
+                "type": "segment_end",
+                "turnId": "turn-1",
+                "segmentId": "segment-1",
+            },
+        ),
+        (
+            {
+                "type": "turn_commit",
+                "turnId": "turn-1",
+                "channel": "reasoning",
+                "partial": False,
+                "reason": "tool_call",
+            },
+            {
+                "version": 1,
+                "runId": "public-run",
+                "seq": 1,
+                "type": "turn_commit",
+                "turnId": "turn-1",
+                "channel": "reasoning",
+                "partial": False,
+                "reason": "tool_call",
+            },
+        ),
+    ],
+)
+def test_adapter_forwards_only_documented_runtime_event_fields(
+    runtime_event: dict[str, object], expected: dict[str, object]
+) -> None:
+    runtime_event.update(
+        {
+            "headers": {"authorization": "Bearer runtime-secret"},
+            "request": {"prompt": "private prompt"},
+            "debug": {"traceback": "private stack"},
+            "runtimeMetadata": {"provider": "pi"},
+        }
+    )
+    adapter = PiEventAdapter(run_id="public-run", started_at=100)
+
+    event = adapter.adapt_runtime_event(
+        {"type": "agent_event", "event": runtime_event}
+    )[0]
+
+    assert event.model_dump(exclude_none=True) == expected
+
+
 def test_adapter_builds_bounded_tool_progress_and_terminal_tool() -> None:
     adapter = PiEventAdapter(run_id="run-1", started_at=100)
     progress = adapter.tool_progressed(

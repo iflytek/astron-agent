@@ -20,6 +20,7 @@ import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.service.bot.BotService;
+import com.iflytek.astron.console.commons.service.bot.BotDraftPreviewAuthorizationService;
 import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.service.data.ChatHistoryService;
@@ -64,6 +65,8 @@ import java.util.Objects;
 @Slf4j
 @Service
 public class BotChatServiceImpl implements BotChatService {
+
+    private static final String DEBUGGER_VERSION = "debugger";
 
     @Autowired
     private ChatBotDataService chatBotDataService;
@@ -116,6 +119,9 @@ public class BotChatServiceImpl implements BotChatService {
     @Autowired
     private AgentMemoryRuntimeService agentMemoryRuntimeService;
 
+    @Autowired
+    private BotDraftPreviewAuthorizationService botDraftPreviewAuthorizationService;
+
     /**
      * Function to handle chat messages
      *
@@ -137,8 +143,12 @@ public class BotChatServiceImpl implements BotChatService {
 
             log.info("Processing chat request, sseId: {}, chatId: {}, uid: {}", sseId, chatBotReqDto.getChatId(), chatBotReqDto.getUid());
             Long spaceId = SpaceInfoUtil.getSpaceId();
+            boolean draftPreview = isDraftPreview(workflowVersion);
+            if (draftPreview) {
+                botDraftPreviewAuthorizationService.checkBot(chatBotReqDto.getBotId());
+            }
 
-            BotConfiguration botConfig = getBotConfiguration(chatBotReqDto.getBotId());
+            BotConfiguration botConfig = getBotConfiguration(chatBotReqDto.getBotId(), draftPreview);
             if (botConfig.version.equals(BotTypeEnum.WORKFLOW_BOT.getType()) || botConfig.version.equals(BotTypeEnum.TALK.getType())) {
                 syncWorkflowRuntimeModel(chatBotReqDto.getBotId(), botConfig, chatBotReqDto.getUid(), spaceId, sseEmitter);
                 workflowBotChatService.chatWorkflowBot(chatBotReqDto, sseEmitter, sseId, workflowOperation, workflowVersion);
@@ -431,7 +441,11 @@ public class BotChatServiceImpl implements BotChatService {
      * @return Returns BotConfiguration object
      */
     private BotConfiguration getBotConfiguration(Integer botId) throws BusinessException {
-        ChatBotMarket chatBotMarket = chatBotDataService.findMarketBotByBotId(botId);
+        return getBotConfiguration(botId, false);
+    }
+
+    private BotConfiguration getBotConfiguration(Integer botId, boolean draftPreview) throws BusinessException {
+        ChatBotMarket chatBotMarket = draftPreview ? null : chatBotDataService.findMarketBotByBotId(botId);
 
         if (chatBotMarket != null && ShelfStatusEnum.isOnShelf(chatBotMarket.getBotStatus())) {
             return new BotConfiguration(
@@ -462,6 +476,10 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotBase.getTools(),
                     chatBotBase.getWorkflows());
         }
+    }
+
+    private boolean isDraftPreview(String workflowVersion) {
+        return DEBUGGER_VERSION.equalsIgnoreCase(StrUtil.trim(workflowVersion));
     }
 
     private String resolveBaseMcpServerUrls(Integer botId) {

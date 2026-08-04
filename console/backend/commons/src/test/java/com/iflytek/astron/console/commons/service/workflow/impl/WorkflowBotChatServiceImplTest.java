@@ -16,6 +16,7 @@ import com.iflytek.astron.console.commons.dto.workflow.WorkflowEventData;
 import com.iflytek.astron.console.commons.enums.ShelfStatusEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.service.WssListenerService;
+import com.iflytek.astron.console.commons.service.bot.BotDraftPreviewAuthorizationService;
 import com.iflytek.astron.console.commons.service.bot.ChatBotDataService;
 import com.iflytek.astron.console.commons.service.data.ChatDataService;
 import com.iflytek.astron.console.commons.service.data.ChatHistoryService;
@@ -74,6 +75,9 @@ class WorkflowBotChatServiceImplTest {
 
     @Mock
     private WorkflowVersionLookupService workflowVersionLookupService;
+
+    @Mock
+    private BotDraftPreviewAuthorizationService botDraftPreviewAuthorizationService;
 
     @Mock
     private SseEmitter sseEmitter;
@@ -289,7 +293,31 @@ class WorkflowBotChatServiceImplTest {
             Buffer buffer = new Buffer();
             body.writeTo(buffer);
             assertNull(JSON.parseObject(buffer.readUtf8()).getString("version"));
+            verify(botDraftPreviewAuthorizationService).checkBot(456);
             verifyNoInteractions(workflowVersionLookupService);
+        }
+    }
+
+    @Test
+    void chatWorkflowBotShouldRejectUnauthorizedDebuggerBeforeWorkflowLookup() {
+        doThrow(new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS))
+                .when(botDraftPreviewAuthorizationService)
+                .checkBot(456);
+
+        try (MockedConstruction<WorkflowClient> clients = mockConstruction(WorkflowClient.class)) {
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> workflowBotChatService.chatWorkflowBot(
+                            chatBotReqDto,
+                            sseEmitter,
+                            sseId,
+                            workflowOperation,
+                            "debugger"));
+
+            assertEquals(ResponseEnum.INSUFFICIENT_PERMISSIONS, exception.getResponseEnum());
+            verify(botDraftPreviewAuthorizationService).checkBot(456);
+            verifyNoInteractions(userLangChainDataService, chatDataService);
+            assertTrue(clients.constructed().isEmpty());
         }
     }
 
