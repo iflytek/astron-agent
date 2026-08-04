@@ -70,13 +70,10 @@ def test_release_filter_keeps_workflow_end_content() -> None:
 def test_release_filter_keeps_structured_agent_event_without_text() -> None:
     event = {
         "version": 1,
-        "type": "tool_start",
         "runId": "run-1",
-        "seq": 4,
-        "turnId": "turn-1",
-        "callId": "call-1",
-        "name": "lookup",
-        "arguments": {"query": "hello"},
+        "seq": 1,
+        "type": "execution_start",
+        "startedAt": 100,
     }
     response = LLMGenerate(
         id="sid",

@@ -20,12 +20,9 @@ class DeltaStructuredEventTest {
                       "agent_event": {
                         "version": 1,
                         "runId": "run-1",
-                        "seq": 7,
-                        "type": "tool_finish",
-                        "callId": "call-1",
-                        "name": "get_theme_list",
-                        "response": {"items": [{"templateIndexId": "tpl-1"}]},
-                        "status": "success"
+                        "seq": 1,
+                        "type": "execution_start",
+                        "startedAt": 100
                       }
                     }
                   }]
@@ -36,10 +33,17 @@ class DeltaStructuredEventTest {
         JsonNode serialized = JacksonUtil.parseJSONObject(
                 JacksonUtil.toJSONString(response, JacksonUtil.NON_NULL_OBJECT_MAPPER));
         JsonNode agentEvent = serialized.at("/choices/0/delta/agent_event");
+        JsonNode expectedAgentEvent = JacksonUtil.parseJSONObject("""
+                {
+                  "version": 1,
+                  "runId": "run-1",
+                  "seq": 1,
+                  "type": "execution_start",
+                  "startedAt": 100
+                }
+                """);
 
         assertThat(agentEvent.isMissingNode()).isFalse();
-        assertThat(agentEvent.path("type").asText()).isEqualTo("tool_finish");
-        assertThat(agentEvent.path("response").path("items").get(0)
-                .path("templateIndexId").asText()).isEqualTo("tpl-1");
+        assertThat(agentEvent).isEqualTo(expectedAgentEvent);
     }
 }

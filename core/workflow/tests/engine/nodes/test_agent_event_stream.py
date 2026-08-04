@@ -28,13 +28,10 @@ async def test_event_only_frame_is_forwarded_without_ending_reasoning_stream() -
     variable_pool.stream_data = {"end-node": {"agent-node": asyncio.Queue()}}
     event = {
         "version": 1,
-        "type": "tool_start",
         "runId": "run-1",
-        "seq": 7,
-        "turnId": "turn-1",
-        "callId": "call-1",
-        "name": "lookup",
-        "arguments": {"query": "hello"},
+        "seq": 1,
+        "type": "execution_start",
+        "startedAt": 100,
     }
     await variable_pool.stream_data["end-node"]["agent-node"].put(
         StreamOutputMsg(
