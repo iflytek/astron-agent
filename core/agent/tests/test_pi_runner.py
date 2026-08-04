@@ -216,14 +216,16 @@ async def test_structured_runtime_events_receive_one_public_sequence(
         return ws
 
     async with serve_pi(unused_tcp_port, handler) as url:
+        runner = pi_runner(url, [])
         responses = [
             response
-            async for response in pi_runner(url, []).run(
+            async for response in runner.run(
                 Span(app_id="app", uid="uid"), node_trace()
             )
         ]
 
     events = [item.content for item in responses if item.typ == "agent_event"]
+    assert events[0].visibility == "user"
     assert [event.seq for event in events] == [1, 2]
     assert [event.runId for event in events] == ["run-1", "run-1"]
     assert events[1].delta == "Hi"

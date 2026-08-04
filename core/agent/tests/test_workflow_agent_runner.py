@@ -9,7 +9,8 @@ from common.otlp import sid as sid_module
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
 
-from agent.api.schemas.agent_response import AgentResponse, AgentStreamEvent, CotStep
+from agent.api.schemas.agent_event import validate_agent_event_v1
+from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.pi.pi_runner import PiRunner
 from agent.service.plugin.base import BasePlugin, PluginResponse
@@ -189,14 +190,16 @@ async def test_structured_agent_event_is_exposed_on_public_delta(
     span: Span,
     node_trace: NodeTraceLog,
 ) -> None:
-    event = AgentStreamEvent(
-        version=1,
-        runId="run-1",
-        seq=1,
-        type="segment_delta",
-        turnId="turn-1",
-        segmentId="turn-1-text-0",
-        delta="Hi",
+    event = validate_agent_event_v1(
+        {
+            "version": 1,
+            "runId": "run-1",
+            "seq": 1,
+            "type": "segment_delta",
+            "turnId": "turn-1",
+            "segmentId": "turn-1-text-0",
+            "delta": "Hi",
+        }
     )
     result = runner(mock_chat_runner, None, [])
 

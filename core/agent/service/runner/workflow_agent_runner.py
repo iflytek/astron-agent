@@ -7,7 +7,8 @@ from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
 from pydantic import BaseModel, ConfigDict, Field
 
-from agent.api.schemas.agent_response import AgentResponse, AgentStreamEvent, CotStep
+from agent.api.schemas.agent_event import AgentEventBase
+from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.completion_chunk import (
     ReasonChatCompletionChunk,
     ReasonChoice,
@@ -101,7 +102,7 @@ class WorkflowAgentRunner(BaseModel):
     def _handle_agent_event(
         self, chunk: ReasonChatCompletionChunk, message: AgentResponse
     ) -> None:
-        if isinstance(message.content, AgentStreamEvent):
+        if isinstance(message.content, AgentEventBase):
             chunk.choices[0].delta.agent_event = message.content.model_dump(
                 exclude_none=True
             )

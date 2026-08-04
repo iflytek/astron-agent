@@ -13,8 +13,10 @@ from common.otlp.trace.span import Span
 from openai.types.completion_usage import CompletionUsage
 from pydantic import BaseModel
 
-from agent.api.schemas.agent_response import AgentResponse, AgentStreamEvent, CotStep
+from agent.api.schemas.agent_event import AgentEventBase, AgentEventV1
+from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.llm_message import LLMMessage
+from agent.engine.nodes.pi.event_adapter import PiEventAdapter, PiEventAdapterError
 from agent.engine.nodes.pi.protocol import (
     build_system_prompt,
     build_tool_contracts,
@@ -33,7 +35,7 @@ class PiModelConfig(BaseModel):
 
 @dataclass
 class _ExecutionEvent:
-    progress: str | None = None
+    progress: Any | None = None
     result: PluginResponse | None = None
 
 
@@ -57,7 +59,13 @@ class PiRunner:
     internal_secret: str = field(
         default_factory=lambda: os.getenv("PI_AGENT_INTERNAL_SECRET", "")
     )
-    _event_seq: int = field(default=0, init=False)
+    _event_adapter: PiEventAdapter = field(init=False)
+
+    def __post_init__(self) -> None:
+        self._event_adapter = PiEventAdapter(
+            run_id=self.run_id,
+            started_at=self._now_ms(),
+        )
 
     def _start_message(self) -> tuple[dict[str, Any], dict[str, BasePlugin]]:
         tools, plugin_by_runtime_name = build_tool_contracts(self.plugins)
@@ -87,35 +95,10 @@ class PiRunner:
     def _now_ms() -> int:
         return int(time.time() * 1000)
 
-    @staticmethod
-    def _progress_summary(value: Any) -> str:
-        text = (
-            value
-            if isinstance(value, str)
-            else json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-        )
-        return text if len(text) <= 200 else f"{text[:199]}…"
-
-    def _agent_event(self, event_type: str, **data: Any) -> AgentResponse:
-        self._event_seq += 1
-        event = AgentStreamEvent.model_validate(
-            {
-                **data,
-                "version": 1,
-                "runId": self.run_id,
-                "seq": self._event_seq,
-                "type": event_type,
-            }
-        )
+    def _event_response(self, event: AgentEventV1) -> AgentResponse:
         return AgentResponse(
             typ="agent_event", content=event, model=self.model_config.id
         )
-
-    def _runtime_agent_event(self, payload: dict[str, Any]) -> AgentResponse:
-        event = payload.get("event")
-        if not isinstance(event, dict):
-            raise AgentInternalExc("Pi runtime returned an invalid agent event")
-        return self._agent_event(str(event.get("type") or ""), **event)
 
     async def _execute_plugin(
         self,
@@ -149,7 +132,7 @@ class PiRunner:
                 reasoning_parts.append(str(reasoning_content))
             if content:
                 content_parts.append(str(content))
-            yield _ExecutionEvent(progress=self._progress_summary(result))
+            yield _ExecutionEvent(progress=result)
             if response.code != 0:
                 break
 
@@ -186,27 +169,28 @@ class PiRunner:
 
         plugin = plugin_by_runtime_name.get(runtime_name)
         started_at = self._now_ms()
-        yield self._agent_event(
-            "tool_start",
-            turnId=turn_id,
-            callId=call_id,
-            name=plugin.name if plugin is not None else runtime_name,
-            arguments=arguments,
-            status="running",
-            startedAt=started_at,
+        yield self._event_response(
+            self._event_adapter.tool_started(
+                turn_id=turn_id,
+                call_id=call_id,
+                name=plugin.name if plugin is not None else runtime_name,
+                arguments=arguments,
+                started_at=started_at,
+            )
         )
         if plugin is None:
             error_result = {"message": f"Unknown tool: {runtime_name}"}
             finished_at = self._now_ms()
-            yield self._agent_event(
-                "tool_finish",
-                turnId=turn_id,
-                callId=call_id,
-                name=runtime_name,
-                response=error_result,
-                status="error",
-                finishedAt=finished_at,
-                durationMs=max(0, finished_at - started_at),
+            yield self._event_response(
+                self._event_adapter.tool_finished(
+                    turn_id=turn_id,
+                    call_id=call_id,
+                    name=runtime_name,
+                    response=error_result,
+                    status="error",
+                    finished_at=finished_at,
+                    duration_ms=finished_at - started_at,
+                )
             )
             await websocket.send_json(
                 {
@@ -223,25 +207,27 @@ class PiRunner:
             with span.start(f"RunPiTool-{runtime_name}") as tool_span:
                 async for event in self._execute_plugin(plugin, arguments, tool_span):
                     if event.progress is not None:
-                        yield self._agent_event(
-                            "tool_progress",
-                            turnId=turn_id,
-                            callId=call_id,
-                            summary=event.progress,
+                        yield self._event_response(
+                            self._event_adapter.tool_progressed(
+                                turn_id=turn_id,
+                                call_id=call_id,
+                                value=event.progress,
+                            )
                         )
                     if event.result is not None:
                         result = event.result
         except asyncio.CancelledError:
             finished_at = self._now_ms()
-            yield self._agent_event(
-                "tool_finish",
-                turnId=turn_id,
-                callId=call_id,
-                name=plugin.name,
-                response={"message": "Tool execution cancelled"},
-                status="cancelled",
-                finishedAt=finished_at,
-                durationMs=max(0, finished_at - started_at),
+            yield self._event_response(
+                self._event_adapter.tool_finished(
+                    turn_id=turn_id,
+                    call_id=call_id,
+                    name=plugin.name,
+                    response={"message": "Tool execution cancelled"},
+                    status="cancelled",
+                    finished_at=finished_at,
+                    duration_ms=finished_at - started_at,
+                )
             )
             raise
         except Exception as error:  # Plugin failures are model-visible tool errors.
@@ -260,15 +246,16 @@ class PiRunner:
 
         action_output = self._dict_result(result.result)
         finished_at = self._now_ms()
-        yield self._agent_event(
-            "tool_finish",
-            turnId=turn_id,
-            callId=call_id,
-            name=plugin.name,
-            response=action_output,
-            status="error" if result.code != 0 else "success",
-            finishedAt=finished_at,
-            durationMs=max(0, finished_at - started_at),
+        yield self._event_response(
+            self._event_adapter.tool_finished(
+                turn_id=turn_id,
+                call_id=call_id,
+                name=plugin.name,
+                response=action_output,
+                status="error" if result.code != 0 else "success",
+                finished_at=finished_at,
+                duration_ms=finished_at - started_at,
+            )
         )
         yield AgentResponse(
             typ="cot_step",
@@ -315,18 +302,17 @@ class PiRunner:
         for call_id, wait_call in wait_calls.items():
             finished_at = self._now_ms()
             responses.append(
-                self._agent_event(
-                    "tool_finish",
-                    turnId=str(wait_call.get("turnId") or ""),
-                    callId=call_id,
-                    name=str(wait_call.get("name") or "wait"),
-                    response={"message": message},
-                    status=status,
-                    finishedAt=finished_at,
-                    durationMs=max(
-                        0,
-                        finished_at - int(wait_call.get("startedAt") or finished_at),
-                    ),
+                self._event_response(
+                    self._event_adapter.tool_finished(
+                        turn_id=str(wait_call.get("turnId") or ""),
+                        call_id=call_id,
+                        name=str(wait_call.get("name") or "wait"),
+                        response={"message": message},
+                        status=status,
+                        finished_at=finished_at,
+                        duration_ms=finished_at
+                        - int(wait_call.get("startedAt") or finished_at),
+                    )
                 )
             )
         wait_calls.clear()
@@ -340,7 +326,10 @@ class PiRunner:
             raise AgentInternalExc("PI_AGENT_INTERNAL_SECRET is required")
 
         start_message, plugin_by_runtime_name = self._start_message()
-        self._event_seq = 0
+        self._event_adapter = PiEventAdapter(
+            run_id=self.run_id,
+            started_at=self._now_ms(),
+        )
         timeout = aiohttp.ClientTimeout(total=None, connect=10, sock_read=None)
         completed = False
         handled_calls: set[str] = set()
@@ -371,7 +360,14 @@ class PiRunner:
 
                         event_type = payload.get("type")
                         if event_type == "agent_event":
-                            yield self._runtime_agent_event(payload)
+                            try:
+                                events = self._event_adapter.adapt_runtime_event(
+                                    payload
+                                )
+                            except PiEventAdapterError as error:
+                                raise AgentInternalExc(str(error)) from error
+                            for event in events:
+                                yield self._event_response(event)
                         elif event_type == "reasoning_delta":
                             yield AgentResponse(
                                 typ="reasoning_content",
@@ -407,14 +403,14 @@ class PiRunner:
                                     "arguments": payload.get("arguments") or {},
                                     "startedAt": started_at,
                                 }
-                                yield self._agent_event(
-                                    "tool_start",
-                                    turnId=wait_calls[call_id]["turnId"],
-                                    callId=call_id,
-                                    name="wait",
-                                    arguments=wait_calls[call_id]["arguments"],
-                                    status="running",
-                                    startedAt=started_at,
+                                yield self._event_response(
+                                    self._event_adapter.tool_started(
+                                        turn_id=wait_calls[call_id]["turnId"],
+                                        call_id=call_id,
+                                        name="wait",
+                                        arguments=wait_calls[call_id]["arguments"],
+                                        started_at=started_at,
+                                    )
                                 )
                                 continue
                             async for response in self._handle_tool_call(
@@ -430,34 +426,37 @@ class PiRunner:
                             if call_id not in handled_calls:
                                 wait_call = wait_calls.pop(call_id, {})
                                 finished_at = self._now_ms()
-                                yield self._agent_event(
-                                    "tool_finish",
-                                    turnId=str(wait_call.get("turnId") or ""),
-                                    callId=call_id,
-                                    name=str(payload.get("name") or "wait"),
-                                    response=self._dict_result(payload.get("result")),
-                                    status=(
-                                        "error" if payload.get("isError") else "success"
-                                    ),
-                                    finishedAt=finished_at,
-                                    durationMs=max(
-                                        0,
-                                        finished_at
+                                yield self._event_response(
+                                    self._event_adapter.tool_finished(
+                                        turn_id=str(wait_call.get("turnId") or ""),
+                                        call_id=call_id,
+                                        name=str(payload.get("name") or "wait"),
+                                        response=self._dict_result(
+                                            payload.get("result")
+                                        ),
+                                        status=(
+                                            "error"
+                                            if payload.get("isError")
+                                            else "success"
+                                        ),
+                                        finished_at=finished_at,
+                                        duration_ms=finished_at
                                         - int(
                                             wait_call.get("startedAt") or finished_at
                                         ),
-                                    ),
+                                    )
                                 )
                                 yield self._wait_completion(payload)
                         elif event_type == "tool_progress":
                             wait_call = wait_calls.get(
                                 str(payload.get("callId") or ""), {}
                             )
-                            yield self._agent_event(
-                                "tool_progress",
-                                turnId=str(wait_call.get("turnId") or ""),
-                                callId=str(payload.get("callId") or ""),
-                                summary=self._progress_summary(payload.get("result")),
+                            yield self._event_response(
+                                self._event_adapter.tool_progressed(
+                                    turn_id=str(wait_call.get("turnId") or ""),
+                                    call_id=str(payload.get("callId") or ""),
+                                    value=payload.get("result"),
+                                )
                             )
                         elif event_type == "error":
                             raise AgentInternalExc(
