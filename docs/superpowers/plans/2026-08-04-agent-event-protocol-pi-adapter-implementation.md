@@ -543,15 +543,27 @@ def test_adapter_builds_bounded_tool_progress_and_terminal_tool() -> None:
     assert finished.status == "success"
 
 
-def test_adapter_normalizes_public_error_text() -> None:
+def test_adapter_uses_allowlisted_public_error_text() -> None:
     adapter = PiEventAdapter(run_id="run-1", started_at=100)
     event = adapter.execution_failed(
         code="PI_RUNTIME_ERROR",
-        message="  Pi agent runtime failed\n",
+        message="Traceback: Authorization: Bearer secret-token",
         occurred_at=120,
     )
     assert event.code == "PI_RUNTIME_ERROR"
     assert event.message == "Pi agent runtime failed"
+
+
+def test_adapter_replaces_unknown_error_code_and_sensitive_text() -> None:
+    adapter = PiEventAdapter(run_id="run-1", started_at=100)
+    event = adapter.execution_failed(
+        code="Authorization: Bearer secret-token",
+        message="headers={'api-key': 'secret'} raw_request={'prompt': 'private'}",
+        occurred_at=120,
+    )
+    assert event.code == "PI_RUNTIME_ERROR"
+    assert event.message == "Pi agent runtime failed"
+    assert "secret" not in str(event.model_dump())
 
 
 @pytest.mark.parametrize(
@@ -599,6 +611,11 @@ from agent.api.schemas.agent_event import (
 _RUNTIME_SEGMENT_TYPES = frozenset(
     {"segment_start", "segment_delta", "segment_end", "turn_commit"}
 )
+_PUBLIC_EXECUTION_ERRORS = {
+    "PI_RUNTIME_ERROR": "Pi agent runtime failed",
+    "PI_RUNTIME_UNAVAILABLE": "Pi agent runtime unavailable",
+    "PI_RUNTIME_DISCONNECTED": "Pi agent runtime disconnected",
+}
 
 
 class PiEventAdapterError(ValueError):
@@ -734,12 +751,12 @@ class PiEventAdapter:
     def execution_failed(
         self, *, code: str, message: str, occurred_at: int
     ) -> AgentEventV1:
-        public_message = " ".join(message.split())[:500]
+        safe_code = code if code in _PUBLIC_EXECUTION_ERRORS else "PI_RUNTIME_ERROR"
         return self._next(
             {
                 "type": "execution_error",
-                "code": code,
-                "message": public_message,
+                "code": safe_code,
+                "message": _PUBLIC_EXECUTION_ERRORS[safe_code],
                 "occurredAt": occurred_at,
             }
         )
