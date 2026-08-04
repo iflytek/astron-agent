@@ -1,0 +1,701 @@
+{
+  "$defs": {
+    "AgentExecutionEndEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "durationMs": {
+          "minimum": 0,
+          "title": "Durationms",
+          "type": "integer"
+        },
+        "finishedAt": {
+          "minimum": 0,
+          "title": "Finishedat",
+          "type": "integer"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "success",
+            "error",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "type": {
+          "const": "execution_end",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "status",
+        "finishedAt",
+        "durationMs"
+      ],
+      "title": "AgentExecutionEndEvent",
+      "type": "object"
+    },
+    "AgentExecutionErrorEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "code": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "occurredAt": {
+          "minimum": 0,
+          "title": "Occurredat",
+          "type": "integer"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "type": {
+          "const": "execution_error",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "code",
+        "message",
+        "occurredAt"
+      ],
+      "title": "AgentExecutionErrorEvent",
+      "type": "object"
+    },
+    "AgentExecutionStartEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "startedAt": {
+          "minimum": 0,
+          "title": "Startedat",
+          "type": "integer"
+        },
+        "type": {
+          "const": "execution_start",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "startedAt"
+      ],
+      "title": "AgentExecutionStartEvent",
+      "type": "object"
+    },
+    "AgentSegmentDeltaEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "delta": {
+          "title": "Delta",
+          "type": "string"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "segmentId": {
+          "minLength": 1,
+          "title": "Segmentid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "segment_delta",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "segmentId",
+        "delta"
+      ],
+      "title": "AgentSegmentDeltaEvent",
+      "type": "object"
+    },
+    "AgentSegmentEndEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "segmentId": {
+          "minLength": 1,
+          "title": "Segmentid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "segment_end",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "segmentId"
+      ],
+      "title": "AgentSegmentEndEvent",
+      "type": "object"
+    },
+    "AgentSegmentStartEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "channel": {
+          "enum": [
+            "pending",
+            "reasoning",
+            "content"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "segmentId": {
+          "minLength": 1,
+          "title": "Segmentid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "text",
+            "thinking"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "segment_start",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "visibility": {
+          "default": "user",
+          "enum": [
+            "user",
+            "debug",
+            "runtime"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "segmentId",
+        "source",
+        "channel"
+      ],
+      "title": "AgentSegmentStartEvent",
+      "type": "object"
+    },
+    "AgentToolFinishEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "callId": {
+          "minLength": 1,
+          "title": "Callid",
+          "type": "string"
+        },
+        "durationMs": {
+          "minimum": 0,
+          "title": "Durationms",
+          "type": "integer"
+        },
+        "finishedAt": {
+          "minimum": 0,
+          "title": "Finishedat",
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "response": {
+          "default": null,
+          "title": "Response"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "success",
+            "error",
+            "cancelled"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool_finish",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "callId",
+        "status",
+        "finishedAt",
+        "durationMs"
+      ],
+      "title": "AgentToolFinishEvent",
+      "type": "object"
+    },
+    "AgentToolProgressEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "callId": {
+          "minLength": 1,
+          "title": "Callid",
+          "type": "string"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "summary": {
+          "maxLength": 200,
+          "title": "Summary",
+          "type": "string"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool_progress",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "callId",
+        "summary"
+      ],
+      "title": "AgentToolProgressEvent",
+      "type": "object"
+    },
+    "AgentToolStartEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "arguments": {
+          "title": "Arguments"
+        },
+        "callId": {
+          "minLength": 1,
+          "title": "Callid",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "startedAt": {
+          "minimum": 0,
+          "title": "Startedat",
+          "type": "integer"
+        },
+        "status": {
+          "const": "running",
+          "default": "running",
+          "title": "Status",
+          "type": "string"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "tool_start",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "callId",
+        "name",
+        "arguments",
+        "startedAt"
+      ],
+      "title": "AgentToolStartEvent",
+      "type": "object"
+    },
+    "AgentTurnCommitEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "channel": {
+          "enum": [
+            "reasoning",
+            "content"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "partial": {
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "reason": {
+          "enum": [
+            "tool_call",
+            "message_end",
+            "cancelled",
+            "error"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "turnId": {
+          "minLength": 1,
+          "title": "Turnid",
+          "type": "string"
+        },
+        "type": {
+          "const": "turn_commit",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "turnId",
+        "channel",
+        "partial",
+        "reason"
+      ],
+      "title": "AgentTurnCommitEvent",
+      "type": "object"
+    },
+    "AgentUsageUpdateEvent": {
+      "additionalProperties": true,
+      "properties": {
+        "inputTokens": {
+          "minimum": 0,
+          "title": "Inputtokens",
+          "type": "integer"
+        },
+        "outputTokens": {
+          "minimum": 0,
+          "title": "Outputtokens",
+          "type": "integer"
+        },
+        "runId": {
+          "minLength": 1,
+          "title": "Runid",
+          "type": "string"
+        },
+        "seq": {
+          "exclusiveMinimum": 0,
+          "title": "Seq",
+          "type": "integer"
+        },
+        "totalTokens": {
+          "minimum": 0,
+          "title": "Totaltokens",
+          "type": "integer"
+        },
+        "type": {
+          "const": "usage_update",
+          "title": "Type",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "runId",
+        "seq",
+        "type",
+        "inputTokens",
+        "outputTokens",
+        "totalTokens"
+      ],
+      "title": "AgentUsageUpdateEvent",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "execution_end": "#/$defs/AgentExecutionEndEvent",
+      "execution_error": "#/$defs/AgentExecutionErrorEvent",
+      "execution_start": "#/$defs/AgentExecutionStartEvent",
+      "segment_delta": "#/$defs/AgentSegmentDeltaEvent",
+      "segment_end": "#/$defs/AgentSegmentEndEvent",
+      "segment_start": "#/$defs/AgentSegmentStartEvent",
+      "tool_finish": "#/$defs/AgentToolFinishEvent",
+      "tool_progress": "#/$defs/AgentToolProgressEvent",
+      "tool_start": "#/$defs/AgentToolStartEvent",
+      "turn_commit": "#/$defs/AgentTurnCommitEvent",
+      "usage_update": "#/$defs/AgentUsageUpdateEvent"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/AgentExecutionStartEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentSegmentStartEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentSegmentDeltaEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentSegmentEndEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentTurnCommitEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentToolStartEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentToolProgressEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentToolFinishEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentUsageUpdateEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentExecutionErrorEvent"
+    },
+    {
+      "$ref": "#/$defs/AgentExecutionEndEvent"
+    }
+  ]
+}

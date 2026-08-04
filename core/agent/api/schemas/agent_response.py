@@ -2,8 +2,9 @@ import time
 from typing import Any, Literal, Optional, Union
 
 from openai.types.completion_usage import CompletionUsage
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
+from agent.api.schemas.agent_event import AgentEventBase, AgentEventV1
 from agent.service.plugin.base import BasePlugin
 
 
@@ -23,37 +24,7 @@ class CotStep(BaseModel):
     plugin: Optional[BasePlugin] = Field(default=None)
 
 
-class AgentStreamEvent(BaseModel):
-    model_config = ConfigDict(extra="allow")
-
-    version: Literal[1] = 1
-    runId: str
-    seq: int
-    type: Literal[
-        "segment_start",
-        "segment_delta",
-        "segment_end",
-        "turn_commit",
-        "tool_start",
-        "tool_progress",
-        "tool_finish",
-    ]
-    turnId: Optional[str] = None
-    segmentId: Optional[str] = None
-    source: Optional[Literal["text", "thinking"]] = None
-    channel: Optional[Literal["pending", "reasoning", "content"]] = None
-    delta: Optional[str] = None
-    partial: Optional[bool] = None
-    reason: Optional[Literal["tool_call", "message_end", "cancelled", "error"]] = None
-    callId: Optional[str] = None
-    name: Optional[str] = None
-    arguments: Any = None
-    summary: Optional[str] = None
-    response: Any = None
-    status: Optional[Literal["running", "success", "error", "cancelled"]] = None
-    startedAt: Optional[int] = None
-    finishedAt: Optional[int] = None
-    durationMs: Optional[int] = None
+AgentStreamEvent = AgentEventBase
 
 
 class AgentResponse(BaseModel):
@@ -65,7 +36,7 @@ class AgentResponse(BaseModel):
         "knowledge_metadata",
         "agent_event",
     ]
-    content: Union[str, CotStep, AgentStreamEvent, list]
+    content: Union[str, CotStep, AgentEventV1, AgentEventBase, list]
     model: str
     created: int = Field(default_factory=cur_timestamp)
     usage: Optional[CompletionUsage] = Field(default=None)
