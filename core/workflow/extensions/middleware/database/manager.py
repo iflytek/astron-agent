@@ -82,6 +82,10 @@ class DatabaseService(Service):
         return create_engine(
             url,
             echo=False,
+            # Workflow protocols may contain prompts, credentials, and other
+            # sensitive values. Keep bound parameters out of SQLAlchemy logs and
+            # rendered StatementError/DBAPIError messages.
+            hide_parameters=True,
             pool_size=self.pool_size,
             max_overflow=self.max_overflow,
             pool_recycle=self.pool_recycle,

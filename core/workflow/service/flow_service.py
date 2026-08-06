@@ -10,6 +10,7 @@ import time
 from typing import Any, Optional, cast
 
 from common.utils.snowfake import get_id
+from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session  # type: ignore
 
 from workflow.cache import flow as flow_cache
@@ -62,15 +63,22 @@ def save(flow: Flow, app_info: App, session: Session, span: Span) -> Flow:
         version="-1",  # Initial version for new flows
     )
 
-    # Persist to database
-    session.add(db_flow)
-    session.commit()
-    session.refresh(db_flow)
+    # Persist to database. DatabaseService configures SQLAlchemy to hide bound
+    # parameters so protocol contents cannot leak through the re-raised exception.
+    try:
+        session.add(db_flow)
+        session.commit()
+        session.refresh(db_flow)
+    except SQLAlchemyError:
+        session.rollback()
+        raise
     return db_flow
 
 
 def update(
-    session: Session, db_flow: Flow, flow: FlowUpdate, flow_id: str, current_span: Span
+    session: Session,
+    db_flow: Flow,
+    flow: FlowUpdate,
 ) -> None:
     """
     Update an existing workflow with new data and clear related cache.
@@ -78,10 +86,8 @@ def update(
     :param session: Database session for transaction management
     :param db_flow: The existing flow object to be updated
     :param flow: The flow update object containing new values
-    :param flow_id: The ID of the flow being updated
-    :param current_span: Tracing span for logging operations
-    :raises Exception: If update fails, transaction is rolled back and exception
-                       is re-raised
+    :raises SQLAlchemyError: If persistence fails, the transaction is rolled back. The
+                             configured engine hides database parameters from logs.
     """
     try:
         # Update flow properties if provided
@@ -97,10 +103,9 @@ def update(
         session.add(db_flow)
         session.commit()
 
-    except Exception as e:
-        current_span.record_exception(e)
+    except SQLAlchemyError:
         session.rollback()
-        raise  # Re-raise the exception to be handled by the main function
+        raise
 
 
 def get(flow_id: str, session: Session, span: Span) -> Flow:

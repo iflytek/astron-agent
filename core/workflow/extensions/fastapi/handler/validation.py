@@ -40,8 +40,10 @@ async def validation_exception_handler(
 
     The handler formats validation errors into human-readable messages that include:
     - Parameter location in the request structure
-    - The actual input value that caused the error
     - The specific validation error message and type
+
+    Input values and validation context are intentionally omitted because request
+    payloads can contain credentials, prompts, or other sensitive content.
 
     All errors are logged with the tracing system for debugging and monitoring purposes.
 

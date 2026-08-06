@@ -315,6 +315,7 @@ const OutputSection = ({
                             customParameterType: 'deepseekr1',
                             name: 'REASONING_CONTENT',
                             nameErrMsg: '',
+                            required: false,
                             schema: {
                               default: t(
                                 'workflow.nodes.largeModelNode.modelThinkingProcess'
@@ -325,6 +326,7 @@ const OutputSection = ({
                           {
                             id: uuid(),
                             name: 'output',
+                            required: false,
                             schema: {
                               type: 'string',
                               default: '',
@@ -335,6 +337,7 @@ const OutputSection = ({
                           {
                             id: uuid(),
                             name: 'output',
+                            required: false,
                             schema: {
                               type: 'string',
                               default: '',
@@ -347,6 +350,7 @@ const OutputSection = ({
                       {
                         id: uuid(),
                         name: 'output',
+                        required: false,
                         schema: {
                           type: 'string',
                           default: '',

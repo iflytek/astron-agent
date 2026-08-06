@@ -220,6 +220,7 @@ const useModelSelect = (
           customParameterType: 'deepseekr1',
           name: 'REASONING_CONTENT',
           nameErrMsg: '',
+          required: false,
           schema: {
             default: t('workflow.nodes.modelSelect.modelThinkingProcess'),
             type: 'string',

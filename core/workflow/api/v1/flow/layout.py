@@ -40,6 +40,14 @@ from workflow.service import app_service, flow_service
 router = APIRouter(tags=["Flows"])
 
 
+def _protocol_validation_exception(error: ValidationError) -> CustomException:
+    """Create a client-safe protocol validation exception."""
+    return CustomException(
+        err_code=CodeEnum.PARAM_ERROR,
+        err_msg=ValidationParse.validation_error(error),
+    )
+
+
 @router.post("/protocol/add", status_code=status.HTTP_200_OK)
 async def add(
     flow: Flow,
@@ -57,7 +65,7 @@ async def add(
         attributes={"flow_id": flow.id},
     ) as current_span:
         try:
-            await current_span.add_info_event_async(f"add flow vo: {flow.json()}")
+            await current_span.add_info_event_async(f"add flow start: {flow.id}")
 
             app_info = await app_service.get_info(flow.app_id, session, current_span)
             db_flow = flow_service.save(flow, app_info, session, current_span)
@@ -73,11 +81,7 @@ async def add(
                     )
                     await current_span.add_info_event_async("Protocol validation end")
                 except ValidationError as err:
-                    current_span.record_exception(err)
-                    raise CustomException(
-                        err_code=CodeEnum.PARAM_ERROR,
-                        err_msg=ValidationParse.validation_error(err),
-                    )
+                    raise _protocol_validation_exception(err) from None
                 except CustomException as err:
                     current_span.record_exception(err)
                     raise err
@@ -152,8 +156,6 @@ async def update(
         try:
             await current_span.add_info_event_async(f"update start: {flow_id}")
             del_flow_by_id(flow_id)
-            update_content = json.dumps(flow.__dict__, ensure_ascii=False)
-            await current_span.add_info_event_async(f"update vo: {update_content}")
             sparkflow_protocol = flow.data
             if sparkflow_protocol:
                 if isinstance(sparkflow_protocol, str):
@@ -166,9 +168,18 @@ async def update(
             if not db_flow:
                 raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
 
-            flow_service.update(session, db_flow, flow, flow_id, current_span)
+            flow_service.update(session, db_flow, flow)
             m.in_success_count()
             return Resp.success(None, span.sid)
+        except ValidationError as err:
+            validation_err = _protocol_validation_exception(err)
+            current_span.record_exception(validation_err)
+            m.in_error_count(validation_err.code, span=current_span)
+            return Resp.error(
+                validation_err.code,
+                validation_err.message,
+                span.sid,
+            )
         except CustomException as err:
             current_span.record_exception(err)
             m.in_error_count(err.code, span=current_span)

@@ -1630,6 +1630,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         bizOutputs.forEach(bo -> {
             InputOutput o = new InputOutput();
             org.springframework.beans.BeanUtils.copyProperties(bo, o);
+            o.setRequired(Boolean.TRUE.equals(bo.getRequired()));
 
             BizSchema bs = bo.getSchema();
             Schema s = new Schema();
@@ -2636,7 +2637,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
         // body = StringEscapeUtils.unescapeJava(body);
 
-        log.info("workflow protocol update, url = {}, body = {}", url, body);
+        logWorkflowProtocolUpdate(url, flowId, body, protocolJson);
         String response = OkHttpUtil.post(url, body);
         log.info("workflow protocol update, response = {}", response);
         Result<?> result = JSON.parseObject(response, Result.class);
@@ -2648,6 +2649,21 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         saveFlowProtocolTemp(flowId,
                 saveDto.getData() == null ? null : JSON.toJSONString(saveDto.getData()),
                 protocolJson == null || protocolJson.get("data") == null ? null : JSON.toJSONString(protocolJson.get("data")));
+    }
+
+    private void logWorkflowProtocolUpdate(String url, String flowId, String body, JSONObject protocolJson) {
+        JSONObject protocolData = protocolJson == null ? null : protocolJson.getJSONObject("data");
+        JSONArray nodes = protocolData == null ? null : protocolData.getJSONArray("nodes");
+        JSONArray edges = protocolData == null ? null : protocolData.getJSONArray("edges");
+        int bodyBytes = body == null ? 0 : body.getBytes(StandardCharsets.UTF_8).length;
+
+        log.info(
+                "workflow protocol update, url = {}, flowId = {}, bodyBytes = {}, nodeCount = {}, edgeCount = {}",
+                url,
+                flowId,
+                bodyBytes,
+                nodes == null ? 0 : nodes.size(),
+                edges == null ? 0 : edges.size());
     }
 
     private void removeWorkflowUiValidationFields(Object value) {
