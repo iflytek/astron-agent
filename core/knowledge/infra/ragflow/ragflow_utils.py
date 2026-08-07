@@ -296,6 +296,50 @@ class RagflowUtils:
             return file_content, filename
 
     @staticmethod
+    def _normalize_expected_chunk_count(raw_count: Any) -> Optional[int]:
+        """Return a usable non-negative metadata count when one is available."""
+        try:
+            expected_count = int(raw_count) if raw_count is not None else None
+        except (TypeError, ValueError):
+            return None
+        if expected_count is not None and expected_count < 0:
+            return None
+        return expected_count
+
+    @staticmethod
+    def _finalize_chunk_retrieval(
+        dataset_id: str,
+        doc_id: str,
+        *,
+        expected_count: Optional[int],
+        last_visible_count: int,
+        max_retries: int,
+    ) -> List[Dict[str, Any]]:
+        """Return an empty snapshot or raise the final incomplete-state error."""
+        if expected_count is not None and expected_count > last_visible_count:
+            raise RuntimeError(
+                "RAGFlow chunk snapshot remained incomplete after retries: "
+                f"doc={doc_id}, visible={last_visible_count}, "
+                f"expected={expected_count}"
+            )
+
+        if last_visible_count > 0:
+            raise RuntimeError(
+                "RAGFlow chunk snapshot did not stabilize after retries: "
+                f"doc={doc_id}, visible={last_visible_count}, "
+                f"expected={expected_count}"
+            )
+
+        logger.warning(
+            "RAGFlow document returned zero chunks after retries: "
+            "dataset=%s doc=%s attempts=%d",
+            dataset_id,
+            doc_id,
+            max_retries + 1,
+        )
+        return []
+
+    @staticmethod
     async def get_document_chunks(
         dataset_id: str, doc_id: str, max_retries: int = 15, retry_delay: float = 3.0
     ) -> List[Dict[str, Any]]:
@@ -326,15 +370,9 @@ class RagflowUtils:
                 f"RAGFlow document disappeared before chunk retrieval: doc={doc_id}"
             )
 
-        raw_expected_count = doc_info.get("chunk_count")
-        try:
-            expected_count = (
-                int(raw_expected_count) if raw_expected_count is not None else None
-            )
-        except (TypeError, ValueError):
-            expected_count = None
-        if expected_count is not None and expected_count < 0:
-            expected_count = None
+        expected_count = RagflowUtils._normalize_expected_chunk_count(
+            doc_info.get("chunk_count")
+        )
 
         last_visible_count = 0
         last_chunk_ids: Optional[tuple[str, ...]] = None
@@ -393,28 +431,13 @@ class RagflowUtils:
             )
             await asyncio.sleep(retry_delay)
 
-        if expected_count is not None and expected_count > last_visible_count:
-            raise RuntimeError(
-                "RAGFlow chunk snapshot remained incomplete after retries: "
-                f"doc={doc_id}, visible={last_visible_count}, "
-                f"expected={expected_count}"
-            )
-
-        if last_visible_count > 0:
-            raise RuntimeError(
-                "RAGFlow chunk snapshot did not stabilize after retries: "
-                f"doc={doc_id}, visible={last_visible_count}, "
-                f"expected={expected_count}"
-            )
-
-        logger.warning(
-            "RAGFlow document returned zero chunks after retries: "
-            "dataset=%s doc=%s attempts=%d",
+        return RagflowUtils._finalize_chunk_retrieval(
             dataset_id,
             doc_id,
-            max_retries + 1,
+            expected_count=expected_count,
+            last_visible_count=last_visible_count,
+            max_retries=max_retries,
         )
-        return []
 
     @staticmethod
     def convert_to_standard_format(

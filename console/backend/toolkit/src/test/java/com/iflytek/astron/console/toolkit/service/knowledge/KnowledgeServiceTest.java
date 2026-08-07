@@ -2086,8 +2086,8 @@ class KnowledgeServiceTest {
         }
 
         /**
-         * Unexpected transport/runtime failures must close the async task with a terminal
-         * failure instead of leaving the file in FILE_PARSE_DOING forever.
+         * Unexpected transport/runtime failures must close the async task with a terminal failure instead
+         * of leaving the file in FILE_PARSE_DOING forever.
          */
         @Test
         @DisplayName("Extract knowledge closes status on unexpected exception")
@@ -2369,7 +2369,8 @@ class KnowledgeServiceTest {
             when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
             when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
             doThrow(new RuntimeException("embedding queue unavailable"))
-                    .when(mockFileService).saveTaskAndUpdateFileStatus(mockFileInfo.getId());
+                    .when(mockFileService)
+                    .saveTaskAndUpdateFileStatus(mockFileInfo.getId());
             when(mockFileService.getById(mockFileInfo.getId())).thenReturn(mockFileInfo);
             when(mockFileService.updateById(any(FileInfoV2.class))).thenReturn(true);
 

@@ -2283,8 +2283,8 @@ class FileInfoV2ServiceTest {
         }
 
         /**
-         * A fast async worker may commit a terminal state before sliceFile returns. The
-         * dispatcher must never overwrite that state with FILE_PARSE_DOING.
+         * A fast async worker may commit a terminal state before sliceFile returns. The dispatcher must
+         * never overwrite that state with FILE_PARSE_DOING.
          */
         @Test
         @DisplayName("Slice file - fast async completion does not regress status")
@@ -2308,9 +2308,10 @@ class FileInfoV2ServiceTest {
                 FileInfoV2 asyncFile = invocation.getArgument(3);
                 asyncFile.setStatus(ProjectContent.FILE_PARSE_SUCCESSED);
                 return null;
-            }).when(knowledgeService).knowledgeExtractAsync(
-                    anyString(), anyString(), any(SliceConfig.class),
-                    any(FileInfoV2.class), any(ExtractKnowledgeTask.class));
+            }).when(knowledgeService)
+                    .knowledgeExtractAsync(
+                            anyString(), anyString(), any(SliceConfig.class),
+                            any(FileInfoV2.class), any(ExtractKnowledgeTask.class));
             doReturn(true).when(fileInfoV2Service).updateById(any(FileInfoV2.class));
 
             DealFileResult result = fileInfoV2Service.sliceFile(fileId, sliceConfig, 0);
@@ -2342,8 +2343,8 @@ class FileInfoV2ServiceTest {
         }
 
         /**
-         * Missing storage metadata must close a previously scheduled file as a terminal
-         * failure instead of throwing before the async guard and leaving status 0.
+         * Missing storage metadata must close a previously scheduled file as a terminal failure instead of
+         * throwing before the async guard and leaving status 0.
          */
         @Test
         @DisplayName("Slice file - missing address closes parse status")
