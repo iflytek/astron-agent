@@ -245,8 +245,8 @@ class FileControllerTest {
          * @throws ExecutionException if the operation fails during execution
          */
         @Test
-        @DisplayName("Slice files successfully - Empty separator defaults to newline")
-        void sliceFiles_Success_EmptySeparatorDefaultsToNewline() throws InterruptedException, ExecutionException {
+        @DisplayName("Slice files successfully - Empty separator delegates to service")
+        void sliceFiles_Success_EmptySeparatorDelegatesToService() throws InterruptedException, ExecutionException {
             // Given
             dealFileVO.getSliceConfig().setSeperator(Collections.singletonList(""));
             @SuppressWarnings("unchecked")
@@ -262,7 +262,7 @@ class FileControllerTest {
             assertThat(result).isNotNull();
             assertThat(result.code()).isEqualTo(0);
             assertThat(result.data()).isTrue();
-            assertThat(dealFileVO.getSliceConfig().getSeperator()).containsExactly("\n");
+            assertThat(dealFileVO.getSliceConfig().getSeperator()).containsExactly("");
             verify(fileInfoV2Service, times(1)).sliceFiles(dealFileVO);
         }
 
@@ -274,8 +274,8 @@ class FileControllerTest {
          * @throws ExecutionException if the operation fails during execution
          */
         @Test
-        @DisplayName("Slice files successfully - Null separator defaults to newline")
-        void sliceFiles_Success_NullSeparatorDefaultsToNewline() throws InterruptedException, ExecutionException {
+        @DisplayName("Slice files successfully - Null separator delegates to service")
+        void sliceFiles_Success_NullSeparatorDelegatesToService() throws InterruptedException, ExecutionException {
             // Given
             dealFileVO.getSliceConfig().setSeperator(Collections.singletonList(null));
             @SuppressWarnings("unchecked")
@@ -290,7 +290,7 @@ class FileControllerTest {
             // Then
             assertThat(result).isNotNull();
             assertThat(result.code()).isEqualTo(0);
-            assertThat(dealFileVO.getSliceConfig().getSeperator()).containsExactly("\n");
+            assertThat(dealFileVO.getSliceConfig().getSeperator()).containsExactly((String) null);
             verify(fileInfoV2Service, times(1)).sliceFiles(dealFileVO);
         }
 
@@ -978,8 +978,8 @@ class FileControllerTest {
     class EdgeCaseTests {
 
         /**
-         * Test sliceFiles with empty separator list Verifies that empty separator list causes
-         * IndexOutOfBoundsException
+         * Test sliceFiles with empty separator list Verifies that the controller does not index into
+         * request configuration and delegates normalization to the service.
          *
          * @throws InterruptedException if the operation is interrupted
          * @throws ExecutionException if the operation fails during execution
@@ -989,10 +989,18 @@ class FileControllerTest {
         void sliceFiles_EmptySeparatorList() throws InterruptedException, ExecutionException {
             // Given
             dealFileVO.getSliceConfig().setSeperator(Collections.emptyList());
+            @SuppressWarnings("unchecked")
+            Result<Boolean> successResult = mock(Result.class);
+            when(successResult.noError()).thenReturn(true);
+            when(successResult.getData()).thenReturn(true);
+            when(fileInfoV2Service.sliceFiles(dealFileVO)).thenReturn(successResult);
 
-            // When & Then - Verify edge condition
-            assertThatThrownBy(() -> fileController.sliceFiles(dealFileVO))
-                    .isInstanceOf(IndexOutOfBoundsException.class);
+            // When
+            ApiResult<Boolean> result = fileController.sliceFiles(dealFileVO);
+
+            // Then
+            assertThat(result.data()).isTrue();
+            verify(fileInfoV2Service).sliceFiles(dealFileVO);
         }
 
         /**

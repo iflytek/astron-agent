@@ -21,12 +21,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -92,9 +90,6 @@ public class FileController {
      */
     @PostMapping("/slice")
     public ApiResult<Boolean> sliceFiles(@RequestBody DealFileVO sliceFileVO) throws InterruptedException, ExecutionException {
-        if (StringUtils.isEmpty(sliceFileVO.getSliceConfig().getSeperator().get(0))) {
-            sliceFileVO.getSliceConfig().setSeperator(Collections.singletonList("\n"));
-        }
         Result<Boolean> result = fileInfoV2Service.sliceFiles(sliceFileVO);
         if (result.noError()) {
             return ApiResult.success(result.getData());

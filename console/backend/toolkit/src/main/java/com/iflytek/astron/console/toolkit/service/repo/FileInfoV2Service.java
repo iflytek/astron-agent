@@ -495,9 +495,10 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
      * @throws BusinessException if files are currently being parsed or slice range is invalid
      */
     public Result<Boolean> sliceFiles(DealFileVO sliceFileVO) throws InterruptedException, ExecutionException {
+        SliceConfig sliceConfig = normalizeAndValidateSliceConfig(sliceFileVO);
         Long spaceId = SpaceInfoUtil.getSpaceId();
         if (ProjectContent.isSparkRagCompatible(sliceFileVO.getTag())) {
-            if (sliceFileVO.getSliceConfig().getType().equals(1)) {
+            if (Integer.valueOf(1).equals(sliceConfig.getType())) {
                 HashMap<String, String> header = new HashMap<>();
                 // Spark split interface
                 String url = sparkDocUrl + "/openapi/v1/file/split";
@@ -506,7 +507,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                 params.put("isSplitDefault", false);
                 params.put("splitType", "wiki");
                 JSONObject wikiSplit = new JSONObject();
-                List<String> separator = sliceFileVO.getSliceConfig().getSeperator();
+                List<String> separator = sliceConfig.getSeperator();
                 List<String> separatorBase64 = new ArrayList<>();
                 if (!separator.isEmpty()) {
                     for (String string : separator) {
@@ -515,8 +516,8 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                     }
                 }
                 wikiSplit.put("chunkSeparators", separatorBase64);
-                wikiSplit.put("chunkSize", sliceFileVO.getSliceConfig().getLengthRange().get(1));
-                wikiSplit.put("minChunkSize", sliceFileVO.getSliceConfig().getLengthRange().get(0));
+                wikiSplit.put("chunkSize", sliceConfig.getLengthRange().get(1));
+                wikiSplit.put("minChunkSize", sliceConfig.getLengthRange().get(0));
                 params.put("wikiSplitExtends", wikiSplit);
                 String post = OkHttpUtil.post(url, header, params.toJSONString());
                 JSONObject jsonObject = JSONObject.parseObject(post);
@@ -544,13 +545,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                         throw new BusinessException(ResponseEnum.REPO_KNOWLEDGE_SPLITTING);
                     }
                     // Check slice default values and range
-                    if (sliceFileVO.getSliceConfig().getLengthRange() != null) {
-                        if (ProjectContent.isAiuiRagCompatible(fileInfoV2.getSource())) {
-                            if (sliceFileVO.getSliceConfig().getLengthRange().get(0) < 16 || sliceFileVO.getSliceConfig().getLengthRange().get(1) > 1024) {
-                                throw new BusinessException(ResponseEnum.REPO_FILE_SLICE_RANGE_16_1024);
-                            }
-                        }
-                    }
+                    validateSliceRangeForAiui(sliceConfig, fileInfoV2.getSource());
                     Long fileId = fileInfoV2.getId();
                     // Insert data into file_directory_tree table
                     FileDirectoryTree fileDirectoryTree = fileDirectoryTreeService.getOnly(Wrappers.lambdaQuery(FileDirectoryTree.class)
@@ -569,7 +564,6 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                         fileDirectoryTreeMapper.insert(fileDirectoryTree);
                     }
                     // Update slice configuration
-                    SliceConfig sliceConfig = sliceFileVO.getSliceConfig();
                     fileInfoV2.setSliceConfig(JSON.toJSONString(sliceConfig));
                     fileInfoV2.setCurrentSliceConfig(JSON.toJSONString(sliceConfig));
                     fileInfoV2.setStatus(ProjectContent.FILE_PARSE_DOING);
@@ -1308,10 +1302,14 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
      * @throws BusinessException if files are currently being processed or configuration is invalid
      */
     public void retry(DealFileVO sliceFileVO, HttpServletRequest request) throws InterruptedException, ExecutionException {
+        if (sliceFileVO == null || sliceFileVO.getFileIds() == null) {
+            throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
+        }
         Long spaceId = SpaceInfoUtil.getSpaceId();
 
         // 1) Spark: Retry with "custom splitting"
         if (ProjectContent.isSparkRagCompatible(sliceFileVO.getTag())) {
+            normalizeAndValidateSliceConfig(sliceFileVO);
             retrySparkSplitIfNeeded(sliceFileVO);
             return;
         }
@@ -1384,8 +1382,7 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
      * @throws BusinessException if file is currently being parsed or range is invalid
      */
     private void handleParseFailedRetry(FileInfoV2 file, DealFileVO vo, Long spaceId, ExecutorService pool) {
-        // Auto separator fallback
-        ensureSeparatorDefault(vo.getSliceConfig());
+        SliceConfig sc = normalizeAndValidateSliceConfig(vo);
 
         // Permission validation (consistent with original logic: validate only when spaceId is null)
         if (spaceId == null)
@@ -1397,13 +1394,12 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
         }
 
         // AIUI slice range validation
-        validateSliceRangeForAiui(vo.getSliceConfig(), file.getSource());
+        validateSliceRangeForAiui(sc, file.getSource());
 
         // Ensure directory tree existence
         ensureFileDirectoryTree(file);
 
         // Update slice configuration & set status to parsing
-        SliceConfig sc = vo.getSliceConfig();
         file.setSliceConfig(JSON.toJSONString(sc));
         file.setCurrentSliceConfig(JSON.toJSONString(sc));
         file.setStatus(ProjectContent.FILE_PARSE_DOING);
@@ -1463,12 +1459,50 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
      * @param sc slice configuration to check and update
      */
     private void ensureSeparatorDefault(SliceConfig sc) {
-        if (sc == null)
-            return;
         List<String> sep = sc.getSeperator();
-        if (sep == null || sep.isEmpty() || StringUtils.isEmpty(sep.get(0))) {
+        if (sep == null || sep.isEmpty()) {
             sc.setSeperator(Collections.singletonList("\n"));
+            return;
         }
+        List<String> normalized = sep.stream()
+                .filter(value -> !StringUtils.isEmpty(value))
+                .collect(Collectors.toList());
+        sc.setSeperator(normalized.isEmpty()
+                ? Collections.singletonList("\n")
+                : normalized);
+    }
+
+    /**
+     * Normalize a slicing request and reject malformed ranges before any file status or directory state
+     * is changed.
+     *
+     * @param vo slicing request
+     * @return normalized slice configuration
+     * @throws BusinessException when required configuration is missing or malformed
+     */
+    private SliceConfig normalizeAndValidateSliceConfig(DealFileVO vo) {
+        if (vo == null || CollectionUtils.isEmpty(vo.getFileIds()) || vo.getSliceConfig() == null) {
+            throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
+        }
+
+        SliceConfig sc = vo.getSliceConfig();
+        Integer type = sc.getType();
+        if (!Integer.valueOf(0).equals(type) && !Integer.valueOf(1).equals(type)) {
+            throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
+        }
+
+        List<Integer> range = sc.getLengthRange();
+        if ((range == null || range.isEmpty()) && Integer.valueOf(1).equals(type)) {
+            throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
+        }
+        if (range != null && !range.isEmpty()
+                && (range.size() != 2 || range.get(0) == null || range.get(1) == null
+                        || range.get(0) <= 0 || range.get(1) <= 0 || range.get(0) > range.get(1))) {
+            throw new BusinessException(ResponseEnum.PARAMETER_ERROR);
+        }
+
+        ensureSeparatorDefault(sc);
+        return sc;
     }
 
     /**
@@ -1479,14 +1513,13 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
      * @throws BusinessException if range is invalid for AIUI source
      */
     private void validateSliceRangeForAiui(SliceConfig sc, String source) {
-        if (sc == null || !ProjectContent.isAiuiRagCompatible(source))
+        if (!ProjectContent.isAiuiRagCompatible(source)
+                || CollectionUtils.isEmpty(sc.getLengthRange()))
             return;
-        if (sc.getLengthRange() != null) {
-            Integer min = sc.getLengthRange().get(0);
-            Integer max = sc.getLengthRange().get(1);
-            if (min < 16 || max > 1024) {
-                throw new BusinessException(ResponseEnum.REPO_FILE_SLICE_RANGE_16_1024);
-            }
+        Integer min = sc.getLengthRange().get(0);
+        Integer max = sc.getLengthRange().get(1);
+        if (min < 16 || max > 1024) {
+            throw new BusinessException(ResponseEnum.REPO_FILE_SLICE_RANGE_16_1024);
         }
     }
 

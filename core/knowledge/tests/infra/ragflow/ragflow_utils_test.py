@@ -41,6 +41,47 @@ class TestGetDefaultDatasetName:
         assert RagflowUtils.get_default_dataset_name() == DEFAULT_RAGFLOW_DATASET_NAME
 
 
+class TestBuildParserConfig:
+    """Tests for the RAGFlow v0.20.5 naive parser payload."""
+
+    def test_uses_official_chunk_token_field_and_normalizes_newline(self) -> None:
+        config = RagflowUtils.build_parser_config(
+            [1, 256], overlap=16, separator=["\\n", "。"], titleSplit=False
+        )
+
+        assert config["chunk_token_num"] == 256
+        assert "chunk_token_count" not in config
+        assert config["delimiter"] == "\n。"
+        assert "layout_recognize" not in config
+
+    def test_defaults_and_caps_chunk_token_num(self) -> None:
+        default_config = RagflowUtils.build_parser_config(
+            None, overlap=16, separator=None, titleSplit=True
+        )
+        capped_config = RagflowUtils.build_parser_config(
+            [1, 4096], overlap=16, separator=["。"], titleSplit=False
+        )
+
+        assert default_config["chunk_token_num"] == 256
+        assert default_config["delimiter"] == "\n"
+        assert "layout_recognize" not in default_config
+        assert capped_config["chunk_token_num"] == 2048
+
+    def test_wraps_multi_character_delimiter_for_ragflow(self) -> None:
+        config = RagflowUtils.build_parser_config(
+            [1, 256], overlap=16, separator=["EOF", "。"], titleSplit=False
+        )
+
+        assert config["delimiter"] == "`EOF`。\n"
+
+    @pytest.mark.parametrize("length_range", [[], [0, 256], [256, 1], [1, 2, 3]])
+    def test_rejects_invalid_length_range(self, length_range: list[int]) -> None:
+        with pytest.raises(ValueError):
+            RagflowUtils.build_parser_config(
+                length_range, overlap=16, separator=None, titleSplit=False
+            )
+
+
 @pytest.mark.asyncio
 async def test_wait_for_parsing_delegates_to_canonical_client() -> None:
     """Legacy utility entry point must not maintain a second polling policy."""

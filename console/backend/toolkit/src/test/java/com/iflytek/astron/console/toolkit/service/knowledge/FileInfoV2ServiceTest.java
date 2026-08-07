@@ -2794,7 +2794,7 @@ class FileInfoV2ServiceTest {
             SliceConfig sliceConfig = new SliceConfig();
             sliceConfig.setType(1);
             sliceConfig.setLengthRange(Arrays.asList(100, 500));
-            sliceConfig.setSeperator(Arrays.asList("。", "！", "？"));
+            sliceConfig.setSeperator(Collections.emptyList());
             dealFileVO.setSliceConfig(sliceConfig);
 
             mockFileInfo.setStatus(ProjectContent.FILE_PARSE_SUCCESSED);
@@ -2827,7 +2827,57 @@ class FileInfoV2ServiceTest {
             // Then
             assertThat(result).isNotNull();
             assertThat(result.getData()).isTrue();
+            assertThat(sliceConfig.getSeperator()).containsExactly("\n");
             verify(fileInfoV2Mapper, atLeastOnce()).listByIds(anyList());
+        }
+
+        @Test
+        @DisplayName("Slice files - null slice config returns parameter error")
+        void testSliceFiles_NullSliceConfig() {
+            DealFileVO dealFileVO = new DealFileVO();
+            dealFileVO.setFileIds(Collections.singletonList("1"));
+            dealFileVO.setTag("Ragflow-RAG");
+
+            assertThatThrownBy(() -> fileInfoV2Service.sliceFiles(dealFileVO))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("responseEnum")
+                    .isEqualTo(ResponseEnum.PARAMETER_ERROR);
+            verify(fileInfoV2Mapper, never()).listByIds(anyList());
+        }
+
+        @Test
+        @DisplayName("Slice files - incomplete length range returns parameter error")
+        void testSliceFiles_IncompleteLengthRange() {
+            DealFileVO dealFileVO = new DealFileVO();
+            dealFileVO.setFileIds(Collections.singletonList("1"));
+            dealFileVO.setTag("Ragflow-RAG");
+            SliceConfig sliceConfig = new SliceConfig();
+            sliceConfig.setType(1);
+            sliceConfig.setLengthRange(Collections.singletonList(256));
+            dealFileVO.setSliceConfig(sliceConfig);
+
+            assertThatThrownBy(() -> fileInfoV2Service.sliceFiles(dealFileVO))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("responseEnum")
+                    .isEqualTo(ResponseEnum.PARAMETER_ERROR);
+            verify(fileInfoV2Mapper, never()).listByIds(anyList());
+        }
+
+        @Test
+        @DisplayName("Slice files - default Spark slicing accepts omitted range")
+        void testSliceFiles_DefaultSparkSliceWithoutRange() throws Exception {
+            DealFileVO dealFileVO = new DealFileVO();
+            dealFileVO.setFileIds(Collections.singletonList("1"));
+            dealFileVO.setTag(ProjectContent.FILE_SOURCE_SPARK_RAG_STR);
+            SliceConfig sliceConfig = new SliceConfig();
+            sliceConfig.setType(0);
+            dealFileVO.setSliceConfig(sliceConfig);
+
+            Result<Boolean> result = fileInfoV2Service.sliceFiles(dealFileVO);
+
+            assertThat(result.getData()).isTrue();
+            assertThat(sliceConfig.getSeperator()).containsExactly("\n");
+            verify(fileInfoV2Mapper, never()).listByIds(anyList());
         }
 
         /**

@@ -486,7 +486,10 @@ class RagflowUtils:
 
     @staticmethod
     def build_parser_config(
-        lengthRange: List[int], overlap: int, separator: List[str], titleSplit: bool
+        lengthRange: Optional[List[int]],
+        overlap: int,
+        separator: Optional[List[str]],
+        titleSplit: bool,
     ) -> Dict[str, Any]:
         """
         Build parser configuration
@@ -500,31 +503,49 @@ class RagflowUtils:
         Returns:
             Parser configuration dictionary
         """
-        # Build RAGFlow parser configuration based on abstract interface parameters
-        chunk_token_count = (
-            lengthRange[1]
-            if len(lengthRange) > 1
-            else lengthRange[0] if lengthRange else 256
-        )
+        # RAGFlow's parser uses the configured maximum as its target chunk
+        # size. ``overlap`` and ``titleSplit`` are intentionally not forwarded:
+        # v0.20.5 has no overlap field, and title splitting is not equivalent
+        # to changing PDF layout recognition/OCR mode.
+        _ = overlap, titleSplit
+        if lengthRange is None:
+            chunk_token_num = 256
+        else:
+            if len(lengthRange) not in (1, 2) or any(
+                isinstance(value, bool) or not isinstance(value, int)
+                for value in lengthRange
+            ):
+                raise ValueError("lengthRange must contain one or two integers")
+            if any(value <= 0 for value in lengthRange):
+                raise ValueError("lengthRange values must be greater than zero")
+            if len(lengthRange) == 2 and lengthRange[0] > lengthRange[1]:
+                raise ValueError("lengthRange minimum cannot exceed maximum")
+            chunk_token_num = lengthRange[-1]
 
-        # Separator handling: convert abstract interface separator to RAGFlow delimiter format
-        delimiter = "\\n"
-        if separator:
-            delimiter = "".join(separator) + "\\n"
+        # The Astron UI can send either a literal ``\\n`` or an actual newline.
+        # In RAGFlow v0.20.5, unquoted delimiter characters are independent;
+        # a multi-character delimiter must be wrapped in backticks.
+        normalized_separators = []
+        for value in separator or []:
+            normalized = value.replace("\\n", "\n")
+            if not normalized:
+                continue
+            normalized_separators.append(
+                normalized if len(normalized) == 1 else f"`{normalized}`"
+            )
+        if not any("\n" in value for value in normalized_separators):
+            normalized_separators.append("\n")
+        delimiter = "".join(normalized_separators)
 
         parser_config = {
-            "chunk_token_count": min(
-                chunk_token_count, 2048
-            ),  # RAGFlow limits maximum 2048
+            "chunk_token_num": min(chunk_token_num, 2048),
             "delimiter": delimiter,
-            "layout_recognize": titleSplit,  # Use titleSplit to control layout recognition
-            "html4excel": False,
-            "task_page_size": 12,  # PDF specific, default value
-            "raptor": {"use_raptor": False},
         }
 
         logger.info(
-            f"Built parser config: chunk_size={chunk_token_count}, delimiter='{delimiter}', layout_recognize={titleSplit}"
+            "Built RAGFlow parser config: chunk_token_num=%d, delimiter=%r",
+            parser_config["chunk_token_num"],
+            delimiter,
         )
         return parser_config
 

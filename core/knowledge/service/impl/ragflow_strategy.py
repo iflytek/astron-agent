@@ -246,8 +246,43 @@ class RagflowRAGStrategy(RAGStrategy):
         else:
             raise ValueError("File upload failed: no document returned")
 
-    async def _handle_document_parsing(self, dataset_id: str, doc_id: str) -> None:
-        """Handle document parsing and wait for completion."""
+    async def _handle_document_parsing(
+        self, dataset_id: str, doc_id: str, parser_config: Dict[str, Any]
+    ) -> None:
+        """Configure a document, trigger parsing, and wait for completion.
+
+        Only parser parameters are updated here. RAGFlow selects specialized
+        parsers for formats such as images, presentations, and email during
+        upload; forcing every document back to ``naive`` would either discard
+        that selection or make the update fail for visual documents.
+        """
+        logger.info(
+            "Configuring RAGFlow document parser: dataset=%s doc=%s "
+            "chunk_token_num=%s",
+            dataset_id,
+            doc_id,
+            parser_config.get("chunk_token_num"),
+        )
+        update_response = await ragflow_client.update_document(
+            dataset_id,
+            doc_id,
+            parser_config=parser_config,
+        )
+        if update_response.get("code") != 0:
+            message = update_response.get("message", "unknown RAGFlow error")
+            logger.warning(
+                "RAGFlow rejected document parser configuration: "
+                "dataset=%s doc=%s code=%s message=%s",
+                dataset_id,
+                doc_id,
+                update_response.get("code"),
+                message,
+            )
+            raise ThirdPartyException(
+                msg=f"Failed to configure RAGFlow document parser: {message}",
+                e=CodeEnum.RAGFLOW_RAGError,
+            )
+
         logger.info(
             "Triggering RAGFlow document parsing: dataset=%s doc=%s",
             dataset_id,
@@ -284,6 +319,25 @@ class RagflowRAGStrategy(RAGStrategy):
             doc_id,
             final_status,
         )
+
+    def _validate_document_chunks(
+        self,
+        doc_id: str,
+        chunks_data: List[Dict[str, Any]],
+    ) -> None:
+        """Reject empty RAGFlow output.
+
+        A large single chunk is valid when the source contains no configured
+        delimiter: RAGFlow v0.20.5's naive merger does not forcibly split one
+        oversized segment. Console therefore stores such chunks in LONGTEXT
+        instead of treating their size as proof that configuration was ignored.
+        """
+        if not chunks_data:
+            logger.error("RAGFlow produced zero chunks: doc=%s", doc_id)
+            raise CustomException(
+                CodeEnum.ChunkQueryFailed,
+                f"RAGFlow produced zero chunks for document {doc_id}",
+            )
 
     async def split(
         self,
@@ -340,6 +394,12 @@ class RagflowRAGStrategy(RAGStrategy):
         lengthRange, separator, cutOff = self._parse_form_data_parameters(
             lengthRange, separator, cutOff
         )
+        parser_config = RagflowUtils.build_parser_config(
+            lengthRange=lengthRange,
+            overlap=overlap,
+            separator=separator or cutOff,
+            titleSplit=titleSplit,
+        )
 
         # Determine which input method is being used
         file_input = file if file else fileUrl
@@ -366,23 +426,25 @@ class RagflowRAGStrategy(RAGStrategy):
             if document_id:
                 logger.info("re-slice upsert old_doc_id=%s", document_id)
                 doc_id, chunks_data = await self._upsert_document(
-                    file_input, dataset_id, document_id
+                    file_input, dataset_id, document_id, parser_config
                 )
             else:
                 doc_id = await self._process_document_upload(file_input, dataset_id)
-                await self._handle_document_parsing(dataset_id, doc_id)
-                chunks_data = await RagflowUtils.get_document_chunks(dataset_id, doc_id)
-                if not chunks_data:
-                    logger.error(
-                        "RAGFlow parsing completed but returned zero chunks: "
-                        "dataset=%s doc=%s",
-                        dataset_id,
+                try:
+                    await self._handle_document_parsing(
+                        dataset_id, doc_id, parser_config
+                    )
+                    chunks_data = await RagflowUtils.get_document_chunks(
+                        dataset_id, doc_id
+                    )
+                    self._validate_document_chunks(doc_id, chunks_data)
+                except Exception:
+                    logger.exception(
+                        "RAGFlow first-upload ingestion failed, rolling back %s",
                         doc_id,
                     )
-                    raise CustomException(
-                        CodeEnum.ChunkQueryFailed,
-                        f"RAGFlow produced zero chunks for document {doc_id}",
-                    )
+                    await self._safe_delete_document(dataset_id, doc_id, log_only=True)
+                    raise
 
             # Step 7: Convert to standard format
             result = RagflowUtils.convert_to_standard_format(doc_id, chunks_data)
@@ -1141,6 +1203,7 @@ class RagflowRAGStrategy(RAGStrategy):
         file_input: Any,
         dataset_id: str,
         old_doc_id: str,
+        parser_config: Dict[str, Any],
     ) -> tuple[str, List[Dict[str, Any]]]:
         """Atomic upsert: upload + parse + fetch chunks + delete old.
 
@@ -1157,7 +1220,9 @@ class RagflowRAGStrategy(RAGStrategy):
         )
 
         try:
-            await self._handle_document_parsing(dataset_id, pending_doc_id)
+            await self._handle_document_parsing(
+                dataset_id, pending_doc_id, parser_config
+            )
         except Exception:
             logger.exception("upsert parse failed, rolling back %s", pending_doc_id)
             await self._safe_delete_document(dataset_id, pending_doc_id, log_only=True)
@@ -1167,21 +1232,11 @@ class RagflowRAGStrategy(RAGStrategy):
             chunks_data = await RagflowUtils.get_document_chunks(
                 dataset_id, pending_doc_id
             )
+            self._validate_document_chunks(pending_doc_id, chunks_data)
         except Exception:
             logger.exception("upsert fetch failed, rolling back %s", pending_doc_id)
             await self._safe_delete_document(dataset_id, pending_doc_id, log_only=True)
             raise
-
-        if not chunks_data:
-            logger.error(
-                "upsert new doc %s returned zero chunks, rolling back",
-                pending_doc_id,
-            )
-            await self._safe_delete_document(dataset_id, pending_doc_id, log_only=True)
-            raise CustomException(
-                CodeEnum.ChunkQueryFailed,
-                f"Upsert produced zero chunks for pending doc {pending_doc_id}",
-            )
 
         await self._safe_delete_document(dataset_id, old_doc_id)
         return pending_doc_id, chunks_data

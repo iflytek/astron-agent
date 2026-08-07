@@ -19,6 +19,11 @@ from knowledge.consts.error_code import CodeEnum
 from knowledge.exceptions.exception import CustomException
 from knowledge.service.impl.ragflow_strategy import RagflowRAGStrategy
 
+_PARSER_CONFIG = {
+    "chunk_token_num": 256,
+    "delimiter": "\n",
+}
+
 # ----------------------------------------------------------------------
 # Section A: _safe_delete_document
 # ----------------------------------------------------------------------
@@ -116,13 +121,14 @@ async def test_upsert_document_happy_path_deletes_old_returns_new(
             file_input=file_input,
             dataset_id="ds-1",
             old_doc_id="old-doc-xyz",
+            parser_config=_PARSER_CONFIG,
         )
 
     # Return is now a tuple of (doc_id, chunks_data) since the fetch+validate
     # is absorbed into the atomic transaction.
     assert result == (new_doc_id, fake_chunks)
     mock_upload.assert_awaited_once_with(file_input, "ds-1")
-    mock_parse.assert_awaited_once_with("ds-1", new_doc_id)
+    mock_parse.assert_awaited_once_with("ds-1", new_doc_id, _PARSER_CONFIG)
     # Only the OLD doc is deleted on success; pending is kept (it's now live)
     mock_delete.assert_awaited_once_with("ds-1", "old-doc-xyz")
 
@@ -155,6 +161,7 @@ async def test_upsert_document_upload_fails_no_delete_called() -> None:
                 file_input=object(),
                 dataset_id="ds-1",
                 old_doc_id="old-doc-xyz",
+                parser_config=_PARSER_CONFIG,
             )
 
     mock_parse.assert_not_awaited()
@@ -198,6 +205,7 @@ async def test_upsert_document_parse_fails_deletes_pending_not_old() -> None:
                 file_input=object(),
                 dataset_id="ds-1",
                 old_doc_id="old-doc-xyz",
+                parser_config=_PARSER_CONFIG,
             )
 
     # Exactly one delete call, targeting the PENDING doc (rollback), not the old one
@@ -254,6 +262,7 @@ async def test_upsert_document_delete_old_failure_raises_and_preserves_db_state(
                 file_input=object(),
                 dataset_id="ds-1",
                 old_doc_id="old-doc-xyz",
+                parser_config=_PARSER_CONFIG,
             )
 
     assert exc_info.value.code == CodeEnum.ChunkDeleteFailed.code
@@ -306,6 +315,7 @@ async def test_upsert_document_get_chunks_raises_rolls_back_pending(
                 file_input=object(),
                 dataset_id="ds-1",
                 old_doc_id="old-doc-xyz",
+                parser_config=_PARSER_CONFIG,
             )
 
     # Exactly ONE delete call: the PENDING doc (rollback). Old doc must NOT be touched.
@@ -363,12 +373,51 @@ async def test_upsert_document_get_chunks_empty_rolls_back_pending(
                 file_input=object(),
                 dataset_id="ds-1",
                 old_doc_id="old-doc-preserved",
+                parser_config=_PARSER_CONFIG,
             )
 
     assert exc_info.value.code == CodeEnum.ChunkQueryFailed.code
     assert "zero chunks" in str(exc_info.value)
     # Only the pending doc is deleted; old doc is preserved.
     assert delete_calls == [("ds-1", pending_doc_id, True)]
+
+
+@pytest.mark.asyncio
+async def test_upsert_document_accepts_large_single_chunk_without_delimiters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A legitimate delimiter-free large chunk can replace the previous doc."""
+    strategy = RagflowRAGStrategy()
+    pending_doc_id = "pending-doc-oversized"
+    oversized = [{"id": "chunk-1", "content": "中" * 33_000}]
+
+    monkeypatch.setattr(
+        "knowledge.service.impl.ragflow_strategy.RagflowUtils.get_document_chunks",
+        AsyncMock(return_value=oversized),
+    )
+
+    with (
+        patch.object(
+            strategy,
+            "_process_document_upload",
+            new=AsyncMock(return_value=pending_doc_id),
+        ),
+        patch.object(
+            strategy, "_handle_document_parsing", new=AsyncMock(return_value=None)
+        ),
+        patch.object(
+            strategy, "_safe_delete_document", new=AsyncMock(return_value=None)
+        ) as mock_delete,
+    ):
+        result = await strategy._upsert_document(
+            file_input=object(),
+            dataset_id="ds-1",
+            old_doc_id="old-doc-preserved",
+            parser_config=_PARSER_CONFIG,
+        )
+
+    assert result == (pending_doc_id, oversized)
+    mock_delete.assert_awaited_once_with("ds-1", "old-doc-preserved")
 
 
 # ----------------------------------------------------------------------
@@ -424,7 +473,7 @@ async def test_split_document_id_none_uses_legacy_create_only_path(
 
     mock_upsert.assert_not_awaited()
     mock_upload.assert_awaited_once_with(file_input, "ds-1")
-    mock_parse.assert_awaited_once_with("ds-1", "legacy-doc-id")
+    mock_parse.assert_awaited_once_with("ds-1", "legacy-doc-id", _PARSER_CONFIG)
 
 
 @pytest.mark.asyncio
@@ -479,7 +528,7 @@ async def test_split_document_id_set_uses_upsert_path(
     ):
         await strategy.split(file=file_input, document_id="doc-old")
 
-    mock_upsert.assert_awaited_once_with(file_input, "ds-1", "doc-old")
+    mock_upsert.assert_awaited_once_with(file_input, "ds-1", "doc-old", _PARSER_CONFIG)
     mock_upload.assert_not_awaited()
     mock_parse.assert_not_awaited()
 
