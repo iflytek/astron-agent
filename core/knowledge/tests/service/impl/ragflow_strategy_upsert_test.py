@@ -388,7 +388,7 @@ async def test_split_document_id_none_uses_legacy_create_only_path(
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
-        return []
+        return [{"id": "chunk-1", "content": "parsed"}]
 
     monkeypatch.setattr(
         "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset",
@@ -445,7 +445,7 @@ async def test_split_document_id_set_uses_upsert_path(
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
-        return []
+        return [{"id": "chunk-1", "content": "parsed"}]
 
     monkeypatch.setattr(
         "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset",
@@ -525,7 +525,7 @@ async def test_split_prefers_kwargs_group_over_default(
         return "ds-1"
 
     async def fake_get_document_chunks(dataset_id: str, doc_id: str) -> list[Any]:
-        return []
+        return [{"id": "chunk-1", "content": "parsed"}]
 
     monkeypatch.setattr(
         "knowledge.service.impl.ragflow_strategy.RagflowUtils.ensure_dataset",

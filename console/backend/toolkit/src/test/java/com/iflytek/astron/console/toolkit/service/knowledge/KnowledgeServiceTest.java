@@ -2086,6 +2086,34 @@ class KnowledgeServiceTest {
         }
 
         /**
+         * Unexpected transport/runtime failures must close the async task with a terminal
+         * failure instead of leaving the file in FILE_PARSE_DOING forever.
+         */
+        @Test
+        @DisplayName("Extract knowledge closes status on unexpected exception")
+        void testKnowledgeExtractAsync_UnexpectedExceptionClosesStatus() {
+            String contentType = "text/plain";
+            String url = "http://example.com/document.txt";
+            mockFileInfo.setSource("AIUI-RAG2");
+            mockFileInfo.setStatus(ProjectContent.FILE_PARSE_DOING);
+
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any()))
+                    .thenThrow(new RuntimeException("connection reset"));
+            when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
+            when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
+
+            knowledgeService.knowledgeExtractAsync(
+                    contentType, url, mockSliceConfig, mockFileInfo, mockExtractTask);
+
+            assertThat(mockFileInfo.getStatus()).isEqualTo(ProjectContent.FILE_PARSE_FAILED);
+            assertThat(mockFileInfo.getReason()).contains("connection reset");
+            assertThat(mockExtractTask.getStatus()).isEqualTo(2);
+            assertThat(mockExtractTask.getTaskStatus()).isEqualTo(1);
+            verify(fileInfoV2Service, times(1)).updateById(mockFileInfo);
+            verify(extractKnowledgeTaskService, times(1)).updateById(mockExtractTask);
+        }
+
+        /**
          * Test extraction with special error code 11111.
          */
         @Test
@@ -2315,6 +2343,44 @@ class KnowledgeServiceTest {
             // Then
             verify(mockFileService, never()).saveTaskAndUpdateFileStatus(anyLong());
             verify(mockFileService, never()).embeddingFile(anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("Embedding trigger failure does not regress parse status")
+        void testKnowledgeEmbeddingExtractAsync_EmbeddingTriggerFailureUsesEmbeddingStatus() {
+            String contentType = "text/plain";
+            String url = "http://example.com/document.txt";
+            mockFileInfo.setSource("AIUI-RAG2");
+            mockFileInfo.setSpaceId(1L);
+
+            KnowledgeResponse response = new KnowledgeResponse();
+            response.setCode(0);
+            JSONArray dataArray = new JSONArray();
+            ChunkInfo chunk = new ChunkInfo();
+            chunk.setContent("Test chunk content");
+            chunk.setDocId("file-uuid-001");
+            dataArray.add(JSON.parseObject(JSON.toJSONString(chunk)));
+            response.setData(dataArray);
+
+            when(knowledgeV2ServiceCallHandler.documentSplit(any(), any())).thenReturn(response);
+            when(fileInfoV2Service.getById(anyLong())).thenReturn(mockFileInfo);
+            when(previewKnowledgeMapper.countByFileId(anyString())).thenReturn(0L);
+            when(previewKnowledgeMapper.insertBatch(anyList())).thenReturn(1);
+            when(fileInfoV2Service.updateById(any(FileInfoV2.class))).thenReturn(true);
+            when(extractKnowledgeTaskService.updateById(any(ExtractKnowledgeTask.class))).thenReturn(true);
+            doThrow(new RuntimeException("embedding queue unavailable"))
+                    .when(mockFileService).saveTaskAndUpdateFileStatus(mockFileInfo.getId());
+            when(mockFileService.getById(mockFileInfo.getId())).thenReturn(mockFileInfo);
+            when(mockFileService.updateById(any(FileInfoV2.class))).thenReturn(true);
+
+            knowledgeService.knowledgeEmbeddingExtractAsync(
+                    contentType, url, mockSliceConfig, mockFileInfo, mockExtractTask, mockFileService);
+
+            assertThat(mockExtractTask.getStatus()).isEqualTo(1);
+            assertThat(mockFileInfo.getStatus()).isEqualTo(ProjectContent.FILE_EMBEDDING_FAILED);
+            assertThat(mockFileInfo.getReason()).contains("embedding queue unavailable");
+            verify(mockFileService, never()).embeddingFile(anyLong(), anyLong());
+            verify(mockFileService, times(1)).updateById(mockFileInfo);
         }
 
         /**

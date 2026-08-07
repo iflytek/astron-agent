@@ -459,7 +459,17 @@ public class KnowledgeService {
             SliceConfig sliceConfig,
             FileInfoV2 fileInfoV2,
             ExtractKnowledgeTask extractKnowledgeTask) {
+        try {
+            executeKnowledgeExtract(contentType, url, sliceConfig, fileInfoV2, extractKnowledgeTask);
+        } catch (Exception e) {
+            handleUnexpectedExtractionFailure(fileInfoV2, extractKnowledgeTask, e);
+        }
+    }
 
+    private void executeKnowledgeExtract(String contentType, String url,
+            SliceConfig sliceConfig,
+            FileInfoV2 fileInfoV2,
+            ExtractKnowledgeTask extractKnowledgeTask) {
         final String source = fileInfoV2.getSource();
         KnowledgeResponse response;
 
@@ -703,6 +713,30 @@ public class KnowledgeService {
             FileInfoV2 fileInfoV2,
             ExtractKnowledgeTask extractKnowledgeTask,
             FileInfoV2Service fileInfoV2Service) {
+        boolean extractionSucceeded;
+        try {
+            extractionSucceeded = executeKnowledgeEmbeddingExtract(contentType, url, sliceConfig, fileInfoV2,
+                    extractKnowledgeTask);
+        } catch (Exception e) {
+            handleUnexpectedExtractionFailure(fileInfoV2, extractKnowledgeTask, e);
+            return;
+        }
+        if (!extractionSucceeded) {
+            return;
+        }
+
+        try {
+            fileInfoV2Service.saveTaskAndUpdateFileStatus(fileInfoV2.getId());
+            fileInfoV2Service.embeddingFile(fileInfoV2.getId(), fileInfoV2.getSpaceId());
+        } catch (Exception e) {
+            handleUnexpectedEmbeddingFailure(fileInfoV2, fileInfoV2Service, e);
+        }
+    }
+
+    private boolean executeKnowledgeEmbeddingExtract(String contentType, String url,
+            SliceConfig sliceConfig,
+            FileInfoV2 fileInfoV2,
+            ExtractKnowledgeTask extractKnowledgeTask) {
         final String source = fileInfoV2.getSource();
         KnowledgeResponse response;
 
@@ -710,7 +744,7 @@ public class KnowledgeService {
         if (ProjectContent.isCbgRagCompatible(source)) {
             response = doCbgUploadSplit(sliceConfig, fileInfoV2, extractKnowledgeTask);
             if (response == null) {
-                return; // already updated status on failure
+                return false; // already updated status on failure
             }
         } else {
             response = doUrlSplit(url, sliceConfig, fileInfoV2);
@@ -722,13 +756,13 @@ public class KnowledgeService {
             log.error("Document chunking failed : {}", errMsg);
             updateTaskAndFileStatus(fileInfoV2, extractKnowledgeTask,
                     "Document chunking failed, " + errMsg, false);
-            return;
+            return false;
         }
 
         // 3) Parse data -> List<ChunkInfo>
         final List<ChunkInfo> chunkInfos = parseChunkInfosOrFail(response, fileInfoV2, extractKnowledgeTask);
         if (chunkInfos == null) {
-            return; // status updated inside on failure
+            return false; // status updated inside on failure
         }
 
         // 4) Empty result guard with image-specific hint
@@ -737,7 +771,7 @@ public class KnowledgeService {
                     ? "Document cannot be chunked, please check if the image contains text"
                     : "Document cannot be chunked, please check if the file meets upload requirements";
             updateTaskAndFileStatus(fileInfoV2, extractKnowledgeTask, reason, false);
-            return;
+            return false;
         }
 
         // 5) Persist preview chunks
@@ -752,10 +786,73 @@ public class KnowledgeService {
         // 7) Update lastUuid rule (CBG uses chunk's docId)
         updateLastUuidBySource(fileInfoV2, chunkInfos);
 
-        // 8) Final success status + embedding-trigger
+        // 8) Final parsing success. The caller triggers embedding in a separate guarded stage so an
+        // embedding failure is not misclassified as a parsing failure.
         updateTaskAndFileStatus(fileInfoV2, extractKnowledgeTask, null, true);
-        fileInfoV2Service.saveTaskAndUpdateFileStatus(fileInfoV2.getId());
-        fileInfoV2Service.embeddingFile(fileInfoV2.getId(), fileInfoV2.getSpaceId());
+        return true;
+    }
+
+    private void handleUnexpectedExtractionFailure(
+            FileInfoV2 fileInfoV2,
+            ExtractKnowledgeTask extractKnowledgeTask,
+            Exception error) {
+        String detail = StringUtils.defaultIfBlank(
+                error.getMessage(), error.getClass().getSimpleName());
+        String reason = "Knowledge extraction failed unexpectedly: " + detail;
+        log.error(
+                "Unexpected knowledge extraction failure: fileId={}, taskId={}, source={}, reason={}",
+                fileInfoV2.getId(),
+                extractKnowledgeTask.getTaskId(),
+                fileInfoV2.getSource(),
+                detail,
+                error);
+        try {
+            updateTaskAndFileStatus(
+                    fileInfoV2, extractKnowledgeTask, reason, false);
+        } catch (Exception statusError) {
+            log.error(
+                    "Failed to persist terminal extraction status: fileId={}, taskId={}",
+                    fileInfoV2.getId(),
+                    extractKnowledgeTask.getTaskId(),
+                    statusError);
+        }
+    }
+
+    private void handleUnexpectedEmbeddingFailure(
+            FileInfoV2 fileInfoV2,
+            FileInfoV2Service fileInfoV2Service,
+            Exception error) {
+        String detail = StringUtils.defaultIfBlank(
+                error.getMessage(), error.getClass().getSimpleName());
+        String reason = "Knowledge embedding failed unexpectedly: " + detail;
+        log.error(
+                "Unexpected knowledge embedding failure: fileId={}, source={}, reason={}",
+                fileInfoV2.getId(),
+                fileInfoV2.getSource(),
+                detail,
+                error);
+        try {
+            FileInfoV2 latest = fileInfoV2Service.getById(fileInfoV2.getId());
+            if (latest == null) {
+                log.error("Failed to persist terminal embedding status: file not found, fileId={}",
+                        fileInfoV2.getId());
+                return;
+            }
+            // embeddingFile can report a later, already-persisted terminal status before throwing
+            // an ancillary exception. Do not regress a successful result.
+            if (Objects.equals(latest.getStatus(), ProjectContent.FILE_EMBEDDING_SUCCESSED)) {
+                return;
+            }
+            latest.setStatus(ProjectContent.FILE_EMBEDDING_FAILED);
+            latest.setReason(reason);
+            latest.setUpdateTime(new Timestamp(System.currentTimeMillis()));
+            fileInfoV2Service.updateById(latest);
+        } catch (Exception statusError) {
+            log.error(
+                    "Failed to persist terminal embedding status: fileId={}",
+                    fileInfoV2.getId(),
+                    statusError);
+        }
     }
 
     /**

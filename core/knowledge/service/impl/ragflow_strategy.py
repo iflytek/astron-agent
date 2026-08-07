@@ -248,29 +248,42 @@ class RagflowRAGStrategy(RAGStrategy):
 
     async def _handle_document_parsing(self, dataset_id: str, doc_id: str) -> None:
         """Handle document parsing and wait for completion."""
-        logger.info("Triggering document parsing...")
+        logger.info(
+            "Triggering RAGFlow document parsing: dataset=%s doc=%s",
+            dataset_id,
+            doc_id,
+        )
         parse_response = await ragflow_client.parse_documents(dataset_id, [doc_id])
 
-        if parse_response.get("code") == 0:
-            logger.info("Document parsing triggered successfully")
-            try:
-                final_status = await RagflowUtils.wait_for_parsing(
-                    dataset_id, doc_id, max_wait_time=300
-                )
-                logger.info(
-                    "Document parsing completed, final status: %s", final_status
-                )
-            except Exception as parse_error:
-                logger.warning("Parsing wait timeout or error: %s", parse_error)
-                final_status = "TIMEOUT"
+        if parse_response.get("code") != 0:
+            message = parse_response.get("message", "unknown RAGFlow error")
+            logger.warning(
+                "RAGFlow rejected document parsing: dataset=%s doc=%s code=%s "
+                "message=%s",
+                dataset_id,
+                doc_id,
+                parse_response.get("code"),
+                message,
+            )
+            raise ThirdPartyException(
+                msg=f"Failed to trigger RAGFlow document parsing: {message}",
+                e=CodeEnum.RAGFLOW_RAGError,
+            )
 
-            if final_status != "DONE":
-                raise ValueError(
-                    "File parsing timeout or error, please check in RAGFlow"
-                )
-        else:
-            logger.warning("File parsing failed: %s", parse_response)
-            raise ValueError("File parsing failed, please check in RAGFlow")
+        logger.info(
+            "RAGFlow document parsing triggered: dataset=%s doc=%s",
+            dataset_id,
+            doc_id,
+        )
+        final_status = await ragflow_client.wait_for_parsing(
+            dataset_id, doc_id, max_wait_time=300
+        )
+        logger.info(
+            "RAGFlow document parsing completed: dataset=%s doc=%s status=%s",
+            dataset_id,
+            doc_id,
+            final_status,
+        )
 
     async def split(
         self,
@@ -359,6 +372,17 @@ class RagflowRAGStrategy(RAGStrategy):
                 doc_id = await self._process_document_upload(file_input, dataset_id)
                 await self._handle_document_parsing(dataset_id, doc_id)
                 chunks_data = await RagflowUtils.get_document_chunks(dataset_id, doc_id)
+                if not chunks_data:
+                    logger.error(
+                        "RAGFlow parsing completed but returned zero chunks: "
+                        "dataset=%s doc=%s",
+                        dataset_id,
+                        doc_id,
+                    )
+                    raise CustomException(
+                        CodeEnum.ChunkQueryFailed,
+                        f"RAGFlow produced zero chunks for document {doc_id}",
+                    )
 
             # Step 7: Convert to standard format
             result = RagflowUtils.convert_to_standard_format(doc_id, chunks_data)
@@ -366,7 +390,7 @@ class RagflowRAGStrategy(RAGStrategy):
             logger.info("Split processing completed, returning %d chunks", len(result))
             return result
 
-        except CustomException:
+        except (CustomException, ThirdPartyException):
             raise
         except Exception as e:
             logger.error("Split operation failed: %s", e)
@@ -1121,10 +1145,9 @@ class RagflowRAGStrategy(RAGStrategy):
         """Atomic upsert: upload + parse + fetch chunks + delete old.
 
         Any failure at any step rolls back the pending new doc and preserves
-        old_doc_id. Chunks fetch is intentionally inside the transaction:
-        RagflowUtils.get_document_chunks silently returns [] on fetch
-        failure, so deleting the old doc before verifying non-empty chunks
-        would strand the file as un-retrievable.
+        old_doc_id. Chunks fetch is intentionally inside the transaction so
+        the old document is not deleted until a complete, non-empty chunk set
+        has been verified.
 
         Returns (new_doc_id, chunks_data) with chunks_data non-empty.
         """

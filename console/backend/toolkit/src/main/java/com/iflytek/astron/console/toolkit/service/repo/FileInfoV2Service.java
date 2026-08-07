@@ -610,32 +610,40 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
         boolean parseSuccess = false;
         FileInfoV2 fileInfoV2 = this.getById(fileId);
         if (fileInfoV2 != null) {
-            // Type mapping
-            LambdaQueryWrapper<ConfigInfo> wrapper = Wrappers.lambdaQuery(ConfigInfo.class).eq(ConfigInfo::getCategory, "FILE_TYPE_MAPPING").eq(ConfigInfo::getIsValid, 1);
-            String type = fileInfoV2.getType();
-            if (!StringUtils.isEmpty(type)) {
-                wrapper.eq(ConfigInfo::getName, type);
-            }
-
-            ConfigInfo configInfo = configInfoService.getOnly(wrapper);
-            if (configInfo != null) {
-                type = configInfo.getValue();
-            }
-            // Asynchronous knowledge extraction
-            String address = fileInfoV2.getAddress();
-            if (!ProjectContent.HTML_FILE_TYPE.equals(type) && address.startsWith("sparkBot")) {
-                address = s3UtilClient.getS3Url(address);
-            }
-            // CBG-RAG file type validation failed
-            String source = fileInfoV2.getSource();
-            if (ProjectContent.isCbgRagCompatible(source)) {
-                if (!ProjectContent.SUPPORTED_FILE_TYPES.contains(type.toLowerCase())) {
-                    return dealFileResult;
-                }
-            }
-
-
             try {
+                // Keep all preparation inside the terminal-status guard. sliceFiles/retry has
+                // already persisted FILE_PARSE_DOING, so any preparation failure must be closed
+                // as FILE_PARSE_FAILED rather than escaping and leaving the file stuck.
+                LambdaQueryWrapper<ConfigInfo> wrapper = Wrappers.lambdaQuery(ConfigInfo.class)
+                        .eq(ConfigInfo::getCategory, "FILE_TYPE_MAPPING")
+                        .eq(ConfigInfo::getIsValid, 1);
+                String type = fileInfoV2.getType();
+                if (!StringUtils.isEmpty(type)) {
+                    wrapper.eq(ConfigInfo::getName, type);
+                }
+
+                ConfigInfo configInfo = configInfoService.getOnly(wrapper);
+                if (configInfo != null) {
+                    type = configInfo.getValue();
+                }
+                if (StringUtils.isBlank(type)) {
+                    throw new IllegalArgumentException("File type is empty");
+                }
+
+                String source = fileInfoV2.getSource();
+                if (ProjectContent.isCbgRagCompatible(source)
+                        && !ProjectContent.SUPPORTED_FILE_TYPES.contains(type.toLowerCase())) {
+                    throw new IllegalArgumentException("Unsupported file type: " + type);
+                }
+
+                String address = fileInfoV2.getAddress();
+                if (StringUtils.isBlank(address)) {
+                    throw new IllegalArgumentException("File address is empty");
+                }
+                if (!ProjectContent.HTML_FILE_TYPE.equals(type) && address.startsWith("sparkBot")) {
+                    address = s3UtilClient.getS3Url(address);
+                }
+
                 dealFileResult.setTaskId(fileInfoV2.getUuid());
                 ExtractKnowledgeTask extractKnowledgeTask = new ExtractKnowledgeTask();
                 extractKnowledgeTask.setTaskId(fileInfoV2.getUuid());
@@ -653,7 +661,6 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                 } else {
                     knowledgeService.knowledgeEmbeddingExtractAsync(type, address, sliceConfig, fileInfoV2, extractKnowledgeTask, this);
                 }
-                fileInfoV2.setStatus(ProjectContent.FILE_PARSE_DOING);
                 parseSuccess = true;
             } catch (Exception e) {
                 fileInfoV2.setStatus(ProjectContent.FILE_PARSE_FAILED);
@@ -661,9 +668,15 @@ public class FileInfoV2Service extends ServiceImpl<FileInfoV2Mapper, FileInfoV2>
                 dealFileResult.setErrMsg("Knowledge extraction failed:" + e.getMessage());
                 log.error("Knowledge extraction and save failed", e);
             }
-            fileInfoV2.setSliceConfig(JSON.toJSONString(sliceConfig));
-            fileInfoV2.setUpdateTime(new Timestamp(System.currentTimeMillis()));
-            this.updateById(fileInfoV2);
+            // sliceFiles/retry persists FILE_PARSE_DOING and the slice config before
+            // dispatching this task. Never write that stale entity after @Async
+            // dispatch: a fast worker may already have committed SUCCESS/FAILED,
+            // and a late update here would regress the terminal state back to DOING.
+            if (!parseSuccess) {
+                fileInfoV2.setSliceConfig(JSON.toJSONString(sliceConfig));
+                fileInfoV2.setUpdateTime(new Timestamp(System.currentTimeMillis()));
+                this.updateById(fileInfoV2);
+            }
         }
         dealFileResult.setParseSuccess(parseSuccess);
         return dealFileResult;

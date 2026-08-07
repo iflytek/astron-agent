@@ -41,6 +41,164 @@ class TestGetDefaultDatasetName:
         assert RagflowUtils.get_default_dataset_name() == DEFAULT_RAGFLOW_DATASET_NAME
 
 
+@pytest.mark.asyncio
+async def test_wait_for_parsing_delegates_to_canonical_client() -> None:
+    """Legacy utility entry point must not maintain a second polling policy."""
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.wait_for_document_parsing",
+        new=AsyncMock(return_value="DONE"),
+    ) as mock_wait:
+        result = await RagflowUtils.wait_for_parsing("ds-1", "doc-1", max_wait_time=12)
+
+    assert result == "DONE"
+    mock_wait.assert_awaited_once_with(
+        dataset_id="ds-1",
+        doc_id="doc-1",
+        max_wait_time=12,
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_retries_empty_complete_results() -> None:
+    chunks = [{"id": "chunk-1", "content": "hello"}]
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1", "chunk_count": 1}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(side_effect=[[], chunks]),
+    ) as mock_fetch, patch(
+        "knowledge.infra.ragflow.ragflow_utils.asyncio.sleep",
+        new=AsyncMock(),
+    ) as mock_sleep:
+        result = await RagflowUtils.get_document_chunks(
+            "ds-1", "doc-1", max_retries=1, retry_delay=0
+        )
+
+    assert result == chunks
+    assert mock_fetch.await_count == 2
+    mock_sleep.assert_awaited_once_with(0)
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_zero_metadata_count_returns_without_retry() -> None:
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1", "chunk_count": 0}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(return_value=[]),
+    ) as mock_fetch, patch(
+        "knowledge.infra.ragflow.ragflow_utils.asyncio.sleep",
+        new=AsyncMock(),
+    ) as mock_sleep:
+        result = await RagflowUtils.get_document_chunks("ds-1", "doc-1")
+
+    assert result == []
+    mock_fetch.assert_awaited_once()
+    mock_sleep.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_propagates_fetch_failure() -> None:
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1", "chunk_count": 1}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(side_effect=RuntimeError("incomplete page")),
+    ):
+        with pytest.raises(RuntimeError, match="incomplete page"):
+            await RagflowUtils.get_document_chunks(
+                "ds-1", "doc-1", max_retries=1, retry_delay=0
+            )
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_retries_non_empty_partial_snapshot() -> None:
+    partial = [{"id": "chunk-1"}]
+    complete = [
+        {"id": "chunk-1"},
+        {"id": "chunk-2"},
+        {"id": "chunk-3"},
+    ]
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1", "chunk_count": 3}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(side_effect=[partial, complete]),
+    ) as mock_fetch, patch(
+        "knowledge.infra.ragflow.ragflow_utils.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        result = await RagflowUtils.get_document_chunks(
+            "ds-1", "doc-1", max_retries=1, retry_delay=0
+        )
+
+    assert result == complete
+    assert mock_fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_accepts_stable_deduplicated_snapshot() -> None:
+    partial = [{"id": "chunk-1"}]
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1", "chunk_count": 3}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(return_value=partial),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        result = await RagflowUtils.get_document_chunks(
+            "ds-1", "doc-1", max_retries=2, retry_delay=0
+        )
+
+    assert result == partial
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_without_expected_count_waits_for_stability() -> None:
+    visible = [{"id": "chunk-1"}, {"id": "chunk-2"}]
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1"}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(return_value=visible),
+    ) as mock_fetch, patch(
+        "knowledge.infra.ragflow.ragflow_utils.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        result = await RagflowUtils.get_document_chunks(
+            "ds-1", "doc-1", max_retries=2, retry_delay=0
+        )
+
+    assert result == visible
+    assert mock_fetch.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_get_document_chunks_rejects_missing_expected_chunks() -> None:
+    with patch(
+        "knowledge.infra.ragflow.ragflow_utils.get_document_info",
+        new=AsyncMock(return_value={"id": "doc-1", "chunk_count": 3}),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.fetch_all_document_chunks",
+        new=AsyncMock(return_value=[]),
+    ), patch(
+        "knowledge.infra.ragflow.ragflow_utils.asyncio.sleep",
+        new=AsyncMock(),
+    ):
+        with pytest.raises(RuntimeError, match="visible=0, expected=3"):
+            await RagflowUtils.get_document_chunks(
+                "ds-1", "doc-1", max_retries=1, retry_delay=0
+            )
+
+
 # ---------------------------------------------------------------------------
 # ensure_dataset description sync (lazy + best-effort)
 # ---------------------------------------------------------------------------

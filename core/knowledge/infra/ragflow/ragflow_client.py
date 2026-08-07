@@ -924,107 +924,179 @@ async def add_chunk(
 # ==================== Helper Functions ====================
 
 
-async def _check_document_parsing_status(
-    dataset_id: str, doc_id: str
-) -> tuple[str, int, bool]:
-    """
-    Check document parsing status
-
-    Args:
-        dataset_id: Dataset ID
-        doc_id: Document ID
-
-    Returns:
-        (status, token_count, found)
-    """
-    response = await list_documents_in_dataset(dataset_id, doc_id, page=1, page_size=30)
-
-    if response.get("code") != 0:
-        return "UNKNOWN", 0, False
-
-    docs = response.get("data", {}).get("docs", [])
-    for doc in docs:
-        if doc.get("id") == doc_id:
-            run_status = doc.get("run", "UNSTART")
-            token_count = doc.get("token_count", 0)
-            return run_status, token_count, True
-
-    logger.warning(f"Document {doc_id} not found in list")
-    return "NOT_FOUND", 0, False
+_PARSING_FAILURE_STATES = frozenset({"FAIL", "CANCEL"})
 
 
-def _handle_parsing_status_result(
-    doc_id: str, run_status: str, token_count: int
-) -> Optional[str]:
-    """
-    Handle parsing status and determine if parsing is complete
+def _parsing_snapshot(doc_info: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the RAGFlow fields needed to decide and diagnose parsing state."""
+    progress_msg = str(doc_info.get("progress_msg") or "")
+    return {
+        "status": str(doc_info.get("run") or "UNSTART").upper(),
+        "progress": doc_info.get("progress", 0),
+        "chunk_count": doc_info.get("chunk_count", 0) or 0,
+        "token_count": doc_info.get("token_count", 0) or 0,
+        # Keep status logs bounded even when RAGFlow returns a long task trace.
+        "progress_msg": progress_msg.replace("\n", " | ")[:500],
+    }
 
-    Args:
-        doc_id: Document ID
-        run_status: Current parsing status
-        token_count: Token count
 
-    Returns:
-        Final status if complete, None if should continue waiting
-
-    Raises:
-        Exception: If parsing failed
-    """
-    if run_status == "DONE":
-        logger.info(f"Document {doc_id} parsing completed with {token_count} tokens")
-        return run_status
-    elif run_status == "FAIL":
-        raise Exception(f"Document {doc_id} parsing failed")
-    elif run_status == "RUNNING":
-        logger.info(f"Document {doc_id} is being parsed...")
-
-    return None
+def _format_parsing_snapshot(snapshot: Dict[str, Any]) -> str:
+    """Format a compact status description for logs and propagated errors."""
+    return (
+        f"status={snapshot['status']}, progress={snapshot['progress']}, "
+        f"chunks={snapshot['chunk_count']}, tokens={snapshot['token_count']}, "
+        f"message={snapshot['progress_msg'] or '-'}"
+    )
 
 
 async def wait_for_parsing(
-    dataset_id: str, doc_id: str, max_wait_time: int = 300
+    dataset_id: str,
+    doc_id: str,
+    max_wait_time: int = 300,
+    poll_interval: float = 3.0,
+    max_status_errors: int = 3,
 ) -> str:
     """
-    Wait for document parsing completion
+    Wait for RAGFlow to reach a terminal document parsing state.
+
+    RAGFlow exposes ``run`` as the authoritative state. ``chunk_count`` and
+    ``token_count`` are result statistics and may legitimately be zero, so
+    neither is used as an additional completion gate.
 
     Args:
         dataset_id: Dataset ID
         doc_id: Document ID
         max_wait_time: Maximum wait time (seconds)
+        poll_interval: Delay between status checks (seconds)
+        max_status_errors: Consecutive status-query failures allowed
 
     Returns:
-        Final parsing status
+        ``DONE`` when parsing completes.
 
     Raises:
-        Exception: Raised when parsing fails
+        ValueError: If wait parameters are invalid.
+        ThirdPartyException: If RAGFlow fails, cancels, or times out.
     """
-    start_time = time.time()
-    last_status = None
+    if max_wait_time <= 0:
+        raise ValueError("max_wait_time must be greater than 0")
+    if poll_interval <= 0:
+        raise ValueError("poll_interval must be greater than 0")
+    if max_status_errors <= 0:
+        raise ValueError("max_status_errors must be greater than 0")
 
-    while time.time() - start_time < max_wait_time:
+    started_at = time.monotonic()
+    last_snapshot: Optional[Dict[str, Any]] = None
+    document_missing_logged = False
+    consecutive_status_errors = 0
+    last_status_error: Optional[Exception] = None
+
+    while time.monotonic() - started_at < max_wait_time:
+        status_error: Optional[Exception] = None
         try:
-            run_status, token_count, found = await _check_document_parsing_status(
-                dataset_id, doc_id
+            doc_info = await get_document_info(dataset_id, doc_id)
+        except Exception as error:
+            doc_info = None
+            status_error = error
+
+        # A status request may begin before the deadline and finish after it.
+        # Record the returned snapshot for diagnostics, but never turn a late
+        # terminal response into success after the configured wait expired.
+        deadline_reached = time.monotonic() - started_at >= max_wait_time
+
+        if status_error is not None:
+            last_status_error = status_error
+            if deadline_reached:
+                break
+            consecutive_status_errors += 1
+            logger.warning(
+                "Failed to query RAGFlow parsing status: "
+                "dataset=%s doc=%s attempt=%d/%d error=%s",
+                dataset_id,
+                doc_id,
+                consecutive_status_errors,
+                max_status_errors,
+                status_error,
             )
+            if consecutive_status_errors >= max_status_errors:
+                raise ThirdPartyException(
+                    msg=(
+                        "Unable to query RAGFlow document parsing status after "
+                        f"{consecutive_status_errors} attempts: doc={doc_id}, "
+                        f"error={status_error}"
+                    ),
+                    e=CodeEnum.RAGFLOW_RAGError,
+                ) from status_error
+        else:
+            consecutive_status_errors = 0
+            last_status_error = None
 
-            if run_status != last_status:
-                logger.info(
-                    f"Document {doc_id} status: {run_status}, tokens: {token_count}"
+        if doc_info is None and status_error is None:
+            if not document_missing_logged:
+                logger.warning(
+                    "RAGFlow document not visible while waiting: dataset=%s doc=%s",
+                    dataset_id,
+                    doc_id,
                 )
-                last_status = run_status
+                document_missing_logged = True
+        elif doc_info is not None:
+            snapshot = _parsing_snapshot(doc_info)
+            if snapshot != last_snapshot:
+                logger.info(
+                    "RAGFlow parsing status: dataset=%s doc=%s %s",
+                    dataset_id,
+                    doc_id,
+                    _format_parsing_snapshot(snapshot),
+                )
+                last_snapshot = snapshot
 
-            if found:
-                result = _handle_parsing_status_result(doc_id, run_status, token_count)
-                if result:
-                    return result
+            if deadline_reached:
+                break
 
-            await asyncio.sleep(3)
+            run_status = snapshot["status"]
+            if run_status == "DONE":
+                if snapshot["chunk_count"] == 0:
+                    logger.warning(
+                        "RAGFlow parsing completed with zero chunks: "
+                        "dataset=%s doc=%s %s",
+                        dataset_id,
+                        doc_id,
+                        _format_parsing_snapshot(snapshot),
+                    )
+                return "DONE"
 
-        except Exception as e:
-            logger.warning(f"Error checking parsing status: {e}")
-            await asyncio.sleep(3)
+            if run_status in _PARSING_FAILURE_STATES:
+                raise ThirdPartyException(
+                    msg=(
+                        f"RAGFlow document parsing ended with {run_status}: "
+                        f"doc={doc_id}, {_format_parsing_snapshot(snapshot)}"
+                    ),
+                    e=CodeEnum.RAGFLOW_RAGError,
+                )
 
+        remaining = max_wait_time - (time.monotonic() - started_at)
+        if remaining <= 0:
+            break
+        await asyncio.sleep(min(poll_interval, remaining))
+
+    if last_snapshot is not None:
+        last_context = _format_parsing_snapshot(last_snapshot)
+        if last_status_error is not None:
+            last_context += f", last status error={str(last_status_error)[:500]}"
+    elif last_status_error is not None:
+        last_context = f"last status error={str(last_status_error)[:500]}"
+    else:
+        last_context = "document was not visible"
     logger.warning(
-        f"Document parsing timeout after {max_wait_time} seconds, last status: {last_status}"
+        "RAGFlow document parsing timed out after %s seconds: " "dataset=%s doc=%s %s",
+        max_wait_time,
+        dataset_id,
+        doc_id,
+        last_context,
     )
-    return last_status or "TIMEOUT"
+    raise ThirdPartyException(
+        msg=(
+            f"RAGFlow document parsing timed out after {max_wait_time} seconds: "
+            f"doc={doc_id}, {last_context}"
+        ),
+        e=CodeEnum.RAGFLOW_RAGError,
+    )
