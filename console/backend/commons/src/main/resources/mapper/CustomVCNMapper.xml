@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.vcn.CustomVCNMapper">
+    <select id="getVcnByCode" resultType="com.iflytek.astron.console.commons.dto.vcn.CustomV2VCNDTO">
+        select cv.id          as vcnId,
+               cv.`uid`       as uid,
+               cv.`name`      as name,
+               cv.vcn_code    as vcnCode,
+               cv.`sex`,
+               cv.uid,
+               (cv.sex + 5)   as category,
+               cv.share,
+               cv.agent_id    as agentId,
+               vcpa.image_url as avatar,
+               cv.status
+        from custom_vcn as cv
+                 left join voice_chat_personality_agent as vcpa
+                           on cv.agent_id = vcpa.id
+        where cv.vcn_code = #{vcnCode}
+          and cv.status != 0 and cv.share = 0
+        order by cv.id desc, cv.`status` desc limit 1
+    </select>
+</mapper>

@@ -1,0 +1,27 @@
+.invitationManagement {
+  height: 100%;
+  
+  .invitationTable {
+    :global {
+      .ant-table {
+        height: max(120px, calc(100% - 57px));
+      }
+    }
+  }
+
+  .usernameCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .userIcon {
+      color: #666;
+      font-size: 14px;
+    }
+  }
+
+  .joinTime {
+    color: #666;
+    font-size: 14px;
+  }
+}

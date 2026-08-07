@@ -1,0 +1,98 @@
+{{- if .Values.casdoor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-casdoor
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: casdoor
+spec:
+  replicas: {{ .Values.casdoor.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: casdoor
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: casdoor
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsUser: 0
+      initContainers:
+      - name: wait-for-mysql
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for Casdoor MySQL..."
+          until nslookup {{ include "astron-agent.fullname" . }}-casdoor-mysql.{{ .Release.Namespace }}.svc.cluster.local; do
+            echo "MySQL not ready yet, waiting...";
+            sleep 5;
+          done
+          echo "Casdoor MySQL is ready!"
+      containers:
+      - name: casdoor
+        image: "{{ .Values.casdoor.image }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        - name: GIN_MODE
+          value: {{ .Values.casdoor.env.ginMode | quote }}
+        - name: origin
+          value: {{ printf "%s:%d" .Values.global.hostBaseAddress (int .Values.casdoor.service.nodePort) | quote }}
+        - name: originFrontend
+          value: {{ printf "%s:%d" .Values.global.hostBaseAddress (int .Values.casdoor.service.nodePort) | quote }}
+        - name: HOST_BASE_ADDRESS
+          value: {{ .Values.global.hostBaseAddress | default "http://localhost" | quote }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.casdoor.resources | nindent 10 }}
+        volumeMounts:
+        - name: conf-ro
+          mountPath: /conf-ro
+        - name: conf
+          mountPath: /conf
+        - name: entrypoint
+          mountPath: /entrypoint.sh
+          subPath: entrypoint.sh
+        - name: logs
+          mountPath: /logs
+        command: ["/bin/sh", "/entrypoint.sh"]
+      volumes:
+      - name: conf-ro
+        configMap:
+          name: {{ include "astron-agent.fullname" . }}-casdoor-conf
+      - name: conf
+        emptyDir: {}
+      - name: entrypoint
+        configMap:
+          name: {{ include "astron-agent.fullname" . }}-casdoor-conf
+          defaultMode: 0755
+      - name: logs
+        emptyDir: {}
+{{- end }}

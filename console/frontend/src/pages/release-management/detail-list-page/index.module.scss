@@ -1,0 +1,135 @@
+.detailList {
+  .detailListHeader {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 80px;
+    border-radius: 18px;
+    background: #ffffff;
+    margin: 20px 0;
+    padding: 0 20px;
+
+    .CollapseIcon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border: 1px solid #e4eaff;
+      border-radius: 50%;
+      margin-right: 24px;
+      cursor: pointer;
+
+      > img {
+        width: 14px;
+        height: 14px;
+      }
+    }
+
+    .botInfoIcon {
+      width: fit-content;
+      margin-right: 15px;
+
+      > img {
+        width: 40px;
+        height: 40px;
+        border-radius: 6px;
+      }
+    }
+
+    .botInfoMain {
+      max-width: 70%;
+      flex: 1;
+
+      .botInfoTitle {
+        height: 22px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-bottom: 5px;
+      }
+
+      .botInfoDesc {
+        height: 20px;
+        font-size: 14px;
+        line-height: 19.6px;
+        color: #7f7f7f;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+
+    .botInfoType {
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+      min-width: 80px;
+      height: 24px;
+      border-radius: 4px;
+      box-sizing: border-box;
+      border: 1px solid #1fc92d;
+      font-size: 14px;
+      line-height: 24px;
+      color: #1fc92d;
+      text-align: center;
+      margin-left: auto;
+      padding: 0 6px;
+
+      > img {
+        width: 16px;
+        height: 16px;
+        margin-right: 4px;
+        filter: invert(56%) sepia(93%) saturate(356%) hue-rotate(72deg)
+          brightness(95%) contrast(89%);
+      }
+    }
+  }
+
+  .detail_header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    width: 100%;
+    margin-bottom: 24px;
+  }
+
+  .changeTab {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 10px;
+    width: fit-content;
+    border-radius: 10px;
+    background: #f6f9ff;
+    padding: 0 4px;
+    // position: absolute;
+    // top: 102px;
+    z-index: 2;
+
+    .changeBox {
+      width: fit-content;
+      height: 32px;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 16px;
+      color: #7f7f7f;
+      padding: 8px;
+      cursor: pointer;
+
+      &:hover {
+        background: #ffffff;
+        box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+        color: #6356ea;
+      }
+    }
+
+    .activeBox {
+      background: #ffffff;
+      box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+      color: #6356ea;
+    }
+  }
+}

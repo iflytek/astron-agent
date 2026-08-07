@@ -1,0 +1,212 @@
+$dangerColor: #ff4d4f;
+$dangerHoverColor: #ff7875;
+
+$lineHeightSmall: 14px;
+$lineHeightMiddle: 20px;
+$lineHeightLarge: 24px;
+
+$fontSizeSmall: 14px;
+$fontSizeMiddle: 14px;
+$fontSizeLarge: 14px;
+
+// Mixin: link/text 按钮的尺寸样式
+@mixin linkTextButtonSize($padding, $lineHeight) {
+  padding: 0 $padding !important;
+  line-height: $lineHeight;
+}
+
+// Mixin: 常规按钮的尺寸样式
+@mixin regularButtonSize(
+  $height,
+  $padding,
+  $fontSize,
+  $lineHeight,
+  $borderRadius,
+  $fontWeight,
+  $minWidth,
+  $iconGap
+) {
+  height: $height !important;
+  padding: $padding !important;
+  font-size: $fontSize !important;
+  line-height: $lineHeight !important;
+  border-radius: $borderRadius !important;
+  font-weight: $fontWeight !important;
+  min-width: $minWidth;
+
+  &.withIcon {
+    gap: $iconGap;
+
+    :global(.anticon) {
+      font-size: $fontSize !important;
+      line-height: $lineHeight !important;
+    }
+  }
+}
+
+// Mixin: danger 状态的 link/text 按钮样式
+@mixin dangerLinkTextButton($color, $hoverColor) {
+  color: $color;
+  padding: 0 4px !important;
+  min-width: auto !important;
+  height: auto !important;
+
+  &:not(:disabled):hover {
+    color: $hoverColor !important;
+  }
+}
+
+.spaceButton {
+  font-weight: 500;
+  position: relative;
+  overflow: hidden;
+  box-shadow: none !important;
+
+  &:focus-visible {
+    outline: 2px solid #1890ff;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  &.ant-btn-link,
+  &.ant-btn-text {
+    padding: 0 4px !important;
+    min-width: auto !important;
+    height: auto !important;
+
+    &.size-large {
+      @include linkTextButtonSize(8px, $lineHeightLarge);
+    }
+
+    &.size-middle {
+      @include linkTextButtonSize(6px, $lineHeightMiddle);
+    }
+
+    &.size-small {
+      @include linkTextButtonSize(4px, $lineHeightSmall);
+    }
+
+    &:not(:disabled):hover {
+      color: var(--primary-color) !important;
+    }
+  }
+
+  &.ant-btn-link {
+    color: var(--primary-color);
+  }
+
+  // danger
+  &.danger {
+    &.ant-btn-primary {
+      background: $dangerColor !important;
+      box-shadow: 0 2px 0 rgba(255, 38, 5, 0.06);
+      color: #fff !important;
+      border-inline-start-color: $dangerColor !important;
+
+      &:not(:disabled):hover {
+        background: $dangerHoverColor !important;
+        border-inline-start-color: $dangerHoverColor !important;
+      }
+    }
+
+    &.ant-btn-link {
+      @include dangerLinkTextButton($dangerColor, $dangerHoverColor);
+    }
+
+    &.ant-btn-text {
+      @include dangerLinkTextButton($dangerColor, $dangerHoverColor);
+    }
+  }
+
+  // 禁用状态
+  &:disabled {
+    transform: none !important;
+    box-shadow: none !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  // 加载状态
+  &.loading {
+    pointer-events: none;
+  }
+
+  // 有图标的按钮
+  &.withIcon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  // 在按钮组中的样式
+  &.inGroup {
+    margin: 0;
+  }
+
+  // 独立按钮样式
+  &.standalone {
+    &:first-child {
+      margin-left: 0;
+    }
+
+    &:last-child {
+      margin-right: 0;
+    }
+  }
+
+  &:not(.ant-btn-link, .ant-btn-text) {
+    // 自定义尺寸样式
+    &.size-large {
+      @include regularButtonSize(
+        40px,
+        8px 20px,
+        $fontSizeLarge,
+        $lineHeightLarge,
+        14px,
+        500,
+        80px,
+        8px
+      );
+    }
+
+    &.size-middle {
+      @include regularButtonSize(
+        36px,
+        6px 16px,
+        $fontSizeMiddle,
+        $lineHeightMiddle,
+        12px,
+        500,
+        64px,
+        6px
+      );
+    }
+
+    &.size-small {
+      @include regularButtonSize(
+        32px,
+        4px 12px,
+        $fontSizeSmall,
+        $lineHeightSmall,
+        10px,
+        400,
+        48px,
+        4px
+      );
+    }
+  }
+}
+
+// 工具提示样式
+.tooltip {
+  :global(.ant-tooltip-content) {
+    .ant-tooltip-inner {
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 6px;
+      font-size: 12px;
+      padding: 6px 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+  }
+}

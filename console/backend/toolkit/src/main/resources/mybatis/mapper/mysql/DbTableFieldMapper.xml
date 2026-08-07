@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.database.DbTableFieldMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO db_table_field (tb_id, name, type, description, default_value,
+        is_required,is_system,create_time, update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.tbId}, #{item.name}, #{item.type},#{item.description},
+            #{item.defaultValue},#{item.isRequired},#{item.isSystem},#{item.createTime},
+            #{item.updateTime})
+        </foreach>
+    </insert>
+</mapper>

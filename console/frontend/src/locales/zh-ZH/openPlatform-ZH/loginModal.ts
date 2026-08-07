@@ -1,0 +1,30 @@
+/** ## 登录弹窗 中文配置 */
+const loginModal = {
+  mobileLogin: '手机快捷登录',
+  accountLogin: '账号密码登录',
+  mobileLabel: '手机号',
+  mobilePlaceholder: '请输入手机号',
+  verifyCodeLabel: '验证码',
+  verifyCodePlaceholder: '请输入手机验证码',
+  getCodeButton: '获取验证码',
+  resendAfter: '秒后重发',
+  loginButtonText: '登录/注册',
+  agreeTerms: '请阅读并接受',
+  autoRegisterText: '未注册手机号将自动注册账号，已阅读并同意星火',
+  privacyPolicyText: '《隐私政策》',
+  userAgreementText: '《用户协议》',
+  andText: '和',
+  accountLabel: '账号',
+  accountPlaceholder: '请输入账号',
+  passwordLabel: '密码',
+  passwordPlaceholder: '请输入6-20位密码',
+  forgotPassword: '忘记密码？',
+  loginButton: '登录',
+  termsAgreementIntro: '勾选即代表您同意并接受',
+  serviceAgreement: '《服务协议》',
+  privacyAgreement: '《隐私协议》',
+  sparkPrivacyPolicy: '《星火隐私政策》',
+  sparkUserAgreement: '《星火用户协议》',
+};
+
+export default loginModal;

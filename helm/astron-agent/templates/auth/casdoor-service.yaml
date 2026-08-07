@@ -1,0 +1,22 @@
+{{- if .Values.casdoor.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-casdoor
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: casdoor
+spec:
+  type: {{ .Values.casdoor.service.type }}
+  ports:
+  - name: http
+    port: {{ .Values.casdoor.service.port }}
+    targetPort: http
+    protocol: TCP
+    {{- if and (eq .Values.casdoor.service.type "NodePort") .Values.casdoor.service.nodePort }}
+    nodePort: {{ .Values.casdoor.service.nodePort }}
+    {{- end }}
+  selector:
+    {{- include "astron-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: casdoor
+{{- end }}

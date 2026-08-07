@@ -1,0 +1,174 @@
+.toolCard {
+  --primary-color: #6356EA;
+
+  height: 174px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  position: relative;
+
+  border-radius: 20px;
+  /* 卡片背景 */
+  background: #FFFFFF;
+  box-sizing: border-box;
+  /* 颜色/中性色/边框中性色 */
+  border: 1px solid #E7E7F0;
+  /* 阴影/一级阴影 */
+  box-shadow: 0px 1px 10px 0px rgba(122, 120, 150, 0.1);
+  cursor: pointer;
+  
+  &:hover {
+    box-shadow: 0px 10px 20px 0px rgba(0, 18, 70, 0.08);
+    background: rgba(255, 255, 255, 1);
+    border-color: var(--primary-color);
+  }
+}
+
+.cardContent {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: 'PingFang-Sim';
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.iconContainer {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  border: 1px solid #E7E7F0;
+  overflow: hidden;
+
+  .toolIcon {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+.titleArea {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.toolTitle {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: normal;
+  /* 颜色/文本中性色/主标题、正文 */
+  color: #222529;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.favoriteButton {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 4px;
+  flex-shrink: 0;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+}
+
+.favoriteIcon {
+  width: 18px;
+  height: 18px;
+}
+
+.description {
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 22px;
+  text-align: justify; /* 浏览器可能不支持 */
+  display: flex;
+  align-items: center;
+  letter-spacing: normal;
+  /* 颜色/文本中性色/副标题、次要正文内容 */
+  color: #676773;
+  height: 40px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 16px;
+}
+
+.bottomRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  display: flex;
+  align-items: center;
+  letter-spacing: normal;
+  /* 颜色/文本中性色/辅助色（说明、标签） */
+  color: #B5B5B5;
+}
+
+.metaInfo {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.authorInfo {
+  display: flex;
+  align-items: center;
+  margin-right: 16px;
+}
+
+.heatInfo {
+  display: flex;
+  align-items: center;
+}
+
+.metaIcon {
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+}
+
+.tagButton {
+  padding: 2px 6px;
+  font-family: PingFang SC;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: normal;
+  /* 颜色/文本辅助色/浅紫 */
+  color: #8475AF;
+
+  border-radius: 16px;
+  /* 标签底色 */
+  background: rgba(99, 86, 234, 0.1);
+}

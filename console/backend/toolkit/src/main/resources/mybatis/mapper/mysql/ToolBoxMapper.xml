@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.tool.ToolBoxMapper">
+    <select id="getModelListCountByCondition" resultType="java.lang.Integer">
+        select
+            count(1)
+        from
+            tool_box t
+        join
+            (
+                select
+                    tool_id,
+                    MAX(
+                    CASE
+                    WHEN version IS NOT NULL THEN CAST(SUBSTRING_INDEX(SUBSTRING(version, 2), '.', 1) AS UNSIGNED)
+                    ELSE NULL
+                    END
+                    ) AS max_major
+                from
+                    tool_box
+                <where>
+                    <if test="spaceId == null">
+                        and user_id =#{userId} and space_id is null
+                    </if>
+                    <if test="spaceId != null">
+                        and space_id =#{spaceId}
+                    </if>
+                    and deleted = 0
+                </where>
+                GROUP BY tool_id
+            ) t1
+        on t.tool_id = t1.tool_id
+        <where>
+            and t.deleted = 0
+            <if test="spaceId == null">
+                and t.user_id =#{userId} and t.space_id is null
+            </if>
+            <if test="spaceId != null">
+                and t.space_id =#{spaceId}
+            </if>
+            and ((t.version IS NULL AND t1.max_major IS NULL) or
+            (CAST(SUBSTRING_INDEX(SUBSTRING(t.version, 2), '.', 1) AS UNSIGNED) = t1.max_major))
+            <if test="content!=null and content !=''">
+                and (instr(t.name, #{content}) or instr(t.description, #{content}))
+            </if>
+            <if test="status != null">
+                and t.status = #{status}
+            </if>
+        </where>
+    </select>
+
+    <select id="getModelListByCondition" resultType="com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox">
+        select t.* from
+        tool_box t
+        join
+        (
+            select
+                    tool_id,
+                    MAX(
+                        CASE
+                            WHEN version IS NOT NULL THEN CAST(SUBSTRING_INDEX(SUBSTRING(version, 2), '.', 1) AS UNSIGNED)
+                            ELSE NULL
+                        END
+                    ) AS max_major
+            from tool_box
+            <where>
+                <if test="spaceId == null">
+                    and user_id =#{userId} and space_id is null
+                </if>
+                <if test="spaceId != null">
+                    and space_id =#{spaceId}
+                </if>
+                and deleted = 0
+            </where>
+            GROUP BY tool_id
+        ) t1
+        on t.tool_id = t1.tool_id
+        <where>
+            and t.deleted = 0
+            <if test="spaceId == null">
+                and t.user_id =#{userId} and t.space_id is null
+            </if>
+            <if test="spaceId != null">
+                and t.space_id =#{spaceId}
+            </if>
+            and ((t.version IS NULL AND t1.max_major IS NULL) or
+            (CAST(SUBSTRING_INDEX(SUBSTRING(t.version, 2), '.', 1) AS UNSIGNED) = t1.max_major))
+            <if test="content!=null and content !=''">
+                and (instr(t.name, #{content}) or instr(t.description, #{content}))
+            </if>
+            <if test="status != null">
+                and t.status = #{status}
+            </if>
+        </where>
+        order by t.is_public desc, t.update_time desc
+        <if test="limit != null"> LIMIT <if test="start != null">#{start},</if>#{limit} </if>
+    </select>
+
+    <select id="getModelListSquareByCondition" resultType="com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox">
+        select *
+        from tool_box t1
+        join
+        (select tool_id,
+                MAX(
+                    CASE
+                        WHEN version IS NOT NULL
+                        THEN CAST(SUBSTRING_INDEX(SUBSTRING(version, 2), '.', 1) AS UNSIGNED)
+                        ELSE NULL
+                    END
+                ) AS max_version
+        from tool_box
+        <where>
+            and deleted = 0
+            and instr(display_source, #{source})
+            <if test="content!=null and content !=''">
+                and (instr(name, #{content}) or instr(description, #{content}))
+            </if>
+            <if test="tags != null">
+                and tool_tag LIKE CONCAT('%', CAST(#{tags} AS CHAR), '%')
+            </if>
+            and (
+                is_public = 1
+            <if test="adminUid != null">
+                or user_id = #{adminUid}
+            </if>
+            )
+        </where>
+        group by tool_id) t2
+        on t1.tool_id = t2.tool_id
+        <where>
+            <if test="favorites!=null and favorites.size()>0">
+                t1.tool_id in
+                <foreach collection="favorites" item="favorites" open="(" close=")" separator=",">#{favorites}</foreach>
+            </if>
+            and t1.deleted = 0
+            and instr(t1.display_source, #{source})
+            <if test="content!=null and content !=''">
+                and (instr(t1.name, #{content}) or instr(t1.description, #{content}))
+            </if>
+            <if test="tags != null">
+                and t1.tool_tag LIKE CONCAT('%', CAST(#{tags} AS CHAR), '%')
+            </if>
+            and (
+            t1.is_public = 1
+            <if test="adminUid != null">
+                or t1.user_id = #{adminUid}
+            </if>
+            )
+             and (t1.version IS NULL
+                AND t2.max_version IS NULL)
+                OR (
+                    CAST(SUBSTRING_INDEX(SUBSTRING(t1.version, 2), '.', 1) AS UNSIGNED) = t2.max_version
+                )
+        </where>
+        <choose>
+            <when test="orderFlag == 1"> order by t1.top desc, t1.create_time desc,t1.favorite_count desc,t1.name asc</when>
+            <when test="tagFlag == 0">  order by t1.top desc, t1.favorite_count desc,t1.create_time desc,t1.name asc</when>
+            <when test="tagFlag == 1">  order by t1.top desc, t1.update_time desc,t1.favorite_count desc,t1.name asc</when>
+            <otherwise>order by t1.top desc, t1.name asc, t1.update_time desc</otherwise>
+        </choose>
+        <if test="limit != null">
+            LIMIT
+            <if test="start != null">#{start},</if>#{limit} </if>
+    </select>
+
+    <select id="selectPublicTool" resultType="com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox">
+        select * from tool_box where deleted = 0 and is_public = 1
+    </select>
+    <select id="findById" resultType="com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox">
+        select * from tool_box where
+        deleted = 0
+<!--        and is_public = 1-->
+        and id = #{toolId}
+    </select>
+    <select id="getToolByIds" resultType="com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox">
+        select * from tool_box
+        <where>
+            <if test="favorites!=null and favorites.size()>0">
+                id in
+                <foreach collection="favorites" open="(" close=")" separator="," item="item">
+                    #{item}
+                </foreach>
+            </if>
+           and  deleted = 0
+        </where>
+    </select>
+    <select id="getBotUsedCount" resultType="java.lang.Integer">
+        SELECT
+        COUNT(*)
+        FROM
+        bot_tool_rel x
+        where
+        x.tool_id = #{toolId};
+    </select>
+    <select id="getBatchBotUsedCount" resultType="com.iflytek.astron.console.toolkit.entity.vo.BotUsedToolVo">
+        SELECT
+        x.tool_id toolId ,
+        COUNT(*) botUsedCount
+        FROM
+        bot_tool_rel x
+        <where>
+            x.tool_id in
+            <foreach collection="ids" open="(" close=")" separator="," item="item">
+                #{item}
+            </foreach>
+        </where>
+        group by  x.tool_id;
+    </select>
+    <select id="getToolListCount" resultType="java.lang.Integer">
+        SELECT count(1) FROM tool_box tb
+        <where>
+            <if test="content!=null and content !=''">
+                and (instr(tb.name, #{content}) or instr(tb.description, #{content}))
+            </if>
+            <if test="tags != null">
+                and tb.tool_tag LIKE CONCAT('%', CAST(#{tags} AS CHAR), '%')
+            </if>
+            and tb.deleted = 0
+            and (
+            tb.is_public = 1
+            <if test="adminUid != null">
+                or tb.user_id = #{adminUid}
+            </if>
+            )
+        </where>
+    </select>
+    <select id="getMcpHeatValueByName" resultType="java.lang.Long">
+        SELECT heat_value from tool_box_heat_value
+        WHERE tool_name = #{name}
+    </select>
+    <select id="getToolsLastVersion" resultType="com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox">
+        select t.* from
+        tool_box t
+        join
+        (
+        select tool_id,
+        MAX(
+        CASE
+        WHEN version IS NOT NULL THEN CAST(SUBSTRING_INDEX(SUBSTRING(version, 2), '.', 1) AS UNSIGNED)
+        ELSE NULL
+        END
+        ) AS max_major
+        from tool_box where
+        deleted = 0
+        and tool_id IN
+        <foreach collection="toolIds" item="toolId" open="(" separator="," close=")">
+            #{toolId}
+        </foreach>
+        GROUP BY tool_id
+        ) t1
+        on t.tool_id = t1.tool_id
+        where t.deleted = 0 and t.tool_id IN
+        <foreach collection="toolIds" item="toolId" open="(" separator="," close=")">
+            #{toolId}
+        </foreach>
+        and ((t.version IS NULL AND t1.max_major IS NULL) or
+        (CAST(SUBSTRING_INDEX(SUBSTRING(t.version, 2), '.', 1) AS UNSIGNED) = t1.max_major))
+    </select>
+</mapper>

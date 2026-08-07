@@ -1,0 +1,565 @@
+# Global settings
+global:
+  imageRegistry: ghcr.io/iflytek/astron-agent
+  imagePullPolicy: IfNotPresent
+  storageClass: ""
+  astronAgentVersion: latest
+  # Host base address for external access (e.g., http://your-domain.com)
+  # Used for MinIO server URL and other external endpoints
+  hostBaseAddress: "http://astron-agent.example.com"
+# Override the full name for consistent resource naming
+fullnameOverride: "astron-agent"
+
+# Image pull secrets
+imagePullSecrets: []
+
+# Network settings
+networkPolicy:
+  enabled: false
+
+# Infrastructure Services
+postgresql:
+  enabled: true
+  image: postgres:14
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  persistence:
+    enabled: true
+    size: 10Gi
+  auth:
+    database: sparkdb_manager
+    username: spark
+    password: spark123
+  healthCheck:
+    interval: 30
+    timeout: 10
+    retries: 60
+
+mysql:
+  enabled: true
+  image: mysql:8.4
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  persistence:
+    enabled: true
+    size: 10Gi
+  auth:
+    rootPassword: root123
+  healthCheck:
+    interval: 30
+    timeout: 10
+    retries: 60
+
+redis:
+  enabled: true
+  image: redis:7
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  persistence:
+    enabled: true
+    size: 5Gi
+  auth:
+    password: 123
+  healthCheck:
+    interval: 30
+    timeout: 10
+    retries: 60
+
+minio:
+  enabled: true
+  image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  persistence:
+    enabled: true
+    size: 20Gi
+  auth:
+    rootUser: minioadmin
+    rootPassword: minioadmin123
+  service:
+    type: NodePort
+    apiPort: 9000
+    consolePort: 9001
+    nodePort: 30900
+    consoleNodePort: 30901
+  healthCheck:
+    interval: 30
+    timeout: 10
+    retries: 60
+
+# Authentication Services
+casdoor:
+  enabled: true
+  image: casbin/casdoor:v2.67.0
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  service:
+    type: NodePort
+    port: 8000
+    nodePort: 30800
+  env:
+    ginMode: release
+  mysql:
+    database: casdoor
+    username: casdoor
+    password: casdoor123
+    rootPassword: casdoor_root123
+  persistence:
+    logs:
+      enabled: true
+      size: 5Gi
+
+# Core Services
+coreTenant:
+  enabled: true
+  image: core-tenant
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 5052
+  env:
+    serviceLocation: hf
+    servicePort: 5052
+    databaseType: mysql
+    databaseUsername: root
+    databasePassword: ""
+    databaseUrl: "(astron-agent-mysql:3306)/tenant"
+    maxOpenConns: 5
+    maxIdleConns: 5
+    logPath: log.txt
+
+coreDatabase:
+  enabled: true
+  image: core-database
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 7990
+  env:
+    servicePort: 7990
+    pgsqlHost: astron-agent-postgres
+    pgsqlPort: 5432
+    pgsqlUser: spark
+    pgsqlPassword: ""
+    pgsqlDatabase: sparkdb_manager
+    otlpEndpoint: "127.0.0.1:4317"
+    otlpEnable: "0"
+
+coreRpa:
+  enabled: true
+  image: core-rpa
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 17198
+  env:
+    servicePort: 17198
+    otlpEndpoint: "127.0.0.1:4317"
+    otlpEnable: "0"
+    kafkaEnable: "0"
+    kafkaServers: "astron-agent-kafka:29092"
+    xiaowuRpaTaskCreateUrl: "https://newapi.iflyrpa.com/api/rpa-openapi/workflows/execute-async"
+    xiaowuRpaTaskQueryUrl: "https://newapi.iflyrpa.com/api/rpa-openapi/executions"
+
+coreLink:
+  enabled: true
+  image: core-link
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 18888
+  env:
+    servicePort: 18888
+    mysqlHost: astron-agent-mysql
+    mysqlPort: 3306
+    mysqlUser: root
+    mysqlPassword: ""
+    mysqlDb: spark-link
+    redisIsCluster: "false"
+    redisAddr: astron-agent-redis:6379
+    redisClusterAddr: ""
+    redisPassword: ""
+    otlpEndpoint: "127.0.0.1:4317"
+    otlpEnable: "0"
+    kafkaEnable: "0"
+    kafkaServers: "astron-agent-kafka:29092"
+
+coreAitools:
+  enabled: true
+  image: core-aitools
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 18668
+  env:
+    servicePort: 18668
+    ossDownloadHost: ""
+    ossType: s3
+    ossEndpoint: "http://astron-agent-minio:9000"
+    ossAccessKeyId: ""
+    ossAccessKeySecret: ""
+    ossBucketName: "workflow"
+    ossTtl: "157788000"
+    kafkaEnable: "0"
+    kafkaServers: "astron-agent-kafka:29092"
+    redisClusterAddr: ""
+    redisAddr: "astron-agent-redis:6379"
+    redisPassword: ""
+    redisDatabase: "0"
+    redisDatabaseConsole: "0"
+    mysqlHost: "astron-agent-mysql"
+    mysqlPort: "3306"
+    mysqlUser: "root"
+    mysqlPassword: ""
+    consoleMysqlDb: "astron_console"
+    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true"
+
+coreAgent:
+  enabled: true
+  image: core-agent
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  service:
+    type: ClusterIP
+    port: 17870
+  env:
+    servicePort: 17870
+    serviceLocation: hf
+    serviceHost: "0.0.0.0"
+    serviceWorkers: "1"
+    serviceReload: "false"
+    serviceWsPingInterval: "false"
+    serviceWsPingTimeout: "false"
+    redisClusterAddr: ""
+    redisAddr: astron-agent-redis:6379
+    redisPassword: ""
+    redisExpire: "3600"
+    mysqlHost: astron-agent-mysql
+    mysqlPort: 3306
+    mysqlUser: root
+    mysqlPassword: ""
+    mysqlDb: agent
+    otlpEndpoint: "127.0.0.1:4317"
+    otlpMetricTimeout: "3000"
+    otlpMetricExportIntervalMillis: "3000"
+    otlpMetricExportTimeoutMillis: "3000"
+    uploadNodeTrace: "true"
+    uploadMetrics: "true"
+    otlpTraceTimeout: "3000"
+    otlpTraceMaxQueueSize: "2048"
+    otlpTraceScheduleDelayMillis: "3000"
+    otlpTraceMaxExportBatchSize: "2048"
+    otlpTraceExportTimeoutMillis: "3000"
+    kafkaEnable: "0"
+    kafkaServers: "astron-agent-kafka:29092"
+    kafkaTimeout: "60"
+    kafkaTopic: spark-agent-builder
+    getLinkUrl: "http://astron-agent-core-link:18888/api/v1/tools"
+    versionsLinkUrl: "http://astron-agent-core-link:18888/api/v1/tools/versions"
+    runLinkUrl: "http://astron-agent-core-link:18888/api/v1/tools/http_run"
+    getWorkflowsUrl: "http://astron-agent-core-workflow:7880/sparkflow/v1/protocol/get"
+    workflowSseBaseUrl: "http://astron-agent-core-workflow:7880/workflow/v1"
+    chunkQueryUrl: "http://astron-agent-core-knowledge:20010/knowledge/v1/chunk/query"
+    listMcpPluginUrl: "http://astron-agent-core-link:18888/api/v1/mcp/tool_list"
+    runMcpPluginUrl: "http://astron-agent-core-link:18888/api/v1/mcp/call_tool"
+    appAuthHost: astron-agent-core-tenant:5052
+    appAuthProt: http
+    appAuthApiKey: 7b709739e8da44536127a333c7603a83
+    appAuthSecret: NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy
+
+coreKnowledge:
+  enabled: true
+  image: core-knowledge
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 20010
+  env:
+    servicePort: 20010
+    otlpEnable: "0"
+
+coreWorkflow:
+  enabled: true
+  image: core-workflow
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "6Gi"
+      cpu: "2000m"
+  service:
+    type: ClusterIP
+    port: 7880
+  env:
+    servicePort: 7880
+    ossDownloadHost: ""
+    runtimeEnv: dev
+    mysqlHost: astron-agent-mysql
+    mysqlPort: 3306
+    mysqlUser: root
+    mysqlPassword: ""
+    mysqlDb: workflow
+    redisClusterAddr: ""
+    redisAddr: astron-agent-redis:6379
+    redisPassword: ""
+    redisExpire: "3600"
+    otlpEndpoint: "127.0.0.1:4317"
+    otlpEnable: "0"
+    otlpMetricExportIntervalMillis: "3000"
+    otlpMetricExportTimeoutMillis: "3000"
+    otlpMetricTimeout: "3000"
+    otlpTraceTimeout: "3000"
+    otlpTraceMaxQueueSize: "2048"
+    otlpTraceScheduleDelayMillis: "3000"
+    otlpTraceMaxExportBatchSize: "500"
+    otlpTraceExportTimeoutMillis: "3000"
+    ossType: s3
+    ossEndpoint: "http://astron-agent-minio:9000"
+    ossAccessKeyId: ""
+    ossAccessKeySecret: ""
+    ossBucketName: "workflow"
+    ossTtl: "157788000"
+    kafkaEnable: "0"
+    kafkaServers: "astron-agent-kafka:29092"
+    kafkaTimeout: "60"
+    kafkaTopic: spark-agent-builder
+    # Service URLs
+    knowledgeBaseUrl: "http://astron-agent-core-knowledge:20010"
+    knowledgeProBaseUrl: "http://astron-agent-core-knowledge:20010"
+    pluginBaseUrl: "http://astron-agent-core-link:18888"
+    workflowBaseUrl: "http://astron-agent-core-workflow:7880"
+    appManagePlatBaseUrl: "http://astron-agent-core-tenant:5052"
+    agentBaseUrl: "http://astron-agent-core-agent:17870"
+    pgsqlBaseUrl: "http://astron-agent-core-database:7990"
+    rpaBaseUrl: "http://astron-agent-core-rpa:17198"
+
+# Console Services
+consoleFrontend:
+  enabled: true
+  image: console-frontend
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  service:
+    type: ClusterIP
+    port: 1881
+  env:
+    casdoorId: "astron-agent-client"
+    casdoorApp: "astron-agent-app"
+    casdoorOrg: "built-in"
+
+consoleHub:
+  enabled: true
+  image: console-hub
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "500m"
+    limits:
+      memory: "6Gi"
+      cpu: "2000m"
+  service:
+    type: ClusterIP
+    port: 8080
+  env:
+    # Casdoor Configuration
+    consoleCasdoorUrl: ""
+    consoleCasdoorId: "astron-agent-client"
+    consoleCasdoorApp: "astron-agent-app"
+    consoleCasdoorOrg: "built-in"
+    consoleDomain: ""
+    # MySQL Configuration
+    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true"
+    mysqlUser: root
+    mysqlPassword: ""
+    # Redis Configuration
+    redisHost: astron-agent-redis
+    redisPort: 6379
+    redisPassword: ""
+    redisDatabaseConsole: 0
+    # OSS/MinIO Configuration
+    ossRemoteEndpoint: ""
+    ossEndpoint: "http://astron-agent-minio:9000"
+    ossAccessKeyId: ""
+    ossAccessKeySecret: ""
+    ossBucketConsole: console-oss
+    ossPresignExpirySecondsConsole: 600
+    oauth2IssuerUri: ""
+    oauth2JwkSetUri: "http://astron-agent-casdoor:8000/.well-known/jwks"
+    oauth2Audience: astron-agent-client
+    # Tenant Configuration (Important!)
+    tenantId: "680ab54f"
+    tenantKey: "7b709739e8da44536127a333c7603a83"
+    tenantSecret: "NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy"
+    # Common API Configuration
+    commonAppid: "680ab54f"
+    commonApikey: "7b709739e8da44536127a333c7603a83"
+    commonApiSecret: "NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy"
+    # Service URLs
+    appUrl: "http://astron-agent-core-tenant:5052/v2/app"
+    knowledgeUrl: "http://astron-agent-core-knowledge:20010/knowledge"
+    toolUrl: "http://astron-agent-core-link:18888"
+    toolRpaUrl: "http://astron-agent-core-rpa:17198"
+    workflowUrl: "http://astron-agent-core-workflow:7880"
+    sparkDbUrl: "http://astron-agent-core-database:7990"
+    localModelUrl: "http://127.0.0.1:33778"
+    rpaUrl: "https://newapi.iflyrpa.com"
+    # Workflow Service APIs
+    workflowChatUrl: "http://astron-agent-core-workflow:7880/workflow/v1/chat/completions"
+    workflowDebugUrl: "http://astron-agent-core-workflow:7880/workflow/v1/debug/chat/completions"
+    workflowResumeUrl: "http://astron-agent-core-workflow:7880/workflow/v1/resume"
+    # Tenant APIs
+    tenantCreateApp: "http://astron-agent-core-tenant:5052/v2/app"
+    tenantGetAppDetail: "http://astron-agent-core-tenant:5052/v2/app/details"
+    tenantVerifyAppAuth: "http://astron-agent-core-tenant:5052/v2/app/key/verify"
+    # MaaS Platform Configuration
+    maasAppId: "680ab54f"
+    maasApiKey: "7b709739e8da44536127a333c7603a83"
+    maasApiSecret: "NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy"
+    maasConsumerId: "680ab54f"
+    maasConsumerKey: "7b709739e8da44536127a333c7603a83"
+    maasConsumerSecret: "NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy"
+    maasWorkflowVersion: "http://127.0.0.1:8080/workflow/version"
+    maasSynchronizeWorkFlow: "http://127.0.0.1:8080/workflow"
+    maasPublish: "http://127.0.0.1:8080/workflow/publish"
+    maasCloneWorkFlow: "http://127.0.0.1:8080/workflow/internal-clone"
+    maasGetInputs: "http://127.0.0.1:8080/workflow/get-inputs-info"
+    maasCanPublishUrl: "http://127.0.0.1:8080/workflow/can-publish"
+    maasPublishApi: "http://astron-agent-core-workflow:7880/workflow/v1/publish"
+    maasAuthApi: "http://astron-agent-core-workflow:7880/workflow/v1/auth"
+    maasMcpRegister: "http://127.0.0.1:8080/workflow/release"
+    maasWorkflowConfig: "http://127.0.0.1:8080/workflow/get-flow-advanced-config"
+    botApiCbmBaseUrl: "ws(s)://spark-api-open.xf-yun.com"
+    # WeChat Platform Configuration
+    wechatComponentAppid: your-wechat-component-appid
+    wechatComponentSecret: your-wechat-secret
+    wechatToken: your-wechat-token
+    wechatEncodingAesKey: your-wechat-encoding-aes-key
+    adminUid: "9999"
+    botApiMaasBaseUrl: ""
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: astron-agent.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: astron-agent-tls
+      hosts:
+        - astron-agent.example.com
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Security Context
+podSecurityContext:
+  fsGroup: 1000
+
+# Security Context
+securityContext:
+  runAsNonRoot: false
+  runAsUser: 0
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}

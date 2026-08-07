@@ -1,0 +1,75 @@
+.resourceEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 40px 20px;
+}
+
+.emptyContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.emptyIcon {
+  width: 128px;
+  height: 128px;
+  margin-bottom: 8px;
+}
+
+.description {
+  font-size: 14px;
+  color: #999999;
+  line-height: 22px;
+  text-align: center;
+}
+
+.actionArea {
+  display: flex;
+  justify-content: center;
+}
+.createButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.plusIcon {
+  font-size: 18px;
+  color: #ffffff;
+  font-weight: bold;
+  margin-right: 6px;
+  line-height: 1;
+}
+
+.buttonText {
+  font-family: PingFang SC;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 22px;
+  letter-spacing: normal;
+  /* 白色字体 */
+  color: #FFFFFF;
+}
+
+

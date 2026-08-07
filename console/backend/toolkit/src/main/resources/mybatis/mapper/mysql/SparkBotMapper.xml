@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.bot.SparkBotMapper">
+    <update id="updateBotFloatedStatus">
+        update spark_bot
+        set floated = 0
+        where user_id = #{uid}
+        <if test="excludeId != null">
+            and id != #{excludeId}
+        </if>
+    </update>
+    <select id="listSparkBotByRepoId" resultType="com.iflytek.astron.console.toolkit.entity.dto.SparkBotVO">
+        select sb.* from bot_repo_rel brr
+        left join repo r  on r.core_repo_id  = brr.repo_id
+        left join spark_bot sb on sb.id = brr.bot_id
+        where r.id = #{repoId} and sb.user_id = #{uid}
+    </select>
+    <select id="listSparkBotByToolId" resultType="com.iflytek.astron.console.toolkit.entity.table.bot.SparkBot">
+        select sb.* from bot_tool_rel btr left join spark_bot sb on sb.id = btr.bot_id
+        where btr.tool_id = #{toolId} and sb.user_id = #{uid}
+    </select>
+    <select id="listSparkBotSquareByToolId" resultType="com.iflytek.astron.console.toolkit.entity.vo.bot.SparkBotSquaerVo">
+        select
+        sb.*,
+        btr.tool_id
+        from
+        bot_tool_rel btr
+        left join spark_bot sb on sb.id = btr.bot_id;
+    </select>
+    <select id="listSparkBotByCondition" resultType="com.iflytek.astron.console.toolkit.entity.dto.SparkBotVO">
+        select * from spark_bot sb where sb.deleted = 0 and sb.user_id = #{uid}
+<!--        and is_public = 0-->
+        <if test="content!=null and content !=''">
+            and (instr(sb.name, #{content}) or instr(sb.description, #{content}))
+        </if>
+        order by sb.update_time desc
+    </select>
+
+    <select id="botSquareByCondition" resultType="com.iflytek.astron.console.toolkit.entity.dto.SparkBotVO">
+        select * from spark_bot sb
+        <where>
+            <if test="notContainIds != null and notContainIds.size &gt; 0">
+                and sb.id not in
+                <foreach collection="notContainIds" open="(" close=")" separator="," item="id">
+                    #{id}
+                </foreach>
+            </if>
+            <if test="content!=null and content !=''">
+                and (instr(sb.name, #{content}) or instr(sb.description, #{content}))
+            </if>
+            <if test="tags != null">
+                and sb.bot_tag LIKE CONCAT('%', CAST(#{tags} AS CHAR), '%')
+            </if>
+            <choose>
+                <when test="favorites != null and favorites.size &gt; 0">
+                    and sb.id in
+                    <foreach collection="favorites" open="(" close=")" separator="," item="id">
+                        #{id}
+                    </foreach>
+                </when>
+                <otherwise>
+                    and (
+                    sb.is_public = 1
+                    <if test="adminUid != null">
+                        or sb.user_id = #{adminUid}
+                    </if>
+                    )
+                </otherwise>
+            </choose>
+            and sb.deleted = 0
+        </where>
+        <choose>
+            <when test="tagFlag == 0">  order by sb.top desc, sb.favorite_count desc,sb.update_time desc,sb.name desc</when>
+            <when test="tagFlag == 1">  order by sb.top desc, sb.update_time desc,sb.favorite_count desc,sb.name desc</when>
+            <otherwise>
+                order by
+<!--                sb.name asc, -->
+                sb.update_time desc
+            </otherwise>
+        </choose>
+        <if test="limit != null">
+            LIMIT
+        <if test="start != null">#{start},</if>#{limit} </if>
+    </select>
+
+    <select id="findById" resultType="com.iflytek.astron.console.toolkit.entity.table.bot.SparkBot">
+        SELECT x.* FROM spark_bot x where x.deleted = 0 and x.id = #{botId}
+    </select>
+
+    <select id="countSquareBots" resultType="java.lang.Integer">
+        SELECT count(1) from spark_bot sb
+        <where>
+            <if test="content!=null and content !=''">
+                and (instr(sb.name, #{content}) or instr(sb.description, #{content}))
+            </if>
+            <if test="tags != null">
+                and sb.bot_tag LIKE CONCAT('%', CAST(#{tags} AS CHAR), '%')
+            </if>
+            <choose>
+                <when test="favorites != null and favorites.size &gt; 0">
+                    and sb.id in
+                    <foreach collection="favorites" open="(" close=")" separator="," item="id">
+                        #{id}
+                    </foreach>
+                </when>
+                <otherwise>
+                    and sb.is_public = 1
+                </otherwise>
+            </choose>
+            and sb.deleted = 0 ;
+        </where>
+
+    </select>
+    <select id="isPersonal" resultType="com.iflytek.astron.console.toolkit.entity.table.bot.SparkBot">
+        SELECT x.* FROM spark_bot x
+        <where>
+            x.deleted = 0
+            and x.public_id = #{botId}
+            and x.user_id = #{userId}
+        </where>
+    </select>
+
+    <select id="getBotsContainPubAndPriv" resultType="com.iflytek.astron.console.toolkit.entity.dto.SparkBotVO">
+        select * from spark_bot sb
+        <where>
+            (
+            user_id = #{userId}
+            <if test="favorites != null and favorites.size &gt; 0">
+                or sb.id in
+                <foreach collection="favorites" open="(" close=")" separator="," item="id">
+                    #{id}
+                </foreach>
+            </if>
+            )
+            <if test="content != null and content != ''">
+                and (instr(sb.name, #{content}) or instr(sb.description, #{content}))
+            </if>
+            and sb.deleted = 0
+        </where>
+        order by sb.update_time desc
+    </select>
+    <select id="checkDomainIsUsage" resultType="java.lang.Integer">
+        SELECT
+            COUNT(*)
+        FROM
+            spark_bot sb
+                LEFT JOIN bot_model_config bmc ON
+                sb.id = bmc.bot_id
+        WHERE
+            sb.user_id = #{uid}
+          and sb.deleted = 0
+          and (JSON_UNQUOTE(JSON_EXTRACT(CAST(bmc.model_config AS JSON), '$.modelConfig.models.plan.domain')) = #{domain}
+            or JSON_UNQUOTE(JSON_EXTRACT(CAST(bmc.model_config AS JSON), '$.modelConfig.models.summary.domain')) = #{domain});
+    </select>
+</mapper>

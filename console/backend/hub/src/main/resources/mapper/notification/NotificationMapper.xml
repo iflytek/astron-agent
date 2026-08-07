@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.hub.mapper.notification.NotificationMapper">
+
+    <resultMap id="BaseResultMap" type="com.iflytek.astron.console.hub.entity.notification.Notification">
+        <id column="id" property="id"/>
+        <result column="type" property="type"/>
+        <result column="title" property="title"/>
+        <result column="body" property="body"/>
+        <result column="template_code" property="templateCode"/>
+        <result column="payload" property="payload"/>
+        <result column="creator_uid" property="creatorUid"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="expire_at" property="expireAt"/>
+        <result column="meta" property="meta"/>
+    </resultMap>
+
+    <select id="selectByType" resultMap="BaseResultMap">
+        SELECT *
+        FROM notifications
+        WHERE type = #{type}
+          AND (expire_at IS NULL OR expire_at > NOW())
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectBroadcastMessages" resultMap="BaseResultMap">
+        SELECT *
+        FROM notifications
+        WHERE type = 'broadcast'
+          AND created_at BETWEEN #{startTime} AND #{endTime}
+          AND (expire_at IS NULL OR expire_at > NOW())
+        ORDER BY created_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countBroadcastMessagesAfter" resultType="long">
+        SELECT COUNT(*)
+        FROM notifications
+        WHERE type = 'broadcast'
+          AND created_at >= #{afterTime}
+          AND (expire_at IS NULL OR expire_at > NOW())
+    </select>
+
+    <delete id="deleteExpiredMessages">
+        DELETE FROM notifications
+        WHERE expire_at IS NOT NULL
+          AND expire_at &lt;= #{expireTime}
+    </delete>
+
+</mapper>

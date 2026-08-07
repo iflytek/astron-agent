@@ -1,0 +1,57 @@
+[meta]
+version = 1
+
+[[java.apps]]
+name = "console-backend"
+dir = "console/backend"
+enabled = true
+
+[[typescript.apps]]
+name = "console-frontend"
+dir = "console/frontend"
+enabled = true
+
+[[go.apps]]
+name = "core-tenant"
+dir = "core/tenant"
+enabled = true
+
+[[python.apps]]
+name = "core-memory"
+dir = "core/memory/database"
+enabled = true
+
+[[python.apps]]
+name = "core-rpa"
+dir = "core/plugin/rpa"
+enabled = true
+
+[[python.apps]]
+name = "core-link"
+dir = "core/plugin/link"
+enabled = true
+
+[[python.apps]]
+name = "core-aitools"
+dir = "core/plugin/aitools"
+enabled = true
+
+[[python.apps]]
+name = "core-agent"
+dir = "core/agent"
+enabled = true
+
+[[python.apps]]
+name = "core-knowledge"
+dir = "core/knowledge"
+enabled = true
+
+[[python.apps]]
+name = "core-workflow"
+dir = "core/workflow"
+enabled = true
+
+[[python.apps]]
+name = "core-common"
+dir = "core/common"
+enabled = true

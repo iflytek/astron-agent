@@ -1,0 +1,14 @@
+# ============================================================================
+# astronAgent with Casdoor Authentication
+# ============================================================================
+# This configuration includes:
+# - Casdoor authentication service (from docker-compose-auth.yml)
+# - astronAgent core services (from docker-compose.yaml)
+# All services run in the same network: astron-agent-network
+
+include:
+  # Include Casdoor authentication service
+  - docker-compose-auth.yml
+
+  # Include astronAgent core services
+  - docker-compose.yaml

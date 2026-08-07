@@ -1,0 +1,52 @@
+services:
+  casdoor:
+    image: casbin/casdoor:v2.67.0
+    container_name: astron-agent-casdoor
+    restart: always
+    user: root
+    ports:
+      - "${CASDOOR_PORT:-8000}:8000"
+    environment:
+      - GIN_MODE=release
+      - CONSOLE_DOMAIN=${CONSOLE_DOMAIN:-http://localhost}
+      - HOST_BASE_ADDRESS=${HOST_BASE_ADDRESS:-http://localhost}
+      - origin=${CONSOLE_CASDOOR_URL:-http://localhost:8000}
+      - originFrontend=${CONSOLE_CASDOOR_URL:-http://localhost:8000}
+    volumes:
+      - ./casdoor/conf:/conf-templates:ro
+      - ./casdoor/entrypoint.sh:/entrypoint.sh:ro
+      - casdoor-logs:/logs
+    networks:
+      - astron-agent-network
+    depends_on:
+      - casdoor-mysql
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+
+  casdoor-mysql:
+    image: mysql:8.4.6
+    container_name: astron-agent-casdoor-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: casdoor
+      MYSQL_USER: casdoor
+      MYSQL_PASSWORD: casdoor123
+    volumes:
+      - casdoor-mysql-data:/var/lib/mysql
+    networks:
+      - astron-agent-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+networks:
+  astron-agent-network:
+    driver: bridge
+
+volumes:
+  casdoor-logs:
+  casdoor-mysql-data:

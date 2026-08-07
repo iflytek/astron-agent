@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper">
+    <select id="selectSuqareFlowList" resultType="com.iflytek.astron.console.commons.entity.workflow.Workflow">
+        SELECT
+        w.*, fr.latest_create_time AS frCreateTime
+        FROM workflow w
+        LEFT JOIN (
+        SELECT flow_id, MAX(create_time) AS latest_create_time,info_id
+        FROM flow_release_channel
+        WHERE channel = 'square'
+        GROUP BY flow_id,info_id
+        ) fr
+        ON w.flow_id = fr.flow_id
+        <where>
+            and w.deleted = 0
+            and w.status = 1
+            <if test="name != null and name != '' ">
+                and w.name LIKE CONCAT('%', #{name}, '%')
+            </if>
+            <if test="uid == null ">
+                and ( w.is_public = 1 or w.uid = #{adminUid} )
+            </if>
+            <if test="uid != null and uid != '' ">
+                and w.uid = #{uid} and w.is_public = 1
+            </if>
+            <if test="configId != null">
+                and fr.info_id = #{configId}
+            </if>
+        </where>
+        ORDER BY frCreateTime DESC, w.create_time DESC
+    </select>
+    <select id="checkDomainIsUsage" resultType="java.lang.Integer">
+        SELECT COUNT(DISTINCT w.flow_id)
+        FROM workflow w
+                 LEFT JOIN node_info n ON w.flow_id = n.flow_id
+        WHERE w.deleted = 0
+          AND w.uid = #{uid}
+          AND n.`domain` = #{domain};
+    </select>
+</mapper>

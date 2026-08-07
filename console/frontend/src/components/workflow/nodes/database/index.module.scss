@@ -1,0 +1,29 @@
+.ai {
+    &_text {
+        font-family: 苹方-简;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 15.5px;
+        letter-spacing: normal;
+        background: linear-gradient(90deg, #C927FF 8%, #6356EA 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-fill-color: transparent;
+    }
+}
+.database {
+    .tabItem {
+        flex: 1;
+        height: 24px;
+        line-height: 24px;
+        text-align: center;
+        color: #666666;
+        &.activeItem {
+            background-color: #fff;
+            border-radius: 6px;
+            box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+            color: #333333;
+        }
+    }
+}

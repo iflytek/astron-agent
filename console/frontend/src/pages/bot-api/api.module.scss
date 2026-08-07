@@ -1,0 +1,371 @@
+.api_swap {
+  // background: url("~assets/imgs/sparkImg/form-bottom-bg.png") bottom left
+  // no-repeat;
+  width: 100%;
+  overflow: hidden;
+}
+.api_container {
+  width: 92%;
+  margin: 0 auto;
+  .divider {
+    display: flex;
+    .divider_circle:last-child {
+      margin: 0;
+    }
+    .divider_circle {
+      width: 5px;
+      height: 5px;
+      opacity: 0.28;
+      background: #7487fe;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+  }
+
+  .api_header {
+    display: flex;
+    margin-top: 30px;
+    margin-left: -24px;
+    img {
+      transform: translateY(-4px);
+      margin-top: 9px;
+    }
+    &_title {
+      font-size: 20px;
+      font-family: PingFangSC, PingFangSC-Semibold;
+      font-weight: 600;
+      color: #43436b;
+      margin-right: 11px;
+    }
+    &_subtitle {
+      font-size: 12px;
+      font-weight: 400;
+      color: #43436b;
+      line-height: 30px;
+    }
+  }
+  .api_step {
+    margin-top: 24px;
+    height: 123px;
+    background: #f2f8ff;
+    border-radius: 9px;
+    box-shadow: 0px 4px 8px 0px rgba(112, 153, 208, 0.16);
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .api_step .step {
+    display: flex;
+    .step_index {
+      height: 60px;
+      margin-right: 12px;
+    }
+    .step_detail {
+      display: flex;
+      flex-direction: column;
+      height: 54px;
+      justify-content: space-between;
+      .title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #43436b;
+      }
+      .subtitle {
+        margin-top: 4px;
+        font-size: 12px;
+        font-weight: 400;
+        color: #9295bf;
+      }
+      .fun {
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        color: #7487fe;
+      }
+    }
+  }
+
+  .statistic {
+    margin-top: 32px;
+    margin-bottom: 24px;
+    display: flex;
+    // height: 207px;
+    overflow: hidden;
+    justify-content: space-between;
+    .certified_card {
+    
+      width: max(48%, 570px);
+      // height: 207px;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0px 4px 8px 0px rgba(112, 153, 208, 0.1);
+      padding:24px;
+      &_title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        span {
+          font-size: 16px;
+          font-weight: 500;
+          color: #08233b;
+        }
+        div {
+          cursor: pointer;
+          min-width: 93px;
+          height: 30px;
+          border: #dedde9 1px solid;
+          border-radius: 6px;
+          // text
+          font-size: 12px;
+          font-weight: 400;
+          text-align: center;
+          color: #43436b;
+          line-height: 30px;
+          padding: 0 8px;
+        }
+      }
+      .appid_box {
+        display: flex;
+        justify-content: space-between;
+        margin: 12px 0;
+        .appid_download {
+          // display: block;
+          font-size: 10px;
+          font-weight: 500;
+          color: #7487fe;
+          min-width: 93px;
+          margin-right: 10px;
+          line-height: normal;
+          text-align: center;
+          text-decoration: revert;
+          &:last-child{
+            margin-right: 0;
+          }
+        }
+      }
+      .appid_select {
+        max-width: 80%;
+        height: 25px;
+        display: flex;
+        align-items: center;
+        margin-top: 4px;
+        .appid_select_title {
+          font-size: 12px;
+          font-weight: 400;
+          color: #43436b;
+          margin-right: 4px;
+          white-space: nowrap;
+        }
+        .appid_select_appid {
+          font-size: 14px;
+          font-weight: 700;
+          color: #7487fe;
+          margin-left: 3px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .appid_select_divide {
+          width: 1px;
+          height: 19px;
+          opacity: 0.2;
+          border: 1px solid #6ea5d2;
+          margin: 0 20px;
+        }
+        :global {
+          .ant-select-selector {
+            // height: 25px;
+            border-radius: 999px;
+          }
+          .ant-select-selection-item {
+            line-height: 25px;
+          }
+        }
+      }
+      &_tips {
+        font-size: 10px;
+        font-weight: 400;
+        color: #9191a7;
+        margin-top: 8px;
+      }
+      .cer_divide {
+        margin: 24px 0;
+        width: 100%;
+      }
+      .cer_info {
+        margin-bottom: 10px;
+        display: flex;
+        .info_label {
+          font-size: 12px;
+          font-weight: 400;
+          color: #43436b;
+          min-width: 62px;
+        }
+        .info_res {
+          font-size: 12px;
+          font-weight: 400;
+          color: #9295bf;
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          max-width: 80%;
+        }
+        &:last-child{
+          margin-bottom: 0;
+        }
+      }
+    }
+    .right {
+      margin-left: 10px;
+      width: max(48%, 600px);
+      .statistic_card {
+        padding: 0 32px;
+        width: 100%;
+        height: 260px;
+        background: #ffffff;
+        border-radius: 9px;
+        box-shadow: 0px 4px 8px 0px rgba(112, 153, 208, 0.1);
+        display: flex;
+        align-items: center;
+        justify-content: space-around;
+        .statistic_divide {
+          width: 1px;
+          height: 77px;
+          opacity: 0.2;
+          border: 1px solid #6ea5d2;
+        }
+        .statistic_data {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          .data_img {
+            height: 50px;
+          }
+          .data_used_num {
+            font-size: 28px;
+            font-family: DINAlternate, DINAlternate-Bold;
+            font-weight: 700;
+            color: #597dff;
+          }
+          .data_title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #9295bf;
+          }
+        }
+      }
+      .statistic_tips {
+        display: flex;
+        margin-top: 20px;
+        &_title {
+          width: 60px;
+          height: 17px;
+          font-size: 12px;
+          font-family: PingFangSC, PingFangSC-Regular;
+          font-weight: 400;
+          text-align: right;
+          color: #e88839;
+          line-height: 17px;
+          margin-right: 10px;
+        }
+        &_lists {
+          li {
+            font-size: 12px;
+            font-family: PingFangSC, PingFangSC-Semibold;
+            font-weight: 600;
+            text-align: justify;
+            color: #9295bf;
+            line-height: 17px;
+            margin-bottom: 3px;
+            img {
+              width: 23px;
+            }
+            span {
+              cursor: pointer;
+              color: #597dff;
+            }
+          }
+          li::before {
+            width: 6px;
+            height: 6px;
+            background: #ffb679;
+            border: 1px solid #ffa458;
+            border-radius: 50%;
+            content: "";
+            display: inline-block;
+            margin-right: 6px;
+            transform: translateY(-2.5px);
+          }
+        }
+      }
+    }
+   
+  }
+  .chart_con {
+    // margin-top: 24px;
+    .chart_title {
+      font-size: 18px;
+      font-weight: 500;
+      color: #37375e;
+      display: flex;
+      justify-content: space-between;
+      .select_time {
+        span {
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 400;
+          color: #a2a2a2;
+          margin-right: 20px;
+
+          &:hover,
+          &.active {
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: underline;
+            color: #5f84f7;
+          }
+        }
+      }
+    }
+    .chart_con_box {
+      margin-top: 10px;
+      background: #fbfcfd;
+      border-radius: 7px;
+    }
+  }
+}
+.modal_tips {
+  font-size: 12px;
+  font-weight: 400;
+  margin-bottom: 12px;
+  color: #b2b2b2;
+  &::after {
+    content: "*";
+    margin-left: 4px;
+    color: #ff0000;
+  }
+}
+
+// 国际化样式
+:global(.lang-en) {
+  .statistic_tips_title {
+    width: fit-content !important;
+    min-width: 100px;
+    margin-right: 15px;
+  }
+  .statistic_tips_lists li {
+    line-height: 1.6;
+    margin-bottom: 8px;
+  }
+}
+
+// 错误状态下的 Select placeholder 样式
+:global {
+  .my-select-error {
+    border-color: #ff4d4f !important;
+    box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2);
+    .ant-select-selection-placeholder {
+      color: #ff4d4f !important;
+    }
+  }
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="20px" height="19px" viewBox="0 0 20 19" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <g id="页面-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="智能体概览" transform="translate(-384.000000, -415.000000)" stroke-width="1.8">
+            <g id="编组-20" transform="translate(384.000000, 415.000000)">
+                <rect id="矩形" stroke="#000000" x="0.9" y="0.9" width="18.2" height="13.2" rx="1"></rect>
+                <line x1="3.25793095" y1="17.9729882" x2="7.16270814" y2="14.2745267" id="路径-7" stroke="#000000"></line>
+                <line x1="17.1627081" y1="17.9729882" x2="13.2579309" y2="14.2745267" id="路径-7备份" stroke="#000000"></line>
+                <polyline id="路径-9" stroke="#2A6EE9" points="5.48968886 9.47665738 8.10210857 6.54264472 10.7384126 9.08668795 14.6681187 4.66432669"></polyline>
+            </g>
+        </g>
+    </g>
+</svg>

@@ -1,0 +1,22 @@
+.vms-container {
+  mask-image: linear-gradient(180deg, #d8d8d8 84%, rgba(216, 216, 216, 0) 100%);
+}
+.debugger-chat-content {
+  position: relative;
+  //   mask-image: linear-gradient(180deg, #D8D8D8 84%, rgba(216, 216, 216, 0) 100%);
+}
+.chat-type-popover {
+  padding: 0;
+  background-color: #fff;
+  margin: -8px;
+  .chat-type-popover-item {
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #333;
+    &.active,
+    &:hover {
+      background: #f8faff;
+    }
+  }
+}

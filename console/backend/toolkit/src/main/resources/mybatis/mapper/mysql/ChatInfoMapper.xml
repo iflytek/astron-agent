@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.trace.ChatInfoMapper">
+
+
+    <select id="selectUserCount" resultType="java.lang.Long">
+        select count(1) from (
+        select count(1) from chat_info
+        where
+        uid not in ('')
+        and uid is not null
+        <if test="botId != null">
+            and bot_id = #{botId}
+        </if>
+        <if test="flowId != null">
+            and flow_id = #{flowId}
+        </if>
+        <if test="startDate != null">
+            and create_time > #{startDate}
+        </if>
+        <if test="endDate != null">
+            and #{endDate} > create_time
+        </if>
+        group by uid
+        ) s
+    </select>
+
+    <select id="selectTokenSum" resultType="java.lang.Long">
+        select sum(token) from chat_info
+        where
+        uid not in ('')
+        and uid is not null
+        <if test="botId != null">
+            and bot_id = #{botId}
+        </if>
+        <if test="flowId != null">
+            and flow_id = #{flowId}
+        </if>
+        <if test="startDate != null">
+            and create_time > #{startDate}
+        </if>
+        <if test="endDate != null">
+            and #{endDate} > create_time
+        </if>
+    </select>
+    <select id="getErrorBySidList" resultType="com.iflytek.astron.console.toolkit.entity.vo.WorkflowErrorVo">
+        SELECT DISTINCT  status_code as errorCode,'' as errorMsg,create_time as errorTime
+        from chat_info
+        <where>
+            and sid in
+            <foreach item="sid" collection="sidList" open="(" separator="," close=")">
+                #{sid}
+            </foreach>
+        </where>
+        order by create_time desc
+    </select>
+    <select id="getUserFeedBackErrorInfo"
+            resultType="com.iflytek.astron.console.toolkit.entity.vo.WorkflowUserFeedbackErrorVo">
+        select  uid, status_code as errorCode,'' as errorMsg,create_time as errorTime
+        from chat_info
+        <where>
+            and flow_id = #{params.flowId}
+            and status_code != 0 and status_code != 1006
+            and uid != 'null' and uid != '' and uid is not null
+            <if test="params.startTime != null">
+                and create_time &gt;= #{params.startTime}
+            </if>
+            <if test="params.endTime != null">
+                and create_time &lt;= #{params.endTime}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+    <select id="selectWorkflowUseCount" resultType="com.iflytek.astron.console.toolkit.entity.dto.ToolUseDto">
+        SELECT
+        JSON_UNQUOTE(JSON_EXTRACT(ni.config, '$.pluginId')) AS toolId,
+        COUNT(*) AS useCount
+        FROM
+        node_info ni
+        JOIN
+        chat_info ci
+        ON
+        ni.sid = ci.sid
+        <where>
+            and ni.node_id LIKE 'plugin%'
+            AND ni.sub = 'workflow'
+            <if test="toolIds != null and toolIds.size() > 0">
+                AND JSON_UNQUOTE(JSON_EXTRACT(ni.config, '$.pluginId')) IN
+                <foreach collection="toolIds" item="toolId" open="(" separator="," close=")">
+                    #{toolId}
+                </foreach>
+            </if>
+        </where>
+        GROUP BY
+        JSON_UNQUOTE(JSON_EXTRACT(ni.config, '$.pluginId'));
+    </select>
+    <select id="selectBotUseCount" resultType="com.iflytek.astron.console.toolkit.entity.dto.ToolUseDto">
+        SELECT flow_id as toolId,COUNT(*) AS useCount
+        FROM chat_info
+        <where>
+            and sub = 'spark-link'
+            <if test="toolIds != null and toolIds.size() > 0">
+                and
+                <foreach collection="toolIds" item="toolId" open="(" separator="or" close=")">
+                    instr(flow_id, #{toolId})
+                </foreach>
+            </if>
+        </where>
+        group by flow_id
+    </select>
+
+
+
+</mapper>

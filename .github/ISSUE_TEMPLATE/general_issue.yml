@@ -1,0 +1,84 @@
+---
+name: "💬 General Issue"
+description: Questions, documentation gaps, performance topics, or other general discussions
+title: "[GENERAL] "
+labels:
+  - question
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide enough detail so we can reproduce, investigate, or answer efficiently. Required sections are marked with *.
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type *
+      description: Select the option that best matches your topic.
+      options:
+        - Question / Help
+        - Documentation Improvement
+        - Performance Issue
+        - Installation / Setup
+        - Configuration
+        - Usage Guidance
+        - Integration
+        - Maintenance / Cleanup
+        - Discussion / RFC
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: urgency-level
+    attributes:
+      label: Urgency Level
+      description: Let us know how time-sensitive this is.
+      options:
+        - Urgent — Blocking production or critical workflow
+        - High — Affects multiple users, needs attention soon
+        - Medium — Important but not urgent
+        - Low — Nice to resolve when possible
+  - type: textarea
+    id: description
+    attributes:
+      label: Description *
+      description: Provide a clear explanation of your question, request, or issue.
+      placeholder: Include background, what you have tried, and any relevant commands or logs.
+    validations:
+      required: true
+  - type: checkboxes
+    id: affected-component
+    attributes:
+      label: Affected Component
+      description: Select all components involved, if known.
+      options:
+        - label: Core Agent
+        - label: API / Backend
+        - label: Frontend / UI
+        - label: Documentation
+        - label: CI / CD
+        - label: Development Environment
+        - label: Deployment
+        - label: Dependencies
+        - label: Not Sure
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment *
+      description: Share versions, OS, deployment method, browser, or other context needed to understand the issue.
+      placeholder: |
+        - Version:
+        - OS:
+        - Deployment method:
+        - Browser / CLI / Tooling details:
+    validations:
+      required: true
+  - type: textarea
+    id: expected-outcome
+    attributes:
+      label: Expected Outcome
+      description: Tell us what you hope to achieve or learn.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add logs, screenshots, links, or anything else that helps us help you.

@@ -1,0 +1,127 @@
+const promption = {
+  promptionPage: {
+    title: 'Prompt Engineering',
+    status: {
+      published: '已发布',
+      unpublished: '未发布',
+    },
+    actions: {
+      compareDebug: '对比调试',
+      historyVersions: '历史版本',
+      publish: '发布',
+      debugPreview: '调试预览',
+      baselineGroup: '基准组',
+      controlGroup: '对照组',
+      systemPrompt: '系统提示词',
+      userPrompt: '用户提示词',
+      promptVariables: 'Prompt变量',
+      promptVariablesTooltip:
+        '在左侧提示词中，可通过 {{变量名}}定义prompt变量，变量名自动生成',
+      previewAndDebug: '预览与调试',
+      clearHistory: '清除历史记录',
+      save: '保存',
+      cancel: '取消',
+      confirm: '确认',
+      copySuccess: '复制成功',
+      systemPromptRequired: '系统提示词不能为空！',
+      userPromptRequired: '用户提示词不能为空！',
+      generateFailed: 'AI生成失败，请稍后重试！',
+      enterQuestion: '请输入询问内容',
+      aiOptimize: 'AI优化',
+      maxModels: '最多可选择4个模型进行对比',
+      modelConfiguration: '模型配置',
+      selectModel: '请选择模型',
+      addControlGroup: '添加对照组({{count}}/4)',
+      setAsBaseline: '设置为基准组',
+      deleteControlGroup: '删除对照组',
+      inputTitle: '输入标题',
+      saveCurrentConfig: '保存当前配置',
+      saveFailed: '保存失败',
+      currentDraft: '当前草稿',
+      saveTime: '保存时间：',
+      version: '版本 {{version}}',
+      versionDescription: '版本说明：',
+      releaseTime: '发布时间：',
+      restoreVersion: '还原此版本',
+      chatTitle: '预览与调试',
+      textHistory: '历史版本',
+    },
+    messages: {
+      workflowDeleted: '工作流已被删除',
+      multiParams: '工作流中输入存在多参数',
+      notDebugged: '工作流未调试成功',
+      noLLMNode: '工作流中没有大模型节点',
+      restoreSuccess: '回滚成功',
+      submitSuccess: '提交成功',
+    },
+    dialog: {
+      clearHistory: '清除历史记录',
+      chatMode: '对话模式',
+      runOnlyMode: '仅运行模式',
+      run: '运行',
+      enterContentHere: '在此输入内容',
+      send: '发送',
+      answeringPleaseWait: '回答中，请稍后再试',
+      answeringPleaseWait2: '回答中...',
+      enterQuestion: '请输入询问内容',
+      stopOutput: '停止输出',
+      uploadDescAndDoc: '您还未上传描述文件、接口文档',
+      uploadDoc: '您所上传的接口文档未验证通过',
+      uploadDescAndDocTip:
+        '请先左侧上传描述文件、接口文档并验证后可进行调试预览',
+      uploadDocTip: '请在左侧重新上传接口文档并验证后可进行调试预览',
+    },
+  },
+  newVersionModal: {
+    titles: {
+      diffComparison: '发布新版本-差异比对',
+      confirmInfo: '发布新版本-确认版本信息',
+      default: '发布新版本',
+    },
+    fields: {
+      version: '版本号',
+      versionDescription: '版本说明',
+    },
+    validation: {
+      requiredVersion: '请填写版本号',
+      versionFormat: '版本号格式不正确，请使用x.x.x格式',
+      maxDescription: '版本说明不能超过200个字符',
+    },
+    placeholders: {
+      versionExample: '如：0.0.1',
+      enterDescription: '请输入版本说明',
+    },
+    buttons: {
+      cancel: '取消',
+      continue: '继续',
+      submit: '提交',
+    },
+    steps: {
+      confirmDiff: '确认版本差异',
+      confirmInfo: '确认版本信息',
+    },
+  },
+  diffCode: {
+    versionDiff: '版本差异',
+    noChanges: '本次提交无版本差异',
+    variablePlaceholder: '变量占位符',
+    formatError: '代码格式化过程中出错:',
+  },
+  editInfoBtn: {
+    actions: {
+      editPrompt: '编辑 Prompt',
+    },
+    validation: {
+      enterKeyAndName: '请输入 Prompt KEY 和名称',
+    },
+    messages: {
+      updateSuccess: '更新成功',
+      updateFailed: '更新失败',
+    },
+    tooltips: {
+      edit: '编辑',
+    },
+  },
+};
+
+export default promption;

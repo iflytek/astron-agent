@@ -1,0 +1,72 @@
+.treeNodeWrapper {
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.treeNode {
+  display: flex;
+  align-items: center;
+  transition: all 0.3s;
+  border-radius: 4px;
+  
+  &.selected {
+    // background-color: rgba(24, 144, 255, 0.1);
+    
+    .title {
+      color: #1890ff;
+      font-weight: 500;
+    }
+  }
+}
+
+.icon {
+  margin-right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.title {
+  word-break: keep-all;
+  font-size: 14px;
+  color: #333;
+  transition: all 0.3s;
+}
+
+.timeInfo {
+  display: flex;
+  align-items: center;
+  margin-top: 2px;
+  margin-left: 24px;
+  font-size: 12px;
+  color: #999;
+}
+
+.clockIcon {
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  object-fit: contain;
+  opacity: 0.7;
+  
+  &.warningIcon {
+    filter: invert(73%) sepia(51%) saturate(1217%) hue-rotate(355deg) brightness(97%) contrast(95%);
+  }
+}
+
+.time {
+  font-family: 苹方-简;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: normal;
+  letter-spacing: normal;
+  color: #6356EA;
+  
+  &.warning {
+    color: #FAAD14;
+    font-weight: 600;
+  }
+} 

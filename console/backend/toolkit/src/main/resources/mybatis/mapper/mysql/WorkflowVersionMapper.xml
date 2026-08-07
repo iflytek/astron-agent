@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowVersionMapper">
+
+    <select id="selectPageByCondition" resultType="com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion">
+        SELECT w.id,
+               w.name,
+               w.version_num,
+               w.data,
+               w.flow_id,
+               w.deleted,
+               w.created_time AS createdTime,
+               w.updated_time,
+               w.is_version,
+               w.sys_data,
+               w.description,
+               w.publish_channel,
+               w.publish_result,
+               w.bot_id
+        FROM workflow_version w
+                 INNER JOIN (
+            SELECT name, MAX(created_time) AS max_created
+            FROM workflow_version
+            WHERE flow_id = #{flowId}
+              AND deleted = 1
+            GROUP BY name
+        ) t ON w.name = t.name AND w.created_time = t.max_created
+        WHERE w.flow_id = #{flowId}
+          AND w.deleted = 1
+        ORDER BY w.created_time DESC
+
+    </select>
+    <select id="selectPageLatestByName" resultType="com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion">
+        SELECT *
+        FROM (
+                 SELECT wv.*,
+                        ROW_NUMBER() OVER (PARTITION BY wv.name ORDER BY wv.created_time DESC) AS rn
+                 FROM workflow_version wv
+                 WHERE wv.bot_id = #{botId}
+                   AND wv.deleted = 1
+                   AND wv.publish_result IN ('成功', 'Success', 'SUCCESS')
+             ) t
+        WHERE t.rn = 1
+        ORDER BY t.created_time DESC
+    </select>
+
+    <select id="countLatestByName" resultType="long">
+        SELECT COUNT(*) FROM (
+                                 SELECT 1
+                                 FROM workflow_version wv
+                                 WHERE wv.bot_id = #{botId}
+                                   AND wv.deleted = 1
+                                   AND wv.publish_result IN ('成功', 'Success', 'SUCCESS')
+                                 GROUP BY wv.name
+                             ) x
+    </select>
+</mapper>

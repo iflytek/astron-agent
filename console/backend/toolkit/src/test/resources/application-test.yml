@@ -1,0 +1,4 @@
+mcp:
+  server:
+    file:
+      path: classpath:mcp-servers

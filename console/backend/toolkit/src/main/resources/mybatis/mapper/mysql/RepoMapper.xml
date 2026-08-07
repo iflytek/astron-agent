@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.repo.RepoMapper">
+    <select id="getListInUuids" resultType="Repo">
+        select * from repo where core_repo_id in
+        <foreach item="id" index="index" collection="list" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="listCoreRepoIdByRepoId" resultType="java.lang.String">
+        select r.core_repo_id  from bot_repo_subscript brs left join repo r
+        on brs.repo_id = r.id where brs.app_id = #{appId}
+    </select>
+    <select id="listInRepoCoreIds" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.Repo">
+        select * from  repo where core_repo_id in
+        <foreach collection="coreRepoIds" item="coreRepoId" open="(" close=")" separator=","> #{coreRepoId}</foreach>
+    </select>
+
+    <select id="list" resultType="com.iflytek.astron.console.toolkit.entity.dto.RepoDto">
+        select t1.* from (
+        select t2.* from
+        repo t2
+        left join file_info_v2 t3 on t2.id = t3.repo_id
+                     where
+        <if test="spaceId != null">
+            (t2.space_id = #{spaceId}
+        </if>
+        <if test="spaceId == null">
+            (user_id = #{userId}
+        </if>
+        <if test="includeIds!=null and includeIds.size()>0">
+        or id in <foreach collection="includeIds" item="includeId" open="(" close=")" separator=",">#{includeId}</foreach>
+    </if>)
+        and t3.status = 5 and deleted = 0
+        ) t1 where 1=1
+        <if test="content!=null and content !=''">
+            and (
+            instr(t1.name, #{content})
+<!--                or instr(t1.description, #{content})-->
+            )
+        </if>
+        group by t1.id
+        order by
+        t1.is_top desc,
+        <choose>
+            <when test="orderBy == 'create_time'">
+                t1.create_time desc
+            </when>
+            <otherwise>
+                t1.update_time desc
+            </otherwise>
+        </choose>
+    </select>
+
+<!--    <select id="getModelListByCondition" resultType="com.iflytek.aicloud.robot.entity.table.repo.Repo">-->
+<!--        select t1.* from (-->
+<!--        select * from repo where (user_id = #{userId} <if test="includeIds!=null and includeIds.size()>0">-->
+<!--        or id in <foreach collection="includeIds" item="includeId" open="(" close=")" separator=",">#{includeId}</foreach>-->
+<!--    </if>) and deleted = 0-->
+<!--        ) t1 where 1=1-->
+<!--        <if test="content!=null and content !=''">-->
+<!--            and (instr(t1.name, #{content}) or instr(t1.description, #{content}))-->
+<!--        </if>-->
+<!--        order by t1.is_top desc, t1.update_time desc-->
+<!--        <if test="limit != null"> LIMIT <if test="start != null">#{start},</if>#{limit} </if>-->
+<!--    </select>-->
+
+    <select id="getModelListByCondition" resultType="com.iflytek.astron.console.toolkit.entity.dto.RepoDto">
+        select t1.* from (
+        select * from repo where
+        <if test="spaceId != null">
+            (space_id = #{spaceId}
+        </if>
+        <if test="spaceId == null">
+            (user_id = #{userId} and space_id is null
+        </if>
+        <if test="includeIds!=null and includeIds.size()>0">
+        or id in <foreach collection="includeIds" item="includeId" open="(" close=")" separator=",">#{includeId}</foreach>
+    </if>) and deleted = 0
+        ) t1 where 1=1
+        <if test="content!=null and content !=''">
+            and (instr(t1.name, #{content}) or instr(t1.description, #{content}))
+        </if>
+        order by t1.is_top desc, t1.update_time desc
+    </select>
+
+    <select id="getModelListCountByCondition" resultType="java.lang.Integer">
+        select count(1) from (
+        select * from repo where (user_id = #{userId} <if test="includeIds!=null and includeIds.size()>0">
+        or id in <foreach collection="includeIds" item="includeId" open="(" close=")" separator=",">#{includeId}</foreach>
+    </if>) and deleted = 0) t1 where 1=1  <if test="content!=null and content !=''">
+        and (instr(t1.name, #{content}) or instr(t1.description, #{content}))
+    </if>
+    </select>
+</mapper>

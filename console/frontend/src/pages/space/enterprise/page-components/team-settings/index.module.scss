@@ -1,0 +1,28 @@
+.teamSettings {
+  padding: 0;
+
+  .header {
+    margin-bottom: 4px;
+
+    .title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      color: #1f1f1f;
+    }
+  }
+
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .leaveSection {
+    margin-top: 32px;
+    padding: 24px 0;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: flex-start;
+  }
+}

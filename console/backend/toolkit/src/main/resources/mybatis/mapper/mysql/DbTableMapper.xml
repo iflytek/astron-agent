@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.database.DbTableMapper">
+
+
+    <select id="selectCountsByDbIds"
+            resultType="com.iflytek.astron.console.toolkit.entity.dto.database.DbTableCountDto">
+        SELECT db_id as dbId,count(*) as count FROM db_table
+        <where>
+            and db_id in
+            <foreach collection="dbIds" item="dbId" separator=","
+                     open="(" close=")">
+                #{dbId}
+            </foreach>
+        </where>
+        GROUP BY db_id
+    </select>
+    <select id="selectListByDbIdAndName"
+            resultType="DbTable">
+        select * from db_table tb
+        left join db_info db
+        on db.id = tb.db_id
+        <where>
+            and db.db_id = #{dbId}
+            and tb.name in
+            <foreach collection="tableNames" item="tableName" separator=","
+                     open="(" close=")">
+                #{tableName}
+            </foreach>
+        </where>
+    </select>
+</mapper>

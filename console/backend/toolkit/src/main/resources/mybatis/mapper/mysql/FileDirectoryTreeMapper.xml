@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.repo.FileDirectoryTreeMapper">
+    <resultMap id="resultMapcontainFileInfo" type="com.iflytek.astron.console.toolkit.entity.table.repo.FileDirectoryTree">
+        <id column="id" property="id"/>
+        <result column="name" property="name"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="is_file" property="isFile"/>
+        <result column="app_id" property="appId"/>
+        <result column="file_id" property="fileId"/>
+        <result column="comment" property="comment"/>
+        <result column="hit_count" property="hitCount"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+        <association property="fileInfoV2" javaType="FileInfoV2">
+            <id column="f_id" property="id"/>
+            <result column="name" property="name"/>
+            <result column="repo_id" property="repoId"/>
+            <result column="size" property="size"/>
+            <result column="char_count" property="charCount"/>
+            <result column="type" property="type"/>
+            <result column="address" property="address"/>
+            <result column="f_create_time" property="createTime"/>
+            <result column="slice_config" property="sliceConfig"/>
+            <result column="status" property="status"/>
+            <result column="enabled" property="enabled"/>
+        </association>
+    </resultMap>
+
+    <select id="queryListInIdList" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileDirectoryTree">
+        select * from
+        file_directory_tree
+        where 1=1
+        <if test="appId != null">
+            and app_id = #{appId}
+        </if>
+        <if test="idList != null and idList.size()>0">
+            AND id IN
+            <foreach item="item" index="index" collection="idList" open="(" close=")" separator=",">
+                #{item}
+            </foreach>
+        </if>
+
+    </select>
+
+    <update id="childMaxDeepAutoIncreaseInIdList">
+        update file_directory_tree
+        <set>
+            child_max_deep = child_max_deep + 1
+        </set>
+        WHERE 1=1
+        <if test="appId != null">
+            and app_id = #{appId}
+        </if>
+        <if test="idList != null and idList.size()>0">
+            AND id IN
+            <foreach item="item" index="index" collection="idList" open="(" close=")" separator=",">
+                #{item}
+            </foreach>
+        </if>
+    </update>
+
+    <select id="getModelListLinkFileInfoV2" parameterType="hashmap" resultMap="resultMapcontainFileInfo">
+        select d.id, d.parent_id, d.is_file, d.name, d.app_id, d.file_id, d.comment,d.hit_count,d.create_time, d.update_time,
+        f.id as f_id, f.size,f.char_count, f.type, f.address, f.create_time as f_create_time,
+        f.slice_config, f.status,f.enabled
+        from file_directory_tree d left outer join file_info_v2 f on d.file_id = f.id  where 1=1 and d.status = 1
+        <if test="id!=null ">and d.id = #{id}</if>
+        <if test="name!=null ">and d.name = #{name}</if>
+        <if test="parentId!=null ">and d.parent_id = #{parentId}</if>
+        <if test="isFile!=null ">and d.is_file = #{isFile}</if>
+        <if test="appId!=null ">and d.app_id = #{appId}</if>
+        <if test="fileId!=null ">and d.file_id = #{fileId}</if>
+        <if test="comment!=null ">and d.comment = #{comment}</if>
+        <if test="createTime!=null ">and d.create_time = #{createTime,jdbcType=TIMESTAMP}</if>
+        <if test="updateTime!=null ">and d.update_time = #{updateTime,jdbcType=TIMESTAMP}</if>
+        <if test="isRepoPage == 0 ">and f.status = 5</if>
+        order by d.is_file asc
+        <if test="safeOrderBy!=null and safeOrderBy!=''">
+            <choose>
+                <when test="safeOrderBy != null and safeOrderBy == 'create_time desc'"> , d.create_time desc </when>
+                <when test="safeOrderBy != null and safeOrderBy == 'create_time asc'">, d.create_time asc </when>
+            </choose>
+        </if>
+        <if test="limit != null"> LIMIT <if test="start != null">#{start},</if>#{limit} </if>
+    </select>
+
+    <select id="getModelCountLinkFileInfoV2" parameterType="hashmap" resultType="int">
+        select count(1)
+        from file_directory_tree d left outer join file_info_v2 f on d.file_id = f.id  where 1=1
+        <if test="id!=null ">and d.id = #{id}</if>
+        <if test="name!=null ">and d.name = #{name}</if>
+        <if test="parentId!=null ">and d.parent_id = #{parentId}</if>
+        <if test="isFile!=null ">and d.is_file = #{isFile}</if>
+        <if test="appId!=null ">and d.app_id = #{appId}</if>
+        <if test="fileId!=null ">and d.file_id = #{fileId}</if>
+        <if test="comment!=null ">and d.comment = #{comment}</if>
+        <if test="createTime!=null ">and d.create_time = #{createTime,jdbcType=TIMESTAMP}</if>
+        <if test="updateTime!=null ">and d.update_time = #{updateTime,jdbcType=TIMESTAMP}</if>
+    </select>
+
+
+    <select id="matchModelListWithDirectoryName" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileDirectoryTree">
+        select * from file_directory_tree
+        where is_file = 0
+        <if test="appId != null and appId != ''">
+            and app_id = #{appId}
+        </if>
+        <if test="appId != null and appId != ''">
+            and INSTR(name, #{query})
+        </if>
+    </select>
+
+    <select id="getFileDirectoryTreeIdBySourceId" resultType="int">
+        select tree.id
+        from file_info as info
+        inner join file_directory_tree as tree
+        on info.id = tree.file_id
+        where info.source_id in
+        <foreach collection="sourceIds" index="index" item="sourceId" open="(" close=")" separator=",">
+            #{sourceId}
+        </foreach>
+    </select>
+
+    <select id="getModelListSearchByFileName" resultMap="resultMapcontainFileInfo">
+        select d.id, d.parent_id, d.is_file, d.name, d.app_id, d.file_id,d.hit_count, d.comment,d.create_time, d.update_time,
+        f.id as f_id, f.size,f.char_count, f.type, f.address, f.create_time as f_create_time,
+        f.slice_config, f.status,f.enabled
+        from file_directory_tree d left outer join file_info_v2 f on d.file_id = f.id  where 1=1 and d.status = 1
+        <if test="appId != null and appId != ''">
+            and d.app_id = #{appId}
+        </if>
+        <if test="isFile != null">
+            and d.is_file = #{isFile}
+        </if>
+        <if test="fileName != null and fileName != ''">
+            and INSTR(d.name, #{fileName})
+        </if>
+        <if test="isRepoPage == 0 ">
+            and f.status = 5
+        </if>
+    </select>
+
+    <select id="getModelCountByRepoIdAndFileUUIDS" resultType="java.lang.Integer">
+        SELECT count(1) from file_directory_tree fdt left join repo r on r.id = fdt.app_id
+        left join file_info_v2 fiv on fiv.id = fdt.file_id
+        where r.core_repo_id = #{repoId} and fiv.uuid = #{sourceId}
+    </select>
+</mapper>

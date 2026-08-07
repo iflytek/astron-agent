@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.trace.NodeInfoMapper">
+
+
+    <select id="selectMarkedNodePage" resultType="com.iflytek.astron.console.toolkit.entity.dto.eval.NodeDataDto">
+        select n.*,d.mark_data from node_info n join effect_eval_task_node_mark_data d
+        on n.id = d.node_info_id
+        <where>
+            <if test="botId != null">
+                and n.bot_id = #{botId}
+            </if>
+            <if test="flowId != null">
+                and n.flow_id = #{flowId}
+            </if>
+            <if test="list != null">
+                and d.mark_data is not null
+                and n.node_id in
+                <foreach item="id" index="index" collection="list" open="(" separator="," close=")">#{id}</foreach>
+            </if>
+        </where>
+    </select>
+
+    <select id="selectMarkedInIdList" resultType="com.iflytek.astron.console.toolkit.entity.dto.eval.NodeDataDto">
+        select n.*,d.mark_data from node_info n join effect_eval_task_node_mark_data d
+        on n.id = d.node_info_id
+        where n.id in
+        <foreach item="id" index="index" collection="list" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="selectMarkedNodeList" resultType="com.iflytek.astron.console.toolkit.entity.dto.eval.NodeDataDto">
+        select n.*,d.mark_data from node_info n join effect_eval_task_node_mark_data d
+        on n.id = d.node_info_id
+        <where>
+            <if test="nodeIdList != null">
+                and d.mark_data is not null
+                and n.node_id in
+                <foreach item="id" index="index" collection="nodeIdList" open="(" separator="," close=")">#{id}</foreach>
+            </if>
+            <if test="sidList != null">
+                and n.sid in
+                <foreach item="id" index="index" collection="sidList" open="(" separator="," close=")">#{id}</foreach>
+            </if>
+        </where>
+    </select>
+
+    <select id="selectMarkedNodeList2" resultType="com.iflytek.astron.console.toolkit.entity.dto.eval.NodeDataDto">
+        select n.*,d.mark_data from node_info n join effect_eval_task_node_mark_data d
+        on n.id = d.node_info_id
+        <where>
+            <if test="nodeId != null">
+                and d.mark_data is not null
+                and n.node_id = #{nodeId}
+            </if>
+            <if test="list != null">
+                and n.sid in
+                <foreach item="id" index="index" collection="list" open="(" separator="," close=")">#{id}</foreach>
+            </if>
+        </where>
+    </select>
+    <select id="getNodeErrorInfo" resultType="com.iflytek.astron.console.toolkit.entity.vo.WorkflowErrorModelVo">
+
+        select node_name nodeName
+        from node_info
+        <where>
+            and flow_id = #{params.flowId}
+<!--            <if test="params.startTime != null">-->
+<!--                and create_time &gt;= #{params.startTime}-->
+<!--            </if>-->
+<!--            <if test="params.endTime != null">-->
+<!--                and create_time &lt;= #{params.endTime}-->
+<!--            </if>-->
+        </where>
+        group by node_name
+    </select>
+    <select id="getSidList" resultType="java.lang.String">
+        select sid
+        from node_info
+        <where>
+            and flow_id = #{params.flowId}
+            <if test="params.startTime != null">
+                and create_time &gt;= #{params.startTime}
+            </if>
+            <if test="params.endTime != null">
+                and create_time &lt;= #{params.endTime}
+            </if>
+            and node_name = #{nodeName}
+            and running_status = 0
+        </where>
+    </select>
+    <select id="getNodeCallNum" resultType="java.lang.Long">
+        select count(1)
+        from node_info
+        <where>
+            and flow_id = #{params.flowId}
+            <if test="params.startTime != null">
+                and create_time &gt;= #{params.startTime}
+            </if>
+            <if test="params.endTime != null">
+                and create_time &lt;= #{params.endTime}
+            </if>
+            and node_name = #{nodeName}
+        </where>
+
+    </select>
+</mapper>

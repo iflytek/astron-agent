@@ -1,0 +1,15 @@
+venv
+.venv
+.idea
+sparklink_log
+__pycache__
+.pytest_cache
+.claude
+.script
+.coverage
+coverage.xml
+.benchmarks
+htmlcov
+tests/example/
+logs
+CLAUDE.md

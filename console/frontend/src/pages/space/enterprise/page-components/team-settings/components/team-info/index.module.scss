@@ -1,0 +1,83 @@
+.teamInfo {
+  // 团队基本信息区域
+  .basicSection {
+    padding: 13px 0;
+
+    .basicInfo {
+      display: flex;
+      flex-direction: column;
+      flex-wrap: wrap;
+      gap: 26px;
+
+      .infoItem {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        min-width: 200px;
+
+        .infoLabel {
+          width: 84px;
+          font-family: PingFang SC;
+          font-size: 16px;
+          font-weight: 500;
+          line-height: 16px;
+          letter-spacing: normal;
+          color: #7F7F7F;
+        }
+
+        .infoValue {
+          font-family: PingFang SC;
+          font-size: 14px;
+          font-weight: 500;
+          line-height: 16px;
+          letter-spacing: normal;
+          color: #333333;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+
+          .renewTag {
+            margin-left: 20px;
+            min-width: 76px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            padding: 0 10px;
+            border-radius: 8px;
+            background: #FFFFFF;
+            box-sizing: border-box;
+            border: 1px solid #D3DBF8;
+            font-family: 苹方;
+            font-size: 14px;
+            font-weight: normal;
+            line-height: normal;
+            text-align: center;
+            letter-spacing: normal;
+            color: #333333;
+            cursor: pointer;
+
+            &:hover {
+              opacity: 0.8;
+            }
+          }
+
+          .orderType {
+            display: flex;
+            align-items: center;
+
+            .icon {
+              width: 14px;
+              height: 14px;
+              margin-right: 3px;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 企业认证卡片区域
+  .certificationSection {
+    padding: 24px 0;
+  }
+}

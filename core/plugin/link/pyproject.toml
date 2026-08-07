@@ -1,0 +1,47 @@
+[project]
+name = "spark-link"
+version = "1.0.0"
+description = "工具托管平台服务"
+authors = ["iflytek"]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0",
+    "jsonschema>=4.22.0",
+    "anyio>=4.5,<5",
+    "httpx>=0.27.1,<1",
+    "sqlalchemy>=2.0.30",
+    "sqlmodel>=0.0.18",
+    "loguru>=0.7.2",
+    "pymysql>=1.1.1",
+    "openapi-spec-validator>=0.7.1",
+    "appdirs>=1.4.4",
+    "opentelemetry-sdk>=1.22.0",
+    "opentelemetry-api>=1.22.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.22.0",
+    "opentelemetry-proto>=1.22.0",
+    "opentelemetry-semantic-conventions>=0.46b0,<0.47",
+    "opentelemetry-exporter-opencensus>=0.46b0,<0.47",
+    "opentelemetry-exporter-otlp>=1.22.0",
+    "redis-py-cluster==2.1.3",
+    "orjson>=3.10.15",
+    "mcp>=1.28.1,<2",
+    "aiohttp>=3.12.15",
+    "rich>=14.1.0",
+    "toml>=0.10.2",
+    "confluent-kafka>=2.11.1",
+    "pydantic-settings>=2.10.1",
+    "pydantic>=2.11.7",
+    "grpc-google-iam-v1>=0.14.2",
+    "googleapis-common-protos>=1.60.0",
+    "websocket-client>=1.8.0",
+    "python-dotenv>=1.1.1",
+    "cryptography>=46.0.1",
+    "redis==3.5.3",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "types-pyyaml>=6.0.12.20250915",
+    "boto3>=1.40.53",
+    "botocore>=1.40.53",
+    "alembic==1.13.1",
+]

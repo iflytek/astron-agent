@@ -1,0 +1,25 @@
+.joinStatus {
+  min-width: 64px;
+  max-width: fit-content;
+  height: 24px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  background: #E6E6E8;
+
+  .icon {
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+  }
+
+  .label {
+    font-family: PingFang SC;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: normal;
+    letter-spacing: normal;
+  }
+}

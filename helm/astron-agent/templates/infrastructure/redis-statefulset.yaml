@@ -1,0 +1,88 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-redis
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  serviceName: {{ include "astron-agent.fullname" . }}-redis
+  replicas: {{ .Values.redis.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: redis
+        image: "{{ .Values.redis.image }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        {{- if .Values.redis.auth.password }}
+        command:
+        - redis-server
+        - --requirepass
+        - $(REDIS_PASSWORD)
+        env:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" . }}-redis-secret
+              key: redis-password
+        {{- end }}
+        ports:
+        - name: redis
+          containerPort: 6379
+          protocol: TCP
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - redis-cli {{- if .Values.redis.auth.password }} -a "$REDIS_PASSWORD" {{- end }} ping | grep PONG
+          initialDelaySeconds: 30
+          periodSeconds: {{ .Values.redis.healthCheck.interval }}
+          timeoutSeconds: {{ .Values.redis.healthCheck.timeout }}
+          failureThreshold: {{ .Values.redis.healthCheck.retries }}
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - redis-cli {{- if .Values.redis.auth.password }} -a "$REDIS_PASSWORD" {{- end }} ping | grep PONG
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.redis.resources | nindent 10 }}
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+  {{- if .Values.redis.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: redis-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.global.storageClass }}
+      storageClassName: {{ .Values.global.storageClass | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.redis.persistence.size }}
+  {{- else }}
+      volumes:
+      - name: redis-data
+        emptyDir: {}
+  {{- end }}
+{{- end }}

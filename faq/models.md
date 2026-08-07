@@ -1,0 +1,97 @@
+# 模型与AI功能 FAQ
+
+## 模型下拉框为空，无法添加模型？
+
+1. 平台配置: 在 Astron Console 的“模型管理”中添加模型。
+2. 网络连通性: 确保容器能访问外部模型 API (如星火、DeepSeek、OpenAI)。
+
+## 如何配置 DeepSeek 或其他 OpenAI 兼容模型？
+
+1. 在“模型管理”中选择新建模型。
+2. 接口地址: 填对应的 API 地址。
+3. API 密钥: 填对应的 Key。
+
+## 添加本地模型报错 IP 在黑名单？
+
+默认配置可能禁止连接私有网段。
+- 解决方法: 进入数据库，删除或清空 config_info  表中 category =
+'NETWORK_SEGMENT_BLACK_LIST'  的记录。
+
+## 显示“消耗 0 token”调试成功的情况？
+
+通过open ai 的sdk调用，有的模型确实不返回token消耗，如下所示，usage为null。
+
+![](assets/p5_img1_e97eef93a5.png)
+![](assets/p5_img2_58f50e49c3.png)
+
+## 如何配置本地服务（如本地部署的大模型）给 Agent 调用？
+
+1. 网络互通：确保 Docker 容器内的服务能访问到宿主机或局域网内的服务。
+- 不要使用 localhost  或 127.0.0.1 ，因为这会指向容器自身。
+- 使用宿主机的局域网 IP（如 192.168.x.x ）或 Docker 的特殊 DNS
+host.docker.internal （视 Docker 版本和系统而定）。
+
+2. 黑名单限制：默认配置可能禁止连接私有网段（如 192.168.x.x ）。如果遇到拦截，需要修改
+数据库表 config_info  (或 config_info_en ) 中的黑名单配置。
+
+## 图片理解/OCR 插件报错？
+
+1. 在 .env 中配置讯飞开放平台的 PLATFORM_APP_ID, PLATFORM_API_KEY, PLATFORM_API_SECRET。
+2. 确保该 APPID 已在讯飞开放平台开通了对应的图像识别/OCR 能力权限。
+
+## 如何获取和使用星火知识库资源？
+
+若需要使用星火知识库，官方提供了创建星火知识库 并获取知识库数据集的工具：
+1. 去讯飞开放平台开通知识库的能力：https://console.xfyun.cn/services/aidoc
+2. 创建星火知识库，获取XINGHUO_DATASET_ID
+3. 获取到数据集ID后，请将数据集ID更新到环境变量XINGHUO_DATASET_ID中
+4. 使用 xinghuo_rag_tool 获取XINGHUO_DATASET_ID（需要浏览器打开 html）
+```
+# 从项目中打开
+cd astron-agent/docs/
+open xinghuo_rag_tool.html
+# 下载 xinghuo_rag_tool -方式 1
+wget https://raw.githubusercontent.com/iflytek/astron-agent/refs/heads/main/docs/xinghuo_rag_tool.html
+# 直接从进入github下载 -方式 2
+https://github.com/iflytek/astron-agent/blob/main/docs/xinghuo_rag_tool.html
+```
+
+## 网页版（agent.xfyun.cn）的会员或 Token 额度能和私有化部署共用吗？
+
+不能共用，二者是相互独立的两套体系。
+
+1. 会员只在网页版生效，私有化部署没有会员概念。
+2. 私有化部署所需的模型额度需自行获取：去 https://www.xfyun.cn 领取（新用户通常有较多免费额度），或使用 https://maas.xfyun.cn 的套餐。
+
+## 知识库配置星火大模型不生效或报错？
+
+RAGFlow 是第三方组件，其内部并未兼容星火大模型（包括 embedding 模型），因此在 RAGFlow 中直接选用星火模型可能不生效。
+
+1. 可以不安装 RAGFlow，改用其它 embedding 模型实现 RAG 功能。
+2. Astron Agent 自身内部是可以使用星火大模型的；通过标准 OpenAI 协议调用星火大模型也没有问题。
+
+## 怎么配置大模型？有哪几种方式？
+
+两种方式，可以并存：
+
+1. **使用星火系列模型**：将 Astron Agent 与你的讯飞开放平台应用进行绑定（参考部署文档），领取对应模型的额度后即可直接使用。
+2. **接入任意 OpenAI 协议兼容的第三方 / 私有化模型**：在「模型管理 → 新建模型」中添加。
+
+![模型管理中添加 OpenAI 协议模型](assets/model_management_add_openai.png)
+
+填写要点：
+
+- `model`：必须填三方接口中真实的模型名称，不可随意填写。
+- 接口地址、API 密钥：填三方模型的接口地址与密钥。
+- 模型名称、模型描述：仅用于展示，可自定义。
+
+## 使用 deepseek-reasoner 等长思考模型时超时或显示异常怎么办？
+
+思考过程过长可能导致请求超时。
+
+- 临时方案：切换为不带长思考过程的模型（如 `deepseek-chat`）。
+- 也可关注并尝试调整 `CODE_EXEC_TIMEOUT_SEC` 配置，但核心侧的超时机制较难直接修改。
+
+## 开源版支持用第三方（如硅基流动）兼容接口做图像 / 视频生成吗？
+
+暂不支持。开源版的图像 / 视频生成能力目前主要依赖讯飞的付费资源包，尚不支持直接配置其他兼容接口。文本类模型不受此限制，任意 OpenAI 协议兼容模型均可接入。

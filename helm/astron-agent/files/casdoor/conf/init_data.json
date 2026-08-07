@@ -1,0 +1,33 @@
+{
+  "applications": [
+    {
+      "owner": "admin",
+      "name": "astron-agent-app",
+      "displayName": "Astron Agent Application",
+      "logo": "https://raw.githubusercontent.com/iflytek/astron-agent/bf285fd637e0920f38fbfd293f22e950b7534484/docs/logo.svg",
+      "organization": "built-in",
+      "cert": "cert-built-in",
+      "enablePassword": true,
+      "enableSignUp": true,
+      "clientId": "astron-agent-client",
+      "redirectUris": [
+        "http://localhost/callback"
+      ],
+      "tokenFormat": "JWT",
+      "tokenFields": [],
+      "expireInHours": 168,
+      "refreshExpireInHours": 168,
+      "grantTypes": ["authorization_code","refresh_token"],
+      "signinMethods": [
+        {"name": "Password", "displayName": "Password", "rule": "All"}
+      ],
+      "signupItems": [
+        {"name": "Username", "visible": true, "required": true, "prompted": false, "rule": "None"},
+        {"name": "Password", "visible": true, "required": true, "prompted": false, "rule": "None"},
+        {"name": "Email", "visible": true, "required": true, "prompted": false, "rule": "None"}
+      ],
+      "tags": [],
+      "formOffset": 2
+    }
+  ]
+}

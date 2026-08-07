@@ -1,0 +1,438 @@
+.traceDrawer {
+  :global {
+    .ant-drawer-content-wrapper {
+      width: min(1520px, calc(100vw - 24px)) !important;
+      box-shadow: -4px 0 18px rgba(15, 23, 42, 0.08);
+    }
+
+    .ant-drawer-body {
+      padding: 0;
+    }
+  }
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(104, 117, 245, 0.08),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #f7f8fd 0%, #fff 180px);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid #e9edf5;
+}
+
+.title {
+  margin: 0 !important;
+  font-size: 22px !important;
+  color: #4f46e5 !important;
+}
+
+.desc {
+  margin: 6px 0 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px 12px;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.toolbarLabel {
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.executionSelect {
+  width: 220px;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.content {
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 18px;
+  min-height: 0;
+  flex: 1;
+  padding: 0 24px 24px;
+}
+
+.leftPane,
+.rightPane {
+  min-height: 0;
+}
+
+.sectionTitle {
+  margin-bottom: 10px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.treePanel,
+.chartCard,
+.detailCard {
+  border: 1px solid #e9edf5;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.treePanel {
+  height: calc(100vh - 220px);
+  overflow: auto;
+  padding: 14px 10px;
+}
+
+.treeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  padding: 0 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.treeRow:hover {
+  background: #f6f8ff;
+}
+
+.treeRowActive {
+  background: #eef2ff;
+}
+
+.treeLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.treeToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.treeTogglePlaceholder {
+  color: transparent;
+}
+
+.nodeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: #22c55e;
+  font-size: 16px;
+}
+
+.nodeIconFailed {
+  color: #ef4444;
+}
+
+.nodeIconGroup {
+  color: #6366f1;
+}
+
+.nodeName {
+  color: #111827;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.treeRowGroup .nodeName {
+  font-weight: 600;
+}
+
+.treeMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #98a2b3;
+}
+
+.durationTag {
+  margin-inline-end: 0 !important;
+  border-radius: 999px;
+}
+
+.rightTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.viewSelect {
+  width: 124px;
+}
+
+.optionLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tableExpandIcon,
+.tableExpandPlaceholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+}
+
+.tableExpandIcon {
+  color: #667085;
+  cursor: pointer;
+}
+
+.chartCard {
+  padding: 14px 12px 16px;
+}
+
+.scrubber {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.scrubberTrack {
+  position: relative;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid #ccd4f6;
+  background: linear-gradient(90deg, #dfe4ff 0%, #cfd6ff 100%);
+}
+
+.scrubberWindow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 20px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.32);
+  cursor: grab;
+}
+
+.scrubberWindow:active {
+  cursor: grabbing;
+}
+
+.scrubberHandle {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 16px;
+  border-radius: 8px;
+  border: 1px solid #ccd4f6;
+  background: #fff;
+  cursor: ew-resize;
+}
+
+.scrubberHandleLeft {
+  left: -1px;
+}
+
+.scrubberHandleRight {
+  right: -1px;
+}
+
+.scrubberHandle::before,
+.scrubberHandle::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  width: 2px;
+  height: 12px;
+  background: #c7d2fe;
+}
+
+.scrubberHandle::before {
+  left: 5px;
+}
+
+.scrubberHandle::after {
+  right: 5px;
+}
+
+.tickRow {
+  position: relative;
+  height: 18px;
+  margin-bottom: 8px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.tickRow span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.flameArea {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.flameViewport {
+  min-height: 240px;
+  max-height: 68vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  resize: vertical;
+  padding: 6px 4px 6px 0;
+  border: 1px dashed #d8def3;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fbfcff 0%, #f8faff 100%);
+}
+
+.flameRow {
+  position: relative;
+  min-height: 34px;
+  cursor: pointer;
+}
+
+.flameRowActive .flameBar {
+  box-shadow: inset 0 0 0 1px #7c8cff;
+}
+
+.flameGrid {
+  position: absolute;
+  inset: 0;
+}
+
+.gridLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid #e5e7eb;
+}
+
+.flameBar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  min-width: 12px;
+  padding: 6px 6px;
+  overflow: hidden;
+  border: 1px solid #d6edf4;
+  background: linear-gradient(90deg, #e8f5f8 0%, #dff2f7 100%);
+  color: #4b5563;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ioGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.detailCard {
+  padding: 14px 16px;
+}
+
+.ioCard {
+  min-height: 280px;
+  padding: 14px 16px;
+  border: 1px solid #e9edf5;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.detailLabel {
+  margin-bottom: 8px;
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.detailValue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.inlineIcon {
+  color: #6366f1;
+}
+
+.ioContent {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 1280px) {
+  .content {
+    grid-template-columns: 320px minmax(0, 1fr);
+  }
+
+  .detailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ioGrid {
+    grid-template-columns: 1fr;
+  }
+}

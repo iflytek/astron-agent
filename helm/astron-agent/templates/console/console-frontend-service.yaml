@@ -1,0 +1,19 @@
+{{- if .Values.consoleFrontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-console-frontend
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console-frontend
+spec:
+  type: {{ .Values.consoleFrontend.service.type }}
+  ports:
+  - name: http
+    port: {{ .Values.consoleFrontend.service.port }}
+    targetPort: http
+    protocol: TCP
+  selector:
+    {{- include "astron-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: console-frontend
+{{- end }}

@@ -1,0 +1,148 @@
+.peizhiUploadModel {
+  :global {
+    .ant-modal-content {
+      padding: 27px 24px 24px 24px !important;
+      border-radius: 13px;
+    }
+    .ant-modal-header {
+      border-radius: 13px;
+    }
+  }
+  .flexBoxTip {
+    display: flex;
+    margin-top: 11px;
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 24px;
+    color: #b2b2b2;
+    .dian {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      margin-top: 9px;
+      margin-right: 4px;
+      background-color: #000;
+    }
+  }
+  .shuTip {
+    position: absolute;
+    width: 70px;
+    height: 25px;
+    line-height: 25px;
+    background-color: #565d63;
+    top: 5px;
+    left: 7px;
+    z-index: 22;
+    color: #fff;
+    text-align: center;
+    border-radius: 5px;
+  }
+  .hengTip {
+    position: absolute;
+    background-color: #565d63;
+    border-radius: 5px;
+    width: 70px;
+    height: 25px;
+    line-height: 25px;
+    top: 5px;
+    left: 7px;
+    z-index: 22;
+    color: #fff;
+    text-align: center;
+  }
+
+  .ant-modal {
+    width: 557px !important;
+  }
+
+  .cropperBox {
+    display: flex;
+    margin-top: 15px;
+  }
+
+  .cropperBoxItem {
+    height: 300px;
+    width: 535px;
+    overflow: hidden;
+    position: relative;
+    margin-right: 15px;
+    border-radius: 12px;
+  }
+
+  .shupingHezi {
+    display: block;
+    height: 300px;
+    width: 225px;
+    overflow: hidden;
+    position: relative;
+    border-radius: 12px;
+  }
+  .peizhiBotton {
+    display: flex;
+    justify-content: flex-end;
+    height: 45px;
+    margin-top: 3px;
+    .peizhiReset {
+      font-size: 12px;
+      margin-top: 0;
+      margin-right: 8px;
+      padding: 0 8px;
+      height: 40px;
+      border-radius: 8px;
+      box-sizing: border-box;
+      border: 1px solid #d3dbf8;
+      line-height: 39px;
+      cursor: pointer;
+    }
+    .peizhiCancel {
+      width: 80px;
+      height: 40px;
+      text-align: center;
+      line-height: 39px;
+      border-radius: 8px;
+      font-size: 12px;
+      margin-right: 8px;
+      box-sizing: border-box;
+      border: 1px solid #d3dbf8;
+      cursor: pointer;
+    }
+    .disabledButton {
+      opacity: 0.5;
+      cursor: not-allowed;
+      width: 80px;
+      height: 40px;
+      background: #6356EA;
+      text-align: center;
+      color: #fff;
+      line-height: 39px;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .peizhiQueren {
+      width: 80px;
+      height: 40px;
+      background: #6356EA;
+      text-align: center;
+      color: #fff;
+      line-height: 39px;
+      border-radius: 8px;
+      box-sizing: border-box;
+      border: 1px solid #d3dbf8;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .uploadingButton {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+  }
+}
+.shangchuangBg {
+  width: 460px;
+  height: 152px;
+  margin: 25px auto;
+  border-radius: 16px;
+  background: url("@/assets/imgs/create-bot-v2/shangchuangBg.svg") center center no-repeat;
+  background-size: cover;
+  cursor: pointer;
+}

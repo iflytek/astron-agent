@@ -1,0 +1,119 @@
+.buttonGroup {
+  display: flex;
+  align-items: center;
+  
+  // 水平布局
+  &.direction-horizontal {
+    flex-direction: row;
+  }
+  
+  // 垂直布局
+  &.direction-vertical {
+    flex-direction: column;
+  }
+  
+  // 对齐方式
+  &.align-left {
+    justify-content: flex-start;
+  }
+  
+  &.align-center {
+    justify-content: center;
+  }
+  
+  &.align-right {
+    justify-content: flex-end;
+  }
+}
+
+.buttonItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  user-select: none;
+  white-space: nowrap;
+  font-family: 'PingFang-Sim';
+  
+  // 默认样式
+  border-radius: 6px;
+  background: #F1F0FF;
+  color: #222529;
+  
+  // hover 状态
+  &:hover:not(.disabled) {
+    opacity: 0.8;
+  }
+  
+  // active 状态
+  &:active:not(.disabled) {
+    opacity: 0.6;
+  }
+  
+  // 禁用状态
+  &.disabled {
+    cursor: not-allowed;
+  }
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: color 0.3s ease;
+  
+  // 如果是 img 标签
+  img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+  }
+  
+  // 如果是 svg
+  svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+.text {
+  font-size: 14px;
+}
+
+// 适配深色主题 (如果需要)
+[data-theme='dark'] {
+  .buttonItem {
+    color: rgba(255, 255, 255, 0.85);
+    
+    &:hover:not(.disabled) {
+      color: #40a9ff;
+      background-color: rgba(64, 169, 255, 0.12);
+    }
+    
+    &:active:not(.disabled) {
+      color: #1890ff;
+      background-color: rgba(64, 169, 255, 0.2);
+    }
+    
+    &.danger {
+      color: rgba(255, 255, 255, 0.85);
+      
+      &:hover:not(.disabled) {
+        color: #ff7875;
+        background-color: rgba(255, 120, 117, 0.12);
+      }
+      
+      &:active:not(.disabled) {
+        color: #ff4d4f;
+        background-color: rgba(255, 120, 117, 0.2);
+      }
+    }
+  }
+}
+

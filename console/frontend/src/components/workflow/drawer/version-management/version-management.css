@@ -1,0 +1,61 @@
+.version-list .ant-timeline-item-content .ant-card {
+  width: 260px;
+  top: 8px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-sizing: border-box;
+  border: 1px solid #e4eaff;
+}
+.version-list .ant-timeline-item {
+  padding-bottom: 30px;
+}
+.version-list .ant-timeline-item-content .ant-card .ant-card-head {
+  min-height: 24px;
+  padding: 6px 12px;
+  border: none;
+  font-size: 14px;
+  color: #333333;
+  font-weight: normal;
+}
+.version-list .ant-timeline-item-content .ant-card .ant-card-body {
+  min-height: 24px;
+  padding: 0px;
+  border: none;
+  font-size: 12px;
+  font-weight: normal;
+  color: #7f7f7f;
+}
+.version-list .ant-timeline-item-head{
+  padding: 0px;
+  padding-left: 4px;
+}
+.version-list .ant-timeline-item-tail{
+  left: 6px;
+}
+.version-list .ant-timeline-item-tail{
+  border-inline-start:2px solid #E4EAFF;
+}
+.test {
+  padding-top: 4px;
+}
+.feedback-list .ant-timeline-item-head {
+  padding: 4px 0 0 4px;
+}
+.version-feedback-tabs .ant-tabs-content-holder {
+  flex: 1;
+  overflow-y: auto;
+}
+.version-feedback-tabs .ant-tabs-nav::before {
+  display: none;
+}
+.version-feedback-tabs .ant-tabs-nav .ant-tabs-ink-bar {
+  border-radius: 4px;
+  background: #6356EA;
+}
+.version-feedback-tabs .ant-tabs-nav .ant-tabs-tab {
+  padding: 6px 0;
+  color: #7f7f7f;
+}
+.version-feedback-tabs .ant-tabs-nav .ant-tabs-tab:hover {
+  color: #6356EA;
+}

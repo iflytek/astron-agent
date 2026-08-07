@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/agent-icon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Astron Agent</title>
+    <meta name="description" content="Astron Agent" />
+    <meta name="keywords" content="Astron Agent" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script>
+      window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};
+    </script>
+    <script src="/runtime-config.js"></script>
+    <script>
+      const RELOAD_FLAG = '__VITE_PRELOAD_FIXED_AT__';
+      let reloading = false;
+
+      function safeReload() {
+        if (reloading) return;
+        reloading = true;
+
+        const now = Date.now();
+        const last = Number(sessionStorage.getItem(RELOAD_FLAG) || '0');
+        if (now - last < 5000) return; // 5s 内只触发一次，防抖+防死循环
+        sessionStorage.setItem(RELOAD_FLAG, String(now));
+
+        // 缓存破坏：追加时间戳参数，避免再次请求旧 chunk
+        const url = new URL(window.location.href);
+        url.searchParams.set('v', String(now));
+      }
+
+      function suppressAndReload(e) {
+        console.log('suppressAndReload error:', e);
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        e?.stopImmediatePropagation?.();
+        safeReload();
+      }
+
+      function suppressAndReload(e) {
+        console.log('suppressAndReload error:', e);
+        e?.preventDefault?.();
+        e?.stopPropagation?.();
+        e?.stopImmediatePropagation?.();
+        safeReload();
+      }
+
+      // 专属事件：Vite 预加载失败
+      window.addEventListener('vite:preloadError', suppressAndReload, true);
+
+      // 一些浏览器/场景下的模块导入失败错误
+      window.addEventListener(
+        'error',
+        e => {
+          const msg = e?.message || '';
+          if (
+            msg.includes('Failed to fetch dynamically imported module') ||
+            msg.includes('Importing a module script failed')
+          ) {
+            suppressAndReload(e);
+          }
+        },
+        true
+      );
+
+      // Promise 拒绝形态的动态 import 失败
+      window.addEventListener('unhandledrejection', e => {
+        const msg = String(e?.reason?.message || e?.reason || '');
+        if (msg.includes('Failed to fetch dynamically imported module')) {
+          suppressAndReload(e);
+        }
+      });
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

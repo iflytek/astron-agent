@@ -1,0 +1,49 @@
+.container {
+  display: flex;
+  flex-direction: column;
+
+  +.contianer {
+    margin-bottom: 24px;
+  }
+}
+
+.titleWrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.title {
+  margin-right: 8px;
+  font-family: PingFang SC;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: normal;
+  letter-spacing: normal;
+  color: #7F7F7F;
+}
+
+.copyIcon {
+  height: 14px;
+  line-height: 14px;
+}
+
+.content {
+  flex: 1;
+  border: 1px solid #E4EAFF;
+  border-radius: 12px;
+  padding: 12px;
+  min-height: 80px;
+  overflow: auto;
+}
+
+.textContent {
+  width: fit-content;
+  white-space: pre-wrap;
+  font-family: PingFang SC;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 24px;
+  letter-spacing: normal;
+  color: #333333;
+} 

@@ -1,0 +1,29 @@
+{{- if .Values.minio.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-minio
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  type: {{ .Values.minio.service.type }}
+  ports:
+  - name: api
+    port: {{ .Values.minio.service.apiPort }}
+    targetPort: api
+    protocol: TCP
+    {{- if and (eq .Values.minio.service.type "NodePort") .Values.minio.service.nodePort }}
+    nodePort: {{ .Values.minio.service.nodePort }}
+    {{- end }}
+  - name: console
+    port: {{ .Values.minio.service.consolePort }}
+    targetPort: console
+    protocol: TCP
+    {{- if and (eq .Values.minio.service.type "NodePort") .Values.minio.service.consoleNodePort }}
+    nodePort: {{ .Values.minio.service.consoleNodePort }}
+    {{- end }}
+  selector:
+    {{- include "astron-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+{{- end }}

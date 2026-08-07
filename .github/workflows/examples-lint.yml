@@ -1,0 +1,26 @@
+name: Examples Lint
+
+on:
+  pull_request:
+    paths:
+      - "examples/**"
+      - ".github/workflows/examples-lint.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "examples/**"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Lint workflow examples
+        run: node examples/scripts/lint.mjs

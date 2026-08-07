@@ -1,0 +1,46 @@
+.userItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 7px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+
+
+  .userAvatar {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    background-color: #fff;
+  }
+
+  .username {
+    flex: 1;
+    font-family: PingFang SC;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 22px;
+    letter-spacing: normal;
+    color: #3d3d3d;
+  }
+
+  &.existing {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background-color: #fafafa;
+
+    .username {
+      color: #999;
+    }
+
+    .existingLabel {
+      font-size: 12px;
+      color: #999;
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      margin-left: auto;
+    }
+  }
+}

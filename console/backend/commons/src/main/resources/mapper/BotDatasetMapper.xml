@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.bot.BotDatasetMapper">
+
+    <resultMap id="DatasetInfoResultMap" type="com.iflytek.astron.console.commons.entity.bot.DatasetInfo">
+        <id column="id" property="id"/>
+        <result column="uid" property="uid"/>
+        <result column="name" property="name"/>
+        <result column="description" property="description"/>
+    </resultMap>
+
+    <select id="selectDatasetListByBotId" resultMap="DatasetInfoResultMap">
+        select d.id, d.uid, d.name, d.description
+        from bot_dataset b
+        left join dataset_info d
+        on b.dataset_id = d.id
+        where b.bot_id = #{botId} and b.is_act = 1 and d.status = 2
+    </select>
+</mapper>

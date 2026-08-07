@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `agent_memory_config` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'Primary key',
+  `bot_id` int NOT NULL COMMENT 'Bot ID',
+  `uid` varchar(128) NOT NULL COMMENT 'User ID',
+  `space_id` bigint NOT NULL DEFAULT 0 COMMENT 'Space ID, 0 means no space',
+  `provider` varchar(32) NOT NULL DEFAULT 'MEM0' COMMENT 'Memory provider',
+  `enabled` tinyint NOT NULL DEFAULT 0 COMMENT 'Enable status: 0 disabled, 1 enabled',
+  `auto_search` tinyint NOT NULL DEFAULT 1 COMMENT 'Auto-search memories before chat: 0 disabled, 1 enabled',
+  `api_key_ciphertext` text DEFAULT NULL COMMENT 'RSA encrypted provider API key',
+  `search_top_k` int NOT NULL DEFAULT 5 COMMENT 'Memory search result count',
+  `min_score` decimal(6,4) NOT NULL DEFAULT 0.0000 COMMENT 'Minimum relevance score',
+  `is_delete` tinyint NOT NULL DEFAULT 0 COMMENT 'Deletion status: 0 not deleted, 1 deleted',
+  `delete_time` bigint NOT NULL DEFAULT 0 COMMENT 'Deletion timestamp, 0 means active',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Create time',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update time',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_agent_memory_config_scope` (`bot_id`, `uid`, `space_id`, `provider`, `delete_time`),
+  KEY `idx_agent_memory_config_bot_uid` (`bot_id`, `uid`, `is_delete`),
+  KEY `idx_agent_memory_config_space` (`space_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Agent memory provider configuration';

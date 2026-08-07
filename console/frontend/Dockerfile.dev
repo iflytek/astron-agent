@@ -1,0 +1,22 @@
+FROM artifacts.iflytek.com/cbg-docker-private/xfyun_webdev/nginx:1.15-alpine
+
+ENV port=1881
+
+# 复制 nginx 配置模板
+COPY /console/frontend/nginx.conf.template /etc/nginx/nginx.conf.template
+
+# 生成 nginx 配置
+RUN sed "s/\${PORT}/$port/g" /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+
+# 复制前端构建产物
+ADD /console/frontend/dist /var/www
+
+# 复制 entrypoint 脚本
+COPY /console/frontend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# 暴露端口
+EXPOSE ${port}
+
+# 设置入口点
+ENTRYPOINT ["/docker-entrypoint.sh"]

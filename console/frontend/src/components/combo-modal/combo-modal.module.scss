@@ -1,0 +1,213 @@
+// 单行省略工具类
+.ellipsis {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ComboModal {
+  .ComboModalWrap {
+    width: 80%;
+    text-align: center;
+    margin: 48px auto 20px;
+
+    .title {
+      font-family: 阿里妈妈数黑体;
+      font-size: 22px;
+      font-weight: bold;
+      line-height: 30.8px;
+      margin-bottom: 40px;
+
+      .titleGradient {
+        font-size: 22px;
+        font-weight: bold;
+        line-height: 30.8px;
+        text-align: center;
+        letter-spacing: normal;
+        background: linear-gradient(100deg, #9f2eff 13%, #7445ff 89%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+    }
+
+    .ComboList {
+      display: flex;
+      gap: 20px;
+      text-align: left;
+      font-family: 苹方-简;
+      color: #000000;
+
+      .ComboItem {
+        flex: 1;
+        min-width: 0;
+        min-height: 620px;
+        border: 1px solid #e6ecfb;
+        border-radius: 18px;
+        background: #ffffff;
+        box-sizing: border-box;
+        padding: 23px;
+        opacity: 0.8;
+
+        .ComboItemHeader {
+          border-bottom: 1px solid #f0f2f6;
+          padding-bottom: 30px;
+
+          .ComboTitle {
+            font-size: 18px;
+            font-weight: 600;
+            line-height: 25px;
+            @extend .ellipsis;
+          }
+
+          .ComboDesc {
+            color: #7f7f7f;
+            font-size: 12px;
+            font-weight: normal;
+            line-height: 16.8px;
+            @extend .ellipsis;
+          }
+
+          .ComboPrice {
+            font-size: 32px;
+            font-weight: 600;
+            line-height: 44.8px;
+            margin: 26px 0 14px;
+            @extend .ellipsis;
+
+            .ComboPriceRange {
+              font-size: 14px;
+            }
+          }
+
+          .ComboBtn {
+            width: 100%;
+            border-radius: 8px;
+            background: #ffffff;
+            box-sizing: border-box;
+            border: 1px solid #d3dbf8;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 19.6px;
+            text-align: center;
+            padding: 10px 0;
+            position: relative;
+            cursor: pointer;
+          }
+
+          .QRactive::after {
+            content: '';
+            width: 150px;
+            height: 150px;
+            background:
+              url('https://openres.xfyun.cn/xfyundoc/2025-08-07/414a1d0d-6503-426a-b54e-5c467fc542a0/1754534445690/contactUs-08.07.png')
+                no-repeat,
+              rgba(255, 255, 255, 0.6);
+            background-size: cover;
+            position: absolute;
+            top: 50px;
+            left: 0;
+            left: calc(50% - 75px);
+            z-index: 1;
+          }
+        }
+
+        .ComboItemIntro {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          padding-top: 24px;
+
+          .ComboItemIntroBox {
+            display: flex;
+            gap: 11px;
+            font-size: 14px;
+            font-weight: normal;
+            line-height: 19.6px;
+            color: #333333;
+          }
+        }
+      }
+
+      .ComboItem:last-child {
+        opacity: 0.8;
+        background:
+          url('@/assets/imgs/trace/commercialization.svg') no-repeat right -20px
+            top 18px,
+          linear-gradient(180deg, #e4deff 0%, #f4efff 32%, #ffffff 100%);
+      }
+    }
+
+    .CompareBtn {
+      width: 180px;
+      height: 40px;
+      border-radius: 22px;
+      background: #fff;
+      box-sizing: border-box;
+      // border: 2px solid;
+      // border-image: linear-gradient(270deg, #f4c3d1 6%, #635bfe 91%) 2;
+      background: linear-gradient(270deg, #f4c3d1 6%, #635bfe 91%);
+      font-size: 14px;
+      font-weight: 500;
+      color: #000000;
+      margin: 20px auto 0;
+      padding: 10px 40px;
+      position: relative;
+      z-index: 1;
+      cursor: pointer;
+      isolation: isolate;
+
+      &::before {
+        content: '查看完整权益';
+        width: calc(100% - 4px);
+        height: calc(100% - 4px);
+        line-height: 36px;
+        border-radius: 20px;
+        // background: linear-gradient(270deg, #f4c3d1 6%, #635bfe 91%);
+        background: #fff;
+
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        // right: 0;
+        // bottom: 0;
+        z-index: -1;
+      }
+
+      :global(.lang-en) &::before {
+        content: 'View Full Benefits';
+      }
+    }
+  }
+
+  :global {
+    .ant-modal-content {
+      background: url('@/assets/imgs/trace/comboModal-bg.webp') no-repeat center;
+      background-size: 120% 120%;
+      padding: 0;
+
+      .ant-modal-header {
+        background: transparent;
+        // border-bottom: none;
+      }
+
+      .ant-modal-body {
+        width: 100vw;
+        // height: calc(100vh - 32px) !important;  // 减去标题栏高度（如果有）
+        height: 100vh !important;
+      }
+    }
+  }
+}
+
+:global(.lang-en) {
+  .ComboItemHeader {
+    .ComboTitle {
+      height: 52px;
+    }
+
+    .ComboDesc {
+      height: 34px;
+    }
+  }
+}

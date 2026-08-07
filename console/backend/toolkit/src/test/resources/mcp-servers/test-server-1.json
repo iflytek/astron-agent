@@ -1,0 +1,12 @@
+{
+  "id": "server-001",
+  "name": "测试服务器1",
+  "categoryId": "category-1",
+  "authorized": true,
+  "brief": "这是测试服务器1的简介",
+  "creator": "测试创建者1",
+  "overview": "测试概览1",
+  "server_url": "http://test1.example.com",
+  "create_time": "2024-01-01T10:00:00+08:00",
+  "logo_url": "http://test1.example.com/logo.png"
+}

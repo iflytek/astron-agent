@@ -1,0 +1,177 @@
+.spaceTable {
+  width: 100%;
+  height: 100%; 
+
+  --primary-color: #6356EA;
+  
+  .tableContainer {
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+    
+    .table {
+      position: relative;
+      height: 100% !important;
+      z-index: 10;
+
+      :global(.ant-spin-nested-loading) {
+        height: 100% !important;
+
+        :global(.ant-spin-container) {
+          height: 100% !important;
+
+          :global(.ant-table) {
+            height: calc(100% - 57px);
+
+            :global(.ant-table-container) {
+              height: 100% !important;
+            }
+          }
+        }
+      }
+
+      :global(.ant-table-thead > tr > th) {
+        background: #F2F5FE;
+        border-bottom: 1px solid #E4EAFF;
+        font-weight: 500;
+        color: #666;
+        padding: 16px;
+      }
+      
+      :global(.ant-table-tbody > tr > td) {
+        padding: 16px;
+        border-bottom: 1px solid #E4EAFF;
+        
+        &:last-child {
+          padding-right: 24px;
+        }
+      }
+      
+      :global(.ant-table-tbody > tr:hover > td) {
+        background: #fafafa;
+      }
+      
+      :global(.ant-table-placeholder .ant-table-expanded-row-fixed) {
+        margin: 0;
+      }
+
+      :global(.ant-table-placeholder .ant-table-cell) {
+        border: none;
+      }
+    }
+    
+    .pagination {
+      position: relative;
+      margin: 24px 0;
+      text-align: center;
+      z-index: 11;
+      
+      :global(.ant-pagination-total-text) {
+        color: #979797;
+      }
+      
+      // 页码大小选择器文字位置调整为左边
+      :global(.ant-pagination-options-size-changer) {
+        :global(.ant-select-selection-item) {
+          text-align: left !important;
+        }
+      }
+      
+      :global(.ant-pagination-item-active) {
+        border-color: var(--primary-color);
+        
+        a {
+          color: var(--primary-color);
+        }
+      }
+
+      :global(.ant-pagination-item) {
+        background: #FFFFFF;
+        border: 1px solid #D7DFE9;
+        
+        a {
+          color: rgba(0, 0, 0, 0.6);
+        }
+
+        &:hover {
+          border-color: var(--primary-color);
+        }
+      }
+      
+      :global(.ant-pagination-item:hover) {
+        border-color: var(--primary-color);
+        
+        a {
+          color: var(--primary-color);
+        }
+      }
+      
+      :global(.ant-pagination-next:hover:not(.ant-pagination-disabled) .ant-pagination-item-link),
+      :global(.ant-pagination-prev:hover:not(.ant-pagination-disabled) .ant-pagination-item-link) {
+        border-radius: 3px;
+        border-color: var(--primary-color);
+        background-color: #fff;
+        color: var(--primary-color);
+      }
+
+      :global(.ant-select-selection-search) {
+        display: none;
+      }
+    }
+  }
+  
+  .actionCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+// 通用的表格单元格样式
+.usernameCell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  .userIcon {
+    color: #666;
+    font-size: 16px;
+  }
+}
+
+.roleText {
+  color: #333;
+  font-weight: 500;
+}
+
+.roleSelect {
+  min-width: 80px;
+  
+  :global(.ant-select-selector) {
+    border: none;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+  }
+  
+  :global(.ant-select-selection-item) {
+    color: #333;
+    font-weight: 500;
+  }
+  
+  &:hover :global(.ant-select-selector) {
+    border-color: #1890ff;
+  }
+  
+  &:global(.ant-select-focused) :global(.ant-select-selector) {
+    border-color: #1890ff;
+    box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+  }
+}
+
+.joinTime {
+  color: #666;
+  font-size: 14px;
+}

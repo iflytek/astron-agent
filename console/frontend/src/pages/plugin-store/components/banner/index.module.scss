@@ -1,0 +1,152 @@
+// 变量定义
+$banner-container-height: 300px;
+$banner-slide-width: 498px;
+$banner-slide-height: 234px;
+$banner-slide-border-radius: 20px;
+$banner-slide-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
+$banner-transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+$banner-transition-fast: all 0.3s ease;
+
+// 指示器相关变量
+$indicator-size: 12px;
+$indicator-gap: 8px;
+$indicator-bg-inactive: rgba(255, 255, 255, 0.5);
+$indicator-bg-active: #007bff;
+$indicator-bg-hover: rgba(255, 255, 255, 0.8);
+$indicator-bg-active-hover: #0056b3;
+
+// 响应式断点
+$breakpoint-large: 1200px;
+$breakpoint-medium: 768px;
+$breakpoint-small: 480px;
+
+.bannerContainer {
+  width: 100%;
+  height: $banner-container-height;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.bannerWrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 基础slide样式 */
+.bannerSlide {
+  position: absolute;
+  top: 50%;
+  transition: $banner-transition;
+  transform-origin: center;
+  cursor: pointer;
+}
+
+/* 隐藏的slide */
+.bannerSlideHidden {
+  pointer-events: none;
+}
+
+.bannerSlideInner {
+  width: $banner-slide-width;
+  height: $banner-slide-height;
+  border-radius: $banner-slide-border-radius;
+  overflow: hidden;
+  box-shadow: $banner-slide-shadow;
+  transition: $banner-transition-fast;
+  background: #fff;
+}
+
+.bannerSlideImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: $banner-transition-fast;
+}
+
+/* 指示器样式 */
+.bannerIndicators {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: $indicator-gap;
+  z-index: 10;
+}
+
+.bannerIndicator {
+  width: $indicator-size;
+  height: $indicator-size;
+  border-radius: 50%;
+  border: none;
+  background: $indicator-bg-inactive;
+  cursor: pointer;
+  transition: $banner-transition-fast;
+
+  &.active {
+    background: $indicator-bg-active;
+    transform: scale(1.2);
+  }
+
+  &:hover {
+    background: $indicator-bg-hover;
+  }
+
+  &.active:hover {
+    background: $indicator-bg-active-hover;
+  }
+}
+
+/* 响应式设计 */
+@media (max-width: $breakpoint-large) {
+  .bannerSlideInner {
+    width: 400px;
+    height: 188px;
+  }
+}
+
+@media (max-width: $breakpoint-medium) {
+  .bannerContainer {
+    height: 250px;
+  }
+  
+  .bannerSlideInner {
+    width: 300px;
+    height: 141px;
+  }
+  
+  .bannerSlideAdjacent {
+    transform: translateY(-50%) translateX(-50%) scale(0.8);
+  }
+  
+  .bannerSlideDistant {
+    transform: translateY(-50%) translateX(-50%) scale(0.65);
+  }
+}
+
+@media (max-width: $breakpoint-small) {
+  .bannerContainer {
+    height: 200px;
+  }
+  
+  .bannerSlideInner {
+    width: 250px;
+    height: 117px;
+  }
+  
+  .bannerSlideAdjacent {
+    transform: translateY(-50%) translateX(-50%) scale(0.75);
+  }
+  
+  .bannerSlideDistant {
+    transform: translateY(-50%) translateX(-50%) scale(0.6);
+  }
+}

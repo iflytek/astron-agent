@@ -1,0 +1,228 @@
+{{- $services := list "coreTenant" "coreDatabase" "coreRpa" "coreLink" "coreAitools" "coreAgent" "coreKnowledge" "coreWorkflow" }}
+{{- range $serviceName := $services }}
+{{- $serviceConfig := index $.Values $serviceName }}
+{{- if $serviceConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astron-agent.fullname" $ }}-{{ kebabcase $serviceName }}
+  labels:
+    {{- include "astron-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ kebabcase $serviceName }}
+spec:
+  replicas: {{ $serviceConfig.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ kebabcase $serviceName }}
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: {{ kebabcase $serviceName }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-dependencies
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for infrastructure services..."
+          until nslookup {{ include "astron-agent.fullname" $ }}-postgres.{{ $.Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" $ }}-mysql.{{ $.Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" $ }}-redis.{{ $.Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" $ }}-minio.{{ $.Release.Namespace }}.svc.cluster.local; do
+            echo "Services not ready yet, waiting...";
+            sleep 5;
+          done
+          echo "All infrastructure services are ready!"
+      containers:
+      - name: {{ kebabcase $serviceName }}
+        image: "{{ $.Values.global.imageRegistry }}/{{ $serviceConfig.image }}:{{ $.Values.global.astronAgentVersion }}"
+        imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+        env:
+        {{- range $key, $value := $serviceConfig.env }}
+        {{- if and (eq $key "ossDownloadHost") (or (eq $serviceName "coreAitools") (eq $serviceName "coreWorkflow")) }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.minio.service.nodePort | int) | quote }}
+        {{- else if or (eq $key "mysqlPassword") (eq $key "databasePassword") }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-mysql-secret
+              key: mysql-root-password
+        {{- else if eq $key "pgsqlPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-postgres-secret
+              key: postgres-password
+        {{- else if eq $key "redisPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-redis-secret
+              key: redis-password
+        {{- else if eq $key "ossAccessKeyId" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-user
+        {{- else if eq $key "ossAccessKeySecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-password
+        {{- else }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ $serviceConfig.service.port }}
+          protocol: TCP
+        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreKnowledge") (eq $serviceName "coreWorkflow") }}
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- else }}
+        livenessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        {{- end }}
+        resources:
+          {{- toYaml $serviceConfig.resources | nindent 10 }}
+        volumeMounts:
+        {{- if eq $serviceName "coreTenant" }}
+        - name: config
+          mountPath: /opt/tenant/config/config.toml
+          subPath: config.toml
+        - name: logs
+          mountPath: /opt/tenant/logs
+        - name: localtime
+          mountPath: /etc/localtime
+          readOnly: true
+        {{- else if eq $serviceName "coreDatabase" }}
+        - name: config
+          mountPath: /opt/core/memory/database/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/memory/database/logs
+        {{- else if eq $serviceName "coreRpa" }}
+        - name: config
+          mountPath: /opt/core/plugin/rpa/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- else if eq $serviceName "coreLink" }}
+        - name: config
+          mountPath: /opt/core/plugin/link/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/plugin/link/logs
+        {{- else if eq $serviceName "coreAitools" }}
+        - name: config
+          mountPath: /opt/core/plugin/aitools/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- else if eq $serviceName "coreAgent" }}
+        - name: config
+          mountPath: /opt/core/agent/config.env
+          subPath: config.env
+        {{- else if eq $serviceName "coreKnowledge" }}
+        - name: config
+          mountPath: /opt/core/knowledge/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- else if eq $serviceName "coreWorkflow" }}
+        - name: config
+          mountPath: /opt/core/workflow/config.env
+          subPath: config.env
+        - name: logs
+          mountPath: /opt/core/logs
+        {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          {{- if eq $serviceName "coreTenant" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-tenant-config
+          {{- else if eq $serviceName "coreDatabase" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-database-config
+          {{- else if eq $serviceName "coreRpa" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-rpa-config
+          {{- else if eq $serviceName "coreLink" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-link-config
+          {{- else if eq $serviceName "coreAitools" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-aitools-config
+          {{- else if eq $serviceName "coreAgent" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-agent-config
+          {{- else if eq $serviceName "coreKnowledge" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-knowledge-config
+          {{- else if eq $serviceName "coreWorkflow" }}
+          name: {{ include "astron-agent.fullname" $ }}-core-workflow-config
+          {{- end }}
+      {{- if ne $serviceName "coreAgent" }}
+      - name: logs
+        emptyDir: {}
+      {{- end }}
+      {{- if eq $serviceName "coreTenant" }}
+      - name: localtime
+        hostPath:
+          path: /etc/localtime
+          type: File
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astron-agent.fullname" $ }}-{{ kebabcase $serviceName }}
+  labels:
+    {{- include "astron-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ kebabcase $serviceName }}
+spec:
+  type: {{ $serviceConfig.service.type }}
+  ports:
+  - name: http
+    port: {{ $serviceConfig.service.port }}
+    targetPort: http
+    protocol: TCP
+  selector:
+    {{- include "astron-agent.selectorLabels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ kebabcase $serviceName }}
+{{- end }}
+{{- end }}

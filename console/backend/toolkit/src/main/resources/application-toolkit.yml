@@ -1,0 +1,101 @@
+# PageHelper configuration for MyBatis pagination
+pagehelper:
+  helperDialect: mysql
+  params: count=countSql
+  reasonable: true
+  supportMethodsArguments: true
+
+# API-related configuration, including authentication, tenant info, and service endpoints
+api:
+  url:
+    aiuiTenantId: xxxxxxxxxxxxxxxx
+    aiuiTenantKey: xxxxxxxxxxxxxxxx
+    aiuiTenantSecret: xxxxxxxxxxxxxxxx
+    appUrl: ${APP_URL:http://127.0.0.1:5052/v2/app}
+    apiKey: ${APP_APIKEY:apikey}
+    apiSecret: ${APP_API_SECRET:apiSecret}
+    defaultAddRepo: sparkbot_repo_01
+    knowledgeUrl: ${KNOWLEDGE_URL:http://127.0.0.1:30007/knowledge}
+    mcpToolServer: http://127.0.0.1:port/api/v1
+    mcpAuthServer: http://127.0.0.1:port
+    openPlatform: https://127.0.0.1:8080
+    tenantId: ${TENANT_ID:tenantId}
+    tenantKey: ${TENANT_KEY:tenantKey}
+    tenantSecret: ${TENANT_SECRET:tenantSecret}
+    toolUrl: ${TOOL_URL:http://127.0.0.1:18888}
+    agentUrl: ${AGENT_URL:http://127.0.0.1:8700}
+    toolRpaUrl: ${TOOL_RPA_URL:http://127.0.0.1:17198}
+    workflow: ${WORKFLOW_URL:http://127.0.0.1:7880}
+    sparkDB: ${SPARK_DB_URL:http://127.0.0.1:7990}
+    sparkDBType: ${SPARK_DB_TYPE:postgresql}
+    sparkDocUrl: https://chatdoc.xfyun.cn
+    mcpUrlServer: http://127.0.0.1:port
+    localModel: ${LOCAL_MODEL_URL:http://127.0.0.1:33778}
+    datasetUrl: http://127.0.0.1:8080/dataset/getDataset
+    datasetFileUrl: http://127.0.0.1:8080/dataset/getDatasetFiles
+    xinghuoDatasetFileUrl: http://127.0.0.1:8080/dataset/addXinghuoDatasetFile
+    deleteXinghuoDatasetFileUrl: http://127.0.0.1:8080/dataset/deleteXinghuoDatasetFile
+    deleteXinghuoDatasetUrl: http://127.0.0.1:8080/dataset/deleteXinghuoDataset
+    rpaUrl: ${RPA_URL:https://newapi.iflyrpa.com}
+    appIdQryUrl: http://10.1.87.65:5052
+
+# Business-specific configuration
+biz:
+  admin-uid: ${ADMIN_UID:9999}
+  trusted-tool-owner-uids: ${TRUSTED_TOOL_OWNER_UIDS:ccdd4277-2c77-4c36-b484-3935d5077ebf}
+#  RAG/Search generates maximum character count threshold (too large affects performance)
+  cbg-rag-max-char-count: 1000000
+#  CBG RAG compatible source types (sources that have same behavior as CBG-RAG)
+  cbg-rag-compatible-sources:
+    - CBG-RAG
+    - Ragflow-RAG
+#  AIUI RAG compatible source types (sources that have same behavior as AIUI-RAG2)
+  aiui-rag-compatible-sources:
+    - AIUI-RAG2
+#  Spark RAG compatible source types (sources that have same behavior as SparkDesk-RAG)
+  spark-rag-compatible-sources:
+    - SparkDesk-RAG
+
+# iFlytek API authentication configuration
+xfyun:
+  api:
+    auth:
+      secret: ${API_AUTH_SECRET:api-auth-secret}
+
+# MCP server configuration
+mcp-server:
+  file-path: classpath:mcp-server
+
+# Task scheduling and async executor configuration
+task:
+  scheduling:
+    pool-size: 4
+    thread-name-prefix: app-scheduler-
+    await-termination-seconds: 10
+    wait-for-tasks-to-complete-on-shutdown: true
+
+  executor:
+    # Optimized thread pool configuration for reduced memory usage
+    core-pool-size: 4
+    max-pool-size: 10
+    queue-capacity: 1000
+    keep-alive-seconds: 30
+    allow-core-thread-timeout: false
+    thread-name-prefix: app-async-
+    await-termination-seconds: 20
+    wait-for-tasks-to-complete-on-shutdown: true
+    rejection-policy: CallerRuns
+    # Optional values: Abort / CallerRuns / Discard / DiscardOldest
+
+# Common app-level authentication configuration
+common:
+  appid: ${COMMON_APPID:appid}
+  apiKey: ${COMMON_APIKEY:apiKey}
+  apiSecret: ${COMMON_API_SECRET:apiSecret}
+
+workflow-trace:
+  es-url: ${WORKFLOW_TRACE_ES_URL:http://elasticsearch:9200}
+  es-index: ${WORKFLOW_TRACE_ES_INDEX:spark-agent-builder-*}
+  es-username: ${WORKFLOW_TRACE_ES_USERNAME:}
+  es-password: ${WORKFLOW_TRACE_ES_PASSWORD:}
+  es-timeout-seconds: ${WORKFLOW_TRACE_ES_TIMEOUT_SECONDS:10}

@@ -1,0 +1,44 @@
+.userItem {
+  padding: 11px 7px;
+
+  .userAvatar {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    background-color: #fff;
+  }
+
+  .username {
+    flex: 1;
+    font-family: PingFang SC;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 22px;
+    letter-spacing: normal;
+    color: #3D3D3D;
+  }
+}
+
+.selectedUserItem {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  gap: 6px;
+
+  .roleSelect {
+    min-width: 100px;
+    flex-shrink: 0;
+  }
+
+  .removeBtn {
+    flex-shrink: 0;
+    color: #999;
+    padding: 4px;
+    height: auto;
+    min-width: auto;
+
+    &:hover {
+      color: #ff4d4f;
+    }
+  }
+} 

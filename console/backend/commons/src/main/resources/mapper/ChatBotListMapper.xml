@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.bot.ChatBotListMapper">
+
+    <select id="countCheckBotList" resultType="java.lang.Long">
+        SELECT
+        count(a.uid)
+        FROM
+        `chat_bot_base` a
+        LEFT JOIN chat_bot_market b ON a.id = b.bot_id
+        LEFT JOIN chat_list c ON a.id = c.bot_id AND c.is_botweb = 0 AND c.is_delete = 0 and c.root_flag = 1 and c.uid =
+        #{uid}
+        WHERE
+        a.uid = #{uid}
+        AND a.is_delete = 0
+        AND (b.is_delete is null or b.is_delete = 0)
+        AND a.virtual_agent_id is null
+        <if test="botType !=null">
+            and a.bot_type = #{botType}
+        </if>
+        <if test="botStatus !=null and flag != 1">
+            and b.bot_status in
+            <foreach collection="botStatus" item="status" index="index" open="(" close=")" separator=",">
+                #{status}
+            </foreach>
+        </if>
+        <if test="flag == 1">
+            and (b.bot_status IS NULL OR b.bot_status=0 OR b.bot_status=3)
+        </if>
+        <if test="version != null">
+            and a.version = #{version}
+        </if>
+        <if test="botName != null">
+            and a.bot_name like CONCAT('%', #{botName}, '%')
+        </if>
+    </select>
+
+    <sql id="check_from_where">
+        FROM
+        `chat_bot_base` a
+        LEFT JOIN chat_bot_market b ON a.id = b.bot_id
+        LEFT JOIN chat_list c ON a.id = c.bot_id and c.is_botweb = 0 and c.is_delete = 0 and c.root_flag = 1 and c.uid =
+        #{uid}
+        WHERE
+
+        a.is_delete = 0
+        AND (b.is_delete is null or b.is_delete = 0)
+        AND a.virtual_agent_id is null
+
+        <!--        spaceId null means bot belongs to user, spaceId not null means bot belongs to space -->
+        <choose>
+            <when test="spaceId != null">
+                and a.space_id = #{spaceId}
+            </when>
+            <otherwise>
+                and a.uid = #{uid}
+                and a.space_id is null
+            </otherwise>
+        </choose>
+        <if test="botType !=null">
+            and a.bot_type = #{botType}
+        </if>
+        <if test="botStatus !=null and flag != 1">
+            and b.bot_status in
+            <foreach collection="botStatus" item="status" index="index" open="(" close=")" separator=",">
+                #{status}
+            </foreach>
+        </if>
+        <if test="version != null">
+            and a.version = #{version}
+        </if>
+        <if test="botName != null">
+            and a.bot_name like CONCAT('%', #{botName}, '%')
+        </if>
+    </sql>
+
+    <select id="getCheckBotList" resultType="java.util.Map">
+        SELECT
+        a.uid,
+        c.id as chatId,
+        a.id AS botId,
+        0 as marketBotId,
+        a.bot_name AS botName,
+        a.bot_desc AS botDesc,
+        a.bot_type AS botType,
+        a.prompt,
+        a.avatar,
+        a.version,
+        a.virtual_agent_id,
+        CASE
+        WHEN (b.bot_status IS NULL OR b.bot_status=0) THEN
+        -9
+        ELSE
+        b.bot_status
+        END AS botStatus,
+        CASE WHEN b.block_reason IS NULL THEN ""
+        ELSE b.block_reason
+        END AS blockReason,
+        a.create_time AS createTime,
+        a.support_context AS supportContext,
+        b.create_time As applyTime,
+        ifnull(b.hot_num, 0) as hotNum
+        <include refid="check_from_where"/>
+        <if test="flag == 1">
+            having botStatus = -9
+        </if>
+        <choose>
+            <when test="sort != null">
+                order by ${sort}
+            </when>
+            <otherwise>
+                order by a.create_time desc
+            </otherwise>
+        </choose>
+        <if test="offset != null and pageSize != null">
+            Limit #{offset},#{pageSize}
+        </if>
+    </select>
+
+    <insert id="baseBotInsert">
+        INSERT INTO chat_bot_list(uid, real_bot_id, name, bot_type, prompt, bot_desc, support_context,
+                                            create_time)
+        VALUES (#{uid}, #{id}, #{botName}, #{botType}, #{prompt}, #{botDesc}, #{supportContext}, NOW());
+    </insert>
+
+</mapper>

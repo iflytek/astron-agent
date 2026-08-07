@@ -1,0 +1,33 @@
+.wrapper {
+  width: 100%;
+  height: 100%;
+  padding-top: 100px;
+  display: flex;
+  justify-content: center;
+
+  &.centered {
+    padding: 0;
+    align-items: center;
+  }
+}
+
+.empty {
+  text-align: center;
+
+  .icon {
+    width: 200px;
+    height: 140px;
+    margin: 0 auto 16px;
+
+    img {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  .text {
+    display: block;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 14px;
+  }
+}

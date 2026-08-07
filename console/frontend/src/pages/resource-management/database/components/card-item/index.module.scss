@@ -1,0 +1,80 @@
+// 通用文本省略 mixin
+@mixin textEllipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.cardItem {
+  position: relative;
+  height: 188px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 20px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid transparent;
+  box-shadow: 0px 1px 10px 0px rgba(122, 120, 150, 0.1);
+  font-family: 'PingFang-Sim';
+
+  &:hover {
+    border-color: #6356EA;
+    box-shadow: 0px 4px 16px 0px rgba(134, 130, 191, 0.3);
+  }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .databaseIcon {
+        width: 48px;
+        height: 48px;
+      }
+
+      .title {
+        flex: 1;
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 26px;
+        color: #000000;
+        @include textEllipsis(1);
+      }
+    }
+
+    .description {
+      font-size: 12px;
+      font-weight: normal;
+      line-height: 22px;
+      text-align: justify; /* 浏览器可能不支持 */
+      display: flex;
+      align-items: center;
+      letter-spacing: normal;
+      color: #7F7F7F;
+      @include textEllipsis(2);
+    }
+  }
+
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+}
+

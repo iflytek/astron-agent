@@ -1,0 +1,36 @@
+.memberManagement {
+  height: 100%;
+
+  .memberTable {
+    :global {
+      .ant-table {
+        height: max(120px, calc(100% - 60px));
+      }
+    }
+  }
+
+  .usernameCell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .userIcon {
+      color: #666;
+      font-size: 14px;
+    }
+  }
+
+  .roleText {
+    color: #1a1a1a;
+    font-weight: 500;
+  }
+
+  .roleSelect {
+    max-width: 100%;
+  }
+
+  .joinTime {
+    color: #666;
+    font-size: 14px;
+  }
+}

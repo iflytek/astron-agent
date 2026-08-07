@@ -1,0 +1,138 @@
+// 通用文本省略 mixin
+@mixin textEllipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.cardItem {
+  position: relative;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  height: 188px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: #FFFFFF;
+  border: 1px solid transparent;
+  /* 阴影/一级 */
+  box-shadow: 0px 1px 10px 0px rgba(122, 120, 150, 0.1);
+  font-family: 'PingFang-Sim';
+
+  &:hover {
+    border-color: #6356EA;
+    /* 阴影/二级 */
+    box-shadow: 0px 4px 16px 0px rgba(134, 130, 191, 0.3);
+  }
+
+  .corner {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 54px;
+    height: 28px;
+  }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .header {
+    display: flex;
+    gap: 12px;
+
+    .folderIcon {
+      width: 48px;
+      height: 48px;
+    }
+
+    .headerRight {
+      flex: 1;
+      overflow: hidden;
+
+      .title {
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 26px;
+        letter-spacing: normal;
+        color: #000000;
+        @include textEllipsis(1);
+      }
+    
+      .description {
+        margin-top: 6px;
+        font-size: 12px;
+        font-weight: normal;
+        line-height: 22px;
+        text-align: justify; /* 浏览器可能不支持 */
+        letter-spacing: normal;
+        color: #7F7F7F;
+        @include textEllipsis(1);
+      }
+    }
+  }
+
+  .stats {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    height: 36px;
+    border-radius: 6px;
+    /* 主背景色 */
+    background: #F7F9FD;
+    font-weight: normal;
+    line-height: normal;
+    text-align: center;
+    letter-spacing: normal;
+    color: #333333;
+
+    .divider {
+      width: 1px;
+      height: 20px;
+      background: #E1E8FF;
+      margin: 0 9px;
+    }
+
+    .statItem {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: center;
+
+      .statLabel {
+        font-size: 14px;
+        font-weight: normal;
+        line-height: normal;
+        text-align: center;
+        letter-spacing: normal;
+        color: #333333;
+      }
+
+      .statValue {
+        font-family: "D-DIN-PRO-500-Medium" !important;
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 20px;
+        text-align: center;
+        letter-spacing: normal;
+        color: #6356EA;
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+#!/bin/sh
+set -eu
+
+RUNTIME_CONFIG_PATH=${RUNTIME_CONFIG_PATH:-/var/www/runtime-config.js}
+DEFAULT_BASE_URL=${CONSOLE_API_URL:-${VITE_BASE_URL:-}}
+DEFAULT_CASDOOR_URL=${CONSOLE_CASDOOR_URL:-}
+DEFAULT_CASDOOR_ID=${CONSOLE_CASDOOR_ID:-${VITE_CASDOOR_CLIENT_ID:-}}
+DEFAULT_CASDOOR_APP=${CONSOLE_CASDOOR_APP:-${VITE_CASDOOR_APP_NAME:-}}
+DEFAULT_CASDOOR_ORG=${CONSOLE_CASDOOR_ORG:-${VITE_CASDOOR_ORG_NAME:-}}
+
+escape_for_js() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+mkdir -p "$(dirname "$RUNTIME_CONFIG_PATH")"
+
+BASE_URL_ESCAPED=$(escape_for_js "$DEFAULT_BASE_URL")
+CASDOOR_URL_ESCAPED=$(escape_for_js "$DEFAULT_CASDOOR_URL")
+CASDOOR_ID_ESCAPED=$(escape_for_js "$DEFAULT_CASDOOR_ID")
+CASDOOR_APP_ESCAPED=$(escape_for_js "$DEFAULT_CASDOOR_APP")
+CASDOOR_ORG_ESCAPED=$(escape_for_js "$DEFAULT_CASDOOR_ORG")
+cat <<EOF > "$RUNTIME_CONFIG_PATH"
+window.__APP_CONFIG__ = window.__APP_CONFIG__ || {};
+window.__APP_CONFIG__.BASE_URL = "$BASE_URL_ESCAPED";
+window.__APP_CONFIG__.CASDOOR_URL = "$CASDOOR_URL_ESCAPED";
+window.__APP_CONFIG__.CASDOOR_ID = "$CASDOOR_ID_ESCAPED";
+window.__APP_CONFIG__.CASDOOR_APP = "$CASDOOR_APP_ESCAPED";
+window.__APP_CONFIG__.CASDOOR_ORG = "$CASDOOR_ORG_ESCAPED";
+
+console.log('[runtime-config] executed, window.__APP_CONFIG__ = ', window.__APP_CONFIG__);
+EOF
+
+exec nginx -g "daemon off;"

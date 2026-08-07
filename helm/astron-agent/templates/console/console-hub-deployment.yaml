@@ -1,0 +1,107 @@
+{{- if .Values.consoleHub.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-console-hub
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: console-hub
+spec:
+  replicas: {{ .Values.consoleHub.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: console-hub
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: console-hub
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: wait-for-dependencies
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for infrastructure services..."
+          until nslookup {{ include "astron-agent.fullname" . }}-mysql.{{ .Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" . }}-redis.{{ .Release.Namespace }}.svc.cluster.local && \
+                nslookup {{ include "astron-agent.fullname" . }}-minio.{{ .Release.Namespace }}.svc.cluster.local; do
+            echo "Services not ready yet, waiting...";
+            sleep 5;
+          done
+          echo "All infrastructure services are ready!"
+      containers:
+      - name: console-hub
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleHub.image }}:{{ .Values.global.astronAgentVersion }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        {{- range $key, $value := .Values.consoleHub.env }}
+        {{- if or (eq $key "consoleCasdoorUrl") (eq $key "oauth2IssuerUri") }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.casdoor.service.nodePort | int) | quote }}
+        {{- else if eq $key "consoleDomain" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $.Values.global.hostBaseAddress | quote }}
+        {{- else if eq $key "ossRemoteEndpoint" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.minio.service.nodePort | int) | quote }}
+        {{- else if eq $key "botApiMaasBaseUrl" }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ printf "%s/workflow/v1/chat/completions" $.Values.global.hostBaseAddress | quote }}
+        {{- else if eq $key "mysqlPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-mysql-secret
+              key: mysql-root-password
+        {{- else if eq $key "redisPassword" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-redis-secret
+              key: redis-password
+        {{- else if eq $key "ossAccessKeyId" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-user
+        {{- else if eq $key "ossAccessKeySecret" }}
+        - name: {{ upper (snakecase $key) }}
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" $ }}-minio-secret
+              key: root-password
+        {{- else }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.consoleHub.service.port }}
+          protocol: TCP
+        livenessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6
+        readinessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.consoleHub.resources | nindent 10 }}
+{{- end }}

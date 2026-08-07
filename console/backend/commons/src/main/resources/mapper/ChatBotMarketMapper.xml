@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.bot.ChatBotMarketMapper">
+
+    <select id="selectByBotIds" parameterType="java.util.List"
+            resultType="com.iflytek.astron.console.commons.entity.bot.ChatBotMarket">
+        SELECT bot_id, bot_status
+        FROM chat_bot_market
+        WHERE is_delete = 0
+        AND bot_id IN
+        <foreach item="botId" index="index" collection="botIds" open="(" separator="," close=")">
+            #{botId}
+        </foreach>
+    </select>
+
+    <!-- ==================== Bot Query Related SQL ==================== -->
+    
+    <!-- Base query conditions for bot queries -->
+    <sql id="base_query_conditions">
+        FROM
+        `chat_bot_base` a
+        LEFT JOIN chat_bot_market b ON a.id = b.bot_id
+        WHERE
+        a.is_delete = 0
+        AND (b.is_delete IS NULL OR b.is_delete = 0)
+        AND a.virtual_agent_id IS NULL
+        
+        <!-- Space permission control -->
+        <choose>
+            <when test="condition.spaceId != null">
+                AND a.space_id = #{condition.spaceId}
+            </when>
+            <otherwise>
+                AND a.uid = #{condition.uid}
+                AND a.space_id IS NULL
+            </otherwise>
+        </choose>
+        
+        <!-- Publish status filtering -->
+        <if test="condition.publishStatus != null and condition.publishStatus.size() > 0">
+            AND COALESCE(b.bot_status, 0) IN
+            <foreach collection="condition.publishStatus" item="status" open="(" separator="," close=")">
+                #{status}
+            </foreach>
+        </if>
+        
+        <!-- Version filtering -->
+        <if test="condition.version != null">
+            AND a.version = #{condition.version}
+        </if>
+        
+        <!-- Keyword search -->
+        <if test="condition.keyword != null and condition.keyword != ''">
+            AND a.bot_name LIKE CONCAT('%', #{condition.keyword}, '%')
+        </if>
+    </sql>
+
+    <!-- Paginated query for bot list -->
+    <select id="selectBotListByConditions" resultType="com.iflytek.astron.console.commons.dto.bot.BotPublishQueryResult">
+        SELECT
+        a.uid,
+        a.space_id AS spaceId,
+        a.id AS botId,
+        a.bot_name AS botName,
+        a.bot_desc AS botDesc,
+        a.version,
+        -- Bot status mapping: 0=offline, 1=online, NULL=unpublished
+        b.bot_status AS botStatus,
+        a.create_time AS createTime,
+        a.update_time AS updateTime,
+        b.publish_channels AS publishChannels
+        <include refid="base_query_conditions"/>
+        
+        <!-- Sorting -->
+        <choose>
+            <when test="condition.sortField != null">
+                <choose>
+                    <when test="condition.sortField == 'createTime'">
+                        ORDER BY a.create_time ${condition.safeSortDirection}
+                    </when>
+                    <when test="condition.sortField == 'updateTime'">
+                        ORDER BY a.update_time ${condition.safeSortDirection}
+                    </when>
+                    <otherwise>
+                        ORDER BY a.create_time DESC
+                    </otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                ORDER BY a.create_time DESC
+            </otherwise>
+        </choose>
+    </select>
+
+    <!-- Query bot details -->
+    <select id="selectBotDetail" resultType="com.iflytek.astron.console.commons.dto.bot.BotPublishQueryResult">
+        SELECT
+            a.uid,
+            a.space_id AS spaceId,
+            a.id AS botId,
+            a.bot_name AS botName,
+            a.bot_desc AS botDesc,
+            a.version,
+            b.bot_status AS botStatus,
+            a.create_time AS createTime,
+            a.update_time AS updateTime,
+            b.publish_channels AS publishChannels
+        FROM chat_bot_base a
+        LEFT JOIN chat_bot_market b ON a.id = b.bot_id AND b.is_delete = 0
+        WHERE a.is_delete = 0
+          AND a.id = #{botId}
+          <choose>
+              <when test="spaceId != null">
+                  AND a.space_id = #{spaceId}
+              </when>
+              <otherwise>
+                  AND a.uid = #{uid} AND a.space_id IS NULL
+              </otherwise>
+          </choose>
+    </select>
+
+    <!-- Update bot publish status and publish channels -->
+    <update id="updatePublishStatus">
+        UPDATE chat_bot_market 
+        SET 
+            bot_status = #{botStatus},
+            publish_channels = #{publishChannels},
+            update_time = NOW()
+        WHERE 
+            bot_id = #{botId}
+            AND is_delete = 0
+            <choose>
+                <when test="spaceId != null">
+                    AND EXISTS (
+                        SELECT 1 FROM chat_bot_base 
+                        WHERE id = #{botId} AND space_id = #{spaceId} AND is_delete = 0
+                    )
+                </when>
+                <otherwise>
+                    AND EXISTS (
+                        SELECT 1 FROM chat_bot_base 
+                        WHERE id = #{botId} AND uid = #{uid} AND space_id IS NULL AND is_delete = 0
+                    )
+                </otherwise>
+            </choose>
+    </update>
+</mapper>

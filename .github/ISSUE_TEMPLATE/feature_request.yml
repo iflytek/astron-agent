@@ -1,0 +1,67 @@
+---
+name: "✨ Feature Request"
+description: Suggest an improvement or new capability for the project
+title: "[FEATURE] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing a feature! Please complete every required section so we can evaluate and plan effectively.
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: Feature Description
+      description: Briefly describe the feature or change you would like to see.
+      placeholder: Provide a concise summary of the capability you are requesting.
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Explain the specific scenario or workflow this feature will support.
+      placeholder: Describe who needs this feature, what they are trying to do, and why current behavior is insufficient.
+    validations:
+      required: true
+  - type: dropdown
+    id: priority-level
+    attributes:
+      label: Priority Level
+      description: How urgent or impactful is this request?
+      options:
+        - High — Critical for users, blocking workflows
+        - Medium — Important improvement, enhances experience
+        - Low — Nice to have or incremental improvement
+  - type: checkboxes
+    id: feature-category
+    attributes:
+      label: Feature Category
+      description: Select all relevant areas.
+      options:
+        - label: Core Functionality
+        - label: API / Backend
+        - label: UI / UX
+        - label: Developer Experience
+        - label: Performance
+        - label: Security
+        - label: Documentation
+        - label: Other (explain below)
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Share any ideas, designs, or implementation thoughts.
+      placeholder: Optional sketches, pseudo-code, or bullet points describing the approach.
+  - type: textarea
+    id: success-criteria
+    attributes:
+      label: Success Criteria
+      description: List measurable outcomes for this feature.
+      placeholder: Bullet points describing what success looks like.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add references, screenshots, mockups, or related issues.

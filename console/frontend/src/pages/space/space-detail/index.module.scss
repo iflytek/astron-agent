@@ -1,0 +1,117 @@
+:root {
+  --primary-color: #6356EA;
+}
+
+.spaceDetail {
+  height: calc(100% - 60px);
+  margin: 30px 6%;
+  padding: 24px;
+  background: linear-gradient(to bottom, #c0f2f8 0%, #FFFFFF 100%);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 18px;
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    .customTabs {
+      flex: 1;
+      overflow: hidden;
+
+      .tabActions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+
+        .filterSelect {
+          min-width: 120px;
+        }
+
+        .actionText {
+          font-size: 14px;
+          color: #666;
+        }
+      }
+    }
+
+    .tabContent {
+      flex: 1;
+      background: #FFFFFF;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      min-height: 0;
+      overflow-y: auto;
+    }
+  }
+}
+
+// 状态样式
+.loadingState,
+.errorState,
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  padding: 24px;
+}
+
+.loadingContent,
+.errorContent,
+.emptyContent {
+  text-align: center;
+  
+  .errorMessage {
+    margin-bottom: 16px;
+    font-size: 16px;
+    color: #666;
+  }
+}
+
+.loadingSkeleton {
+  width: 100%;
+  max-width: 800px;
+  
+  .skeletonHeader {
+    height: 120px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 12px;
+    margin-bottom: 24px;
+  }
+  
+  .skeletonContent {
+    height: 400px;
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: loading 1.5s infinite;
+    border-radius: 12px;
+  }
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .spaceDetail {
+    padding: 16px;
+
+    .content {
+      .tabContent {
+        padding: 16px;
+      }
+    }
+  }
+} 

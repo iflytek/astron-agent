@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.bot.ChatBotApiMapper">
+    <select id="selectListWithVersion" resultType="com.iflytek.astron.console.commons.dto.bot.ChatBotApi">
+        select api.id,
+               api.uid,
+               api.bot_id,
+               api.assistant_id,
+               api.app_id,
+               api.api_secret,
+               api.api_key,
+               api.api_path,
+               api.prompt,
+               api.plugin_id,
+               api.embedding_id,
+               api.description,
+               api.create_time,
+               api.update_time,
+               base.version
+        from chat_bot_api api
+                 left join chat_bot_base base on api.bot_id = base.id
+        where api.uid = #{uid}
+        order by api.update_time desc
+    </select>
+</mapper>

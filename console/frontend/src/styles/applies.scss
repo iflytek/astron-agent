@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .stop-response-button {
+    @apply absolute left-1/2 transform -translate-x-1/2 top-[-62px] border border-[#e2e8ff] rounded-xl bg-[#fff] py-2.5 px-4 flex items-center gap-2.5 cursor-pointer;
+  }
+
+  .modal-container {
+    @apply absolute bg-[#fff] rounded-2xl top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 font-medium overflow-hidden p-6;
+  }
+
+  .modal-h1-title {
+    @apply text-[3D3D3D] font-semibold text-base;
+  }
+
+  .flow-node-title-container {
+    @apply p-4 bg-[#F8FAFF] border border-[#ECEFF9] rounded-md flex flex-col gap-2;
+  }
+
+  .flow-controls {
+    @apply absolute bg-[#fff] rounded-lg bottom-[50px] left-1/2 transform -translate-x-1/2 z-50 p-1.5;
+  }
+}

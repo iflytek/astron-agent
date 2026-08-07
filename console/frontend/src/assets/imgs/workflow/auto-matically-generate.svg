@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none">
+  <mask id="ai_svg__a" width="16" height="16" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type: alpha;">
+    <path fill="#FFF" d="M0 0h16v16H0z"></path>
+  </mask>
+  <g mask="url(#ai_svg__a)">
+    <path fill="#FFF" d="m5.007 11.17 2.215-6.34h1.56l2.21 6.34H9.6l-.48-1.537H6.88L6.4 11.17zm2.98-5.11-.8 2.58h1.626l-.8-2.58z"></path>
+    <rect width="13" height="13" x="1.5" y="1.5" stroke="#FFF" stroke-width="1.33" rx="6.5"></rect>
+  </g>
+</svg>

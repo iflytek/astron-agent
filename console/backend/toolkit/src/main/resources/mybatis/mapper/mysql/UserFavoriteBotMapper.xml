@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.bot.UserFavoriteBotMapper">
+    <select id="findByUserIdAndToolId" resultType="com.iflytek.astron.console.toolkit.entity.table.bot.UserFavoriteBot">
+        SELECT
+        *
+        from
+        user_favorite_bot uft
+        where
+        uft.user_id = #{userId}
+        and uft.bot_id =#{botId}
+        and uft.is_deleted = 0
+        and uft.use_flag = 1;
+    </select>
+    <insert id="save">
+        insert into
+        user_favorite_bot
+        (id, user_id, bot_id, use_flag, created_time)
+        values
+        (#{id}, #{userId}, #{botId}, #{useFlag}, #{createdTime})
+    </insert>
+    <select id="findToolIdsByUserId" resultType="java.lang.Long">
+        SELECT
+        uft.bot_id
+        from
+        user_favorite_bot uft
+        where uft.user_id = #{userId}
+        and uft.is_deleted= 0
+        and uft.use_flag = 1;
+    </select>
+    <update id="updateFavoriteStatus">
+        update
+        user_favorite_bot uft
+        set uft.is_deleted = 1
+        where id = #{id}
+    </update>
+</mapper>

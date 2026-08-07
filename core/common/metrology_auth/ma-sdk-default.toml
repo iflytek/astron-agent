@@ -1,0 +1,102 @@
+[metrics]
+#参数齐则开启metrics
+able = 1
+idc = "hf"
+sub = "ma-sdk"
+cs = "1s"
+timePerSlice = 1000 #滑动窗口bucket大小，单位毫秒
+winSize = 10 #窗口大小
+
+[trace]
+able = 0
+
+[sonar]
+able = 0
+
+[calc]
+use = "mq"
+#use = "rpc"
+queue_size = 10000
+[calc.rmq]
+able = true
+producer_number = 2
+#endpoint = ["172.31.98.182:10800"]
+#topic = "lic_lkc_bj"
+endpoint = ["10.1.87.18:10800"]
+topic = "lic_lkc_gz"
+
+# 消息队列服务连接超时时间
+# millisecond
+timeout = 500
+[calc.pulsar]
+able = false
+idc = ""
+isol_topic = "persistent://aiaas/metering/isol"
+isol_sub_name = "router-isol"
+#endpoint = "pulsar://172.30.8.82:16650,172.31.129.18:6650,172.31.184.42:6650,172.31.186.152:6650"
+timeout= 1000 #ms
+
+[rpc]
+conn-timeout = 1000
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+################################################################
+duration = 567 #ms
+################################################################
+
+[rep]
+conn-timeout = 100000
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+################################################################
+duration = 456 #millisecond
+################################################################
+
+[licc]
+conn-timeout = 100
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+################################################################
+check_opnion = 125
+duration = 40 #millisecond
+[lmtres]
+conn-timeout = 100
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+################################################################
+update_time = 345 #millisecond
+duration = 234 #millisecond
+################################################################
+
+[log]
+level = "error"
+file = "/log/server/ma-sdk2.log"
+async = false
+batch = 1
+
+[conc]
+only_use_aqc = true
+white_appid_list = ["testaqc1"]
+batch_max_size = 1
+buffer_size = 10000
+worker = 5

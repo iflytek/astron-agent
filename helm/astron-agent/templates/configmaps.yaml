@@ -1,0 +1,128 @@
+{{- if .Values.casdoor.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-casdoor-conf
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  app.conf: {{ .Files.Get "files/casdoor/conf/app.conf" | quote }}
+  init_data.json: {{ .Files.Get "files/casdoor/conf/init_data.json" | quote }}
+  init_data.json.template: {{ .Files.Get "files/casdoor/conf/init_data.json.template" | quote }}
+  entrypoint.sh: {{ .Files.Get "files/casdoor/entrypoint.sh" | quote }}
+---
+{{- end }}
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-postgres-init
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "files/pgsql/*.sql" }}
+  {{ base $path }}: {{ $.Files.Get $path | quote }}
+  {{- end }}
+---
+{{- end }}
+{{- if .Values.mysql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-mysql-init
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  {{- range $path, $_ := .Files.Glob "files/mysql/*.sql" }}
+  {{ base $path }}: {{ $.Files.Get $path | quote }}
+  {{- end }}
+---
+{{- end }}
+{{- if .Values.coreTenant.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-tenant-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.toml: {{ .Files.Get "files/config/tenant/config.toml" | quote }}
+---
+{{- end }}
+{{- if .Values.coreDatabase.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-database-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/database/config.env" | quote }}
+---
+{{- end }}
+{{- if .Values.coreRpa.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-rpa-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/rpa/config.env" | quote }}
+---
+{{- end }}
+{{- if .Values.coreLink.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-link-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/link/config.env" | quote }}
+---
+{{- end }}
+{{- if .Values.coreAitools.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-aitools-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/aitools/config.env" | quote }}
+---
+{{- end }}
+{{- if .Values.coreAgent.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-agent-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/agent/config.env" | quote }}
+---
+{{- end }}
+{{- if .Values.coreKnowledge.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-knowledge-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/knowledge/config.env" | quote }}
+---
+{{- end }}
+{{- if .Values.coreWorkflow.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-core-workflow-config
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+data:
+  config.env: {{ .Files.Get "files/config/workflow/config.env" | quote }}
+---
+{{- end }}

@@ -1,0 +1,35 @@
+.bot_card_wrap {
+  width: 353px;
+  max-width: calc(100% - 40px);
+  height: 80px;
+  background: #fff;
+  border-radius: 8px;
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 60px;
+  padding: 10px;
+  > img {
+    width: 42px;
+    border-radius: 50%;
+    height: 42px;
+  }
+  .card_info_wrap {
+    .card_title {
+      font-size: 14px;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .card_desc {
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      -webkit-line-clamp: 2;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+    }
+  }
+}

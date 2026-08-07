@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.space.InviteRecordMapper">
+
+<select id="selectVOById" resultType="com.iflytek.astron.console.commons.dto.space.InviteRecordVO">
+        select i.* from agent_invite_record i
+        where i.id = #{id}
+    </select>
+
+    <select id="selectVOPageByParam" resultType="com.iflytek.astron.console.commons.dto.space.InviteRecordVO">
+        select i.* from agent_invite_record i
+        <where>
+            <if test="type != null">
+                and i.type = #{type}
+            </if>
+            <if test="spaceId != null">
+                and i.space_id = #{spaceId}
+            </if>
+            <if test="enterpriseId != null">
+                and i.enterprise_id = #{enterpriseId}
+            </if>
+            <if test="nickname != null and nickname != ''">
+                and i.invitee_nickname like concat('%',#{nickname},'%')
+            </if>
+            <if test="status != null and status != 0">
+                and i.status = #{status}
+            </if>
+        </where>
+        order by i.id desc
+    </select>
+
+    <select id="countJoiningByEnterpriseId" resultType="long">
+        select count(distinct i.invitee_uid) from agent_invite_record i
+        where i.enterprise_id = #{enterpriseId}
+        and i.status = 1 and i.expire_time > now() and not exists (select 1 from agent_enterprise_user eu
+        where eu.enterprise_id = i.enterprise_id
+        and eu.uid = i.invitee_uid)
+    </select>
+
+    <select id="countJoiningBySpaceId" resultType="long">
+        select count(distinct i.invitee_uid) from agent_invite_record i
+        where i.space_id = #{spaceId}
+        and i.status = 1 and i.expire_time > now() and not exists (select 1 from agent_space_user su
+        where su.space_id = i.space_id
+        and su.uid = i.invitee_uid)
+    </select>
+
+    <select id="countJoiningByUid" resultType="long">
+        select count(distinct i.invitee_uid) from agent_invite_record i
+        where i.status = 1 and i.expire_time > now() and space_id in (
+        select s.id from agent_space s
+        where s.deleted = 0 and s.type = #{spaceType} and s.uid = #{uid}
+        ) and not exists (select 1 from agent_space_user su
+        where su.space_id = i.space_id
+        and su.uid = i.invitee_uid)
+    </select>
+
+</mapper>

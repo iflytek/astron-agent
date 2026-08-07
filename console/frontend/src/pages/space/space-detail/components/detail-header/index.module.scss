@@ -1,0 +1,147 @@
+:root {
+  --primary-color: #6356EA;
+}
+
+.detailHeader {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  padding-bottom: 24px;
+
+  .back {
+    position: absolute;
+    left: calc(-24px - 28px - 1.5%);
+    top: 0;
+    z-index: 1;
+    cursor: pointer;
+  }
+
+  .spaceInfo {
+    width: calc(100% - 230px);
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+
+    .avatarContainer {
+      flex-shrink: 0;
+
+      .avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+
+        .avatarImage {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          border-radius: 16px;
+        }
+
+        .avatarIcon {
+          font-size: 12px;
+          color: #FFFFFF;
+          font-weight: 500;
+          text-align: center;
+        }
+      }
+    }
+
+    .infoContent {
+      width: calc(100% - 72px);
+      padding-top: 8px;
+      font-family: PingFang SC;
+
+      .titleRow {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 6px;
+
+        .title {
+          margin: 0;
+          font-size: 20px;
+          font-weight: 600;
+          line-height: 24px;
+          letter-spacing: normal;
+          color: #333333;
+          max-width: calc(100% - 90px);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .editBtn {
+          padding: 4px;
+          height: auto;
+          min-width: auto;
+
+          &:hover {
+            color: var(--primary-color);
+          }
+        }
+
+        .roleTag {
+          flex-shrink:0;
+          height: 14px;
+          display: flex;
+          align-items: center;
+          padding: 0 6px;
+          border-radius: 7px;
+          background: #E4EAFF;
+          font-family: PingFang-Sim;
+          font-size: 10px;
+          font-weight: normal;
+          line-height: normal;
+          text-align: justify; /* 浏览器可能不支持 */
+          letter-spacing: normal;
+          color: var(--primary-color);
+        }
+      }
+
+      .description {
+        width: 70%;
+        font-family: PingFang SC;
+        font-size: 14px;
+        font-weight: normal;
+        line-height: 23px;
+        letter-spacing: normal;
+        color: #7F7F7F;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
+
+    .shareBtn {
+      border-radius: 8px;
+      height: 36px;
+      padding: 0 16px;
+      font-weight: 500;
+      border: 1px solid #d9d9d9;
+      color: #666;
+    }
+
+    .addMemberBtn {
+      border-radius: 8px;
+      height: 36px;
+      padding: 0 16px;
+      font-weight: 500;
+      background: var(--primary-color);
+      border-color: var(--primary-color);
+    }
+  }
+}

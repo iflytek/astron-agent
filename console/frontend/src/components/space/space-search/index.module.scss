@@ -1,0 +1,131 @@
+.spaceSearch {
+  position: relative;
+  display: inline-block;
+
+  .searchIcon {
+    width: 16px;
+    height: 16px;
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+      opacity: 0.7;
+    }
+  }
+
+  // 当不启用收缩功能时的样式
+  &.notRetractable {
+    .searchIcon {
+      cursor: pointer; // 保持可点击效果用于搜索
+      left: 12px; // 调整图标在输入框内的位置
+      z-index: 2; // 确保图标在输入框上方
+      
+      &:hover {
+        opacity: 0.7; // 保留悬停效果
+      }
+    }
+
+    .searchInput {
+      &.expanded {
+        padding-left: 32px; // 为图标留出足够空间
+        border: 1px solid #F0F0F2;;
+        background: #fff !important;
+        
+        :global(.ant-input) {
+          padding-left: 0; // 重置内部 input 的 padding
+          background: transparent;
+          
+          &::placeholder {
+            padding-left: 0; // 确保占位符不会被图标遮挡
+          }
+        }
+      }
+
+      // 覆盖焦点和悬停状态
+      &.expanded:focus,
+      &.expanded:hover {
+        border-color: #40a9ff;
+        box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+      }
+    }
+  }
+
+  &.noBorder {
+    .searchInput {
+      border: none;
+      outline: none;
+      box-shadow: none;
+    }
+  }
+
+  .searchInput {
+    transition: all 0.3s ease;
+    border-radius: 10px;
+    height: 32px;
+    font-weight: 400;
+    background: #fff !important;
+    border: 1px solid #F0F0F2;
+    padding: 0;
+    padding-left: 32px;
+
+    &.collapsed {
+      width: 32px;
+      padding-left: 0;
+      border: none;
+      background: transparent !important;
+      
+      :global(.ant-input) {
+        background: transparent !important;
+        border: none;
+        box-shadow: none;
+      }
+    }
+
+    &.expanded {
+      width: 100%;
+    }
+
+    &:focus,
+    &:hover {
+      border-color: #40a9ff;
+      box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+    }
+
+    // 重置 antd input 样式
+    :global(.ant-input) {
+      border: none;
+      box-shadow: none;
+      background: transparent;
+      padding: 0;
+      
+      &:focus {
+        border: none;
+        box-shadow: none;
+      }
+    }
+  }
+}
+
+// 动画效果
+@keyframes expandInput {
+  from {
+    width: 32px;
+  }
+  to {
+    width: 300px;
+  }
+}
+
+@keyframes collapseInput {
+  from {
+    width: 300px;
+  }
+  to {
+    width: 32px;
+  }
+}

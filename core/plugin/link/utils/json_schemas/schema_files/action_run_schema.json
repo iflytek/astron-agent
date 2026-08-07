@@ -1,0 +1,288 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "maxLength": 32,
+          "minLength": 1
+        },
+        "uid": {
+          "type": "string"
+        }
+      },
+      "required": ["app_id"]
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "chat": {
+          "type": "object",
+          "properties": {
+            "domain": {
+              "type": "string"
+            },
+            "temperature": {
+              "type": "number"
+            },
+            "max_tokens": {
+              "type": "integer"
+            },
+            "top_k": {
+              "type": "integer"
+            },
+            "question_type": {
+              "type": "string"
+            },
+            "function_call": {
+              "type": "boolean"
+            },
+            "maas_api": {
+              "type": "string"
+            },
+            "patch_id": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["domain", "temperature", "max_tokens", "top_k", "function_call", "maas_api"]
+        },
+        "tool": {
+          "type": "object",
+          "properties": {
+            "http_request": {
+              "type": "boolean"
+            },
+            "tool_ids": {
+              "type": "array",
+              "maxItems": 6,
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 32,
+                    "pattern": "^tool@[0-9a-zA-Z]+$"
+                  },
+                  "operation_ids": {
+                    "type": "array",
+                    "maxItems": 6,
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "fallback_value": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "query": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            },
+                            "path": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            },
+                            "header": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            },
+                            "body": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            }
+                          }
+                        },
+                        "constant_value": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "query": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            },
+                            "path": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            },
+                            "header": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            },
+                            "body": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "value": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": ["key", "value"]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": ["id", "operation_ids"]
+              }
+            }
+          },
+          "required": ["http_request", "tool_ids"]
+        }
+      },
+      "required": ["chat", "tool"]
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "object",
+          "properties": {
+            "history_context": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["role", "content"]
+              }
+            },
+            "input": {
+              "type": "string"
+            }
+          },
+          "required": ["input"]
+        },
+        "prompt": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "output_type": {
+              "type": "integer"
+            },
+            "placeholder": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                },
+                "required": ["key", "value"]
+              }
+            }
+          },
+          "required": ["text", "output_type"]
+        }
+      },
+      "required": ["message"]
+    }
+  },
+  "required": ["header", "parameter", "payload"]
+}

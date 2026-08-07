@@ -1,0 +1,78 @@
+[metrics]
+able = 1
+idc = "hf"
+sub = "ma-sdk"
+cs = "1s"
+timePerSlice = 1000
+winSize = 10
+
+[trace]
+able = 0
+
+[sonar]
+able = 0
+
+[calc]
+use = "mq"
+queue_size = 10000
+
+[rpc]
+conn-timeout = 1000
+conn-pool-size = 12
+lb-mode = 3
+lb-retry = 1
+finder = 0
+duration = 567
+
+[rep]
+conn-timeout = 100000
+conn-pool-size = 12
+lb-mode = 3
+lb-retry = 1
+finder = 0
+duration = 456
+
+[licc]
+conn-timeout = 100
+conn-pool-size = 12
+lb-mode = 3
+lb-retry = 1
+finder = 0
+check_opnion = 125
+duration = 40
+
+[lmtres]
+conn-timeout = 100
+conn-pool-size = 12
+lb-mode = 3
+lb-retry = 1
+finder = 0
+update_time = 345
+duration = 234
+
+[log]
+level = "error"
+file = "/log/server/ma-sdk2.log"
+async = false
+batch = 1
+
+[conc]
+only_use_aqc = true
+white_appid_list = [ "testaqc1",]
+batch_max_size = 1
+buffer_size = 10000
+worker = 5
+
+[calc.rmq]
+able = true
+producer_number = 2
+endpoint = [ "10.1.87.18:10800",]
+topic = "lic_lkc_gz"
+timeout = 500
+
+[calc.pulsar]
+able = false
+idc = ""
+isol_topic = "persistent://aiaas/metering/isol"
+isol_sub_name = "router-isol"
+timeout = 1000

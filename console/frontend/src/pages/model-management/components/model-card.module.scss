@@ -1,0 +1,114 @@
+.modelCard {
+  border-radius: 20px;
+  /* 卡片背景 */
+  background: #FFFFFF;
+  box-sizing: border-box;
+  /* 颜色/中性色/边框中性色 */
+  border: 1px solid #E7E7F0;
+  /* 阴影/一级阴影 */
+  box-shadow: 0px 1px 10px 0px rgba(122, 120, 150, 0.1);
+
+  &:hover {
+    border: 1px solid #6356EA;
+    /* 阴影/二级样式 */
+    box-shadow: 0px 4px 16px 0px rgba(134, 130, 191, 0.3);
+  }
+
+  .modelCardHeader {
+    .modelCardTitle {
+      display: inline-block;
+      font-family: "PingFang-Sim";
+      font-size: 20px;
+      font-weight: 500;
+      line-height: 26px;
+      text-align: center;
+      letter-spacing: normal;
+      /* 颜色/文本中性色/主标题、正文 */
+      color: #222529;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 170px;
+      vertical-align: bottom;
+    }
+  }
+}
+
+.modelTag {
+  padding: 2px 6px;
+  border-radius: 16px;
+  /* 标签底色 */
+  background-color: #F0F0F1;
+  font-family: PingFang SC;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 18px;
+  text-align: center;
+  letter-spacing: normal;
+  color: #676773;
+
+  &.category {
+    background: rgba(99, 86, 234, 0.1);
+    color: #8475AF;
+  }
+}
+
+.modelDesc {
+  font-family: 'PingFang-Sim';
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 22px;
+  text-align: justify; /* 浏览器可能不支持 */
+  display: flex;
+  align-items: center;
+  letter-spacing: normal;
+  /* 颜色/文本中性色/副标题、次要正文内容 */
+  color: #676773;
+
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+}
+
+.modelInfo {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  letter-spacing: normal;
+  /* 颜色/文本中性色/辅助色（说明、标签） */
+  font-family: PingFang SC;
+  font-size: 12px;
+  font-weight: normal;
+  line-height: 24px;
+  color: #B5B5B5;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  line-clamp: 1;
+  -webkit-line-clamp: 1;
+
+  .modelInfoDivider {
+    display: inline-block;
+    width: 1px;
+    height: 6px;
+    margin: 0 7px;
+    background: #E4EAFF;
+  }
+}
+
+.modelSwitch {
+  width: 36px;
+  height: 20px !important;
+
+  :global(.ant-switch-handle) {
+    width: 17px !important;
+    height: 16px !important;
+  }
+}
+
+.modelEllipsis {
+  height: 20px !important;
+}

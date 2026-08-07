@@ -1,0 +1,71 @@
+.spaceCard {
+    width: 460px;
+    height: 280px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.8);
+  
+    :global {
+      .ant-card-body {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        height: 100%;
+        padding: 20px !important;
+      }
+    }
+  
+    .cardHeader {
+      display: flex;
+      justify-content: center;
+      margin: 9px 0 12px;
+  
+      .avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+    }
+  
+    .cardBody {
+      text-align: center;
+      margin-bottom: 20px;
+      font-family: PingFang-Sim;
+  
+      .titleContainer {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+  
+        .spaceTitle {
+          font-size: 20px;
+          font-weight: 500;
+          line-height: 26px;
+          letter-spacing: normal;
+          color: #000000;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+    }
+  
+    .cardFooter {
+      .manageBtnContainer {
+        height: 36px;
+        display: flex;
+        gap: 8px;
+        opacity: 0;
+      }
+    }
+  
+    &:hover {
+      .manageBtnContainer {
+        opacity: 1;
+      }
+    }
+  }

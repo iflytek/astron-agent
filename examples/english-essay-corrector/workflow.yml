@@ -1,0 +1,202 @@
+flowMeta:
+  name: 英语作文批改助手
+  description: 英语作文批改助手
+  avatarIcon: https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_10@2x.png
+  avatarColor: '#FFEAD5'
+  advancedConfig: '{"prologue":{"enabled":true,"inputExample":["","",""]},"textToSpeech":{"enabled":true,"vcn_cn":"aisjiuxu","vcn_en":""}}'
+  category: 13
+  dslVersion: v1
+flowData:
+  nodes:
+  - id: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+    dragging: false
+    selected: false
+    width: 361
+    height: 89
+    position:
+      x: -83.10901960784315
+      y: 369.70866666666666
+    positionAbsolute:
+      x: -83.10901960784315
+      y: 369.70866666666666
+    type: custom
+    data:
+      allowInputReference: false
+      allowOutputReference: true
+      label: 开始
+      status: ''
+      nodeMeta:
+        aliasName: 开始节点
+        nodeType: 基础节点
+      inputs: [
+        ]
+      outputs:
+      - id: 0918514b-72a8-4646-8dd9-ff4a8fc26d44
+        name: AGENT_USER_INPUT
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: 用户本轮对话输入内容
+        required: true
+        deleteDisabled: true
+      nodeParam: {
+        }
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/start-node-icon.png
+      description: 工作流的开启节点，用于定义流程调用所需的业务变量信息。
+      updatable: false
+  - id: node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    dragging: false
+    selected: true
+    width: 361
+    height: 129
+    position:
+      x: 886.8833333333332
+      y: 343.91588235294114
+    positionAbsolute:
+      x: 886.8833333333332
+      y: 343.91588235294114
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: false
+      label: 结束
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 结束节点
+        nodeType: 基础节点
+      inputs:
+      - id: 82de2b42-a059-4c98-bffb-b6b4800fcac9
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: aa02732f-6026-4219-a60c-cc4e0708ef22
+              nodeId: spark-llm::39a4a107-44fd-4eb9-93e3-320511ec65e2
+              name: output
+            contentErrMsg: ''
+        fileType: ''
+      outputs: [
+        ]
+      nodeParam:
+        template: |+
+          {{output}}
+
+
+        streamOutput: true
+        outputMode: 1
+        templateErrMsg: ''
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/end-node-icon.png
+      description: 工作流的结束节点，用于输出工作流运行后的最终结果。
+      updatable: false
+  - id: spark-llm::39a4a107-44fd-4eb9-93e3-320511ec65e2
+    dragging: false
+    selected: false
+    width: 361
+    height: 147
+    position:
+      x: 418.5104064941406
+      y: 346
+    positionAbsolute:
+      x: 418.5104064941406
+      y: 346
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: 大模型_1
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        nodeType: 基础节点
+        aliasName: 大模型
+      inputs:
+      - id: e859745e-edce-44aa-8ea5-1b23ae0b4e14
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: 0918514b-72a8-4646-8dd9-ff4a8fc26d44
+              nodeId: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+              name: AGENT_USER_INPUT
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: aa02732f-6026-4219-a60c-cc4e0708ef22
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        maxTokens: 2048
+        topK: 4
+        auditing: default
+        template: |+
+          以下是学生的作文内容，请帮我批改并给出建议：
+
+          {{input}}
+
+
+        respFormat: 0
+        appId: YOUR_APP_ID
+        uid: ab896e82-2ab7-42a4-8d14-570386b3e904
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        templateErrMsg: ''
+        llmId: 454665064
+        domain: xminimaxm2
+        serviceId: xminimaxm2
+        url: https://maas-api.cn-huabei-1.xf-yun.com/v1/chat/completions
+        modelId: 3
+        isThink: false
+        multiMode: false
+        modelName: m2
+        modelEnabled: true
+        llmIdErrMsg: ''
+        source: openai
+        extraParams:
+          temperature: 1
+        systemTemplate: |+
+          你是一位专业的英语写作批改教师，擅长中学与大学英语作文的评分与反馈。
+          请根据用户提供的作文内容，进行以下任务：
+          1. 先给出作文总体评价（结构、语法、词汇、逻辑）。
+          2. 标出存在的主要语法错误或表达问题，并提出修改建议。
+          3. 给出改进后的范例句或段落。
+          4. 最后按照雅思或CEFR标准（任选其一）估计作文等级。
+
+          请输出格式清晰、有条理。
+
+
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  edges:
+  - source: node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783
+    target: spark-llm::39a4a107-44fd-4eb9-93e3-320511ec65e2
+    type: customEdge
+    id: reactflow__edge-node-start::d61b0f71-87ee-475e-93ba-f1607f0ce783-spark-llm::39a4a107-44fd-4eb9-93e3-320511ec65e2
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve
+  - source: spark-llm::39a4a107-44fd-4eb9-93e3-320511ec65e2
+    target: node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    type: customEdge
+    id: reactflow__edge-spark-llm::39a4a107-44fd-4eb9-93e3-320511ec65e2-node-end::cda617af-551e-462e-b3b8-3bb9a041bf88
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve

@@ -1,0 +1,94 @@
+{{- if .Values.minio.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-minio
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: minio
+spec:
+  serviceName: {{ include "astron-agent.fullname" . }}-minio
+  replicas: {{ .Values.minio.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: minio
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: minio
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: minio
+        image: "{{ .Values.minio.image }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command:
+        - minio
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" . }}-minio-secret
+              key: root-user
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" . }}-minio-secret
+              key: root-password
+        - name: MINIO_SERVER_URL
+          value: {{ printf "%s:%d" .Values.global.hostBaseAddress (.Values.minio.service.nodePort | int) | quote }}
+        ports:
+        - name: api
+          containerPort: 9000
+          protocol: TCP
+        - name: console
+          containerPort: 9001
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: api
+          initialDelaySeconds: 30
+          periodSeconds: {{ .Values.minio.healthCheck.interval }}
+          timeoutSeconds: {{ .Values.minio.healthCheck.timeout }}
+          failureThreshold: {{ .Values.minio.healthCheck.retries }}
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: api
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          {{- toYaml .Values.minio.resources | nindent 10 }}
+        volumeMounts:
+        - name: minio-data
+          mountPath: /data
+  {{- if .Values.minio.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: minio-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.global.storageClass }}
+      storageClassName: {{ .Values.global.storageClass | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.minio.persistence.size }}
+  {{- else }}
+      volumes:
+      - name: minio-data
+        emptyDir: {}
+  {{- end }}
+{{- end }}

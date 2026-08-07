@@ -1,0 +1,19 @@
+# Replace this file with your exported Astron Agent workflow DSL.
+#
+# How to get it:
+#   Astron Agent → open your workflow → Export → save the .yml here as workflow.yml
+#
+# An exported DSL looks like this (flowMeta + flowData):
+#
+#   flowMeta:
+#     name: My Workflow
+#     description: What it does.
+#     category: 10
+#     dslVersion: v1
+#   flowData:
+#     nodes: [ ... ]
+#     edges: [ ... ]
+#
+# ⚠️ BEFORE COMMITTING: remove any secrets the export may contain —
+#    API keys, tokens, personal endpoints, OSS URLs, phone numbers —
+#    and replace them with placeholders such as YOUR_API_KEY.

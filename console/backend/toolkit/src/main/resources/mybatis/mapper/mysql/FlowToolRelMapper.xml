@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.relation.FlowToolRelMapper">
+
+    <insert id="insertBatch">
+        INSERT INTO flow_tool_rel (flow_id,tool_id,version) values
+        <foreach collection="list" item="item" separator=",">
+            (#{item.flowId}, #{item.toolId}, #{item.version})
+        </foreach>
+    </insert>
+</mapper>

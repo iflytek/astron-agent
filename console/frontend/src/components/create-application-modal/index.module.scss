@@ -1,0 +1,325 @@
+.open_source_modal {
+  :global {
+    .ant-modal-content {
+      border-radius: 16px !important;
+      padding: 0 !important;
+    }
+  }
+
+  :global {
+    --width-modal: 800px;
+    --p-fs: 18px;
+  }
+
+  @media (min-width: 1024px) {
+    :global {
+      --width-modal: 900px;
+      --p-fs: 22px;
+    }
+  }
+
+  @media (min-width: 1920px) {
+    :global {
+      --width-modal: 1280px;
+      --p-fs: 28px;
+    }
+  }
+  :global {
+    .ant-modal-close-x {
+      font-size: 14px;
+      color: #333333;
+    }
+
+    .ant-modal-content {
+      width: var(--width-modal);
+      padding: 0 !important;
+    }
+  }
+
+  .modal_content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 40px;
+
+    .title {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 16px;
+      display: flex;
+      align-items: center;
+      letter-spacing: 0px;
+      color: #333333;
+
+      .activeDesc {
+        display: flex;
+        justify-content: space-between;
+        height: 26px;
+        width: 550px;
+        line-height: 26px;
+        background-size: cover;
+        border-radius: 13px 17px 17px 0px;
+        margin-left: 15px;
+        margin-bottom: 3px;
+        cursor: pointer;
+        position: relative;
+        z-index: 1;
+      }
+    }
+
+    .intelligentAgents {
+      display: grid;
+      margin-top: 20px;
+      gap: 20px;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: 1fr;
+
+      .cueWord {
+        width: 100%;
+        border-radius: 16px;
+        opacity: 1;
+        background: #ffffff;
+        box-sizing: border-box;
+        border: 1px solid #d3dbf8;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px;
+        position: relative;
+        cursor: pointer;
+
+        &:hover {
+          border: none;
+          outline: 2px solid #6356ea;
+          box-shadow: 0px 20px 30px 0px rgba(99, 86, 234, 0.15);
+        }
+      }
+
+      .cueWord_left_top {
+        background-image: url('@/assets/imgs/create-application-modal/left-top.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        width: 44px;
+        height: 28px;
+        text-align: center;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 28px;
+        color: #ffffff;
+      }
+
+      .cueWord img {
+        margin-bottom: 3px;
+        /* 图片下方的间距 */
+      }
+
+      .Workflow_img {
+        background-image: url('@/assets/imgs/create-application-modal/WorkflowPre.png');
+      }
+
+      .cueWord_img {
+        background-image: url('@/assets/imgs/create-application-modal/cueWord.png');
+        background-size: cover;
+        // background-position: center;
+        background-repeat: no-repeat;
+        width: 100%;
+        aspect-ratio: 326 / 220;
+        position: relative;
+      }
+
+      .cueWord_icon {
+        background: linear-gradient(180deg, #ffcc00 0%, #ff9602 100%);
+        font-size: 14px;
+        font-weight: 500;
+        text-align: center;
+        color: #ffffff;
+        height: 40px;
+        line-height: 40px;
+        border-radius: 0 0 12px 12px;
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+      }
+
+      .cueWord p {
+        font-family: 苹方-简;
+        font-size: var(--p-fs);
+        font-weight: 500;
+        line-height: 36px;
+        text-align: center;
+        letter-spacing: normal;
+        color: #222529;
+        margin: 20px 0 4px;
+      }
+
+      .cueWord span {
+        font-family: 苹方-简;
+        font-size: 16px;
+        font-weight: normal;
+        line-height: 30px;
+        text-align: justify;
+        /* 浏览器可能不支持 */
+        display: flex;
+        align-items: center;
+        letter-spacing: normal;
+        color: #676773;
+      }
+
+      .Workflow {
+        width: 100%;
+        border-radius: 16px;
+        opacity: 1;
+        background: #ffffff;
+        box-sizing: border-box;
+        border: 1px solid #d3dbf8;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px;
+        cursor: pointer;
+
+        &:hover {
+          outline: 2px solid #6356ea;
+          box-shadow: 0px 20px 30px 0px rgba(99, 86, 234, 0.15);
+        }
+      }
+
+      .Workflow_img {
+        background-image: url('@/assets/imgs/create-application-modal/WorkflowPre.png');
+        background-size: cover;
+        // background-position: center;
+        background-repeat: no-repeat;
+        width: 100%;
+        position: relative;
+      }
+
+      .Workflow p {
+        font-family: 苹方-简;
+        font-size: var(--p-fs);
+        font-weight: 500;
+        line-height: 36px;
+        text-align: center;
+        letter-spacing: normal;
+        color: #222529;
+        margin: 20px 0 4px;
+      }
+
+      .Workflow span {
+        font-family: 苹方-简;
+        font-size: 16px;
+        font-weight: normal;
+        line-height: 30px;
+        text-align: justify;
+        /* 浏览器可能不支持 */
+        display: flex;
+        align-items: center;
+        letter-spacing: normal;
+        color: #676773;
+      }
+
+      .virtual {
+        width: 100%;
+        border-radius: 16px;
+        opacity: 1;
+        background: #ffffff;
+        box-sizing: border-box;
+        border: 1px solid #d3dbf8;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px;
+        cursor: pointer;
+
+        &:hover {
+          outline: 2px solid #6356ea;
+          box-shadow: 0px 20px 30px 0px rgba(39, 94, 255, 0.15);
+        }
+      }
+
+      .virtual_img {
+        background-image: url('@/assets/imgs/create-application-modal/virtualPre.png');
+        background-size: cover;
+        // background-position: center;
+        background-repeat: no-repeat;
+        width: 100%;
+        position: relative;
+      }
+
+      .virtual p {
+        font-family: 苹方-简;
+        font-size: var(--p-fs);
+        font-weight: 500;
+        line-height: 36px;
+        text-align: center;
+        letter-spacing: normal;
+        color: #222529;
+        margin: 20px 0 4px;
+      }
+
+      .virtual span {
+        font-family: 苹方-简;
+        font-size: 16px;
+        font-weight: normal;
+        line-height: 30px;
+        text-align: justify;
+        /* 浏览器可能不支持 */
+        display: flex;
+        align-items: center;
+        letter-spacing: normal;
+        color: #676773;
+      }
+
+      .selected {
+        border: none;
+        outline: 2px solid #6356ea;
+      }
+    }
+  }
+}
+
+:global(.lang-en) {
+  .cueWord_left_top {
+    width: 110px !important;
+    height: 28px !important;
+    /* 强制覆盖所有背景属性 */
+    background: none !important;
+    background-image: linear-gradient(
+      135deg,
+      #ac30ff 0%,
+      #3758ff 100%
+    ) !important;
+    border-radius: 4px !important;
+    //左上角18xp
+    border-top-left-radius: 18px !important;
+    padding: 0 16px !important;
+    line-height: 28px !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+
+  .cueWord_icon {
+    white-space: normal !important; // 强制允许换行
+    height: auto !important; // 高度自适应
+    padding: 4px 2px !important; // 增加左右内边距
+    line-height: normal !important; // 调整行高
+    min-height: 40px; // 保持最小高度
+  }
+
+  .cueWord_img {
+    background-image: url('@/assets/imgs/create-application-modal/cueWord-en.png') !important;
+  }
+
+  .Workflow_img {
+    background-image: url('@/assets/imgs/create-application-modal/WorkflowPre-en.png') !important;
+  }
+
+  .cueWord span,
+  .Workflow span,
+  .virtual span {
+    text-align: center !important;
+    justify-content: center !important;
+  }
+}

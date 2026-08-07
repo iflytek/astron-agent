@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "应用程序的唯一标识符",
+          "maxLength": 32,
+          "minLength": 1
+        }
+      },
+      "required": ["app_id"]
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "工具id",
+                "pattern": "^tool@[0-9a-zA-Z]+$"
+              },
+              "version": {
+                "type": "string",
+                "description": "工具的版本",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              "schema_type": {
+                "type": "integer",
+                "enum": [0, 1],
+                "description": "架构类型"
+              },
+              "name": {
+                "type": "string",
+                "description": "工具的名称",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              "description": {
+                "type": "string",
+                "description": "工具的描述",
+                "maxLength": 512,
+                "minLength": 1
+              },
+              "openapi_schema": {
+                "type": "string",
+                "description": "openapi schema 内容",
+                "minLength": 1
+              }
+            },
+            "required": ["id"],
+            "dependencies": {
+              "schema_type": ["openapi_schema"],
+              "openapi_schema": ["schema_type"]
+            },
+            "anyOf": [
+              { "required": ["schema_type"] },
+              { "required": ["name"] },
+              { "required": ["description"] }
+            ]
+          }
+        }
+      },
+      "required": ["tools"]
+    }
+  },
+  "required": ["header", "payload"]
+}

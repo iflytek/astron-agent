@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logback configuration for astron-console-hub -->
+<configuration scan="true" scanPeriod="60 seconds">
+
+    <!-- Include Spring Boot default configuration -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- Property definitions -->
+    <property name="CONSOLE_PATTERN" value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){faint} %clr(%-5level) %clr([%X{traceId:-},%X{spanId:-}]){cyan} %clr(%logger{50}){cyan} %clr(-){faint} %msg%n"/>
+
+    <!-- Console output -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- Development environment configuration -->
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="STDOUT"/>
+        </root>
+
+        <!-- Debug SQL during development -->
+<!--        <logger name="com.iflytek.astron.console.hub.mapper" level="DEBUG" additivity="false">-->
+<!--            <appender-ref ref="STDOUT"/>-->
+<!--        </logger>-->
+
+<!--        &lt;!&ndash; MyBatis Plus SQL logging &ndash;&gt;-->
+<!--        <logger name="com.baomidou.mybatisplus" level="DEBUG" additivity="false">-->
+<!--            <appender-ref ref="STDOUT"/>-->
+<!--        </logger>-->
+
+        <!-- Redis operation logging -->
+        <logger name="org.springframework.data.redis" level="DEBUG" additivity="false">
+            <appender-ref ref="STDOUT"/>
+        </logger>
+
+        <!-- Application core logging -->
+        <logger name="com.iflytek.astron.console" level="DEBUG" additivity="false">
+            <appender-ref ref="STDOUT"/>
+        </logger>
+    </springProfile>
+
+    <!-- Test environment configuration -->
+    <springProfile name="test">
+        <root level="INFO">
+            <appender-ref ref="STDOUT"/>
+        </root>
+
+        <!-- Application core logging -->
+        <logger name="com.iflytek.astron.console" level="DEBUG" additivity="false">
+            <appender-ref ref="STDOUT"/>
+        </logger>
+    </springProfile>
+
+    <!-- Production environment configuration -->
+    <springProfile name="prod">
+        <root level="WARN">
+            <appender-ref ref="STDOUT"/>
+        </root>
+
+        <!-- Application core logging -->
+        <logger name="com.iflytek.astron.console" level="INFO" additivity="false">
+            <appender-ref ref="STDOUT"/>
+        </logger>
+
+        <!-- Important third-party library logging -->
+        <logger name="org.springframework.security" level="WARN"/>
+        <logger name="org.springframework.web.servlet.DispatcherServlet" level="WARN"/>
+        <logger name="org.redisson" level="WARN"/>
+    </springProfile>
+
+    <!-- Common logging configuration -->
+    <!-- Database connection pool logging -->
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+
+    <!-- Disable overly frequent logging -->
+    <logger name="org.apache.catalina.startup.DigesterFactory" level="ERROR"/>
+    <logger name="org.apache.catalina.util.LifecycleBase" level="ERROR"/>
+    <logger name="org.apache.coyote.http11.Http11NioProtocol" level="WARN"/>
+    <logger name="org.apache.sshd.common.util.SecurityUtils" level="WARN"/>
+    <logger name="org.eclipse.jetty.util.component.AbstractLifeCycle" level="ERROR"/>
+    <logger name="org.hibernate.validator.internal.util.Version" level="WARN"/>
+
+</configuration>

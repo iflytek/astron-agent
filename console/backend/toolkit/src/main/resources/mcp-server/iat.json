@@ -1,0 +1,58 @@
+{
+    "id": "10d27396-71da-4de8-975b-735833a57ec9",
+    "ver": "1.0",
+    "mcp": {
+        "createTime": "2025-09-20T23:44:00+08:00",
+        "server": "http://xingchen-api.xf-yun.com/mcp/7361598865641885696/sse",
+        "authorized": true,
+        "logo": "https://openstorage.xfyousheng.com/lost/asset/20250920/d61073fe-7f43-479f-9675-6040beeaaa27.png",
+        "name": "实时语音听写",
+        "creator": "官方",
+        "brief": "传入音频文件url（音频文件不超过5分钟），获取音频中对应的文本内容。",
+        "content": "Agent 平台已为您部署好云端的 【语音转文本】 服务：\\n 确认开通后即可使用。\\n目前，MCP 服务已支持添加到智能体和工作流中。",
+        "tools": [
+            {
+                "name": "audio_to_text",
+                "description": "\n    IAT语音听写，通过传入音频文件的url，获取对应的文本内容\n    \n    参数：\n    - audio_url: 音频文件下载URL\n    - language: 音频内容语音种类，中文或者英文，取值范围是zh_cn，en_us，zhen\n    - domain: domain 取值范围（iat,medical,tv等等），默认使用iat\n    - accent: 口音,默认为mandarin（普通话），取值范围（cantonese,changshanese,dongbeiese,gansunese,guizhounese,hakkanese,hangzhounese,mandarin,hebeinese,hefeinese,henanese,lmz,minnanese,nanchangnese,nankinese,ningxianese,shandongnese,shanghainese,shanxinese,suzhounese,taiwanese,taiyuanese,tianjinese,wanbeinese,wuhanese,yunnanese）\n    - format: 音频的采样率支持16k和8k，8k会升16k处理，16k音频：audio/L16;rate=16000，8k音频：audio/L16;rate=8000\n    - encoding: 音频数据格式，raw标识原生音频，支持的压缩格式还包括：lame, speex, opus, opus-wb, speex-wb，默认是lame，音频是mp3格式时使用lame\n\n    返回：\n    音频文件对应的文本内容\n    ",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "audio_url": {
+                            "title": "Audio Url",
+                            "type": "string"
+                        },
+                        "language": {
+                            "default": "zh_cn",
+                            "title": "Language",
+                            "type": "string"
+                        },
+                        "domain": {
+                            "default": "iat",
+                            "title": "Domain",
+                            "type": "string"
+                        },
+                        "accent": {
+                            "default": "mandarin",
+                            "title": "Accent",
+                            "type": "string"
+                        },
+                        "format": {
+                            "default": "audio/L16;rate=16000",
+                            "title": "Format",
+                            "type": "string"
+                        },
+                        "encoding": {
+                            "default": "lame",
+                            "title": "Encoding",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "audio_url"
+                    ],
+                    "title": "audio_to_textArguments"
+                }
+            }
+        ]
+    }
+}

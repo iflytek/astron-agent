@@ -1,0 +1,158 @@
+.certificationCard {
+  position: relative;
+  width: 638px;
+  height: 122px;
+  /* 自动布局 */
+  padding-left: 180px;
+  gap: 16px;
+  border-radius: 16px;
+  background: #F2F5FE;
+
+  .bgImg {
+    position: absolute;
+    left: -47px;
+    top: 0;
+    width: 213px;
+    height: 122px;
+    z-index: 1;
+  }
+
+  .cardIcon {
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9ff;
+    border-radius: 8px;
+
+    img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+  }
+
+  .cardContent {
+    height: 100%;
+    padding: 18px 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+
+    .cardTitle {
+      display: flex;
+      align-items: center;
+      font-family: 苹方;
+      font-weight: 500;
+      font-size: 16px;
+      font-variation-settings: "opsz" auto;
+
+      .upgradeBtn {
+        height: 20px;
+        color: #6356EA;
+        font-family: 苹方;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 24px;
+        display: flex;
+        align-items: center;
+        letter-spacing: normal;
+      }
+    }
+
+    .cardDescription {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 8px;
+
+      p {
+        position: relative;
+        font-family: 苹方;
+        font-size: 14px;
+        font-weight: normal;
+        line-height: 21px;
+        letter-spacing: normal;
+        color: #7F7F7F;
+
+        .dot {
+          margin-right: 8px;
+          color: #6B23FF;
+        }
+      }
+    }
+
+
+    .statusSection {
+      .statusBadge {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #f0f9ff;
+        color: #1890ff;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+    }
+  }
+
+  // 不同状态的样式
+  &.not_certified {
+    border-color: #ffe7d6;
+    
+    .cardIcon {
+      background: #fff7f0;
+    }
+  }
+
+  &.certified {
+    border-color: #d6f7ff;
+
+    .cardContent {
+      gap: 6px;
+
+      .cardDescription {
+        gap: 5px;
+      }
+    }
+    
+    .cardIcon {
+      background: #f0f9ff;
+    }
+    
+    .statusSection .statusBadge {
+      background: #f6ffed;
+      color: #52c41a;
+    }
+  }
+}
+
+.renewTag {
+  min-width: 76px;
+  height: 32px;
+  margin-left: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: #FFFFFF;
+  box-sizing: border-box;
+  border: 1px solid #D3DBF8;
+  font-family: 苹方;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: normal;
+  text-align: center;
+  letter-spacing: normal;
+  color: #333333;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.8;
+  }
+}

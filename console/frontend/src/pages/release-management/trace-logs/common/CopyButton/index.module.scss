@@ -1,0 +1,44 @@
+.copyButton {
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  transition: all 0.2s;
+  
+  svg {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+  }
+  
+  :global(.react-svg) {
+    display: inline-flex;
+    width: 100%;
+    height: 100%;
+  }
+  
+  :global(.react-svg svg) {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+  }
+  
+  :global(.react-svg svg path) {
+    color: inherit;
+    fill: currentColor;
+  }
+  
+  &:hover {
+    color: #6356EA;
+    
+    :global(.react-svg svg),
+    :global(.react-svg svg path) {
+      color: #6356EA;
+      fill: currentColor;
+    }
+  }
+} 

@@ -1,0 +1,97 @@
+.siderContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.topBar {
+  width: 86%;
+  max-width: 1425px;
+  flex-shrink: 0;
+}
+
+.scrollContainer {
+  width: 100%;
+  flex: 1;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  margin-top: 20px;
+  
+  /* 自定义滚动条样式 */
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-radius: 3px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 3px;
+    background: #e7e7f0;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background: #a8a8a8;
+      cursor: pointer;
+    }
+  }
+
+  &::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
+
+  &::-webkit-scrollbar-track-piece {
+    background-color: transparent;
+  }
+
+  .placeholderContainer {
+    width: 86%;
+    max-width: 1425px;
+    min-height: 100%;
+    margin: 0 auto;
+    display: flex;
+    gap: 20px;
+
+    .leftNav {
+      flex-shrink: 0;
+      width: fit-content;
+      min-height: 100%;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #fafafa;
+
+      >div {
+        height: 100%;
+      }
+
+      /* 自定义滚动条样式 */
+      &::-webkit-scrollbar {
+        width: 0;
+        display: none;
+      }
+    }
+    
+    .rightContent {
+      flex: 1;
+      width: 100%;
+      min-height: 100%;
+      padding-bottom: 20px;
+      padding-left: calc(var(--scrollbar-width) / 2);
+      margin-right: calc(var(--scrollbar-width) / 2 * -1);
+    }
+  }
+}

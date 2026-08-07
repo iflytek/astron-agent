@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.hub.mapper.notification.UserNotificationMapper">
+
+    <resultMap id="BaseResultMap" type="com.iflytek.astron.console.hub.entity.notification.UserNotification">
+        <id column="id" property="id"/>
+        <result column="notification_id" property="notificationId"/>
+        <result column="receiver_uid" property="receiverUid"/>
+        <result column="is_read" property="isRead"/>
+        <result column="read_at" property="readAt"/>
+        <result column="received_at" property="receivedAt"/>
+        <result column="extra" property="extra"/>
+    </resultMap>
+
+    <resultMap id="NotificationDtoResultMap" type="com.iflytek.astron.console.hub.dto.notification.NotificationDto">
+        <id column="n_id" property="id"/>
+        <result column="n_type" property="type"/>
+        <result column="n_title" property="title"/>
+        <result column="n_body" property="body"/>
+        <result column="n_template_code" property="templateCode"/>
+        <result column="n_payload" property="payload"/>
+        <result column="n_meta" property="meta"/>
+        <result column="n_creator_uid" property="creatorUid"/>
+        <result column="n_expire_at" property="expireAt"/>
+        <result column="n_created_at" property="createdAt"/>
+        <result column="un_is_read" property="isRead"/>
+        <result column="un_read_at" property="readAt"/>
+        <result column="un_received_at" property="receivedAt"/>
+    </resultMap>
+
+    <select id="selectUserNotificationsWithDetails" resultMap="NotificationDtoResultMap">
+        SELECT
+            n.id as n_id,
+            n.type as n_type,
+            n.title as n_title,
+            n.body as n_body,
+            n.template_code as n_template_code,
+            n.payload as n_payload,
+            n.meta as n_meta,
+            n.creator_uid as n_creator_uid,
+            n.expire_at as n_expire_at,
+            n.created_at as n_created_at,
+            CASE WHEN un.is_read = true THEN true ELSE false END as un_is_read,
+            un.read_at as un_read_at,
+            un.received_at as un_received_at
+        FROM user_notifications un
+        INNER JOIN notifications n ON un.notification_id = n.id
+        WHERE un.receiver_uid = #{receiverUid}
+          AND (n.expire_at IS NULL OR n.expire_at > NOW())
+        ORDER BY un.received_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectUserUnreadNotificationsWithDetails" resultMap="NotificationDtoResultMap">
+        SELECT
+            n.id as n_id,
+            n.type as n_type,
+            n.title as n_title,
+            n.body as n_body,
+            n.template_code as n_template_code,
+            n.payload as n_payload,
+            n.meta as n_meta,
+            n.creator_uid as n_creator_uid,
+            n.expire_at as n_expire_at,
+            n.created_at as n_created_at,
+            CASE WHEN un.is_read = true THEN true ELSE false END as un_is_read,
+            un.read_at as un_read_at,
+            un.received_at as un_received_at
+        FROM user_notifications un
+        INNER JOIN notifications n ON un.notification_id = n.id
+        WHERE un.receiver_uid = #{receiverUid}
+          AND un.is_read = false
+          AND (n.expire_at IS NULL OR n.expire_at > NOW())
+        ORDER BY un.received_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectUnreadByUid" resultMap="BaseResultMap">
+        SELECT un.*
+        FROM user_notifications un
+                 INNER JOIN notifications n ON un.notification_id = n.id
+        WHERE un.receiver_uid = #{receiverUid}
+          AND un.is_read = false
+          AND (n.expire_at IS NULL OR n.expire_at > NOW())
+        ORDER BY un.received_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectByUid" resultMap="BaseResultMap">
+        SELECT un.*
+        FROM user_notifications un
+                 INNER JOIN notifications n ON un.notification_id = n.id
+        WHERE un.receiver_uid = #{receiverUid}
+          AND (n.expire_at IS NULL OR n.expire_at > NOW())
+        ORDER BY un.received_at DESC
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="countUnreadByUid" resultType="int">
+        SELECT COUNT(*)
+        FROM user_notifications un
+                 INNER JOIN notifications n ON un.notification_id = n.id
+        WHERE un.receiver_uid = #{receiverUid}
+          AND un.is_read = false
+          AND (n.expire_at IS NULL OR n.expire_at > NOW())
+    </select>
+
+    <update id="batchMarkAsRead">
+        UPDATE user_notifications
+        SET is_read = true, read_at = NOW()
+        WHERE receiver_uid = #{receiverUid}
+        <if test="notificationIds != null and notificationIds.size() > 0">
+            AND notification_id IN
+            <foreach collection="notificationIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
+    </update>
+
+    <update id="markAllAsRead">
+        UPDATE user_notifications
+        SET is_read = true, read_at = NOW()
+        WHERE receiver_uid = #{receiverUid}
+          AND is_read = false
+    </update>
+
+    <insert id="batchInsert">
+        INSERT INTO user_notifications (notification_id, receiver_uid, is_read, received_at, extra)
+        VALUES
+        <foreach collection="userNotifications" item="item" separator=",">
+            (#{item.notificationId}, #{item.receiverUid}, #{item.isRead}, #{item.receivedAt}, #{item.extra})
+        </foreach>
+    </insert>
+
+</mapper>

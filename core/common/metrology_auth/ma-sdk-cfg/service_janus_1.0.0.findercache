@@ -1,0 +1,1 @@
+{"ServiceName":"janus","ApiVersion":"1.0.0","ProviderList":[{"Addr":"172.29.100.135:30482","Config":{"is_valid":true,"UserConfig":""}}],"Config":{"JsonConfig":""}}

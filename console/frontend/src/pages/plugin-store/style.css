@@ -1,0 +1,162 @@
+/*
+ * @Author: snoopyYang
+ * @Date: 2025-09-23 10:08:50
+ * @LastEditors: snoopyYang
+ * @LastEditTime: 2025-09-23 10:08:59
+ * @Description: 插件广场详情页样式
+ */
+.Store-knowledge-card-item {
+  height: 174px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 18px;
+  /* box-shadow: 0px 1px 2px 0px rgba(16, 24, 40, 0.05); */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  transition: width 0.3s ease;
+  .edit-icon {
+    width: 16px;
+    height: 16px;
+    background: url('../assets/imgs/main/icon_bot_edit_normal.png') no-repeat
+      center;
+    background-size: cover;
+  }
+
+  .card-edit {
+    color: #757575;
+  }
+
+  .card-edit:hover {
+    font-weight: 500;
+
+    .edit-icon {
+      background: url('../assets/imgs/main/icon_bot_edit_act.png') no-repeat
+        center;
+      background-size: cover;
+    }
+  }
+
+  .setting-icon {
+    width: 16px;
+    height: 16px;
+    background: url('../assets/imgs/main/icon_bot_set_normal.png') no-repeat
+      center;
+    background-size: cover;
+  }
+
+  .chat-icon {
+    width: 16px;
+    height: 16px;
+    background: url('../assets/imgs/main/icon_bot_chat_normal.png') no-repeat
+      center;
+    background-size: cover;
+  }
+
+  .copy-icon {
+    width: 10px;
+    height: 12px;
+    background: url('../assets/imgs/main/icon_bot_copy_normal.svg') no-repeat
+      center;
+    background-size: cover;
+  }
+
+  .share-icon {
+    width: 14px;
+    height: 14px;
+    background: url('../assets/imgs/main/icon_bot_share_normal.svg') no-repeat
+      center;
+    background-size: cover;
+  }
+
+  .card-chat:hover {
+    color: #6356EA;
+    font-weight: 500;
+
+    .chat-icon {
+      background: url('../assets/imgs/main/icon_bot_chat_act.png') no-repeat
+        center;
+      background-size: cover;
+    }
+
+    .copy-icon {
+      width: 10px;
+      height: 12px;
+      background: url('../assets/imgs/main/icon_bot_copy_act.svg') no-repeat
+        center;
+      background-size: cover;
+    }
+
+    .share-icon {
+      width: 14px;
+      height: 14px;
+      background: url('../assets/imgs/main/icon_bot_share_act.svg') no-repeat
+        center;
+      background-size: cover;
+    }
+  }
+
+  &:hover {
+    box-shadow: 0px 10px 20px 0px rgba(0, 18, 70, 0.08);
+    background: rgba(255, 255, 255, 1);
+    .setting-act {
+      background: url('../assets/imgs/main/icon_bot_set_act.png') no-repeat;
+      background-size: cover;
+    }
+
+    .go-setting {
+      color: #6356EA;
+    }
+  }
+}
+.search-input-rounded input {
+  border-radius: 8px !important;
+}
+/* 自适应 */
+.StorePlugin-padding {
+  padding: 0 131px;
+  transition: padding 0.3s;
+}
+
+.detail-search-input {
+  width: 320px;
+  transition: width 0.3s;
+}
+.detail-select {
+  width: 160px;
+  height: 32px;
+  border-radius: 10px;
+  /* 描边色 */
+  border: 1px solid #E7E7F0; 
+  transition: width 0.3s;
+}
+
+.ant-select-dropdown
+  .ant-select-item-option-selected:not(.ant-select-item-option-disabled) {
+  background-color: red;
+}
+
+@media (max-width: 1280px) {
+  .StorePlugin-padding {
+    padding: 0 40px;
+  }
+  .detail-select {
+    width: 100px;
+    font-size: 12px;
+  }
+  .detail-search-input {
+    width: 160px;
+  }
+}
+
+.square-title {
+  font-family: 'PingFang-Sim';
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 26px;
+  text-align: center;
+  letter-spacing: normal;
+  /* 字体主色 */
+  color: #222529;
+}

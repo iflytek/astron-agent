@@ -1,0 +1,53 @@
+.loginPopBox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100vw;
+  height: 188px;
+  background: #ffffff;
+  box-shadow: 0px -10px 20px 0px rgba(0, 18, 70, 0.05);
+  position: fixed;
+  bottom: 0;
+  z-index: 999;
+
+  .loginPopWrap {
+    display: flex;
+    align-items: center;
+
+    > img {
+      width: 220px;
+      height: 140px;
+      margin-right: 60px;
+    }
+
+    .loginPopIntro {
+      > h2 {
+        font-family: 苹方;
+        font-size: 22px;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+
+      > p {
+        font-family: 苹方;
+        font-size: 16px;
+        color: #7f7f7f;
+      }
+    }
+
+    .loginPopUse {
+      width: 168px;
+      height: 48px;
+      border-radius: 8px;
+      background: #6356EA;
+      font-family: 苹方;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 48px;
+      text-align: center;
+      color: #ffffff;
+      margin-left: 200px;
+      cursor: pointer;
+    }
+  }
+}

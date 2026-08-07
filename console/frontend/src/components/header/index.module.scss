@@ -1,0 +1,49 @@
+
+.headerTitle {
+  padding: 20px 0;
+  line-height: 26px;
+  font-family: 'PingFang-Sim';
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: normal;
+  /* 字体主色 */
+  color: #222529;
+}
+
+.headerTab {
+  height: 32px;
+  min-width: 60px;
+  line-height: 32px;
+  padding: 0 16px;
+  font-family: 'PingFang-Sim';
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-align: center;
+  /* 字体二级颜色 */
+  color: #676773;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: #6356EA;
+  }
+
+  &.headerTabActive {
+    border-radius: 10px;
+    background: #FFFFFF;
+    box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+    color: #6356EA;
+  }
+}
+
+.toolsContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchContainer {
+  display: flex;
+  align-items: center;
+}

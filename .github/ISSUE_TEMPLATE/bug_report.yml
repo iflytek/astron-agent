@@ -1,0 +1,104 @@
+﻿---
+name: "🐞 Bug Report"
+description: Report a bug to help us improve
+title: "[BUG] "
+labels:
+  - bug
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to share an issue. Please fill out every section so we can reproduce and fix the problem quickly.
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: Bug Description
+      description: Briefly describe what went wrong.
+      placeholder: A concise summary of the bug and any supporting details.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Level
+      description: How badly does this bug impact you?
+      options:
+        - Critical - system crash, data loss, or security issue
+        - High - major feature broken, significant impact
+        - Medium - partial feature break, workaround exists
+        - Low - minor or cosmetic issue
+  - type: dropdown
+    id: reproduction-rate
+    attributes:
+      label: Reproduction Rate
+      description: How often do you see the issue?
+      options:
+        - Always (100%)
+        - Often (>50%)
+        - Sometimes (<50%)
+        - Rarely (<10%)
+  - type: checkboxes
+    id: component
+    attributes:
+      label: Component / Module
+      description: Select the areas that are affected.
+      options:
+        - label: Core Agent
+        - label: API
+        - label: UI / Frontend
+        - label: Documentation
+        - label: Installation / Setup
+        - label: Other (describe below)
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Provide each step required to trigger the issue.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: Expected vs Actual Behavior
+      description: Tell us what you expected to happen and what actually happened instead.
+      placeholder: |
+        **Expected:** ...
+        **Actual:** ...
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: List the versions, OS, deployment method, browser, and Docker info used when reproducing the issue.
+      placeholder: |
+        - Astron Agent Version:
+        - OS:
+        - Deployment (Docker Compose, Source, etc.):
+        - Browser (if applicable):
+        - Docker image info: output of `docker images --digests | grep astron-agent`
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Who or what is affected by this bug?
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / Screenshots
+      description: Paste relevant logs or drag-and-drop screenshots.
+      render: shell
+  - type: textarea
+    id: possible-fix
+    attributes:
+      label: Possible Fix
+      description: Optional ideas for how to resolve the issue.

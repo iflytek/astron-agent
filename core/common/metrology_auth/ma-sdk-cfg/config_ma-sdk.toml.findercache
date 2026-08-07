@@ -1,0 +1,138 @@
+# ma-sdk 1.2.2
+[metrics]
+#参数齐则开启metrics
+able = 1
+addr = "172.31.101.157:32269"
+idc = "hf"
+sub = "ma-sdk"
+cs = "1s"
+timePerSlice = 1000 #滑动窗口bucket大小，单位毫秒
+winSize = 10 #窗口大小
+
+[trace]
+able = -1
+
+[sonar]
+able = 0
+
+[calc]
+use = "mq"
+#use = "rpc"
+queue_size = 100000
+flush_dur_sec = 1
+clear_dur_sec = 600
+merge = false
+[calc.rmq]
+able = true
+producer_number = 10
+#endpoint = ["172.31.98.182:10800"]
+#topic = "lic_lkc_bj"
+#"172.29.67.95:10800",
+endpoint = ["10.1.87.18:10800"]
+topic = "lic_lkc_gz"
+#endpoint = ["172.30.15.216:10800"]
+#topic = "lic_lkc_hu"
+
+# 消息队列服务连接超时时间
+# millisecond
+timeout = 500
+[calc.pulsar]
+able = true
+idc=""
+appids = ["*"]
+topic = "persistent://aiaas/metering/calc"
+# endpoint = "pulsar://192.168.70.234:16650" # gz
+# endpoint = "pulsar://172.21.117.41:16650" # dx
+# endpoint = "pulsar://10.101.3.204:16650" # hu
+# topic = "persistent://aiaas/metering/xiangxu16" # 测试环境
+# endpoint = "pulsar://172.31.129.18:6650,172.31.186.152:6650,172.31.184.42:6650" # 测试环境
+endpoint = "pulsar://172.29.228.92:6650,172.29.228.170:6650,172.29.228.197:6650" # 测试环境
+
+log_file = "/log/server/pulsar.log.2"
+max_pending_msg = 10000
+enable_rpc = true # 控制是否开启rpc
+use_rpc = true  # enable_rpc &&  use_rpc = true 启用rpc 的方式发送消息到calc-pulsar-proxy
+rpc_addr = "http://companion-test.iflyaicloud.com:9080/AIaaS/mahf/calc-pulsar-proxy/1.0"
+rpc_send_timeout = "3s"
+rpc_cfg_name = "client.toml"
+rpc_thread_num = 20  # rpc 发送的消费者数量
+
+[rpc]
+conn-timeout = 1000
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+################################################################
+duration = 567 #ms
+################################################################
+
+#########################并发上报配置#################################
+[rep]
+# 异步加载
+async_init = false
+# 重试次数
+init_retry = 0
+duration = 70 # xsf call 超时时间，毫秒，默认50
+conn-timeout = 100
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+
+[conc] 
+lb-mode= 3
+
+[conc_v2]
+idc="hf"
+async_init = false
+init_retry = 3
+sid_expiration_period = 10
+sync_period = 2000
+janus_timeout = 100
+svc = "janus"
+release_retry_period = 1000
+release_retry_count = 3
+no_retry_sleep_time = 50
+retry_thread_num = 1
+
+[licc]
+conn-timeout = 100
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+duration = 400
+#taddrs = "router@172.31.98.182:8098"
+################################################################
+check_opnion = 125
+
+[lmtres] # 拉取受限资源 xsf client
+update_time = 60000 # 更新周期，毫秒，默认10min
+duration = 10000 # xsf call 超时时间，毫秒，默认 10s
+conn-timeout = 100
+conn-pool-size = 12         #rpc连接池数量。缺省4
+lb-mode= 3  #0禁用lb,2使用lb。缺省0
+lb-retry = 1
+#conn-rbuf =  1048576
+#conn-wbuf = 1048576
+finder = 0
+#taddrs = "router@172.31.98.182:8098"
+
+[log]
+level = "error"
+file = "/log/server/ma-sdk-7.log"
+async = false
+batch = 1
+
+[kafka]
+enable = false
+addr = "http://172.30.209.28:4318/v1/logs"

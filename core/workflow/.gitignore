@@ -1,0 +1,11 @@
+.idea
+logs
+*pycache*
+.venv
+.python-version
+__pycache__
+*.orig
+env
+*Ds_Store*
+.vscode
+*.pyc*

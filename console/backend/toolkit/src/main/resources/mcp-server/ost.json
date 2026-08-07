@@ -1,0 +1,94 @@
+{
+    "id": "37cf2922-4fcf-40ca-81e7-7a2177aa486f",
+    "ver": "1.0",
+    "mcp": {
+        "createTime": "2025-09-20T23:44:00+08:00",
+        "server": "http://xingchen-api.xf-yun.com/mcp/7361599072799363072/sse",
+        "authorized": true,
+        "logo": "https://openstorage.xfyousheng.com/lost/asset/20250920/720ad2b8-10ab-4ff6-ace9-ca34247e7b68.png",
+        "name": "非实时语音转写",
+        "creator": "官方",
+        "brief": "传入音频文件url（常用于音频文件超过5分钟的场景），获取音频中对应的文本内容。",
+        "content": "Agent 平台已为您部署好云端的 【语音转文本】 服务:\\n 确认开通后即可使用。\\n 目前，MCP 服务已支持添加到智能体和工作流中。",
+        "tools": [
+            {
+                "name": "create_task",
+                "description": "\n    OST语音听写，传入音频文件的url，创建一个异步识别任务（调用query_task查看状态和获取结果），通常用于音频时长大于5分钟的场景。\n    \n    参数：\n    - audio_url: 音频文件下载URL\n    - format: 音频的采样率支持16k和8k，8k会升16k处理，16k音频：audio/L16;rate=16000，8k音频：audio/L16;rate=8000\n    - encoding: 音频数据格式，raw标识原生音频，支持的压缩格式还包括：lame, speex, opus, opus-wb, speex-wb，默认是lame，音频是mp3格式时使用lame\n\n    返回：\n    - task_id: 异步识别任务的id，用作后续query_task查询任务、retry_task重试任务、cancle_task取消任务的参数。\n    - sid: 服务端会话id，可用于出错时排障。\n    ",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "audio_url": {
+                            "title": "Audio Url",
+                            "type": "string"
+                        },
+                        "format": {
+                            "default": "audio/L16;rate=16000",
+                            "title": "Format",
+                            "type": "string"
+                        },
+                        "encoding": {
+                            "default": "lame",
+                            "title": "Encoding",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "audio_url"
+                    ],
+                    "title": "create_taskArguments"
+                }
+            },
+            {
+                "name": "query_task",
+                "description": "\n    OST语音听写，query_task查看识别任务状态和获取结果（需要先调用create_task获取task_id）。\n    \n    参数：\n    - task_id: create_task创建任务时得到的task_id\n\n    返回：\n    - status: waiting 或 processing 或 completed 或 returned 或 canceled，表示等待处理、处理中、已完成、已返回（已完成并且上次query_task就返回过结果了）、已取消\n    - content: 最终的识别结果，根据任务状态不同可能为空。\n    - sid: 服务端会话id，可用于出错时排障。\n    ",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": {
+                            "title": "Task Id",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "task_id"
+                    ],
+                    "title": "query_taskArguments"
+                }
+            },
+            {
+                "name": "retry_task",
+                "description": "\n    OST语音听写，retry_task重试一个失败或被取消的任务（需要先调用create_task获取task_id）。\n    \n    参数：\n    - task_id: create_task创建任务时得到的task_id\n\n    返回：\n    - status: success 或 fail\n    - sid: 服务端会话id，可用于出错时排障。\n    ",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": {
+                            "title": "Task Id",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "task_id"
+                    ],
+                    "title": "retry_taskArguments"
+                }
+            },
+            {
+                "name": "cancle_task",
+                "description": "\n    OST语音听写，cancle_task取消一个识别任务（需要先调用create_task获取task_id）。\n    \n    参数：\n    - task_id: create_task创建任务时得到的task_id\n\n    返回：\n    - status: success 或 fail\n    - sid: 服务端会话id，可用于出错时排障。\n    ",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "task_id": {
+                            "title": "Task Id",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "task_id"
+                    ],
+                    "title": "cancle_taskArguments"
+                }
+            }
+        ]
+    }
+}

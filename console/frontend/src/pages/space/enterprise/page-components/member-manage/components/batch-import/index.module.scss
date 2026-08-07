@@ -1,0 +1,187 @@
+.importModal {
+  .beforeImport {
+    .uploadArea {
+      height: 300px;
+      margin-top: 24px;
+
+      .dragger {
+        border-radius: 8px;
+
+        &:hover {
+          border-color: #1890ff;
+          background-color: #f0f8ff;
+        }
+
+        .uploadIcon {
+          font-size: 48px;
+          color: #bfbfbf;
+        }
+      }
+    }
+
+    .templateSection {
+      text-align: right;
+
+      .templateHint {
+        font-size: 14px;
+        color: #8c8c8c;
+      }
+    }
+  }
+
+  .uploading {
+    height: 324px;
+    display: flex;
+    flex-direction: column;
+
+    .progressSection {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+
+      .progressText {
+        font-size: 16px;
+        color: #262626;
+        margin-top: 16px;
+        font-weight: 500;
+      }
+    }
+
+    .cancelSection {
+      text-align: center;
+    }
+  }
+
+  .importResult {
+    padding: 20px;
+
+    .resultSummary {
+      text-align: center;
+      margin-bottom: 24px;
+
+      .resultTitle {
+        font-size: 18px;
+        font-weight: 600;
+        color: #262626;
+        margin-bottom: 16px;
+      }
+
+      .resultStats {
+        .successStats {
+          .successCount {
+            font-size: 14px;
+            color: #52c41a;
+          }
+
+          .failCount {
+            font-size: 14px;
+            color: #ff4d4f;
+          }
+        }
+      }
+    }
+
+    .memberPreview {
+      .previewTitle {
+        font-size: 14px;
+        font-weight: 500;
+        color: #262626;
+        margin-bottom: 12px;
+      }
+
+      .memberList {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #e8e8e8;
+        border-radius: 6px;
+        padding: 12px;
+
+        .memberItem {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 8px 0;
+          border-bottom: 1px solid #f0f0f0;
+
+          &:last-child {
+            border-bottom: none;
+          }
+
+          .memberName {
+            font-weight: 500;
+            color: #262626;
+            min-width: 80px;
+          }
+
+          .memberPhone {
+            color: #8c8c8c;
+            min-width: 120px;
+          }
+
+          .memberRole {
+            color: #1890ff;
+            font-size: 12px;
+            padding: 2px 8px;
+            background-color: #e6f7ff;
+            border-radius: 4px;
+          }
+        }
+
+        .moreMembers {
+          text-align: center;
+          color: #8c8c8c;
+          font-size: 12px;
+          padding-top: 8px;
+        }
+      }
+    }
+  }
+}
+
+// 上传组件样式覆盖
+:global {
+  .ant-upload-list-item {
+    border-radius: 6px !important;
+    border: 1px solid #e8e8e8 !important;
+    margin-top: 12px !important;
+  }
+
+  .ant-upload-list-item-name {
+    color: #262626 !important;
+  }
+
+  // Dragger 组件样式覆盖
+  .ant-upload-drag {
+    .ant-upload-drag-icon {
+      margin-bottom: 16px !important;
+    }
+
+    .ant-upload-text {
+      font-size: 16px !important;
+      color: #262626 !important;
+      font-weight: 500 !important;
+      margin-bottom: 8px !important;
+    }
+
+    .ant-upload-hint {
+      font-size: 14px !important;
+      color: #8c8c8c !important;
+    }
+  }
+
+  // Spin 组件样式
+  .ant-spin {
+    .ant-spin-dot {
+      font-size: 24px !important;
+    }
+  }
+}
+
+.AddMemberTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 30px;
+}

@@ -1,0 +1,73 @@
+.spaceTab {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+
+  .tabHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+
+    .tabList {
+      display: inline-flex;
+      padding: 4px;
+      gap: 4px;
+      border-radius: 8px;
+      background: #F6F9FF;
+    }
+
+    .tabActions {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+  }
+
+  .tabItem {
+    position: relative;
+    height: 32px;
+    /* 自动布局 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 4px 12px;
+    z-index: 0;
+    cursor: pointer;
+    
+    .tabLabel {
+      font-family: 苹方;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 24px;
+      letter-spacing: normal;
+    }
+
+    &.active {
+      border-radius: 10px;
+      background: #FFFFFF;
+      box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+      
+      .tabLabel {
+        color: #6356EA;
+        font-weight: 500;
+      }
+    }
+
+    &:not(.active) {
+      .tabLabel {
+        color: #999;
+      }
+    }
+  }
+
+  .tabContent {
+    margin-top: 12px;
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+}

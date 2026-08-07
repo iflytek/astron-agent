@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.space.SpaceUserMapper">
+
+    <select id="countPersonalSpaceUser" resultType="long">
+        select count(distinct uid) from agent_space_user
+        where space_id in (
+        select s.id from agent_space s left join agent_space_user u on (s.id = u.space_id)
+        where u.uid = #{uid} and s.deleted = 0 and s.type = #{type} and s.enterprise_id is null and u.role = #{role}
+        )
+    </select>
+
+    <select id="getByUidAndSpaceId" resultType="com.iflytek.astron.console.commons.entity.space.SpaceUser">
+        select u.* from agent_space_user u left join agent_space s on(u.space_id=s.id)
+        where u.uid = #{uid} and u.space_id = #{spaceId} and s.deleted = 0
+    </select>
+
+    <select id="selectVOPageByParam" resultType="com.iflytek.astron.console.commons.dto.space.SpaceUserVO">
+        select u.* from agent_space_user u
+        <where>
+            <if test="spaceId != null">
+                and u.space_id = #{spaceId}
+            </if>
+            <if test="nickname != null and nickname != ''">
+                and u.nickname like concat('%',#{nickname},'%')
+            </if>
+            <if test="role != null and role != 0">
+                and u.role = #{role}
+            </if>
+        </where>
+        order by u.id desc
+    </select>
+</mapper>

@@ -1,0 +1,222 @@
+.teamCreateContainer {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-image: url('/src/assets/imgs/space/createTeamPageBg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 20vh 24px 24px;
+
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+}
+
+.logo {
+  position: fixed;
+  top: 32px;
+  left: 40px;
+
+  .logoImage {
+    height: 25px;
+    width: auto;
+  }
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 440px;
+  margin: 0 auto;
+}
+
+.title {
+  margin-bottom: 20px;
+  font-family: PingFang SC;
+  font-size: 30px;
+  font-weight: 500;
+  line-height: normal;
+  display: flex;
+  align-items: center;
+  letter-spacing: normal;
+  color: #333333;
+}
+
+.userInfo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 40px;
+
+  .avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .userDetails {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .userName {
+      font-family: PingFang-Sim;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 26px;
+      display: flex;
+      align-items: center;
+      letter-spacing: normal;
+      color: #333333;
+    }
+
+    .userRole {
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 8px;
+      border-radius: 7px;
+      background: #e4eaff;
+      font-family: PingFang-Sim;
+      font-size: 12px;
+      font-weight: normal;
+      line-height: normal;
+      text-align: justify; /* 浏览器可能不支持 */
+      letter-spacing: normal;
+      color: #6356EA;
+    }
+  }
+}
+
+.formCard {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+
+  .formTitle {
+    font-family: PingFang SC;
+    font-size: 22px;
+    font-weight: 500;
+    line-height: normal;
+    display: flex;
+    align-items: center;
+    letter-spacing: normal;
+    color: #333333;
+  }
+
+  .teamIcon {
+    display: flex;
+    justify-content: center;
+
+    .iconPlaceholder {
+      width: 108px;
+      height: 108px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+
+      .avatarImg {
+        width: 108px;
+        height: 108px;
+        border-radius: 16px;
+        object-fit: cover;
+      }
+
+      .upHoverBtn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 108px;
+        height: 108px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(116, 135, 254, 0.37);
+        border-radius: 16px;
+        cursor: pointer;
+
+        .upHoverIcon {
+          width: 32px;
+          height: 32px;
+          border-radius: 0;
+        }
+      }
+    }
+  }
+
+  .formFields {
+    width: 100%;
+
+    .fieldGroup {
+      position: relative;
+      display: flex;
+      align-items: center;
+      border-radius: 8px;
+      background: #ffffff;
+      border: 1px solid #e4eaff;
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: 24px;
+      letter-spacing: -0.2px;
+      color: #333333;
+
+      &:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+
+      .fieldLabel {
+        flex-shrink: 0;
+        padding: 0 15px;
+        border-right: 1px solid #d8d8d8;
+      }
+
+      .fieldInput {
+        height: 48px;
+        font-size: 14px;
+
+        &::placeholder {
+          color: #b2b2b2;
+        }
+      }
+    }
+  }
+
+  .createButton {
+    height: 40px;
+    border-radius: 8px;
+    background: #6356EA;
+    border: none;
+    font-size: 16px;
+    font-weight: 500;
+
+    &:hover {
+      background: #1d4ed8;
+    }
+
+    &:focus {
+      background: #1d4ed8;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+  }
+}

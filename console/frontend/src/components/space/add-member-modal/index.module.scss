@@ -1,0 +1,125 @@
+.addMemberModal {
+  :global {
+    .ant-modal-close {
+      top: 15px !important;
+    }
+
+    .ant-modal-body {
+      padding: 0;
+    }
+  }
+
+  .modalContent {
+    display: flex;
+    height: 450px;
+    padding-top: 18px;
+    border-top: 1px solid #f0f0f0;
+  }
+
+  .leftPanel {
+    flex: 1;
+    border-right: 1px solid #D8D8D8;
+    display: flex;
+    flex-direction: column;
+    padding-right: 18px;
+
+    .searchSection {
+      margin-bottom: 12px;
+
+      .searchInput {
+        width: 100%;
+      }
+    }
+
+    .userListSection {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+
+      .selectAllRow {
+        padding: 11px 7px;
+        background: #fff;
+
+        .selectAllCheckbox {
+          font-weight: 500;
+        }
+      }
+
+      .userList {
+        flex: 1;
+        overflow-y: auto;
+
+
+
+        // 空状态样式
+        .emptyState {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          min-height: 200px;
+
+          .emptyImage {
+            width: 200px;
+            height: 150px;
+            margin-bottom: 18px;
+            opacity: 0.6;
+          }
+
+          .emptyText {
+            font-family: PingFang-Sim;
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 24px;
+            letter-spacing: -0.2px;
+            color: #666666;
+          }
+        }
+      }
+    }
+  }
+
+  .rightPanel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding-left: 18px;
+
+    .selectedInfo {
+      height: 32px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      font-family: PingFang SC;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: normal;
+      letter-spacing: normal;
+      color: #3D3D3D;
+
+
+
+      .maxValue {
+        font-size: 12px;
+        font-weight: normal;
+        line-height: normal;
+        letter-spacing: normal;
+        color: #7F7F7F;
+      }
+    }
+
+    .selectedUsers {
+      flex: 1;
+      overflow-y: auto;
+    }
+  }
+
+  .modalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 16px;
+  }
+}

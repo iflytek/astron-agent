@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.model.McpDataMapper">
+
+    <!-- 根据智能体ID获取最新的MCP数据 -->
+    <select id="selectLatestByBotId" resultType="com.iflytek.astron.console.commons.entity.model.McpData">
+        SELECT id, bot_id, uid, space_id, server_name, description, content, 
+               icon, server_url, args, version_name, released, is_delete, 
+               create_time, update_time
+        FROM mcp_data
+        WHERE bot_id = #{botId} 
+          AND is_delete = 0
+        ORDER BY create_time DESC
+        LIMIT 1
+    </select>
+
+    <!-- 根据用户ID获取MCP数据列表 -->
+    <select id="selectByUid" resultType="com.iflytek.astron.console.commons.entity.model.McpData">
+        SELECT id, bot_id, uid, space_id, server_name, description, content, 
+               icon, server_url, args, version_name, released, is_delete, 
+               create_time, update_time
+        FROM mcp_data
+        WHERE uid = #{uid} 
+          AND is_delete = 0
+        ORDER BY create_time DESC
+    </select>
+
+    <!-- 检查智能体是否已发布MCP -->
+    <select id="checkMcpExists" resultType="int">
+        SELECT COUNT(1)
+        FROM mcp_data
+        WHERE bot_id = #{botId}
+          AND version_name = #{versionName}
+          AND is_delete = 0
+    </select>
+
+</mapper>

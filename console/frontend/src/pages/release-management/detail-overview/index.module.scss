@@ -1,0 +1,52 @@
+.detailOverview {
+  .overviewHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    // height: 40px;
+
+    .seach {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+  }
+
+  .overviewContent {
+    padding: 0 0 24px 0;
+    background-color: #fff;
+    border-radius: 18px;
+
+    .actionBtnBox {
+      display: flex;
+      justify-content: flex-start;
+      gap: 10px;
+
+      > span {
+        color: #6356ea;
+        cursor: pointer;
+
+        &:hover {
+          opacity: 0.7;
+        }
+      }
+    }
+
+    :global {
+      .ant-table-row {
+        &:hover {
+          opacity: 1;
+        }
+      }
+
+      .ant-table-cell-row-hover {
+        background-color: #fff !important;
+      }
+    }
+  }
+  :global {
+    .ant-table-thead .ant-table-cell {
+      background-color: #f1f0ff !important;
+    }
+  }
+}

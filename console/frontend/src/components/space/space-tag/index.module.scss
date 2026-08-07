@@ -1,0 +1,61 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  
+  .icon {
+    margin-right: 4px;
+    display: flex;
+    align-items: center;
+  }
+
+  &.hasBorder {
+    border-width: 1px;
+    border-style: solid;
+  }
+
+  // 尺寸
+  &.middle {
+    height: 28px;
+    min-width: 80px;
+    font-size: 14px;
+    padding: 0 19px;
+    border-radius: 4px;
+  }
+
+  &.small {
+    height: 24px;
+    min-width: 67px;
+    padding: 0 4px;
+    border-radius: 20px;
+    font-size: 12px;
+  }
+
+  // 默认主题
+  &.default {
+    color: #666;
+    background-color: #f5f5f5;
+    border-color: #e8e8e8;
+  }
+
+  // 成功主题
+  &.success {
+    color: #1FC92D;
+    background-color: #DFFFCE;
+    border-color: #b7eb8f;
+  }
+
+  // 警告主题
+  &.warning {
+    color: #FF9602;
+    background-color: #FFF4E5;
+    border-color: #ffe58f;
+  }
+
+  // 危险主题
+  &.danger {
+    color: #F74E43;
+    background-color: #FEEDEC;
+    border-color: #ffccc7;
+  }
+}

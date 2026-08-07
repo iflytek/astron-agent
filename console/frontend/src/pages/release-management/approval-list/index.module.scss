@@ -1,0 +1,116 @@
+.approvalPage {
+  width: 100%;
+  margin-top: 52px;
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 20px 20px 0;
+
+  :global {
+    .ant-table {
+      background-color: transparent;
+    }
+
+    .ant-table-cell {
+      color: #43436b;
+    }
+
+    .ant-table-thead .ant-table-cell {
+      background: #f1f0ff;
+      font-size: 14px;
+      font-weight: 500;
+      color: #7f7f7f;
+      border-bottom: none;
+
+      &::before {
+        display: none;
+      }
+    }
+
+    .ant-table-tbody > tr > td {
+      border-bottom: 1px solid rgba(#d0d9f1, 0.56);
+    }
+
+    .ant-pagination {
+      color: #43436b;
+      margin-top: 20px;
+      margin-bottom: 5px;
+      padding: 0 0 18px;
+    }
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6356ea;
+
+  span {
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  span:hover {
+    opacity: 0.7;
+  }
+}
+
+.noData {
+  :global {
+    .ant-table-tbody > tr > td {
+      border-bottom: none !important;
+    }
+  }
+}
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  row-gap: 12px;
+  column-gap: 16px;
+  color: #686b78;
+
+  strong {
+    color: #2f3345;
+    font-weight: 500;
+    word-break: break-all;
+  }
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2f3345;
+}
+
+.jsonBlock {
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  margin: 0;
+  border-radius: 8px;
+  background: #f7f8fb;
+  color: #43436b;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

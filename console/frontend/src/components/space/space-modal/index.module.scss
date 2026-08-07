@@ -1,0 +1,202 @@
+.spaceModal {
+  :global {
+    .ant-modal-header {
+      margin-bottom: 30px;
+
+      .ant-modal-title {
+        font-family: PingFang SC;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 16px;
+        letter-spacing: normal;
+        color: #3d3d3d;
+      }
+    }
+
+    .ant-modal-close {
+      top: 16px;
+      right: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .ant-modal-close-x {
+        width: 24px;
+        height: 24px;
+        line-height: 24px;
+        font-size: 16px;
+      }
+    }
+  }
+
+  // 信息横幅样式
+  .infoBanner {
+    height: 206px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 24px;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+
+    .bannerIcon {
+      flex-shrink: 0;
+      width: 116px;
+      height: 116px;
+      padding: 22px;
+      padding: 22px 22.5px;
+      gap: 0px 0px;
+      flex-wrap: wrap;
+      align-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .bannerText {
+      width: auto;
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 24px;
+      text-align: center;
+      letter-spacing: normal;
+      color: #1f1f1f;
+    }
+  }
+
+  .form {
+    .buttonGroup {
+      margin-bottom: 0;
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      position: relative;
+      .upgradeButton {
+        position: absolute;
+        z-index: 999;
+        right: 0;
+        top: -15px;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 22px;
+        width: 53px;
+        height: 22px;
+        text-align: center;
+        color: #ffffff;
+        cursor: pointer;
+        border-radius: 12px;
+        background: linear-gradient(
+          235deg,
+          #e77dff 0%,
+          #e77dff 0%,
+          #925eff 54%,
+          #316ef9 101%
+        );
+        box-shadow: 0px 2px 4px 0px rgba(124, 61, 255, 0.37);
+      }
+    }
+
+    :global {
+      .ant-form-item-label {
+        padding-bottom: 8px;
+
+        label {
+          font-size: 14px;
+          font-weight: 500;
+          color: #1a1a1a;
+        }
+
+        .ant-form-item-required {
+          &::before {
+            color: #ff4d4f;
+          }
+        }
+      }
+
+      .ant-input,
+      .ant-input:focus {
+        border-radius: 6px;
+        border-color: #d9d9d9;
+        height: 32px;
+
+        &:hover {
+          border-color: #4a67ff;
+        }
+
+        &:focus {
+          border-color: #4a67ff;
+          box-shadow: 0 0 0 2px rgba(74, 103, 255, 0.1);
+        }
+      }
+
+      .ant-input-affix-wrapper {
+        border-radius: 6px;
+        border-color: #d9d9d9;
+
+        &:hover {
+          border-color: #4a67ff;
+        }
+
+        &.ant-input-affix-wrapper-focused {
+          border-color: #4a67ff;
+          box-shadow: 0 0 0 2px rgba(74, 103, 255, 0.1);
+        }
+      }
+
+      .ant-select {
+        .ant-select-selector {
+          border-radius: 6px;
+          border-color: #d9d9d9;
+          height: 36px;
+
+          &:hover {
+            border-color: #4a67ff;
+          }
+        }
+
+        &.ant-select-focused {
+          .ant-select-selector {
+            border-color: #4a67ff;
+            box-shadow: 0 0 0 2px rgba(74, 103, 255, 0.1);
+          }
+        }
+      }
+
+      .ant-input-data-count {
+        color: #999;
+        font-size: 12px;
+      }
+
+      .ant-form-item-explain-error {
+        font-size: 12px;
+        color: #ff4d4f;
+        margin-top: 4px;
+      }
+
+      textarea.ant-input {
+        height: auto;
+        min-height: 80px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+    }
+
+    .footerItem {
+      margin-bottom: 0;
+
+      .buttonGroup {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+# Deployment for apps
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xingchen-pro-webapp
+  namespace: $NAMESPACE
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: xingchen-pro-webapp
+  template:
+    metadata:
+      labels:
+        name: xingchen-pro-webapp
+    spec:
+      hostNetwork: true
+      containers:
+      - name: xingchen-pro-webapp
+        image: "artifacts.iflytek.com/docker-private/hy-spark-agent-builder/xingchen-pro-webapp:$DRONE_TAG"
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 21515
+        volumeMounts:     # 挂载volumes中定义的磁盘
+        - name: logs
+          mountPath: /opt/research/xingchen-pro-webapp/logs
+        - name: timezone
+          mountPath: /etc/localtime
+      volumes:
+      - name: logs
+        hostPath:
+          # 宿主机上的目录
+          path: /log/aiaas/xingchen-pro-webapp
+          # this field is optional
+          type: Directory
+      - name: timezone
+        hostPath:
+          path: /etc/localtime

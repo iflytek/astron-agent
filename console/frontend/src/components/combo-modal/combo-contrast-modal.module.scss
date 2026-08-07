@@ -1,0 +1,181 @@
+.ComboContrastModal {
+  .ModalWrap {
+    width: 80%;
+    text-align: center;
+    font-family: 苹方-简;
+    color: #000000;
+    text-align: center;
+    margin: 67px auto 0;
+
+    .title {
+      font-size: 32px;
+      font-weight: 600;
+      line-height: normal;
+      letter-spacing: normal;
+    }
+
+    .modalDesc {
+      font-size: 16px;
+      color: #7f7f7f;
+      margin: 12px 0 75px;
+    }
+
+    .contrastTabel {
+      width: 100%;
+      border-collapse: collapse;
+      // border: 1px solid #d9d9d9;
+      // background: #fafafa;
+      font-size: 20px;
+      font-weight: 500;
+      line-height: normal;
+      letter-spacing: normal;
+      color: #000000;
+      margin-bottom: 80px;
+
+      thead {
+        border-bottom: 2px solid #f2f4f8;
+
+        tr {
+          th {
+            vertical-align: top;
+            padding-bottom: 24px;
+
+            &:first-child {
+              width: 30%;
+              text-align: left;
+            }
+
+            .priceBox {
+              margin: 16px 0 10px;
+
+              .price {
+                font-family: DIN Alternate;
+                font-weight: 700;
+                font-size: 36px;
+              }
+
+              .priceFree {
+                font-weight: 500;
+                font-size: 18px;
+              }
+
+              .priceLongth {
+                font-weight: 500;
+                font-size: 16px;
+                color: #6c6c6c;
+              }
+            }
+
+            .priceBtn {
+              width: fit-content;
+              border-radius: 8px;
+              background: linear-gradient(0deg, #6356EA, #6356EA), #f2f3f8;
+              font-size: 16px;
+              font-weight: 500;
+              letter-spacing: 1.1px;
+              color: #ffffff;
+              margin: 0 auto;
+              padding: 9px 20px;
+              cursor: pointer;
+            }
+
+            .useType {
+              background: #f2f3f8;
+              color: #4e5261;
+            }
+          }
+        }
+      }
+
+      tbody {
+        tr {
+          td {
+            // vertical-align: middle;
+            // text-align: left;
+
+            &:first-child {
+              width: 30%;
+              text-align: left;
+            }
+          }
+
+          .sourceTitle {
+            padding: 30px 0 28px;
+          }
+        }
+
+        .sourceItemTr {
+          font-size: 16px;
+          font-weight: 500;
+          color: #7f7f7f;
+
+          .sourceItemTd {
+            // padding-bottom: 30px;
+            padding: 15px 0;
+          }
+
+          .nameDesc {
+            height: fit-content;
+            font-size: 14px;
+            color: #b2b2b2;
+            margin-top: 16px;
+            padding-left: 16px;
+            position: relative;
+
+            &::before {
+              content: '';
+              width: 2px;
+              height: 100%;
+              background: #d8d8d8;
+              position: absolute;
+              top: 0;
+              left: 6px;
+            }
+          }
+
+          .sourceItemWrap {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
+            text-align: start;
+          }
+        }
+      }
+    }
+  }
+
+  :global {
+    .ant-modal-content {
+      padding: 0;
+      border-radius: 20px;
+
+      .ant-modal-header {
+        // background: transparent;
+        // border-bottom: none;
+      }
+
+      .ant-modal-body {
+        // width: 100vw;
+        // height: calc(100vh - 32px) !important;  // 减去标题栏高度（如果有）
+        // height: 100vh !important;
+      }
+    }
+  }
+}
+
+:global(.lang-en) {
+  .contrastTabel {
+    thead {
+      th {
+        :nth-child(1) {
+          font-size: 16px;
+          height: 52px !important;
+        }
+
+        &:nth-child(2) {
+          min-width: 128px !important;
+        }
+      }
+    }
+  }
+}

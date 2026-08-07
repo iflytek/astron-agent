@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="203px" height="203px" viewBox="0 0 203 203" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>编组 12</title>
+    <defs>
+        <filter x="-11.7%" y="-7.0%" width="123.4%" height="123.4%" filterUnits="objectBoundingBox" id="filter-1">
+            <feOffset dx="0" dy="6" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="4" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0.110365854   0 0 0 0 0.713921569   0 0 0 0 1  0 0 0 1 0" type="matrix" in="shadowBlurOuter1" result="shadowMatrixOuter1"></feColorMatrix>
+            <feMerge>
+                <feMergeNode in="shadowMatrixOuter1"></feMergeNode>
+                <feMergeNode in="SourceGraphic"></feMergeNode>
+            </feMerge>
+        </filter>
+        <path d="M80.6,0 L12.4,0 C5.5516691,0 0,5.5516691 0,12.4 L0,80.6 C0,83.8886845 1.30642482,87.042673 3.63187591,89.3681241 C5.95732701,91.6935752 9.11131553,93 12.4,93 L80.6,93 C87.4483309,93 93,87.4483309 93,80.6 L93,12.4 C93,5.5516691 87.4483309,0 80.6,0 Z" id="path-2"></path>
+        <filter x="-7.0%" y="-7.0%" width="114.0%" height="114.0%" filterUnits="objectBoundingBox" id="filter-3">
+            <feGaussianBlur stdDeviation="6.5" in="SourceAlpha" result="shadowBlurInner1"></feGaussianBlur>
+            <feOffset dx="0" dy="0" in="shadowBlurInner1" result="shadowOffsetInner1"></feOffset>
+            <feComposite in="shadowOffsetInner1" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner1"></feComposite>
+            <feColorMatrix values="0 0 0 0 1   0 0 0 0 1   0 0 0 0 1  0 0 0 0.5 0" type="matrix" in="shadowInnerInner1"></feColorMatrix>
+        </filter>
+        <path d="M113.333333,18 L32.6666667,18 C24.5664903,18 18,24.5664903 18,32.6666667 L18,113.333333 C18,121.43351 24.5664903,128 32.6666667,128 L113.333333,128 C121.43351,128 128,121.43351 128,113.333333 L128,32.6666667 C128,24.5664903 121.43351,18 113.333333,18 Z" id="path-4"></path>
+        <filter x="-3.2%" y="-3.2%" width="106.4%" height="106.4%" filterUnits="objectBoundingBox" id="filter-5">
+            <feGaussianBlur stdDeviation="3.5" in="SourceAlpha" result="shadowBlurInner1"></feGaussianBlur>
+            <feOffset dx="0" dy="0" in="shadowBlurInner1" result="shadowOffsetInner1"></feOffset>
+            <feComposite in="shadowOffsetInner1" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="shadowInnerInner1"></feComposite>
+            <feColorMatrix values="0 0 0 0 1   0 0 0 0 1   0 0 0 0 1  0 0 0 0.740439248 0" type="matrix" in="shadowInnerInner1"></feColorMatrix>
+        </filter>
+    </defs>
+    <g id="有挑战杯" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="星火杯报名页" transform="translate(-2359, -4598)">
+            <g id="编组-12" transform="translate(2359, 4598)">
+                <rect id="矩形" fill="#4CC3FB" x="0" y="0" width="203" height="203" rx="26"></rect>
+                <g id="编组-8" filter="url(#filter-1)" transform="translate(37, 37)" fill-rule="nonzero">
+                    <g id="路径">
+                        <use fill-opacity="0.559112762" fill="#FFFFFF" xlink:href="#path-2"></use>
+                        <use fill="black" fill-opacity="1" filter="url(#filter-3)" xlink:href="#path-2"></use>
+                    </g>
+                    <g id="路径">
+                        <use fill-opacity="0.616887019" fill="#AAEFFF" xlink:href="#path-4"></use>
+                        <use fill="black" fill-opacity="1" filter="url(#filter-5)" xlink:href="#path-4"></use>
+                    </g>
+                    <path d="M73,39 L75,39 L73,39 Z M75,39 L77,39 L75,39 Z M75,109 L73,109 L75,109 Z M74.28125,39 L74.703125,39 C79.140625,39.40068 85.53125,52.3666828 86,72 L63,72 C63.4687501,52.3666828 69.8125,39.40068 74.28125,39 Z M110,72 C108.994503,56.624581 98.0661691,43.6724814 83,40 C87.5727109,46.5797392 90.7235188,58.3751254 91.0789947,72 L110,72 Z M63,76 C63.46875,95.6333171 69.8125,108.59932 74.296875,109 L74.703125,109 C79.140625,108.59932 85.53125,95.6333172 86,76 L63,76 Z M40,76 C41.0054969,91.375419 51.9338309,104.327519 67,108 C62.508079,101.420261 59.2764812,89.6248746 58.9533214,76 L40,76 Z M83,108 C98.0661691,104.327519 108.994503,91.375419 110,76 L91.0466786,76 C90.7235189,89.6248746 87.5727109,101.420261 83,108 Z M67,40 C51.9338309,43.6724814 41.0054969,56.624581 40,72 L58.9533214,72 C59.2764811,58.3751254 62.508079,46.5797392 67,40 Z" id="形状" fill="#FFFFFF" opacity="0.894601004"></path>
+                </g>
+            </g>
+        </g>
+    </g>
+</svg>

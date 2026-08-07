@@ -1,0 +1,47 @@
+user nginx;
+worker_processes 8;
+error_log /var/log/nginx/error.log error;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 65535;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
+    gzip on;
+    gzip_http_version 1.0;
+    gzip_disable "MSIE [1-6].";
+    gzip_types text/plain application/x-javascript text/css application/javascript text/javascript;
+
+    server {
+        listen ${PORT};
+        index index.html;
+        root /var/www;
+        access_log off;
+
+        location = /runtime-config.js {
+            expires -1;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+            add_header Pragma "no-cache";
+        }
+
+        location / {
+            try_files $uri $uri/ /index.html;
+            expires -1;
+        }
+
+        location ~ .*\.(gif|jpg|jpeg|png|PNG|bmp|swf|asp|cfm|xml|py|pl|lasso|cfc|afp|txt|zip|log|ico|csv|json|xls|pdf|mp3|mp4|apk)$ {
+            expires 1y;
+            access_log off;
+        }
+
+        location ~ .*\.(js|css)$ {
+            expires 1y;
+            access_log off;
+        }
+    }
+}

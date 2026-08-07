@@ -1,0 +1,94 @@
+:root {
+  --primary-color: #6356EA;
+}
+
+.enterpriseManage {
+  margin: 30px 6%;
+  height: calc(100% - 60px);
+  display: flex;
+  flex-direction: column;
+
+  .header {
+    margin-bottom: 4px;
+    flex-shrink: 0;
+
+    .title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+  }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; // 重要：允许flex子项收缩
+    padding-top: 24px;
+    border-radius: 8px;
+
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+      flex-shrink: 0;
+      padding-right: 24px;
+
+      .tabs {
+        flex: 1;
+
+        .customTabs {
+          :global {
+            .ant-tabs-tab {
+              font-size: 16px;
+              font-weight: 500;
+              color: #666;
+              padding: 12px 0;
+              margin-right: 32px;
+
+              &.ant-tabs-tab-active {
+                color: #4A67FF;
+                
+                .ant-tabs-tab-btn {
+                  color: #4A67FF;
+                }
+              }
+            }
+
+            .ant-tabs-ink-bar {
+              background: #4A67FF;
+              height: 2px;
+            }
+
+            .ant-tabs-content-holder {
+              display: none;
+            }
+          }
+        }
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+
+        .createBtn {
+          border-radius: 8px;
+          height: 32px;
+          padding: 0 16px;
+          font-weight: 500;
+        }
+      }
+    }
+
+    // 列表容器样式
+    .listContainer {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0; // 重要：允许flex子项收缩
+    }
+  }
+}

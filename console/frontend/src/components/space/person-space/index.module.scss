@@ -1,0 +1,283 @@
+.person_space {
+  width: 188px;
+  max-height: inherit;
+  display: flex;
+  flex-direction: column;
+
+  .person_space_header {
+    border-bottom: 1px solid #f0f0f0;
+    height: 32px;
+    flex-shrink: 0;
+
+    :global {
+      .ant-input-outlined {
+        padding: 4px 7px !important;
+      }
+
+      .ant-input {
+        &::placeholder {
+          color: #b2b2b2;
+          font-family: PingFang SC;
+          font-size: 14px;
+          font-weight: normal;
+          height: 24px;
+          line-height: 24px;
+        }
+      }
+    }
+  }
+
+  .recent_list {
+    margin-top: 4px;
+    margin-bottom: 4px;
+    // border-bottom: 1px solid #f0f0f0;
+    flex-shrink: 0;
+
+    .recent_list_title {
+      width: 156px;
+      height: 32px;
+      font-family: PingFang SC;
+      font-size: 12px;
+      font-weight: normal;
+      line-height: 24px;
+      letter-spacing: normal;
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    .recent_list_item {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      border-radius: 8px;
+      margin-bottom: 4px;
+      height: 32px;
+      padding: 2px 0;
+      color: #1f1f1f;
+
+      &:hover {
+        // color: #6356EA;
+        background-color: #f5f8ff;
+      }
+
+      .icon_placeholder {
+        width: 16px; // 为选中图标预留固定宽度
+        height: 16px;
+        margin-left: 3px;
+        margin-right: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .item_icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        border-radius: 50%;
+      }
+
+      .item_name {
+        width: 130px;
+        font-family: PingFang SC;
+        font-size: 14px;
+        font-weight: normal;
+        line-height: 24px;
+        letter-spacing: normal;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-left: 6px;
+      }
+    }
+  }
+
+  .all_list_title {
+    height: 32px;
+    font-family: PingFang SC;
+    font-size: 12px;
+    font-weight: normal;
+    line-height: 32px;
+    letter-spacing: normal;
+    color: rgba(0, 0, 0, 0.5);
+  }
+
+  .all_list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    // padding-bottom: 5px;
+    padding-right: 11px;
+    margin-right: -11px;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #d7dfe9;
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-track {
+      border-radius: 3px;
+    }
+
+    .all_list_item {
+      width: 188px;
+      border-radius: 8px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      white-space: nowrap;
+      margin-bottom: 4px;
+      padding: 0px;
+      cursor: pointer;
+      color: #1f1f1f;
+
+      &:hover {
+        // color: #6356EA;
+        background-color: #f5f8ff;
+      }
+
+      .icon_placeholder {
+        width: 16px; // 为选中图标预留固定宽度
+        height: 16px;
+        margin-left: 3px;
+        margin-right: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0; // 防止压缩
+      }
+
+      .item_icon {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0; // 防止压缩
+        border-radius: 50%;
+      }
+
+      img {
+        flex-shrink: 0; // 防止所有图片被压缩
+      }
+
+      .item_name {
+        flex: 1; // 使用flex: 1代替固定宽度
+        height: 24px;
+        font-family: PingFang SC;
+        font-size: 14px;
+        font-weight: normal;
+        line-height: 24px;
+        letter-spacing: normal;
+
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-left: 4px; // 与前面图标的间距
+        margin-right: 4px; // 与后面元素的间距
+      }
+
+      .item_owner {
+        font-family: PingFang SC;
+        font-size: 12px;
+        font-weight: normal;
+        line-height: 24px;
+        letter-spacing: normal;
+        color: #9e9e9e;
+        padding-right: 10px;
+        flex-shrink: 0; // 防止压缩
+      }
+    }
+  }
+
+  .no_data {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    height: 50px;
+
+    img {
+      margin-top: 5px;
+      width: 50px;
+    }
+  }
+
+  .person_space_footer {
+    flex-shrink: 0;
+
+    // border-top: 1px solid #f0f0f0;
+    .add_space {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: 24px;
+      letter-spacing: normal;
+      color: #7f7f7f;
+      padding-left: 16px;
+      padding-right: 8px;
+      border-radius: 8px;
+      height: 32px;
+      position: relative;
+
+      &:hover {
+        background-color: #f5f8ff;
+      }
+
+      // 新增空间内容区域
+      .add_space_content {
+        display: flex;
+        align-items: center;
+        flex: 1;
+
+        img {
+          width: 14px;
+          height: 14px;
+          margin-right: 4px;
+        }
+      }
+
+      // 升级图标样式
+      .upgrade_icon {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: opacity 0.2s ease;
+
+        &:hover {
+          opacity: 0.8;
+        }
+      }
+    }
+
+    .space_manage {
+      cursor: pointer;
+      width: 188px;
+      height: 36px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-radius: 10px;
+      background: #ffffff;
+      border: 1px solid #d3dbf8;
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: 24px;
+      letter-spacing: normal;
+      color: #1f1f1f;
+      margin-top: 12px;
+
+      &:hover {
+        background: #f5f8ff;
+      }
+    }
+  }
+}

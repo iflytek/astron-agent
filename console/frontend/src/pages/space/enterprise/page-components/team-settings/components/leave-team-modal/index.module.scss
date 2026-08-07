@@ -1,0 +1,39 @@
+.leaveModal {
+  .modalContent {
+    padding: 12px 0;
+  }
+
+  .warningSection {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 21px;
+
+    .warningIcon {
+      color: #ff4d4f;
+      font-size: 16px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .warningText {
+      color: #ff4d4f;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+  }
+
+  .modalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 24px;
+
+    .cancelBtn,
+    .confirmBtn {
+      border-radius: 6px;
+      height: 40px;
+      padding: 0 38px;
+    }
+  }
+} 

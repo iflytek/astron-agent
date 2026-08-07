@@ -1,0 +1,207 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  config:
+    import: optional:classpath:application-toolkit.yml
+  profiles:
+    active: dev
+  application:
+    name: astron-console-hub
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://db:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:astron}
+    password: ${MYSQL_PASSWORD:astron-dev-env-db}
+    # HikariCP connection pool configuration
+    hikari:
+      # Maximum pool size
+      maximum-pool-size: 10
+      # Minimum idle connections
+      minimum-idle: 2
+      # Connection timeout (ms)
+      connection-timeout: 30000
+      # Idle timeout (ms)
+      idle-timeout: 600000
+      # Max connection lifetime (ms)
+      max-lifetime: 1800000
+      # Validation timeout (ms)
+      validation-timeout: 5000
+      # Connection test query
+      connection-test-query: SELECT 1
+      # Pool name
+      pool-name: AstronHikariCP
+      # Auto commit
+      auto-commit: true
+      # Leak detection threshold (ms)
+      leak-detection-threshold: 60000
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE_CONSOLE:0}
+      # Lettuce connection pool configuration for reduced memory usage
+      lettuce:
+        pool:
+          max-active: 8      # Maximum number of active connections
+          max-idle: 4        # Maximum number of idle connections
+          min-idle: 1        # Minimum number of idle connections
+          max-wait: 3000ms   # Maximum wait time when pool is exhausted
+      password: ${REDIS_PASSWORD:}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OAUTH2_ISSUER_URI:http://auth-server:8000}
+          jwk-set-uri: ${OAUTH2_JWK_SET_URI:http://auth-server:8000/.well-known/jwks}
+          audiences:
+            - ${OAUTH2_AUDIENCE:your-oauth2-client-id}
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  # Flyway database migration configuration
+  flyway:
+    enabled: ${FLYWAY_ENABLED:true}
+    # Migration scripts location
+    locations: classpath:db/migration
+    # Baseline on migrate (for existing databases)
+    baseline-on-migrate: true
+    # Baseline version
+    baseline-version: 1.0
+    # Encoding of SQL migration files
+    encoding: UTF-8
+    # Validate migrations on startup
+    validate-on-migrate: ${FLYWAY_VALIDATE_ON_MIGRATE:false}
+    # Table name for tracking migrations
+    table: flyway_schema_history
+    # Allow out of order migrations
+    out-of-order: false
+
+  # Disable static resource mapping
+  web:
+    resources:
+      add-mappings: false
+
+  # MVC configuration, including async request timeout settings
+  mvc:
+    async:
+      request-timeout: 300000  # 5-minute async request timeout
+
+  # i18n language config
+  messages:
+    basename: classpath:messages
+    encoding: UTF-8
+    use-code-as-default-message: true
+
+mybatis-plus:
+  mapper-locations:
+    - classpath*:/mapper/*.xml
+    - classpath*:/mapper/**/*.xml
+    - classpath*:/mybatis/mapper/**/*.xml
+  type-aliases-package:
+    com.iflytek.astron.console.hub.entity,
+    com.iflytek.astron.console.commons.entity,
+    com.iflytek.astron.console.toolkit.entity.table
+  type-enums-package:
+    com.iflytek.astron.console.commons.enums,
+    com.iflytek.astron.console.hub.enums,
+    com.iflytek.astron.console.toolkit.enums
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumTypeHandler
+
+# S3(MinIO) basic configuration
+s3:
+  endpoint: ${OSS_ENDPOINT:http://minio:9000}
+  remoteEndpoint: ${OSS_REMOTE_ENDPOINT:http://your-host-domain:9000}
+  accessKey: ${OSS_ACCESS_KEY_ID:astron-uploader}
+  secretKey: ${OSS_ACCESS_KEY_SECRET:astron-uploader-secret}
+  bucket: ${OSS_BUCKET_CONSOLE:astron-agent}
+  presignExpirySeconds: ${OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE:600}
+  enablePublicRead: true
+
+# Workflow configuration
+workflow:
+  chatUrl: ${WORKFLOW_CHAT_URL:http://}
+  debugUrl: ${WORKFLOW_DEBUG_URL:http://}
+  resumeUrl: ${WORKFLOW_RESUME_URL:http://}
+  # Whether to enable workflow functionality
+  enabled: ${WORKFLOW_ENABLED:true}
+  # Workflow timeout (milliseconds)
+  timeout-ms: ${WORKFLOW_TIMEOUT_MS:300000}
+  # Maximum concurrent workflow count
+  max-concurrent-workflows: ${WORKFLOW_MAX_CONCURRENT:100}
+  # Workflow event cache expiration time (seconds)
+  event-cache-expire-seconds: ${WORKFLOW_EVENT_CACHE_EXPIRE:1800}
+  # Whether to enable workflow debug logging
+  debug-enabled: ${WORKFLOW_DEBUG_ENABLED:false}
+  # File upload configuration
+  file-upload:
+    enabled: ${WORKFLOW_FILE_UPLOAD_ENABLED:true}
+    max-file-size: ${WORKFLOW_MAX_FILE_SIZE:10485760}  # 10MB
+    allowed-types: ${WORKFLOW_ALLOWED_FILE_TYPES:txt,pdf,doc,docx,xls,xlsx,ppt,pptx,jpg,jpeg,png,gif}
+    storage-path: ${WORKFLOW_STORAGE_PATH:/tmp/workflow/uploads}
+
+
+
+maas:
+  appId: ${MAAS_APP_ID:your-maas-app-id}
+  apiKey: ${MAAS_API_KEY:your-maas-api-key}
+  apiSecret: ${MAAS_API_SECRET:your-maas-api-secret}
+  workflowVersion: ${MAAS_WORKFLOW_VERSION:http://127.0.0.1:8080/workflow/version}
+  synchronizeWorkFlow: ${MAAS_SYNCHRONIZE_WORK_FLOW:http://127.0.0.1:8080/workflow}
+  publish: ${MAAS_PUBLISH:http://127.0.0.1:8080/workflow/publish}
+  cloneWorkFlow: ${MAAS_CLONE_WORK_FLOW:http://127.0.0.1:8080/workflow/internal-clone}
+  getInputs: ${MAAS_GET_INPUTS:http://127.0.0.1:8080/workflow/get-inputs-info}
+  canPublishUrl: ${MAAS_CAN_PUBLISH_URL:http://127.0.0.1:8080/workflow/can-publish}
+  consumerId: ${MAAS_CONSUMER_ID:your-maas-consumer-id}
+  consumerSecret: ${MAAS_CONSUMER_SECRET:your-maas-consumer-secret}
+  consumerKey: ${MAAS_CONSUMER_KEY:your-maas-consumer-key}
+  publishApi: ${MAAS_PUBLISH_API:http://localhost:7880/workflow/v1/publish}
+  authApi: ${MAAS_AUTH_API:http://localhost:7880/workflow/v1/auth}
+  mcpHost: ${MAAS_MCP_HOST:https://xingchen-api.xf-yun.com/mcp/xingchen/flow/%s/sse}
+  mcpRegister: ${MAAS_MCP_REGISTER:http://127.0.0.1:8080/workflow/release}
+  workflowConfig: ${MAAS_WORKFLOW_CONFIG:http://127.0.0.1:8080/workflow/get-flow-advanced-config}
+  botApiCbmBaseUrl: ${BOT_API_CBM_BASE_URL:ws(s)://spark-openapi.cn-huabei-1.xf-yun.com}
+  botApiMaasBaseUrl: ${BOT_API_MAAS_BASE_URL:http(s)://xingchen-api.xf-yun.com}
+
+bot:
+  default:
+    avatar: ${BOT_DEFAULT_AVATAR:null}
+
+space:
+  limit:
+    free:
+      space-count: 1
+      user-count: 50
+    pro:
+      space-count: 10
+      user-count: 100
+    team:
+      space-count: 10000
+      user-count: 100
+    enterprise:
+      space-count: 10000
+      user-count: 500
+  invite-message-template:
+    url: ${CONSOLE_DOMAIN:localhost:3000}/sharepage?param=
+
+# WeChat third-party platform configuration
+wechat:
+  thirdparty:
+    # Third-party platform AppID
+    component-appid: ${WECHAT_COMPONENT_APPID:your_component_appid}
+    # Third-party platform AppSecret
+    component-secret: ${WECHAT_COMPONENT_SECRET:your_component_secret}
+    # Message verification token
+    token: ${WECHAT_TOKEN:your_token}
+    # Message encryption/decryption key
+    encoding-aes-key: ${WECHAT_ENCODING_AES_KEY:your_encoding_aes_key}
+
+tenant:
+  create-app: ${TENANT_CREATE_APP:http://localhost:5052/v2/app}
+  get-app-detail: ${TENANT_GET_APP_DETAIL:http://localhost:5052/v2/app/details}
+  verify-app-auth: ${TENANT_VERIFY_APP_AUTH:http://localhost:5052/v2/app/key/verify}

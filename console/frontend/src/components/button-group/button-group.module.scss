@@ -1,0 +1,103 @@
+.spaceButtonGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  // 按钮样式
+  .button {
+    font-weight: 500;
+
+    &:disabled {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+  // 垂直排列样式
+  &.vertical {
+    flex-direction: column;
+
+    .button {
+      width: 100%;
+    }
+  }
+
+  // 无分割线样式
+  &.noSplit {
+    .button {
+      border-radius: 6px !important;
+    }
+  }
+
+  // 主题颜色变量
+  --primary-color: #6356EA;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --error-color: #ff4d4f;
+  --disabled-color: #d9d9d9;
+
+  // 大小变体
+  &.size-large {
+    gap: 16px;
+
+    .button {
+      height: 40px;
+      padding: 6.4px 15px;
+      font-size: 16px;
+    }
+  }
+
+  &.size-middle {
+    gap: 12px;
+
+    .button {
+      height: 36px;
+      padding: 6px 15px;
+      font-size: 14px;
+    }
+  }
+
+  &.size-small {
+    gap: 8px;
+
+    .button {
+      height: 32px;
+      padding: 4px 12px;
+      font-size: 14px;
+    }
+  }
+}
+
+// 特殊状态样式
+.spaceButtonGroup {
+  // 加载状态
+  .button {
+    &.loading {
+      pointer-events: none;
+    }
+  }
+}
+
+// 工具提示样式增强
+:global(.ant-tooltip) {
+  .ant-tooltip-content {
+    .ant-tooltip-inner {
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 6px;
+      font-size: 12px;
+      padding: 6px 8px;
+    }
+  }
+}
+
+// 无障碍支持
+.spaceButtonGroup {
+  .button {
+    &:focus-visible {
+      outline: 2px solid var(--primary-color);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+  }
+}

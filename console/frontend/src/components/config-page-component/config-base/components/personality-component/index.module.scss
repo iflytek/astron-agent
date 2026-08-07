@@ -1,0 +1,433 @@
+.personality {
+  border-bottom: 1px solid #e9eff6;
+  padding: 8px 20px 12px 20px;
+
+  .personalityHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+
+    .personalityTitle {
+      .titleText {
+        font-size: 14px;
+        font-weight: 500;
+        color: #333;
+      }
+    }
+  }
+
+  .personalityContent {
+    margin-top: 16px;
+
+    .personalityInfo {
+      margin-bottom: 24px;
+
+      .personalityInfoHeader {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+
+        .sectionTitle {
+          font-size: 14px;
+          font-weight: 500;
+          color: #333;
+        }
+
+        .libraryLink {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 14px;
+          color: #6356ea;
+          cursor: pointer;
+
+          > img {
+            width: 19px;
+            height: 19px;
+          }
+
+          &:hover {
+            opacity: 0.8;
+          }
+        }
+      }
+
+      .personalityInputWrapper {
+        position: relative;
+
+        .personalityTextArea {
+          width: 100%;
+          min-height: 96px;
+          padding-bottom: 45px;
+
+          :global {
+            .ant-input {
+              resize: none !important;
+              scrollbar-width: none !important;
+              -ms-overflow-style: none !important;
+              &::-webkit-scrollbar {
+                display: none !important;
+              }
+            }
+          }
+        }
+
+        .aiButton {
+          position: absolute;
+          bottom: 8px;
+          left: 8px;
+          padding: 6px 11px;
+          // height: auto;
+          font-size: 14px;
+          font-weight: 500;
+          color: #676773;
+          z-index: 10;
+          border-radius: 10px;
+          background: #ffffff;
+          box-sizing: border-box;
+          border: 1px solid #e7e7f0;
+
+          &:hover {
+            opacity: 0.8;
+          }
+
+          > img {
+            margin-right: -2px;
+          }
+
+          :global(span) {
+            width: fit-content !important;
+            height: fit-content !important;
+          }
+        }
+      }
+    }
+
+    .scenarioInfo {
+      .scenarioInfoHeader {
+        margin-bottom: 12px;
+
+        .sectionTitle {
+          font-size: 14px;
+          font-weight: 500;
+          color: #333;
+        }
+      }
+
+      .scenarioOptions {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 16px;
+
+        .scenarioOption {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          padding: 16px 13px;
+          border: 1px solid #e2e8ff;
+          border-radius: 8px;
+          background-color: #f5f5fb;
+          cursor: pointer;
+          transition: all 0.3s;
+
+          &:hover {
+            border-color: #275eff;
+          }
+
+          &.selected {
+            border-color: #275eff;
+            background: url(/src/assets/svgs/choose-voice-bg.svg)
+              no-repeat !important;
+            background-size: cover !important;
+            background-origin: padding-box !important;
+          }
+
+          .scenarioIcon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+
+            .iconPlaceholder {
+              font-size: 24px;
+            }
+          }
+
+          .scenarioContent {
+            flex: 1;
+
+            .scenarioTitle {
+              font-size: 14px;
+              font-weight: 500;
+              color: #333;
+              margin-bottom: 4px;
+            }
+
+            .scenarioDesc {
+              font-size: 12px;
+              color: #666;
+            }
+          }
+
+          .scenarioCheckbox {
+            width: 18px;
+            height: 18px;
+            // border: 1px solid #8a82a6;
+            border: 1px solid #275eff;
+            border-radius: 50%;
+            // display: flex;
+            // align-items: center;
+            // justify-content: center;
+
+            > img {
+              width: 22px;
+              margin-left: 2px;
+              margin-top: -2px;
+            }
+          }
+
+          .scenarioChecked {
+            width: 22px;
+            border: none;
+          }
+        }
+      }
+
+      .scenarioDescription {
+        position: relative;
+
+        .scenarioTextArea {
+          width: 100%;
+          min-height: 96px;
+          resize: none;
+        }
+      }
+    }
+  }
+}
+
+// 人设库弹窗样式
+.personalityLibraryModal {
+  height: 500px;
+
+  .personalityLibraryContent {
+    .personalityTabs {
+      margin-bottom: 20px;
+
+      :global {
+        .ant-tabs-tab {
+          font-size: 14px;
+          color: #757575;
+        }
+
+        .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+          color: #6356ea !important;
+        }
+
+        .ant-tabs-nav {
+          margin-bottom: 0 !important;
+
+          &::before {
+            display: none;
+          }
+        }
+
+        .ant-tabs-ink-bar {
+          background-color: #6356ea;
+          border-radius: 6px;
+          height: 3px;
+          top: 40px;
+        }
+      }
+    }
+
+    .personalityGrid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+
+      .personalityCard {
+        display: flex;
+
+        padding: 10px;
+        border: 1px solid #e2e8ff;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s;
+
+        &:hover {
+          border-color: #6356ea;
+        }
+
+        .personalityImage {
+          width: 60px;
+          height: 60px;
+          border-radius: 50%;
+          overflow: hidden;
+          margin-right: 12px;
+          margin-bottom: 8px;
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+        }
+
+        .personalityInfo {
+          flex: 1;
+
+          .personalityName {
+            font-size: 14px;
+            font-weight: 500;
+            color: #222529;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            .detailButton {
+              font-size: 12px;
+              color: #6356ea;
+              cursor: pointer;
+            }
+          }
+
+          .personalityDesc {
+            font-size: 12px;
+            color: #676773;
+            line-height: 1.4;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            word-break: break-all;
+          }
+        }
+      }
+    }
+  }
+}
+
+// 人设详情弹窗样式
+.personalityDetailModal {
+  .personalityDetailContent {
+    display: flex;
+    // gap: 24px;
+    height: 500px;
+
+    .personalityDetailImage {
+      width: 200px;
+      height: 100%;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+
+      .personalityPerson {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .personalityVip {
+        width: 50px;
+        position: absolute;
+        top: 2px;
+        left: 2px;
+      }
+    }
+
+    .personalityDetailInfo {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border-radius: 0px 10px 10px 0px;
+      background: #f6f8ff;
+      padding: 24px;
+      min-height: 0; // 防止flex子元素溢出
+
+      .personalityDetailName {
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 24px;
+        color: #222529;
+        flex-shrink: 0;
+      }
+
+      .personalityDetailDesc {
+        // width: 431px;
+        height: 150px;
+        background: url('@/assets/imgs/agent-create-personality/detail-desc-bg.png')
+          no-repeat;
+        background-size: 100% 100%;
+        background-origin: border-box;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 22px;
+        letter-spacing: -0.17px;
+        color: #676773;
+        margin-top: -10px;
+        margin-left: -14px;
+        padding: 30px 118px 7px 27px;
+        position: relative;
+
+        > div {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          display: -webkit-box;
+          -webkit-line-clamp: 4;
+          -webkit-box-orient: vertical;
+          word-break: break-all;
+        }
+      }
+
+      .personalityDetailPrompt {
+        flex: 1;
+        font-size: 14px;
+        color: #666;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        margin-bottom: 24px;
+        overflow-y: auto;
+        min-height: 0;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        &::-webkit-scrollbar {
+          display: none;
+        }
+      }
+
+      .personalityDetailActions {
+        display: flex;
+        gap: 12px;
+        justify-content: flex-end;
+        flex-shrink: 0;
+
+        :global {
+          .ant-btn {
+            width: 80px;
+            height: 36px;
+
+            // primary类型的背景色改为紫色
+            &.ant-btn-primary {
+              background: #6356ea !important;
+            }
+          }
+        }
+      }
+    }
+  }
+}

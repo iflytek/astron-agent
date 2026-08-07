@@ -1,0 +1,11 @@
+venv
+.venv
+.idea
+__pycache__
+logs
+.env
+dialtest.env
+temp
+CLAUDE.md
+.script
+tests/example/

@@ -1,0 +1,83 @@
+.modelTitle {
+  width: fit-content;
+  // height: 32px;
+  white-space: nowrap;
+  font-size: 20px;
+  font-weight: 500;
+  // line-height: 32px;
+  color: #222529;
+  font-family: PingFang-Sim;
+}
+
+.angentItemBox {
+  padding-bottom: 16px;
+  border: 1px solid #e7e7f0;
+  box-shadow: 0px 1px 10px 0px rgba(122, 120, 150, 0.1);
+  transition: all ease 0.3s;
+  // box-sizing: border-box;
+
+  &:hover {
+    /* 主题一级填充色 */
+    border-color: #6356ea;
+    /* 阴影/二级阴影 */
+    box-shadow: 0px 4px 16px 0px rgba(134, 130, 191, 0.3);
+  }
+}
+.angentType {
+  box-sizing: border-box;
+  width: fit-content;
+  // width: 48px;
+  height: 22px;
+  border-radius: 16px;
+  /* 标签底色 */
+  background: rgba(99, 86, 234, 0.1);
+  font-family: 苹方;
+  font-size: 12px;
+  line-height: 22px;
+  letter-spacing: normal;
+  color: #8475af;
+  padding: 0px 8px;
+}
+.only_css {
+  width: 14px !important;
+  height: 14px !important;
+  background-size: 100% 100% !important;
+}
+
+.addBot {
+  width: 124px;
+  height: 32px;
+  border-radius: 10px;
+  /* 主色 */
+  background: #6356ea;
+  font-size: 14px;
+  color: #ffffff;
+  text-align: center;
+  line-height: 32px;
+  .addText {
+    margin-left: 8px;
+  }
+  cursor: pointer;
+  &:hover {
+    opacity: 0.8;
+  }
+}
+.agentAvatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+}
+  .propBox1{
+    width: 155px;
+  }
+  .propBox2{
+    width: 45px;
+  }
+:global(.lang-en) {
+  .propBox1{
+    width: 180px;
+  }
+  .propBox2{
+    width: 55px;
+  }
+}

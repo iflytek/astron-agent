@@ -1,0 +1,39 @@
+  .upCombo {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: fit-content;
+  height: 20px;
+  // border-radius: 308px;
+  // background: linear-gradient(270deg, #408dff 0%, #35cdff 100%);
+  line-height: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #7f7f7f;
+  margin-left: 10px;
+  cursor: pointer;
+
+  > img {
+    width: 14px;
+    margin-right: 4px;
+  }
+}
+
+.upgradeComboModalBox {
+  padding-top: 24px;
+
+  .upgradeComboModalTitle {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 22.4px;
+    color: #000000;
+  }
+
+  .upgradeComboModalFooter {
+    margin-top: 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+}

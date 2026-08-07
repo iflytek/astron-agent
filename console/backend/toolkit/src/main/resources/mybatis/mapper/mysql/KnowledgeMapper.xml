@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.knowledge.KnowledgeMapper">
+    <resultMap id="resultMap" type="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        <result column="content" property="content"
+                typeHandler="com.iflytek.astron.console.toolkit.handler.MySqlJsonHandler"
+        />
+    </resultMap>
+    <!--
+        Query knowledge list by fileId
+        Ordered by seq_id to preserve insertion order
+        @param fileId the ID of the file
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileId" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge
+        WHERE file_id = #{fileId}
+        ORDER BY seq_id ASC
+    </select>
+
+    <!--
+        Query knowledge list by fileId and enabled status
+        Ordered by seq_id to preserve insertion order
+        @param fileId the ID of the file
+        @param enabled the enabled status
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileIdAndEnabled" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge
+        WHERE file_id = #{fileId} AND enabled = #{enabled}
+        ORDER BY seq_id ASC
+    </select>
+
+    <!--
+        Query knowledge list by fileId and source
+        Ordered by seq_id to preserve insertion order
+        @param fileId the ID of the file
+        @param source the source type
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileIdAndSource" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge
+        WHERE file_id = #{fileId} AND source = #{source}
+        ORDER BY seq_id ASC
+    </select>
+
+    <!--
+        Query knowledge list by a list of fileIds
+        Ordered by file_id and seq_id to preserve insertion order
+        @param fileIds list of file IDs
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileIdIn" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+        ORDER BY file_id ASC, seq_id ASC
+    </select>
+
+    <!--
+        Query knowledge list by a list of fileIds and enabled status
+        Ordered by file_id and seq_id to preserve insertion order
+        @param fileIds list of file IDs
+        @param enabled the enabled status
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileIdInAndEnabled" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+        AND enabled = #{enabled}
+        ORDER BY file_id ASC, seq_id ASC
+    </select>
+
+    <!--
+        Count the number of knowledge entries by a list of fileIds
+        @param fileIds list of file IDs
+        @return Long count
+    -->
+    <select id="countByFileIdIn" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+    </select>
+
+    <!--
+        Update enabled status by fileId
+        @param fileId the file ID
+        @param enabled the new enabled status
+        @return int number of rows affected
+    -->
+    <update id="updateEnabledByFileId">
+        UPDATE knowledge SET enabled = #{enabled}, updated_at = NOW() WHERE file_id = #{fileId}
+    </update>
+
+    <!--
+        Update enabled status by fileId and old enabled status
+        @param fileId the file ID
+        @param oldEnabled the old enabled status
+        @param newEnabled the new enabled status
+        @return int number of rows affected
+    -->
+    <update id="updateEnabledByFileIdAndOldEnabled">
+        UPDATE knowledge SET enabled = #{newEnabled}, updated_at = NOW() WHERE file_id = #{fileId} AND enabled = #{oldEnabled}
+    </update>
+
+    <!--
+        Delete knowledge entries by fileId
+        @param fileId the file ID
+        @return int number of rows deleted
+    -->
+    <delete id="deleteByFileId">
+        DELETE FROM knowledge WHERE file_id = #{fileId}
+    </delete>
+
+    <!--
+        Delete knowledge entries by a list of fileIds
+        @param fileIds list of file IDs
+        @return int number of rows deleted
+    -->
+    <delete id="deleteByFileIdIn">
+        DELETE FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+    </delete>
+
+    <!--
+        Fuzzy query knowledge list by fileIds and query content
+        Ordered by file_id and seq_id to preserve insertion order
+        @param fileIds list of file IDs
+        @param query query string for fuzzy matching
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileIdInAndContentLike" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+        AND (JSON_EXTRACT(content, '$.knowledge') LIKE CONCAT('%', #{query}, '%')
+        OR JSON_EXTRACT(content, '$.content') LIKE CONCAT('%', #{query}, '%'))
+        ORDER BY file_id ASC, seq_id ASC
+    </select>
+
+    <!--
+        Query knowledge list by fileIds and audit type (block/review)
+        Ordered by file_id and seq_id to preserve insertion order
+        @param fileIds list of file IDs
+        @return List<MysqlKnowledge>
+    -->
+    <select id="findByFileIdInAndAuditType" resultType="com.iflytek.astron.console.toolkit.entity.table.knowledge.MysqlKnowledge">
+        SELECT * FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+        AND JSON_EXTRACT(content, '$.auditSuggest') IN ('block', 'review')
+        ORDER BY file_id ASC, seq_id ASC
+    </select>
+
+    <!--
+        Count the number of knowledge entries by fileId
+        @param fileId the file ID
+        @return Long count
+    -->
+    <select id="countByFileId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM knowledge WHERE file_id = #{fileId}
+    </select>
+
+    <!--
+        Count the number of knowledge entries by fileId and enabled status
+        @param fileId the file ID
+        @param enabled the enabled status
+        @return Long count
+    -->
+    <select id="countByFileIdAndEnabled" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM knowledge WHERE file_id = #{fileId} AND enabled = #{enabled}
+    </select>
+
+    <!--
+        Count the number of knowledge entries by fileIds and content like (fuzzy query)
+        @param fileIds list of file IDs
+        @param query query string for fuzzy matching
+        @return Long count
+    -->
+    <select id="countByFileIdInAndContentLike" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+        AND (JSON_EXTRACT(content, '$.knowledge') LIKE CONCAT('%', #{query}, '%')
+        OR JSON_EXTRACT(content, '$.content') LIKE CONCAT('%', #{query}, '%'))
+    </select>
+
+    <!--
+        Count the number of knowledge entries by fileIds and audit type (block/review)
+        @param fileIds list of file IDs
+        @param auditType audit type (1 for blocked/review items)
+        @return Long count
+    -->
+    <select id="countByFileIdInAndAuditType" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM knowledge WHERE file_id IN
+        <foreach collection="fileIds" item="fileId" open="(" separator="," close=")">
+            #{fileId}
+        </foreach>
+        AND JSON_EXTRACT(content, '$.auditSuggest') IN ('block', 'review')
+    </select>
+
+</mapper>

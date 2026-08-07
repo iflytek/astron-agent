@@ -1,0 +1,222 @@
+const translation = {
+  addOpenAI: 'Add OpenAI Model',
+  modelName: 'Model Name',
+  hostedModels: 'Hosted Models',
+  interfaceAddress: 'API Endpoint',
+  interfaceAddressPlaceholder: 'Please enter API Endpoint',
+  apiKey: 'API Key',
+  tags: 'Tags',
+  tagCannotBeEmpty: 'Tag cannot be empty',
+  tagNameTooLong: 'Tag name cannot exceed 10 characters',
+  tagAlreadyExists: 'Tag already exists',
+  maxTagsReached: 'Maximum 10 tags allowed',
+  confirmDeleteModel: 'Confirm Delete Model',
+  delete: 'Delete',
+  encryptionFailed: 'Encryption failed',
+  modelDescription: 'Model Description',
+  modelParameters: 'Model Parameters Configuration',
+  add: 'Add',
+  enterModelFieldValue: 'Please enter the model field value in the interface',
+  parameterValidationFailed:
+    'Parameter validation failed, please check and try again',
+  parameterNameCannotBeRepeated: 'Parameter names cannot be repeated',
+  pleaseEnterParameterName: 'Please enter parameter name',
+  pleaseEnterParameterDescription: 'Please enter parameter description',
+  onlyLettersNumbersDashUnderscore:
+    'Only letters, numbers, dashes or underscores are allowed',
+  temperatureDescription:
+    'Controls the diversity and randomness of generated results. Lower values are more rigorous; higher values are more divergent',
+  apiKeyNotChanged: 'Pass identifier when apiKey is not changed',
+  parameterName: 'Parameter Name',
+  parameterDescription: 'Parameter Description',
+  parameterType: 'Parameter Type',
+  decimalPlaces: 'Decimal Places',
+  parameterRange: 'Parameter Range',
+  defaultValue: 'Default Value',
+  operation: 'Operation',
+  pleaseEnter: 'Please enter',
+  // Model management page
+  modelManagement: 'Model Management',
+  createModel: 'Create Model',
+  emptyDescription: 'No models yet, create one now~',
+  searchNoResults: 'No search results',
+  edit: 'Edit',
+  view: 'View',
+  deleteWarning: 'Confirm to delete this model?',
+  publicModel: 'Public Model',
+  personalModel: 'Personal Model',
+  // Model detail page
+  back: 'Back',
+  updatedAt: 'Updated at: ',
+  modelIntroduction: 'Model Introduction',
+  introduction: '1. Introduction',
+  advantage: '2. Advantage',
+  scene: '3. Scene',
+  modelType: 'Model Category',
+  pleaseSelectModelType: 'Please select model category',
+  languageSupport: 'Language Support',
+  contextLength: 'Context Length',
+  modelScene: 'Model Scene',
+  pleaseSelectModelScene: 'Please select model scene',
+  pleaseSelectLanageSupport: 'Please select lanage suppoert',
+  pleaseSelectContextLenght: 'Please select context lenght',
+  modelCallVolume: 'Model Call Volume',
+  // Model management header
+  modelWillStopService:
+    'Some models will stop service soon, please switch models as soon as possible',
+  quickFilter: 'Quick Filter',
+  pleaseSelect: 'Please select',
+  all: 'All',
+  thirdPartyModel: 'Third Party Model',
+  localModel: 'Local Model',
+  // Category aside
+  modelStatus: 'Model Status',
+  offShelf: 'Off Shelf',
+  toBeOffShelf: 'To Be Off Shelf',
+  // Modal
+  pleaseEnterCustomCategory: 'Please enter custom category',
+  pleaseEnterCustomScene: 'Please enter custom scene',
+  // Model card
+  editAction: 'Edit',
+  deleteAction: 'Delete',
+  language: 'Language: ',
+  contextLengthLabel: 'Context Length: ',
+  updated: 'Updated',
+  // Model detail page
+  modelWillStopOn: 'Model will stop on ',
+  stopServicePleaseSwitch: ' service, please switch models as soon as possible',
+  // Number formatting
+  hundredMillion: '00M',
+  tenThousand: '0K',
+  // Other
+  other: 'Other',
+  // Delete confirmation
+  deleteConfirmMessage:
+    'Deletion cannot be undone. Are you sure you want to continue?',
+  addThirdPartyModel: 'Add Third Party Model',
+  selectLocalModel: 'Select Local Model',
+  selectModel: 'Select Model',
+  selectModelTips:
+    'If no models are available, please complete model download first.',
+  referenceDocument: 'Reference Document',
+  selectModelPlaceholder: 'Please select file',
+  performanceConfiguration: 'Performance Configuration',
+  acceleratorNumber: '(Accelerator Number)',
+  acceleratorCount: 'Accelerator Count',
+  localModelPath: 'Local Model Path',
+  noLocalModelsAvailable: 'No local models available',
+  localModelLoadFailed: 'Failed to load local models',
+  pleaseSelectAcceleratorCount: 'Please select accelerator count',
+  // Operation status
+  enable: 'Enable',
+  disable: 'Disable',
+  create: 'Create',
+  update: 'Update',
+  // Success messages
+  modelEnableSuccess: 'Model enabled successfully',
+  modelDisableSuccess: 'Model disabled successfully',
+  modelCreateSuccess: 'Model created successfully',
+  modelUpdateSuccess: 'Model updated successfully',
+  modelDeleteSuccess: 'Model deleted successfully',
+  localModelCreateSuccess: 'Local model created successfully',
+  localModelUpdateSuccess: 'Local model updated successfully',
+  // Error messages
+  modelEnableFailed: 'Failed to enable model',
+  modelDisableFailed: 'Failed to disable model',
+  modelCreateFailed: 'Failed to create model',
+  modelUpdateFailed: 'Failed to update model',
+  modelDeleteFailed: 'Failed to delete model',
+  localModelCreateFailed: 'Failed to create local model',
+  localModelUpdateFailed: 'Failed to update local model',
+  getCategoryTreeFailed: 'Failed to fetch category tree',
+  getModelDetailFailed: 'Failed to fetch model details',
+  getModelInfoFailed: 'Failed to fetch model information',
+  getModelUsageFailed: 'Failed to fetch model usage',
+  // Publish status
+  publishRunning: 'Published',
+  publishPending: 'Publishing',
+  publishFailed: 'Publish Failed',
+  republish: 'Republish',
+  republishSuccess: 'Republish Success',
+  republishFailed: 'Republish Failed',
+  localUploadModel: 'Local Upload Model',
+  noDocument: 'No document, coming soon',
+  providerLabel: 'Provider',
+  providerFilter: 'Provider',
+  allProviders: 'All Providers',
+  providerDeepSeek: 'DeepSeek',
+  providerOpenAI: 'OpenAI',
+  providerAnthropic: 'Anthropic',
+  providerGoogle: 'Google',
+  providerMiniMax: 'MiniMax',
+  providerZhipu: 'Zhipu AI',
+  providerQwen: 'Qwen',
+  providerMoonshot: 'Moonshot',
+  providerChatGPT: 'ChatGPT',
+  providerDoubao: 'Doubao',
+  providerHintOpenAI:
+    'Use an OpenAI-compatible endpoint such as /v1/chat/completions.',
+  providerHintMiniMax:
+    'Use the MiniMax official endpoint and a model such as MiniMax-M3.',
+  providerHintZhipu:
+    'Use the Zhipu AI official endpoint and a model such as glm-4.5 or glm-4-flash.',
+  providerHintQwen:
+    'Use the Qwen official compatible endpoint and a model such as qwen-max or qwen-plus.',
+  providerHintMoonshot:
+    'Use the Moonshot official endpoint and a model such as moonshot-v1-8k.',
+  providerHintChatGPT:
+    'Use the OpenAI official endpoint and a model such as gpt-4o or gpt-4.1-mini.',
+  providerHintDoubao:
+    'Use the Doubao official endpoint and an endpoint model such as doubao-pro-32k.',
+  providerHintDeepSeek:
+    'Use the DeepSeek OpenAI-compatible endpoint and a model such as deepseek-chat or deepseek-reasoner.',
+  providerHintAnthropic:
+    'Use an Anthropic Messages API endpoint and a Claude model such as Sonnet or Opus.',
+  providerHintGoogle:
+    'Use a Gemini API endpoint and a Gemini model such as gemini-2.5-flash.',
+  minimaxModelPlaceholder: 'e.g. MiniMax-M3 or MiniMax-M2.7',
+  minimaxEndpointPlaceholder: 'Please enter the MiniMax API endpoint',
+  zhipuModelPlaceholder: 'e.g. glm-4.5 or glm-4-flash',
+  zhipuEndpointPlaceholder: 'Please enter the Zhipu AI API endpoint',
+  qwenModelPlaceholder: 'e.g. qwen-max or qwen-plus',
+  qwenEndpointPlaceholder: 'Please enter the Qwen API endpoint',
+  moonshotModelPlaceholder: 'e.g. moonshot-v1-8k',
+  moonshotEndpointPlaceholder: 'Please enter the Moonshot API endpoint',
+  chatgptModelPlaceholder: 'e.g. gpt-4o or gpt-4.1-mini',
+  chatgptEndpointPlaceholder: 'Please enter the OpenAI API endpoint',
+  doubaoModelPlaceholder: 'e.g. doubao-pro-32k',
+  doubaoEndpointPlaceholder: 'Please enter the Doubao API endpoint',
+  deepseekModelPlaceholder: 'e.g. deepseek-chat or deepseek-reasoner',
+  deepseekEndpointPlaceholder: 'Please enter the DeepSeek API endpoint',
+  anthropicModelPlaceholder: 'e.g. claude-3-7-sonnet-latest',
+  anthropicEndpointPlaceholder: 'Please enter the Anthropic API endpoint',
+  googleModelPlaceholder: 'e.g. gemini-2.5-flash',
+  googleEndpointPlaceholder: 'Please enter the Gemini API endpoint',
+  addProviderModel: 'Add {{provider}} Model',
+  officialProviderIntro: 'Official Providers',
+  configureProvider: 'Configure',
+  providerCardChatGPTDesc:
+    'Connect GPT-4o, GPT-4.1 and other OpenAI models for general chat, tool use and multimodal scenarios.',
+  providerCardAnthropicDesc:
+    'Connect Claude Sonnet, Opus and other Anthropic models for high-quality chat and long-form generation.',
+  providerCardGoogleDesc:
+    'Connect Gemini models for multimodal understanding, lightweight generation and fast response scenarios.',
+  providerCardMiniMaxDesc:
+    'Connect MiniMax official models for cost-effective conversation, copywriting and assistant workflows.',
+  providerCardZhipuDesc:
+    'Connect GLM series models for Chinese capabilities, agent planning and general generation tasks.',
+  providerCardQwenDesc:
+    'Connect Qwen series models for Chinese and multilingual generation, reasoning and coding tasks.',
+  providerCardMoonshotDesc:
+    'Connect Moonshot official models for long-context conversation, document understanding and knowledge Q&A.',
+  providerCardDoubaoDesc:
+    'Connect Doubao official models for enterprise assistant, conversation and tool orchestration scenarios.',
+  providerCardDeepSeekDesc:
+    'Connect DeepSeek-V3, DeepSeek-R1 and other models for general generation, reasoning and workflow Q&A.',
+  thinkingCapability: 'Thinking Capability',
+  enableThinkingCapability: 'Enable thinking content output',
+  multimodalCapability: 'Multimodal Capability',
+  enableMultimodalCapability: 'Enable multimodal content input',
+};
+
+export default translation;

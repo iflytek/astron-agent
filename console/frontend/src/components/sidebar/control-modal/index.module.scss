@@ -1,0 +1,193 @@
+.control_modal {
+  width: 168px;
+  .title {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    height: 48px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(226, 232, 255, 0.5);
+    .team_icon {
+      width: 32px;
+      height: 32px;
+      margin-left: 8px;
+      border-radius: 50%;
+    }
+    .title_text {
+      width: 92px;
+      margin-left: 8px;
+      font-family: PingFang SC;
+      font-weight: normal;
+      line-height: normal;
+      letter-spacing: normal;
+    }
+    .title_name {
+      font-size: 14px;
+      color: #333333;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .title_sub {
+      font-size: 12px;
+      color: #7f7f7f;
+    }
+    .right_arrow {
+      width: 14px;
+      height: 14px;
+      margin-left: 6px;
+    }
+  }
+  .content {
+    margin-top: 5px;
+    .content_item {
+      width: 168px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      height: 42px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: normal;
+      color: #333333;
+      img {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        margin-left: 16px;
+      }
+      &:hover {
+        background-color: #f5f8ff;
+      }
+    }
+    .logout {
+      color: #f74e43;
+    }
+  }
+}
+.choose_space_popover_content {
+  :global {
+    .ant-popover-content {
+      border-radius: 16px;
+      background: #ffffff;
+      box-sizing: border-box;
+      border: 1px solid #e2e8ff;
+      box-shadow: 0px 4px 10px 0px rgba(0, 18, 70, 0.08);
+      margin-left: 8px;
+      margin-top: -9px;
+    }
+    .ant-popover-inner {
+      border-radius: 15px;
+      padding: 8px;
+    }
+  }
+}
+.choose_content {
+  width: 220px;
+  font-family: PingFang SC;
+  .choose_content_title {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding-bottom: 5px;
+    margin-bottom: 5px;
+    cursor: pointer;
+    &:hover {
+      background-color: #f5f8ff;
+      border-radius: 10px;
+    }
+    .team_icon {
+      width: 32px;
+      height: 32px;
+      margin: 0 8px;
+      border-radius: 50%;
+    }
+    .title_text {
+      font-weight: normal;
+      line-height: normal;
+      margin-top: 5px;
+      .title_name {
+        font-size: 14px;
+        color: #333333;
+      }
+      .title_sub {
+        font-size: 12px;
+        color: #7f7f7f;
+      }
+    }
+  }
+  .choose_content_list {
+    max-height: 168px;
+    overflow-y: auto;
+    padding-right: 6px;
+    margin-right: -6px;
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background: #d7dfe9;
+      border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-track {
+      border-radius: 3px;
+    }
+  }
+  .choose_content_list_personal {
+    max-height: 220px;
+  }
+  .choose_content_item {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    cursor: pointer;
+    .item_icon {
+      width: 32px;
+      height: 32px;
+      margin: 0 8px;
+      border-radius: 50%;
+    }
+    .item_text {
+      width: 143px;
+      .top {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+
+        .text_name {
+          font-size: 14px;
+          color: #333333;
+          margin-right: 5px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .team_permission {
+          width: max-content;
+          padding: 0 6px;
+          height: 16px;
+          border-radius: 10px;
+          background: #dfe5ff;
+          font-size: 10px;
+          color: #333333;
+        }
+      }
+      .text_sub {
+        font-size: 12px;
+        color: #7f7f7f;
+      }
+    }
+    .choose_icon {
+      width: 14px;
+      height: 14px;
+      margin-left: 6px;
+    }
+    &:hover {
+      border-radius: 10px;
+      background-color: #f5f8ff;
+    }
+  }
+}

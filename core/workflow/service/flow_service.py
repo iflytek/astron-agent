@@ -1,0 +1,470 @@
+"""
+Flow service module for managing workflow operations.
+
+This module provides comprehensive functionality for workflow management including
+creation, updates, retrieval, debugging, and execution of workflow instances.
+"""
+
+import json
+import time
+from typing import Any, Optional, cast
+
+from common.utils.snowfake import get_id
+from sqlalchemy.exc import SQLAlchemyError
+from sqlmodel import Session  # type: ignore
+
+from workflow.cache import flow as flow_cache
+from workflow.domain.entities.flow import FlowUpdate
+from workflow.domain.entities.node_debug_vo import NodeDebugRespVo
+from workflow.domain.models.ai_app import App
+from workflow.domain.models.flow import Flow
+from workflow.engine.callbacks.openai_types_sse import GenerateUsage
+from workflow.engine.dsl_engine import WorkflowEngineFactory
+from workflow.engine.entities.node_entities import NodeType
+from workflow.engine.entities.output_mode import EndNodeOutputModeEnum
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
+from workflow.engine.entities.workflow_dsl import WorkflowDSL
+from workflow.engine.nodes.base_node import BaseNode  # type: ignore
+from workflow.engine.nodes.entities.node_run_result import (
+    NodeRunResult,
+    WorkflowNodeExecutionStatus,
+)
+from workflow.engine.nodes.flow.flow_node import FlowNode
+from workflow.exception.e import CustomException
+from workflow.exception.errors.err_code import CodeEnum
+from workflow.extensions.middleware.cache.base import BaseCacheService
+from workflow.extensions.middleware.database.utils import session_getter
+from workflow.extensions.otlp.log_trace.workflow_log import WorkflowLog
+from workflow.extensions.otlp.trace.span import Span
+from workflow.repository import flow_dao, license_dao
+from workflow.service import audit_service, ops_service
+
+
+def save(flow: Flow, app_info: App, session: Session, span: Span) -> Flow:
+    """
+    Save a new workflow to the database.
+
+    :param flow: The flow object containing workflow data and metadata
+    :param app_info: Application information including source details
+    :param session: Database session for transaction management
+    :param span: Tracing span for logging operations
+    :return: The saved flow object with generated ID
+    """
+    # Create new flow instance with generated IDs and app source
+    flow_id = get_id()
+    db_flow = Flow(
+        id=flow_id,
+        group_id=flow_id,
+        name=flow.name,
+        data=flow.data,
+        description=flow.description,
+        app_id=flow.app_id,
+        source=app_info.actual_source,
+        version="-1",  # Initial version for new flows
+    )
+
+    # Persist to database. DatabaseService configures SQLAlchemy to hide bound
+    # parameters so protocol contents cannot leak through the re-raised exception.
+    try:
+        session.add(db_flow)
+        session.commit()
+        session.refresh(db_flow)
+    except SQLAlchemyError:
+        session.rollback()
+        raise
+    return db_flow
+
+
+def update(
+    session: Session,
+    db_flow: Flow,
+    flow: FlowUpdate,
+) -> None:
+    """
+    Update an existing workflow with new data and clear related cache.
+
+    :param session: Database session for transaction management
+    :param db_flow: The existing flow object to be updated
+    :param flow: The flow update object containing new values
+    :raises SQLAlchemyError: If persistence fails, the transaction is rolled back. The
+                             configured engine hides database parameters from logs.
+    """
+    try:
+        # Update flow properties if provided
+        if flow.name:
+            db_flow.name = flow.name
+        if flow.description:
+            db_flow.description = flow.description
+        if flow.app_id:
+            db_flow.app_id = flow.app_id
+        if flow.data:
+            db_flow.data = flow.data
+
+        session.add(db_flow)
+        session.commit()
+
+    except SQLAlchemyError:
+        session.rollback()
+        raise
+
+
+def get(flow_id: str, session: Session, span: Span) -> Flow:
+    """
+    Retrieve a workflow by its ID from the database.
+
+    :param flow_id: The unique identifier of the workflow
+    :param session: Database session for querying
+    :param span: Tracing span for logging operations
+    :return: The flow object if found
+    :raises CustomException: If flow with the given ID is not found
+    """
+    db_flow = flow_cache.get_flow_by_id(flow_id)
+    if db_flow:
+        return db_flow
+    db_flow = session.query(Flow).filter_by(id=int(flow_id)).first()
+    if not db_flow:
+        raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
+    flow_cache.set_flow_by_id(flow_id, db_flow)
+    return db_flow
+
+
+def get_flow_by_version(
+    flow_id: str, session: Session, span: Span, version: str = ""
+) -> Flow:
+    """
+    Retrieve a workflow by its flow ID from the database.
+
+    :param flow_id: The unique identifier of the workflow
+    :param session: Database session for querying
+    :param span: Tracing span for logging operations
+    :param version: Optional version number of the workflow (empty string for latest)
+    :return: The flow object if found
+    :raises CustomException: If flow with the given ID is not found
+    """
+    # Query database if not found in cache
+    db_flow: Optional[Flow] = get(flow_id, session, span)
+    if version and db_flow:
+        db_flow = (
+            session.query(Flow)
+            .filter_by(group_id=db_flow.group_id, version=version)
+            .first()
+        )
+
+    if db_flow:
+        return db_flow
+    raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
+
+
+def get_latest_published(
+    flow_id: str, session: Session, span: Span, version: str = ""
+) -> Flow:
+    """
+    Retrieve the latest published workflow by flow ID.
+
+    This function first checks the cache for the workflow, then falls back to database
+    query if not found.
+
+    :param flow_id: The unique identifier of the workflow
+    :param session: Database session for querying
+    :param span: Tracing span for logging operations
+    :param version: Optional version number of the workflow (empty string for latest)
+    :return: The published flow object
+    :raises CustomException: If flow not found, or not published
+    """
+    # Check cache first for better performance
+    if not version:
+        flow = flow_cache.get_flow_by_flow_id_latest(flow_id)
+    else:
+        flow = flow_cache.get_flow_by_flow_id_version(int(flow_id), version)
+    if flow:
+        return flow
+
+    # Query database if not found in cache
+    db_flow = get(flow_id, session, span)
+
+    # Get the latest published version of the flow
+    published_flow = flow_dao.get_latest_published_flow_by(
+        db_flow.group_id, session, version
+    )
+    if not published_flow:
+        raise CustomException(CodeEnum.FLOW_NOT_PUBLISH_ERROR)
+
+    # Cache the result for future requests
+    if not version:
+        flow_cache.set_flow_by_flow_id_latest(flow_id, published_flow)
+    else:
+        flow_cache.set_flow_by_flow_id_version(flow_id, version, published_flow)
+
+    return published_flow
+
+
+def get_latest_published_flow_and_check_auth(
+    flow_id: str, app_alias_id: str, session: Session, span: Span, version: str = ""
+) -> Flow:
+    """
+    Retrieve the latest published workflow by flow ID and app alias ID.
+
+    This function first checks the cache for the workflow, then falls back to database
+    query if not found. It also validates license permissions before returning the flow.
+
+    :param flow_id: The unique identifier of the workflow
+    :param app_alias_id: The alias ID of the application
+    :param session: Database session for querying
+    :param span: Tracing span for logging operations
+    :param version: Optional version number of the workflow (empty string for latest)
+    :return: The published flow object
+    :raises CustomException: If flow not found, or not published
+    """
+    published_flow = get_latest_published(flow_id, session, span, version)
+
+    # Validate license permissions
+    lic = license_dao.get_by(published_flow.group_id, app_alias_id, session)
+    if not lic:
+        raise CustomException(CodeEnum.APP_FLOW_NOT_AUTH_BOND_ERROR)
+
+    if not lic.status:
+        raise CustomException(CodeEnum.APP_FLOW_NO_LICENSE_ERROR)
+
+    return published_flow
+
+
+def gen_mcp_input_schema(flow: Flow) -> dict:
+    """
+    Generate MCP (Model Context Protocol) input schema from workflow definition.
+
+    This function extracts input parameters from the start node of a workflow
+    and generates a JSON schema that can be used for MCP integration.
+
+    :param flow: The flow object containing workflow definition
+    :return: Dictionary containing MCP input schema with name, description,
+             and inputSchema
+    """
+    # Extract basic flow information
+    flow_name = flow.name
+    description = flow.description
+
+    # Initialize JSON schema structure
+    input_schema = {"type": "object", "properties": {}, "required": []}
+    nodes = flow.release_data.get("data", {}).get("nodes", [])
+
+    # Process each node to find start node and extract input parameters
+    for node in nodes:
+        node_type = node["id"].split(":")[0]
+        if node_type != NodeType.START.value:
+            continue
+
+        # Extract outputs from start node (these become input parameters)
+        start_node_outputs = node.get("data", {}).get("outputs", [])
+        for output in start_node_outputs:
+            var_name = output.get("name", "")
+            is_required = output.get("required", False)
+            var_description = output.get("schema", {}).get("description", "")
+            var_type = output.get("schema", {}).get("type", "")
+            allowed_file_type = output.get("allowedFileType", [])
+
+            properties: Any = input_schema["properties"]
+
+            # Add property with file type if specified
+            if len(allowed_file_type) > 0:
+                properties[var_name] = {
+                    "type": var_type,
+                    "description": var_description,
+                    "fileType": allowed_file_type[0],
+                }
+            else:
+                properties[var_name] = {
+                    "type": var_type,
+                    "description": var_description,
+                }
+
+            # Add to required list if marked as required
+            if is_required:
+                required_list: list[str] = cast(list[str], input_schema["required"])
+                required_list.append(var_name)
+
+    return {
+        "name": flow_name,
+        "description": description,
+        "inputSchema": input_schema,
+    }
+
+
+async def node_debug(
+    workflow_dsl: WorkflowDSL, flow_id: str, uid: str, span: Span
+) -> NodeDebugRespVo:
+    """
+    Execute node debugging for a single workflow node.
+
+    This function performs input audit, executes the node, and performs output audit
+    to ensure the node works correctly in isolation.
+
+    :param workflow_dsl: The workflow DSL containing node definition and configuration
+    :param span: Tracing span for logging debug operations
+    :return: Node debug response containing execution results and metrics
+    :raises CustomExceptionCM: If node execution fails
+    """
+    # Record start time for performance measurement
+    time_start = time.time() * 1000
+    await span.add_info_event_async(f"node debug dsl: {workflow_dsl.dict()}")
+
+    # Perform input audit for security and compliance
+    await audit_service.node_debug_input_audit(workflow_dsl.dict(), span)
+
+    # Initialize variable pool and create debug node instance
+    variable_pool = VariablePool(protocol=workflow_dsl.nodes)
+    node_instance = WorkflowEngineFactory.create_debug_node(workflow_dsl, span)
+
+    # Disable retry mechanism for node debugging to get immediate feedback
+    node_instance.retry_config.should_retry = False
+
+    variable_pool.system_params.set(ParamKey.FlowId, flow_id).set(ParamKey.Uid, uid)
+
+    if node_instance.node_id.startswith(NodeType.FLOW.value):
+        await set_flow_node_output_mode(
+            variable_pool=variable_pool, node_instance=node_instance, span=span
+        )
+
+    # Execute the node and get results
+    res: NodeRunResult = await node_instance.async_execute(variable_pool, span=span)
+
+    # Check execution status and raise exception if failed
+    if res.status != WorkflowNodeExecutionStatus.SUCCEEDED and res.error:
+        raise res.error
+
+    # Calculate execution time
+    time_cost = time.time() * 1000 - time_start
+
+    # Build response object with execution results
+    node_debug_resp_vo = NodeDebugRespVo(
+        node_id=workflow_dsl.nodes[0].id,
+        alias_name=res.alias_name,
+        node_type=res.node_type,
+        input=json.dumps(res.inputs, ensure_ascii=False),
+        raw_output="" if res.raw_output is None else res.raw_output,
+        output=json.dumps(res.outputs, ensure_ascii=False),
+        node_exec_cost="%.3f" % (time_cost / 1000),
+        token_cost=res.token_cost or GenerateUsage(),
+    )
+
+    # Perform output audit for security and compliance
+    need_audit_content = (
+        node_debug_resp_vo.raw_output + node_debug_resp_vo.output
+        if node_debug_resp_vo.raw_output != node_debug_resp_vo.output
+        else node_debug_resp_vo.raw_output
+    )
+    await audit_service.output_audit(need_audit_content, span)
+
+    return node_debug_resp_vo
+
+
+def build(
+    flow_id: str, cache_service: BaseCacheService, session: Session, span: Span
+) -> None:
+    """
+    Build and validate a workflow by creating its engine instance.
+
+    This function clears any existing cache, retrieves the flow definition,
+    and creates a workflow engine to validate the flow structure.
+
+    :param flow_id: The unique identifier of the workflow to build
+    :param cache_service: Cache service for managing workflow cache
+    :param session: Database session for retrieving flow data
+    :param span: Tracing span for logging build operations
+    :raises CustomException: If flow not found or build fails
+    :raises Exception: If unexpected error occurs during build process
+    """
+    # Initialize workflow trace for monitoring and reporting
+    workflow_trace = WorkflowLog(
+        flow_id=flow_id,
+        sid=span.sid,
+        app_id="",
+        uid="",
+        caller="workflow",
+        bot_id="",
+        chat_id="",
+        log_caller="build",
+    )
+
+    try:
+        # Clear existing cache for the flow
+        if flow_id in cache_service:
+            cache_service.delete(flow_id)
+
+        # Retrieve flow definition from database
+        flow = get(flow_id=flow_id, session=session, span=span)
+
+        # Create workflow engine to validate flow structure
+        WorkflowEngineFactory.create_engine(
+            WorkflowDSL.model_validate(flow.data.get("data")), span
+        )
+
+        # Report successful build
+        ops_service.kafka_report(span=span, workflow_log=workflow_trace)
+    except CustomException as err:
+        # Handle known exceptions and report status
+        workflow_trace.set_status(err.code, err.message)
+        raise err
+    except Exception as err:
+        # Handle unexpected exceptions
+        workflow_trace.set_status(
+            CodeEnum.PROTOCOL_BUILD_ERROR.code, CodeEnum.PROTOCOL_BUILD_ERROR.msg
+        )
+        raise err
+    finally:
+        # Always report workflow trace status
+        ops_service.kafka_report(span=span, workflow_log=workflow_trace)
+
+
+async def set_flow_node_output_mode(
+    variable_pool: VariablePool,
+    node_instance: BaseNode,
+    span: Span,
+) -> None:
+    """
+    Set output mode for flow nodes based on their end node configuration.
+
+    This function iterates through built nodes, identifies flow nodes, and sets
+    their output mode based on the configuration of their corresponding end nodes.
+
+    :param variable_pool: Variable pool containing system parameters
+    :param built_nodes: Dictionary of built workflow nodes
+    :param app_alias_id: Application alias ID for license validation
+    :param span: Tracing span for logging operations
+    """
+    if not isinstance(node_instance, FlowNode):
+        return
+    flow_id: str = node_instance.flowId
+    node_id: str = node_instance.node_id
+    db_flow = flow_cache.get_flow_by_id(flow_id)
+    if not db_flow:
+        # Query flow end node information
+        with session_getter() as session:
+            db_flow = get_latest_published(flow_id, session, span)
+    # Find end node and extract output mode configuration
+    for node in db_flow.data["data"]["nodes"]:
+        if (
+            node is not None
+            and node.get("id") is not None
+            and node["id"].startswith("node-end::")
+        ):
+            node_data = node.get("data")
+            if node_data is not None:
+                node_param = node_data.get("nodeParam")
+                if node_param is not None:
+                    output_mode = node_param.get("outputMode")
+                    # Special handling for prompt mode with single output
+                    if (
+                        output_mode == EndNodeOutputModeEnum.PROMPT_MODE
+                        and len(
+                            node_instance.output_identifier if node_instance else []
+                        )
+                        == 1
+                    ):
+                        output_mode = EndNodeOutputModeEnum.OLD_PROMPT_MODE
+                    # Set output mode in variable pool
+                    variable_pool.system_params.set(
+                        ParamKey.FlowOutputMode, output_mode, node_id=node_id
+                    )
+                    await span.add_info_events_async(
+                        {"output_mode": f"{node_id}: {output_mode}"}
+                    )

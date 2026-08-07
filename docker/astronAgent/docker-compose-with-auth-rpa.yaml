@@ -1,0 +1,34 @@
+# ============================================================================
+# Integrated Docker Compose Configuration
+# astronAgent + Casdoor + astronRPA
+# ============================================================================
+# All services run in the same Docker network: astron-agent-network
+
+include:
+  # Include Casdoor authentication service
+  - path: docker-compose-auth.yml
+    env_file:
+      - .env
+
+  # Include astronAgent core services
+  - path: docker-compose.yaml
+    env_file:
+      - .env.with-rpa
+      - .env
+
+  # Include astronRPA services
+  # Uses: docker/astronAgent/.env + docker/astronAgent/astronRPA/.env
+  # Parent .env is loaded first, astronRPA/.env can override if needed
+  - path: astronRPA/docker-compose.yml
+    project_directory: astronRPA
+    env_file:
+      - .env
+      - astronRPA/.env
+
+# ============================================================================
+# Network Configuration
+# ============================================================================
+# Unified network definition to avoid conflicts from multiple includes
+networks:
+  astron-agent-network:
+    driver: bridge

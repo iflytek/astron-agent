@@ -1,0 +1,941 @@
+:global {
+  .ant-modal-content {
+    border-radius: 10px;
+  }
+}
+
+.open_source_modal {
+  :global {
+    .ant-modal-content {
+      padding-left: 0 !important;
+      padding-right: 0 !important;
+    }
+
+    .ant-modal-body {
+      padding: 0 !important;
+      max-height: 70vh;
+      overflow: hidden;
+    }
+  }
+
+  .modal_content {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 0 24px;
+    max-height: 70vh;
+
+    &::-webkit-scrollbar:horizontal {
+      height: 0;
+      /* 确保横向滚动不显示 */
+    }
+
+    .title {
+      font-family: 苹方-简;
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 24px;
+      letter-spacing: normal;
+      color: rgba(0, 0, 0, 0.8);
+      margin-bottom: 20px;
+      flex-shrink: 0;
+    }
+
+    .scrollable_content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      min-height: 0;
+    }
+
+    .inputBottom {
+      width: 100%;
+      position: absolute;
+      z-index: 22;
+      top: 280px;
+      left: 14px;
+      display: flex;
+      justify-content: space-between;
+
+      .aiBottom {
+        display: flex;
+        width: 77px;
+        height: 28px;
+        background: #ffffff;
+        box-sizing: border-box;
+        border-radius: 8px;
+        padding: 4px;
+        cursor: pointer;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        position: relative;
+
+        /* 使用伪元素实现渐变描边 */
+        &::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 8px;
+          padding: 1px;
+          // background: linear-gradient(270deg, #275EFF 0%, #C927FF 100%);
+          background: linear-gradient(270deg, #6356ea 0%, #c927ff 100%);
+          -webkit-mask:
+            linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          pointer-events: none;
+        }
+
+        img {
+          width: 14px;
+          height: 14px;
+        }
+
+        span {
+          font-family: PingFang SC;
+          font-size: 12px;
+          font-weight: normal;
+          line-height: normal;
+          display: flex;
+          align-items: center;
+          letter-spacing: normal;
+          /* 主色 */
+          // color: #C927FF;
+          // color: #275EFF;
+          color: #6356ea;
+        }
+      }
+    }
+
+    :global {
+      .ant-form-item-label > label {
+        font-family: PingFang SC;
+        font-size: 14px;
+        font-weight: normal;
+        line-height: normal;
+        letter-spacing: normal;
+        color: #7f7f7f;
+      }
+
+      .ant-form {
+        margin-right: 20px;
+      }
+
+      .ant-form-item {
+        margin-bottom: 0px;
+      }
+
+      .ant-input {
+        background: #ffffff;
+        border: 1px solid #e4eaff;
+      }
+
+      .ant-input:focus,
+      .ant-input-focused,
+      .ant-input-affix-wrapper-focused,
+      .ant-input-affix-wrapper:focus {
+        border: 1px solid #1975ff !important;
+      }
+
+      .ant-input[disabled] {
+        color: #7e7e7e;
+      }
+
+      .ant-input-status-error:not(.ant-input-disabled):not(
+          .ant-input-borderless
+        ).ant-input:focus {
+        box-shadow: none;
+      }
+
+      .ant-input-status-error:not(.ant-input-disabled):not(
+          .ant-input-borderless
+        ).ant-input,
+      .ant-input-status-error:not(.ant-input-disabled):not(
+          .ant-input-borderless
+        ).ant-input:hover {
+        border-color: #e4eaff;
+      }
+
+      .ant-input-affix-wrapper {
+        height: 34px;
+        background: #ffffff;
+        border: 1px solid #e4eaff;
+        border-radius: 18px;
+        box-shadow: 0px 2px 4px 0px rgba(0, 0, 0, 0.06);
+
+        #description {
+          border: none;
+          box-shadow: none;
+        }
+
+        .ant-input:focus,
+        .ant-input-focused {
+          border: none !important;
+        }
+      }
+
+      .ant-input-textarea-show-count {
+        position: relative;
+      }
+
+      .ant-input-textarea-show-count::after {
+        position: absolute;
+        bottom: 23px;
+        right: 10px;
+      }
+    }
+
+    .form_select {
+      height: 40px;
+    }
+
+    .footerContiner {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 70px;
+
+      .footerContinerLeft {
+        margin-right: auto;
+      }
+
+      .footerContinerRight {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .cancelBtn {
+          width: 100px;
+          height: 40px;
+          line-height: 40px;
+          text-align: center;
+          color: #333;
+          background: rgba(255, 255, 255, 0.66);
+          border: 1px solid #d3dbf8;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 400;
+        }
+
+        .submitBtn {
+          width: 100px;
+          height: 40px;
+          text-align: center;
+          background: #6356ea !important;
+          border-radius: 8px;
+          color: #fff;
+          cursor: pointer;
+          border: none;
+          box-shadow: none;
+        }
+
+        .cancelBtn:hover,
+        .submitBtn:hover {
+          filter: brightness(1.2);
+        }
+
+        .cancelBtn:hover {
+          border: 1px solid #6356ea;
+          color: #6356ea;
+        }
+      }
+    }
+  }
+
+  .sectionHeader {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+
+    .sectionTitle {
+      font-weight: 600;
+      font-size: 14px;
+      color: #1f2329;
+    }
+
+    .sectionHelp {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+    }
+  }
+
+  .sectionHeaderHelp {
+    font-family: 苹方;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 26px;
+    letter-spacing: normal;
+    color: #7f7f7f;
+    margin-bottom: 11px;
+  }
+
+  .configSection {
+    background: #fff;
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 16px;
+    border: 1px solid #e0e3e7;
+    position: relative;
+
+    :global {
+      /* Switch 统一尺寸与颜色 */
+      .ant-switch {
+        padding: 0;
+        background: #cfd6e4;
+      }
+
+      .ant-switch-handle {
+        width: 17px;
+        height: 17px;
+      }
+
+      .ant-btn-primary {
+        background-color: #6356ea;
+        border-color: #6356ea;
+      }
+
+      .ant-btn-primary:hover,
+      .ant-btn-primary:focus {
+        background-color: #6356ea;
+        border-color: #6356ea;
+      }
+
+      .ant-switch-checked {
+        background: #6356ea !important;
+      }
+    }
+
+    .toggleRow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+
+      .toggleLabel {
+        font-family: 苹方;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 26px;
+        letter-spacing: normal;
+        color: #333333;
+      }
+
+      :global {
+        .ant-switch {
+          margin-left: auto;
+        }
+      }
+    }
+
+    .toggleSwitch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 4px;
+      border-radius: 10px;
+      background: #f6f9ff;
+      margin-bottom: 10px;
+      cursor: pointer;
+
+      .toggleSwitchItem {
+        display: flex;
+        padding: 8px;
+        align-items: center;
+        justify-content: center;
+        font-family: PingFang SC;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 16px;
+        letter-spacing: normal;
+        color: #7f7f7f;
+
+        &:hover {
+          border-radius: 10px;
+          background: #ffffff;
+          box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+          color: #6356ea;
+        }
+      }
+
+      .toggleSwitchItemActive {
+        border-radius: 10px;
+        background: #ffffff;
+        box-shadow: 0px 2px 4px 0px rgba(46, 51, 68, 0.0373);
+        color: #6356ea;
+      }
+    }
+
+    .summaryRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 16px;
+      padding-right: 30px;
+      min-height: 44px;
+      border: 1px solid #e6e8ef;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #ffffff;
+      transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+
+      &:hover {
+        border-color: #d7dce8;
+        box-shadow: 0 0 0 2px rgba(76, 124, 243, 0.06);
+      }
+
+      &:focus-visible {
+        outline: none;
+        border-color: #6356ea;
+        box-shadow: 0 0 0 2px rgba(76, 124, 243, 0.2);
+      }
+    }
+
+    .summaryLeft {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .summaryAvatar {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+
+    .summaryName {
+      display: flex;
+      flex-direction: column;
+      font-family: PingFang SC;
+      font-size: 16px;
+      font-weight: normal;
+      line-height: 22px;
+      letter-spacing: normal;
+      color: #9ca3af;
+
+      .summaryNameText {
+        font-family: PingFang SC;
+        font-size: 16px;
+        font-weight: normal;
+        line-height: 26px;
+        letter-spacing: normal;
+        color: #333333;
+      }
+
+      .summaryNameSub {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+
+        img {
+          width: 14px;
+          height: 14px;
+        }
+
+        span {
+          font-family: PingFang SC;
+          font-size: 14px;
+          font-weight: normal;
+          line-height: 22px;
+          letter-spacing: normal;
+          color: #9ca3af;
+        }
+      }
+    }
+
+    .summaryAction {
+      width: 32px;
+      height: 32px;
+    }
+
+    .summaryActionVcn {
+      width: 20px;
+      height: 20px;
+    }
+
+    .optionCard {
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid #e6e8ef;
+      border-radius: 8px;
+      background: #ffffff;
+      transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease,
+        box-shadow 0.15s ease;
+      cursor: pointer;
+
+      &:hover {
+        .optionTitle {
+          color: #6356ea;
+        }
+      }
+    }
+
+    .optionCardSelected {
+      color: #6356ea;
+    }
+
+    .optionInfo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .optionTitle {
+      font-family: 苹方-简;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: 26px;
+      letter-spacing: normal;
+      color: #7f7f7f;
+    }
+
+    .optionTitleSelected {
+      color: #6356ea;
+    }
+
+    .voicePill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: #ffffff;
+    }
+
+    .voiceIcon {
+      width: 36px;
+      height: 36px;
+      border-radius: 4px;
+      background: #f2f5fe;
+      box-sizing: border-box;
+      border: 1px solid #e4eaff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+
+      img {
+        width: 21px;
+        height: 21px;
+      }
+    }
+
+    .voiceTabs {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 2px 0 0 0;
+      border-bottom: 1px solid #e6e8ef;
+    }
+
+    .voiceTab {
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 26px;
+      letter-spacing: normal;
+      color: #7f7f7f;
+      cursor: pointer;
+      position: relative;
+      padding-bottom: 8px;
+    }
+
+    .voiceTabActive {
+      color: #6356ea;
+      font-weight: 600;
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 2px;
+        background: #6356ea;
+        border-radius: 2px;
+        transition:
+          width 0.15s ease,
+          background-color 0.15s ease;
+      }
+    }
+
+    .voiceList {
+      border-radius: 10px;
+      padding: 10px 0;
+      background: #ffffff;
+      max-height: 310px;
+      overflow: auto;
+
+      .optionCard {
+        border: none;
+        gap: 12px;
+
+        img {
+          width: 20px;
+          height: 20px;
+        }
+      }
+    }
+
+    .voiceOverlay {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 194px;
+      z-index: 20;
+      padding: 16px 24px 26px 24px;
+      border-radius: 10px;
+      background: #ffffff;
+      box-sizing: border-box;
+      border: 1px solid #e0e3e7;
+      box-shadow: 0 8px 24px rgba(28, 31, 37, 0.12);
+    }
+  }
+
+  .voiceSection {
+    .summaryRow {
+      padding: 10px;
+      padding-right: 30px;
+    }
+  }
+}
+
+.avatarModalWrap {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  .avatarModalHeader {
+    margin-bottom: 22px;
+
+    .avatarModalTitle {
+      font-family: PingFang SC;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 16px;
+      letter-spacing: normal;
+      color: #3d3d3d;
+    }
+  }
+
+  .avatarModalBody {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 230px;
+    gap: 24px;
+  }
+
+  .avatarListPane {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .avatarFilterRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 24px;
+
+    span {
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: normal;
+      letter-spacing: normal;
+      color: #7f7f7f;
+    }
+
+    .filterSelect {
+      height: 40px;
+
+      :global {
+        .ant-select-selection-item {
+          font-family: PingFang SC;
+          font-size: 14px;
+          font-weight: normal;
+          line-height: normal;
+          letter-spacing: normal;
+          color: #333333;
+        }
+      }
+    }
+  }
+
+  .filterLabel {
+    font-size: 14px;
+    color: #667085;
+  }
+
+  .avatarGrid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    max-height: 500px;
+    overflow: auto;
+  }
+
+  .avatarItem {
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  .avatarItemThumb {
+    width: 104px;
+    height: 128px;
+    border-radius: 12px;
+    background: #f8faff;
+    box-sizing: border-box;
+    border: 1px solid #e4eaff;
+    // padding: 11px 22px 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  .avatarItemDisabled {
+    width: 128px;
+    height: 128px;
+    padding: 0;
+
+    img {
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+    }
+  }
+
+  .avatarItemActive {
+    border: 1px solid #6356ea;
+  }
+
+  .avatarName {
+    font-family: PingFang SC;
+    font-size: 16px;
+    font-weight: normal;
+    line-height: normal;
+    letter-spacing: normal;
+    color: #333333;
+  }
+
+  .avatarPreviewPane {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+
+    .avatarPreviewCard {
+      padding: 12px 20px 0 16px;
+      background: url('../../assets/imgs/virtual-config-modal/avatar-preview-bg.png')
+        no-repeat center;
+      border-radius: 16px;
+      width: 230px;
+      height: 524px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+
+      .avatarPreviewHeader {
+        position: relative;
+
+        .previewName {
+          font-family: PingFang SC;
+          font-size: 20px;
+          font-weight: 500;
+          line-height: normal;
+          letter-spacing: normal;
+          color: #ffffff;
+
+          span {
+            margin-left: 4px;
+            font-size: 14px;
+          }
+        }
+      }
+
+      .avatarPreviewPlay {
+        position: absolute;
+        bottom: -55px;
+        right: 0px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        cursor: pointer;
+
+        img {
+          width: 32px;
+          height: 32px;
+        }
+
+        span {
+          font-family: PingFang SC;
+          font-size: 12px;
+          font-weight: normal;
+          line-height: normal;
+          letter-spacing: normal;
+          color: #ffffff;
+        }
+      }
+
+      .avatarPreviewImage {
+        width: 188px;
+        height: 400px;
+        object-fit: contain;
+        object-position: bottom;
+      }
+
+      .avatarPreviewImageXuniren {
+        height: 188px;
+        margin-bottom: 200px;
+      }
+    }
+  }
+
+  .avatarPreviewCaption {
+    text-align: center;
+    color: #8a8fa3;
+    font-size: 12px;
+  }
+}
+
+.avatarModalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.open_source_modal {
+  .inputField {
+    height: 40px;
+    width: 196px;
+  }
+
+  .input_area {
+    border-radius: 10px !important;
+    border: 1px solid #e6e8ef !important;
+    transition: all 0.15s ease;
+    margin-bottom: 14px;
+
+    :global {
+      .ant-input {
+        border-radius: 10px !important;
+      }
+
+      .ant-input:focus,
+      .ant-input-focused {
+        border-color: #6356ea !important;
+        box-shadow: 0 0 0 3px rgba(76, 124, 243, 0.12);
+      }
+
+      .ant-input::placeholder {
+        color: #b8becc;
+      }
+    }
+  }
+
+  .nameAndType {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 16px;
+    height: 80px;
+
+    .form_avatar {
+      :global {
+        .ant-form-item {
+          margin-bottom: 0;
+          height: 40px;
+        }
+
+        .ant-form-item-row {
+          height: 40px;
+        }
+      }
+    }
+
+    .teamAvatar {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      position: relative;
+      cursor: pointer;
+
+      div: {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: '#F8FAFF';
+        border: '1px solid #E4EAFF';
+      }
+
+      img {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+      }
+
+      .up_hover_btn {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 40px;
+        height: 40px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid rgba(116, 135, 254, 0.37);
+        border-radius: 8px;
+        cursor: pointer;
+
+        .up_hover_icon {
+          width: 12px;
+          height: 12px;
+          border-radius: 0;
+        }
+      }
+
+      .active {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid #e4eaff;
+        border-radius: 8px;
+      }
+    }
+  }
+}
+
+:global(.lang-en) {
+  .open_source_modal {
+    .modal_content {
+      .inputBottom {
+        .aiBottom {
+          width: 120px;
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{{- if .Values.casdoor.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "astron-agent.fullname" . }}-casdoor-mysql
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: casdoor-mysql
+spec:
+  serviceName: {{ include "astron-agent.fullname" . }}-casdoor-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: casdoor-mysql
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: casdoor-mysql
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: mysql
+        image: mysql:8.4
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" . }}-casdoor-mysql-secret
+              key: mysql-root-password
+        - name: MYSQL_DATABASE
+          value: {{ .Values.casdoor.mysql.database | quote }}
+        - name: MYSQL_USER
+          value: {{ .Values.casdoor.mysql.username | quote }}
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.fullname" . }}-casdoor-mysql-secret
+              key: mysql-password
+        ports:
+        - name: mysql
+          containerPort: 3306
+          protocol: TCP
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 20
+          failureThreshold: 10
+        readinessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        volumeMounts:
+        - name: casdoor-mysql-data
+          mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+  - metadata:
+      name: casdoor-mysql-data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      {{- if .Values.global.storageClass }}
+      storageClassName: {{ .Values.global.storageClass | quote }}
+      {{- end }}
+      resources:
+        requests:
+          storage: 10Gi
+{{- end }}

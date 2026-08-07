@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.bot.ChatBotBaseMapper">
+
+    <select id="botDetail" resultType="com.iflytek.astron.console.commons.dto.bot.BotDetail">
+        SELECT a.id AS botId,
+        a.prompt,
+        case when a.support_context then 1 else 0 end as supportContext,
+        a.uid as uid,
+        a.bot_type as botType,
+        a.bot_name AS botName,
+        a.bot_name_en AS botNameEn,
+        a.avatar AS avatar,
+        a.pc_background as pcBackground,
+        a.app_background as appBackground,
+        a.prologue,
+        a.bot_desc AS botDesc,
+        a.model,
+        a.maas_bot_id as maasBotId,
+        a.create_time as createTime,
+        a.bot_desc_en AS botDescEn,
+        a.bot_template AS botTemplate,
+        a.prompt_type AS promptType,
+        a.input_example AS inputExample,
+        a.vcn_cn AS vcnCn,
+        a.vcn_en AS vcnEn,
+        a.vcn_speed AS vcnSpeed,
+        a.version,
+        a.opened_tool AS openedTool,
+        a.mcp_server_urls AS mcpServerUrls,
+        a.skills AS skills,
+        a.tools AS tools,
+        a.workflows AS workflows,
+        a.client_hide as clientHide,
+        b.hot_num as hotNum,
+        b.id as marketBotId,
+        a.model_id as modelId,
+        case when a.support_system then 1 else 0 end as supportSystem,
+        CAST(support_upload AS SIGNED) as supportUpload,
+        CASE
+        WHEN (b.bot_status IS NULL OR b.bot_status = 0)
+        THEN -9
+        ELSE b.bot_status END AS botStatus
+        FROM chat_bot_base a
+        LEFT JOIN chat_bot_market b ON a.id = b.bot_id
+        where a.id = #{botId}
+        and a.is_delete = 0
+    </select>
+
+    <resultMap id="ChatBotBaseResultMap" type="com.iflytek.astron.console.commons.entity.bot.ChatBotBase">
+        <result column="id" property="id"/>
+        <result column="uid" property="uid"/>
+    </resultMap>
+
+    <select id="checkBotPermission" resultType="int">
+        SELECT COUNT(1)
+        FROM chat_bot_base
+        WHERE id = #{botId}
+          AND is_delete = 0
+          AND (
+            (space_id IS NULL AND uid = #{uid}) OR
+            (space_id = #{spaceId})
+          )
+    </select>
+    
+    <select id="selectByBotIds" parameterType="java.util.List" resultMap="ChatBotBaseResultMap">
+        SELECT id, uid, bot_name, avatar
+        FROM chat_bot_base
+        WHERE is_delete = 0
+        AND id IN
+        <foreach item="botId" index="index" collection="botIds" open="(" separator="," close=")">
+            #{botId}
+        </foreach>
+    </select>
+
+
+</mapper>

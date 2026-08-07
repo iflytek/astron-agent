@@ -1,0 +1,35 @@
+.databaseTable {
+  flex: 1;
+  height: 0;
+  padding-top: 1rem;
+  :global {
+      .ant-table-thead {
+          .ant-table-cell {
+              color: #7F7F7F;
+          }
+          .ant-table-selection-column {
+              vertical-align: middle !important;
+              .ant-table-selection {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+              }
+          }
+      }
+      .ant-table-cell {
+          vertical-align: middle !important;
+      }
+      .ant-checkbox-inner {
+          background: #FFFFFF;
+          border: 1px solid #E4EAFF;
+      }
+      .ant-checkbox-checked .ant-checkbox-inner {
+          background-color: #6356EA;
+      }
+      .ant-checkbox-indeterminate .ant-checkbox-inner:after {
+          background-color: #6356EA;
+      }
+  }
+  
+}
+

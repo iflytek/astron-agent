@@ -1,0 +1,45 @@
+.checkboxWrapper {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+
+  // 禁用状态
+  &.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.customCheckbox {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease-in-out;
+  position: relative;
+
+  // 未选中状态图标
+  .uncheckedIcon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: all 0.2s ease-in-out;
+  }
+
+  // 选中状态图标
+  .checkedIcon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: all 0.2s ease-in-out;
+  }
+}
+
+.checkboxLabel {
+  font-size: 14px;
+  color: #3d3d3d;
+  user-select: none;
+} 

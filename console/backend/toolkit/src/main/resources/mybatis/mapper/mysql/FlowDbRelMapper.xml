@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.relation.FlowDbRelMapper">
+    <insert id="insertBatch">
+        INSERT INTO flow_db_rel (flow_id, db_id,tb_id, create_time,update_time)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.flowId}, #{item.dbId},#{item.tbId}, now(), now())
+        </foreach>
+    </insert>
+
+
+    <select id="selectCountsByDbIds"
+            resultType="com.iflytek.astron.console.toolkit.entity.dto.database.DbTableCountDto">
+        SELECT db_id as dbId,count(DISTINCT flow_id) as count FROM flow_db_rel
+        <where>
+            and db_id in
+            <foreach collection="dbIds" item="dbId" separator=","
+                     open="(" close=")">
+                #{dbId}
+            </foreach>
+        </where>
+        GROUP BY db_id
+    </select>
+</mapper>

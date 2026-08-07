@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.commons.mapper.dataset.BotDatasetMaasMapper">
+
+    <select id="selectBotStatsMaps" resultType="com.iflytek.astron.console.commons.dto.dataset.DatasetStats">
+        select
+        bot_id,
+        dataset_id,
+        name,
+        type as bot_type,
+        status
+        from (
+        select
+        cbb.id as bot_id,
+        bd.dataset_id,
+        cbb.bot_name as name,
+        cbb.bot_type as type,
+        cbm.bot_status as status
+        from bot_dataset_maas bd
+        left join chat_bot_base cbb on bd.bot_id = cbb.id
+        left join chat_bot_market cbm on bd.bot_id = cbm.bot_id
+        where bd.is_act = 1 AND bd.dataset_id in
+        <foreach item="item" index="index" collection="datasetIds" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        ) as t
+        group by dataset_id, bot_id, name, type, status;
+    </select>
+
+</mapper>

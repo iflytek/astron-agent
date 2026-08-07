@@ -1,0 +1,149 @@
+============================================================
+   ___        _                      ___                  _
+  / _ \      | |                    / _ \                | |
+ / /_\ \ ___ | |_  _ __  ___  _ __ / /_\ \  __ _   ___  _ __ | |_
+ |  _  |/ __|| __|| '__|/ _ \| '_ \|  _  | / _` | / _ \| '_ \| __|
+ | | | |\__ \| |_ | |  | (_) | | | | | | || (_| ||  __/| | | | |_
+ \_| |_/|___/ \__||_|   \___/|_| |_\_| |_/ \__, | \___||_| |_|\__|
+                                            __/ |
+                                           |___/
+============================================================
+
+🎉 Astron Agent has been deployed successfully!
+
+Chart: {{ .Chart.Name }} {{ .Chart.Version }}
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+============================================================
+📋 Service Information
+============================================================
+
+{{- if .Values.ingress.enabled }}
+
+1. Ingress (External Access):
+   {{- range .Values.ingress.hosts }}
+   https://{{ .host }}
+   {{- end }}
+{{- end }}
+
+{{- if .Values.consoleFrontend.enabled }}
+
+2. Console Frontend:
+   Access Console Frontend using port-forward:
+
+   kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-console-frontend {{ .Values.consoleFrontend.service.port }}:{{ .Values.consoleFrontend.service.port }}
+   echo "Console Frontend: http://localhost:{{ .Values.consoleFrontend.service.port }}"
+{{- end }}
+
+{{- if .Values.minio.enabled }}
+
+3. MinIO Console:
+   {{- if eq .Values.minio.service.type "NodePort" }}
+   MinIO is exposed via NodePort:
+   - API Port: {{ .Values.minio.service.nodePort }}
+   - Console Port: {{ .Values.minio.service.consoleNodePort }}
+   {{- if .Values.global.hostBaseAddress }}
+   - MinIO Console: {{ .Values.global.hostBaseAddress }}:{{ .Values.minio.service.consoleNodePort }}
+   {{- end }}
+   {{- else }}
+   Access MinIO console using port-forward:
+
+   kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-minio {{ .Values.minio.service.consolePort }}:9001
+   echo "MinIO Console: http://localhost:{{ .Values.minio.service.consolePort }}"
+   {{- end }}
+
+   Credentials:
+   - Username: {{ .Values.minio.auth.rootUser }}
+   - Password: {{ .Values.minio.auth.rootPassword }}
+{{- end }}
+
+{{- if .Values.casdoor.enabled }}
+
+4. Casdoor (Authentication):
+   {{- if eq .Values.casdoor.service.type "NodePort" }}
+   Casdoor is exposed via NodePort:
+   - Port: {{ .Values.casdoor.service.nodePort }}
+   {{- if .Values.global.hostBaseAddress }}
+   - Casdoor URL: {{ .Values.global.hostBaseAddress }}:{{ .Values.casdoor.service.nodePort }}
+   {{- end }}
+   {{- else }}
+   Access Casdoor using port-forward:
+
+   kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-casdoor {{ .Values.casdoor.service.port }}:8000
+   echo "Casdoor URL: http://localhost:{{ .Values.casdoor.service.port }}"
+   {{- end }}
+{{- end }}
+
+============================================================
+🔍 Check Deployment Status
+============================================================
+
+Monitor all pods:
+kubectl get pods --namespace {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Check specific components:
+- Infrastructure: kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/component=postgres,mysql,redis,minio
+- Core Services: kubectl get pods -n {{ .Release.Namespace }} | grep core-
+- Console: kubectl get pods -n {{ .Release.Namespace }} | grep console
+
+============================================================
+📝 Important Notes
+============================================================
+
+1. Database Initialization:
+   - PostgreSQL and MySQL will initialize on first startup
+   - Check logs if services are not starting: kubectl logs -n {{ .Release.Namespace }} <pod-name>
+
+2. Storage:
+   {{- if .Values.global.storageClass }}
+   - Using StorageClass: {{ .Values.global.storageClass }}
+   {{- else }}
+   - Using default StorageClass
+   {{- end }}
+   - Verify PVCs: kubectl get pvc -n {{ .Release.Namespace }}
+
+3. Configuration:
+   - Update configuration in values.yaml and upgrade:
+     helm upgrade {{ .Release.Name }} . -n {{ .Release.Namespace }}
+
+4. Secrets:
+   - Default passwords are used for demo purposes
+   - IMPORTANT: Change passwords in production!
+   - Update secrets: kubectl edit secret -n {{ .Release.Namespace }}
+
+5. Authentication:
+   {{- if .Values.casdoor.enabled }}
+   - Casdoor is enabled for authentication
+   - Configure Casdoor at first login
+   {{- else }}
+   - Casdoor is disabled
+   {{- end }}
+
+============================================================
+📚 Useful Commands
+============================================================
+
+# View logs
+kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=100 -f
+
+# Restart a specific component
+kubectl rollout restart deployment/{{ include "astron-agent.fullname" . }}-<component> -n {{ .Release.Namespace }}
+
+# Scale a deployment
+kubectl scale deployment/{{ include "astron-agent.fullname" . }}-<component> --replicas=<count> -n {{ .Release.Namespace }}
+
+# Uninstall
+helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+============================================================
+🔗 Resources
+============================================================
+
+Documentation: https://github.com/iflytek/astron-agent
+Issues: https://github.com/iflytek/astron-agent/issues
+Community: Join our community for support
+
+============================================================
+
+Happy building with Astron Agent! 🚀

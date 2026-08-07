@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "properties": {
+        "app_id": {
+          "type": "string",
+          "description": "应用id",
+          "maxLength": 32,
+          "minLength": 1
+        },
+        "uid": {
+          "type": "string",
+          "description": "用户id"
+        }
+      },
+      "required": ["app_id"]
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "tool_id": {
+          "type": "string",
+          "description": "工具id",
+          "maxLength": 32,
+          "minLength": 1,
+          "pattern": "^tool@[0-9a-zA-Z]+$"
+        },
+        "operation_id": {
+          "type": "string"
+        }
+      },
+      "required": ["tool_id", "operation_id"]
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "header": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": ["message"]
+    }
+  },
+  "required": ["header", "parameter", "payload"]
+}
+

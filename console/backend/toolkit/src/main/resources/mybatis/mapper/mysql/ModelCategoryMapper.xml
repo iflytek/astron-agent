@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.model.ModelCategoryMapper">
+    <!--
+        General mapping: includes 'source'
+        Maps database columns to ModelCategory entity fields.
+    -->
+    <resultMap id="CategoryItemMap" type="com.iflytek.astron.console.toolkit.entity.table.model.ModelCategory">
+        <id     property="id"         column="id"/>
+        <result property="pid"        column="pid"/>
+        <result property="key"        column="key"/>
+        <result property="name"       column="name"/>
+        <result property="isDelete"   column="is_delete"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="sortOrder"  column="sort_order"/>
+        <result property="source"     column="source"/>
+    </resultMap>
+
+    <!--
+        Query tree nodes needed for model-category relation:
+        - Official leaf + its parent
+        - Custom leaf + its parent (“other”) + top-level (parent’s parent)
+        @param modelId model identifier
+        @return list of ModelCategory including SYSTEM and CUSTOM nodes
+    -->
+    <select id="listByModelId" resultMap="CategoryItemMap">
+  <![CDATA[
+        SELECT t.id, t.pid, t.`key`, t.`name`, t.is_delete, t.create_time, t.update_time, t.sort_order, t.source
+        FROM (
+                 -- 1) Official leaf nodes
+                 SELECT DISTINCT
+                     c.id, c.pid, c.`key`, c.`name`, c.is_delete, c.create_time, c.update_time, c.sort_order,
+                     'SYSTEM' AS source
+                 FROM model_category c
+                          JOIN model_category_rel r ON c.id = r.category_id
+                 WHERE r.model_id = #{modelId}
+                   AND c.is_delete = 0
+
+                 UNION ALL
+
+                 -- 2) Official parent nodes (ensure hierarchy completeness with leaf)
+                 SELECT DISTINCT
+                     p.id, p.pid, p.`key`, p.`name`, p.is_delete, p.create_time, p.update_time, p.sort_order,
+                     'SYSTEM' AS source
+                 FROM model_category c1
+                          JOIN model_category p ON p.id = c1.pid
+                 WHERE c1.id IN (
+                     SELECT category_id FROM model_category_rel WHERE model_id = #{modelId}
+                 )
+                   AND c1.is_delete = 0
+                   AND p.is_delete  = 0
+
+                 UNION ALL
+
+                 -- 3) Custom leaf nodes
+                 SELECT DISTINCT
+                     cc.id, cc.pid, cc.`key`, cc.`name`,
+                     0 AS is_delete, cc.create_time, cc.update_time, 0 AS sort_order,
+                     'CUSTOM' AS source
+                 FROM model_custom_category_rel cr
+                          JOIN model_custom_category cc ON cc.id = cr.custom_id
+                 WHERE cr.model_id = #{modelId}
+                   AND cc.is_delete    = 0
+                   AND cc.audit_status = 1
+
+                 UNION ALL
+
+                 -- 4) Custom parent nodes (“other” official leaf)
+                 SELECT DISTINCT
+                     p2.id, p2.pid, p2.`key`, p2.`name`, p2.is_delete, p2.create_time, p2.update_time, p2.sort_order,
+                     'SYSTEM' AS source
+                 FROM model_custom_category_rel cr
+                          JOIN model_custom_category cc ON cc.id = cr.custom_id
+                          JOIN model_category p2 ON p2.id = cc.pid
+                     AND p2.`key` = cc.`key`     -- ensure same dimension
+                 WHERE cr.model_id = #{modelId}
+                   AND cc.is_delete    = 0
+                   AND cc.audit_status = 1
+                   AND p2.is_delete    = 0
+
+                 UNION ALL
+
+                 -- 5) Parent of custom parent (dimension top-level)
+                 SELECT DISTINCT
+                     pp.id, pp.pid, pp.`key`, pp.`name`, pp.is_delete, pp.create_time, pp.update_time, pp.sort_order,
+                     'SYSTEM' AS source
+                 FROM model_custom_category_rel cr
+                          JOIN model_custom_category cc ON cc.id = cr.custom_id
+                          JOIN model_category p2 ON p2.id = cc.pid
+                     AND p2.`key` = cc.`key`
+                     AND p2.is_delete = 0
+                          JOIN model_category pp ON pp.id = p2.pid
+                 WHERE cr.model_id = #{modelId}
+                   AND cc.is_delete    = 0
+                   AND cc.audit_status = 1
+                   AND pp.is_delete    = 0
+             ) AS t
+        -- Global deduplication: keep only one row for each (source, id)
+        GROUP BY t.source, t.id, t.pid, t.`key`, t.`name`, t.is_delete, t.create_time, t.update_time, t.sort_order
+        ]]>
+</select>
+
+    <!--
+        Query top-level official parent category by key
+        @param key category key
+        @return long category id
+    -->
+    <select id="getTopByKey" resultType="long">
+        SELECT id FROM model_category
+        WHERE `key` = #{key} AND pid = 0 AND is_delete = 0
+        ORDER BY sort_order DESC, id DESC
+            LIMIT 1
+    </select>
+
+    <!--
+        Check for duplicate official categories by key and name
+        @param pid parent id
+        @param name category name
+        @return long category id if exists
+    -->
+    <select id="findOfficialByKeyAndName" resultType="long">
+        SELECT id FROM model_category
+        WHERE pid = #{pid} AND is_delete = 0 AND name = #{name}
+            LIMIT 1
+    </select>
+
+    <!--
+        Check for duplicate custom categories (by normalized name)
+        @param key category key
+        @param ownerUid owner uid
+        @param name category name
+        @return long custom category id if exists
+    -->
+    <select id="findCustomIdByKeyAndNormalized" resultType="long">
+    <![CDATA[
+        SELECT id FROM model_custom_category
+        WHERE `key` = #{key}
+          AND (owner_uid <=> #{ownerUid})
+          AND audit_status = 1 AND is_delete = 0
+          AND normalized = LOWER(TRIM(#{name}))
+            LIMIT 1
+        ]]>
+</select>
+
+    <!--
+        Bind official categories to model
+        @param pairs list of {modelId, categoryId}
+        @return int number of rows inserted
+    -->
+    <insert id="batchInsertOfficialRel">
+        INSERT INTO model_category_rel (model_id, category_id, create_time, update_time)
+        VALUES
+        <foreach collection="pairs" item="p" separator=",">
+            (#{p.modelId}, #{p.categoryId}, NOW(), NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+
+    <!--
+        Bind custom categories to model (ignore duplicate keys)
+        @param pairs list of {modelId, customId}
+        @return int number of rows inserted
+    -->
+    <insert id="batchInsertCustomRel">
+        INSERT INTO model_custom_category_rel (model_id, custom_id, create_time, update_time)
+        VALUES
+        <foreach collection="pairs" item="p" separator=",">
+            (#{p.modelId}, #{p.customId}, NOW(), NOW())
+        </foreach>
+        ON DUPLICATE KEY UPDATE id = id
+    </insert>
+
+    <!--
+        Clear old official bindings for a given key (single-choice dimension)
+        @param modelId model identifier
+        @param key category key
+        @return int number of rows deleted
+    -->
+    <delete id="deleteOfficialRelByKey">
+        DELETE r FROM model_category_rel r
+         JOIN model_category c ON c.id = r.category_id
+        WHERE r.model_id = #{modelId}
+        AND c.`key` = #{key}
+    </delete>
+
+    <!--
+        Clear old custom bindings for a given key (defensive cleaning, though normally not allowed)
+        @param modelId model identifier
+        @param key category key
+        @return int number of rows deleted
+    -->
+    <delete id="deleteCustomRelByKey">
+        DELETE cr FROM model_custom_category_rel cr
+         JOIN model_custom_category cc ON cc.id = cr.custom_id
+        WHERE cr.model_id = #{modelId}
+        AND cc.`key` = #{key}
+    </delete>
+
+    <!--
+        Query all categories (for building full tree)
+        @return list of ModelCategory
+    -->
+    <select id="listAllTree" resultType="com.iflytek.astron.console.toolkit.entity.table.model.ModelCategory">
+        SELECT id, pid, `key`, `name`, is_delete, create_time, update_time, sort_order
+        FROM model_category
+        WHERE is_delete = 0
+        ORDER BY pid ASC, sort_order DESC, id DESC
+    </select>
+
+    <!--
+        Query category key and deletion flag by id
+        @param pid category id
+        @return map with {key, is_delete}
+    -->
+    <select id="findCategoryKeyAndDeleteById" resultType="map">
+        SELECT `key`, is_delete
+        FROM model_category
+        WHERE id = #{pid}
+            LIMIT 1
+    </select>
+</mapper>

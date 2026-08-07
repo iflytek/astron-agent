@@ -1,0 +1,83 @@
+.spaceSettings {
+  .settingsList {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .settingCard {
+    border-radius: 10px;
+    border: 1px solid #E4EAFF;;
+
+    :global {
+      .ant-card-body {
+        padding: 24px;
+      }
+    }
+  }
+
+  .settingContent {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .settingInfo {
+    flex: 1;
+    min-width: 0;
+
+    .settingTitle {
+      margin: 0 0 12px 0;
+      font-family: PingFang SC;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 16px;
+      letter-spacing: normal;
+      color: #1F1F1F;
+    }
+
+    .settingDescription {
+      margin: 0;
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: 16px;
+      letter-spacing: normal;
+      color: #7F7F7F;
+    }
+  }
+
+  .transferBtn {
+    border-radius: 6px;
+    height: 36px;
+    padding: 0 16px;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .deleteBtn {
+    border-radius: 6px;
+    height: 36px;
+    padding: 0 16px;
+    font-weight: 500;
+    flex-shrink: 0;
+    background-color: #F74E43 !important;
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .spaceSettings {
+    .settingContent {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 16px;
+    }
+
+    .transferBtn,
+    .deleteBtn {
+      width: 100%;
+    }
+  }
+} 

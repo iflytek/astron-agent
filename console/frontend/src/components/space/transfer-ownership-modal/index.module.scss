@@ -1,0 +1,76 @@
+.transferModal {
+  :global {
+    .ant-modal-header {
+      .ant-modal-title {
+        font-family: PingFang SC;
+        font-size: 16px;
+        font-weight: 600;
+        line-height: 16px;
+        letter-spacing: normal;
+        color: #3d3d3d;
+      }
+    }
+  }
+
+  .modalContent {
+    padding: 12px 0;
+    font-family: PingFang SC;
+  }
+
+  .warningText {
+    margin-bottom: 21px;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: normal;
+    letter-spacing: normal;
+    color: #b2b2b2;
+  }
+
+  .formSection {
+    .formLabel {
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: normal;
+      line-height: 24px;
+      letter-spacing: normal;
+      color: #3d3d3d;
+    }
+
+    .memberSelect {
+      height: 45px;
+      width: 100%;
+      border-radius: 8px;
+      background: #ffffff;
+      box-sizing: border-box;
+      border: 1px solid #e4eaff;
+    }
+  }
+
+  .memberOption {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .memberIcon {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .memberName {
+      flex: 1;
+      color: #1a1a1a;
+    }
+
+    .memberRole {
+      color: #999;
+      font-size: 12px;
+    }
+  }
+
+  .modalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 24px;
+  }
+}

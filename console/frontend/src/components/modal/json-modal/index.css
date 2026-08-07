@@ -1,0 +1,25 @@
+.json-editor {
+  .monaco-editor,
+  .monaco-editor .margin,
+  .monaco-editor-background,
+  .monaco-editor .view-overlays {
+    outline: none;
+    border: none !important;
+    background: transparent !important;
+    /* 如果你要透明背景，可以加上 */
+  }
+
+  /* 去掉行号区和代码区之间的竖线 */
+  .monaco-editor .margin {
+    border-right: none !important;
+  }
+
+  /* 去掉高亮行的横线边框 */
+  .monaco-editor .view-overlays .current-line {
+    border: none !important;
+  }
+
+  .monaco-editor .monaco-scrollable-element {
+    border-left: none !important;
+  }
+}

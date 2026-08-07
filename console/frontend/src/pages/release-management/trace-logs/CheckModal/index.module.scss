@@ -1,0 +1,206 @@
+.ocrModal {
+  :global(.ant-modal-content) {
+    padding: 0;
+    
+    :global(.ant-modal-header) {
+      padding: 16px 24px;
+      margin-bottom: 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    :global(.ant-modal-body) {
+      padding: 0;
+    }
+  }
+}
+
+.modalTitleWrapper {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.traceIdWrapper {
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+  font-weight: normal;
+  font-size: 14px;
+}
+
+.traceIdLabel {
+  color: #666;
+  margin-right: 4px;
+}
+
+.traceIdValue {
+  color: #333;
+  margin-right: 8px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.copyIcon {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  color: #999;
+  
+  &:hover {
+    color: #1890ff;
+  }
+}
+
+.nodeCopyIcon {
+  cursor: pointer;
+  margin-left: 8px;
+  display: inline-flex;
+  align-items: center;
+  color: #999;
+  
+  &:hover {
+    color: #1890ff;
+  }
+}
+
+.modalContent {
+  display: flex;
+  height: 600px;
+  padding: 16px 24px 24px;
+  gap: 12px;
+}
+
+.leftSide {
+  width: 272px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.treeTitle {
+  margin-bottom: 8px;
+  font-family: PingFang SC;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: normal;
+  letter-spacing: normal;
+  color: #7F7F7F;
+  flex-shrink: 0;
+}
+
+.treeContainer {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  border: 1px solid #E4EAFF;
+  overflow: auto;
+}
+
+.customTree {
+  :global(.ant-tree-node-selected ) {
+    background-color: transparent !important;
+  }
+}
+
+.rightSide {
+  flex: 1;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.rightContent {
+  height: 100%;
+}
+
+.contentWrapper {
+  height: 100%;
+  display: flex;
+  gap: 12px;
+}
+
+.contentLeft {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-x: hidden;
+
+  .inputContent {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .outputContent {
+    flex: 1;
+    overflow-y: auto;
+  }
+}
+
+.contentRight {
+  width: 234px;
+  flex-shrink: 0;
+  padding-top: 30px;
+}
+
+.statusSection {
+  height: 100%;
+  border: 1px solid #E4EAFF;
+  border-radius: 12px;
+}
+
+.statusContent {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow-y: auto;
+}
+
+.statusItem {
+  display: flex;
+  flex-direction: column;
+}
+
+.statusLabel {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.statusValue {
+  color: #333;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+}
+
+.statusSuccess {
+  color: #52c41a;
+}
+
+.statusFailed {
+  color: #f5222d;
+}
+
+.outputText {
+  line-height: 1.6;
+  
+  strong {
+    font-weight: 500;
+  }
+}
+
+.nodeIdText {
+  margin-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+} 

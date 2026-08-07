@@ -1,0 +1,25 @@
+.feedbackUpload {
+  :global {
+    .ant-upload-drag {
+      border: 1px solid #e2e8ff;
+      background-color: #f8faff;
+    }
+
+    .ant-upload-drag-container {
+      display: flex !important;
+      flex-direction: column;
+      justify-content: center !important;
+      align-items: center;
+      text-align: center;
+    }
+
+    .ant-upload-btn {
+      padding: 40px 24px !important;
+    }
+    .ant-upload-list {
+      height: auto;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+  }
+}

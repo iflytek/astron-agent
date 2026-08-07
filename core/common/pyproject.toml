@@ -1,0 +1,56 @@
+[project]
+name = "xingchen_utils"
+version = "9.9.9"
+description = ""
+authors = [
+    {name = "mingduan", email = "mingduan@iflytek.com"}
+]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "aiohttp>=3.10.5",
+    "fastapi>=0.115.0",
+    "websockets==12.0",
+    "pydantic>=2.9.2",
+    "opentelemetry-api>=1.25.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.25.0",
+    "opentelemetry-proto>=1.25.0",
+    "opentelemetry-sdk>=1.25.0",
+    "opentelemetry-semantic-conventions>=0.46b0",
+    "opentelemetry-exporter-opencensus>=0.46b0",
+    "opentelemetry-exporter-otlp>=1.25.0",
+    "loguru>=0.7.2",
+    "grpc-google-iam-v1==0.12.6",
+    "googleapis-common-protos==1.60.0",
+    "websocket-client==1.8.0",
+    "python-dotenv>=1.0.1",
+    "confluent-kafka>=2.5.0",
+    "pydantic-settings>=2.10.1",
+    "sqlmodel>=0.0.14",
+    "toml>=0.10.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "httpx>=0.27.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["common"]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0", 
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "httpx>=0.27.0",
+]

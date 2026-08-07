@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "server": {
+      "type": "string",
+      "description": "工具地址",
+      "minLength": 1
+    },
+    "method": {
+      "type": "string",
+      "description": "调用方法类型",
+      "enum": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "TRACE"]
+    },
+    "path": {
+      "type": "object"
+    },
+    "query": {
+      "type": "object"
+    },
+    "header": {
+      "type": "object"
+    },
+    "body": {
+      "type": "object"
+    },
+    "openapi_schema": {
+      "type": "string"
+    }
+  },
+  "required": ["server", "method", "path", "query", "header", "body"]
+}
+

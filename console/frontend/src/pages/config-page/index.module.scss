@@ -1,0 +1,10 @@
+.config_page_container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding: 0 24px;
+  scrollbar-color: #dde7f7;
+  background: linear-gradient(180deg, #eaf1fe, #f8faff 100%);
+}

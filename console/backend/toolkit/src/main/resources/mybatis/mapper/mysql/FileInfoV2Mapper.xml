@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.iflytek.astron.console.toolkit.mapper.repo.FileInfoV2Mapper">
+
+    <select id="listByIds" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        select * from file_info_v2
+        where id in
+        <foreach collection="ids" item="id" separator="," open="(" close=")">#{id}</foreach>
+    </select>
+
+    <select id="getFileInfoV2UUIDS" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        select fiv.* from file_info_v2 fiv left join repo r on r.id = fiv.repo_id
+        where r.core_repo_id = #{repoSourceId}
+        <if test="sourceIds != null and sourceIds.size()>0">
+            and fiv.uuid in <foreach collection="sourceIds" open="(" close=")" separator="," item="sourceId">#{sourceId}</foreach>
+        </if>
+    </select>
+
+    <select id="getFileInfoV2ByNames" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        select fiv.* from file_info_v2 fiv left join repo r on r.id = fiv.repo_id
+        where r.core_repo_id = #{repoSourceId}
+        <if test="fileNames != null and fileNames.size()>0">
+            and fiv.name in <foreach collection="fileNames" open="(" close=")" separator="," item="fileName">#{fileName}</foreach>
+        </if>
+    </select>
+
+    <!-- 根据 core_repo_id 查询 source 为 AIUI-RAG2 的 FileInfoV2 列表 -->
+    <select id="getFileInfoV2ByRepoId" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        SELECT fiv.*
+        FROM file_info_v2 fiv
+                 LEFT JOIN repo r ON r.id = fiv.repo_id
+        WHERE r.id = #{repoId}
+    </select>
+    <select id="getFileInfoV2ByCoreRepoId" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        SELECT
+            fiv.*
+        FROM
+            file_info_v2 fiv
+                LEFT JOIN repo r ON
+                r.id = fiv.repo_id
+        WHERE
+            r.core_repo_id =  #{repoId}
+          and fiv.status = 5
+        and fiv.enabled = 1
+    </select>
+    <select id="getFileInfoV2byUserId" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        SELECT
+            f1.*
+        FROM
+            file_info_v2 AS f1
+                INNER JOIN
+            file_directory_tree AS f2
+            ON
+                f1.id = f2.file_id
+        WHERE
+            f1.uid = #{uid} AND f1.status = 5;
+    </select>
+    <select id="listFiles" resultType="com.iflytek.astron.console.toolkit.entity.table.repo.FileInfoV2">
+        select fiv.*
+        from
+        file_info_v2 fiv
+        left join file_directory_tree fdt on fiv.id = fdt.file_id
+        WHERE fiv.repo_id = #{repoId} and fdt.status = 1
+    </select>
+
+</mapper>

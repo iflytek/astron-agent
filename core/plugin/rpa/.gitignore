@@ -1,0 +1,14 @@
+.venv
+logs
+__pycache__
+examples
+.scan.log
+.script.txt
+Makefile
+.mypy_cache
+.coverage
+.pytest_cache
+.claude
+htmlcov
+.script
+coverage.xml

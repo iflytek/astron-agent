@@ -1,0 +1,147 @@
+.infoHeader {
+  background: #ffffff;
+  padding: 26px 0;
+  margin-bottom: 23px;
+  display: flex;
+  gap: 26px;
+  border-bottom: 1px solid #D8D8D8;
+
+  .teamAvatar {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    position: relative;
+
+    img {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+    }
+
+    .up_hover_btn {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 72px;
+      height: 72px;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(116, 135, 254, 0.37);
+      border-radius: 16px;
+      cursor: pointer;
+
+      .up_hover_icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 0;
+      }
+    }
+  }
+
+  .teamInfo {
+    overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+
+    .teamName {
+      width: 100%;
+      position: relative;
+
+      .staticName {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+
+        .editBtn {
+          height: 24px;
+          flex-shrink: 0;
+        }
+
+        .teamNameText {
+          max-width: calc(100% - 40px);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-family: PingFang SC;
+          font-size: 20px;
+          font-weight: 600;
+          line-height: 24px;
+          letter-spacing: normal;
+          color: #333333;
+        }
+      }
+
+      .editSection {
+        width: fit-content;
+        background-color: #fff;
+        display: flex;
+        gap: 8px;
+        z-index: 10;
+
+        .editInput {
+          height: 32px;
+          min-width: 300px;
+          border-radius: 6px;
+        }
+
+        .editActions {
+          flex-shrink: 0;
+          width: 70px;
+
+          :global(.ant-btn) {
+            height: 32px;
+          }
+        }
+      }
+    }
+
+    .authInfo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
+      .authName {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        padding-right: 9px;
+        border-right: 1px solid #D8D8D8;
+        font-family: 苹方;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 12px;
+        display: flex;
+        align-items: center;
+        letter-spacing: normal;
+        color: #7F7F7F;
+      }
+
+      .authRole {
+        height: 24px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 0 10px;
+        border-radius: 15px;
+        background: #dfe5ff;
+        font-family: 苹方;
+        font-size: 12px;
+        font-weight: normal;
+        line-height: normal;
+        text-align: justify;
+        /* 浏览器可能不支持 */
+        display: flex;
+        align-items: center;
+        letter-spacing: normal;
+        color: #333333;
+      }
+    }
+  }
+}

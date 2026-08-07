@@ -1,0 +1,179 @@
+.sharePage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  //  padding: 32px 40px;
+  background: url(../../assets/imgs/share-page/sharepageBg.jpg) no-repeat
+    center center / cover;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  .shareLog {
+    position: absolute;
+    top: 32px;
+    left: 40px;
+  }
+  .invite {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 540px;
+    height: 641px;
+    border-radius: 16px;
+    background: #ffffff;
+    box-sizing: border-box;
+    border: 1px solid #e2e8ff;
+    box-shadow: 0px 4px 10px 0px rgba(0, 18, 70, 0.08);
+    .flex {
+      display: flex;
+    }
+    .inviteImg {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      margin-right: 6.5px;
+    }
+    .inviteName {
+      font-family: 苹方;
+      font-size: 16px;
+      font-weight: 500;
+      line-height: 30px;
+      // display: flex;
+      // align-items: center;
+      letter-spacing: normal;
+      color: #333333;
+    }
+    .inviteText {
+      width: 230px;
+      margin-top: 8px;
+      font-family: PingFang SC;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: normal;
+      letter-spacing: normal;
+      color: #7f7f7f;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .centerInfo {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #f0f5ff;
+      width: 480px;
+      height: 334px;
+      border-radius: 18px;
+      margin-top: 50px;
+      margin-bottom: 60px;
+      .infoImg {
+        width: 108px;
+        height: 108px;
+        border-radius: 24px;
+      }
+      .infoTitle {
+        width: 250px;
+        font-family: PingFang SC;
+        font-size: 22px;
+        font-weight: 500;
+        line-height: normal;
+        letter-spacing: normal;
+        color: #333333;
+        margin-top: 20px;
+        margin-bottom: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: center;
+      }
+      .infoDesc {
+        width: 429px;
+        height: 46px;
+        margin-bottom: 24px;
+        font-family: PingFang SC;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 23px;
+        text-align: center;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        letter-spacing: normal;
+        color: #7f7f7f;
+      }
+      .inviteTag {
+        width: 52px;
+        height: 25px;
+        margin-top: 2px;
+        margin-left: 7px;
+        border-radius: 7px;
+        background: #e4eaff;
+        text-align: center;
+        line-height: 25px;
+        font-family: 苹方;
+        font-size: 12px;
+        font-weight: normal;
+        letter-spacing: normal;
+        color: #6356EA;
+      }
+    }
+    .refuse {
+      width: 236px;
+      height: 40px;
+      line-height: 38px;
+      border-radius: 8px;
+      background: #ffffff;
+      border: 1px solid #e4eaff;
+      text-align: center;
+      margin-right: 8px;
+      margin-top: 14px;
+      cursor: pointer;
+    }
+    .join {
+      width: 236px;
+      height: 40px;
+      line-height: 40px;
+      border-radius: 8px;
+      background: #6356EA;
+      color: #fff;
+      text-align: center;
+      margin-top: 14px;
+      cursor: pointer;
+    }
+    .enterBotton {
+      width: 480px;
+      height: 40px;
+      border-radius: 8px;
+      background: #6356EA;
+      line-height: 40px;
+      text-align: center;
+      margin-top: 14px;
+      color: #fff;
+      cursor: pointer;
+      font-family: 苹方-简;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: normal;
+    }
+    .expire {
+      width: 480px;
+      height: 40px;
+      border-radius: 8px;
+      background: #eff1f7;
+      line-height: 40px;
+      text-align: center;
+      margin-top: 14px;
+      color: #babbc0;
+      cursor: not-allowed;
+      font-family: 苹方-简;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: normal;
+    }
+  }
+}

@@ -1,0 +1,37 @@
+.loading {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.spaceList {
+  max-height: 100%;
+  overflow-y: auto;
+
+  &.static {
+    display: flex;
+    gap: 25px;
+    flex-wrap: wrap;
+  }
+
+  .spaceCol {
+    display: flex;
+
+    >div {
+      width: 100% !important;
+    }
+  }
+
+  .emptyState {
+    .emptyContent {
+      text-align: center;
+
+      p {
+        margin: 0;
+        font-size: 16px;
+      }
+    }
+  }
+} 

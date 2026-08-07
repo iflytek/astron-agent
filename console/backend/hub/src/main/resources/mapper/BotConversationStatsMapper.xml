@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.iflytek.astron.console.hub.mapper.BotConversationStatsMapper">
+
+    <!-- Get bot summary statistics -->
+    <select id="selectSummaryStats" resultType="com.iflytek.astron.console.hub.dto.publish.BotSummaryStatsVO">
+        SELECT 
+            COALESCE(SUM(token_consumed), 0) as totalTokens,
+            COALESCE(COUNT(DISTINCT chat_id), 0) as totalChats,
+            COALESCE(COUNT(DISTINCT uid), 0) as totalUsers,
+            COALESCE(COUNT(*), 0) as totalMessages
+        FROM bot_conversation_stats 
+        WHERE bot_id = #{botId}
+          AND is_delete = 0
+        <if test="uid != null">
+            AND uid = #{uid}
+        </if>
+        <if test="spaceId != null">
+            AND space_id = #{spaceId}
+        </if>
+    </select>
+
+    <!-- Get bot time series statistics -->
+    <select id="selectTimeSeriesStats" resultType="com.iflytek.astron.console.hub.dto.publish.BotTimeSeriesStatsVO">
+        SELECT 
+            conversation_date as date,
+            COALESCE(COUNT(DISTINCT uid), 0) as userCount,
+            COALESCE(SUM(token_consumed), 0) as tokenCount,
+            COALESCE(COUNT(*), 0) as messageCount,
+            COALESCE(COUNT(DISTINCT chat_id), 0) as chatCount
+        FROM bot_conversation_stats 
+        WHERE bot_id = #{botId}
+          AND is_delete = 0
+        <if test="startDate != null">
+            AND conversation_date >= #{startDate}
+        </if>
+        <if test="uid != null">
+            AND uid = #{uid}
+        </if>
+        <if test="spaceId != null">
+            AND space_id = #{spaceId}
+        </if>
+        GROUP BY conversation_date
+        ORDER BY conversation_date ASC
+    </select>
+
+</mapper>

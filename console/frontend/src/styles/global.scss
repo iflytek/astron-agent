@@ -1,0 +1,166 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --flow-handle: 0 0% 100%;
+  }
+}
+
+body,
+html,
+#root {
+  width: 100%;
+  height: 100%;
+  font-family:
+    'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Hiragino Sans GB',
+    'Heiti SC', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #b3b3b3;
+  border-radius: 4px;
+}
+
+.ant-form,
+.ant-form label {
+  font-family:
+    'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Hiragino Sans GB',
+    'Heiti SC', 'Microsoft YaHei', 'WenQuanYi Micro Hei', sans-serif !important;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+@font-face {
+  font-family: 'D-DIN-PRO-500-Medium';
+  src: url('/fonts/D-DIN-PRO-500-Medium.otf') format('woff2');
+}
+
+.DINPROMedium {
+  font-family: 'D-DIN-PRO-500-Medium' !important;
+}
+
+@font-face {
+  font-family: 'PingFang-Sim';
+  src: url('/fonts/PingFang.ttc');
+}
+
+/* 自定义脚注样式 */
+.custom-footnote {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  font-size: 12px;
+  text-align: center;
+  color: #787979;
+  cursor: pointer;
+  font-weight: 600;
+  background: #f1f2f5;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  letter-spacing: 0px;
+  margin: 0px 3px;
+  &:hover {
+    background: #2a6ee9;
+    color: #fff;
+  }
+}
+
+:root {
+  --scrollbar-width: 6px;
+}
+.scroll-bar-UI {
+  /* 滚动条样式 */
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+    border-radius: calc(var(--scrollbar-width) / 2);
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: calc(var(--scrollbar-width) / 2);
+    background: #E7E7F0;
+    transition: background-color 0.2s ease;
+  }
+
+  &::-webkit-scrollbar-button {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background-color: transparent;
+  }
+
+  &::-webkit-scrollbar-track-piece {
+    background-color: transparent;
+  }
+}
+
+.scroll-bar-hide-UI {
+  /* 滚动条样式 */
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+/* Firefox 滚动条样式 - 使用 @supports hack 避免覆盖 webkit 样式 */
+@supports (-moz-appearance: none) {
+  .scroll-bar-UI {
+    scrollbar-width: thin;
+    scrollbar-color: #E7E7F0 transparent;
+  }
+
+  .scroll-bar-hide-UI {
+    scrollbar-width: none;
+  }
+}
+
+.ant-select-UI {
+  .ant-select-selector {
+    border-radius: 10px !important;
+    /* 卡片背景 */
+    background: #FFFFFF !important;
+    box-sizing: border-box !important;
+    /* 描边色 */
+    border: 1px solid #E7E7F0 !important;
+  }
+
+  &.ant-select-focused .ant-select-selector {
+    border: 1px solid #6356EA !important;
+    box-shadow: 0 0 0 2px rgba(99, 86, 234, 0.1) !important;
+  }
+}
+
+.page-container-UI {
+  background: #F7F9FD !important;
+  box-shadow: inset 0px 1px 10px 0px rgba(146, 136, 225, 0.2) !important;
+
+  .page-container-inner-UI {
+    width: 86%;
+    max-width: 1425px;
+    margin: 0 auto;
+    padding: 20px 0;
+  }
+}

@@ -1,0 +1,55 @@
+.keyModal {
+  :global {
+    .ant-modal-content {
+      border-radius: 8px;
+    }
+  }
+}
+
+.warningBox {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 6px;
+
+  .warningIcon {
+    color: #faad14;
+    margin-right: 12px;
+    font-size: 16px;
+  }
+
+  .warningText {
+    color: #5c5c5c;
+    font-weight: 500;
+  }
+}
+
+.keyBox {
+  margin-bottom: 24px;
+  background-color: #f9f9f9;
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid #e8e8e8;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .keyText {
+    font-family: monospace;
+    font-size: 14px;
+    color: #333;
+  }
+
+  .copyButton {
+    margin-left: 16px;
+    color: #1677ff;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+}
