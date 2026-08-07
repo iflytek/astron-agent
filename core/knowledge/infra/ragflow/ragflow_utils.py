@@ -22,6 +22,8 @@ from knowledge.infra.ragflow.ragflow_client import (
     get_document_info,
     list_datasets,
     update_dataset,
+)
+from knowledge.infra.ragflow.ragflow_client import (
     wait_for_parsing as wait_for_document_parsing,
 )
 
