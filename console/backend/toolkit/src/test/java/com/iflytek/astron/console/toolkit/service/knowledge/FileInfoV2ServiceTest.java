@@ -2269,7 +2269,6 @@ class FileInfoV2ServiceTest {
             when(configInfoService.getOnly(any(LambdaQueryWrapper.class))).thenReturn(null);
             when(extractKnowledgeTaskService.save(any(ExtractKnowledgeTask.class))).thenReturn(true);
             doNothing().when(knowledgeService).knowledgeExtractAsync(anyString(), anyString(), any(SliceConfig.class), any(FileInfoV2.class), any(ExtractKnowledgeTask.class));
-            doReturn(true).when(fileInfoV2Service).updateById(any(FileInfoV2.class));
 
             // When
             DealFileResult result = fileInfoV2Service.sliceFile(fileId, sliceConfig, backEmbedding);
@@ -2312,7 +2311,6 @@ class FileInfoV2ServiceTest {
                     .knowledgeExtractAsync(
                             anyString(), anyString(), any(SliceConfig.class),
                             any(FileInfoV2.class), any(ExtractKnowledgeTask.class));
-            doReturn(true).when(fileInfoV2Service).updateById(any(FileInfoV2.class));
 
             DealFileResult result = fileInfoV2Service.sliceFile(fileId, sliceConfig, 0);
 
