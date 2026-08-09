@@ -138,6 +138,20 @@ def init_trace(
     file_processor = BatchSpanProcessor(file_exporter)
     provider.add_span_processor(file_processor)
 
+    # Optional Langfuse bridge: forwards the same workflow spans to Langfuse's
+    # OTel endpoint when LANGFUSE_ENABLED is set. Imported lazily so the
+    # integration is a no-op (and dependency-free) when disabled.
+    try:
+        from workflow.extensions.otlp.trace.langfuse_exporter import (
+            init_langfuse_processor,
+        )
+
+        langfuse_processor = init_langfuse_processor()
+        if langfuse_processor is not None:
+            provider.add_span_processor(langfuse_processor)
+    except Exception as exc:  # noqa: BLE001 - observability must never break tracing
+        logger.warning(f"Failed to initialize Langfuse bridge: {exc}")
+
     # Set global default tracer provider
     trace.set_tracer_provider(provider)
     logger.debug("✅ Trace initialized successfully")

@@ -103,6 +103,33 @@ Configuration items in this document are marked as follows:
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | Required | int | OTLP trace batch export maximum size | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | Required | int | OTLP trace export timeout (milliseconds) | 3000 |
 
+### Langfuse (OpenTelemetry bridge)
+
+Optional. Forwards the workflow's existing OpenTelemetry spans to
+[Langfuse](https://langfuse.com) so agent traces, latency, and (where the
+underlying provider records them) token usage appear in Langfuse without
+re-instrumenting each LLM provider. Uses Langfuse's documented OTLP ingestion
+endpoint (`{LANGFUSE_HOST}/api/public/otel`, OTLP over HTTP). No additional
+Python dependency is required.
+
+| Variable Name | Configuration Type | Type | Description | Example Value |
+|---------------|-------------------|------|-------------|---------------|
+| LANGFUSE_ENABLED | Required | bool | Enable the Langfuse bridge (0/1, true/false) | 0 |
+| LANGFUSE_PUBLIC_KEY | Required when enabled | string | Langfuse project public key (`pk-lf-...`) | pk-lf-xxxx |
+| LANGFUSE_SECRET_KEY | Required when enabled | string | Langfuse project secret key (`sk-lf-...`) | sk-lf-xxxx |
+| LANGFUSE_HOST | Optional | string | Langfuse host. Cloud regions or self-hosted (`http://localhost:3000`, self-hosted >= v3.22.0) | https://cloud.langfuse.com |
+
+Example:
+
+```bash
+export LANGFUSE_ENABLED=1
+export LANGFUSE_PUBLIC_KEY=pk-lf-xxxx
+export LANGFUSE_SECRET_KEY=sk-lf-xxxx
+export LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+
+
 ---
 
 ## 3. Basic Service Port Configuration
