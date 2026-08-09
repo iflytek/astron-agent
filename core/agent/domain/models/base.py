@@ -10,6 +10,7 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from pydantic import BaseModel, ConfigDict, Field
 
 from agent.exceptions.plugin_exc import PluginExc, llm_plugin_error
+from agent.infra.langfuse_tracing import trace_provider_stream
 
 
 class BaseLLMModel(BaseModel):
@@ -174,17 +175,23 @@ class ProviderLLMModel(BaseLLMModel):
             self._log_request_info_to_span(sp, stream)
 
         try:
-            async with self.http_client.stream(
-                "POST",
-                self.build_request_url(),
-                headers=self.build_headers(),
-                json=self.build_payload(messages, stream),
-            ) as response:
-                response.raise_for_status()
-                async for chunk in self._yield_normalized_chunks(response):  # type: ignore[attr-defined]
-                    if sp is not None:
-                        sp.add_info_events({"llm-chunk": chunk.model_dump_json()})
-                    yield chunk
+            async with trace_provider_stream(
+                self.name,
+                self.provider_name(),
+                messages,
+                payload=self.build_payload(messages, stream),
+            ):
+                async with self.http_client.stream(
+                    "POST",
+                    self.build_request_url(),
+                    headers=self.build_headers(),
+                    json=self.build_payload(messages, stream),
+                ) as response:
+                    response.raise_for_status()
+                    async for chunk in self._yield_normalized_chunks(response):  # type: ignore[attr-defined]
+                        if sp is not None:
+                            sp.add_info_events({"llm-chunk": chunk.model_dump_json()})
+                        yield chunk
         except httpx.TimeoutException as error:
             self._handle_exception(error, sp)
         except httpx.HTTPStatusError as error:
@@ -195,6 +202,10 @@ class ProviderLLMModel(BaseLLMModel):
             llm_plugin_error(str(error.response.status_code), message)
         except Exception as error:
             self._handle_exception(error, sp)
+
+    def provider_name(self) -> str:
+        """Return the provider identifier used for observability labels."""
+        return type(self).__name__.replace("LLMModel", "").lower()
 
 
 class AnthropicLLMModel(ProviderLLMModel):
