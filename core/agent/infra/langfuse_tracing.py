@@ -139,19 +139,21 @@ async def trace_provider_stream(
     except Exception as exc:
         if observation is not None:
             try:
-                observation.end(
+                observation.update(
                     level="ERROR",
                     status_message=str(exc)[:500],
                     metadata={"provider": provider, "error": str(exc)[:500]},
                 )
+                observation.end()
             except Exception:  # pragma: no cover - defensive
                 logger.debug("[langfuse] failed to record error", exc_info=True)
         raise
     else:
         if observation is not None:
             try:
-                observation.end(
+                observation.update(
                     metadata={"provider": provider, "payload": payload or {}}
                 )
+                observation.end()
             except Exception:  # pragma: no cover - defensive
                 logger.debug("[langfuse] failed to end observation", exc_info=True)
