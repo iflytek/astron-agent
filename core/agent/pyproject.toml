@@ -44,3 +44,8 @@ dependencies = [
     "mypy==1.18.2",
     "pylint==3.1.0",
 ]
+
+[project.optional-dependencies]
+langfuse = [
+    "langfuse>=4.0.0",
+]

@@ -14,6 +14,7 @@ from agent.engine.nodes.chat.chat_runner import ChatRunner
 from agent.engine.nodes.cot.cot_runner import CotRunner
 from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 from agent.infra.app_auth import MaasAuth
+from agent.infra.langfuse_tracing import wrap_openai_client
 from agent.service.plugin.base import BasePlugin
 from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
@@ -334,11 +335,13 @@ class BaseApiBuilder(BaseModel):
 
             return BaseLLMModel(
                 name=model_name,
-                llm=AsyncOpenAI(
-                    api_key=sk,
-                    base_url=normalized_base_url,
-                    http_client=http_client,
-                    timeout=300.0,
-                    max_retries=2,
+                llm=wrap_openai_client(
+                    AsyncOpenAI(
+                        api_key=sk,
+                        base_url=normalized_base_url,
+                        http_client=http_client,
+                        timeout=300.0,
+                        max_retries=2,
+                    )
                 ),
             )
