@@ -88,7 +88,7 @@
 
 ---
 
-## 2. 监控配置模块 (OTLP)
+## 2. 可观测性配置（OTLP 与 Langfuse）
 
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
@@ -102,6 +102,16 @@
 | OTLP_TRACE_SCHEDULE_DELAY_MILLIS | 必填 | int | OTLP 追踪调度延迟(毫秒) | 3000 |
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | 必填 | int | OTLP 追踪批量导出最大数量 | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | 必填 | int | OTLP 追踪导出超时(毫秒) | 3000 |
+| LANGFUSE_ENABLED | 使用默认 | bool | 启用独立的 Langfuse OTLP/HTTP Trace exporter | false |
+| LANGFUSE_PUBLIC_KEY | 启用时必填 | string | Langfuse 项目 Public Key | （空） |
+| LANGFUSE_SECRET_KEY | 启用时必填 | string | Langfuse 项目 Secret Key；生产环境应通过 Secret 管理器注入 | （空） |
+| LANGFUSE_HOST | 使用默认 | url | Langfuse 基础 URL；Astron 会自动生成 v4 OTLP Trace endpoint | https://cloud.langfuse.com |
+| LANGFUSE_CAPTURE_INPUT_OUTPUT | 使用默认 | bool | 是否导出提示词/输入及响应/输出内容；为保护隐私默认关闭 | false |
+| LANGFUSE_MAX_ATTRIBUTE_LENGTH | 使用默认 | int | 导出的字符串属性最大长度 | 8192 |
+| LANGFUSE_ENVIRONMENT | 使用默认 | string | 附加到 Langfuse Trace 的环境标签 | default |
+| LANGFUSE_RELEASE | 可选 | string | 附加到 Langfuse Trace 的发布或部署标签 | （空） |
+
+隐私行为、部署、验证和 evaluator 配置请参阅 [Langfuse 可观测性指南](/zh/guide/observability)。
 
 ---
 

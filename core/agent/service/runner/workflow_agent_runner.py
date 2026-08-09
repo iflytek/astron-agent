@@ -1,4 +1,5 @@
 import json
+from contextlib import aclosing
 from typing import Any, AsyncGenerator, Sequence
 
 # Use unified common package import module
@@ -48,19 +49,23 @@ class WorkflowAgentRunner(BaseModel):
                 node_trace_log=node_trace_log,
             )
 
-        async for message in self.run_runner(span, node_trace_log):
-            yield await self.convert_message(
-                message, span=span, node_trace_log=node_trace_log
-            )
+        response_stream = self.run_runner(span, node_trace_log)
+        async with aclosing(response_stream):
+            async for message in response_stream:
+                yield await self.convert_message(
+                    message, span=span, node_trace_log=node_trace_log
+                )
 
     async def run_runner(
         self, span: Span, node_trace_log: NodeTraceLog
     ) -> AsyncGenerator[AgentResponse, None]:
-        if not self.plugins:
-            async for message in self.chat_runner.run(span, node_trace_log):
-                yield message
-        else:
-            async for message in self.cot_runner.run(span, node_trace_log):
+        response_stream = (
+            self.cot_runner.run(span, node_trace_log)
+            if self.plugins
+            else self.chat_runner.run(span, node_trace_log)
+        )
+        async with aclosing(response_stream):
+            async for message in response_stream:
                 yield message
 
     async def convert_message(

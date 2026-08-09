@@ -1,8 +1,10 @@
+import inspect
 import json
 import os
 import time
 import traceback
 from abc import ABC, abstractmethod
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import Any, AsyncGenerator, List
 
@@ -11,6 +13,8 @@ from common.exceptions.base import BaseExc
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
+from opentelemetry.trace import Status as OtelStatus
+from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict
 
 from agent.api.schemas.base_inputs import BaseInputs
@@ -102,104 +106,134 @@ class CompletionBase(BaseModel, ABC):
             chunk_logs.append(chunk.model_dump_json())
             yield await self.create_chunk(chunk)
 
+    @staticmethod
+    def _attach_total_usage(
+        stop_chunk: ReasonChatCompletionChunk, node_trace_log: NodeTraceLog
+    ) -> None:
+        """Attach aggregated model usage to the terminal SSE chunk."""
+        if not node_trace_log.trace:
+            return
+
+        from openai.types.completion_usage import CompletionUsage
+
+        total_usage = {
+            "completion_tokens": 0,
+            "prompt_tokens": 0,
+            "total_tokens": 0,
+        }
+        for node in node_trace_log.trace:
+            if hasattr(node, "data") and hasattr(node.data, "usage"):
+                total_usage["completion_tokens"] += node.data.usage.completion_tokens
+                total_usage["prompt_tokens"] += node.data.usage.prompt_tokens
+                total_usage["total_tokens"] += node.data.usage.total_tokens
+
+        if total_usage["total_tokens"] > 0:
+            stop_chunk.usage = CompletionUsage(
+                completion_tokens=total_usage["completion_tokens"],
+                prompt_tokens=total_usage["prompt_tokens"],
+                total_tokens=total_usage["total_tokens"],
+            )
+
+    async def _terminal_chunks(self, context: RunContext) -> tuple[str, str]:
+        """Build normal terminal frames before control enters final cleanup."""
+        if context.error.c != 0:
+            context.error.m += f",{context.span.sid}"
+            context.span.add_error_events({"traceback": context.error_log})
+
+        stop_chunk = await self.create_stop(context.span, context.error)
+        self._attach_total_usage(stop_chunk, context.node_trace_log)
+        context.chunk_logs.append(stop_chunk.model_dump_json())
+        for chunk_log in context.chunk_logs:
+            context.span.add_info_events({"response-chunk": chunk_log})
+        return await self.create_chunk(stop_chunk), await self.create_done()
+
+    def _finalize_run(self, context: RunContext) -> None:
+        """Perform output-free cleanup, including on cancellation/aclose."""
+        if os.getenv("UPLOAD_METRICS"):
+            context.meter.in_error_count(context.error.c)
+        attributes: dict[str, Any] = {
+            "code": context.error.c,
+            "astron.agent.error_code": context.error.c,
+        }
+        if context.error.c != 0:
+            # The application protocol reports errors as terminal SSE frames,
+            # so no exception escapes this span context automatically.  Mark
+            # the swallowed failure explicitly without exporting its possibly
+            # sensitive message to Langfuse.
+            context.span.set_status(OtelStatus(StatusCode.ERROR))
+            attributes.update(
+                {
+                    "langfuse.observation.level": "ERROR",
+                    "langfuse.observation.status_message": "Agent execution failed",
+                }
+            )
+        context.span.set_attributes(attributes=attributes)
+        context.span.add_info_events({"message": context.error.m})
+        context.node_trace_log.record_end()
+        if os.getenv("UPLOAD_NODE_TRACE"):
+            node_trace_log = context.node_trace_log.upload(
+                status=Status(code=context.error.c, message=context.error.m),
+                log_caller=self.log_caller,
+                span=context.span,
+            )
+            context.span.add_info_events(
+                {
+                    "node-trace": json.dumps(
+                        node_trace_log,
+                        ensure_ascii=False,
+                        default=json_serializer,
+                    )
+                }
+            )
+
     async def run_runner(
         self, node_trace_log: NodeTraceLog, meter: Meter, span: Span
     ) -> AsyncGenerator[str, None]:
 
         with span.start("RunRunner") as sp:
-            error: BaseExc = AgentNormalExc()
-            error_log: str = ""
             chunk_logs: List[str] = []
+            context = RunContext(
+                error=AgentNormalExc(),
+                error_log="",
+                chunk_logs=chunk_logs,
+                span=sp,
+                node_trace_log=node_trace_log,
+                meter=meter,
+            )
 
             try:
-                runner = await self.build_runner(sp)
-                if runner is None:
-                    raise AgentInternalExc("Failed to build runner")
+                try:
+                    runner = await self.build_runner(sp)
+                    if runner is None:
+                        raise AgentInternalExc("Failed to build runner")
 
-                async for chunk in runner.run(span=sp, node_trace_log=node_trace_log):
-                    chunk.id = span.sid
-                    async for processed_chunk in self._process_chunk(chunk, chunk_logs):
-                        yield processed_chunk
+                    runner_stream = runner.run(span=sp, node_trace_log=node_trace_log)
+                    if inspect.isawaitable(runner_stream):
+                        runner_stream = await runner_stream
+                    async with aclosing(runner_stream):
+                        async for chunk in runner_stream:
+                            chunk.id = span.sid
+                            processed_stream = self._process_chunk(chunk, chunk_logs)
+                            async with aclosing(processed_stream):
+                                async for processed_chunk in processed_stream:
+                                    yield processed_chunk
 
-            except BaseExc as e:
-                error = e
-                error_log = traceback.format_exc()
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                error = AgentInternalExc(str(e))
-                error_log = traceback.format_exc()
+                except BaseExc as exc:
+                    context.error = exc
+                    context.error_log = traceback.format_exc()
+                except Exception as exc:  # pylint: disable=broad-exception-caught
+                    context.error = AgentInternalExc(str(exc))
+                    context.error_log = traceback.format_exc()
 
+                stop_frame, done_frame = await self._terminal_chunks(context)
+                yield stop_frame
+                yield done_frame
             finally:
-                context = RunContext(
-                    error=error,
-                    error_log=error_log,
-                    chunk_logs=chunk_logs,
-                    span=sp,
-                    node_trace_log=node_trace_log,
-                    meter=meter,
-                )
-                """Cleanup work after completing the run"""
-                if context.error.c != 0:
-                    context.error.m += f",{context.span.sid}"
-                    context.span.add_error_events({"traceback": context.error_log})
-
-                stop_chunk = await self.create_stop(context.span, context.error)
-                # Attach usage from node_trace if available
-                if context.node_trace_log.trace:
-                    from openai.types.completion_usage import CompletionUsage
-
-                    total_usage = {
-                        "completion_tokens": 0,
-                        "prompt_tokens": 0,
-                        "total_tokens": 0,
-                    }
-                    for node in context.node_trace_log.trace:
-                        if hasattr(node, "data") and hasattr(node.data, "usage"):
-                            total_usage[
-                                "completion_tokens"
-                            ] += node.data.usage.completion_tokens
-                            total_usage[
-                                "prompt_tokens"
-                            ] += node.data.usage.prompt_tokens
-                            total_usage["total_tokens"] += node.data.usage.total_tokens
-
-                    if total_usage["total_tokens"] > 0:
-                        stop_chunk.usage = CompletionUsage(
-                            completion_tokens=total_usage["completion_tokens"],
-                            prompt_tokens=total_usage["prompt_tokens"],
-                            total_tokens=total_usage["total_tokens"],
-                        )
-
-                context.chunk_logs.append(stop_chunk.model_dump_json())
-
-                for chunk_log in context.chunk_logs:
-                    context.span.add_info_events({"response-chunk": chunk_log})
-
-                yield await self.create_chunk(stop_chunk)
-                yield await self.create_done()
-
-                if os.getenv("UPLOAD_METRICS"):
-                    context.meter.in_error_count(context.error.c)
-                    # context.meter.in_error_count(
-                    #     context.error.c, lables={"msg": context.error.m}
-                    # )
-                context.span.set_attributes(attributes={"code": context.error.c})
-                context.span.add_info_events({"message": context.error.m})
-                context.node_trace_log.record_end()
-                if os.getenv("UPLOAD_NODE_TRACE"):
-                    node_trace_log = context.node_trace_log.upload(
-                        status=Status(code=context.error.c, message=context.error.m),
-                        log_caller=self.log_caller,
-                        span=context.span,
-                    )
-                    context.span.add_info_events(
-                        {
-                            "node-trace": json.dumps(
-                                node_trace_log,
-                                ensure_ascii=False,
-                                default=json_serializer,
-                            )
-                        }
-                    )
+                # Never yield from a generator finalizer.  Starlette closes the
+                # response iterator when a client disconnects; yielding here
+                # raises "async generator ignored GeneratorExit" and prevents
+                # the active trace spans from ending.
+                self._finalize_run(context)
 
     @staticmethod
     async def create_chunk(chunk: Any) -> str:

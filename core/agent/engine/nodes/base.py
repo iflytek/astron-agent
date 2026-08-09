@@ -1,6 +1,7 @@
 import datetime
 import json
 import time
+from contextlib import aclosing
 from typing import Any, AsyncIterator, List
 
 from common.otlp.log_trace.base import Usage
@@ -8,12 +9,67 @@ from common.otlp.log_trace.base import Usage
 # Use unified common package import module
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.langfuse import langfuse_observation_attributes
 from common.otlp.trace.span import Span
 from pydantic import BaseModel, Field
 
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.llm_message import LLMMessage
-from agent.domain.models.base import BaseLLMModel
+from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
+
+
+def llm_provider_name(model: BaseLLMModel) -> str:
+    """Return the OpenTelemetry provider identifier without exposing credentials."""
+    if isinstance(model, AnthropicLLMModel):
+        return "anthropic"
+    if isinstance(model, GoogleLLMModel):
+        return "gcp.gen_ai"
+    return "openai"
+
+
+def llm_generation_attributes(
+    model: BaseLLMModel,
+    *,
+    input_value: Any = None,
+    output_value: Any = None,
+    usage: Usage | None = None,
+) -> dict[str, Any]:
+    """Build Langfuse and GenAI attributes for one streamed generation."""
+    provider = llm_provider_name(model)
+    usage_details = None
+    if usage is not None:
+        usage_details = {
+            "input": usage.prompt_tokens,
+            "output": usage.completion_tokens,
+            "total": usage.total_tokens,
+        }
+
+    attributes = langfuse_observation_attributes(
+        "generation",
+        input_value=input_value,
+        output_value=output_value,
+        model=model.name,
+        model_parameters={"stream": True},
+        usage_details=usage_details,
+        metadata={"provider": provider},
+    )
+    attributes.update(
+        {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": provider,
+            "gen_ai.request.model": model.name,
+            # Streaming responses do not expose a separate response-model field.
+            "gen_ai.response.model": model.name,
+        }
+    )
+    if usage is not None:
+        attributes.update(
+            {
+                "gen_ai.usage.input_tokens": usage.prompt_tokens,
+                "gen_ai.usage.output_tokens": usage.completion_tokens,
+            }
+        )
+    return attributes
 
 
 class RunnerBase(BaseModel):
@@ -37,7 +93,14 @@ class RunnerBase(BaseModel):
         self, messages: list, span: Span, node_trace_log: NodeTraceLog
     ) -> AsyncIterator[AgentResponse]:
 
-        with span.start("RunModelStream") as sp:
+        with span.start(
+            "RunModelStream",
+            attributes=llm_generation_attributes(
+                self.model,
+                input_value=messages,
+            ),
+        ) as sp:
+            generation_span = sp.get_otlp_span()
 
             thinks = ""
             answers = ""
@@ -55,39 +118,58 @@ class RunnerBase(BaseModel):
             node_data_output: dict[str, Any] = {}
             node_data_config: dict[str, Any] = {}
             node_data_usage = Usage()
-            async for chunk in self.model.stream(messages, True, sp):
-                if not chunk.choices:
-                    continue
-                delta = chunk.choices[0].delta.model_dump()
-                reasoning_content = delta.get("reasoning_content")
-                content = delta.get("content")
+            model_stream = self.model.stream(messages, True, sp)
+            try:
+                async with aclosing(model_stream):
+                    async for chunk in model_stream:
+                        # Accumulate usage from chunks instead of resetting
+                        if chunk.usage:
+                            usage_data = chunk.usage.model_dump()
+                            node_data_usage.completion_tokens += usage_data.get(
+                                "completion_tokens", 0
+                            )
+                            node_data_usage.prompt_tokens += usage_data.get(
+                                "prompt_tokens", 0
+                            )
+                            node_data_usage.total_tokens += usage_data.get(
+                                "total_tokens", 0
+                            )
 
-                # Accumulate usage from chunks instead of resetting
-                if chunk.usage:
-                    usage_data = chunk.usage.model_dump()
-                    node_data_usage.completion_tokens += usage_data.get(
-                        "completion_tokens", 0
-                    )
-                    node_data_usage.prompt_tokens += usage_data.get("prompt_tokens", 0)
-                    node_data_usage.total_tokens += usage_data.get("total_tokens", 0)
+                        if not chunk.choices:
+                            continue
+                        delta = chunk.choices[0].delta.model_dump()
+                        reasoning_content = delta.get("reasoning_content")
+                        content = delta.get("content")
 
-                # For intermediate chunks, don't send usage yet
-                if reasoning_content:
-                    yield AgentResponse(
-                        typ="reasoning_content",
-                        content=reasoning_content,
-                        model=self.model.name,
-                        usage=None,
+                        # For intermediate chunks, don't send usage yet
+                        if reasoning_content:
+                            thinks += reasoning_content
+                            yield AgentResponse(
+                                typ="reasoning_content",
+                                content=reasoning_content,
+                                model=self.model.name,
+                                usage=None,
+                            )
+                        if content:
+                            answers += content
+                            yield AgentResponse(
+                                typ="content",
+                                content=content,
+                                model=self.model.name,
+                                usage=None,
+                            )
+            finally:
+                generation_span.set_attributes(
+                    llm_generation_attributes(
+                        self.model,
+                        input_value=messages,
+                        output_value={
+                            "reasoning_content": thinks,
+                            "content": answers,
+                        },
+                        usage=node_data_usage,
                     )
-                    thinks += reasoning_content
-                if content:
-                    yield AgentResponse(
-                        typ="content",
-                        content=content,
-                        model=self.model.name,
-                        usage=None,
-                    )
-                    answers += content
+                )
 
             # Usage will be attached to stop chunk in _finalize_run
             sp.add_info_events(

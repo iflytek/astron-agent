@@ -1,13 +1,15 @@
 import json
 import re
 import time
-from typing import Any, AsyncIterator, Match, Union
+from contextlib import aclosing
+from typing import Any, AsyncGenerator, Match, Union
 
 from common.otlp.log_trace.base import Usage
 
 # Use unified common package import module
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.langfuse import LangfuseConfig, langfuse_observation_attributes
 from common.otlp.trace.span import Span
 from loguru import logger
 from pydantic import Field
@@ -15,7 +17,12 @@ from pydantic import Field
 from agent.api.schemas.agent_response import AgentResponse, CotStep
 from agent.api.schemas.llm_message import LLMMessage, LLMMessages
 from agent.domain.models.base import BaseLLMModel
-from agent.engine.nodes.base import RunnerBase, Scratchpad
+from agent.engine.nodes.base import (
+    RunnerBase,
+    Scratchpad,
+    llm_generation_attributes,
+    llm_provider_name,
+)
 from agent.engine.nodes.cot.cot_prompt import (
     COT_SYSTEM_NO_R1_MORE_TEMPLATE,
     COT_SYSTEM_R1_MORE_TEMPLATE,
@@ -220,9 +227,17 @@ class CotRunner(RunnerBase):
         span: Span,
         node_trace_log: NodeTraceLog,
         allow_plain_final_answer: bool = False,
-    ) -> AsyncIterator[AgentResponse]:
+    ) -> AsyncGenerator[AgentResponse, None]:
 
-        with span.start("MakingStep") as sp:
+        model_messages = messages.list()
+        with span.start(
+            "MakingStep",
+            attributes=llm_generation_attributes(
+                self.model,
+                input_value=model_messages,
+            ),
+        ) as sp:
+            generation_span = sp.get_otlp_span()
 
             thinks = ""
             answers = ""
@@ -240,62 +255,83 @@ class CotRunner(RunnerBase):
             node_start_time = int(round(time.time() * 1000))
             node_running_status = True
             node_data_input = {
-                "read_response_input": json.dumps(messages.list(), ensure_ascii=False)
+                "read_response_input": json.dumps(model_messages, ensure_ascii=False)
             }
             node_data_output: dict[str, Any] = {}
             node_data_config: dict[str, Any] = {}
             node_data_usage = Usage()
 
-            async for chunk in self.model.stream(messages.list(), True, sp):
-                if chunk.usage:
-                    usage_data = chunk.usage.model_dump()
-                    node_data_usage.completion_tokens += usage_data.get(
-                        "completion_tokens", 0
+            model_stream = self.model.stream(model_messages, True, sp)
+            try:
+                async with aclosing(model_stream):
+                    async for chunk in model_stream:
+                        if chunk.usage:
+                            usage_data = chunk.usage.model_dump()
+                            node_data_usage.completion_tokens += usage_data.get(
+                                "completion_tokens", 0
+                            )
+                            node_data_usage.prompt_tokens += usage_data.get(
+                                "prompt_tokens", 0
+                            )
+                            node_data_usage.total_tokens += usage_data.get(
+                                "total_tokens", 0
+                            )
+
+                        if not chunk.choices:
+                            continue
+
+                        if step_content_complete:
+                            continue
+
+                        delta = chunk.choices[0].delta.dict()
+                        reasoning_content = delta.get("reasoning_content", "") or ""
+                        content: str = delta.get("content", "") or ""
+                        thinks += reasoning_content
+                        answers += content
+
+                        if final_answer and content:
+                            yield AgentResponse(
+                                typ="content", content=content, model=self.model.name
+                            )
+                            continue
+
+                        if reasoning_content:
+                            yield AgentResponse(
+                                typ="reasoning_content",
+                                content=reasoning_content,
+                                model=self.model.name,
+                            )
+
+                        if not content:
+                            continue
+
+                        step_content += content
+                        extracted_final_answer = self._extract_final_answer(
+                            step_content
+                        )
+                        if extracted_final_answer is not None:
+                            yield AgentResponse(
+                                typ="content",
+                                content=extracted_final_answer,
+                                model=self.model.name,
+                            )
+                            final_answer = True
+                            continue
+
+                        if self._find_marker(step_content, "observation") is not None:
+                            step_content_complete = True
+            finally:
+                generation_span.set_attributes(
+                    llm_generation_attributes(
+                        self.model,
+                        input_value=model_messages,
+                        output_value={
+                            "reasoning_content": thinks,
+                            "content": answers,
+                        },
+                        usage=node_data_usage,
                     )
-                    node_data_usage.prompt_tokens += usage_data.get("prompt_tokens", 0)
-                    node_data_usage.total_tokens += usage_data.get("total_tokens", 0)
-
-                if not chunk.choices:
-                    continue
-
-                if step_content_complete:
-                    continue
-
-                delta = chunk.choices[0].delta.dict()
-                reasoning_content = delta.get("reasoning_content", "") or ""
-                content: str = delta.get("content", "") or ""
-                thinks += reasoning_content
-                answers += content
-
-                if final_answer and content:
-                    yield AgentResponse(
-                        typ="content", content=content, model=self.model.name
-                    )
-                    continue
-
-                if reasoning_content:
-                    yield AgentResponse(
-                        typ="reasoning_content",
-                        content=reasoning_content,
-                        model=self.model.name,
-                    )
-
-                if not content:
-                    continue
-
-                step_content += content
-                extracted_final_answer = self._extract_final_answer(step_content)
-                if extracted_final_answer is not None:
-                    yield AgentResponse(
-                        typ="content",
-                        content=extracted_final_answer,
-                        model=self.model.name,
-                    )
-                    final_answer = True
-                    continue
-
-                if self._find_marker(step_content, "observation") is not None:
-                    step_content_complete = True
+                )
 
             node_end_time = int(round(time.time() * 1000))
             data_llm_output = answers
@@ -423,30 +459,32 @@ class CotRunner(RunnerBase):
         span: Span,
         node_trace_log: NodeTraceLog,
         allow_plain_final_answer: bool = False,
-    ) -> AsyncIterator[tuple[AgentResponse | None, CotStep, bool]]:
+    ) -> AsyncGenerator[tuple[AgentResponse | None, CotStep, bool], None]:
         """处理 agent 响应，yield (agent_response, cot_step, yield_answer)"""
         cot_step: CotStep = default_cot_step
         yield_answer = False
 
-        async for agent_response in self.read_response(
+        response_stream = self.read_response(
             msgs,
             first_loop,
             span,
             node_trace_log,
             allow_plain_final_answer=allow_plain_final_answer,
-        ):
-            if agent_response.typ in ["reasoning_content", "log"]:
-                yield agent_response, cot_step, yield_answer
-            elif agent_response.typ == "content":
-                yield_answer = True
-                yield agent_response, cot_step, yield_answer
-            elif agent_response.typ == "cot_step":
-                cot_step = agent_response.content
-                yield None, cot_step, yield_answer
+        )
+        async with aclosing(response_stream):
+            async for agent_response in response_stream:
+                if agent_response.typ in ["reasoning_content", "log"]:
+                    yield agent_response, cot_step, yield_answer
+                elif agent_response.typ == "content":
+                    yield_answer = True
+                    yield agent_response, cot_step, yield_answer
+                elif agent_response.typ == "cot_step":
+                    cot_step = agent_response.content
+                    yield None, cot_step, yield_answer
 
     async def _handle_cot_step(
         self, cot_step: CotStep, span: Span
-    ) -> AsyncIterator[AgentResponse]:
+    ) -> AsyncGenerator[AgentResponse, None]:
         """处理 cot_step，执行插件并返回响应"""
         if cot_step.finished_cot:
             return
@@ -458,10 +496,10 @@ class CotRunner(RunnerBase):
         cot_step.plugin = plugin
 
         if plugin and plugin.typ == "workflow":  # type: ignore[union-attr]
-            async for agent_response in self.run_workflow_plugin(
-                plugin, cot_step, span
-            ):
-                yield agent_response
+            response_stream = self.run_workflow_plugin(plugin, cot_step, span)
+            async with aclosing(response_stream):
+                async for agent_response in response_stream:
+                    yield agent_response
         elif plugin:
             cot_step.tool_type = "tool"
             plugin_response = await self.run_plugin(cot_step, span)
@@ -469,166 +507,274 @@ class CotRunner(RunnerBase):
             cot_step.action_output = plugin_response.result
             yield AgentResponse(typ="cot_step", content=cot_step, model=self.model.name)
 
-    # Keep the retry, tool-execution, and completion transitions together.
-    async def run(  # noqa: C901
+    async def run(
         self, span: Span, node_trace_log: NodeTraceLog
-    ) -> AsyncIterator[AgentResponse]:
+    ) -> AsyncGenerator[AgentResponse, None]:
         """cot run"""
 
-        with span.start("RunCotAgent") as sp:
-
-            system_prompt = await self.create_system_prompt()
-            user_prompt_template = await self.create_user_prompt()
-
-            loop_count = 0
-            format_retry_used = False
-            format_correction = ""
-            while self.max_loop > loop_count:
-                loop_count += 1
-                user_prompt = user_prompt_template.replace(
-                    "{scratchpad}", await self.scratchpad.template()
+        agent_input = {"question": self.question}
+        agent_metadata = {
+            "model": self.model.name,
+            "provider": llm_provider_name(self.model),
+        }
+        capture_config = LangfuseConfig.from_env()
+        with span.start(
+            "RunCotAgent",
+            attributes=langfuse_observation_attributes(
+                "agent",
+                input_value=agent_input,
+                metadata=agent_metadata,
+            ),
+        ) as sp:
+            agent_span = sp.get_otlp_span()
+            agent_output: list[dict[str, str]] = []
+            captured_length = 0
+            response_stream = self._run_agent_loop(sp, node_trace_log)
+            try:
+                async with aclosing(response_stream):
+                    async for agent_response in response_stream:
+                        if (
+                            capture_config.capture_input_output
+                            and agent_response.typ in {"content", "reasoning_content"}
+                        ):
+                            content = str(agent_response.content)
+                            remaining = (
+                                capture_config.max_attribute_length - captured_length
+                            )
+                            if remaining > 0:
+                                captured = content[:remaining]
+                                agent_output.append(
+                                    {
+                                        "type": agent_response.typ,
+                                        "content": captured,
+                                    }
+                                )
+                                captured_length += len(captured)
+                        yield agent_response
+            finally:
+                agent_span.set_attributes(
+                    langfuse_observation_attributes(
+                        "agent",
+                        input_value=agent_input,
+                        output_value=agent_output,
+                        metadata=agent_metadata,
+                    )
                 )
-                user_prompt += format_correction
 
-                msgs = LLMMessages(
-                    messages=[
-                        LLMMessage(role="system", content=system_prompt),
-                        LLMMessage(role="user", content=user_prompt),
-                    ]
+    # Keep the retry, tool-execution, and completion transitions together.
+    async def _run_agent_loop(  # noqa: C901
+        self, span: Span, node_trace_log: NodeTraceLog
+    ) -> AsyncGenerator[AgentResponse, None]:
+        system_prompt = await self.create_system_prompt()
+        user_prompt_template = await self.create_user_prompt()
+
+        loop_count = 0
+        format_retry_used = False
+        format_correction = ""
+        while self.max_loop > loop_count:
+            loop_count += 1
+            user_prompt = user_prompt_template.replace(
+                "{scratchpad}", await self.scratchpad.template()
+            )
+            user_prompt += format_correction
+
+            msgs = LLMMessages(
+                messages=[
+                    LLMMessage(role="system", content=system_prompt),
+                    LLMMessage(role="user", content=user_prompt),
+                ]
+            )
+
+            cot_step = default_cot_step
+            yield_answer = False
+            try:
+                response_stream = self._process_agent_responses(
+                    msgs,
+                    loop_count == 1,
+                    span,
+                    node_trace_log,
+                    allow_plain_final_answer=bool(self.scratchpad.steps)
+                    or format_retry_used,
                 )
-
-                cot_step = default_cot_step
-                yield_answer = False
-                try:
+                async with aclosing(response_stream):
                     async for (
                         agent_response,
                         step,
                         answer_flag,
-                    ) in self._process_agent_responses(
-                        msgs,
-                        loop_count == 1,
-                        sp,
-                        node_trace_log,
-                        allow_plain_final_answer=bool(self.scratchpad.steps)
-                        or format_retry_used,
-                    ):
+                    ) in response_stream:
                         if agent_response is not None:
                             yield agent_response
                         cot_step = step
                         yield_answer = answer_flag
-                except cot_exc.CotExc:
-                    if format_retry_used:
-                        raise
-                    format_retry_used = True
-                    format_correction = FORMAT_CORRECTION_PROMPT
-                    loop_count -= 1
-                    logger.warning(
-                        "Retrying CoT step once with format correction; "
-                        "model={}, completed_steps={}",
-                        self.model.name,
-                        len(self.scratchpad.steps),
-                    )
-                    continue
+            except cot_exc.CotExc:
+                if format_retry_used:
+                    raise
+                format_retry_used = True
+                format_correction = FORMAT_CORRECTION_PROMPT
+                loop_count -= 1
+                logger.warning(
+                    "Retrying CoT step once with format correction; "
+                    "model={}, completed_steps={}",
+                    self.model.name,
+                    len(self.scratchpad.steps),
+                )
+                continue
 
-                format_retry_used = False
-                format_correction = ""
+            format_retry_used = False
+            format_correction = ""
 
-                if yield_answer:
-                    return
+            if yield_answer:
+                return
 
-                if cot_step.finished_cot:
-                    self.scratchpad.steps.append(cot_step)
-                    async for agent_response in self.process_runner.run(
-                        self.scratchpad, sp, node_trace_log
-                    ):
+            if cot_step.finished_cot:
+                self.scratchpad.steps.append(cot_step)
+                response_stream = self.process_runner.run(
+                    self.scratchpad, span, node_trace_log
+                )
+                async with aclosing(response_stream):
+                    async for agent_response in response_stream:
                         yield agent_response
-                    return
+                return
 
-                async for agent_response in self._handle_cot_step(cot_step, span):
+            response_stream = self._handle_cot_step(cot_step, span)
+            async with aclosing(response_stream):
+                async for agent_response in response_stream:
                     yield agent_response
 
-                if not cot_step.action_output:
-                    return
+            if not cot_step.action_output:
+                return
 
-                self.scratchpad.steps.append(cot_step)
+            self.scratchpad.steps.append(cot_step)
 
-            async for agent_response in self.process_runner.run(
-                self.scratchpad, sp, node_trace_log
-            ):
+        response_stream = self.process_runner.run(self.scratchpad, span, node_trace_log)
+        async with aclosing(response_stream):
+            async for agent_response in response_stream:
                 yield agent_response
 
     async def run_plugin(self, cot_step: CotStep, span: Span) -> PluginResponse:
 
-        with span.start("RunPlugin") as sp:
+        plugin_metadata = {"plugin_name": cot_step.action}
+        tool_attributes = langfuse_observation_attributes(
+            "tool",
+            input_value=cot_step.action_input,
+            metadata=plugin_metadata,
+        )
+        tool_attributes["gen_ai.tool.name"] = cot_step.action
+        with span.start("RunPlugin", attributes=tool_attributes) as sp:
+            plugin_response: PluginResponse | None = None
+            try:
+                for plugin in self.plugins:
 
-            for plugin in self.plugins:
+                    if plugin.name.strip() == cot_step.action.strip():
+                        plugin_metadata["plugin_type"] = plugin.typ
+                        sp.add_info_events({"plugin-type": plugin.typ})
+                        plugin_response = await plugin.run(cot_step.action_input, sp)
+                        break
 
-                if plugin.name.strip() == cot_step.action.strip():
-                    sp.add_info_events({"plugin-type": plugin.typ})
-                    plugin_response = await plugin.run(cot_step.action_input, sp)
-                    break
+                else:
+                    plugin_metadata["plugin_type"] = "not_found"
+                    default_result = {
+                        "code": 400,
+                        "message": f"{cot_step.action} 找不到",
+                        "data": None,
+                    }
 
-            else:
-                default_result = {
-                    "code": 400,
-                    "message": f"{cot_step.action} 找不到",
-                    "data": None,
-                }
+                    plugin_response = PluginResponse(
+                        result=default_result,
+                        log=[
+                            {
+                                "name": cot_step.action,
+                                "input": cot_step.action_input,
+                                "output": default_result,
+                                "detail": "not found plugin",
+                            }
+                        ],
+                    )
 
-                plugin_response = PluginResponse(
-                    result=default_result,
-                    log=[
-                        {
-                            "name": cot_step.action,
-                            "input": cot_step.action_input,
-                            "output": default_result,
-                            "detail": "not found plugin",
-                        }
-                    ],
+                sp.add_info_events({"plugin-result": plugin_response.model_dump_json()})
+
+                return plugin_response
+            finally:
+                final_attributes = langfuse_observation_attributes(
+                    "tool",
+                    input_value=cot_step.action_input,
+                    output_value=(
+                        plugin_response.result if plugin_response is not None else None
+                    ),
+                    metadata=plugin_metadata,
                 )
-
-            sp.add_info_events({"plugin-result": plugin_response.model_dump_json()})
-
-            return plugin_response
+                final_attributes["gen_ai.tool.name"] = cot_step.action
+                sp.set_attributes(final_attributes)
 
     async def run_workflow_plugin(
         self, plugin: BasePlugin, cot_step: CotStep, span: Span
-    ) -> AsyncIterator[AgentResponse]:
+    ) -> AsyncGenerator[AgentResponse, None]:
 
-        with span.start("RunWorkflowPlugin") as sp:
+        workflow_metadata = {
+            "handoff_type": "agent_to_workflow",
+            "plugin_name": plugin.name,
+            "workflow_id": str(getattr(plugin, "flow_id", "")),
+        }
+        chain_attributes = langfuse_observation_attributes(
+            "chain",
+            input_value=cot_step.action_input,
+            metadata=workflow_metadata,
+        )
+        chain_attributes["gen_ai.operation.name"] = "execute_tool"
+        chain_attributes["gen_ai.tool.name"] = plugin.name
+        capture_config = LangfuseConfig.from_env()
+        with span.start("RunWorkflowPlugin", attributes=chain_attributes) as sp:
+            workflow_span = sp.get_otlp_span()
+            workflow_output: Any = None
+            try:
+                cot_step.tool_type = "workflow"
 
-            cot_step.tool_type = "workflow"
+                sp.add_info_events({"plugin-type": "workflow"})
+                first_frame = True
+                plugin_stream = plugin.run(action_input=cot_step.action_input, span=sp)
+                async with aclosing(plugin_stream):
+                    async for plugin_response in plugin_stream:
+                        if capture_config.capture_input_output:
+                            workflow_output = plugin_response.result
+                        if first_frame:
+                            first_frame = False
+                            cot_step.plugin.run_result = plugin_response
+                            cot_step.action_output = plugin_response.result
+                            yield AgentResponse(
+                                typ="cot_step",
+                                content=cot_step,
+                                model=self.model.name,
+                            )
+                        sp.add_info_events(
+                            {"flow-chunk": plugin_response.model_dump_json()}
+                        )
 
-            sp.add_info_events({"plugin-type": "workflow"})
-            first_frame = True
-            async for plugin_response in plugin.run(
-                action_input=cot_step.action_input, span=sp
-            ):
-                if first_frame:
-                    first_frame = False
-                    cot_step.plugin.run_result = plugin_response
-                    cot_step.action_output = plugin_response.result
-                    yield AgentResponse(
-                        typ="cot_step", content=cot_step, model=self.model.name
-                    )
-                sp.add_info_events({"flow-chunk": plugin_response.model_dump_json()})
-
-                if plugin_response.code != 0:
-                    cot_step.action_output = plugin_response.result
-                    return
-                # yield AgentResponse(typ="log", content=plugin_response.log, model=self.model.name)
-                if plugin_response.result.get("reasoning_content"):
-                    yield AgentResponse(
-                        typ="reasoning_content",
-                        content=plugin_response.result["reasoning_content"],
-                        model=self.model.name,
-                    )
-                if plugin_response.result.get("content"):
-                    yield AgentResponse(
-                        typ="content",
-                        content=plugin_response.result["content"],
-                        model=self.model.name,
-                    )
+                        if plugin_response.code != 0:
+                            cot_step.action_output = plugin_response.result
+                            return
+                        # yield AgentResponse(typ="log", content=plugin_response.log, model=self.model.name)
+                        if plugin_response.result.get("reasoning_content"):
+                            yield AgentResponse(
+                                typ="reasoning_content",
+                                content=plugin_response.result["reasoning_content"],
+                                model=self.model.name,
+                            )
+                        if plugin_response.result.get("content"):
+                            yield AgentResponse(
+                                typ="content",
+                                content=plugin_response.result["content"],
+                                model=self.model.name,
+                            )
+            finally:
+                final_attributes = langfuse_observation_attributes(
+                    "chain",
+                    input_value=cot_step.action_input,
+                    output_value=workflow_output,
+                    metadata=workflow_metadata,
+                )
+                final_attributes["gen_ai.operation.name"] = "execute_tool"
+                final_attributes["gen_ai.tool.name"] = plugin.name
+                workflow_span.set_attributes(final_attributes)
 
     async def is_valid_plugin(self, plugin_name: str) -> bool:
         for plugin in self.plugins:

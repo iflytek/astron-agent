@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
@@ -15,12 +17,16 @@ class ValidationParse:
         :return: Human-readable string
         """
 
+        errors: list[dict[str, Any]]
         if isinstance(error, ValidationError):
-            errors = error.errors(
-                include_input=False,
-                include_url=False,
-                include_context=False,
-            )
+            errors = [
+                dict(item)
+                for item in error.errors(
+                    include_input=False,
+                    include_url=False,
+                    include_context=False,
+                )
+            ]
         else:
             # FastAPI's RequestValidationError.errors() does not accept Pydantic's
             # redaction flags, so remove the same potentially sensitive fields.

@@ -5,8 +5,11 @@ import os
 import time
 from abc import abstractmethod
 from asyncio import Event
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
 
+from common.otlp.trace.langfuse import langfuse_observation_attributes
 from pydantic import BaseModel, Field, PrivateAttr
 
 from workflow.consts.engine.chat_status import ChatStatus, SparkLLMStatus
@@ -51,6 +54,21 @@ from workflow.infra.providers.llm.iflytek_spark.schemas import (
     StreamOutputMsg,
 )
 from workflow.infra.providers.llm.types import SystemUserMsg
+
+
+@dataclass
+class _LLMStreamRequest:
+    """Runtime values needed while consuming one provider stream."""
+
+    chat_ai: ChatAI
+    user_message: list
+    span: Span
+    flow_id: str
+    variable_pool: VariablePool
+    msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo]
+    stream: bool
+    event_log_node_trace: Optional[NodeLog]
+    multimodal_inputs: list
 
 
 class BaseNode(BaseModel):
@@ -1228,6 +1246,117 @@ class BaseLLMNode(BaseNode):
 
         return input_to_filetype_map
 
+    def _is_unexpected_finish_status(self, status: Any) -> bool:
+        return bool(
+            self.source
+            in {
+                ModelProviderEnum.OPENAI.value,
+                ModelProviderEnum.ANTHROPIC.value,
+                ModelProviderEnum.GOOGLE.value,
+            }
+            and status
+            and status
+            not in {
+                SparkLLMStatus.END.value,
+                ChatStatus.FINISH_REASON.value,
+            }
+        )
+
+    async def _consume_llm_stream(
+        self, request: _LLMStreamRequest
+    ) -> Tuple[dict, str, str, Any]:
+        """Consume a provider stream.
+
+        Return usage, answer, reasoning, and the terminal status.
+        """
+        texts: list[str] = []
+        reasoning_contents: list[str] = []
+        token_usage: dict = {}
+        status = None
+        completion_started = False
+        started_at = time.monotonic()
+
+        async for llm_response in request.chat_ai.achat(
+            user_message=request.user_message,
+            event_log_node_trace=request.event_log_node_trace,
+            span=request.span,
+            flow_id=request.flow_id,
+            extra_params=self.extraParams,
+            timeout=(
+                self.retry_config.timeout
+                if self.retry_config.should_retry
+                else self._private_config.timeout
+            ),
+            search_disable=self.searchDisable,
+            multimodal_inputs=request.multimodal_inputs,
+        ):
+            msg = llm_response.msg
+            status, content, reasoning_content, token_usage = (
+                request.chat_ai.decode_message(msg)
+            )
+            if not completion_started and (content or reasoning_content):
+                request.span.set_attributes(
+                    {
+                        "astron.llm.time_to_first_token_ms": round(
+                            (time.monotonic() - started_at) * 1000, 3
+                        ),
+                        "langfuse.observation.completion_start_time": (
+                            datetime.now(timezone.utc).isoformat()
+                        ),
+                    }
+                )
+                completion_started = True
+            if not self.stream_node_first_token.is_set():
+                self.stream_node_first_token.set()
+            if reasoning_content:
+                reasoning_contents.append(reasoning_content)
+            if request.stream and self.respFormat != RespFormatEnum.JSON.value:
+                await self.put_llm_content(
+                    node_id=self.node_id,
+                    model_name=self.domain,
+                    variable_pool=request.variable_pool,
+                    msg_or_end_node_deps=request.msg_or_end_node_deps,
+                    llm_content=msg,
+                )
+            texts.append(content or "")
+            if status in {
+                SparkLLMStatus.END.value,
+                ChatStatus.FINISH_REASON.value,
+            }:
+                break
+            if self._is_unexpected_finish_status(status):
+                raise CustomException(err_code=CodeEnum.OPEN_AI_REQUEST_ERROR)
+
+        if not texts:
+            request.span.add_error_event("result is null")
+            raise CustomException(
+                err_code=CodeEnum.SPARK_REQUEST_ERROR,
+                err_msg="LLM returned empty result",
+                cause_error="LLM returned empty result",
+            )
+        return token_usage, "".join(texts), "".join(reasoning_contents), status
+
+    async def _finish_generation_span(
+        self,
+        span: Span,
+        answer: str,
+        reasoning: str,
+        token_usage: dict,
+        status: Any,
+    ) -> None:
+        await span.add_info_events_async({"spark_llm_chat_result": answer})
+        await span.add_info_events_async({"spark_llm_reasoning_content": reasoning})
+        result_attributes = langfuse_observation_attributes(
+            "generation",
+            output_value=answer,
+            model=self.domain,
+            usage_details=token_usage,
+        )
+        result_attributes["gen_ai.response.model"] = self.domain
+        if status:
+            result_attributes["gen_ai.response.finish_reasons"] = [str(status)]
+        span.set_attributes(result_attributes)
+
     async def _chat_with_llm(
         self,
         flow_id: str,
@@ -1278,87 +1407,55 @@ class BaseLLMNode(BaseNode):
             image_url=image_url,
             span_context=span,
         )
-        texts = []
-        reasoning_contents = []
-        think_contents = None
-        token_usage = {}
-        processed_history = system_user_msg.processed_history
-        try:
-            async for llm_response in chat_ai.achat(
-                user_message=user_message,
-                event_log_node_trace=event_log_node_trace,
-                span=span,
-                flow_id=flow_id,
-                extra_params=self.extraParams,
-                timeout=(
-                    self.retry_config.timeout
-                    if self.retry_config.should_retry
-                    else self._private_config.timeout
-                ),
-                search_disable=self.searchDisable,
-                multimodal_inputs=multimodal_inputs,
-            ):
-                msg = llm_response.msg
-                status, content, reasoning_content, token_usage = (
-                    self._get_chat_ai().decode_message(msg)
-                )
-                # Mark streaming output first frame has been sent, trigger engine to set exception branches as inactive
-                if not self.stream_node_first_token.is_set():
-                    self.stream_node_first_token.set()
-                if reasoning_content:
-                    reasoning_contents.append(reasoning_content)
-                if stream and self.respFormat != RespFormatEnum.JSON.value:
-                    await self.put_llm_content(
-                        node_id=self.node_id,
-                        model_name=self.domain,
-                        variable_pool=variable_pool,
-                        msg_or_end_node_deps=msg_or_end_node_deps or {},
-                        llm_content=msg,
-                    )
-                texts.append(content if content else "")
-                if status in [
-                    SparkLLMStatus.END.value,
-                    ChatStatus.FINISH_REASON.value,
-                ]:
-                    token_usage = token_usage
-                    break
-                if (
-                    self.source
-                    in {
-                        ModelProviderEnum.OPENAI.value,
-                        ModelProviderEnum.ANTHROPIC.value,
-                        ModelProviderEnum.GOOGLE.value,
-                    }
-                    and status
-                    and status
-                    not in [
-                        SparkLLMStatus.END.value,
-                        ChatStatus.FINISH_REASON.value,
-                    ]
-                ):
-                    # Exception case: finish_reason has value but not "stop", report the issue
-                    # For example, openai-gpt-4o gives "length" when max_token is very small
-                    raise CustomException(err_code=CodeEnum.OPEN_AI_REQUEST_ERROR)
+        model_parameters = {
+            "temperature": self.temperature,
+            "max_tokens": self.maxTokens,
+            "top_k": self.topK,
+        }
+        generation_attributes = langfuse_observation_attributes(
+            "generation",
+            input_value=user_message,
+            model=self.domain,
+            model_parameters=model_parameters,
+            metadata={"provider": self.source, "flow_id": flow_id},
+        )
+        generation_attributes.update(
+            {
+                "astron.workflow.node.id": self.node_id,
+                "gen_ai.operation.name": "chat",
+                "gen_ai.provider.name": self.source,
+                "gen_ai.request.model": self.domain,
+                "gen_ai.request.max_tokens": self.maxTokens,
+                "gen_ai.request.temperature": self.temperature,
+                "gen_ai.request.top_k": self.topK,
+            }
+        )
 
-            if texts:
-                res = "".join(texts)
-                await span.add_info_events_async(
-                    {"spark_llm_chat_result": "".join(texts)}
+        with span.start(
+            f"llm.generate:{self.domain}", attributes=generation_attributes
+        ) as generation_span:
+            token_usage, answer, reasoning, status = await self._consume_llm_stream(
+                _LLMStreamRequest(
+                    chat_ai=chat_ai,
+                    user_message=user_message,
+                    span=generation_span,
+                    flow_id=flow_id,
+                    variable_pool=variable_pool,
+                    msg_or_end_node_deps=msg_or_end_node_deps or {},
+                    stream=stream,
+                    event_log_node_trace=event_log_node_trace,
+                    multimodal_inputs=multimodal_inputs,
                 )
-                think_contents = "".join(reasoning_contents)
-                await span.add_info_events_async(
-                    {"spark_llm_reasoning_content": "".join(think_contents)}
-                )
-                return token_usage, res, think_contents, processed_history
-            else:
-                span.add_error_event("result is null")
-                raise CustomException(
-                    err_code=CodeEnum.SPARK_REQUEST_ERROR,
-                    err_msg="LLM returned empty result",
-                    cause_error="LLM returned empty result",
-                )
-        except Exception as e:
-            raise e
+            )
+            await self._finish_generation_span(
+                generation_span, answer, reasoning, token_usage, status
+            )
+            return (
+                token_usage,
+                answer,
+                reasoning,
+                system_user_msg.processed_history,
+            )
 
     async def put_llm_content(
         self,

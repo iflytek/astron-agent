@@ -1,0 +1,232 @@
+# Langfuse 可观测性
+
+Astron Agent 可以通过原生 OTLP/HTTP bridge 将已有的 OpenTelemetry Trace
+导出到 Langfuse。该 bridge 不依赖 Langfuse Python SDK，会保留 Astron 工作流与
+Agent 的 Span 层级，并补充 Langfuse 用于识别生成、工具、Token 用量、延迟和
+Trace 筛选的语义属性。
+
+> Langfuse 导出默认关闭。启用后会把遥测数据发送到所配置的 Langfuse 部署，
+> 因此在接入生产流量前必须检查隐私配置。
+
+## Bridge 的工作方式
+
+- Workflow 和 Agent 服务继续使用已有的 OpenTelemetry tracer provider 与嵌套
+  Span。
+- Langfuse 使用独立的批量 OTLP/HTTP exporter，并与 Astron 现有 OTLP exporter
+  及本地 Span 日志并行工作。
+- `OTLP_ENABLE` 仍只控制原有的通用 OTLP 链路；`LANGFUSE_ENABLED` 独立控制
+  Langfuse 链路。
+- Astron 根据 `LANGFUSE_HOST` 自动生成 Langfuse v4 兼容的 Trace endpoint：
+  `<LANGFUSE_HOST>/api/public/otel/v1/traces`。这里只应配置部署基础 URL，不要
+  填写完整 OTLP endpoint。
+- Astron 在内存中使用 Langfuse 项目的 Public Key 和 Secret Key 为请求鉴权，
+  不会把凭据添加为 Span 属性。
+- Workflow 到 Agent 以及嵌套 Workflow 的调用会传播标准 W3C
+  `traceparent`/`tracestate` 上下文。Astron 不信任入站 `langfuse.*`
+  baggage 中的 Trace 名称、用户/会话身份、标签、发布版本或环境；各服务会从
+  本地处理的请求状态重新生成这些字段，同时保留无关的 W3C baggage。
+
+同时启用两个 exporter 时，一次执行可以分别发送到现有 collector 和 Langfuse。
+除非明确需要重复上报，否则不要把两个 exporter 都指向同一个 Langfuse 项目。
+
+## 配置
+
+Workflow 与 Agent 服务使用相同配置。
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `LANGFUSE_ENABLED` | `false` | 启用独立的 Langfuse exporter。 |
+| `LANGFUSE_PUBLIC_KEY` | 空 | Langfuse 项目 Public Key，启用时必填。 |
+| `LANGFUSE_SECRET_KEY` | 空 | Langfuse 项目 Secret Key，启用时必填。 |
+| `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse Cloud 或自托管实例的基础 URL。 |
+| `LANGFUSE_CAPTURE_INPUT_OUTPUT` | `false` | 允许提示词/输入及响应/输出内容离开 Astron。 |
+| `LANGFUSE_MAX_ATTRIBUTE_LENGTH` | `8192` | 导出的字符串属性最大长度。 |
+| `LANGFUSE_ENVIRONMENT` | `default` | 在 Langfuse 中筛选 Trace 的环境标签。 |
+| `LANGFUSE_RELEASE` | 空 | 可选的应用发布或部署标签。 |
+
+启用导出前必须同时配置两个项目 Key。Secret Key 应按生产凭据管理：通过
+Secret 管理器在运行时注入，禁止写入源码、截图或命令日志。
+
+### Docker Compose
+
+创建本地部署环境文件并填写项目配置：
+
+```bash
+cd docker/astronAgent
+cp .env.example .env
+```
+
+```dotenv
+LANGFUSE_ENABLED=true
+LANGFUSE_PUBLIC_KEY=pk-lf-your-project
+LANGFUSE_SECRET_KEY=sk-lf-your-project
+LANGFUSE_HOST=https://cloud.langfuse.com
+LANGFUSE_CAPTURE_INPUT_OUTPUT=false
+LANGFUSE_MAX_ATTRIBUTE_LENGTH=8192
+LANGFUSE_ENVIRONMENT=development
+LANGFUSE_RELEASE=local-observability-demo
+```
+
+启动正常 Astron 部署；如果服务已经运行，则重新创建两个服务以载入环境变量：
+
+```bash
+docker compose up -d
+# 已有部署：
+docker compose up -d --force-recreate core-workflow core-agent
+```
+
+Compose 会把八个配置项同时传入两个服务。自托管 Langfuse 与 Astron 位于同一
+Docker 网络时，应使用其服务名，例如 `http://langfuse-web:3000`。Astron 容器
+内的 `localhost` 指向该容器自身，而不是 Docker 主机。
+
+### 源码与 Helm 部署
+
+源码部署可以在服务环境中导出这些变量，也可以同时设置
+`core/workflow/config.env` 和 `core/agent/config.env`。配置变化后需要重启两个
+服务。
+
+Helm 默认值已写入 Workflow 与 Agent 的配置文件。请通过部署现有的 Secret/
+配置管理机制覆盖这些值，不要把真实 Langfuse Key 写入 Chart 的受版本控制
+默认文件。
+
+## 隐私默认值
+
+当 `LANGFUSE_CAPTURE_INPUT_OUTPUT=false` 时，Langfuse exporter 会保留 Span
+名称、父子关系、状态、延迟、节点和工具身份、模型身份及 Token 计数等结构化
+遥测数据。在 Span 离开进程前，它还会：
+
+- 删除历史 Span events，因为已有 event 可能包含完整工作流定义、提示词、
+  模型响应、请求体或工具结果；
+- 删除已知的载荷型或敏感 input/output 属性；
+- 把保留的字符串属性截断到 `LANGFUSE_MAX_ATTRIBUTE_LENGTH`。
+
+因此，默认 Trace 可用于分析执行拓扑、错误、延迟和用量，而不会导出原始提示词
+或响应内容。这是数据最小化边界，但不能替代对自定义节点标签、模型标识、租户
+元数据和部署策略的检查。
+
+只有在数据为合成数据、已去标识化或已获批准时，才应设置
+`LANGFUSE_CAPTURE_INPUT_OUTPUT=true`。当 Langfuse evaluator 需要根 Observation
+的 input 和 output 时，也必须显式开启该选项。无论该选项如何设置，都禁止把
+鉴权凭据放入工作流输入、提示词、标签或测试载荷。
+
+## 生成 Trace
+
+1. 配置 Langfuse 并启动 Astron。
+2. 在 Astron UI 中导入至少包含一个 LLM 节点的工作流。包含工具、检索或 Agent
+   节点的工作流可以产生更有价值的嵌套 Trace。
+3. 记录导入后的 Flow ID 和测试应用 ID。
+4. 通过真实 debug 路由发送合成请求：
+
+```bash
+DEMO_FLOW_ID="<imported-flow-id>"
+DEMO_APP_ID="<test-application-id>"
+
+curl --no-buffer \
+  --header "Content-Type: application/json" \
+  --header "x-consumer-username: ${DEMO_APP_ID}" \
+  --data "{\"flow_id\":\"${DEMO_FLOW_ID}\",\"uid\":\"langfuse-demo-user\",\"chat_id\":\"langfuse-demo-1\",\"stream\":true,\"parameters\":{\"AGENT_USER_INPUT\":\"Synthetic request: summarize why tracing helps debugging.\"},\"ext\":{},\"history\":[]}" \
+  http://127.0.0.1:7880/workflow/v1/debug/chat/completions
+```
+
+如果导入的工作流声明了其他输入变量，请替换 `AGENT_USER_INPUT`。可复现材料中
+只能使用合成内容。
+
+等待批量 exporter flush 后，打开 Langfuse 项目并按
+`LANGFUSE_ENVIRONMENT` 或 `LANGFUSE_RELEASE` 筛选。根据导入的工作流，一个
+典型 Trace 包含：
+
+```text
+HTTP request / chat
+└── workflow.run                         （chain；根 input/output）
+    └── engine_async_run
+        ├── workflow.node:<llm-name>      （chain）
+        │   └── llm.generate:<model>     （generation、模型、Token、TTFT）
+        ├── workflow.node:<tool-name>     （tool）
+        ├── workflow.node:<retriever>     （retriever）
+        └── workflow.node:<agent-name>    （agent）
+            └── agent.run                  （同一 W3C Trace）
+                ├── MakingStep             （generation）
+                ├── RunPlugin              （tool）
+                └── RunWorkflowPlugin      （嵌套 Workflow handoff）
+```
+
+Agent 节点还可以产生嵌套的模型步骤、推理步骤、检索、MCP、Plugin 和 Workflow
+工具 Observation。当导出的模型标识与 Langfuse 中已配置价格的模型匹配，并且
+模型供应方返回 Token 用量时，Langfuse 可以计算成本。
+
+### 已验证的端到端结果
+
+下图使用本 bridge、仅绑定回环地址的本地 Langfuse v4.6.0 和合成数据生成。
+Trace 通过生产代码中的 `add_langfuse_span_processor` 链路导出，包含 11 个
+`CHAIN`、`AGENT`、`GENERATION`、`RETRIEVER` 和 `TOOL` 类型的 Observation。
+Langfuse 为两次生成归因了 29 个 Token 和 `$0.000255` 成本；通过 API 写回的
+`observability-e2e: 1.00` 分数同时验证了评估反馈链路。
+
+![已验证的 Langfuse Trace，展示 Astron Workflow、LLM、Agent、检索、Tool、Token、成本和评分层级](../../imgs/langfuse-observability-trace.png)
+
+仅在该合成证据运行中开启了 input/output 捕获。使用默认配置
+`LANGFUSE_CAPTURE_INPUT_OUTPUT=false` 时，拓扑、用量、延迟和成本仍然可见，
+但截图中的绿色 input/output 载荷面板会被省略。
+
+为缺陷报告或 PR 准备复现证据时，应提供完整启动命令、请求命令、所选环境/发布
+标签，以及展示 Trace 层级、模型、Token 和延迟的脱敏截图。禁止包含项目 Key
+或真实用户内容。
+
+## 配置 Langfuse evaluator
+
+内容型 evaluator 需要可供评估的 input 与 output。Astron 的隐私默认值会有意
+省略根 Observation 的这两个字段。
+
+1. 使用独立的非生产环境，以及合成数据或已获批准的数据。
+2. 为两个服务设置 `LANGFUSE_CAPTURE_INPUT_OUTPUT=true` 并重启。
+3. 生成一条新 Trace；修改开关无法为历史 Trace 恢复内容。
+4. 在 Langfuse 中确认根 Observation 包含预期 input 和 output。
+5. 在 Langfuse 中创建 evaluator，通过环境/发布标签或 Trace filter 限定范围，
+   并把根 Observation 的 input/output 映射到 evaluator prompt。
+6. 先在一条 Trace 上测试，确认分数写回同一 Trace，再启用持续执行。
+7. 不再需要内容评估时，将 `LANGFUSE_CAPTURE_INPUT_OUTPUT` 恢复为 `false`。
+
+如果目标边界是某个具体 generation 或 tool Observation，也可以让 evaluator 仅
+评估该 Observation。Filter 应保持精确，避免把工作流记账 Span 当作模型输出。
+
+## 排障与 flush
+
+### 没有 Trace
+
+- 确认 `LANGFUSE_ENABLED=true`，两个项目 Key 均非空，并属于所配置的
+  Host/项目。
+- 修改环境变量后重启 Workflow 与 Agent 服务。
+- 容器内应使用 Docker 或 Kubernetes 网络可达的主机名；另一个容器中的
+  collector 不能使用 `127.0.0.1`。
+- `LANGFUSE_HOST` 只填写基础 URL；Astron 会自动追加
+  `/api/public/otel/v1/traces`。
+- `401` 或 `403` 通常表示 Key、项目、Host 或 Cloud Region 不匹配；`404`
+  通常表示把完整 endpoint 错填为 Host。
+
+检查 exporter 错误时不要输出环境变量值：
+
+```bash
+cd docker/astronAgent
+docker compose logs core-workflow core-agent | grep -Ei 'langfuse|otlp|export'
+```
+
+### Trace 延迟或不完整
+
+Langfuse 使用批量导出。响应结束后至少等待一个 Trace 调度周期。关闭服务时使用
+Astron 的优雅停止路径，让 tracer provider flush 队列；强制终止进程可能丢失
+最后一个 batch。
+
+```bash
+cd docker/astronAgent
+docker compose stop core-workflow core-agent
+```
+
+短生命周期本地 harness 应在退出前显式调用 OpenTelemetry tracer provider 的
+`force_flush()`。如果属性仍被截断，请检查 `LANGFUSE_MAX_ATTRIBUTE_LENGTH`；
+如果 input/output 缺失，请检查 `LANGFUSE_CAPTURE_INPUT_OUTPUT` 并生成新 Trace。
+
+### 有用量但没有成本
+
+确认 generation 包含稳定的模型标识和 input/output Token 计数。成本还依赖
+Langfuse 能识别该模型或存在匹配的定价配置；当供应方没有提供价格时，Astron
+不会虚构价格。

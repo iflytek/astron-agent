@@ -3,6 +3,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union, cast
 
+from common.otlp.trace.langfuse import langfuse_observation_attributes
 from loguru import logger
 from pydantic import BaseModel
 
@@ -25,6 +26,79 @@ from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.log_trace.workflow_log import WorkflowLog
 from workflow.extensions.otlp.trace.span import Span
 from workflow.service.history_service import add_history
+
+_TOOL_NODE_TYPES = {
+    NodeType.CODE.value,
+    NodeType.DATABASE.value,
+    NodeType.MCP.value,
+    NodeType.PLUGIN.value,
+    NodeType.RPA.value,
+}
+_RETRIEVER_NODE_TYPES = {
+    NodeType.KNOWLEDGE_BASE.value,
+    NodeType.KNOWLEDGE_EXPERT.value,
+    NodeType.KNOWLEDGE_PRO.value,
+    NodeType.MEMORY_SEARCH.value,
+}
+_CHAIN_NODE_TYPES = {
+    NodeType.DECISION_MAKING.value,
+    NodeType.FLOW.value,
+    NodeType.ITERATION.value,
+    NodeType.LLM.value,
+    NodeType.LOOP.value,
+    NodeType.PARAMETER_EXTRACTOR.value,
+    NodeType.QUESTION_ANSWER.value,
+}
+
+
+def _langfuse_node_type(node_type: str) -> str:
+    """Map Astron workflow node types to Langfuse observation types."""
+    if node_type == NodeType.AGENT.value:
+        return "agent"
+    if node_type in _TOOL_NODE_TYPES:
+        return "tool"
+    if node_type in _RETRIEVER_NODE_TYPES:
+        return "retriever"
+    if node_type in _CHAIN_NODE_TYPES:
+        return "chain"
+    return "span"
+
+
+def _node_span_attributes(node: "SparkFlowEngineNode") -> Dict[str, Any]:
+    node_type = node.node_id.split("::")[0]
+    attributes = langfuse_observation_attributes(_langfuse_node_type(node_type))
+    attributes.update(
+        {
+            "astron.workflow.node.id": node.node_id,
+            "astron.workflow.node.type": node_type,
+            "astron.workflow.node.name": node.node_instance.alias_name,
+        }
+    )
+    return attributes
+
+
+def _node_result_attributes(result: NodeRunResult) -> Dict[str, Any]:
+    usage = result.token_cost.model_dump() if result.token_cost else None
+    output = result.outputs or result.raw_output
+    attributes = langfuse_observation_attributes(
+        _langfuse_node_type(result.node_type),
+        input_value=result.inputs,
+        output_value=output,
+        usage_details=usage,
+    )
+    attributes["astron.workflow.node.status"] = result.status.value
+    if result.error:
+        error_type = type(result.error).__name__
+        error_code = getattr(result.error, "code", "unknown")
+        # Error causes frequently contain upstream response bodies, headers, or
+        # tracebacks.  Keep the exported status useful without forwarding the
+        # exception text across the default privacy boundary.
+        attributes["langfuse.observation.status_message"] = (
+            f"{error_type} (code={error_code})"
+        )
+        attributes["langfuse.observation.metadata.error_type"] = error_type
+        attributes["langfuse.observation.metadata.error_code"] = str(error_code)
+    return attributes
 
 
 class NodeParameterStrategy(ABC):
@@ -138,7 +212,11 @@ class NodeExecutionTemplate:
         :raises CustomException: When node execution fails
         """
         span = kwargs.get("span", Span())
-        with span.start(f"run_node:{self.node.node_id}") as span_context:
+        node_name = self.node.node_instance.alias_name or self.node.node_id
+        with span.start(
+            f"workflow.node:{node_name}",
+            attributes=_node_span_attributes(self.node),
+        ) as span_context:
 
             # Set up logging
             self.node.node_log.sid = span_context.sid
@@ -164,6 +242,7 @@ class NodeExecutionTemplate:
                     {"config": str(self.node.node_instance)}
                 )
                 result = await self.node.node_instance.async_execute(**parameters)
+                span_context.set_attributes(_node_result_attributes(result))
                 self.node.gather_node_event_log(result)
 
                 await self._handle_execution_result(result, span_context, **kwargs)

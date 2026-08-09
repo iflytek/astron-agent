@@ -216,6 +216,38 @@ class TestCompletionBase:
             assert len(results) > 0
 
     @pytest.mark.asyncio
+    async def test_run_runner_aclose_does_not_yield_from_finalizer(
+        self, completion: ConcreteCompletion, span: Span, node_trace: NodeTrace
+    ) -> None:
+        """A client disconnect closes the source iterator and returns cleanly."""
+        mock_chunk = MagicMock()
+        mock_chunk.object = "chat.completion.chunk"
+        mock_chunk.model_dump_json.return_value = '{"test": "chunk"}'
+        mock_chunk.id = None
+        source_closed = False
+
+        async def mock_run_generator() -> AsyncIterator[MagicMock]:
+            nonlocal source_closed
+            try:
+                yield mock_chunk
+                while True:  # pragma: no cover - cancelled by aclose
+                    yield mock_chunk
+            finally:
+                source_closed = True
+
+        mock_runner = AsyncMock()
+        mock_runner.run = AsyncMock(return_value=mock_run_generator())
+
+        with patch.object(ConcreteCompletion, "build_runner", return_value=mock_runner):
+            response_stream = completion.run_runner(
+                node_trace, Meter("app", "func"), span
+            )
+            assert "data:" in await anext(response_stream)
+            await response_stream.aclose()
+
+        assert source_closed is True
+
+    @pytest.mark.asyncio
     async def test_run_runner_build_failed(
         self, completion: ConcreteCompletion, span: Span, node_trace: NodeTrace
     ) -> None:

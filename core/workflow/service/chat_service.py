@@ -7,6 +7,11 @@ from asyncio import Queue
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, Iterable, List, Optional, Tuple, cast
 
+from common.otlp.trace.langfuse import (
+    langfuse_observation_attributes,
+    langfuse_trace_attributes,
+    langfuse_trace_context,
+)
 from loguru import logger
 
 from workflow.consts.runtime_env import RuntimeEnv
@@ -461,8 +466,45 @@ async def _run(
     m = Meter(app_id=app_alias_id, func=func_name)
     m.set_label("flow_id", chat_vo.flow_id)
 
-    with span.start(
-        attributes={"flow_id": chat_vo.flow_id},
+    caller = chat_vo.ext.get("caller", "")
+    is_nested_trace = caller in {"agent", "workflow"}
+    trace_attributes = langfuse_trace_attributes(
+        "" if is_nested_trace else f"workflow:{chat_vo.flow_id}",
+        user_id=chat_vo.uid,
+        session_id="" if is_nested_trace else chat_vo.chat_id or event_id,
+        tags=[
+            "astron-agent",
+            "workflow",
+            "nested" if is_nested_trace else "root",
+            "release" if is_release else "debug",
+        ],
+        metadata={
+            "app_id": app_alias_id,
+            "flow_id": chat_vo.flow_id,
+            "workflow_version": chat_vo.version,
+        },
+    )
+    root_attributes = langfuse_observation_attributes(
+        "chain",
+        input_value=chat_vo.parameters,
+        metadata={
+            "app_id": app_alias_id,
+            "flow_id": chat_vo.flow_id,
+            "event_id": event_id,
+            "is_release": is_release,
+        },
+    )
+    root_attributes.update(trace_attributes)
+    root_attributes.update(
+        {
+            "astron.workflow.flow.id": chat_vo.flow_id,
+            "astron.workflow.event.id": event_id,
+            "astron.workflow.release": is_release,
+        }
+    )
+
+    with langfuse_trace_context(trace_attributes), span.start(
+        "workflow.run", attributes=root_attributes
     ) as span_context:
         await span.add_info_event_async(f"user input: {chat_vo.json()}")
         await span.add_info_event_async(
@@ -529,6 +571,14 @@ async def _run(
                 history=history,
                 history_v2=chat_vo.history,
                 event_log_trace=workflow_trace,
+            )
+            output = (
+                {"output": result.node_answer_content}
+                if result.node_answer_content
+                else result.outputs
+            )
+            span_context.set_attributes(
+                langfuse_observation_attributes("chain", output_value=output)
             )
 
             # Process results and upload trace information

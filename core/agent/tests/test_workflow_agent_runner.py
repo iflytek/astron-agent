@@ -109,6 +109,7 @@ class TestWorkflowAgentRunner:
         ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
             yield mock_response
 
+        runner.plugins = []
         runner.chat_runner.run = mock_run
 
         results = []

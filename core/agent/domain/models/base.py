@@ -133,6 +133,32 @@ class CompatChunk(BaseModel):
     usage: Optional[CompatUsage] = None
 
 
+def _merge_compat_usage(current: dict[str, int], raw_usage: Any) -> bool:
+    """Merge one cumulative provider usage snapshot into canonical token names."""
+    if not isinstance(raw_usage, dict):
+        return False
+
+    found = False
+    aliases = {
+        "prompt_tokens": ("prompt_tokens", "input_tokens"),
+        "completion_tokens": ("completion_tokens", "output_tokens"),
+        "total_tokens": ("total_tokens",),
+    }
+    for canonical_key, provider_keys in aliases.items():
+        for provider_key in provider_keys:
+            value = raw_usage.get(provider_key)
+            if isinstance(value, int) and not isinstance(value, bool):
+                current[canonical_key] = value
+                found = True
+                break
+
+    if found and "total_tokens" not in raw_usage:
+        current["total_tokens"] = current.get("prompt_tokens", 0) + current.get(
+            "completion_tokens", 0
+        )
+    return found
+
+
 class ProviderLLMModel(BaseLLMModel):
     model_url: str
     api_key: str
@@ -241,7 +267,8 @@ class AnthropicLLMModel(ProviderLLMModel):
     ) -> AsyncIterator[CompatChunk]:
         event_type = ""
         data_lines: list[str] = []
-        usage: dict[str, Any] = {}
+        usage: dict[str, int] = {}
+        has_usage = False
         emitted_stop = False
 
         async for line in response.aiter_lines():
@@ -251,10 +278,14 @@ class AnthropicLLMModel(ProviderLLMModel):
                     continue
                 payload = json.loads("\n".join(data_lines))
                 data_lines = []
-                usage = payload.get("usage") or usage
                 normalized: dict[str, Any] | None = None
 
-                if event_type == "content_block_delta":
+                if event_type == "message_start":
+                    message = payload.get("message") or {}
+                    has_usage = (
+                        _merge_compat_usage(usage, message.get("usage")) or has_usage
+                    )
+                elif event_type == "content_block_delta":
                     delta = payload.get("delta", {})
                     normalized = {
                         "choices": [
@@ -265,34 +296,40 @@ class AnthropicLLMModel(ProviderLLMModel):
                                 },
                                 "finish_reason": None,
                             }
-                        ],
-                        "usage": usage,
+                        ]
                     }
                 elif event_type == "message_delta":
-                    normalized = {
-                        "choices": [
-                            {
-                                "delta": {"content": "", "reasoning_content": ""},
-                                "finish_reason": payload.get("delta", {}).get(
-                                    "stop_reason"
-                                )
-                                or "stop",
-                            }
-                        ],
-                        "usage": payload.get("usage") or usage,
-                    }
-                    emitted_stop = True
+                    has_usage = (
+                        _merge_compat_usage(usage, payload.get("usage")) or has_usage
+                    )
+                    stop_reason = payload.get("delta", {}).get("stop_reason")
+                    if stop_reason:
+                        normalized = {
+                            "choices": [
+                                {
+                                    "delta": {
+                                        "content": "",
+                                        "reasoning_content": "",
+                                    },
+                                    "finish_reason": stop_reason,
+                                }
+                            ]
+                        }
+                        emitted_stop = True
                 elif event_type == "message_stop":
-                    normalized = {
-                        "choices": [
-                            {
-                                "delta": {"content": "", "reasoning_content": ""},
-                                "finish_reason": "stop",
-                            }
-                        ],
-                        "usage": usage,
-                    }
-                    emitted_stop = True
+                    if not emitted_stop:
+                        normalized = {
+                            "choices": [
+                                {
+                                    "delta": {
+                                        "content": "",
+                                        "reasoning_content": "",
+                                    },
+                                    "finish_reason": "stop",
+                                }
+                            ]
+                        }
+                        emitted_stop = True
                 elif event_type == "error":
                     error = payload.get("error", {})
                     llm_plugin_error(
@@ -318,10 +355,11 @@ class AnthropicLLMModel(ProviderLLMModel):
                             "delta": {"content": "", "reasoning_content": ""},
                             "finish_reason": "stop",
                         }
-                    ],
-                    "usage": usage,
+                    ]
                 }
             )
+        if has_usage:
+            yield CompatChunk(choices=[], usage=CompatUsage(**usage))
 
 
 class GoogleLLMModel(ProviderLLMModel):
@@ -388,7 +426,8 @@ class GoogleLLMModel(ProviderLLMModel):
         candidate = (payload.get("candidates") or [{}])[0]
         finish_reason = candidate.get("finishReason")
         parts = candidate.get("content", {}).get("parts", [])
-        normalized = {
+        usage_metadata = payload.get("usageMetadata") or {}
+        normalized: dict[str, Any] = {
             "choices": [
                 {
                     "delta": {
@@ -409,8 +448,10 @@ class GoogleLLMModel(ProviderLLMModel):
                         else (str(finish_reason).lower() if finish_reason else None)
                     ),
                 }
-            ],
-            "usage": {
+            ]
+        }
+        if usage_metadata:
+            normalized["usage"] = {
                 "prompt_tokens": (payload.get("usageMetadata") or {}).get(
                     "promptTokenCount", 0
                 ),
@@ -420,8 +461,7 @@ class GoogleLLMModel(ProviderLLMModel):
                 "total_tokens": (payload.get("usageMetadata") or {}).get(
                     "totalTokenCount", 0
                 ),
-            },
-        }
+            }
         return self._build_compat_chunk(normalized)
 
     async def _yield_normalized_chunks(  # type: ignore[override]  # noqa: C901
@@ -435,6 +475,7 @@ class GoogleLLMModel(ProviderLLMModel):
 
         data_lines: list[str] = []
         emitted_stop = False
+        latest_usage: CompatUsage | None = None
 
         async for line in response.aiter_lines():
             if not line:
@@ -445,6 +486,9 @@ class GoogleLLMModel(ProviderLLMModel):
                 if raw_data == "[DONE]":
                     break
                 chunk = self._normalize_payload_to_chunk(json.loads(raw_data))
+                if chunk.usage is not None:
+                    latest_usage = chunk.usage
+                    chunk.usage = None
                 if chunk.choices[0].finish_reason:
                     emitted_stop = True
                 yield chunk
@@ -455,6 +499,9 @@ class GoogleLLMModel(ProviderLLMModel):
 
         if data_lines:
             chunk = self._normalize_payload_to_chunk(json.loads("\n".join(data_lines)))
+            if chunk.usage is not None:
+                latest_usage = chunk.usage
+                chunk.usage = None
             if chunk.choices[0].finish_reason:
                 emitted_stop = True
             yield chunk
@@ -470,3 +517,5 @@ class GoogleLLMModel(ProviderLLMModel):
                     ]
                 }
             )
+        if latest_usage is not None:
+            yield CompatChunk(choices=[], usage=latest_usage)

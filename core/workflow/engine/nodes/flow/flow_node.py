@@ -29,6 +29,7 @@ from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.middleware.database.utils import session_getter
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.extensions.otlp.trace.trace import Trace
 
 
 class FlowNode(BaseNode):
@@ -315,6 +316,7 @@ class FlowNode(BaseNode):
         """
         # Initialize request headers
         headers = {"Content-Type": "application/json"}
+        headers.update(Trace.inject_context())
 
         chat_id: str = variable_pool.system_params.get(ParamKey.ChatId, default="")
         uid: str = variable_pool.system_params.get(ParamKey.Uid, default="")
@@ -343,7 +345,7 @@ class FlowNode(BaseNode):
             "flow_id": self.flowId,
             "uid": uid,
             "parameters": origin_inputs,
-            "ext": {},
+            "ext": {"caller": "workflow"},
             "chat_id": chat_id,
             "stream": True,
             "history": history,

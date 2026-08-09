@@ -88,7 +88,7 @@ Configuration items in this document are marked as follows:
 
 ---
 
-## 2. Monitoring Configuration Module (OTLP)
+## 2. Observability Configuration (OTLP and Langfuse)
 
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
@@ -102,6 +102,16 @@ Configuration items in this document are marked as follows:
 | OTLP_TRACE_SCHEDULE_DELAY_MILLIS | Required | int | OTLP trace schedule delay (milliseconds) | 3000 |
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | Required | int | OTLP trace batch export maximum size | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | Required | int | OTLP trace export timeout (milliseconds) | 3000 |
+| LANGFUSE_ENABLED | Use Default | bool | Enable the independent Langfuse OTLP/HTTP trace exporter | false |
+| LANGFUSE_PUBLIC_KEY | Required when enabled | string | Langfuse project public key | (empty) |
+| LANGFUSE_SECRET_KEY | Required when enabled | string | Langfuse project secret key; inject it through a secret manager in production | (empty) |
+| LANGFUSE_HOST | Use Default | url | Langfuse base URL; Astron derives the v4 OTLP traces endpoint | https://cloud.langfuse.com |
+| LANGFUSE_CAPTURE_INPUT_OUTPUT | Use Default | bool | Export prompt/input and response/output content; disabled for privacy by default | false |
+| LANGFUSE_MAX_ATTRIBUTE_LENGTH | Use Default | int | Maximum exported string attribute length | 8192 |
+| LANGFUSE_ENVIRONMENT | Use Default | string | Environment label attached to Langfuse traces | default |
+| LANGFUSE_RELEASE | Optional | string | Release or deployment label attached to Langfuse traces | (empty) |
+
+See the [Langfuse observability guide](/guide/observability) for privacy behavior, deployment, verification, and evaluator setup.
 
 ---
 

@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator
 import aiohttp
 import httpx
 from common.otlp.trace.span import Span
+from common.otlp.trace.trace import Trace
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
@@ -60,9 +61,12 @@ class WorkflowPluginRunner(BaseModel):
                 "flow_id": self.flow_id,
                 "uid": self.uid,
                 "parameters": action_input,
-                "extra_body": {"bot_id": "workflow", "caller": "agent"},
+                "ext": {"bot_id": "workflow", "caller": "agent"},
             },
-            "extra_headers": {"X-consumer-username": self.app_id},
+            "extra_headers": {
+                "X-consumer-username": self.app_id,
+                **Trace.inject_context(),
+            },
         }
 
     def _create_error_response(

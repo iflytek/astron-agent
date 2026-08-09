@@ -1,11 +1,15 @@
 """Test plugin base/link/mcp/workflow module"""
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
+from openai import AsyncOpenAI
+from opentelemetry.sdk.trace import TracerProvider
 
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
@@ -241,6 +245,57 @@ class TestWorkflowPluginRunnerAndFactory:
         params = runner._build_request_params({"p": 1})
         assert params["extra_body"]["flow_id"] == "fid"
         assert params["extra_body"]["parameters"] == {"p": 1}
+        assert params["extra_body"]["ext"] == {
+            "bot_id": "workflow",
+            "caller": "agent",
+        }
+        assert "extra_body" not in params["extra_body"]
+
+    @pytest.mark.asyncio
+    async def test_openai_wire_request_preserves_nested_trace_context(self) -> None:
+        captured: dict[str, Any] = {}
+
+        async def handle_request(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.content)
+            captured["headers"] = dict(request.headers)
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=b"data: [DONE]\n\n",
+            )
+
+        provider = TracerProvider()
+        tracer = provider.get_tracer("agent-workflow-wire-test")
+        runner = WorkflowPluginRunner(
+            app_id="synthetic-app", uid="synthetic-user", flow_id="flow-42"
+        )
+
+        try:
+            async with httpx.AsyncClient(
+                transport=httpx.MockTransport(handle_request)
+            ) as http_client:
+                client = AsyncOpenAI(
+                    base_url="http://workflow.test/workflow/v1",
+                    api_key="synthetic-key",
+                    http_client=http_client,
+                )
+                with tracer.start_as_current_span("agent.workflow-handoff") as parent:
+                    params = runner._build_request_params({"city": "Hefei"})
+                    stream = await client.chat.completions.create(**params)
+                    async for _ in stream:
+                        pass
+
+                    parent_context = parent.get_span_context()
+        finally:
+            provider.shutdown()
+
+        assert captured["body"]["ext"] == {
+            "bot_id": "workflow",
+            "caller": "agent",
+        }
+        traceparent = captured["headers"]["traceparent"].split("-")
+        assert traceparent[1] == f"{parent_context.trace_id:032x}"
+        assert traceparent[2] == f"{parent_context.span_id:016x}"
 
     def test_create_error_and_success_response(self) -> None:
         runner = WorkflowPluginRunner(app_id="app", uid="u", flow_id="fid")

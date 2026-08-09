@@ -26,6 +26,7 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.extensions.otlp.trace.trace import Trace
 from workflow.infra.providers.llm.iflytek_spark.schemas import StreamOutputMsg
 
 
@@ -265,6 +266,7 @@ class AgentNode(BaseNode):
             "Content-Type": "application/json",
             "x-consumer-username": self.appId,
         }
+        headers.update(Trace.inject_context())
 
         req_body = self._generate_agent_request(
             reasoning_instruction, answer_instruction, messages, variable_pool, span

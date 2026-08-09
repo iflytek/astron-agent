@@ -63,6 +63,7 @@ export default defineConfig({
             items: [
               { text: "Configuration Guide", link: "/guide/config" },
               { text: "Configuration Reference", link: "/CONFIGURATION" },
+              { text: "Langfuse Observability", link: "/guide/observability" },
               { text: "Project Modules", link: "/PROJECT_MODULES" },
               { text: "Makefile Guide", link: "/Makefile-readme" }
             ]
@@ -150,6 +151,7 @@ export default defineConfig({
             items: [
               { text: "配置说明", link: "/zh/guide/config" },
               { text: "配置参考", link: "/zh/CONFIGURATION" },
+              { text: "Langfuse 可观测性", link: "/zh/guide/observability" },
               { text: "模块说明", link: "/zh/PROJECT_MODULES" },
               { text: "Makefile 使用指南", link: "/zh/Makefile-readme" }
             ]

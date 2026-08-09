@@ -61,13 +61,15 @@ def build_chunk(
     choices: list[dict[str, Any]],
     usage: dict[str, int] | None = None,
 ) -> ChatCompletionChunk:
-    return ChatCompletionChunk(
-        id="chatcmpl-test",
-        choices=choices,
-        created=0,
-        model="openai/test-model",
-        object="chat.completion.chunk",
-        usage=usage,
+    return ChatCompletionChunk.model_validate(
+        {
+            "id": "chatcmpl-test",
+            "choices": choices,
+            "created": 0,
+            "model": "openai/test-model",
+            "object": "chat.completion.chunk",
+            "usage": usage,
+        }
     )
 
 

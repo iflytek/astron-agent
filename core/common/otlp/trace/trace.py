@@ -3,6 +3,8 @@ import os
 from enum import Enum
 from typing import Sequence
 
+from common.otlp.ip import local_ip
+from common.otlp.trace.langfuse import add_langfuse_span_processor
 from loguru import logger
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -16,8 +18,6 @@ from opentelemetry.sdk.trace.export import (
 )
 from opentelemetry.trace import StatusCode
 
-from common.otlp.ip import local_ip
-
 
 class SpanLevel(Enum):
     DEBUG = "DEBUG"
@@ -27,7 +27,6 @@ class SpanLevel(Enum):
 
 
 class FileSpanExporter(SpanExporter):
-
     def export(self, spans: Sequence[trace.Span]) -> SpanExportResult:  # type: ignore[override]
         try:
             for span in spans:
@@ -88,6 +87,7 @@ def init_trace(
     )
 
     provider = TracerProvider(resource=resource, span_limits=span_limits)
+    add_langfuse_span_processor(provider)
     if os.getenv("OTLP_ENABLE", "false").lower() in (
         "true",
         "1",

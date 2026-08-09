@@ -1,15 +1,25 @@
 """Test BaseLLMModel class"""
 
+import json
 from dataclasses import dataclass
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
 from openai import APIError, APITimeoutError, AsyncOpenAI
 
-from agent.domain.models.base import BaseLLMModel
+from agent.domain.models.base import (
+    AnthropicLLMModel,
+    BaseLLMModel,
+    CompatChoice,
+    CompatChunk,
+    CompatDelta,
+    CompatUsage,
+    GoogleLLMModel,
+)
 from agent.exceptions.plugin_exc import PluginExc
 
 
@@ -277,3 +287,186 @@ class TestBaseLLMModel:
             chunks.append(chunk)
 
         assert len(chunks) == 1
+
+    @pytest.mark.asyncio
+    async def test_openai_stream_keeps_single_final_cumulative_usage(
+        self, model: BaseLLMModel
+    ) -> None:
+        """OpenAI usage is one choices-less total immediately before [DONE]."""
+        content_chunk = CompatChunk(
+            choices=[CompatChoice(delta=CompatDelta(content="hello"))]
+        )
+        usage_chunk = CompatChunk(
+            choices=[],
+            usage=CompatUsage(
+                prompt_tokens=10,
+                completion_tokens=4,
+                total_tokens=14,
+            ),
+        )
+
+        async def mock_stream() -> AsyncIterator[CompatChunk]:
+            yield content_chunk
+            yield usage_chunk
+
+        mock_response = AsyncMock()
+        mock_response.__aiter__ = lambda self: mock_stream()
+        model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        chunks = [
+            chunk
+            async for chunk in model.stream(
+                [{"role": "user", "content": "test"}], stream=True
+            )
+        ]
+
+        usage_chunks = [chunk for chunk in chunks if chunk.usage is not None]
+        assert usage_chunks == [usage_chunk]
+        assert usage_chunks[0].choices == []
+
+
+def _sse_response(events: list[tuple[str, dict[str, Any]]]) -> httpx.Response:
+    body = "".join(
+        f"event: {event_type}\ndata: {json.dumps(payload)}\n\n"
+        for event_type, payload in events
+    )
+    return httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=body,
+        request=httpx.Request("POST", "https://provider.test/v1/messages"),
+    )
+
+
+@pytest.mark.asyncio
+async def test_anthropic_stream_merges_cumulative_usage_once() -> None:
+    """Anthropic input and cumulative output usage become one canonical frame."""
+    response = _sse_response(
+        [
+            (
+                "message_start",
+                {
+                    "type": "message_start",
+                    "message": {
+                        "content": [],
+                        "usage": {"input_tokens": 25, "output_tokens": 1},
+                    },
+                },
+            ),
+            (
+                "content_block_delta",
+                {
+                    "type": "content_block_delta",
+                    "delta": {"type": "text_delta", "text": "Hello"},
+                },
+            ),
+            (
+                "message_delta",
+                {
+                    "type": "message_delta",
+                    "delta": {},
+                    "usage": {"output_tokens": 10},
+                },
+            ),
+            (
+                "content_block_delta",
+                {
+                    "type": "content_block_delta",
+                    "delta": {"type": "text_delta", "text": "!"},
+                },
+            ),
+            (
+                "message_delta",
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "end_turn"},
+                    "usage": {"output_tokens": 15},
+                },
+            ),
+            ("message_stop", {"type": "message_stop"}),
+        ]
+    )
+    async with httpx.AsyncClient(trust_env=False) as client:
+        model = AnthropicLLMModel(
+            name="claude-test",
+            model_url="https://provider.test",
+            api_key="synthetic",
+            http_client=client,
+        )
+        chunks = [chunk async for chunk in model._yield_normalized_chunks(response)]
+
+    assert [
+        choice.delta.content
+        for chunk in chunks
+        for choice in chunk.choices
+        if choice.delta.content
+    ] == ["Hello", "!"]
+    assert [
+        choice.finish_reason
+        for chunk in chunks
+        for choice in chunk.choices
+        if choice.finish_reason
+    ] == ["end_turn"]
+    usage_chunks = [chunk for chunk in chunks if chunk.usage is not None]
+    assert len(usage_chunks) == 1
+    assert usage_chunks[0].choices == []
+    assert usage_chunks[0].usage == CompatUsage(
+        prompt_tokens=25,
+        completion_tokens=15,
+        total_tokens=40,
+    )
+
+
+@pytest.mark.asyncio
+async def test_google_stream_keeps_latest_cumulative_usage_once() -> None:
+    """Repeated Gemini total snapshots must not be summed across chunks."""
+    payloads = [
+        {
+            "candidates": [
+                {"content": {"parts": [{"text": "Hello"}]}, "finishReason": None}
+            ]
+        },
+        {
+            "candidates": [
+                {"content": {"parts": [{"text": " "}]}, "finishReason": None}
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 2,
+                "totalTokenCount": 12,
+            },
+        },
+        {
+            "candidates": [
+                {"content": {"parts": [{"text": "world"}]}, "finishReason": "STOP"}
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 4,
+                "totalTokenCount": 14,
+            },
+        },
+    ]
+    body = "".join(f"data: {json.dumps(payload)}\n\n" for payload in payloads)
+    response = httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=body,
+        request=httpx.Request("POST", "https://provider.test/streamGenerateContent"),
+    )
+    async with httpx.AsyncClient(trust_env=False) as client:
+        model = GoogleLLMModel(
+            name="gemini-test",
+            model_url="https://provider.test",
+            api_key="synthetic",
+            http_client=client,
+        )
+        chunks = [chunk async for chunk in model._yield_normalized_chunks(response)]
+
+    assert all(chunk.usage is None for chunk in chunks[:-1])
+    assert chunks[-1].choices == []
+    assert chunks[-1].usage == CompatUsage(
+        prompt_tokens=10,
+        completion_tokens=4,
+        total_tokens=14,
+    )

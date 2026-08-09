@@ -1,4 +1,5 @@
 import json
+from contextlib import aclosing
 from typing import AsyncIterator
 
 # Use unified common package import module
@@ -74,5 +75,7 @@ class CotProcessRunner(RunnerBase):
                 {"role": "user", "content": user_prompt},
             ]
 
-            async for chunk in self.model_general_stream(messages, sp, node_trace_log):
-                yield chunk
+            response_stream = self.model_general_stream(messages, sp, node_trace_log)
+            async with aclosing(response_stream):
+                async for chunk in response_stream:
+                    yield chunk

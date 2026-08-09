@@ -3,6 +3,7 @@ import os
 from enum import Enum
 from typing import Any, Sequence
 
+from common.otlp.trace.langfuse import add_langfuse_span_processor
 from loguru import logger
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -116,6 +117,7 @@ def init_trace(
 
     # Create tracer provider and add OTLP processor
     provider = TracerProvider(resource=resource, span_limits=span_limits)
+    add_langfuse_span_processor(provider)
 
     # Create OTLP exporter for remote trace export
     if os.getenv("OTLP_ENABLE", "0") == "1":
