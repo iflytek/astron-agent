@@ -187,6 +187,26 @@ the default `LANGFUSE_CAPTURE_INPUT_OUTPUT=false`, the same topology, usage,
 latency, and cost remain visible while the green input/output payload panels
 are omitted.
 
+### Verified managed LLM-as-a-judge result
+
+A second synthetic run exercised real OpenAI-compatible model calls for both
+the application generation and an explicit judge observation. Trace
+`f59a874fd9ceb00f6e9a384438bb9e04` contains 10 Astron observations across
+`CHAIN`, `AGENT`, `GENERATION`, `RETRIEVER`, `TOOL`, and `EVALUATOR` types.
+The application generation reported 75 input and 471 output tokens, while the
+explicit judge reported 613 input and 97 output tokens (1,256 in the trace).
+
+A live Langfuse root-observation evaluator independently wrote
+`astron-root-answer-relevance-live: 1` with source `EVAL`. The separately
+ingested `llm-judge-answer-relevance: 1` score confirms the documented
+trace-level API feedback path. Both scores appear on the same root trace view,
+alongside the complete parent/child hierarchy, in the screenshot below. The
+run used only synthetic content on a loopback-only Langfuse v4.6.0 deployment;
+provider credentials, endpoints, and concrete model configuration are not
+included in the trace evidence or repository.
+
+![Verified Langfuse managed LLM-as-a-judge score and Astron workflow, agent, generation, retrieval, tool, and evaluator hierarchy](../imgs/langfuse-managed-llm-judge.png)
+
 For a reproducible bug report or pull request, include the exact startup and
 request commands, the selected environment/release, and a redacted screenshot
 showing the trace hierarchy, model, tokens, and latency. Never include project
@@ -214,6 +234,58 @@ default deliberately omits those fields from the root observation.
 An evaluator can instead target a specific generation or tool observation if
 that is the intended boundary. Keep its filter narrow so workflow bookkeeping
 spans are not evaluated as model outputs.
+
+### Reproduce the score feedback path
+
+Langfuse evaluators write their result back as a score. To verify the same
+feedback path independently, attach a numeric score to a synthetic trace with
+the official [Scores API](https://langfuse.com/docs/evaluation/evaluation-methods/scores-via-sdk).
+The following example reads credentials from the environment, builds the Basic
+authentication header in memory, and never places either key in a command-line
+argument:
+
+```bash
+export LANGFUSE_TRACE_ID="<synthetic-trace-id>"
+python - <<'PY'
+import base64
+import json
+import os
+import urllib.request
+from urllib.parse import urlsplit
+
+host = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com").rstrip("/")
+parts = urlsplit(host)
+if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username:
+    raise SystemExit("LANGFUSE_HOST must be an HTTP(S) base URL without userinfo")
+
+credentials = (
+    f"{os.environ['LANGFUSE_PUBLIC_KEY']}:{os.environ['LANGFUSE_SECRET_KEY']}"
+).encode()
+payload = json.dumps(
+    {
+        "traceId": os.environ["LANGFUSE_TRACE_ID"],
+        "name": "observability-e2e",
+        "value": 1.0,
+        "dataType": "NUMERIC",
+        "comment": "Synthetic Astron observability verification",
+    }
+).encode()
+request = urllib.request.Request(
+    f"{host}/api/public/scores",
+    data=payload,
+    headers={
+        "Authorization": "Basic " + base64.b64encode(credentials).decode(),
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=10) as response:
+    print(f"Langfuse accepted the score (HTTP {response.status})")
+PY
+```
+
+Use only a trace from your own project. This verifies score ingestion; use the
+evaluator steps above when the score itself should be produced by an LLM judge.
 
 ## Troubleshooting and flushing
 
@@ -260,3 +332,11 @@ Verify that the generation includes a stable model identifier and input/output
 token counts. Cost additionally depends on Langfuse recognizing the model or
 having matching pricing configured; Astron does not invent a price when the
 provider supplies none.
+
+For OpenAI-compatible Agent streams, Astron requests the standard final usage
+chunk with `stream_options.include_usage`. If a provider explicitly rejects
+that field with a `400` or `422` validation response, Astron retries once
+without it and caches that capability for the model instance. A provider that
+accepts the option but omits the final usage chunk cannot supply streaming
+token counts, so latency and topology remain available but usage and cost do
+not.

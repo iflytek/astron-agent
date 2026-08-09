@@ -168,6 +168,23 @@ Langfuse 为两次生成归因了 29 个 Token 和 `$0.000255` 成本；通过 A
 `LANGFUSE_CAPTURE_INPUT_OUTPUT=false` 时，拓扑、用量、延迟和成本仍然可见，
 但截图中的绿色 input/output 载荷面板会被省略。
 
+### 已验证的托管 LLM-as-a-judge 结果
+
+第二次合成证据运行分别为应用生成和显式 Judge Observation 调用了真实的
+OpenAI-compatible 模型。Trace `f59a874fd9ceb00f6e9a384438bb9e04` 包含 10 个
+Astron Observation，覆盖 `CHAIN`、`AGENT`、`GENERATION`、`RETRIEVER`、
+`TOOL` 和 `EVALUATOR` 类型。应用生成记录了 75 个输入和 471 个输出 Token，
+显式 Judge 记录了 613 个输入和 97 个输出 Token（该 Trace 合计 1,256 个）。
+
+Langfuse 中持续运行的根 Observation evaluator 独立写回了
+`astron-root-answer-relevance-live: 1`，其来源为 `EVAL`。单独写入的
+`llm-judge-answer-relevance: 1` 则证明文档中的 Trace 级 API 反馈链路。下图在
+同一个根 Trace 视图中同时展示这两个分数和完整的父子层级。本次运行只在仅绑定
+回环地址的 Langfuse v4.6.0 中使用合成内容；Trace 证据和仓库均不包含供应方
+凭据、端点或具体模型配置。
+
+![已验证的 Langfuse 托管 LLM-as-a-judge 分数，以及 Astron Workflow、Agent、生成、检索、Tool 和 Evaluator 层级](../../imgs/langfuse-managed-llm-judge.png)
+
 为缺陷报告或 PR 准备复现证据时，应提供完整启动命令、请求命令、所选环境/发布
 标签，以及展示 Trace 层级、模型、Token 和延迟的脱敏截图。禁止包含项目 Key
 或真实用户内容。
@@ -188,6 +205,56 @@ Langfuse 为两次生成归因了 29 个 Token 和 `$0.000255` 成本；通过 A
 
 如果目标边界是某个具体 generation 或 tool Observation，也可以让 evaluator 仅
 评估该 Observation。Filter 应保持精确，避免把工作流记账 Span 当作模型输出。
+
+### 复现分数反馈链路
+
+Langfuse evaluator 会把结果作为 score 写回 Trace。若要独立验证同一反馈链路，
+可使用官方 [Scores API](https://langfuse.com/docs/evaluation/evaluation-methods/scores-via-sdk)
+为一条合成 Trace 附加数值分数。以下示例从环境变量读取凭据，在内存中生成
+Basic Authentication Header，不会把任一 Key 放进命令行参数：
+
+```bash
+export LANGFUSE_TRACE_ID="<synthetic-trace-id>"
+python - <<'PY'
+import base64
+import json
+import os
+import urllib.request
+from urllib.parse import urlsplit
+
+host = os.environ.get("LANGFUSE_HOST", "https://cloud.langfuse.com").rstrip("/")
+parts = urlsplit(host)
+if parts.scheme not in {"http", "https"} or not parts.netloc or parts.username:
+    raise SystemExit("LANGFUSE_HOST must be an HTTP(S) base URL without userinfo")
+
+credentials = (
+    f"{os.environ['LANGFUSE_PUBLIC_KEY']}:{os.environ['LANGFUSE_SECRET_KEY']}"
+).encode()
+payload = json.dumps(
+    {
+        "traceId": os.environ["LANGFUSE_TRACE_ID"],
+        "name": "observability-e2e",
+        "value": 1.0,
+        "dataType": "NUMERIC",
+        "comment": "Synthetic Astron observability verification",
+    }
+).encode()
+request = urllib.request.Request(
+    f"{host}/api/public/scores",
+    data=payload,
+    headers={
+        "Authorization": "Basic " + base64.b64encode(credentials).decode(),
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(request, timeout=10) as response:
+    print(f"Langfuse accepted the score (HTTP {response.status})")
+PY
+```
+
+只能使用自己项目中的 Trace。该步骤验证 score ingestion；如果分数本身需要由
+LLM judge 生成，请使用上一节的 evaluator 配置步骤。
 
 ## 排障与 flush
 
@@ -230,3 +297,9 @@ docker compose stop core-workflow core-agent
 确认 generation 包含稳定的模型标识和 input/output Token 计数。成本还依赖
 Langfuse 能识别该模型或存在匹配的定价配置；当供应方没有提供价格时，Astron
 不会虚构价格。
+
+对于 OpenAI-compatible Agent 流式请求，Astron 会通过
+`stream_options.include_usage` 请求标准的最终 usage chunk。如果供应方以
+`400` 或 `422` 校验响应明确拒绝该字段，Astron 会移除该字段重试一次，并在该
+模型实例中缓存兼容性结果。如果供应方接受选项却不返回最终 usage chunk，则无法
+提供流式 Token 计数；此时延迟和拓扑仍然可见，但不会显示用量与成本。

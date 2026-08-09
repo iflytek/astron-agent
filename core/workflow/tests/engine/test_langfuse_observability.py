@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from workflow.consts.engine.chat_status import SparkLLMStatus
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
+from workflow.engine.entities.node_entities import NodeType
 from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.node import NodeExecutionTemplate, SparkFlowEngineNode
 from workflow.engine.nodes.base_node import BaseLLMNode, BaseNode
@@ -136,6 +137,45 @@ async def test_node_execution_emits_typed_child_without_content_by_default(
 
 
 @pytest.mark.asyncio
+async def test_retrieval_node_emits_retriever_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real node execution boundary must classify retrieval explicitly."""
+    monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "false")
+    span, exporter, _provider = _span_with_exporter()
+    node_type = NodeType.KNOWLEDGE_BASE.value
+    node_instance = _SuccessfulToolNode(
+        input_identifier=[],
+        output_identifier=[],
+        node_id=f"{node_type}::synthetic",
+        node_type=node_type,
+        alias_name="Synthetic retrieval",
+    )
+    engine_node = SparkFlowEngineNode(
+        node_id=f"{node_type}::synthetic",
+        node_type=node_type,
+        node_alias_name="Synthetic retrieval",
+        node_instance=node_instance,
+    )
+    template = NodeExecutionTemplate(engine_node)
+    template._handle_execution_result = AsyncMock()  # type: ignore[method-assign]
+
+    with span.start("workflow.run"):
+        await template.execute(span=span)
+
+    retrieval = next(
+        item
+        for item in exporter.get_finished_spans()
+        if item.name == "workflow.node:Synthetic retrieval"
+    )
+    assert retrieval.attributes is not None
+    assert retrieval.attributes["langfuse.observation.type"] == "retriever"
+    assert retrieval.attributes["astron.workflow.node.type"] == node_type
+    assert "langfuse.observation.input" not in retrieval.attributes
+    assert "langfuse.observation.output" not in retrieval.attributes
+
+
+@pytest.mark.asyncio
 async def test_llm_boundary_emits_generation_model_usage_and_content_opt_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -191,7 +231,10 @@ def test_w3c_trace_and_langfuse_baggage_continue_across_services() -> None:
         session_id="test-session",
     )
 
-    with langfuse_trace_context(trace_attributes), span.start("workflow.agent-node"):
+    with (
+        langfuse_trace_context(trace_attributes),
+        span.start("workflow.agent-node"),
+    ):
         carrier = Trace.inject_context()
         assert carrier["traceparent"].startswith("00-")
         assert "baggage" in carrier
