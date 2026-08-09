@@ -9,7 +9,7 @@ import httpx
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
-from openai import APIError, APITimeoutError, AsyncOpenAI
+from openai import APIError, APITimeoutError, AsyncOpenAI, BadRequestError
 
 from agent.domain.models.base import (
     AnthropicLLMModel,
@@ -81,6 +81,27 @@ class TestBaseLLMModel:
             stream=True,
             model="test_model",
             timeout=90,
+            stream_options={"include_usage": True},
+        )
+        assert result == mock_response
+
+    @pytest.mark.asyncio
+    async def test_non_stream_completion_does_not_request_stream_usage(
+        self, model: BaseLLMModel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The stream-only option must not leak into non-stream requests."""
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
+        mock_response = AsyncMock()
+        model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "test"}]
+        result = await model.create_completion(messages, stream=False)
+
+        model.llm.chat.completions.create.assert_awaited_once_with(
+            messages=messages,
+            stream=False,
+            model="test_model",
+            timeout=90,
         )
         assert result == mock_response
 
@@ -102,8 +123,251 @@ class TestBaseLLMModel:
             model="test_model",
             timeout=90,
             max_tokens=2048,
+            stream_options={"include_usage": True},
         )
         assert result == mock_response
+
+    @pytest.mark.parametrize(
+        "error_text",
+        [
+            "Invalid parameter: stream_options.include_usage",
+            "stream_options is not supported",
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_stream_usage_retries_only_when_provider_rejects_the_field(
+        self,
+        model: BaseLLMModel,
+        monkeypatch: pytest.MonkeyPatch,
+        error_text: str,
+    ) -> None:
+        """A strict endpoint gets one retry, then caches the capability."""
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
+        request = httpx.Request("POST", "https://provider.test/v1/chat/completions")
+        response = httpx.Response(400, request=request)
+        error = BadRequestError(
+            error_text,
+            response=response,
+            body=error_text,
+        )
+        mock_response = AsyncMock()
+        create = AsyncMock(side_effect=[error, mock_response, mock_response])
+        model.llm.chat.completions.create = create
+        messages = [{"role": "user", "content": "test"}]
+
+        result = await model.create_completion(messages, stream=True)
+        cached_result = await model.create_completion(messages, stream=True)
+
+        assert create.await_count == 3
+        first_request, fallback_request, cached_request = create.await_args_list
+        assert first_request.kwargs["stream_options"] == {"include_usage": True}
+        assert "stream_options" not in fallback_request.kwargs
+        assert "stream_options" not in cached_request.kwargs
+        assert result == mock_response
+        assert cached_result == mock_response
+
+    @pytest.mark.asyncio
+    async def test_unrelated_bad_request_is_not_retried(
+        self, model: BaseLLMModel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Prompt/model errors must retain normal single-request semantics."""
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
+        request = httpx.Request("POST", "https://provider.test/v1/chat/completions")
+        response = httpx.Response(400, request=request)
+        error = BadRequestError(
+            "Invalid model name",
+            response=response,
+            body={"message": "Invalid model name"},
+        )
+        create = AsyncMock(side_effect=error)
+        model.llm.chat.completions.create = create
+
+        with pytest.raises(BadRequestError):
+            await model.create_completion(
+                [{"role": "user", "content": "test"}], stream=True
+            )
+
+        create.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            {
+                "message": "Unknown model requested",
+                "request": {"stream_options": {"include_usage": True}},
+            },
+            'Unknown model; request={"stream_options":{"include_usage":true}}',
+            'request={"stream_options":{"include_usage":true}}, unknown model',
+            "request stream_options=true: unknown model",
+            'stream_options={"include_usage":true}, model name unknown',
+            'Unknown parameter temperature, request={"stream_options":true}',
+            "Invalid field model, request stream_options=true",
+            'Unsupported argument seed, input={"stream_options":true}',
+            {
+                "message": (
+                    'Unknown model; request={"stream_options":'
+                    '{"include_usage":true}}'
+                ),
+                "type": "invalid_request_error",
+            },
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_reflected_stream_options_does_not_trigger_retry(
+        self, model: BaseLLMModel, monkeypatch: pytest.MonkeyPatch, body: Any
+    ) -> None:
+        """An unrelated error plus an echoed request must not be conflated."""
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
+        request = httpx.Request("POST", "https://provider.test/v1/chat/completions")
+        response = httpx.Response(400, request=request)
+        error = BadRequestError(
+            "Unknown model requested",
+            response=response,
+            body=body,
+        )
+        create = AsyncMock(side_effect=error)
+        model.llm.chat.completions.create = create
+
+        with pytest.raises(BadRequestError):
+            await model.create_completion(
+                [{"role": "user", "content": "test"}], stream=True
+            )
+
+        create.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_openai_wire_422_fallback_is_precise_and_cached(self) -> None:
+        """Exercise a Pydantic-style 422 rejection through the real SDK."""
+        bodies: list[dict[str, Any]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            bodies.append(json.loads(request.content))
+            if len(bodies) == 1:
+                return httpx.Response(
+                    422,
+                    json={
+                        "detail": [
+                            {
+                                "type": "extra_forbidden",
+                                "loc": ["body", "stream_options"],
+                                "msg": "Extra inputs are not permitted",
+                                "input": {"include_usage": True},
+                            }
+                        ]
+                    },
+                    request=request,
+                )
+            event = {
+                "id": "chatcmpl-synthetic",
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": "test-model",
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 6,
+                    "completion_tokens": 2,
+                    "total_tokens": 8,
+                },
+            }
+            content = f"data: {json.dumps(event)}\n\ndata: [DONE]\n\n"
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=content,
+                request=request,
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            llm = AsyncOpenAI(
+                api_key="synthetic",
+                base_url="https://provider.test/v1",
+                http_client=client,
+            )
+            model = BaseLLMModel.model_construct(name="test-model", llm=llm)
+            first = [
+                chunk
+                async for chunk in model.stream(
+                    [{"role": "user", "content": "test"}], stream=True
+                )
+            ]
+            second = [
+                chunk
+                async for chunk in model.stream(
+                    [{"role": "user", "content": "test"}], stream=True
+                )
+            ]
+
+        assert len(bodies) == 3
+        assert bodies[0]["stream_options"] == {"include_usage": True}
+        assert "stream_options" not in bodies[1]
+        assert "stream_options" not in bodies[2]
+        assert first[0].usage is not None
+        assert second[0].usage is not None
+        assert first[0].usage.total_tokens == 8
+        assert second[0].usage.total_tokens == 8
+
+    @pytest.mark.asyncio
+    async def test_openai_wire_requests_and_returns_stream_usage(self) -> None:
+        """Exercise the real SDK wire body and its choices-less usage frame."""
+        bodies: list[dict[str, Any]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            bodies.append(json.loads(request.content))
+            events = [
+                {
+                    "id": "chatcmpl-synthetic",
+                    "object": "chat.completion.chunk",
+                    "created": 0,
+                    "model": "test-model",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"content": "hello"},
+                            "finish_reason": None,
+                        }
+                    ],
+                },
+                {
+                    "id": "chatcmpl-synthetic",
+                    "object": "chat.completion.chunk",
+                    "created": 0,
+                    "model": "test-model",
+                    "choices": [],
+                    "usage": {
+                        "prompt_tokens": 6,
+                        "completion_tokens": 2,
+                        "total_tokens": 8,
+                    },
+                },
+            ]
+            body = "".join(f"data: {json.dumps(event)}\n\n" for event in events)
+            body += "data: [DONE]\n\n"
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/event-stream"},
+                content=body,
+                request=request,
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            llm = AsyncOpenAI(
+                api_key="synthetic",
+                base_url="https://provider.test/v1",
+                http_client=client,
+            )
+            model = BaseLLMModel.model_construct(name="test-model", llm=llm)
+            chunks = [
+                chunk
+                async for chunk in model.stream(
+                    [{"role": "user", "content": "test"}], stream=True
+                )
+            ]
+
+        assert bodies[0]["stream_options"] == {"include_usage": True}
+        usage_chunks = [chunk for chunk in chunks if chunk.usage is not None]
+        assert len(usage_chunks) == 1
+        assert usage_chunks[0].choices == []
+        assert usage_chunks[0].usage.total_tokens == 8
 
     def test_log_messages_to_span(self, model: BaseLLMModel, span: Span) -> None:
         """Test logging messages to span"""
