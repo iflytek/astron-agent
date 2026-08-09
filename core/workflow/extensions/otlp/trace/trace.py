@@ -1,11 +1,15 @@
 import json
 import os
+from base64 import b64encode
 from enum import Enum
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from loguru import logger
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter as HttpOTLPSpanExporter,
+)
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import ReadableSpan, SpanLimits, TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -74,6 +78,28 @@ class FileSpanExporter(SpanExporter):
         return None
 
 
+def get_langfuse_export_config() -> tuple[str, Mapping[str, str]] | None:
+    """Return the OTLP/HTTP endpoint and authentication headers for Langfuse.
+
+    Langfuse natively accepts OpenTelemetry traces, so the workflow engine can
+    keep its existing tracing model and avoid a vendor-specific SDK dependency.
+    """
+    if os.getenv("LANGFUSE_ENABLED", "false").lower() != "true":
+        return None
+
+    public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
+    secret_key = os.getenv("LANGFUSE_SECRET_KEY")
+    if not public_key or not secret_key:
+        raise ValueError(
+            "LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are required when "
+            "LANGFUSE_ENABLED=true"
+        )
+
+    host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com").rstrip("/")
+    credentials = b64encode(f"{public_key}:{secret_key}".encode()).decode()
+    return f"{host}/api/public/otel/v1/traces", {"Authorization": f"Basic {credentials}"}
+
+
 def init_trace(
     endpoint: str,
     service_name: str,
@@ -118,7 +144,24 @@ def init_trace(
     provider = TracerProvider(resource=resource, span_limits=span_limits)
 
     # Create OTLP exporter for remote trace export
-    if os.getenv("OTLP_ENABLE", "0") == "1":
+    langfuse_config = get_langfuse_export_config()
+    if langfuse_config:
+        langfuse_endpoint, langfuse_headers = langfuse_config
+        exporter = HttpOTLPSpanExporter(
+            endpoint=langfuse_endpoint,
+            timeout=timeout,
+            headers=langfuse_headers,
+        )
+        processor = BatchSpanProcessor(
+            exporter,
+            max_queue_size=max_queue_size,
+            schedule_delay_millis=schedule_delay_millis,
+            max_export_batch_size=max_export_batch_size,
+            export_timeout_millis=export_timeout_millis,
+        )
+        provider.add_span_processor(processor)
+        logger.info("Langfuse OTLP trace exporter enabled")
+    elif os.getenv("OTLP_ENABLE", "0") == "1":
         if headers:
             headers = ",".join([f"{k}={v}" for k, v in json.loads(headers).items()])
         exporter = OTLPSpanExporter(
