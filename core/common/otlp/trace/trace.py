@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from enum import Enum
@@ -6,6 +7,9 @@ from typing import Sequence
 from loguru import logger
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter as OTLPHTTPSpanExporter,
+)
 from opentelemetry.propagate import extract, inject
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import SpanLimits, TracerProvider
@@ -105,6 +109,40 @@ def init_trace(
         )
 
         provider.add_span_processor(processor)
+
+    if os.getenv("LANGFUSE_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+        "on",
+    ):
+        langfuse_host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+        langfuse_public_key = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+        langfuse_secret_key = os.getenv("LANGFUSE_SECRET_KEY", "")
+        langfuse_endpoint = (
+            f"{langfuse_host.rstrip('/')}/api/public/otel/v1/traces"
+        )
+        auth_string = base64.b64encode(
+            f"{langfuse_public_key}:{langfuse_secret_key}".encode()
+        ).decode()
+        langfuse_headers = {
+            "Authorization": f"Basic {auth_string}",
+            "x-langfuse-ingestion-version": "4",
+        }
+        langfuse_exporter = OTLPHTTPSpanExporter(
+            endpoint=langfuse_endpoint,
+            headers=langfuse_headers,
+            timeout=timeout,
+        )
+        langfuse_processor = BatchSpanProcessor(
+            langfuse_exporter,
+            max_queue_size=max_queue_size,
+            schedule_delay_millis=schedule_delay_millis,
+            max_export_batch_size=max_export_batch_size,
+            export_timeout_millis=export_timeout_millis,
+        )
+        provider.add_span_processor(langfuse_processor)
+        logger.info("Langfuse OTLP/HTTP exporter enabled")
 
     file_exporter = FileSpanExporter()
     file_processor = BatchSpanProcessor(file_exporter)

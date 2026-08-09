@@ -71,6 +71,9 @@ class Span:
             "uid": self.uid,
             "chat_id": self.chat_id,
             "span_version": "1.0.0",
+            "langfuse.user.id": self.uid,
+            "langfuse.session.id": self.chat_id,
+            "langfuse.trace.name": func_name,
         }
         if attributes:
             default_attr.update(attributes)

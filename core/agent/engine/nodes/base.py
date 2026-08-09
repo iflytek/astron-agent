@@ -103,6 +103,16 @@ class RunnerBase(BaseModel):
                 }
             )
 
+            current_span = sp.get_otlp_span()
+            current_span.set_attribute("langfuse.observation.type", "generation")
+            current_span.set_attribute("gen_ai.request.model", self.model.name)
+            current_span.set_attribute(
+                "gen_ai.usage.input_tokens", node_data_usage.prompt_tokens
+            )
+            current_span.set_attribute(
+                "gen_ai.usage.output_tokens", node_data_usage.completion_tokens
+            )
+
             node_end_time = int(round(time.time() * 1000))
             data_llm_output = answers
             node_trace_log.trace.append(
