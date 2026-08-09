@@ -79,8 +79,7 @@ def get_client():
             public_key=os.getenv(ENV_PUBLIC_KEY),
             secret_key=os.getenv(ENV_SECRET_KEY),
             host=os.getenv(ENV_HOST) or "https://cloud.langfuse.com",
-            # Never block or raise from background export tasks.
-            async_mode=True,
+            # v4 exports asynchronously by default; never blocks LLM path.
             flush_at=10,
             flush_interval=15,
         )
