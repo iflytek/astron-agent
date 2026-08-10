@@ -84,13 +84,21 @@ def _build_langfuse_headers(public_key: str, secret_key: str) -> dict:
     :return: Headers dict for the OTLP HTTP exporter
     """
     auth = base64.b64encode(f"{public_key}:{secret_key}".encode()).decode()
+    # x-langfuse-ingestion-version: recommended by Langfuse's OTel docs
+    # for real-time ingestion (v4 data model)
     return {
         "Authorization": f"Basic {auth}",
         "x-langfuse-ingestion-version": "4",
     }
 
 
-def _init_langfuse_exporter(provider: TracerProvider) -> None:
+def _init_langfuse_exporter(
+    provider: TracerProvider,
+    max_queue_size: int = 2048,
+    schedule_delay_millis: int = 5000,
+    max_export_batch_size: int = 512,
+    export_timeout_millis: int = 30000,
+) -> None:
     """
     Attach an optional OTLP/HTTP span processor targeting Langfuse.
 
@@ -99,6 +107,10 @@ def _init_langfuse_exporter(provider: TracerProvider) -> None:
     misconfiguration is logged and skipped so the service always starts.
 
     :param provider: Tracer provider to attach the processor to
+    :param max_queue_size: Maximum queue size for BatchSpanProcessor data export (default: 2048)
+    :param schedule_delay_millis: Delay interval between consecutive exports in BatchSpanProcessor (default: 5000)
+    :param max_export_batch_size: Maximum batch size for BatchSpanProcessor data export (default: 512)
+    :param export_timeout_millis: Maximum allowed time for data export from BatchSpanProcessor (default: 30000)
     """
     if os.getenv("LANGFUSE_OTEL_ENABLE", "0") != "1":
         return
@@ -120,12 +132,23 @@ def _init_langfuse_exporter(provider: TracerProvider) -> None:
         logger.error(f"Langfuse exporter unavailable, missing http exporter: {e}")
         return
     endpoint = f"{host}/api/public/otel/v1/traces"
-    exporter = OTLPHttpSpanExporter(
-        endpoint=endpoint,
-        headers=_build_langfuse_headers(public_key, secret_key),
-    )
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    logger.info(f"✅ Langfuse OTLP exporter enabled, endpoint: {endpoint}")
+    try:
+        exporter = OTLPHttpSpanExporter(
+            endpoint=endpoint,
+            headers=_build_langfuse_headers(public_key, secret_key),
+        )
+        provider.add_span_processor(
+            BatchSpanProcessor(
+                exporter,
+                max_queue_size=max_queue_size,
+                schedule_delay_millis=schedule_delay_millis,
+                max_export_batch_size=max_export_batch_size,
+                export_timeout_millis=export_timeout_millis,
+            )
+        )
+        logger.info(f"✅ Langfuse OTLP exporter enabled, endpoint: {endpoint}")
+    except Exception as e:
+        logger.error(f"Failed to attach Langfuse exporter: {e}")
 
 
 def init_trace(
@@ -193,7 +216,13 @@ def init_trace(
     provider.add_span_processor(file_processor)
 
     # Attach optional Langfuse OTLP/HTTP processor (off by default)
-    _init_langfuse_exporter(provider)
+    _init_langfuse_exporter(
+        provider,
+        max_queue_size=max_queue_size,
+        schedule_delay_millis=schedule_delay_millis,
+        max_export_batch_size=max_export_batch_size,
+        export_timeout_millis=export_timeout_millis,
+    )
 
     # Set global default tracer provider
     trace.set_tracer_provider(provider)

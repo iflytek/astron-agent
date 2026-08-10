@@ -29,7 +29,10 @@ def _make_span() -> tuple[Span, InMemorySpanExporter]:
 
 
 @pytest.mark.asyncio
-async def test_llm_node_records_model_and_usage() -> None:
+async def test_llm_node_records_model_and_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_OTEL_ENABLE", "1")
     template = _make_template(SimpleNamespace(domain="gpt-4o"))
     result = NodeRunResult(
         node_id="spark-llm::n1",
@@ -51,7 +54,10 @@ async def test_llm_node_records_model_and_usage() -> None:
 
 
 @pytest.mark.asyncio
-async def test_non_llm_node_records_io_without_model() -> None:
+async def test_non_llm_node_records_io_without_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_OTEL_ENABLE", "1")
     template = _make_template(object())  # no `domain` attribute
     result = NodeRunResult(
         node_id="ifly-code::n2",

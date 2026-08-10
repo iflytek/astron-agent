@@ -1,5 +1,3 @@
-from typing import Any
-
 import pytest
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -11,7 +9,11 @@ from workflow.extensions.otlp.trace.span import SPAN_SIZE_LIMIT, Span
 
 
 @pytest.fixture()
-def span_capture() -> tuple[Span, InMemorySpanExporter]:
+def span_capture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Span, InMemorySpanExporter]:
+    # gen_ai attribute recording is gated behind LANGFUSE_OTEL_ENABLE
+    monkeypatch.setenv("LANGFUSE_OTEL_ENABLE", "1")
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
@@ -94,3 +96,23 @@ async def test_never_raises_on_unserializable_payload(
         )
     finished = exporter.get_finished_spans()[0]
     assert "weird-object" in finished.attributes["langfuse.observation.input"]
+
+
+@pytest.mark.asyncio
+async def test_disabled_gate_writes_no_gen_ai_attributes(
+    span_capture: tuple[Span, InMemorySpanExporter],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LANGFUSE_OTEL_ENABLE", raising=False)
+    span, exporter = span_capture
+    with span.start("run_node:test") as ctx:
+        await ctx.set_gen_ai_attributes_async(
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            model="gpt-4o",
+            input_payload={"query": "hi"},
+            output_payload={"answer": "ok"},
+        )
+    finished = exporter.get_finished_spans()[0]
+    assert not any(
+        key.startswith(("gen_ai.", "langfuse.")) for key in finished.attributes
+    )

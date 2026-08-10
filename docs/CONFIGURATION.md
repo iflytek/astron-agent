@@ -103,7 +103,7 @@ Configuration items in this document are marked as follows:
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | Required | int | OTLP trace batch export maximum size | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | Required | int | OTLP trace export timeout (milliseconds) | 3000 |
 | LANGFUSE_OTEL_ENABLE | Optional | int | Enable Langfuse trace export via OpenTelemetry (0=disabled, 1=enabled), see [Langfuse Integration](#langfuse-integration-llm-observability) | 0 |
-| LANGFUSE_HOST | Optional | url | Langfuse base URL (cloud or self-hosted), empty by default | https://cloud.langfuse.com |
+| LANGFUSE_HOST | Optional | string | Langfuse base URL (cloud or self-hosted), empty by default | https://cloud.langfuse.com |
 | LANGFUSE_PUBLIC_KEY | Optional | string | Langfuse project public key, empty by default | pk-lf-... |
 | LANGFUSE_SECRET_KEY | Optional | string | Langfuse project secret key, empty by default | sk-lf-... |
 

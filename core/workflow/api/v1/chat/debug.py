@@ -47,7 +47,12 @@ async def chat_debug(
 
     span = Span(app_id=app_id, uid=chat_vo.uid, chat_id=chat_vo.chat_id)
     with span.start(
-        attributes={"flow_id": chat_vo.flow_id},
+        attributes={
+            "flow_id": chat_vo.flow_id,
+            "langfuse.session.id": chat_vo.chat_id,
+            "langfuse.user.id": chat_vo.uid,
+            "langfuse.trace.name": f"workflow:{chat_vo.flow_id}",
+        },
     ) as span_context:
         m.set_label("flow_id", chat_vo.flow_id)
         try:

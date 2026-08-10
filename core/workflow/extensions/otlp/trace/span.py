@@ -378,12 +378,16 @@ class Span:
         Enables LLM observability backends (e.g. Langfuse via its OTel
         endpoint) to recognize generations, token usage and node I/O.
         Never raises: observability must not break business execution.
+        No-op unless LANGFUSE_OTEL_ENABLE=1 (checked per call), so the
+        disabled path costs one getenv and skips serialization/OSS work.
 
         :param usage: Token usage dict with prompt_tokens/completion_tokens/total_tokens
         :param model: Model name; empty for non-LLM nodes (attribute omitted)
         :param input_payload: Node input, serialized to JSON string
         :param output_payload: Node output, serialized to JSON string
         """
+        if os.getenv("LANGFUSE_OTEL_ENABLE", "0") != "1":
+            return
         try:
             attributes: Dict[str, Any] = {}
             if model:
@@ -429,7 +433,7 @@ class Span:
             value = json.dumps(payload, ensure_ascii=False, default=repr)
         except Exception:
             value = repr(payload)
-        value_bytes = value.encode("utf-8")
+        value_bytes = value.encode("utf-8", errors="replace")
         if len(value_bytes) >= SPAN_SIZE_LIMIT:
             try:
                 trace_link = await get_oss_service().upload_file_async(
