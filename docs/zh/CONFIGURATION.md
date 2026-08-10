@@ -102,6 +102,10 @@
 | OTLP_TRACE_SCHEDULE_DELAY_MILLIS | 必填 | int | OTLP 追踪调度延迟(毫秒) | 3000 |
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | 必填 | int | OTLP 追踪批量导出最大数量 | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | 必填 | int | OTLP 追踪导出超时(毫秒) | 3000 |
+| LANGFUSE_OTEL_ENABLE | 可选 | int | 是否启用通过 OpenTelemetry 向 Langfuse 导出追踪数据(0=禁用, 1=启用)，参见 [Langfuse 集成](#langfuse-集成llm-可观测性) | 0 |
+| LANGFUSE_HOST | 可选 | url | Langfuse 基础地址(云端或自托管)，默认为空 | https://cloud.langfuse.com |
+| LANGFUSE_PUBLIC_KEY | 可选 | string | Langfuse 项目 Public Key，默认为空 | pk-lf-... |
+| LANGFUSE_SECRET_KEY | 可选 | string | Langfuse 项目 Secret Key，默认为空 | sk-lf-... |
 
 ---
 
@@ -309,6 +313,45 @@
 | HEALTH_CHECK_TIMEOUT | 必填 | string | 健康检查超时时间 | 10s |
 | HEALTH_CHECK_RETRIES | 必填 | int | 健康检查重试次数 | 60 |
 | NETWORK_SUBNET | 必填 | string | Docker 网络子网配置 | 172.20.0.0/16 |
+
+---
+
+## Langfuse 集成（LLM 可观测性）
+
+workflow 服务可以将其 OpenTelemetry 追踪数据直接导出到
+[Langfuse](https://langfuse.com)，无需引入额外的 SDK。每次工作流运行都会以
+嵌套 trace 的形式呈现（LLM 节点会被识别为 *generation*，携带 token 用量和
+模型名称，可实现自动成本统计）。
+
+### 快速开始
+
+1. 获取 API 密钥：在 Langfuse（云端或[自托管](https://langfuse.com/self-hosting)）
+   中创建一个项目，并复制 public/secret 密钥对。
+2. 配置 workflow 服务（环境变量或 `config.env`）：
+
+   ```ini
+   LANGFUSE_OTEL_ENABLE=1
+   LANGFUSE_HOST=https://cloud.langfuse.com
+   LANGFUSE_PUBLIC_KEY=pk-lf-...
+   LANGFUSE_SECRET_KEY=sk-lf-...
+   ```
+
+3. 重启 workflow 服务并运行任意工作流（例如通过控制台的对话调试）。几秒钟内
+   即可在 Langfuse 中看到对应 trace：嵌套的节点 span、携带 `gen_ai.usage.*`
+   token 计数的 LLM generation，以及节点的输入/输出内容。trace 支持按会话
+   （`chat_id`）和用户（`uid`）进行筛选。
+
+追踪数据通过 OTLP/HTTP 导出到 `{LANGFUSE_HOST}/api/public/otel` ——
+Langfuse 的 OTel 端点不支持 gRPC。现有的 `OTLP_*` 采集器链路不受影响，
+可以并行保持启用。
+
+### 评估（LLM-as-a-judge）
+
+导入的 trace 可直接配合 Langfuse 内置的评估功能使用。在 Langfuse 界面中：
+**Evaluations → LLM-as-a-judge**，选择一个模板（如 *Correctness* 或
+*Helpfulness*），将其作用范围限定到你的 trace，并把评估输入映射到 trace 的
+input/output 字段。之后新的工作流运行会被自动评分，且评分趋势可按会话、
+用户和工作流维度查看。
 
 ---
 

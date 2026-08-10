@@ -102,6 +102,10 @@ Configuration items in this document are marked as follows:
 | OTLP_TRACE_SCHEDULE_DELAY_MILLIS | Required | int | OTLP trace schedule delay (milliseconds) | 3000 |
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | Required | int | OTLP trace batch export maximum size | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | Required | int | OTLP trace export timeout (milliseconds) | 3000 |
+| LANGFUSE_OTEL_ENABLE | Optional | int | Enable Langfuse trace export via OpenTelemetry (0=disabled, 1=enabled), see [Langfuse Integration](#langfuse-integration-llm-observability) | 0 |
+| LANGFUSE_HOST | Optional | url | Langfuse base URL (cloud or self-hosted), empty by default | https://cloud.langfuse.com |
+| LANGFUSE_PUBLIC_KEY | Optional | string | Langfuse project public key, empty by default | pk-lf-... |
+| LANGFUSE_SECRET_KEY | Optional | string | Langfuse project secret key, empty by default | sk-lf-... |
 
 ---
 
@@ -309,6 +313,47 @@ Configuration items in this document are marked as follows:
 | HEALTH_CHECK_TIMEOUT | Required | string | Health check timeout | 10s |
 | HEALTH_CHECK_RETRIES | Required | int | Health check retry count | 60 |
 | NETWORK_SUBNET | Required | string | Docker network subnet configuration | 172.20.0.0/16 |
+
+---
+
+## Langfuse Integration (LLM Observability)
+
+The workflow service can export its OpenTelemetry traces directly to
+[Langfuse](https://langfuse.com) — no extra SDK required. Every workflow run
+appears as a nested trace (LLM nodes are recognized as *generations* with
+token usage and model name, enabling automatic cost tracking).
+
+### Quick start
+
+1. Get API keys: in Langfuse (cloud or [self-hosted](https://langfuse.com/self-hosting)),
+   create a project and copy the public/secret key pair.
+2. Configure the workflow service (env vars or `config.env`):
+
+   ```ini
+   LANGFUSE_OTEL_ENABLE=1
+   LANGFUSE_HOST=https://cloud.langfuse.com
+   LANGFUSE_PUBLIC_KEY=pk-lf-...
+   LANGFUSE_SECRET_KEY=sk-lf-...
+   ```
+
+3. Restart the workflow service and run any workflow (e.g. via the console
+   chat debugger). The trace appears in Langfuse within a few seconds:
+   nested node spans, LLM generations with `gen_ai.usage.*` token counts,
+   and node input/output payloads. Traces are filterable by session
+   (`chat_id`) and user (`uid`).
+
+Traces are exported over OTLP/HTTP to `{LANGFUSE_HOST}/api/public/otel` —
+Langfuse's OTel endpoint does not support gRPC. The existing `OTLP_*`
+collector pipeline is unaffected and can stay enabled in parallel.
+
+### Evaluation (LLM-as-a-judge)
+
+Ingested traces work with Langfuse's built-in evaluation features. In the
+Langfuse UI: **Evaluations → LLM-as-a-judge**, choose a template (e.g.
+*Correctness* or *Helpfulness*), scope it to your traces, and map the
+evaluation input to the trace input/output fields. New workflow runs are
+then scored automatically, and score trends are visible per session, user,
+and workflow.
 
 ---
 
