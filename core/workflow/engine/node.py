@@ -280,10 +280,28 @@ class NodeExecutionTemplate:
         self._add_chat_history_if_needed(result, event_log_trace, variable_pool)
         await self._add_variable_to_pool(result, variable_pool, span_context)
         await self._log_success_result(result, span_context)
+        await self._record_gen_ai_attributes(result, span_context)
         await self._handle_node_end_callback(result, callbacks)
 
         if event_log_trace:
             event_log_trace.add_node_log([self.node.node_log])
+
+    async def _record_gen_ai_attributes(
+        self, result: NodeRunResult, span_context: Span
+    ) -> None:
+        """Record gen_ai semantic attributes on the node span so LLM
+        observability backends (e.g. Langfuse) can render generations,
+        token usage and node I/O.
+
+        :param result: Successful node execution result
+        :param span_context: Tracing span context
+        """
+        await span_context.set_gen_ai_attributes_async(
+            usage=result.token_cost.dict() if result.token_cost else None,
+            model=getattr(self.node.node_instance, "domain", ""),
+            input_payload=result.inputs or None,
+            output_payload=result.outputs or None,
+        )
 
     def _add_chat_history_if_needed(
         self,
