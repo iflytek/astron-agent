@@ -32,7 +32,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
-from opentelemetry.trace import Status
+from opentelemetry.trace import SpanContext, Status, TraceState
 
 _DEFAULT_LANGFUSE_HOST = "https://cloud.langfuse.com"
 _DEFAULT_MAX_ATTRIBUTE_LENGTH = 8192
@@ -705,6 +705,22 @@ def _sanitized_resource(resource: Resource, max_length: int) -> Resource:
     return Resource(attributes)
 
 
+def _sanitized_span_context(
+    context: Optional[SpanContext],
+) -> Optional[SpanContext]:
+    """Copy trace identity without caller-controlled W3C tracestate."""
+
+    if context is None:
+        return None
+    return SpanContext(
+        trace_id=context.trace_id,
+        span_id=context.span_id,
+        is_remote=context.is_remote,
+        trace_flags=context.trace_flags,
+        trace_state=TraceState(),
+    )
+
+
 def _sanitized_span(span: ReadableSpan, config: LangfuseConfig) -> ReadableSpan:
     attributes = {
         key: _sanitize_attribute_value(key, value, config.max_attribute_length)
@@ -713,8 +729,8 @@ def _sanitized_span(span: ReadableSpan, config: LangfuseConfig) -> ReadableSpan:
     }
     return ReadableSpan(
         name=_truncate(span.name, config.max_attribute_length),
-        context=span.context,
-        parent=span.parent,
+        context=_sanitized_span_context(span.context),
+        parent=_sanitized_span_context(span.parent),
         resource=_sanitized_resource(span.resource, config.max_attribute_length),
         attributes=attributes,
         events=(),

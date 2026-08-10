@@ -24,6 +24,9 @@ from common.otlp.trace.langfuse import (
 from fastapi import FastAPI
 from loguru import logger
 from opentelemetry import baggage
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceRequest,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -32,6 +35,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExportResult,
 )
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from workflow.extensions.fastapi.middleware import otlp as otlp_middleware
 from workflow.extensions.fastapi.middleware.otlp import _safe_trace_carrier
@@ -152,6 +156,7 @@ def test_inbound_carrier_keeps_only_non_langfuse_baggage() -> None:
     carrier = _safe_trace_carrier(
         {
             "traceparent": "00-00000000000000000000000000000001-0000000000000001-01",
+            "tracestate": "vendor=synthetic-sensitive,other=value",
             "baggage": (
                 "tenant=safe,langfuse.user.id=spoofed,"
                 "langfuse%2Etrace%2Epublic=true,"
@@ -164,6 +169,7 @@ def test_inbound_carrier_keeps_only_non_langfuse_baggage() -> None:
 
     assert carrier["baggage"] == "tenant=safe"
     assert "traceparent" in carrier
+    assert carrier["tracestate"] == "vendor=synthetic-sensitive,other=value"
 
 
 @pytest.mark.asyncio
@@ -354,12 +360,22 @@ def test_actual_otlp_http_export_uses_signal_path_auth_and_sanitized_body(
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_COMPRESSION", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_COMPRESSION", raising=False)
     provider = TracerProvider(resource=Resource({"service.name": "workflow"}))
+    trace_id_hex = "0123456789abcdef0123456789abcdef"
+    parent_span_id_hex = "0123456789abcdef"
+    parent_context = TraceContextTextMapPropagator().extract(
+        carrier={
+            "traceparent": f"00-{trace_id_hex}-{parent_span_id_hex}-01",
+            "tracestate": "vendor=synthetic-sensitive,other=value",
+        }
+    )
 
     try:
         assert add_langfuse_span_processor(provider) is True
         with provider.get_tracer("wire-test").start_as_current_span(
-            "llm.generate"
+            "llm.generate", context=parent_context
         ) as span:
+            local_context = span.get_span_context()
+            assert local_context.trace_state.get("vendor") == "synthetic-sensitive"
             span.set_attributes(
                 {
                     "authorization": "Bearer must-not-leak",
@@ -382,8 +398,73 @@ def test_actual_otlp_http_export_uses_signal_path_auth_and_sanitized_body(
     assert request["headers"]["x-langfuse-ingestion-version"] == "4"
     assert request["headers"]["content-type"] == "application/x-protobuf"
     assert request["body"]
-    assert b"wire-model" in request["body"]
+    otlp_request = ExportTraceServiceRequest()
+    otlp_request.ParseFromString(request["body"])
+    wire_spans = [
+        span
+        for resource_spans in otlp_request.resource_spans
+        for scope_spans in resource_spans.scope_spans
+        for span in scope_spans.spans
+    ]
+    assert len(wire_spans) == 1
+    wire_span = wire_spans[0]
+    wire_attributes = {item.key: item.value for item in wire_span.attributes}
+    assert wire_span.trace_state == ""
+    assert wire_span.trace_id == bytes.fromhex(trace_id_hex)
+    assert wire_span.parent_span_id == bytes.fromhex(parent_span_id_hex)
+    assert wire_span.span_id == local_context.span_id.to_bytes(8, "big")
+    assert wire_attributes["gen_ai.request.model"].string_value == "wire-model"
+    assert "authorization" not in wire_attributes
+    assert b"synthetic-sensitive" not in request["body"]
     assert b"must-not-leak" not in request["body"]
+
+
+def test_sanitized_export_clears_tracestate_without_mutating_raw_export() -> None:
+    raw_delegate = RecordingExporter()
+    sanitized_delegate = RecordingExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(raw_delegate))
+    provider.add_span_processor(
+        SimpleSpanProcessor(
+            SanitizingSpanExporter(sanitized_delegate, LangfuseConfig.from_env({}))
+        )
+    )
+    parent_context = TraceContextTextMapPropagator().extract(
+        carrier={
+            "traceparent": ("00-0123456789abcdef0123456789abcdef-0123456789abcdef-01"),
+            "tracestate": "vendor=synthetic-sensitive,other=value",
+        }
+    )
+
+    try:
+        with provider.get_tracer("tracestate-test").start_as_current_span(
+            "llm.generate", context=parent_context
+        ):
+            pass
+    finally:
+        provider.shutdown()
+
+    assert len(raw_delegate.spans) == 1
+    assert len(sanitized_delegate.spans) == 1
+    raw_span = raw_delegate.spans[0]
+    sanitized_span = sanitized_delegate.spans[0]
+    assert raw_span.context is not None
+    assert raw_span.parent is not None
+    assert sanitized_span.context is not None
+    assert sanitized_span.parent is not None
+    expected_tracestate = [
+        ("vendor", "synthetic-sensitive"),
+        ("other", "value"),
+    ]
+    assert list(raw_span.context.trace_state.items()) == expected_tracestate
+    assert list(raw_span.parent.trace_state.items()) == expected_tracestate
+    assert list(sanitized_span.context.trace_state.items()) == []
+    assert list(sanitized_span.parent.trace_state.items()) == []
+    for field in ("trace_id", "span_id", "trace_flags", "is_remote"):
+        assert getattr(sanitized_span.context, field) == getattr(
+            raw_span.context, field
+        )
+        assert getattr(sanitized_span.parent, field) == getattr(raw_span.parent, field)
 
 
 def test_sanitizing_exporter_drops_events_links_and_unapproved_content(
