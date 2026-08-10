@@ -45,7 +45,12 @@ async def chat_open(
 
     span = Span(app_id=app_id, uid=chat_vo.uid, chat_id=chat_vo.chat_id)
     with span.start(
-        attributes={"flow_id": chat_vo.flow_id},
+        attributes={
+            "flow_id": chat_vo.flow_id,
+            "langfuse.session.id": chat_vo.chat_id,
+            "langfuse.user.id": chat_vo.uid,
+            "langfuse.trace.name": f"workflow:{chat_vo.flow_id}",
+        },
     ) as span_context:
         try:
             with session_getter(auto_commit=False) as db_session:
