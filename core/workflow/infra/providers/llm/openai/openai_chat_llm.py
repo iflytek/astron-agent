@@ -118,6 +118,11 @@ class OpenAIChatAI(ChatAI):
             api_key=self.api_key,
             base_url=url,
         )
+        # Ask OpenAI-compatible endpoints to attach token usage to the final
+        # stream chunk; most providers send usage=null on every chunk otherwise.
+        if "stream_options" not in extra_params:
+            extra_params = {**extra_params, "stream_options": {"include_usage": True}}
+
         stream = None
         try:
             # Create streaming chat completion
@@ -156,6 +161,7 @@ class OpenAIChatAI(ChatAI):
     ) -> AsyncIterator[LLMResponse]:
         last_frame_data: dict[str, Any] = {}
         latest_usage: dict[str, Any] = {}
+        pending_finish_frame: dict[str, Any] | None = None
         is_first_frame = True
         start_time = None
 
@@ -186,6 +192,14 @@ class OpenAIChatAI(ChatAI):
                 if frame_data is None:
                     continue
 
+                # Providers send token usage in a trailing usage-only chunk that
+                # arrives after the finish_reason frame. Downstream consumers stop
+                # reading at finish_reason, so hold that frame back until the
+                # stream closes and the usage totals can be merged into it.
+                if frame_data["choices"][0].get("finish_reason"):
+                    pending_finish_frame = frame_data
+                    continue
+
                 # Update last frame data and yield response
                 last_frame_data = frame_data
                 yield LLMResponse(
@@ -194,6 +208,16 @@ class OpenAIChatAI(ChatAI):
 
             except StopAsyncIteration:
                 # Stream ended, mark as finished and yield final response
+                if pending_finish_frame is not None:
+                    yield LLMResponse(
+                        msg={
+                            **pending_finish_frame,
+                            "usage": latest_usage
+                            or pending_finish_frame.get("usage"),
+                        },
+                    )
+                    break
+
                 final_frame_data = self._build_final_stream_frame(
                     last_frame_data, latest_usage
                 )
