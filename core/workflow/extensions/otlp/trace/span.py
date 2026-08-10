@@ -365,6 +365,83 @@ class Span:
         if node_log:
             node_log.add_info_log(f"{attributes}")
 
+    async def set_gen_ai_attributes_async(
+        self,
+        usage: Optional[dict] = None,
+        model: str = "",
+        input_payload: Any = None,
+        output_payload: Any = None,
+    ) -> None:
+        """
+        Set gen_ai / langfuse semantic attributes on the current span.
+
+        Enables LLM observability backends (e.g. Langfuse via its OTel
+        endpoint) to recognize generations, token usage and node I/O.
+        Never raises: observability must not break business execution.
+
+        :param usage: Token usage dict with prompt_tokens/completion_tokens/total_tokens
+        :param model: Model name; empty for non-LLM nodes (attribute omitted)
+        :param input_payload: Node input, serialized to JSON string
+        :param output_payload: Node output, serialized to JSON string
+        """
+        try:
+            attributes: Dict[str, Any] = {}
+            if model:
+                attributes["gen_ai.request.model"] = model
+            if input_payload is not None:
+                attributes["langfuse.observation.input"] = (
+                    await self._serialize_gen_ai_payload(input_payload)
+                )
+            if output_payload is not None:
+                attributes["langfuse.observation.output"] = (
+                    await self._serialize_gen_ai_payload(output_payload)
+                )
+            if usage:
+                try:
+                    prompt = int(usage.get("prompt_tokens") or 0)
+                    completion = int(usage.get("completion_tokens") or 0)
+                    total = int(usage.get("total_tokens") or 0) or (prompt + completion)
+                    if total:
+                        attributes["gen_ai.usage.input_tokens"] = prompt
+                        attributes["gen_ai.usage.output_tokens"] = completion
+                        attributes["gen_ai.usage.total_tokens"] = total
+                except Exception as e:
+                    logger.warning(
+                        f"sid: {self.sid}, invalid gen_ai usage values: {e}"
+                    )
+            if attributes:
+                self.get_otlp_span().set_attributes(attributes)
+        except Exception as e:
+            logger.warning(
+                f"sid: {self.sid}, failed to set gen_ai span attributes: {e}"
+            )
+
+    async def _serialize_gen_ai_payload(self, payload: Any) -> str:
+        """
+        Serialize a payload to a JSON string, offloading oversized content to OSS.
+
+        Mirrors the size-limit behavior of add_info_event_async.
+
+        :param payload: Arbitrary node input/output payload
+        :return: JSON string, or an OSS trace link for oversized content
+        """
+        try:
+            value = json.dumps(payload, ensure_ascii=False, default=repr)
+        except Exception:
+            value = repr(payload)
+        value_bytes = value.encode("utf-8")
+        if len(value_bytes) >= SPAN_SIZE_LIMIT:
+            try:
+                trace_link = await get_oss_service().upload_file_async(
+                    f"{str(uuid.uuid4())}", value_bytes
+                )
+                value = f"trace_link: {trace_link}"
+            except Exception as e:
+                value = (
+                    f"Content too large, failed to upload to OSS storage, error: {e}"
+                )
+        return value
+
     def add_error_event(self, value: Any, node_log: Optional[NodeLog] = None) -> None:
         """
         Add an ERROR level event to the current span.
