@@ -12,6 +12,8 @@ from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.langfuse import LangfuseConfig, langfuse_observation_attributes
 from common.otlp.trace.span import Span
 from loguru import logger
+from opentelemetry.trace import Span as OtelSpan
+from opentelemetry.trace import Status, StatusCode
 from pydantic import Field
 
 from agent.api.schemas.agent_response import AgentResponse, CotStep
@@ -67,6 +69,22 @@ PROTOCOL_MARKERS = {
     "observation": _protocol_marker(r"observation"),
     "final_answer": _protocol_marker(r"final[ \t_-]+answer"),
 }
+
+
+def _mark_plugin_span_failed(
+    span: OtelSpan, code: int, operation: str = "Plugin"
+) -> None:
+    """Represent a non-exception plugin failure consistently in OTel/Langfuse."""
+
+    message = f"{operation} execution failed (code={code})"
+    span.set_status(Status(StatusCode.ERROR))
+    span.set_attributes(
+        {
+            "astron.agent.plugin.code": code,
+            "langfuse.observation.level": "ERROR",
+            "langfuse.observation.status_message": message,
+        }
+    )
 
 
 class CotRunner(RunnerBase):
@@ -661,6 +679,7 @@ class CotRunner(RunnerBase):
         )
         tool_attributes["gen_ai.tool.name"] = cot_step.action
         with span.start("RunPlugin", attributes=tool_attributes) as sp:
+            tool_span = sp.get_otlp_span()
             plugin_response: PluginResponse | None = None
             try:
                 for plugin in self.plugins:
@@ -680,6 +699,7 @@ class CotRunner(RunnerBase):
                     }
 
                     plugin_response = PluginResponse(
+                        code=400,
                         result=default_result,
                         log=[
                             {
@@ -704,7 +724,9 @@ class CotRunner(RunnerBase):
                     metadata=plugin_metadata,
                 )
                 final_attributes["gen_ai.tool.name"] = cot_step.action
-                sp.set_attributes(final_attributes)
+                tool_span.set_attributes(final_attributes)
+                if plugin_response is not None and plugin_response.code != 0:
+                    _mark_plugin_span_failed(tool_span, plugin_response.code)
 
     async def run_workflow_plugin(
         self, plugin: BasePlugin, cot_step: CotStep, span: Span
@@ -736,6 +758,14 @@ class CotRunner(RunnerBase):
                     async for plugin_response in plugin_stream:
                         if capture_config.capture_input_output:
                             workflow_output = plugin_response.result
+                        is_failure = plugin_response.code != 0
+                        if is_failure:
+                            cot_step.action_output = plugin_response.result
+                            _mark_plugin_span_failed(
+                                workflow_span,
+                                plugin_response.code,
+                                operation="Workflow plugin",
+                            )
                         if first_frame:
                             first_frame = False
                             cot_step.plugin.run_result = plugin_response
@@ -749,8 +779,7 @@ class CotRunner(RunnerBase):
                             {"flow-chunk": plugin_response.model_dump_json()}
                         )
 
-                        if plugin_response.code != 0:
-                            cot_step.action_output = plugin_response.result
+                        if is_failure:
                             return
                         # yield AgentResponse(typ="log", content=plugin_response.log, model=self.model.name)
                         if plugin_response.result.get("reasoning_content"):

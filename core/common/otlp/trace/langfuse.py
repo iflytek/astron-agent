@@ -8,6 +8,7 @@ default.
 
 import base64
 import json
+import math
 import os
 import re
 import threading
@@ -37,6 +38,7 @@ _DEFAULT_LANGFUSE_HOST = "https://cloud.langfuse.com"
 _DEFAULT_MAX_ATTRIBUTE_LENGTH = 8192
 _LANGFUSE_TRACE_PATH = "/api/public/otel/v1/traces"
 _TRUTHY_VALUES = frozenset({"1", "true", "yes", "on"})
+_LANGFUSE_ENVIRONMENT_PATTERN = re.compile(r"^(?!langfuse)[a-z0-9_-]{1,40}$")
 
 _OBSERVATION_TYPES = frozenset(
     {
@@ -260,6 +262,12 @@ class LangfuseConfig:
             and not parsed.fragment
         )
 
+    @property
+    def has_valid_environment(self) -> bool:
+        """Whether the label satisfies Langfuse's immutable environment contract."""
+
+        return bool(_LANGFUSE_ENVIRONMENT_PATTERN.fullmatch(self.environment))
+
 
 def _truncate(value: str, max_length: int) -> str:
     if len(value) <= max_length:
@@ -268,6 +276,20 @@ def _truncate(value: str, max_length: int) -> str:
     if max_length <= len(marker):
         return marker[:max_length]
     return f"{value[: max_length - len(marker)]}{marker}"
+
+
+def _truncate_json(value: str, max_length: int) -> str:
+    """Bound serialized JSON without turning it into an invalid fragment."""
+
+    if len(value) <= max_length:
+        return value
+    # Observation input/output and usage attributes are JSON strings in
+    # Langfuse.  Returning a partial object makes the entire attribute
+    # unusable, so prefer the most descriptive valid JSON sentinel that fits.
+    for sentinel in ('{"truncated":true}', '"truncated"', "null", '""', "0"):
+        if len(sentinel) <= max_length:
+            return sentinel
+    return "0"
 
 
 def _key_parts(key: str) -> set[str]:
@@ -306,7 +328,9 @@ def _sanitize_payload(value: Any) -> Any:
         }
     if isinstance(value, (list, tuple)):
         return [_sanitize_payload(item) for item in value]
-    if isinstance(value, (str, bool, int, float)) or value is None:
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, (str, bool, int)) or value is None:
         return value
     return str(value)
 
@@ -321,18 +345,18 @@ def serialize_langfuse_value(
     limit = max_length or LangfuseConfig.from_env().max_attribute_length
     sanitized = _sanitize_payload(value)
     if isinstance(sanitized, str):
-        serialized = sanitized
-    else:
-        try:
-            serialized = json.dumps(
-                sanitized,
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            )
-        except (TypeError, ValueError):
-            serialized = json.dumps(str(sanitized), ensure_ascii=False)
-    return _truncate(serialized, limit)
+        return _truncate(sanitized, limit)
+    try:
+        serialized = json.dumps(
+            sanitized,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        serialized = json.dumps(str(sanitized), ensure_ascii=False)
+    return _truncate_json(serialized, limit)
 
 
 def langfuse_content_attributes(
@@ -480,12 +504,13 @@ def langfuse_trace_attributes(
     """Return trace-wide attributes suitable for baggage propagation."""
 
     config = LangfuseConfig.from_env()
+    environment = config.environment if config.has_valid_environment else ""
     attributes: dict[str, Any] = {}
     for key, value in (
         ("langfuse.trace.name", name),
         ("langfuse.user.id", user_id),
         ("langfuse.session.id", session_id),
-        ("langfuse.environment", config.environment),
+        ("langfuse.environment", environment),
         ("langfuse.release", config.release),
     ):
         serialized = serialize_langfuse_value(
@@ -742,6 +767,11 @@ def add_langfuse_span_processor(provider: TracerProvider) -> bool:
     if not config.has_valid_host:
         logger.warning(
             "Langfuse tracing requested with an invalid host; exporter disabled"
+        )
+        return False
+    if not config.has_valid_environment:
+        logger.warning(
+            "Langfuse tracing requested with an invalid environment; exporter disabled"
         )
         return False
 

@@ -5,6 +5,11 @@ Astron Agent 可以通过原生 OTLP/HTTP bridge 将已有的 OpenTelemetry Trac
 Agent 的 Span 层级，并补充 Langfuse 用于识别生成、工具、Token 用量、延迟和
 Trace 筛选的语义属性。
 
+传输与属性映射遵循 Langfuse 的
+[v4 自定义接入检查表](https://langfuse.com/integrations/native/opentelemetry/migration-to-v4)
+及官方定义的
+[Observation 类型](https://langfuse.com/docs/observability/features/observation-types)。
+
 > Langfuse 导出默认关闭。启用后会把遥测数据发送到所配置的 Langfuse 部署，
 > 因此在接入生产流量前必须检查隐私配置。
 
@@ -41,7 +46,7 @@ Workflow 与 Agent 服务使用相同配置。
 | `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse Cloud 或自托管实例的基础 URL。 |
 | `LANGFUSE_CAPTURE_INPUT_OUTPUT` | `false` | 允许提示词/输入及响应/输出内容离开 Astron。 |
 | `LANGFUSE_MAX_ATTRIBUTE_LENGTH` | `8192` | 导出的字符串属性最大长度。 |
-| `LANGFUSE_ENVIRONMENT` | `default` | 在 Langfuse 中筛选 Trace 的环境标签。 |
+| `LANGFUSE_ENVIRONMENT` | `default` | 小写环境标签（仅 `[a-z0-9_-]`，最长 40 个字符，且不能以 `langfuse` 开头）。非法值会禁用 exporter。 |
 | `LANGFUSE_RELEASE` | 空 | 可选的应用发布或部署标签。 |
 
 启用导出前必须同时配置两个项目 Key。Secret Key 应按生产凭据管理：通过
@@ -85,9 +90,36 @@ Docker 网络时，应使用其服务名，例如 `http://langfuse-web:3000`。A
 `core/workflow/config.env` 和 `core/agent/config.env`。配置变化后需要重启两个
 服务。
 
-Helm 默认值已写入 Workflow 与 Agent 的配置文件。请通过部署现有的 Secret/
-配置管理机制覆盖这些值，不要把真实 Langfuse Key 写入 Chart 的受版本控制
-默认文件。
+Helm 部署应先通过凭据文件或现有 ExternalSecret/GitOps 流程创建 Kubernetes
+Secret。默认键名为 `public-key` 和 `secret-key`；禁止把凭据值写入 Helm
+values：
+
+```bash
+ASTRON_NAMESPACE=astron-agent
+LANGFUSE_SECRET_NAME=astron-langfuse
+kubectl create namespace "$ASTRON_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+kubectl --namespace "$ASTRON_NAMESPACE" create secret generic "$LANGFUSE_SECRET_NAME" \
+  --from-file=public-key=/secure/path/langfuse-public-key \
+  --from-file=secret-key=/secure/path/langfuse-secret-key \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+helm upgrade --install astron-agent ./helm/astron-agent \
+  --namespace "$ASTRON_NAMESPACE" --create-namespace \
+  --set langfuse.enabled=true \
+  --set-string langfuse.existingSecret.name="$LANGFUSE_SECRET_NAME" \
+  --set-string langfuse.environment=staging
+```
+
+以上命令用于首次安装。对于已有 release，应把 `langfuse` 配置合并进受控的完整
+values 文件，并在 `helm upgrade` 时继续传入该文件；只复制少量 `--set` 参数不会
+保留其他自定义值。模板也兼容复用旧 values、其中尚不存在 `langfuse` map 的升级
+场景。
+
+Chart 只会向 Agent 和 Workflow Deployment 注入同一组非敏感配置与 Secret
+引用。启用 Langfuse 却未指定已有 Secret 名称时，模板渲染会直接失败。若已有
+Secret 使用其他键名，可设置 `langfuse.existingSecret.publicKeyKey` 和
+`langfuse.existingSecret.secretKeyKey`。若只轮换 Secret 数据而没有修改 values，
+需要重启这两个 Deployment 以刷新环境变量。
 
 ## 隐私默认值
 
@@ -100,14 +132,18 @@ Helm 默认值已写入 Workflow 与 Agent 的配置文件。请通过部署现�
 - 删除已知的载荷型或敏感 input/output 属性；
 - 把保留的字符串属性截断到 `LANGFUSE_MAX_ATTRIBUTE_LENGTH`。
 
+即使内容采集关闭，服务端生成的 `langfuse.user.id` 和
+`langfuse.session.id` 仍会用于 Trace 关联。若部署策略不允许这些标识离开
+Astron，请使用假名化标识，或保持 Langfuse 禁用。
+
 因此，默认 Trace 可用于分析执行拓扑、错误、延迟和用量，而不会导出原始提示词
 或响应内容。这是数据最小化边界，但不能替代对自定义节点标签、模型标识、租户
 元数据和部署策略的检查。
 
 只有在数据为合成数据、已去标识化或已获批准时，才应设置
-`LANGFUSE_CAPTURE_INPUT_OUTPUT=true`。当 Langfuse evaluator 需要根 Observation
-的 input 和 output 时，也必须显式开启该选项。无论该选项如何设置，都禁止把
-鉴权凭据放入工作流输入、提示词、标签或测试载荷。
+`LANGFUSE_CAPTURE_INPUT_OUTPUT=true`。当 Langfuse evaluator 需要所选
+Observation 的 input 和 output 时，也必须显式开启该选项。无论该选项如何设置，
+都禁止把鉴权凭据放入工作流输入、提示词、标签或测试载荷。
 
 ## 生成 Trace
 
@@ -136,18 +172,19 @@ curl --no-buffer \
 典型 Trace 包含：
 
 ```text
-HTTP request / chat
-└── workflow.run                         （chain；根 input/output）
-    └── engine_async_run
-        ├── workflow.node:<llm-name>      （chain）
-        │   └── llm.generate:<model>     （generation、模型、Token、TTFT）
-        ├── workflow.node:<tool-name>     （tool）
-        ├── workflow.node:<retriever>     （retriever）
-        └── workflow.node:<agent-name>    （agent）
-            └── agent.run                  （同一 W3C Trace）
-                ├── MakingStep             （generation）
-                ├── RunPlugin              （tool）
-                └── RunWorkflowPlugin      （嵌套 Workflow handoff）
+/workflow/v1/debug/chat/completions       （HTTP 传输 Span；物理根）
+└── chat_debug                           （路由 Span；发布模式为 `chat_open`）
+    └── workflow.run                     （chain；evaluator input/output）
+        └── engine_async_run
+            ├── workflow.node:<llm-name>  （chain）
+            │   └── llm.generate:<model> （generation、模型、Token、TTFT）
+            ├── workflow.node:<tool-name> （tool）
+            ├── workflow.node:<retriever> （retriever）
+            └── workflow.node:<agent-name>（agent）
+                └── agent.run             （同一 W3C Trace）
+                    ├── MakingStep         （generation）
+                    ├── RunPlugin          （tool）
+                    └── RunWorkflowPlugin  （嵌套 Workflow handoff）
 ```
 
 Agent 节点还可以产生嵌套的模型步骤、推理步骤、检索、MCP、Plugin 和 Workflow
@@ -176,10 +213,10 @@ Astron Observation，覆盖 `CHAIN`、`AGENT`、`GENERATION`、`RETRIEVER`、
 `TOOL` 和 `EVALUATOR` 类型。应用生成记录了 75 个输入和 471 个输出 Token，
 显式 Judge 记录了 613 个输入和 97 个输出 Token（该 Trace 合计 1,256 个）。
 
-Langfuse 中持续运行的根 Observation evaluator 独立写回了
+Langfuse 中以 `workflow.run` Observation 为目标的 evaluator 独立写回了
 `astron-root-answer-relevance-live: 1`，其来源为 `EVAL`。单独写入的
 `llm-judge-answer-relevance: 1` 则证明文档中的 Trace 级 API 反馈链路。下图在
-同一个根 Trace 视图中同时展示这两个分数和完整的父子层级。本次运行只在仅绑定
+同一个 Trace 视图中同时展示这两个分数和完整的父子层级。本次运行只在仅绑定
 回环地址的 Langfuse v4.6.0 中使用合成内容；Trace 证据和仓库均不包含供应方
 凭据、端点或具体模型配置。
 
@@ -192,19 +229,25 @@ Langfuse 中持续运行的根 Observation evaluator 独立写回了
 ## 配置 Langfuse evaluator
 
 内容型 evaluator 需要可供评估的 input 与 output。Astron 的隐私默认值会有意
-省略根 Observation 的这两个字段。
+省略承载内容的 Observation 中这两个字段。
 
 1. 使用独立的非生产环境，以及合成数据或已获批准的数据。
 2. 为两个服务设置 `LANGFUSE_CAPTURE_INPUT_OUTPUT=true` 并重启。
 3. 生成一条新 Trace；修改开关无法为历史 Trace 恢复内容。
-4. 在 Langfuse 中确认根 Observation 包含预期 input 和 output。
-5. 在 Langfuse 中创建 evaluator，通过环境/发布标签或 Trace filter 限定范围，
-   并把根 Observation 的 input/output 映射到 evaluator prompt。
+4. 在 Langfuse 中确认 `workflow.run` Observation 包含预期 input 和 output。
+   HTTP request Span 是物理根，并且有意不承载内容。
+5. 在 Langfuse 中为实时 Observation 创建 evaluator，添加精确匹配
+   `workflow.run` 的 Observation 名称 filter，再通过环境/发布标签或 Trace
+   filter 缩小范围，并把该 Observation 的 input/output 映射到 evaluator
+   prompt。Langfuse evaluator 会按 Observation 名称和类型选择目标，详见官方
+   [Trace 最佳实践](https://langfuse.com/docs/observability/best-practices)。
 6. 先在一条 Trace 上测试，确认分数写回同一 Trace，再启用持续执行。
 7. 不再需要内容评估时，将 `LANGFUSE_CAPTURE_INPUT_OUTPUT` 恢复为 `false`。
 
-如果目标边界是某个具体 generation 或 tool Observation，也可以让 evaluator 仅
-评估该 Observation。Filter 应保持精确，避免把工作流记账 Span 当作模型输出。
+若直接评估 Agent 服务，可用相同方式精确匹配稳定的 `agent.run` Observation。
+如果目标边界是某个具体 generation、retriever 或 tool Observation，也可以让
+evaluator 仅评估该 Observation。Filter 应保持精确，避免把工作流记账 Span
+当作模型输出。
 
 ### 复现分数反馈链路
 

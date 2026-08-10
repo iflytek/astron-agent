@@ -6,6 +6,11 @@ preserves Astron's workflow and agent span hierarchy while adding the semantic
 attributes Langfuse uses for generations, tools, token usage, latency, and
 trace filtering.
 
+The transport and attribute mapping follow Langfuse's
+[v4 custom-ingestion checklist](https://langfuse.com/integrations/native/opentelemetry/migration-to-v4)
+and its documented
+[observation types](https://langfuse.com/docs/observability/features/observation-types).
+
 > Langfuse export is disabled by default. Enabling it sends telemetry to the
 > configured Langfuse deployment, so review the privacy settings before using
 > production traffic.
@@ -47,7 +52,7 @@ The same settings apply to the workflow and agent services.
 | `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Cloud or self-hosted Langfuse base URL. |
 | `LANGFUSE_CAPTURE_INPUT_OUTPUT` | `false` | Allows prompt/input and response/output content to leave Astron. |
 | `LANGFUSE_MAX_ATTRIBUTE_LENGTH` | `8192` | Maximum length of an exported string attribute. |
-| `LANGFUSE_ENVIRONMENT` | `default` | Environment label used to filter traces in Langfuse. |
+| `LANGFUSE_ENVIRONMENT` | `default` | Lowercase environment label (`[a-z0-9_-]`, at most 40 characters, and not starting with `langfuse`). Invalid values disable the exporter. |
 | `LANGFUSE_RELEASE` | empty | Optional application release or deployment label. |
 
 Both project keys must be configured before export can be enabled. Treat the
@@ -94,9 +99,39 @@ For a source deployment, export the variables in the service environment or
 set them in both `core/workflow/config.env` and `core/agent/config.env`. Restart
 both services after a configuration change.
 
-The Helm defaults are present in the workflow and agent configuration files.
-Override the values through the deployment's existing secret/configuration
-mechanism. Do not place real Langfuse keys in the chart's tracked defaults.
+For Helm, first create a Kubernetes Secret from credential files or through
+your normal ExternalSecret/GitOps mechanism. The default key names are
+`public-key` and `secret-key`; credential values never belong in Helm values:
+
+```bash
+ASTRON_NAMESPACE=astron-agent
+LANGFUSE_SECRET_NAME=astron-langfuse
+kubectl create namespace "$ASTRON_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+kubectl --namespace "$ASTRON_NAMESPACE" create secret generic "$LANGFUSE_SECRET_NAME" \
+  --from-file=public-key=/secure/path/langfuse-public-key \
+  --from-file=secret-key=/secure/path/langfuse-secret-key \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+helm upgrade --install astron-agent ./helm/astron-agent \
+  --namespace "$ASTRON_NAMESPACE" --create-namespace \
+  --set langfuse.enabled=true \
+  --set-string langfuse.existingSecret.name="$LANGFUSE_SECRET_NAME" \
+  --set-string langfuse.environment=staging
+```
+
+The command above is a first-install example. For an existing release, merge
+the `langfuse` block into its controlled values file and pass the complete
+release values during `helm upgrade`; a short list of `--set` flags does not
+preserve unrelated custom values. The template also tolerates legacy releases
+whose reused values do not yet contain a `langfuse` map.
+
+The chart injects the same non-secret settings and Secret references into only
+the Agent and Workflow deployments. Enabling Langfuse without an existing
+Secret name fails during template rendering. For a Secret that uses different
+data keys, set `langfuse.existingSecret.publicKeyKey` and
+`langfuse.existingSecret.secretKeyKey`. If Secret data is rotated without
+another values change, restart those two deployments so their environment is
+refreshed.
 
 ## Privacy defaults
 
@@ -111,6 +146,11 @@ span leaves the process, it also:
 - removes known payload-bearing or sensitive input/output attributes; and
 - truncates retained string attributes to `LANGFUSE_MAX_ATTRIBUTE_LENGTH`.
 
+Server-derived `langfuse.user.id` and `langfuse.session.id` values remain
+available for trace correlation even when content capture is off. Use
+pseudonymous identifiers, or leave Langfuse disabled, when deployment policy
+does not allow those identifiers to leave Astron.
+
 Consequently, the default Langfuse trace can be used for execution topology,
 errors, latency, and usage analysis without exporting raw prompt or response
 content. This is a data-minimization boundary, not a substitute for checking
@@ -119,7 +159,7 @@ policies.
 
 Set `LANGFUSE_CAPTURE_INPUT_OUTPUT=true` only for synthetic, de-identified, or
 otherwise approved data. This setting is also required when a Langfuse
-evaluator needs the root observation's input and output. Authentication
+evaluator needs a selected observation's input and output. Authentication
 credentials must never be placed in workflow inputs, prompts, labels, or test
 payloads regardless of this setting.
 
@@ -151,18 +191,19 @@ After the batch exporter flushes, open the Langfuse project and filter by
 workflow, a representative trace contains:
 
 ```text
-HTTP request / chat
-└── workflow.run                         (chain; root input/output)
-    └── engine_async_run
-        ├── workflow.node:<llm-name>      (chain)
-        │   └── llm.generate:<model>     (generation, model, tokens, TTFT)
-        ├── workflow.node:<tool-name>     (tool)
-        ├── workflow.node:<retriever>     (retriever)
-        └── workflow.node:<agent-name>    (agent)
-            └── agent.run                  (same W3C trace)
-                ├── MakingStep             (generation)
-                ├── RunPlugin              (tool)
-                └── RunWorkflowPlugin      (nested workflow handoff)
+/workflow/v1/debug/chat/completions       (HTTP transport span; physical root)
+└── chat_debug                           (route span; `chat_open` in release mode)
+    └── workflow.run                     (chain; evaluator input/output)
+        └── engine_async_run
+            ├── workflow.node:<llm-name>  (chain)
+            │   └── llm.generate:<model> (generation, model, tokens, TTFT)
+            ├── workflow.node:<tool-name> (tool)
+            ├── workflow.node:<retriever> (retriever)
+            └── workflow.node:<agent-name> (agent)
+                └── agent.run             (same W3C trace)
+                    ├── MakingStep         (generation)
+                    ├── RunPlugin          (tool)
+                    └── RunWorkflowPlugin  (nested workflow handoff)
 ```
 
 An agent node can add nested model steps, reasoning steps, retrieval, MCP,
@@ -196,14 +237,14 @@ the application generation and an explicit judge observation. Trace
 The application generation reported 75 input and 471 output tokens, while the
 explicit judge reported 613 input and 97 output tokens (1,256 in the trace).
 
-A live Langfuse root-observation evaluator independently wrote
-`astron-root-answer-relevance-live: 1` with source `EVAL`. The separately
-ingested `llm-judge-answer-relevance: 1` score confirms the documented
-trace-level API feedback path. Both scores appear on the same root trace view,
-alongside the complete parent/child hierarchy, in the screenshot below. The
-run used only synthetic content on a loopback-only Langfuse v4.6.0 deployment;
-provider credentials, endpoints, and concrete model configuration are not
-included in the trace evidence or repository.
+A live Langfuse evaluator targeting the `workflow.run` observation
+independently wrote `astron-root-answer-relevance-live: 1` with source `EVAL`.
+The separately ingested `llm-judge-answer-relevance: 1` score confirms the
+documented trace-level API feedback path. Both scores appear on the same trace
+view, alongside the complete parent/child hierarchy, in the screenshot below.
+The run used only synthetic content on a loopback-only Langfuse v4.6.0
+deployment; provider credentials, endpoints, and concrete model configuration
+are not included in the trace evidence or repository.
 
 ![Verified Langfuse managed LLM-as-a-judge score and Astron workflow, agent, generation, retrieval, tool, and evaluator hierarchy](../imgs/langfuse-managed-llm-judge.png)
 
@@ -215,25 +256,31 @@ keys or real user content.
 ## Configure a Langfuse evaluator
 
 Content-based evaluators need an input and output to evaluate. Astron's privacy
-default deliberately omits those fields from the root observation.
+default deliberately omits those fields from content-bearing observations.
 
 1. Use a dedicated non-production environment and synthetic or approved data.
 2. Set `LANGFUSE_CAPTURE_INPUT_OUTPUT=true` for both services and restart them.
 3. Generate a new trace; changing the flag cannot restore content to an older
    trace.
-4. Confirm in Langfuse that the root observation contains the expected input
-   and output.
-5. In Langfuse, create an evaluator, scope it with the environment/release or a
-   trace filter, and map the root observation input and output into the
-   evaluator prompt.
+4. Confirm in Langfuse that the `workflow.run` observation contains the
+   expected input and output. The HTTP request span is the physical root and
+   intentionally has no content payload.
+5. In Langfuse, create an evaluator for live observations, add an exact
+   observation-name filter for `workflow.run`, scope it further with the
+   environment/release or a trace filter, and map that observation's input and
+   output into the evaluator prompt. Langfuse evaluators target observations
+   by name and type; see the official
+   [trace best practices](https://langfuse.com/docs/observability/best-practices).
 6. Test the evaluator on one trace before enabling continuous execution. Check
    that its score appears on the same trace.
 7. Restore `LANGFUSE_CAPTURE_INPUT_OUTPUT=false` when content evaluation is no
    longer required.
 
-An evaluator can instead target a specific generation or tool observation if
-that is the intended boundary. Keep its filter narrow so workflow bookkeeping
-spans are not evaluated as model outputs.
+For a direct Agent-service evaluation, use the same approach with the stable
+`agent.run` observation name. An evaluator can instead target a specific
+generation, retriever, or tool observation if that is the intended boundary.
+Keep its filter narrow so workflow bookkeeping spans are not evaluated as
+model outputs.
 
 ### Reproduce the score feedback path
 

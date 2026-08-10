@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from contextlib import aclosing
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, AsyncIterator, Iterator, Optional
@@ -288,6 +289,128 @@ async def test_tool_and_workflow_handoff_export_semantic_observations(
         "content": "workflow answer",
         "reasoning_content": "checked",
     }
+
+
+@pytest.mark.asyncio
+async def test_failed_tool_response_marks_span_error_without_leaking_secret(
+    monkeypatch: pytest.MonkeyPatch,
+    traced_span: tuple[Span, InMemorySpanExporter],
+) -> None:
+    """A protocol-level tool failure must not appear successful in Langfuse."""
+
+    monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true")
+    span, exporter = traced_span
+
+    async def fail_tool(action_input: dict[str, Any], span: Span) -> PluginResponse:
+        del action_input, span
+        return PluginResponse(
+            code=503,
+            result={"message": "backend unavailable", "api_key": "must-not-leak"},
+        )
+
+    tool = BasePlugin(
+        name="weather",
+        description="",
+        schema_template="",
+        typ="tool",
+        run=fail_tool,
+    )
+    runner = _cot_runner([tool])
+
+    response = await runner.run_plugin(
+        CotStep(action="weather", action_input={"city": "Hefei"}), span
+    )
+
+    assert response.code == 503
+    exported = _finished_span(exporter, "RunPlugin")
+    assert exported.status.status_code == StatusCode.ERROR
+    assert exported.attributes["langfuse.observation.level"] == "ERROR"
+    assert (
+        exported.attributes["langfuse.observation.status_message"]
+        == "Plugin execution failed (code=503)"
+    )
+    assert exported.attributes["astron.agent.plugin.code"] == 503
+    assert json.loads(exported.attributes["langfuse.observation.output"]) == {
+        "message": "backend unavailable"
+    }
+    assert "must-not-leak" not in json.dumps(dict(exported.attributes))
+
+
+@pytest.mark.asyncio
+async def test_missing_tool_fallback_returns_failure_and_marks_span_error(
+    traced_span: tuple[Span, InMemorySpanExporter],
+) -> None:
+    """The defensive missing-tool fallback must preserve failure semantics."""
+
+    span, exporter = traced_span
+    runner = _cot_runner()
+
+    response = await runner.run_plugin(
+        CotStep(action="missing_tool", action_input={"city": "Hefei"}), span
+    )
+
+    assert response.code == 400
+    assert response.result["code"] == 400
+    exported = _finished_span(exporter, "RunPlugin")
+    assert exported.status.status_code == StatusCode.ERROR
+    assert (
+        exported.attributes["langfuse.observation.metadata.plugin_type"] == "not_found"
+    )
+    assert (
+        exported.attributes["langfuse.observation.status_message"]
+        == "Plugin execution failed (code=400)"
+    )
+
+
+@pytest.mark.asyncio
+async def test_failed_workflow_response_marks_chain_span_error(
+    monkeypatch: pytest.MonkeyPatch,
+    traced_span: tuple[Span, InMemorySpanExporter],
+) -> None:
+    """Mark the workflow parent even while its async generator child is current."""
+
+    monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true")
+    span, exporter = traced_span
+
+    async def fail_workflow(
+        *, action_input: dict[str, Any], span: Span
+    ) -> AsyncIterator[PluginResponse]:
+        del action_input
+        with span.start("WorkflowTransport"):
+            yield PluginResponse(code=502, result={"message": "workflow unavailable"})
+
+    workflow = WorkflowPlugin(
+        name="forecast_flow",
+        description="",
+        schema_template="",
+        typ="workflow",
+        flow_id="flow-42",
+        run=fail_workflow,
+    )
+    runner = _cot_runner([workflow])
+    step = CotStep(
+        action="forecast_flow",
+        action_input={"city": "Hefei"},
+        plugin=workflow,
+    )
+
+    stream = runner.run_workflow_plugin(workflow, step, span)
+    async with aclosing(stream):
+        response = await anext(stream)
+
+    assert response.typ == "cot_step"
+    exported = _finished_span(exporter, "RunWorkflowPlugin")
+    assert exported.status.status_code == StatusCode.ERROR
+    assert exported.attributes["langfuse.observation.level"] == "ERROR"
+    assert (
+        exported.attributes["langfuse.observation.status_message"]
+        == "Workflow plugin execution failed (code=502)"
+    )
+    assert exported.attributes["astron.agent.plugin.code"] == 502
+    assert (
+        _finished_span(exporter, "WorkflowTransport").status.status_code
+        == StatusCode.UNSET
+    )
 
 
 @pytest.mark.asyncio

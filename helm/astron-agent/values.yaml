@@ -7,6 +7,21 @@ global:
   # Host base address for external access (e.g., http://your-domain.com)
   # Used for MinIO server URL and other external endpoints
   hostBaseAddress: "http://astron-agent.example.com"
+
+# Optional Langfuse OTLP/HTTP export shared by Agent and Workflow.
+langfuse:
+  enabled: false
+  host: "https://cloud.langfuse.com"
+  captureInputOutput: false
+  maxAttributeLength: 8192
+  environment: "default"
+  release: ""
+  # Pre-created Kubernetes Secret; never store project keys in values.yaml.
+  existingSecret:
+    name: ""
+    publicKeyKey: "public-key"
+    secretKeyKey: "secret-key"
+
 # Override the full name for consistent resource naming
 fullnameOverride: "astron-agent"
 

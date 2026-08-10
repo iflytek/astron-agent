@@ -1,6 +1,7 @@
 """Test KnowledgePlugin and KnowledgePluginFactory"""
 
 import asyncio
+import json
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -10,6 +11,9 @@ import aiohttp
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.knowledge import KnowledgePlugin, KnowledgePluginFactory
@@ -62,9 +66,21 @@ class TestKnowledgePluginFactory:
         assert callable(plugin.run)
 
     @pytest.mark.asyncio
-    async def test_retrieve_success(self, factory: KnowledgePluginFactory) -> None:
+    async def test_retrieve_success(
+        self,
+        factory: KnowledgePluginFactory,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+    ) -> None:
         """Test successful knowledge retrieval"""
+        monkeypatch.delenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", raising=False)
+        monkeypatch.setenv("KNOWLEDGE_CALL_TIMEOUT", "90")
         span = Span(app_id="test_app", uid="test_uid")
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        request.addfinalizer(provider.shutdown)
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        span.tracer = provider.get_tracer("knowledge-test")
 
         mock_response_data: dict[str, Any] = {
             "data": {
@@ -95,6 +111,22 @@ class TestKnowledgePluginFactory:
 
                 assert "data" in result
                 assert "results" in result["data"]
+
+        exported = [
+            item for item in exporter.get_finished_spans() if item.name == "retrieve"
+        ]
+        assert len(exported) == 1
+        attributes = exported[0].attributes
+        assert attributes is not None
+        assert attributes["langfuse.observation.type"] == "retriever"
+        assert attributes["gen_ai.operation.name"] == "retrieval"
+        assert attributes["langfuse.observation.metadata.rag_type"] == "AIUI-RAG2"
+        assert attributes["langfuse.observation.metadata.result_count"] == "1"
+        assert "langfuse.observation.input" not in attributes
+        assert "langfuse.observation.output" not in attributes
+        serialized_attributes = json.dumps(dict(attributes), ensure_ascii=False)
+        for sensitive_value in ("test query", "repo1", "doc1", "Test content"):
+            assert sensitive_value not in serialized_attributes
 
     @pytest.mark.asyncio
     async def test_retrieve_no_repo_ids(self, factory: KnowledgePluginFactory) -> None:

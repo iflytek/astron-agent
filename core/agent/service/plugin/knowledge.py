@@ -4,6 +4,7 @@ import os
 from typing import Any, Dict, List
 
 import aiohttp
+from common.otlp.trace.langfuse import langfuse_observation_attributes
 from common.otlp.trace.span import Span
 from openai import BaseModel
 from pydantic import Field
@@ -34,8 +35,36 @@ class KnowledgePluginFactory(BaseModel):
             run=self.retrieve,
         )
 
+    def _retrieval_attributes(self, output_value: Any = None) -> Dict[str, Any]:
+        """Build privacy-gated attributes for the actual retrieval boundary."""
+
+        metadata: Dict[str, Any] = {
+            "dataset_count": len(self.dataset_ids),
+            "doc_count": len(self.doc_ids),
+            "rag_type": self.rag_type,
+            "repo_count": len(self.repo_ids),
+            "top_k": self.top_k,
+        }
+        if isinstance(output_value, dict):
+            response_data = output_value.get("data")
+            results = (
+                response_data.get("results")
+                if isinstance(response_data, dict)
+                else None
+            )
+            metadata["result_count"] = len(results) if isinstance(results, list) else 0
+        attributes = langfuse_observation_attributes(
+            "retriever",
+            input_value={"query": self.query},
+            output_value=output_value,
+            metadata=metadata,
+        )
+        attributes["gen_ai.operation.name"] = "retrieval"
+        return attributes
+
     async def retrieve(self, span: Span) -> Dict[str, Any]:
-        with span.start("retrieve") as sp:
+        with span.start("retrieve", attributes=self._retrieval_attributes()) as sp:
+            retrieval_span = sp.get_otlp_span()
             data: Dict[str, Any] = {
                 "query": self.query,
                 "topN": str(self.top_k),
@@ -55,6 +84,9 @@ class KnowledgePluginFactory(BaseModel):
                 empty_resp: Dict[str, Any] = {}
                 sp.add_info_events(
                     {"response-data": json.dumps(empty_resp, ensure_ascii=False)}
+                )
+                retrieval_span.set_attributes(
+                    self._retrieval_attributes(output_value=empty_resp)
                 )
                 return empty_resp
 
@@ -80,6 +112,9 @@ class KnowledgePluginFactory(BaseModel):
                             resp: Dict[str, Any] = await response.json()
                             sp.add_info_events(
                                 {"response-data": json.dumps(resp, ensure_ascii=False)}
+                            )
+                            retrieval_span.set_attributes(
+                                self._retrieval_attributes(output_value=resp)
                             )
                             return resp
 

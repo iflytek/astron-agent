@@ -1,4 +1,14 @@
 {{- $services := list "coreTenant" "coreDatabase" "coreRpa" "coreLink" "coreAitools" "coreAgent" "coreKnowledge" "coreWorkflow" }}
+{{- $langfuse := default (dict) $.Values.langfuse }}
+{{- $langfuseSecret := default (dict) (get $langfuse "existingSecret") }}
+{{- $langfuseEnabled := default false (get $langfuse "enabled") }}
+{{- $langfuseHost := default "https://cloud.langfuse.com" (get $langfuse "host") }}
+{{- $langfuseCapture := default false (get $langfuse "captureInputOutput") }}
+{{- $langfuseMaxLength := default 8192 (get $langfuse "maxAttributeLength") }}
+{{- $langfuseEnvironment := default "default" (get $langfuse "environment") }}
+{{- $langfuseRelease := default "" (get $langfuse "release") }}
+{{- $langfusePublicKeyKey := default "public-key" (get $langfuseSecret "publicKeyKey") }}
+{{- $langfuseSecretKeyKey := default "secret-key" (get $langfuseSecret "secretKeyKey") }}
 {{- range $serviceName := $services }}
 {{- $serviceConfig := index $.Values $serviceName }}
 {{- if $serviceConfig.enabled }}
@@ -84,6 +94,32 @@ spec:
         {{- else }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
+        - name: LANGFUSE_ENABLED
+          value: {{ $langfuseEnabled | quote }}
+        - name: LANGFUSE_HOST
+          value: {{ $langfuseHost | quote }}
+        - name: LANGFUSE_CAPTURE_INPUT_OUTPUT
+          value: {{ $langfuseCapture | quote }}
+        - name: LANGFUSE_MAX_ATTRIBUTE_LENGTH
+          value: {{ $langfuseMaxLength | quote }}
+        - name: LANGFUSE_ENVIRONMENT
+          value: {{ $langfuseEnvironment | quote }}
+        - name: LANGFUSE_RELEASE
+          value: {{ $langfuseRelease | quote }}
+        {{- if $langfuseEnabled }}
+        - name: LANGFUSE_PUBLIC_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
+              key: {{ $langfusePublicKeyKey | quote }}
+        - name: LANGFUSE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
+              key: {{ $langfuseSecretKeyKey | quote }}
         {{- end }}
         {{- end }}
         ports:

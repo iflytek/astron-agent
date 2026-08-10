@@ -1,7 +1,13 @@
+"""Tests for the shared, privacy-preserving Langfuse OTLP bridge."""
+
+import asyncio
 import base64
 import json
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from typing import Any, Mapping, NoReturn, Sequence, cast
 
+import httpx
 import pytest
 from common.otlp.trace import langfuse as langfuse_bridge
 from common.otlp.trace import trace as common_trace
@@ -15,6 +21,7 @@ from common.otlp.trace.langfuse import (
     langfuse_trace_context,
     serialize_langfuse_value,
 )
+from fastapi import FastAPI
 from loguru import logger
 from opentelemetry import baggage
 from opentelemetry.sdk.resources import Resource
@@ -24,8 +31,11 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     SpanExportResult,
 )
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from workflow.extensions.fastapi.middleware import otlp as otlp_middleware
 from workflow.extensions.fastapi.middleware.otlp import _safe_trace_carrier
+from workflow.extensions.otlp.trace.span import Span as WorkflowSpan
 
 
 class RecordingExporter(SpanExporter):
@@ -46,6 +56,34 @@ class RecordingExporter(SpanExporter):
         return True
 
 
+class _OTLPCaptureHandler(BaseHTTPRequestHandler):
+    """Capture one local OTLP/HTTP request without external test services."""
+
+    requests: list[dict[str, Any]] = []
+
+    def do_POST(self) -> None:  # pylint: disable=invalid-name
+        """Record the request and return the empty OTLP success response."""
+
+        content_length = int(self.headers.get("Content-Length", "0"))
+        self.__class__.requests.append(
+            {
+                "path": self.path,
+                "headers": {key.lower(): value for key, value in self.headers.items()},
+                "body": self.rfile.read(content_length),
+            }
+        )
+        self.send_response(200)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(  # pylint: disable=redefined-builtin
+        self, format: str, *args: Any
+    ) -> None:
+        """Keep the deterministic local transport test quiet."""
+
+        del format, args
+
+
 def _span_attributes(span: ReadableSpan) -> Mapping[str, Any]:
     assert span.attributes is not None
     return cast(Mapping[str, Any], span.attributes)
@@ -57,6 +95,8 @@ def _enable_langfuse(monkeypatch: pytest.MonkeyPatch, *, capture: bool = False) 
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
     monkeypatch.setenv("LANGFUSE_HOST", "https://langfuse.example.test/")
     monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true" if capture else "false")
+    monkeypatch.setenv("LANGFUSE_MAX_ATTRIBUTE_LENGTH", "8192")
+    monkeypatch.setenv("LANGFUSE_ENVIRONMENT", "default")
 
 
 def test_config_defaults_and_endpoint_normalization() -> None:
@@ -66,6 +106,7 @@ def test_config_defaults_and_endpoint_normalization() -> None:
     assert config.capture_input_output is False
     assert config.max_attribute_length == 8192
     assert config.environment == "default"
+    assert config.has_valid_environment is True
     assert config.host == "https://cloud.langfuse.com"
     assert config.endpoint == "https://cloud.langfuse.com/api/public/otel/v1/traces"
 
@@ -81,6 +122,30 @@ def test_config_defaults_and_endpoint_normalization() -> None:
     assert (
         explicit_endpoint.endpoint == "http://localhost:3000/api/public/otel/v1/traces"
     )
+
+    invalid_environment = LangfuseConfig.from_env(
+        {"LANGFUSE_ENVIRONMENT": "Production EU"}
+    )
+    assert invalid_environment.has_valid_environment is False
+
+
+@pytest.mark.parametrize(
+    ("environment", "is_valid"),
+    [
+        ("a", True),
+        ("a" * 40, True),
+        ("a" * 41, False),
+        ("langfuse-production", False),
+        ("prod.eu", False),
+        ("主站", False),
+    ],
+)
+def test_environment_validation_matches_langfuse_contract(
+    environment: str, is_valid: bool
+) -> None:
+    config = LangfuseConfig.from_env({"LANGFUSE_ENVIRONMENT": environment})
+
+    assert config.has_valid_environment is is_valid
 
 
 def test_inbound_carrier_keeps_only_non_langfuse_baggage() -> None:
@@ -99,6 +164,79 @@ def test_inbound_carrier_keeps_only_non_langfuse_baggage() -> None:
 
     assert carrier["baggage"] == "tenant=safe"
     assert "traceparent" in carrier
+
+
+@pytest.mark.asyncio
+async def test_middleware_context_reaches_background_workflow_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mirror the production middleware -> route -> background task hierarchy."""
+
+    monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true")
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+    def traced_span() -> WorkflowSpan:
+        span = WorkflowSpan(app_id="app", uid="user", chat_id="session")
+        span.tracer = provider.get_tracer("workflow-http-hierarchy-test")
+        return span
+
+    monkeypatch.setattr(otlp_middleware, "Span", traced_span)
+    app = FastAPI()
+    app.add_middleware(otlp_middleware.OtlpMiddleware)
+
+    async def run_workflow() -> None:
+        trace_attributes = langfuse_trace_attributes(
+            "workflow:flow", user_id="user", session_id="session"
+        )
+        observation_attributes = langfuse_observation_attributes(
+            "chain",
+            input_value={"question": "synthetic"},
+            output_value={"answer": "synthetic"},
+        )
+        observation_attributes.update(trace_attributes)
+        with langfuse_trace_context(trace_attributes), traced_span().start(
+            "workflow.run", attributes=observation_attributes
+        ):
+            pass
+
+    @app.get("/workflow/v1/debug/chat/completions")
+    async def workflow_route() -> dict[str, bool]:
+        with traced_span().start("chat_debug"):
+            task = asyncio.create_task(run_workflow())
+        await task
+        return {"ok": True}
+
+    try:
+        transport = httpx.ASGITransport(app=cast(Any, app))
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as client:
+            response = await client.get("/workflow/v1/debug/chat/completions")
+        assert response.status_code == 200
+
+        spans = {item.name: item for item in exporter.get_finished_spans()}
+        request_span = spans["/workflow/v1/debug/chat/completions"]
+        route_span = spans["chat_debug"]
+        workflow_span = spans["workflow.run"]
+        assert request_span.parent is None
+        assert route_span.parent is not None
+        assert route_span.parent.span_id == request_span.context.span_id
+        assert workflow_span.parent is not None
+        assert workflow_span.parent.span_id == route_span.context.span_id
+        assert workflow_span.context.trace_id == request_span.context.trace_id
+        assert "langfuse.observation.input" not in _span_attributes(request_span)
+        workflow_attributes = _span_attributes(workflow_span)
+        assert workflow_attributes["langfuse.observation.type"] == "chain"
+        assert json.loads(workflow_attributes["langfuse.observation.input"]) == {
+            "question": "synthetic"
+        }
+        assert json.loads(workflow_attributes["langfuse.observation.output"]) == {
+            "answer": "synthetic"
+        }
+    finally:
+        provider.shutdown()
 
 
 def test_missing_credentials_and_invalid_host_fail_closed(
@@ -141,6 +279,27 @@ def test_initialization_error_log_never_contains_credentials(
     assert "sk-test" not in logged
 
 
+def test_invalid_environment_fails_closed_without_logging_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_langfuse(monkeypatch)
+    invalid_environment = "Production-EU-sensitive-tenant"
+    monkeypatch.setenv("LANGFUSE_ENVIRONMENT", invalid_environment)
+    messages: list[str] = []
+    sink_id = logger.add(messages.append, format="{message}")
+    provider = TracerProvider()
+
+    try:
+        assert add_langfuse_span_processor(provider) is False
+    finally:
+        logger.remove(sink_id)
+        provider.shutdown()
+
+    logged = "".join(messages)
+    assert "invalid environment" in logged
+    assert invalid_environment not in logged
+
+
 def test_exporter_uses_http_v4_auth_and_supports_flush_shutdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -174,6 +333,57 @@ def test_exporter_uses_http_v4_auth_and_supports_flush_shutdown(
     assert [span.name for span in delegate.spans] == ["root"]
     provider.shutdown()
     assert delegate.shutdown_called is True
+
+
+def test_actual_otlp_http_export_uses_signal_path_auth_and_sanitized_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise the real exporter against a loopback OTLP/HTTP receiver."""
+
+    _OTLPCaptureHandler.requests.clear()
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _OTLPCaptureHandler)
+    server_thread = Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    _enable_langfuse(monkeypatch)
+    monkeypatch.setenv("LANGFUSE_HOST", f"http://127.0.0.1:{server.server_port}")
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TIMEOUT", "5")
+    monkeypatch.setenv("OTEL_EXPORTER_OTLP_TRACES_TIMEOUT", "5")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_COMPRESSION", raising=False)
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_COMPRESSION", raising=False)
+    provider = TracerProvider(resource=Resource({"service.name": "workflow"}))
+
+    try:
+        assert add_langfuse_span_processor(provider) is True
+        with provider.get_tracer("wire-test").start_as_current_span(
+            "llm.generate"
+        ) as span:
+            span.set_attributes(
+                {
+                    "authorization": "Bearer must-not-leak",
+                    "gen_ai.request.model": "wire-model",
+                    "langfuse.observation.type": "generation",
+                }
+            )
+        assert provider.force_flush(timeout_millis=5000) is True
+    finally:
+        provider.shutdown()
+        server.shutdown()
+        server.server_close()
+        server_thread.join(timeout=5)
+
+    assert len(_OTLPCaptureHandler.requests) == 1
+    request = _OTLPCaptureHandler.requests[0]
+    assert request["path"] == "/api/public/otel/v1/traces"
+    expected_auth = base64.b64encode(b"pk-test:sk-test").decode("ascii")
+    assert request["headers"]["authorization"] == f"Basic {expected_auth}"
+    assert request["headers"]["x-langfuse-ingestion-version"] == "4"
+    assert request["headers"]["content-type"] == "application/x-protobuf"
+    assert request["body"]
+    assert b"wire-model" in request["body"]
+    assert b"must-not-leak" not in request["body"]
 
 
 def test_sanitizing_exporter_drops_events_links_and_unapproved_content(
@@ -306,6 +516,35 @@ def test_attribute_helpers_are_opt_in_truncated_and_remove_sensitive_metadata(
     assert captured["langfuse.observation.type"] == "span"
     assert len(captured["langfuse.observation.input"]) <= 32
     assert len(captured["langfuse.observation.output"]) <= 32
+    assert json.loads(captured["langfuse.observation.input"]) == {"truncated": True}
+
+
+@pytest.mark.parametrize("max_length", [1, 2, 4, 11, 18])
+def test_truncated_structured_values_remain_valid_json(max_length: int) -> None:
+    serialized = serialize_langfuse_value(
+        {"question": "x" * 100}, max_length=max_length
+    )
+
+    assert serialized is not None
+    assert len(serialized) <= max_length
+    json.loads(serialized)
+
+
+def test_non_finite_numbers_are_standard_json_nulls() -> None:
+    serialized = serialize_langfuse_value(
+        {"nan": float("nan"), "negative": float("-inf"), "positive": float("inf")}
+    )
+
+    assert serialized is not None
+
+    def reject_non_finite(value: str) -> NoReturn:
+        raise AssertionError(f"non-standard JSON constant: {value}")
+
+    assert json.loads(serialized, parse_constant=reject_non_finite) == {
+        "nan": None,
+        "negative": None,
+        "positive": None,
+    }
 
 
 @pytest.mark.parametrize(
