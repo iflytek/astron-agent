@@ -7,7 +7,7 @@ Focus areas (acceptance-relevant):
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

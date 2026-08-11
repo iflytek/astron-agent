@@ -106,6 +106,37 @@ def wrap_openai_client(openai_client: Any) -> Any:
     return openai_client
 
 
+def _safe_observe_start(lf, model_name: str, provider: str, messages: list):
+    """Start a Langfuse generation observation; never raises."""
+    try:
+        return lf.start_observation(
+            name="llm-call",
+            as_type="generation",
+            input={"model": model_name, "provider": provider, "messages": messages},
+            metadata={"provider": provider},
+            model=model_name,
+        )
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("[langfuse] start_observation failed: %s", exc)
+        return None
+
+
+def _safe_observe_finish(observation, metadata: dict, level=None, status_message=None):
+    """Finalize an observation (update + end); never raises."""
+    if observation is None:
+        return
+    try:
+        update_kwargs = {"metadata": metadata}
+        if level is not None:
+            update_kwargs["level"] = level
+        if status_message is not None:
+            update_kwargs["status_message"] = status_message
+        observation.update(**update_kwargs)
+        observation.end()
+    except Exception:  # pragma: no cover - defensive
+        logger.debug("[langfuse] failed to finalize observation", exc_info=True)
+
+
 @asynccontextmanager
 async def trace_provider_stream(
     model_name: str,
@@ -120,40 +151,19 @@ async def trace_provider_stream(
     path stays unaffected (graceful degradation).
     """
     lf = get_client() if is_enabled() else None
-    observation = None
-    if lf is not None:
-        try:
-            observation = lf.start_observation(
-                name="llm-call",
-                as_type="generation",
-                input={"model": model_name, "provider": provider, "messages": messages},
-                metadata={"provider": provider},
-                model=model_name,
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            logger.warning("[langfuse] start_observation failed: %s", exc)
-            observation = None
+    observation = _safe_observe_start(lf, model_name, provider, messages) if lf else None
 
     try:
         yield observation
     except Exception as exc:
-        if observation is not None:
-            try:
-                observation.update(
-                    level="ERROR",
-                    status_message=str(exc)[:500],
-                    metadata={"provider": provider, "error": str(exc)[:500]},
-                )
-                observation.end()
-            except Exception:  # pragma: no cover - defensive
-                logger.debug("[langfuse] failed to record error", exc_info=True)
+        _safe_observe_finish(
+            observation,
+            {"provider": provider, "error": str(exc)[:500]},
+            level="ERROR",
+            status_message=str(exc)[:500],
+        )
         raise
     else:
-        if observation is not None:
-            try:
-                observation.update(
-                    metadata={"provider": provider, "payload": payload or {}}
-                )
-                observation.end()
-            except Exception:  # pragma: no cover - defensive
-                logger.debug("[langfuse] failed to end observation", exc_info=True)
+        _safe_observe_finish(
+            observation, {"provider": provider, "payload": payload or {}}
+        )
