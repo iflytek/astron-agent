@@ -1,5 +1,7 @@
 <div align="center">
 
+<!-- osai-verify: 47a03548c83092cc7722 -->
+
 [![Astron Agent Logo](./logo.svg)](https://iflytek.github.io/astron-agent/)
 
 [![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
