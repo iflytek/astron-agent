@@ -13,9 +13,20 @@ def init_otlp_span() -> None:
     if global_otlp_trace_args.inited:
         return
 
-    global_otlp_trace_args.otlp_endpoint = os.getenv("OTLP_ENDPOINT", "")
+    global_otlp_trace_args.otlp_endpoint = os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", os.getenv("OTLP_ENDPOINT", "")),
+    )
     global_otlp_trace_args.otlp_service_name = os.getenv("SERVICE_NAME", "")
     global_otlp_trace_args.otlp_dc = os.getenv("SERVICE_LOCATION", "")
+    global_otlp_trace_args.otlp_protocol = os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+        os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
+    )
+    global_otlp_trace_args.otlp_headers = os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        os.getenv("OTEL_EXPORTER_OTLP_HEADERS", ""),
+    )
 
     global_otlp_trace_args.trace_timeout = int(os.getenv("OTLP_TRACE_TIMEOUT", "3000"))
     global_otlp_trace_args.trace_max_queue_size = int(

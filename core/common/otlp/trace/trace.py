@@ -5,7 +5,12 @@ from typing import Sequence
 
 from loguru import logger
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+    OTLPSpanExporter as GrpcOTLPSpanExporter,
+)
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter as HttpOTLPSpanExporter,
+)
 from opentelemetry.propagate import extract, inject
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import SpanLimits, TracerProvider
@@ -15,6 +20,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExportResult,
 )
 from opentelemetry.trace import StatusCode
+from opentelemetry.util.re import parse_env_headers
 
 from common.otlp.ip import local_ip
 
@@ -50,6 +56,42 @@ class FileSpanExporter(SpanExporter):
 
     def shutdown(self) -> SpanExportResult:  # type: ignore[override]
         return SpanExportResult.SUCCESS
+
+
+def _append_trace_path(endpoint: str) -> str:
+    endpoint = endpoint.rstrip("/")
+    if endpoint.endswith("/v1/traces"):
+        return endpoint
+    return f"{endpoint}/v1/traces"
+
+
+def _get_otlp_protocol() -> str:
+    return os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+        os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
+    ).strip().lower()
+
+
+def _get_otlp_headers() -> dict:
+    headers = os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        os.getenv("OTEL_EXPORTER_OTLP_HEADERS", ""),
+    )
+    return parse_env_headers(headers)
+
+
+def _get_otlp_endpoint(endpoint: str, protocol: str) -> str:
+    trace_endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    if trace_endpoint:
+        return trace_endpoint
+
+    otel_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if otel_endpoint:
+        if protocol == "http/protobuf":
+            return _append_trace_path(otel_endpoint)
+        return otel_endpoint
+
+    return endpoint
 
 
 def init_trace(
@@ -94,7 +136,25 @@ def init_trace(
         "yes",
         "on",
     ):
-        exporter = OTLPSpanExporter(insecure=True, endpoint=endpoint, timeout=timeout)
+        protocol = _get_otlp_protocol()
+        resolved_endpoint = _get_otlp_endpoint(endpoint, protocol)
+        headers = _get_otlp_headers()
+
+        if protocol == "http/protobuf":
+            exporter = HttpOTLPSpanExporter(
+                endpoint=resolved_endpoint,
+                headers=headers,
+                timeout=timeout,
+            )
+        else:
+            grpc_args = {
+                "insecure": True,
+                "endpoint": resolved_endpoint,
+                "timeout": timeout,
+            }
+            if headers:
+                grpc_args["headers"] = headers
+            exporter = GrpcOTLPSpanExporter(**grpc_args)
 
         processor = BatchSpanProcessor(
             exporter,
