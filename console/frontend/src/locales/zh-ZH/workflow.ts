@@ -878,6 +878,9 @@ const translation = {
     uploadFileSizeExceeded: '上传文件大小不能超出20M！',
     pleaseUploadYmlYamlFormat: '请上传yml、yaml格式文件！',
     fileFormatYmlYaml: '文件格式为yml、yaml，文件大小不超过20M',
+    importPluginMappingWarning:
+      '工作流已导入，但有 {{count}} 个插件节点未能安全匹配，请手动选择：{{nodes}}{{remaining}}',
+    importPluginMappingMore: ' 等另外 {{count}} 个节点',
     // AddTool component translations
     updateConfig: '更新配置',
     // FlowOperatorPanel component translations

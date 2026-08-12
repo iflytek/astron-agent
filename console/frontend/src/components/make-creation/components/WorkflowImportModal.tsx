@@ -23,6 +23,15 @@ interface FileUploadEvent {
 // 定义workflowImport响应类型
 interface WorkflowImportResponse {
   flowId: string;
+  importReport?: {
+    mappedPluginCount: number;
+    unresolvedPlugins: Array<{
+      nodeId: string;
+      nodeLabel?: string;
+      pluginName?: string;
+      reason: string;
+    }>;
+  };
 }
 
 // 定义自定义上传文件类型，扩展UploadFile
@@ -112,6 +121,33 @@ function WorkflowImportModal({
     })
       .then((value: unknown) => {
         const res = value as WorkflowImportResponse;
+        const unresolvedPlugins = res.importReport?.unresolvedPlugins || [];
+        if (unresolvedPlugins.length > 0) {
+          const nodeNames = unresolvedPlugins
+            .slice(0, 5)
+            .map(item => item.nodeLabel || item.pluginName || item.nodeId)
+            .join(', ');
+          const remainingNodes = Math.max(unresolvedPlugins.length - 5, 0);
+          message.warning({
+            content: i18next.t(
+              'workflow.promptDebugger.importPluginMappingWarning',
+              {
+                count: unresolvedPlugins.length,
+                nodes: nodeNames,
+                remaining:
+                  remainingNodes > 0
+                    ? i18next.t(
+                        'workflow.promptDebugger.importPluginMappingMore',
+                        {
+                          count: remainingNodes,
+                        }
+                      )
+                    : '',
+              }
+            ),
+            duration: 8,
+          });
+        }
         setWorkflowImportModalVisible(false);
         navigate(`/work_flow/${res.flowId}/arrange`);
       })

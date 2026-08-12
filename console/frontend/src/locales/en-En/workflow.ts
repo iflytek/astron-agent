@@ -916,6 +916,9 @@ const translation = {
     pleaseUploadYmlYamlFormat: 'Please upload yml, yaml format files!',
     fileFormatYmlYaml:
       'File format is yml, yaml, file size does not exceed 20M',
+    importPluginMappingWarning:
+      'Workflow imported, but {{count}} plugin node(s) could not be matched safely. Please select them manually: {{nodes}}{{remaining}}',
+    importPluginMappingMore: ' and {{count}} more',
     // AddTool component translations
     updateConfig: 'Update Config',
     // FlowOperatorPanel component translations

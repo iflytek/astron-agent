@@ -10,12 +10,16 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.esotericsoftware.minlog.Log;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.commons.service.space.EnterpriseSpaceService;
 import com.iflytek.astron.console.commons.util.BotUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.toolkit.config.properties.BizConfig;
@@ -25,9 +29,12 @@ import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowData;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowNode;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.node.BizNodeData;
 import com.iflytek.astron.console.toolkit.entity.dto.WorkflowReq;
+import com.iflytek.astron.console.toolkit.entity.enumVo.ToolboxStatusEnum;
 import com.iflytek.astron.console.toolkit.entity.table.database.DbInfo;
 import com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
+import com.iflytek.astron.console.toolkit.entity.vo.WorkflowImportReport;
+import com.iflytek.astron.console.toolkit.entity.vo.WorkflowImportVo;
 import com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler;
 import com.iflytek.astron.console.toolkit.mapper.database.DbInfoMapper;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
@@ -39,6 +46,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
@@ -50,6 +58,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -64,6 +74,19 @@ import java.util.stream.Collectors;
  */
 @Service
 public class WorkflowExportService {
+    private static final String DEFAULT_PLUGIN_VERSION = "V1.0";
+    private static final String PORTABLE_PLUGIN_KEY = "portablePlugin";
+    private static final String PORTABLE_PLUGIN_NAME_KEY = "name";
+    private static final String PORTABLE_PLUGIN_FINGERPRINT_KEY = "schemaFingerprint";
+    private static final String PORTABLE_PLUGIN_FINGERPRINT_VERSION_KEY = "schemaFingerprintVersion";
+    private static final int PORTABLE_PLUGIN_FINGERPRINT_VERSION = 1;
+    private static final String REASON_MISSING_METADATA = "MISSING_METADATA";
+    private static final String REASON_NOT_FOUND = "NOT_FOUND";
+    private static final String REASON_AMBIGUOUS = "AMBIGUOUS";
+    private static final String REASON_INCOMPATIBLE = "INCOMPATIBLE";
+    private static final int MAX_PLUGIN_NAME_LENGTH = 64;
+    private static final List<String> PORTABLE_SCHEMA_FIELDS = List.of(
+            "name", "type", "location", "required", "from", "open", "fatherType", "children");
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     static {
@@ -89,6 +112,8 @@ public class WorkflowExportService {
     DbInfoMapper dbInfoMapper;
     @Autowired
     CommonConfig commonConfig;
+    @Resource
+    EnterpriseSpaceService enterpriseSpaceService;
 
     /**
      * Export workflow data as YAML format.
@@ -103,23 +128,7 @@ public class WorkflowExportService {
         objectMapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         try {
             BizWorkflowData bizWorkflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
-            // Only process nodes: remove private fields from each node.data.nodeParam
-            if (bizWorkflowData != null) {
-                List<BizWorkflowNode> nodes = bizWorkflowData.getNodes();
-                for (BizWorkflowNode node : nodes) {
-                    BizNodeData data = node.getData();
-                    if (data != null) {
-                        JSONObject param = data.getNodeParam();
-                        // if (param != null) {
-                        // param.keySet().removeIf(key ->
-                        // key.equals("uid") || key.equals("appId") || key.equals("repoList")
-                        // || key.equals("repoId") || key.equals("modelId")
-                        // || key.equals("llmId") || key.equals("serviceId")
-                        // );
-                        // }
-                    }
-                }
-            }
+            addPortablePluginMetadata(bizWorkflowData);
             Map<String, Object> meta = objectMapper.convertValue(workflow, Map.class);
 
             // Keep only whitelist fields
@@ -165,6 +174,12 @@ public class WorkflowExportService {
      */
     @SneakyThrows
     public ApiResult importWorkflowFromYaml(InputStream inputStream, HttpServletRequest request) {
+        String uid = UserInfoManagerHandler.getUserId();
+        Long targetSpaceId = SpaceInfoUtil.getSpaceId();
+        if (targetSpaceId != null && enterpriseSpaceService.checkUserBelongSpace(targetSpaceId, uid) == null) {
+            throw new BusinessException(ResponseEnum.PERMISSION_NOT_BELONG_SPACE);
+        }
+
         LoaderOptions loaderOptions = new LoaderOptions();
         Yaml yaml = new Yaml(new SafeConstructor(loaderOptions));
         Map<String, Object> rootMap = yaml.load(inputStream);
@@ -173,8 +188,6 @@ public class WorkflowExportService {
         if (root == null || !root.containsKey("flowMeta") || !root.containsKey("flowData")) {
             throw new BusinessException(ResponseEnum.WORKFLOW_DLS_UPLOAD_FAILED);
         }
-        String uid = UserInfoManagerHandler.getUserId();
-
         Map<String, Object> meta = (Map<String, Object>) root.get("flowMeta");
         Map<String, Object> flow = (Map<String, Object>) root.get("flowData");
 
@@ -193,7 +206,7 @@ public class WorkflowExportService {
         wf.setAdvancedConfig((String) meta.get("advancedConfig"));
         BizWorkflowData bizWorkflowData = objectMapper.convertValue(flow, BizWorkflowData.class);
         // Clear node private information
-        cleanNodesForImport(bizWorkflowData, uid, request);
+        WorkflowImportReport importReport = cleanNodesForImport(bizWorkflowData, uid, request);
         String data = objectMapper.writeValueAsString(bizWorkflowData);
         wf.setData(data);
         // Call core system to get flowId
@@ -218,17 +231,19 @@ public class WorkflowExportService {
             wf.setAvatarIcon("icon/common/emojiitem_00_10@2x.png");
         }
         // Save
-        Long spaceId = SpaceInfoUtil.getSpaceId();
-        wf.setSpaceId(spaceId);
+        wf.setSpaceId(targetSpaceId);
         workflowService.save(wf);
         // Sync to Spark database
-        Integer botId = botUtil.syncToSparkDatabase(wf, UserInfoManagerHandler.getUserId(), spaceId);
+        Integer botId = botUtil.syncToSparkDatabase(wf, UserInfoManagerHandler.getUserId(), targetSpaceId);
         JSONObject jsonData = new JSONObject();
         jsonData.put("botId", botId);
         // Update botId
         wf.setExt(jsonData.toJSONString());
         workflowService.updateById(wf);
-        return ApiResult.success(wf);
+        WorkflowImportVo response = new WorkflowImportVo();
+        BeanUtils.copyProperties(wf, response);
+        response.setImportReport(importReport);
+        return ApiResult.success(response);
     }
 
     /**
@@ -258,8 +273,12 @@ public class WorkflowExportService {
      * @param uid User ID
      * @param request HTTP request context
      */
-    public void cleanNodesForImport(BizWorkflowData bizWorkflowData, String uid, HttpServletRequest request) {
-        List<BizWorkflowNode> nodes = bizWorkflowData.getNodes();
+    public WorkflowImportReport cleanNodesForImport(BizWorkflowData bizWorkflowData, String uid,
+            HttpServletRequest request) {
+        WorkflowImportReport importReport = new WorkflowImportReport();
+        List<BizWorkflowNode> nodes = Optional.ofNullable(bizWorkflowData)
+                .map(BizWorkflowData::getNodes)
+                .orElseGet(Collections::emptyList);
         ModelDto modelDto = new ModelDto();
         modelDto.setPage(1);
         modelDto.setPageSize(999);
@@ -284,7 +303,7 @@ public class WorkflowExportService {
                     cleanLlmNode(param, allowedLlmSet, uid);
                     break;
                 case "plugin":
-                    cleanPluginNode(param, uid, data);
+                    cleanPluginNode(node, uid, importReport);
                     break;
                 case "flow":
                     cleanFlowNode(param, uid, data);
@@ -304,6 +323,11 @@ public class WorkflowExportService {
                     break;
             }
         }
+        if (importReport.getMappedPluginCount() > 0 || !importReport.getUnresolvedPlugins().isEmpty()) {
+            Log.info(String.format("Workflow import plugin resolution: mapped=%d, unresolved=%d",
+                    importReport.getMappedPluginCount(), importReport.getUnresolvedPlugins().size()));
+        }
+        return importReport;
     }
 
     /**
@@ -353,26 +377,365 @@ public class WorkflowExportService {
         }
     }
 
+    private void addPortablePluginMetadata(BizWorkflowData workflowData) {
+        if (workflowData == null || CollUtil.isEmpty(workflowData.getNodes())) {
+            return;
+        }
+        for (BizWorkflowNode node : workflowData.getNodes()) {
+            if (node == null || StringUtils.isBlank(node.getId()) || !node.getId().startsWith("plugin::")) {
+                continue;
+            }
+            BizNodeData data = node.getData();
+            if (data == null || data.getNodeParam() == null) {
+                continue;
+            }
+            ToolBox sourceTool = findDirectPlugin(data.getNodeParam(), null);
+            if (sourceTool == null) {
+                continue;
+            }
+            String fingerprint = pluginSchemaFingerprint(sourceTool);
+            if (StringUtils.isBlank(sourceTool.getName()) || fingerprint == null) {
+                continue;
+            }
+            JSONObject portablePlugin = new JSONObject();
+            portablePlugin.put(PORTABLE_PLUGIN_NAME_KEY, sourceTool.getName());
+            portablePlugin.put(PORTABLE_PLUGIN_FINGERPRINT_KEY, fingerprint);
+            portablePlugin.put(PORTABLE_PLUGIN_FINGERPRINT_VERSION_KEY, PORTABLE_PLUGIN_FINGERPRINT_VERSION);
+            data.setPluginName(sourceTool.getName());
+            data.getNodeParam().put(PORTABLE_PLUGIN_KEY, portablePlugin);
+        }
+    }
+
+    private PluginResolution resolvePlugin(JSONObject param, JSONObject portablePlugin, String uid) {
+        Object rawFingerprint = portablePlugin == null
+                ? null
+                : portablePlugin.get(PORTABLE_PLUGIN_FINGERPRINT_KEY);
+        String expectedFingerprint = rawFingerprint instanceof String fingerprint ? fingerprint : null;
+        ToolBox directTool = findDirectPlugin(param, expectedFingerprint);
+        if (directTool != null) {
+            return new PluginResolution(directTool, false, null);
+        }
+
+        if (portablePlugin == null) {
+            return new PluginResolution(null, false, REASON_MISSING_METADATA);
+        }
+        Object rawPluginName = portablePlugin.get(PORTABLE_PLUGIN_NAME_KEY);
+        String pluginName = rawPluginName instanceof String name ? name : null;
+        Object rawFingerprintVersion = portablePlugin.get(PORTABLE_PLUGIN_FINGERPRINT_VERSION_KEY);
+        if (StringUtils.isBlank(pluginName)
+                || pluginName.length() > MAX_PLUGIN_NAME_LENGTH
+                || !(rawFingerprintVersion instanceof Number fingerprintVersion)
+                || fingerprintVersion.intValue() != PORTABLE_PLUGIN_FINGERPRINT_VERSION
+                || !isValidFingerprint(expectedFingerprint)) {
+            return new PluginResolution(null, false, REASON_MISSING_METADATA);
+        }
+
+        Long spaceId = SpaceInfoUtil.getSpaceId();
+        LambdaQueryWrapper<ToolBox> namedToolQuery = pluginLookupQuery()
+                .eq(ToolBox::getName, pluginName)
+                .eq(ToolBox::getDeleted, false)
+                .eq(ToolBox::getStatus, ToolboxStatusEnum.FORMAL.getCode());
+        if (spaceId == null) {
+            namedToolQuery.isNull(ToolBox::getSpaceId).eq(ToolBox::getUserId, uid);
+        } else {
+            namedToolQuery.eq(ToolBox::getSpaceId, spaceId);
+        }
+        List<ToolBox> namedTools = safeToolList(namedToolQuery);
+        List<ToolBox> scopedTools = namedTools.stream()
+                .filter(this::isUsableFallbackTool)
+                .filter(tool -> pluginName.equals(tool.getName()))
+                .filter(tool -> isInCurrentImportScope(tool, uid))
+                .filter(this::isToolVisible)
+                .toList();
+        if (scopedTools.isEmpty()) {
+            return new PluginResolution(null, false, REASON_NOT_FOUND);
+        }
+
+        String sourceVersion = effectivePluginVersion(param.getString("version"));
+        List<ToolBox> versionMatches = scopedTools.stream()
+                .filter(tool -> sourceVersion.equals(effectivePluginVersion(tool.getVersion())))
+                .toList();
+        if (versionMatches.isEmpty()) {
+            return new PluginResolution(null, false, REASON_INCOMPATIBLE);
+        }
+
+        List<ToolBox> compatibleTools = versionMatches.stream()
+                .filter(tool -> expectedFingerprint.equals(pluginSchemaFingerprint(tool)))
+                .toList();
+        if (compatibleTools.isEmpty()) {
+            return new PluginResolution(null, false, REASON_INCOMPATIBLE);
+        }
+
+        Map<String, List<ToolBox>> toolsById = compatibleTools.stream()
+                .collect(Collectors.groupingBy(ToolBox::getToolId, LinkedHashMap::new, Collectors.toList()));
+        if (toolsById.size() != 1) {
+            return new PluginResolution(null, false, REASON_AMBIGUOUS);
+        }
+        ToolBox targetTool = selectUniqueRuntimeTool(toolsById.values().iterator().next(), null);
+        if (targetTool == null) {
+            return new PluginResolution(null, false, REASON_AMBIGUOUS);
+        }
+        return new PluginResolution(targetTool, true, null);
+    }
+
+    private ToolBox findDirectPlugin(JSONObject param, String expectedFingerprint) {
+        String pluginId = param.getString("pluginId");
+        if (StringUtils.isBlank(pluginId)) {
+            return null;
+        }
+        String version = effectivePluginVersion(param.getString("version"));
+        List<ToolBox> candidates = safeToolList(pluginLookupQuery()
+                .eq(ToolBox::getToolId, pluginId)
+                .eq(ToolBox::getDeleted, false)).stream()
+                .filter(this::hasRuntimeIdentity)
+                .filter(tool -> version.equals(effectivePluginVersion(tool.getVersion())))
+                .filter(this::isToolVisible)
+                .filter(tool -> expectedFingerprint == null
+                        || expectedFingerprint.equals(pluginSchemaFingerprint(tool)))
+                .toList();
+        return selectUniqueRuntimeTool(candidates, param.getString("operationId"));
+    }
+
+    private List<ToolBox> safeToolList(LambdaQueryWrapper<ToolBox> query) {
+        List<ToolBox> tools = toolBoxService.list(query);
+        return tools == null ? Collections.emptyList() : tools;
+    }
+
+    private LambdaQueryWrapper<ToolBox> pluginLookupQuery() {
+        return new LambdaQueryWrapper<ToolBox>().select(
+                ToolBox::getId,
+                ToolBox::getToolId,
+                ToolBox::getName,
+                ToolBox::getDescription,
+                ToolBox::getUserId,
+                ToolBox::getSpaceId,
+                ToolBox::getAppId,
+                ToolBox::getMethod,
+                ToolBox::getWebSchema,
+                ToolBox::getDeleted,
+                ToolBox::getIsPublic,
+                ToolBox::getOperationId,
+                ToolBox::getStatus,
+                ToolBox::getVersion);
+    }
+
+    private ToolBox selectUniqueRuntimeTool(List<ToolBox> candidates, String operationId) {
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        if (StringUtils.isNotBlank(operationId)) {
+            List<ToolBox> operationMatches = candidates.stream()
+                    .filter(tool -> operationId.equals(tool.getOperationId()))
+                    .toList();
+            if (operationMatches.size() == 1) {
+                return operationMatches.get(0);
+            }
+        }
+        if (candidates.size() == 1) {
+            return candidates.get(0);
+        }
+        long runtimeIdentities = candidates.stream()
+                .map(tool -> String.join("\u0000",
+                        StringUtils.defaultString(tool.getToolId()),
+                        StringUtils.defaultString(tool.getOperationId()),
+                        StringUtils.defaultString(tool.getAppId()),
+                        effectivePluginVersion(tool.getVersion())))
+                .distinct()
+                .count();
+        return runtimeIdentities == 1 ? candidates.get(0) : null;
+    }
+
+    private boolean isUsableFallbackTool(ToolBox tool) {
+        return tool != null
+                && !Boolean.TRUE.equals(tool.getDeleted())
+                && ToolboxStatusEnum.FORMAL.getCode().equals(tool.getStatus())
+                && hasRuntimeIdentity(tool);
+    }
+
+    private boolean hasRuntimeIdentity(ToolBox tool) {
+        return tool != null
+                && StringUtils.isNoneBlank(tool.getToolId(), tool.getOperationId(), tool.getAppId());
+    }
+
+    private boolean isToolVisible(ToolBox tool) {
+        try {
+            ToolBox permissionView = new ToolBox();
+            permissionView.setId(tool.getId());
+            permissionView.setToolId(tool.getToolId());
+            permissionView.setUserId(tool.getUserId());
+            permissionView.setSpaceId(tool.getSpaceId());
+            permissionView.setIsPublic(tool.getIsPublic());
+            dataPermissionCheckTool.checkToolVisible(permissionView);
+            return true;
+        } catch (BusinessException e) {
+            return false;
+        }
+    }
+
+    private boolean isInCurrentImportScope(ToolBox tool, String uid) {
+        Long spaceId = SpaceInfoUtil.getSpaceId();
+        if (spaceId == null) {
+            return tool.getSpaceId() == null && Objects.equals(tool.getUserId(), uid);
+        }
+        return Objects.equals(tool.getSpaceId(), spaceId);
+    }
+
+    private void applyPluginBinding(JSONObject param, BizNodeData data, ToolBox targetTool, String uid) {
+        param.put("pluginId", targetTool.getToolId());
+        param.put("operationId", targetTool.getOperationId());
+        param.put("version", effectivePluginVersion(targetTool.getVersion()));
+        param.put("appId", targetTool.getAppId());
+        param.put("uid", uid);
+        param.put("toolDescription", targetTool.getDescription());
+        extractBusinessInputs(targetTool.getWebSchema()).ifPresent(inputs -> param.put("businessInput", inputs));
+        data.setPluginName(targetTool.getName());
+    }
+
+    private void clearPluginBinding(JSONObject param, BizNodeData data) {
+        List.of("pluginId", "operationId", "version", "appId", "uid", "toolDescription", "businessInput")
+                .forEach(param::remove);
+        data.setInputs(Collections.emptyList());
+        data.setOutputs(Collections.emptyList());
+    }
+
+    private Optional<List<String>> extractBusinessInputs(String webSchema) {
+        if (StringUtils.isBlank(webSchema)) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode inputs = objectMapper.readTree(webSchema).path("toolRequestInput");
+            List<String> businessInputs = new ArrayList<>();
+            collectBusinessInputs(inputs, businessInputs);
+            return Optional.of(businessInputs);
+        } catch (Exception e) {
+            Log.warn("Unable to rebuild imported plugin business inputs", e);
+            return Optional.empty();
+        }
+    }
+
+    private void collectBusinessInputs(JsonNode node, List<String> businessInputs) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return;
+        }
+        if (node.isArray()) {
+            node.forEach(child -> collectBusinessInputs(child, businessInputs));
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        if (node.path("from").asInt(-1) == 1
+                && !"array".equals(node.path("fatherType").asText())
+                && StringUtils.isNotBlank(node.path("name").asText())) {
+            businessInputs.add(node.path("name").asText());
+        }
+        collectBusinessInputs(node.path("children"), businessInputs);
+    }
+
+    private String pluginSchemaFingerprint(ToolBox tool) {
+        if (tool == null || StringUtils.isAnyBlank(tool.getMethod(), tool.getWebSchema())) {
+            return null;
+        }
+        try {
+            JsonNode webSchema = objectMapper.readTree(tool.getWebSchema());
+            JsonNode requestInput = webSchema.path("toolRequestInput");
+            JsonNode requestOutput = webSchema.path("toolRequestOutput");
+            if (!requestInput.isArray() || !requestOutput.isArray()) {
+                return null;
+            }
+            ObjectNode portableSchema = objectMapper.createObjectNode();
+            portableSchema.put("method", StringUtils.lowerCase(StringUtils.trimToEmpty(tool.getMethod()), Locale.ROOT));
+            portableSchema.set("toolRequestInput", canonicalizeSchema(requestInput));
+            portableSchema.set("toolRequestOutput", canonicalizeSchema(requestOutput));
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(objectMapper.writeValueAsBytes(portableSchema));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        } catch (Exception e) {
+            Log.warn("Unable to fingerprint plugin schema for workflow migration", e);
+            return null;
+        }
+    }
+
+    private JsonNode canonicalizeSchema(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return objectMapper.nullNode();
+        }
+        if (node.isArray()) {
+            List<JsonNode> children = new ArrayList<>();
+            node.forEach(child -> children.add(canonicalizeSchema(child)));
+            children.sort(Comparator.comparing(JsonNode::toString));
+            ArrayNode canonical = objectMapper.createArrayNode();
+            children.forEach(canonical::add);
+            return canonical;
+        }
+        if (node.isObject()) {
+            ObjectNode canonical = objectMapper.createObjectNode();
+            for (String field : PORTABLE_SCHEMA_FIELDS) {
+                if (node.has(field)) {
+                    canonical.set(field, canonicalizeSchema(node.get(field)));
+                }
+            }
+            return canonical;
+        }
+        return node.deepCopy();
+    }
+
+    private String effectivePluginVersion(String version) {
+        return StringUtils.defaultIfBlank(version, DEFAULT_PLUGIN_VERSION);
+    }
+
+    private boolean isValidFingerprint(String fingerprint) {
+        return fingerprint != null && fingerprint.matches("[0-9a-f]{64}");
+    }
+
+    private record PluginResolution(ToolBox toolBox, boolean remapped, String reason) {}
+
     /**
      * Process plugin/tool node during import.
      *
-     * @param param Node parameters
+     * @param node Plugin workflow node
      * @param uid User ID
-     * @param data Node data
+     * @param importReport Import resource-resolution report
      */
-    private void cleanPluginNode(JSONObject param, String uid,
-            BizNodeData data) {
-        String pluginId = param.getString("pluginId");
-        ToolBox toolBox = toolBoxService.getOnly(new LambdaQueryWrapper<ToolBox>()
-                .eq(ToolBox::getToolId, pluginId));
-        if (toolBox == null || (!Boolean.TRUE.equals(toolBox.getIsPublic())
-                && !Objects.equals(toolBox.getUserId(), String.valueOf(bizConfig.getAdminUid()))
-                && !Objects.equals(toolBox.getUserId(), uid))) {
-            param.remove("pluginId");
-            param.remove("uid");
-            data.setInputs(Collections.emptyList());
-            data.setOutputs(Collections.emptyList());
+    private void cleanPluginNode(BizWorkflowNode node, String uid, WorkflowImportReport importReport) {
+        BizNodeData data = node.getData();
+        JSONObject param = data.getNodeParam();
+        JSONObject portablePlugin = readPortablePluginMetadata(param);
+        PluginResolution resolution = resolvePlugin(param, portablePlugin, uid);
+        param.remove(PORTABLE_PLUGIN_KEY);
+
+        if (resolution.toolBox() != null) {
+            applyPluginBinding(param, data, resolution.toolBox(), uid);
+            if (resolution.remapped()) {
+                importReport.pluginMapped();
+            }
+            return;
         }
+
+        String pluginName = portablePlugin == null
+                ? data.getPluginName()
+                : portablePlugin.getString(PORTABLE_PLUGIN_NAME_KEY);
+        clearPluginBinding(param, data);
+        importReport.pluginUnresolved(node.getId(), data.getLabel(), pluginName, resolution.reason());
+    }
+
+    private JSONObject readPortablePluginMetadata(JSONObject param) {
+        Object rawMetadata = param.get(PORTABLE_PLUGIN_KEY);
+        if (rawMetadata instanceof JSONObject metadata) {
+            return metadata;
+        }
+        if (rawMetadata instanceof Map<?, ?> map) {
+            JSONObject metadata = new JSONObject();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (entry.getKey() instanceof String key) {
+                    metadata.put(key, entry.getValue());
+                }
+            }
+            return metadata;
+        }
+        return null;
     }
 
     /**
