@@ -400,25 +400,37 @@ class Span:
                 attributes["langfuse.observation.output"] = (
                     await self._serialize_gen_ai_payload(output_payload)
                 )
-            if usage:
-                try:
-                    prompt = int(usage.get("prompt_tokens") or 0)
-                    completion = int(usage.get("completion_tokens") or 0)
-                    total = int(usage.get("total_tokens") or 0) or (prompt + completion)
-                    if total:
-                        attributes["gen_ai.usage.input_tokens"] = prompt
-                        attributes["gen_ai.usage.output_tokens"] = completion
-                        attributes["gen_ai.usage.total_tokens"] = total
-                except Exception as e:
-                    logger.warning(
-                        f"sid: {self.sid}, invalid gen_ai usage values: {e}"
-                    )
+            attributes.update(self._build_gen_ai_usage_attributes(usage))
             if attributes:
                 self.get_otlp_span().set_attributes(attributes)
         except Exception as e:
             logger.warning(
                 f"sid: {self.sid}, failed to set gen_ai span attributes: {e}"
             )
+
+    def _build_gen_ai_usage_attributes(self, usage: Optional[dict]) -> Dict[str, Any]:
+        """
+        Convert a provider token-usage dict into gen_ai.usage.* attributes.
+
+        :param usage: Token usage dict with prompt_tokens/completion_tokens/total_tokens
+        :return: Attribute mapping, empty when usage is absent or unusable
+        """
+        if not usage:
+            return {}
+        try:
+            prompt = int(usage.get("prompt_tokens") or 0)
+            completion = int(usage.get("completion_tokens") or 0)
+            total = int(usage.get("total_tokens") or 0) or (prompt + completion)
+        except Exception as e:
+            logger.warning(f"sid: {self.sid}, invalid gen_ai usage values: {e}")
+            return {}
+        if not total:
+            return {}
+        return {
+            "gen_ai.usage.input_tokens": prompt,
+            "gen_ai.usage.output_tokens": completion,
+            "gen_ai.usage.total_tokens": total,
+        }
 
     async def _serialize_gen_ai_payload(self, payload: Any) -> str:
         """

@@ -70,7 +70,10 @@ async def run_recv_messages(extra_params: dict) -> AsyncMock:
 
 
 @pytest.mark.asyncio
-async def test_recv_messages_defaults_include_usage() -> None:
+async def test_recv_messages_requests_usage_when_langfuse_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_OTEL_ENABLE", "1")
     extra_params: dict = {"temperature": 0.5}
     create_mock = await run_recv_messages(extra_params)
 
@@ -80,7 +83,21 @@ async def test_recv_messages_defaults_include_usage() -> None:
 
 
 @pytest.mark.asyncio
-async def test_recv_messages_respects_caller_stream_options() -> None:
+async def test_recv_messages_leaves_request_untouched_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Providers that reject stream_options must stay unaffected by default."""
+    monkeypatch.delenv("LANGFUSE_OTEL_ENABLE", raising=False)
+    create_mock = await run_recv_messages({"temperature": 0.5})
+
+    assert "stream_options" not in create_mock.call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_recv_messages_respects_caller_stream_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_OTEL_ENABLE", "1")
     caller_options = {"include_usage": False}
     create_mock = await run_recv_messages({"stream_options": caller_options})
 

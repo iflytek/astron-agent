@@ -7,6 +7,7 @@ chat completion API, including streaming support and error handling.
 
 import asyncio
 import json
+import os
 from typing import Any, AsyncIterator, Dict, Tuple
 
 from workflow.consts.engine.chat_status import ChatStatus
@@ -118,10 +119,7 @@ class OpenAIChatAI(ChatAI):
             api_key=self.api_key,
             base_url=url,
         )
-        # Ask OpenAI-compatible endpoints to attach token usage to the final
-        # stream chunk; most providers send usage=null on every chunk otherwise.
-        if "stream_options" not in extra_params:
-            extra_params = {**extra_params, "stream_options": {"include_usage": True}}
+        extra_params = self._with_usage_stream_options(extra_params)
 
         stream = None
         try:
@@ -171,14 +169,9 @@ class OpenAIChatAI(ChatAI):
                     start_time = asyncio.get_event_loop().time()
                 chunk = await self._next_stream_chunk(stream, timeout)
 
-                # Track first frame timing for performance monitoring
                 if is_first_frame:
                     is_first_frame = False
-                    if start_time is not None:
-                        first_frame_cost = asyncio.get_event_loop().time() - start_time
-                        await span.add_info_events_async(
-                            {"llm first token cost": first_frame_cost}
-                        )
+                    await self._log_first_frame_cost(start_time, span)
 
                 # Log received chunk data
                 await span.add_info_events_async(
@@ -207,26 +200,12 @@ class OpenAIChatAI(ChatAI):
                 )
 
             except StopAsyncIteration:
-                # Stream ended, mark as finished and yield final response
-                if pending_finish_frame is not None:
-                    yield LLMResponse(
-                        msg={
-                            **pending_finish_frame,
-                            "usage": latest_usage
-                            or pending_finish_frame.get("usage"),
-                        },
-                    )
-                    break
-
-                final_frame_data = self._build_final_stream_frame(
-                    last_frame_data, latest_usage
+                # Stream ended, emit the final frame with merged usage totals
+                closing_frame = self._build_closing_frame(
+                    pending_finish_frame, last_frame_data, latest_usage
                 )
-                if final_frame_data is None:
-                    break
-
-                yield LLMResponse(
-                    msg=final_frame_data,
-                )
+                if closing_frame is not None:
+                    yield LLMResponse(msg=closing_frame)
                 break
 
             except asyncio.TimeoutError as e:
@@ -236,6 +215,60 @@ class OpenAIChatAI(ChatAI):
                     err_msg=f"LLM response timeout ({timeout}s)",
                     cause_error=f"LLM response timeout ({timeout}s)",
                 ) from e
+
+    @staticmethod
+    async def _log_first_frame_cost(start_time: float | None, span: Span) -> None:
+        """
+        Record how long the provider took to deliver the first stream frame.
+
+        :param start_time: Loop time captured before the first frame, or None
+            when no timeout was configured
+        :param span: Tracing span for logging
+        """
+        if start_time is None:
+            return
+        first_frame_cost = asyncio.get_event_loop().time() - start_time
+        await span.add_info_events_async({"llm first token cost": first_frame_cost})
+
+    def _build_closing_frame(
+        self,
+        pending_finish_frame: dict[str, Any] | None,
+        last_frame_data: dict[str, Any],
+        latest_usage: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """
+        Build the frame to emit once the provider stream is exhausted.
+
+        :param pending_finish_frame: Held-back finish_reason frame, if any
+        :param last_frame_data: Most recently forwarded frame
+        :param latest_usage: Token usage collected from the stream
+        :return: Frame to yield, or None when there is nothing left to send
+        """
+        if pending_finish_frame is not None:
+            return {
+                **pending_finish_frame,
+                "usage": latest_usage or pending_finish_frame.get("usage"),
+            }
+        return self._build_final_stream_frame(last_frame_data, latest_usage)
+
+    @staticmethod
+    def _with_usage_stream_options(extra_params: dict) -> dict:
+        """
+        Request token usage on the final stream chunk when Langfuse export is on.
+
+        Most OpenAI-compatible providers send usage=null on every chunk unless
+        stream_options.include_usage is set, but some reject the field entirely,
+        so it is only added when Langfuse tracing needs the token counts and the
+        caller has not configured stream_options itself.
+
+        :param extra_params: Additional parameters for the API request
+        :return: Parameters, with stream_options added only when applicable
+        """
+        if os.getenv("LANGFUSE_OTEL_ENABLE", "0") != "1":
+            return extra_params
+        if "stream_options" in extra_params:
+            return extra_params
+        return {**extra_params, "stream_options": {"include_usage": True}}
 
     @staticmethod
     async def _next_stream_chunk(stream: Any, timeout: float | None) -> Any:
