@@ -104,6 +104,7 @@ After startup, you can access the services at the following addresses:
 
 ## 📚 Documentation
 
+- [🔌 Integration Guide](/guide/integration) — call published workflows from an existing project via HTTP/SSE
 - [🚀 Deployment Guide](/DEPLOYMENT_GUIDE)
 - [🔧 Configuration](/CONFIGURATION)
 - [🏢 Case Studies](/cases/)

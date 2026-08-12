@@ -16,6 +16,7 @@ const { lang } = useData();
 const zhContent = {
   nav: {
     quickStart: "快速开始",
+    integration: "集成指南",
     deploy: "部署指南",
     cases: "案例实践",
     config: "配置说明",
@@ -107,6 +108,11 @@ const zhContent = {
   resourcesText: "从首页进入稳定的信息架构，把说明文档和社区入口统一收敛到 Pages 文档站。",
   resourceCards: [
     {
+      title: "集成到现有项目",
+      description: "通过公开 HTTP/SSE API 调用已发布工作流，了解鉴权、请求参数、流式响应与生产边界。",
+      href: "/guide/integration"
+    },
+    {
       title: "快速开始",
       description: "两步完成本地体验，先拉起 Docker Compose 环境再进入控制台。",
       href: "/guide/quick-start"
@@ -151,6 +157,7 @@ const zhContent = {
 const enContent = {
   nav: {
     quickStart: "Quick Start",
+    integration: "Integration",
     deploy: "Deployment",
     cases: "Case Studies",
     config: "Configuration",
@@ -245,6 +252,11 @@ const enContent = {
     "Move from the landing page into a stable information architecture that keeps documentation and community entry points in one place.",
   resourceCards: [
     {
+      title: "Integrate Into Your App",
+      description: "Call published workflows through the public HTTP/SSE API, with authentication, payload, streaming, and production guidance.",
+      href: "/guide/integration"
+    },
+    {
       title: "Quick Start",
       description: "Get a local experience running in two steps before diving deeper into the platform.",
       href: "/guide/quick-start"
@@ -329,6 +341,7 @@ onBeforeUnmount(() => {
         </a>
         <div class="astron-home__nav-links">
           <a :href="localizePath('/guide/quick-start')">{{ content.nav.quickStart }}</a>
+          <a :href="localizePath('/guide/integration')">{{ content.nav.integration }}</a>
           <a :href="localizePath('/guide/deploy')">{{ content.nav.deploy }}</a>
           <a :href="localizePath('/cases/')">{{ content.nav.cases }}</a>
           <a :href="localizePath('/guide/config')">{{ content.nav.config }}</a>
@@ -349,7 +362,7 @@ onBeforeUnmount(() => {
             {{ content.heroText }}
           </p>
           <div class="astron-home__actions">
-            <a class="astron-home__button astron-home__button--primary" href="https://github.com/iflytek/astron-agent" target="_blank" rel="noreferrer">{{ content.primaryAction }}</a>
+            <a class="astron-home__button astron-home__button--primary" :href="localizePath('/guide/integration')">{{ content.nav.integration }}</a>
             <a class="astron-home__button astron-home__button--secondary" href="https://agent.xfyun.cn" target="_blank" rel="noreferrer">{{ content.secondaryAction }}</a>
           </div>
           <ul class="astron-home__metrics">

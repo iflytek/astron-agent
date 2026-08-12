@@ -1,5 +1,7 @@
 <div align="center">
 
+<!-- osai-verify: 47a03548c83092cc7722 -->
+
 [![Astron Agent Logo](./logo.svg)](https://iflytek.github.io/astron-agent/)
 
 [![Astron_Readme](./docs/imgs/Astron_Readme.png)](https://agent.xfyun.cn)
@@ -128,6 +130,7 @@ After startup, you can access the services at the following addresses:
 
 ## 📚 Documentation
 
+- [🔌 Integration Guide](docs/guide/integration.md) — call published workflows from an existing project via HTTP/SSE
 - [🚀 Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 - [🔧 Configuration](docs/CONFIGURATION.md)
 - [🚀 Quick Start](https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html)

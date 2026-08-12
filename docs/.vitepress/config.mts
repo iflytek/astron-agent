@@ -26,6 +26,7 @@ export default defineConfig({
         nav: [
           { text: "Home", link: "/" },
           { text: "Quick Start", link: "/guide/quick-start" },
+          { text: "Integration", link: "/guide/integration" },
           { text: "Deployment", link: "/guide/deploy" },
           { text: "Case Studies", link: "/cases/" },
           { text: "Examples", link: "/examples" },
@@ -38,6 +39,7 @@ export default defineConfig({
             items: [
               { text: "Project Overview", link: "/README" },
               { text: "Quick Start", link: "/guide/quick-start" },
+              { text: "Integrate Into Your App", link: "/guide/integration" },
               { text: "FAQ", link: "/faq" }
             ]
           },
@@ -113,6 +115,7 @@ export default defineConfig({
         nav: [
           { text: "首页", link: "/zh/" },
           { text: "快速开始", link: "/zh/guide/quick-start" },
+          { text: "集成指南", link: "/zh/guide/integration" },
           { text: "部署与配置", link: "/zh/guide/deploy" },
           { text: "案例实践", link: "/zh/cases/" },
           { text: "工作流示例", link: "/zh/examples" },
@@ -125,6 +128,7 @@ export default defineConfig({
             items: [
               { text: "项目概览", link: "/zh/README" },
               { text: "快速开始", link: "/zh/guide/quick-start" },
+              { text: "集成到现有项目", link: "/zh/guide/integration" },
               { text: "FAQ", link: "/zh/faq" }
             ]
           },
