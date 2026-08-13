@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
-import { message, Upload, Button, UploadFile } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Button, message, Modal, Tag, Upload, UploadFile } from 'antd';
 import { v4 as uuid } from 'uuid';
-import { createPortal } from 'react-dom';
-import { workflowImport } from '@/services/flow';
+import {
+  getWorkflowImportEntryStatus,
+  normalizeWorkflowImportResult,
+  shouldShowWorkflowImportError,
+  summarizeWorkflowImportReport,
+  type NormalizedWorkflowImportResult,
+  type WorkflowImportEntryStatus,
+  type WorkflowImportReport,
+  type WorkflowImportReportEntry,
+  workflowImport,
+} from '@/services/flow';
 import { typeList } from '@/constants';
 import { useNavigate } from 'react-router-dom';
 import i18next from 'i18next';
 
-import close from '@/assets/imgs/workflow/modal-close.png';
 import uploadAct from '@/assets/imgs/knowledge/icon_zhishi_upload_act.png';
 
 const { Dragger } = Upload;
@@ -20,11 +28,6 @@ interface FileUploadEvent {
   onProgress?: (event: { percent: number }, file: File) => void;
 }
 
-// 定义workflowImport响应类型
-interface WorkflowImportResponse {
-  flowId: string;
-}
-
 // 定义自定义上传文件类型，扩展UploadFile
 interface CustomUploadFile extends UploadFile {
   id: string;
@@ -33,6 +36,194 @@ interface CustomUploadFile extends UploadFile {
   progress?: number;
   loaded?: number;
   file?: File;
+}
+
+const getEntries = (
+  report?: WorkflowImportReport
+): WorkflowImportReportEntry[] =>
+  Array.isArray(report?.entries) ? report.entries : [];
+
+const IMPORT_REASON_KEYS: Record<string, string> = {
+  'database is not visible in target space': 'importReasonDatabaseMissing',
+  'operation or webSchema contract is incompatible':
+    'importReasonContractIncompatible',
+  'multiple visible versions share the source tool id':
+    'importReasonMultipleVersions',
+  'multiple visible tools have the same name': 'importReasonDuplicateName',
+  'same-name tool has an incompatible contract':
+    'importReasonSameNameIncompatible',
+  'tool is missing or not visible in target space': 'importReasonToolMissing',
+  'multiple visible tools have the same identity': 'importReasonMultipleTools',
+  'multiple visible tool rows share the source id and version':
+    'importReasonMultipleVersions',
+  'multiple compatible tools have the same name': 'importReasonDuplicateName',
+  'multiple visible tool rows share the same name, id and version':
+    'importReasonMultipleVersions',
+  'nested workflow is not visible in target space':
+    'importReasonWorkflowMissing',
+  'knowledge base is not visible in target space':
+    'importReasonKnowledgeMissing',
+  'one or more knowledge bases are not visible in target space':
+    'importReasonKnowledgeItemsMissing',
+};
+
+const getLocalizedReason = (reasonCode: unknown, reason: unknown): string => {
+  if (typeof reasonCode === 'string' && reasonCode.trim()) {
+    const key = `importReasonCode_${reasonCode.trim().toUpperCase()}`;
+    const translated = i18next.t(`workflow.promptDebugger.${key}`);
+    if (translated !== `workflow.promptDebugger.${key}`) return translated;
+  }
+  if (typeof reason !== 'string' || !reason.trim()) {
+    return i18next.t('workflow.promptDebugger.importReportNoReason');
+  }
+  const key = IMPORT_REASON_KEYS[reason.trim().toLowerCase()];
+  return key ? i18next.t(`workflow.promptDebugger.${key}`) : reason.trim();
+};
+
+function ImportReportView({
+  report,
+  onOpenCanvas,
+}: {
+  report: WorkflowImportReport;
+  onOpenCanvas: () => void;
+}) {
+  const entries = getEntries(report);
+  const { total, resolved, ambiguous, unresolved, hasProblem } =
+    summarizeWorkflowImportReport(report);
+
+  const statusLabel = (status: WorkflowImportEntryStatus): string => {
+    const key = {
+      resolved: 'importReportMapped',
+      unresolved: 'importReportUnresolved',
+      ambiguous: 'importReportAmbiguous',
+      unknown: 'importReportUnknown',
+    }[status];
+    return i18next.t(`workflow.promptDebugger.${key}`);
+  };
+
+  const statusColor = (status: WorkflowImportEntryStatus): string => {
+    if (status === 'resolved') return 'success';
+    if (status === 'ambiguous') return 'warning';
+    if (status === 'unresolved' || status === 'unknown') return 'error';
+    return 'default';
+  };
+
+  const entryName = (entry: WorkflowImportReportEntry): string =>
+    String(
+      entry.nodeName ??
+        entry.name ??
+        entry.sourceName ??
+        entry.nodeId ??
+        i18next.t('workflow.promptDebugger.importReportUnknownNode')
+    );
+
+  const entryReason = (entry: WorkflowImportReportEntry): string =>
+    getLocalizedReason(
+      entry.reasonCode,
+      entry.reason ?? entry.message ?? entry.detail
+    );
+
+  return (
+    <div className="mt-5">
+      <div className="text-base font-semibold">
+        {i18next.t('workflow.promptDebugger.importReportTitle')}
+      </div>
+      <div className="grid grid-cols-4 gap-2 mt-4 text-center">
+        <div className="rounded-lg bg-[#F6F6F6] px-2 py-2">
+          <div className="text-lg font-semibold">{total}</div>
+          <div className="text-xs text-[#8C8C8C]">
+            {i18next.t('workflow.promptDebugger.importReportTotal')}
+          </div>
+        </div>
+        <div className="rounded-lg bg-[#F0FFF4] px-2 py-2">
+          <div className="text-lg font-semibold text-[#389E0D]">{resolved}</div>
+          <div className="text-xs text-[#8C8C8C]">
+            {i18next.t('workflow.promptDebugger.importReportMapped')}
+          </div>
+        </div>
+        <div className="rounded-lg bg-[#FFF7E6] px-2 py-2">
+          <div className="text-lg font-semibold text-[#D46B08]">
+            {ambiguous}
+          </div>
+          <div className="text-xs text-[#8C8C8C]">
+            {i18next.t('workflow.promptDebugger.importReportAmbiguous')}
+          </div>
+        </div>
+        <div className="rounded-lg bg-[#FFF1F0] px-2 py-2">
+          <div className="text-lg font-semibold text-[#CF1322]">
+            {unresolved}
+          </div>
+          <div className="text-xs text-[#8C8C8C]">
+            {i18next.t('workflow.promptDebugger.importReportUnresolved')}
+          </div>
+        </div>
+      </div>
+
+      {hasProblem && (
+        <Alert
+          className="mt-4"
+          type="warning"
+          showIcon
+          message={i18next.t('workflow.promptDebugger.importReportWarning')}
+          description={i18next.t(
+            'workflow.promptDebugger.importReportWarningDescription'
+          )}
+        />
+      )}
+
+      {!hasProblem && (
+        <Alert
+          className="mt-4"
+          type="success"
+          showIcon
+          message={i18next.t('workflow.promptDebugger.importReportSuccess')}
+          description={i18next.t(
+            'workflow.promptDebugger.importReportSuccessDescription'
+          )}
+        />
+      )}
+
+      {entries.length > 0 && (
+        <div className="mt-3 max-h-[220px] overflow-y-auto rounded-lg border border-[#F0F0F0]">
+          {entries.map((entry, index) => {
+            const status = getWorkflowImportEntryStatus(entry);
+            return (
+              <div
+                key={`${String(entry.nodeId ?? index)}-${index}`}
+                className="border-b border-[#F5F5F5] px-3 py-2 last:border-b-0"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div
+                    className="min-w-0 flex-1 truncate"
+                    title={entryName(entry)}
+                  >
+                    {entryName(entry)}
+                    {entry.nodeType ? (
+                      <span className="ml-2 text-xs text-[#8C8C8C]">
+                        ({entry.nodeType})
+                      </span>
+                    ) : null}
+                  </div>
+                  <Tag color={statusColor(status)}>{statusLabel(status)}</Tag>
+                </div>
+                {status !== 'resolved' && (
+                  <div className="mt-1 text-xs text-[#8C8C8C]">
+                    {entryReason(entry)}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="mt-5 flex justify-end gap-3">
+        <Button onClick={() => onOpenCanvas()} type="primary">
+          {i18next.t('workflow.promptDebugger.importReportOpenCanvas')}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function WorkflowImportModal({
@@ -44,6 +235,44 @@ function WorkflowImportModal({
   // 使用自定义类型替代原始UploadFile类型
   const [uploadList, setUploadList] = useState<CustomUploadFile[]>([]);
   const [loading, setLoading] = useState(false);
+  const [importResult, setImportResult] =
+    useState<NormalizedWorkflowImportResult | null>(null);
+  const mountedRef = useRef(true);
+  const requestInFlightRef = useRef(false);
+  const requestGenerationRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestInFlightRef.current = false;
+      requestGenerationRef.current += 1;
+    };
+  }, []);
+
+  const closeModal = () => {
+    if (requestInFlightRef.current) return;
+    setImportResult(null);
+    setWorkflowImportModalVisible(false);
+  };
+
+  const openImportedCanvas = (
+    result = importResult,
+    requestGeneration?: number
+  ) => {
+    if (
+      !mountedRef.current ||
+      !result?.flowId ||
+      (requestGeneration !== undefined &&
+        requestGeneration !== requestGenerationRef.current)
+    )
+      return;
+    // Successful completion is not a user cancellation, so it must be able
+    // to close the modal even while the request's `finally` is still pending.
+    setImportResult(null);
+    setWorkflowImportModalVisible(false);
+    navigate(`/work_flow/${encodeURIComponent(result.flowId)}/arrange`);
+  };
 
   function beforeUpload(file: UploadFile) {
     const maxSize = 20 * 1024 * 1024;
@@ -106,110 +335,159 @@ function WorkflowImportModal({
   };
 
   const handleOk = () => {
+    const file = uploadList[0]?.file;
+    if (!file || requestInFlightRef.current) return;
+    const requestGeneration = ++requestGenerationRef.current;
+    requestInFlightRef.current = true;
     setLoading(true);
     workflowImport({
-      file: uploadList[0]?.file,
+      file,
     })
       .then((value: unknown) => {
-        const res = value as WorkflowImportResponse;
-        setWorkflowImportModalVisible(false);
-        navigate(`/work_flow/${res.flowId}/arrange`);
+        if (
+          !mountedRef.current ||
+          requestGeneration !== requestGenerationRef.current
+        )
+          return;
+        const result = normalizeWorkflowImportResult(value);
+        if (!result) {
+          throw new Error(
+            i18next.t('workflow.promptDebugger.importResponseInvalid')
+          );
+        }
+        // Older servers return only a Workflow and preserve the original
+        // behaviour.  A report is shown inline so users can review unresolved
+        // references before opening the canvas.
+        if (result.report) {
+          setImportResult(result);
+          return;
+        }
+        openImportedCanvas(result, requestGeneration);
       })
-      .catch((err: { message?: string }) => {
-        message.error(err?.message ?? '导入失败');
+      .catch((error: unknown) => {
+        if (
+          !mountedRef.current ||
+          requestGeneration !== requestGenerationRef.current
+        )
+          return;
+        if (!shouldShowWorkflowImportError(error)) return;
+        const errorMessage =
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof error.message === 'string'
+            ? error.message.trim()
+            : '';
+        message.error(
+          errorMessage || i18next.t('workflow.promptDebugger.importFailed')
+        );
       })
       .finally(() => {
-        setLoading(false);
+        if (requestGeneration === requestGenerationRef.current) {
+          requestInFlightRef.current = false;
+        }
+        if (
+          mountedRef.current &&
+          requestGeneration === requestGenerationRef.current
+        ) {
+          setLoading(false);
+        }
       });
   };
 
   return (
-    <>
-      {createPortal(
-        <div
-          className="mask"
-          style={{
-            zIndex: 1201,
-          }}
-        >
-          <div className="modal-container w-[480px]">
-            <div className="w-full flex items-center justify-between">
-              <div className="text-base font-semibold">
-                {i18next.t('workflow.promptDebugger.importWorkflow')}
+    <Modal
+      open
+      centered
+      zIndex={1201}
+      width={importResult?.report ? 560 : 480}
+      title={i18next.t('workflow.promptDebugger.importWorkflow')}
+      footer={null}
+      // Keep ESC handling enabled so rc-dialog consumes the event. During an
+      // import, closeModal's synchronous ref guard rejects the cancellation
+      // without allowing ESC to reach an ancestor modal.
+      keyboard
+      maskClosable={false}
+      closable={!loading}
+      onCancel={closeModal}
+      destroyOnClose
+    >
+      {importResult?.report ? (
+        <ImportReportView
+          report={importResult.report}
+          onOpenCanvas={openImportedCanvas}
+        />
+      ) : (
+        <>
+          <div className="mt-6">
+            <Dragger
+              {...uploadProps}
+              disabled={loading}
+              className="icon-upload"
+            >
+              <img src={uploadAct} className="w-8 h-8" alt="" />
+              <div className="font-medium mt-6">
+                {i18next.t('workflow.promptDebugger.dragFileHereOr')}
+                <span className="text-[#6356EA]">
+                  {i18next.t('workflow.promptDebugger.selectFile')}
+                </span>
               </div>
-              <img
-                src={close}
-                className="w-3 h-3 cursor-pointer"
-                alt=""
-                onClick={() => setWorkflowImportModalVisible(false)}
-              />
-            </div>
-            <div className="mt-6">
-              <Dragger {...uploadProps} className="icon-upload">
-                <img src={uploadAct} className="w-8 h-8" alt="" />
-                <div className="font-medium mt-6">
-                  {i18next.t('workflow.promptDebugger.dragFileHereOr')}
-                  <span className="text-[#6356EA]">
-                    {i18next.t('workflow.promptDebugger.selectFile')}
-                  </span>
-                </div>
-                <p className="text-desc mt-2">
-                  {i18next.t('workflow.promptDebugger.fileFormatYmlYaml')}
-                </p>
-              </Dragger>
-            </div>
-            {uploadList?.length > 0 && (
-              <div className="mt-3">
-                {uploadList?.map(item => (
-                  <div
-                    key={item?.id}
-                    className="bg-[#F6F6F6] rounded-lg px-[5px] py-0.5 flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-[22px] overflow-hidden">
-                      <div
-                        className="w-[32px] h-[32px] bg-[#fff] rounded-lg flex items-center justify-center"
-                        style={{
-                          boxShadow: '0px 2px 4px 0px rgba(46,51,68,0.04)',
-                        }}
-                      >
-                        <img
-                          src={typeList.get(item?.type || '')}
-                          className="w-[18px] h-[18px]"
-                          alt=""
-                        />
-                      </div>
-                      <div className="flex-1 text-overflow" title={item?.name}>
-                        {item?.name}
-                      </div>
-                      <div>{item?.total}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex justify-end gap-4 mt-10">
-              <Button
-                type="text"
-                className="origin-btn px-[24px]"
-                onClick={() => setWorkflowImportModalVisible(false)}
-              >
-                {i18next.t('workflow.promptDebugger.cancel')}
-              </Button>
-              <Button
-                loading={loading}
-                type="primary"
-                disabled={uploadList.length === 0}
-                className="px-[24px]"
-                onClick={handleOk}
-              >
-                {i18next.t('common.save')}
-              </Button>
-            </div>
+              <p className="text-desc mt-2">
+                {i18next.t('workflow.promptDebugger.fileFormatYmlYaml')}
+              </p>
+            </Dragger>
           </div>
-        </div>,
-        document.body
+          {uploadList?.length > 0 && (
+            <div className="mt-3">
+              {uploadList?.map(item => (
+                <div
+                  key={item?.id}
+                  className="bg-[#F6F6F6] rounded-lg px-[5px] py-0.5 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-[22px] overflow-hidden">
+                    <div
+                      className="w-[32px] h-[32px] bg-[#fff] rounded-lg flex items-center justify-center"
+                      style={{
+                        boxShadow: '0px 2px 4px 0px rgba(46,51,68,0.04)',
+                      }}
+                    >
+                      <img
+                        src={typeList.get(item?.type || '')}
+                        className="w-[18px] h-[18px]"
+                        alt=""
+                      />
+                    </div>
+                    <div className="flex-1 text-overflow" title={item?.name}>
+                      {item?.name}
+                    </div>
+                    <div>{item?.total}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex justify-end gap-4 mt-10">
+            <Button
+              type="text"
+              className="origin-btn px-[24px]"
+              onClick={closeModal}
+              disabled={loading}
+            >
+              {i18next.t('workflow.promptDebugger.cancel')}
+            </Button>
+            <Button
+              loading={loading}
+              type="primary"
+              disabled={uploadList.length === 0}
+              className="px-[24px]"
+              onClick={handleOk}
+            >
+              {i18next.t('common.save')}
+            </Button>
+          </div>
+        </>
       )}
-    </>
+    </Modal>
   );
 }
 

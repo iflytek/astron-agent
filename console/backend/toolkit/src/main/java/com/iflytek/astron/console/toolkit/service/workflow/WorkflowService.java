@@ -59,11 +59,14 @@ import com.iflytek.astron.console.toolkit.entity.dto.*;
 import com.iflytek.astron.console.toolkit.entity.dto.eval.NodeSimpleDto;
 import com.iflytek.astron.console.toolkit.entity.dto.eval.WorkflowComparisonSaveReq;
 import com.iflytek.astron.console.toolkit.entity.dto.talkagent.TalkAgentConfigDto;
+import com.iflytek.astron.console.toolkit.entity.enumVo.ToolboxStatusEnum;
 import com.iflytek.astron.console.toolkit.entity.table.ConfigInfo;
+import com.iflytek.astron.console.toolkit.entity.table.database.DbInfo;
 import com.iflytek.astron.console.toolkit.entity.table.database.DbTable;
 import com.iflytek.astron.console.toolkit.entity.table.eval.EvalSet;
 import com.iflytek.astron.console.toolkit.entity.table.eval.EvalSetVer;
 import com.iflytek.astron.console.toolkit.entity.table.eval.EvalSetVerData;
+import com.iflytek.astron.console.toolkit.entity.table.group.GroupVisibility;
 import com.iflytek.astron.console.toolkit.entity.table.model.Model;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowDbRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowRepoRel;
@@ -78,10 +81,12 @@ import com.iflytek.astron.console.toolkit.entity.vo.*;
 import com.iflytek.astron.console.toolkit.entity.vo.eval.EvalSetVerDataVo;
 import com.iflytek.astron.console.toolkit.handler.*;
 import com.iflytek.astron.console.toolkit.mapper.ConfigInfoMapper;
+import com.iflytek.astron.console.toolkit.mapper.database.DbInfoMapper;
 import com.iflytek.astron.console.toolkit.mapper.database.DbTableMapper;
 import com.iflytek.astron.console.toolkit.mapper.eval.EvalSetMapper;
 import com.iflytek.astron.console.toolkit.mapper.eval.EvalSetVerDataMapper;
 import com.iflytek.astron.console.toolkit.mapper.eval.EvalSetVerMapper;
+import com.iflytek.astron.console.toolkit.mapper.group.GroupVisibilityMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowDbRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowRepoRelMapper;
 import com.iflytek.astron.console.toolkit.mapper.relation.FlowToolRelMapper;
@@ -95,6 +100,7 @@ import com.iflytek.astron.console.toolkit.service.extra.AppService;
 import com.iflytek.astron.console.toolkit.service.extra.CoreSystemService;
 import com.iflytek.astron.console.toolkit.service.extra.OpenPlatformService;
 import com.iflytek.astron.console.toolkit.service.model.ModelService;
+import com.iflytek.astron.console.toolkit.service.repo.RepoService;
 import com.iflytek.astron.console.toolkit.service.skill.SkillEnrichmentService;
 import com.iflytek.astron.console.toolkit.service.skill.SkillSandboxConfigService;
 import com.iflytek.astron.console.toolkit.sse.WorkflowSseEventSourceListener;
@@ -251,6 +257,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     FileInfoV2Mapper fileInfoV2Mapper;
     @Resource
     RepoMapper repoMapper;
+    @Resource
+    RepoService repoService;
+    @Resource
+    GroupVisibilityMapper groupVisibilityMapper;
     @Autowired
     private UserLangChainInfoMapper userLangChainInfoDao;
     @Autowired
@@ -269,6 +279,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     private WorkflowVersionMapper workflowVersionMapper;
     @Autowired
     private FlowDbRelMapper flowDbRelMapper;
+    @Autowired
+    private DbInfoMapper dbInfoMapper;
     @Autowired
     private DbTableMapper dbTableMapper;
     @Autowired
@@ -1325,6 +1337,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
      * @throws InterruptedException If interrupted during execution
      */
     public ApiResult<Void> build(WorkflowReq buildDto) throws InterruptedException {
+        ensureNoUnresolvedImportDependencies(buildDto.getData());
         buildDto.setSpaceId(SpaceInfoUtil.getSpaceId());
 
         // 1) Local update (including SSRF validation, binding relationship sync)
@@ -1400,7 +1413,14 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
      * @return Debug result
      */
     public ApiResult<Object> nodeDebug(String nodeId, WorkflowDebugDto debugDto) {
+        // The submitted payload contains only the node being debugged and is fully client
+        // controlled. Authorize the workflow and validate the complete persisted draft first so
+        // callers cannot omit an unresolved imported node or strip its marker to reach core.
+        Assert.notNull(debugDto);
+        Assert.notEmpty(debugDto.getFlowId());
+        loadWorkflowForDebugExecution(debugDto.getFlowId());
         BizWorkflowData bizWorkflowData = debugDto.getData();
+        ensureNoUnresolvedImportDependencies(bizWorkflowData);
         BizWorkflowNode node = bizWorkflowData.getNodes().get(0);
         String prefix = node.getId().split("::")[0];
         String type = node.getType();
@@ -1500,14 +1520,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
         String flowId = workflow.getFlowId();
         if (flowId != null) {
-            String url = apiUrl.getWorkflow().concat(PROTOCOL_DELETE_PATH);
-            String body = new JSONObject()
-                    .fluentPut("app_id", workflow.getAppId())
-                    .fluentPut("flow_id", flowId)
-                    .toString();
-            log.info("call workflow delete request url = {}, body = {}", url, body);
-            String response = OkHttpUtil.post(url, body);
-            log.info("call workflow delete response = {}", response);
+            deleteProtocol(workflow.getAppId(), flowId);
         }
 
         // Clear relationships
@@ -1731,6 +1744,38 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         JSONObject jsonObject = JSON.parseObject(String.valueOf(result.getData()));
         String flowId = jsonObject.getString("flow_id");
         return ApiResult.success(flowId);
+    }
+
+    /**
+     * Call core "delete protocol" and fail when core does not confirm the deletion.
+     *
+     * <p>
+     * This method is intentionally exposed on the service so callers coordinating local transactions
+     * with the remote core resource can apply compensating deletion and test that boundary without
+     * mocking static HTTP utilities.
+     * </p>
+     *
+     * @param appId application ID owning the protocol
+     * @param flowId core workflow protocol ID
+     */
+    public void deleteProtocol(String appId, String flowId) {
+        String url = apiUrl.getWorkflow().concat(PROTOCOL_DELETE_PATH);
+        String body = new JSONObject()
+                .fluentPut("app_id", appId)
+                .fluentPut("flow_id", flowId)
+                .toString();
+        log.info("workflow protocol delete, url = {}, body = {}", url, body);
+
+        String response = OkHttpUtil.post(url, body);
+        log.info("workflow protocol delete, response = {}", response);
+
+        Result<?> result = JSON.parseObject(response, Result.class);
+        if (result == null || result.getCode() == null || result.getCode() != 0) {
+            String message = result == null || StringUtils.isBlank(result.getMessage())
+                    ? "Core workflow protocol deletion failed"
+                    : result.getMessage();
+            throw new BusinessException(ResponseEnum.RESPONSE_FAILED, message);
+        }
     }
 
     /**
@@ -2193,6 +2238,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     public FlowProtocol buildWorkflowData(WorkflowReq saveDto, String flowId) {
         FlowProtocol protocol = null;
         BizWorkflowData bizWorkflowData = saveDto.getData();
+        ensureNoUnresolvedImportDependencies(bizWorkflowData);
         // Fill app elements
         String appId;
         String apiKey;
@@ -2247,6 +2293,547 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             protocol.setData(protocolData);
         }
         return protocol;
+    }
+
+    /** Imported drafts remain editable, but unresolved external dependencies must never execute. */
+    void ensureNoUnresolvedImportDependencies(BizWorkflowData workflowData) {
+        if (workflowData == null || workflowData.getNodes() == null) {
+            return;
+        }
+        String uid = UserInfoManagerHandler.getUserId();
+        ExecutionScope scope = loadExecutionScope(uid);
+        ImportDependencyResources resources = loadImportDependencyResources(workflowData, scope);
+        boolean unresolved = workflowData.getNodes()
+                .stream()
+                .anyMatch(node -> hasActiveImportIssue(node, resources)
+                        || hasInvalidPluginBinding(node, resources)
+                        || hasInvalidResourceBinding(node, resources));
+        if (unresolved) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED);
+        }
+    }
+
+    /** Load every bound external resource in bounded authoritative batch queries. */
+    private ImportDependencyResources loadImportDependencyResources(
+            BizWorkflowData workflowData, ExecutionScope scope) {
+        Map<String, List<ToolBox>> executableTools = loadExecutableTools(workflowData);
+        Set<Long> databaseIds = new LinkedHashSet<>();
+        Set<String> workflowIds = new LinkedHashSet<>();
+        Set<String> repositoryIds = new LinkedHashSet<>();
+        for (BizWorkflowNode node : workflowData.getNodes()) {
+            collectBoundResourceIds(node, databaseIds, workflowIds, repositoryIds);
+        }
+        return new ImportDependencyResources(
+                executableTools,
+                loadExecutableDatabaseIds(databaseIds, scope),
+                loadExecutableWorkflowIds(workflowIds, scope),
+                loadExecutableRepositoryIds(repositoryIds, scope),
+                scope);
+    }
+
+    private void collectBoundResourceIds(BizWorkflowNode node, Set<Long> databaseIds,
+            Set<String> workflowIds, Set<String> repositoryIds) {
+        if (node == null || node.getData() == null || node.getData().getNodeParam() == null
+                || node.getId() == null) {
+            return;
+        }
+        JSONObject param = node.getData().getNodeParam();
+        if (node.getId().startsWith(WorkflowConst.NodeType.DATABASE)) {
+            addLongId(databaseIds, param.getString("dbId"));
+        } else if (node.getId().startsWith(WorkflowConst.NodeType.FLOW)) {
+            addStringId(workflowIds, param.getString("flowId"));
+        } else if (node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE)
+                || node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE_PRO)
+                || node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+            collectKnowledgeIds(node, param, repositoryIds);
+        }
+    }
+
+    private void collectKnowledgeIds(BizWorkflowNode node, JSONObject param,
+            Set<String> repositoryIds) {
+        if (node.getId() != null && node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+            JSONObject plugin = param.getJSONObject("plugin");
+            JSONArray knowledge = plugin == null ? null : plugin.getJSONArray("knowledge");
+            for (Object rawKnowledge : knowledge == null ? new JSONArray() : knowledge) {
+                JSONObject item = asJsonObjectOrNull(rawKnowledge);
+                JSONObject match = item == null ? null : item.getJSONObject("match");
+                addStringIds(repositoryIds, match == null ? null : match.getJSONArray("repoIds"));
+            }
+            return;
+        }
+        addStringIds(repositoryIds, param.getJSONArray("repoId"));
+        addStringIds(repositoryIds, param.getJSONArray("repoIds"));
+        JSONArray repoList = param.getJSONArray("repoList");
+        for (Object rawRepo : repoList == null ? new JSONArray() : repoList) {
+            JSONObject repo = asJsonObjectOrNull(rawRepo);
+            if (repo != null) {
+                addStringId(repositoryIds, firstNonBlank(
+                        repo.getString("coreRepoId"), repo.getString("outerRepoId"),
+                        repo.getString("repoId")));
+            }
+        }
+    }
+
+    private void addLongId(Set<Long> values, String value) {
+        if (!StringUtils.isNumeric(value)) {
+            return;
+        }
+        try {
+            values.add(Long.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            // An out-of-range identifier remains unresolved.
+        }
+    }
+
+    private void addStringIds(Set<String> values, JSONArray ids) {
+        if (ids != null) {
+            ids.stream().map(String::valueOf).forEach(value -> addStringId(values, value));
+        }
+    }
+
+    private void addStringId(Set<String> values, String value) {
+        if (StringUtils.isNotBlank(value)) {
+            values.add(value);
+        }
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (StringUtils.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Set<Long> loadExecutableDatabaseIds(Set<Long> databaseIds, ExecutionScope scope) {
+        if (databaseIds.isEmpty() || dbInfoMapper == null) {
+            return Collections.emptySet();
+        }
+        List<DbInfo> databases = dbInfoMapper.selectList(Wrappers.lambdaQuery(DbInfo.class)
+                .in(DbInfo::getDbId, databaseIds)
+                .eq(DbInfo::getDeleted, false));
+        return databases == null ? Collections.emptySet()
+                : databases.stream()
+                        .filter(Objects::nonNull)
+                        .filter(database -> databaseVisibleInCurrentScope(database, scope))
+                        .map(DbInfo::getDbId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
+    }
+
+    private Set<String> loadExecutableWorkflowIds(Set<String> workflowIds, ExecutionScope scope) {
+        if (workflowIds.isEmpty() || workflowMapper == null) {
+            return Collections.emptySet();
+        }
+        List<Workflow> workflows = workflowMapper.selectList(Wrappers.lambdaQuery(Workflow.class)
+                .in(Workflow::getFlowId, workflowIds)
+                .eq(Workflow::getDeleted, false));
+        return workflows == null ? Collections.emptySet()
+                : workflows.stream()
+                        .filter(Objects::nonNull)
+                        .filter(workflow -> workflowVisibleInCurrentScope(workflow, scope))
+                        .map(Workflow::getFlowId)
+                        .filter(StringUtils::isNotBlank)
+                        .collect(Collectors.toSet());
+    }
+
+    private Set<String> loadExecutableRepositoryIds(Set<String> repositoryIds,
+            ExecutionScope scope) {
+        if (repositoryIds.isEmpty() || repoMapper == null) {
+            return Collections.emptySet();
+        }
+        List<Repo> repositories = repoMapper.selectList(Wrappers.lambdaQuery(Repo.class)
+                .and(query -> query.in(Repo::getCoreRepoId, repositoryIds)
+                        .or()
+                        .in(Repo::getOuterRepoId, repositoryIds))
+                .eq(Repo::getDeleted, false));
+        if (repositories == null) {
+            return Collections.emptySet();
+        }
+        Set<String> sharedRepositoryRowIds = loadSharedRepositoryRowIds(scope);
+        Set<String> executableIds = new HashSet<>();
+        repositories.stream()
+                .filter(Objects::nonNull)
+                .filter(repository -> repositoryVisibleInCurrentScope(
+                        repository, scope, sharedRepositoryRowIds))
+                .forEach(repository -> {
+                    addStringId(executableIds, repository.getCoreRepoId());
+                    addStringId(executableIds, repository.getOuterRepoId());
+                });
+        if (scope.spaceId() == null && !executableIds.containsAll(repositoryIds)
+                && repoService != null) {
+            try {
+                JSONArray remoteRepositories = repoService.getStarFireData(
+                        RequestContextUtil.getCurrentRequest());
+                List<RepoDto> remote = RepoService.convertAndMergeJsonArrays(
+                        new ArrayList<>(), remoteRepositories, "", null);
+                remote.stream()
+                        .map(RepoDto::getCoreRepoId)
+                        .filter(repositoryIds::contains)
+                        .forEach(executableIds::add);
+            } catch (RuntimeException e) {
+                log.error("failed to validate remote workflow repository dependencies", e);
+                throw new BusinessException(ResponseEnum.WORKFLOW_IMPORT_FAILED);
+            }
+        }
+        return executableIds;
+    }
+
+    /** Databases have no public/admin fallback: they follow the database selector ownership scope. */
+    private boolean databaseVisibleInCurrentScope(DbInfo database, ExecutionScope scope) {
+        if (scope.spaceId() == null) {
+            return Objects.equals(database.getUid(), scope.uid())
+                    && database.getSpaceId() == null;
+        }
+        return scope.spaceMember() && Objects.equals(database.getSpaceId(), scope.spaceId());
+    }
+
+    /** Nested workflows reuse the existing workflow visibility semantics. */
+    private boolean workflowVisibleInCurrentScope(Workflow workflow, ExecutionScope scope) {
+        if (Boolean.TRUE.equals(workflow.getIsPublic())) {
+            return true;
+        }
+        return scope.spaceId() == null
+                ? Objects.equals(workflow.getUid(), scope.uid())
+                        || Objects.equals(workflow.getUid(), bizConfig.getAdminUid())
+                : Objects.equals(workflow.getSpaceId(), scope.spaceId());
+    }
+
+    /** Repositories additionally accept the same type=1 group shares shown by the selector. */
+    private boolean repositoryVisibleInCurrentScope(Repo repository, ExecutionScope scope,
+            Set<String> sharedRepositoryRowIds) {
+        boolean shared = Integer.valueOf(1).equals(repository.getVisibility())
+                && repository.getId() != null
+                && sharedRepositoryRowIds.contains(String.valueOf(repository.getId()));
+        if (scope.spaceId() == null) {
+            return Objects.equals(repository.getUserId(), scope.uid()) || shared;
+        }
+        return scope.spaceMember()
+                && (Objects.equals(repository.getSpaceId(), scope.spaceId()) || shared);
+    }
+
+    /** Load repository shares once; the mapper applies type=1, visibility and personal/space scope. */
+    private Set<String> loadSharedRepositoryRowIds(ExecutionScope scope) {
+        if (groupVisibilityMapper == null) {
+            return Collections.emptySet();
+        }
+        List<GroupVisibility> visibleRows = groupVisibilityMapper.getRepoVisibilityList(
+                scope.uid(), scope.spaceId());
+        if (visibleRows == null) {
+            return Collections.emptySet();
+        }
+        return visibleRows.stream()
+                .filter(Objects::nonNull)
+                .map(GroupVisibility::getRelationId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toSet());
+    }
+
+    private ExecutionScope loadExecutionScope(String uid) {
+        Long spaceId = SpaceInfoUtil.getSpaceId();
+        boolean spaceMember = spaceId == null
+                || spaceUserService != null && spaceUserService.getRole(spaceId, uid) != null;
+        return new ExecutionScope(uid, spaceId, spaceMember);
+    }
+
+    private record ExecutionScope(String uid, Long spaceId, boolean spaceMember) {}
+
+    private record ImportDependencyResources(Map<String, List<ToolBox>> executableTools,
+            Set<Long> executableDatabaseIds, Set<String> executableWorkflowIds,
+            Set<String> executableRepositoryIds, ExecutionScope scope) {}
+
+    private Map<String, List<ToolBox>> loadExecutableTools(BizWorkflowData workflowData) {
+        Set<String> toolIds = new LinkedHashSet<>();
+        for (BizWorkflowNode node : workflowData.getNodes()) {
+            if (node == null || node.getId() == null || node.getData() == null
+                    || node.getData().getNodeParam() == null) {
+                continue;
+            }
+            JSONObject param = node.getData().getNodeParam();
+            if (node.getId().startsWith(WorkflowConst.NodeType.PLUGIN)) {
+                String toolId = param.getString("pluginId");
+                if (StringUtils.isNotBlank(toolId)) {
+                    toolIds.add(toolId);
+                }
+            } else if (node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+                JSONObject plugin = param.getJSONObject("plugin");
+                JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
+                if (tools != null) {
+                    tools.stream().map(raw -> {
+                        JSONObject runtime = asJsonObjectOrNull(raw);
+                        return runtime == null ? String.valueOf(raw) : runtime.getString("tool_id");
+                    }).filter(StringUtils::isNotBlank).forEach(toolIds::add);
+                }
+            }
+        }
+        if (toolIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<ToolBox> tools = toolBoxMapper.selectList(Wrappers.lambdaQuery(ToolBox.class)
+                .in(ToolBox::getToolId, toolIds)
+                .eq(ToolBox::getDeleted, false)
+                .eq(ToolBox::getStatus, ToolboxStatusEnum.FORMAL.getCode()));
+        if (tools == null) {
+            return Collections.emptyMap();
+        }
+        return tools.stream()
+                .filter(Objects::nonNull)
+                .filter(tool -> StringUtils.isNotBlank(tool.getToolId()))
+                .collect(Collectors.groupingBy(ToolBox::getToolId));
+    }
+
+    private boolean hasInvalidPluginBinding(BizWorkflowNode node,
+            ImportDependencyResources resources) {
+        if (node == null || node.getData() == null || node.getData().getNodeParam() == null
+                || node.getId() == null) {
+            return false;
+        }
+        JSONObject param = node.getData().getNodeParam();
+        if (node.getId().startsWith(WorkflowConst.NodeType.PLUGIN)) {
+            return !isExecutableToolBinding(param.getString("pluginId"),
+                    param.getString("operationId"), param.getString("version"), true, resources);
+        }
+        if (!node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+            return false;
+        }
+        JSONObject plugin = param.getJSONObject("plugin");
+        JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
+        if (CollUtil.isEmpty(tools)) {
+            return false;
+        }
+        return tools.stream().anyMatch(raw -> {
+            JSONObject runtime = asJsonObjectOrNull(raw);
+            String toolId = runtime == null ? String.valueOf(raw) : runtime.getString("tool_id");
+            String version = runtime == null ? null : runtime.getString("version");
+            return !isExecutableToolBinding(toolId, null, version, false, resources);
+        });
+    }
+
+    /**
+     * Resource bindings are authorization checked independently of import metadata. Import markers are
+     * diagnostic state and must never be an execution authorization boundary.
+     */
+    private boolean hasInvalidResourceBinding(BizWorkflowNode node,
+            ImportDependencyResources resources) {
+        if (node == null || node.getId() == null || node.getData() == null
+                || node.getData().getNodeParam() == null) {
+            return false;
+        }
+        JSONObject param = node.getData().getNodeParam();
+        if (node.getId().startsWith(WorkflowConst.NodeType.DATABASE)) {
+            String dbId = param.getString("dbId");
+            if (StringUtils.isBlank(dbId)) {
+                return false;
+            }
+            if (!StringUtils.isNumeric(dbId)) {
+                return true;
+            }
+            try {
+                return !resources.executableDatabaseIds().contains(Long.valueOf(dbId));
+            } catch (NumberFormatException ignored) {
+                return true;
+            }
+        }
+        if (node.getId().startsWith(WorkflowConst.NodeType.FLOW)) {
+            String flowId = param.getString("flowId");
+            return StringUtils.isNotBlank(flowId)
+                    && !resources.executableWorkflowIds().contains(flowId);
+        }
+        if (node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE)
+                || node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE_PRO)
+                || node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+            Set<String> repositoryIds = new LinkedHashSet<>();
+            collectKnowledgeIds(node, param, repositoryIds);
+            return !resources.executableRepositoryIds().containsAll(repositoryIds);
+        }
+        return false;
+    }
+
+    /**
+     * Execution eligibility is evaluated from authoritative database rows. Imported node metadata and
+     * display-only tool lists are intentionally not part of the authorization boundary.
+     */
+    private boolean isExecutableToolBinding(String toolId, String operationId, String version,
+            boolean operationRequired, ImportDependencyResources resources) {
+        if (StringUtils.isBlank(toolId)
+                || operationRequired && StringUtils.isBlank(operationId)) {
+            return false;
+        }
+        List<ToolBox> tools = resources.executableTools()
+                .getOrDefault(toolId, Collections.emptyList());
+        return tools.stream()
+                .filter(tool -> tool != null
+                        && !Boolean.TRUE.equals(tool.getDeleted())
+                        && ToolboxStatusEnum.FORMAL.getCode().equals(tool.getStatus()))
+                .filter(tool -> isToolVisibleForExecution(tool, resources.scope()))
+                .filter(tool -> StringUtils.isBlank(version)
+                        || StringUtils.equalsIgnoreCase(version, tool.getVersion()))
+                .anyMatch(tool -> !operationRequired
+                        || Objects.equals(operationId, tool.getOperationId()));
+    }
+
+    /** Match the existing personal/space and public/admin selector scopes; do not widen to shares. */
+    private boolean isToolVisibleForExecution(ToolBox tool, ExecutionScope scope) {
+        if (tool == null) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(tool.getIsPublic())
+                || Objects.equals(tool.getUserId(), bizConfig.getAdminUid())) {
+            return true;
+        }
+        return scope.spaceId() == null
+                ? Objects.equals(tool.getUserId(), scope.uid()) && tool.getSpaceId() == null
+                : scope.spaceMember() && Objects.equals(tool.getSpaceId(), scope.spaceId());
+    }
+
+    private boolean hasActiveImportIssue(BizWorkflowNode node,
+            ImportDependencyResources resources) {
+        if (node == null || node.getData() == null || node.getData().getNodeMeta() == null) {
+            return false;
+        }
+        JSONObject meta = node.getData().getNodeMeta();
+        JSONArray issues = meta.getJSONArray("importDependencies");
+        if (CollUtil.isEmpty(issues)) {
+            return StringUtils.isNotBlank(meta.getString("importDependencyStatus"));
+        }
+        boolean active = issues.stream()
+                .map(this::asJsonObjectOrNull)
+                .filter(Objects::nonNull)
+                .anyMatch(issue -> !isImportIssueRepaired(node, issue, resources));
+        if (!active) {
+            meta.remove("importDependencies");
+            meta.remove("importDependencyStatus");
+            meta.remove("importDependencyReason");
+        }
+        return active;
+    }
+
+    private JSONObject asJsonObjectOrNull(Object value) {
+        if (value instanceof JSONObject jsonObject) {
+            return jsonObject;
+        }
+        return value instanceof Map<?, ?> map ? new JSONObject(map) : null;
+    }
+
+    private boolean isImportIssueRepaired(BizWorkflowNode node, JSONObject issue,
+            ImportDependencyResources resources) {
+        String dependencyType = issue.getString("dependencyType");
+        BizNodeData data = node.getData();
+        JSONObject param = data.getNodeParam();
+        if ("plugin".equals(dependencyType) && param != null) {
+            if (node.getId() != null && node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+                JSONObject plugin = param.getJSONObject("plugin");
+                JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
+                JSONArray toolsList = plugin == null ? null : plugin.getJSONArray("toolsList");
+                String sourceId = issue.getString("sourcePluginId");
+                String sourceName = issue.getString("sourceName");
+                JSONObject unresolvedDisplay = toolsList == null ? null
+                        : toolsList.stream()
+                                .map(this::asJsonObjectOrNull)
+                                .filter(Objects::nonNull)
+                                .filter(tool -> Objects.equals(sourceId, tool.getString("sourcePluginId"))
+                                        || Objects.equals(sourceId, tool.getString("toolId"))
+                                                && StringUtils.isNotBlank(
+                                                        tool.getString("importDependencyStatus")))
+                                .findFirst()
+                                .orElse(null);
+                if (unresolvedDisplay == null) {
+                    return true;
+                }
+                String currentToolId = unresolvedDisplay.getString("toolId");
+                Map<String, String> runtimeToolVersions = agentRuntimeToolVersions(tools);
+                boolean reboundInPlace = StringUtils.isNotBlank(currentToolId)
+                        && isExecutableAgentRuntimeBinding(currentToolId, runtimeToolVersions,
+                                resources);
+                JSONObject replacementDisplay = toolsList.stream()
+                        .map(this::asJsonObjectOrNull)
+                        .filter(Objects::nonNull)
+                        .filter(tool -> tool != unresolvedDisplay)
+                        .filter(tool -> StringUtils.isBlank(tool.getString("importDependencyStatus")))
+                        .filter(tool -> isExecutableAgentRuntimeBinding(tool.getString("toolId"),
+                                runtimeToolVersions, resources))
+                        .filter(tool -> isAgentToolReplacement(tool, issue, sourceName))
+                        .findFirst()
+                        .orElse(null);
+                boolean rebound = reboundInPlace || replacementDisplay != null;
+                if (rebound) {
+                    if (replacementDisplay == null) {
+                        clearAgentImportMarker(unresolvedDisplay);
+                    } else {
+                        toolsList.remove(unresolvedDisplay);
+                    }
+                }
+                return rebound;
+            }
+            String pluginId = param.getString("pluginId");
+            String operationId = param.getString("operationId");
+            return isExecutableToolBinding(pluginId, operationId, param.getString("version"),
+                    true, resources);
+        }
+        if ("database".equals(dependencyType) && param != null) {
+            String dbId = param.getString("dbId");
+            if (!StringUtils.isNumeric(dbId)) {
+                return false;
+            }
+            try {
+                return resources.executableDatabaseIds().contains(Long.valueOf(dbId));
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        if ("workflow".equals(dependencyType) && param != null) {
+            return resources.executableWorkflowIds().contains(param.getString("flowId"));
+        }
+        if ("knowledge".equals(dependencyType) && param != null) {
+            Set<String> boundRepositoryIds = new LinkedHashSet<>();
+            collectKnowledgeIds(node, param, boundRepositoryIds);
+            return !boundRepositoryIds.isEmpty()
+                    && resources.executableRepositoryIds().containsAll(boundRepositoryIds);
+        }
+        return false;
+    }
+
+    private Map<String, String> agentRuntimeToolVersions(JSONArray tools) {
+        if (tools == null) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> versions = new LinkedHashMap<>();
+        for (Object tool : tools) {
+            JSONObject object = asJsonObjectOrNull(tool);
+            String toolId = object == null ? String.valueOf(tool) : object.getString("tool_id");
+            if (StringUtils.isNotBlank(toolId)) {
+                versions.put(toolId, object == null ? null : object.getString("version"));
+            }
+        }
+        return versions;
+    }
+
+    private boolean isExecutableAgentRuntimeBinding(String toolId,
+            Map<String, String> runtimeToolVersions, ImportDependencyResources resources) {
+        return StringUtils.isNotBlank(toolId)
+                && runtimeToolVersions.containsKey(toolId)
+                && isExecutableToolBinding(toolId, null, runtimeToolVersions.get(toolId),
+                        false, resources);
+    }
+
+    private boolean isAgentToolReplacement(JSONObject tool, JSONObject issue, String sourceName) {
+        JSONArray candidates = issue.getJSONArray("candidatePluginIds");
+        if (candidates != null && candidates.contains(tool.getString("toolId"))) {
+            return true;
+        }
+        String targetName = StringUtils.defaultIfBlank(
+                tool.getString("pluginName"), tool.getString("name"));
+        return StringUtils.isNotBlank(sourceName) && Objects.equals(sourceName, targetName);
+    }
+
+    private void clearAgentImportMarker(JSONObject tool) {
+        tool.remove("importDependencyStatus");
+        tool.remove("importDependencyReason");
+        tool.remove("sourcePluginId");
+        tool.remove("sourceOperationId");
+        tool.remove("sourceVersion");
+        tool.remove("candidatePluginIds");
     }
 
     private void checkAndFixNode(List<BizWorkflowNode> nodes, boolean fixedAppEnv, List<String> configs, String appId,
@@ -3357,8 +3944,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             // return SseEmitterUtil.newSseAndSendMessageClose("Too fast request! Please try again later");
             // }
 
-            Workflow workflow = getOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
-            Assert.notNull(workflow);
+            Workflow workflow = loadWorkflowForDebugExecution(flowId);
             AkSk akSk = appService.remoteCallAkSk(workflow.getAppId());
             Assert.notNull(akSk);
             Assert.notEmpty(akSk.getApiKey());
@@ -3425,8 +4011,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             // return SseEmitterUtil.newSseAndSendMessageClose("Too fast request! Please try again later");
             // }
             String flowId = bizReq.getFlowId();
-            Workflow workflow = getOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
-            Assert.notNull(workflow);
+            Assert.notEmpty(flowId);
+            Workflow workflow = loadWorkflowForDebugExecution(flowId);
             AkSk akSk = appService.remoteCallAkSk(workflow.getAppId());
             Assert.notNull(akSk);
             Assert.notEmpty(akSk.getApiKey());
@@ -3458,6 +4044,28 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             log.error("workflow resume SSE error occurred: {}", e.getMessage(), e);
             return SseEmitterUtil.newSseAndSendMessageClose(new ChatResponse(e.getMessage()));
         }
+    }
+
+    /**
+     * Loads the authoritative local draft before a debug call can reach the core service. Client
+     * request fields and a previously synchronized core protocol are not execution authorization
+     * boundaries.
+     */
+    private Workflow loadWorkflowForDebugExecution(String flowId) {
+        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class)
+                .eq(Workflow::getFlowId, flowId)
+                .eq(Workflow::getDeleted, false));
+        Assert.notNull(workflow);
+        dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
+        if (StringUtils.isBlank(workflow.getData())) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_PROTOCOL_EMPTY);
+        }
+        BizWorkflowData workflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
+        if (workflowData == null || workflowData.getNodes() == null) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_PROTOCOL_EMPTY);
+        }
+        ensureNoUnresolvedImportDependencies(workflowData);
+        return workflow;
     }
 
     /**

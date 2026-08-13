@@ -916,6 +916,65 @@ const translation = {
     pleaseUploadYmlYamlFormat: 'Please upload yml, yaml format files!',
     fileFormatYmlYaml:
       'File format is yml, yaml, file size does not exceed 20M',
+    importFailed: 'Import failed',
+    importResponseInvalid: 'The import result is invalid. Please try again.',
+    importReportTitle: 'Import dependency check',
+    importReportTotal: 'Total dependencies',
+    importReportMapped: 'Matched',
+    importReportAmbiguous: 'Ambiguous',
+    importReportUnresolved: 'Unresolved',
+    importReportUnknown: 'Needs review',
+    importReportWarning: 'Some nodes need attention',
+    importReportWarningDescription:
+      'The workflow was saved as a draft. Complete or rebind unresolved dependencies on the canvas before debugging or publishing.',
+    importReportSuccess: 'Dependency check complete',
+    importReportSuccessDescription:
+      'All dependencies were matched. You can continue configuring the workflow on the canvas.',
+    importReportOpenCanvas: 'Review on canvas',
+    importReportUnknownNode: 'Unknown node',
+    importReportNoReason:
+      'No usable dependency was found in the target environment',
+    importReasonDatabaseMissing:
+      'No usable database was found in the target space',
+    importReasonContractIncompatible:
+      'The plugin operation or parameter schema is incompatible',
+    importReasonMultipleVersions:
+      'The source plugin ID matches multiple available versions',
+    importReasonDuplicateName:
+      'Multiple plugins have the same name in the target space',
+    importReasonSameNameIncompatible:
+      'The same-name plugin has an incompatible parameter schema',
+    importReasonToolMissing:
+      'The plugin was not found or is not accessible in the target space',
+    importReasonMultipleTools:
+      'Multiple plugins have the same identity in the target space',
+    importReasonWorkflowMissing:
+      'No usable nested workflow was found in the target space',
+    importReasonKnowledgeMissing:
+      'No usable knowledge base was found in the target space',
+    importReasonKnowledgeItemsMissing:
+      'One or more knowledge bases are unavailable in the target space',
+    importReasonCode_SOURCE_ID_MATCHED: 'Matched by source plugin ID',
+    importReasonCode_UNIQUE_COMPATIBLE_NAME_MATCHED:
+      'Matched the unique compatible plugin with the same name',
+    importReasonCode_TOOL_MISSING:
+      'The plugin was not found or is not accessible in the target space',
+    importReasonCode_CONTRACT_INCOMPATIBLE:
+      'The plugin operation or parameter schema is incompatible',
+    importReasonCode_SAME_NAME_CONTRACT_INCOMPATIBLE:
+      'The same-name plugin has an incompatible parameter schema',
+    importReasonCode_MULTIPLE_COMPATIBLE_TOOLS:
+      'Multiple compatible plugins have the same name',
+    importReasonCode_MULTIPLE_TOOL_VERSIONS:
+      'Multiple plugin versions cannot be resolved uniquely',
+    importReasonCode_DATABASE_MISSING:
+      'No usable database was found in the target space',
+    importReasonCode_WORKFLOW_MISSING:
+      'No usable nested workflow was found in the target space',
+    importReasonCode_KNOWLEDGE_MISSING:
+      'No usable knowledge base was found in the target space',
+    importReasonCode_KNOWLEDGE_ITEMS_MISSING:
+      'One or more knowledge bases are unavailable in the target space',
     // AddTool component translations
     updateConfig: 'Update Config',
     // FlowOperatorPanel component translations

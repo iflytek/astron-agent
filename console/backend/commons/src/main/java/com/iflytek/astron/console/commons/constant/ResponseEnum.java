@@ -283,6 +283,7 @@ public enum ResponseEnum {
     WORKFLOW_MCP_SERVER_REGISTRY_FAILED(8126, "work.flow.mcp.server.registry.failed"),
     WORKFLOW_SKILL_API_NOT_READY(8127, "workflow.skill.api.not.ready"),
     WORKFLOW_SKILL_NAME_DESC_EMPTY(8128, "workflow.skill.name.desc.empty"),
+    WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED(8129, "workflow.import.dependency.unresolved"),
 
 
     // Plugins 8300 - 8500

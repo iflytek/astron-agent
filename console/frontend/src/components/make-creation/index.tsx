@@ -148,7 +148,9 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
         width="auto"
         footer={false}
         centered
-        onCancel={onCancel}
+        keyboard={!workflowImportModalVisible}
+        maskClosable={!workflowImportModalVisible}
+        onCancel={workflowImportModalVisible ? undefined : onCancel}
         afterClose={() => {
           setActiveTab(null);
           setHoveredIndex(-1);
@@ -231,8 +233,9 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
                 )}
               </div>
 
-              <div
-                className="flex items-center gap-2 w-fit cursor-pointer"
+              <button
+                type="button"
+                className="flex items-center gap-2 w-fit cursor-pointer border-0 bg-transparent p-0"
                 onClick={() => setWorkflowImportModalVisible(true)}
               >
                 <img
@@ -243,7 +246,7 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
                 <span className="text-sm text-[#6356EA]">
                   {t('createAgent1.importWorkflow')}
                 </span>
-              </div>
+              </button>
             </div>
 
             <div className={styles.scroll_bar}>

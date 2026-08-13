@@ -50,13 +50,17 @@ const HeaderFeedbackModal: React.FC<HeaderFeedbackModalProps> = ({
     }
   }, [visible]);
 
+  const childModalVisible =
+    makeModalVisible || AgentCreationModalVisible || virtualModal;
+
   return (
     <Modal
       wrapClassName={styles.open_source_modal}
       width="auto"
       open={visible}
       centered
-      onCancel={handleCancel}
+      keyboard={!childModalVisible}
+      onCancel={childModalVisible ? undefined : handleCancel}
       destroyOnClose
       maskClosable={false}
       footer={null}
