@@ -1446,7 +1446,8 @@ public class WorkflowExportService {
 
     private List<Map<String, Object>> resolveDependencyManifest(
             Map<String, ManifestToolReference> references) {
-        Set<String> toolIds = references.values().stream()
+        Set<String> toolIds = references.values()
+                .stream()
                 .map(ManifestToolReference::toolId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         List<ToolBox> versions = toolBoxService.list(new LambdaQueryWrapper<ToolBox>()
