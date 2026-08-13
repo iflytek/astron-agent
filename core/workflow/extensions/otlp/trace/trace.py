@@ -5,7 +5,12 @@ from typing import Any, Sequence
 
 from loguru import logger
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+    OTLPSpanExporter as GrpcOTLPSpanExporter,
+)
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter as HttpOTLPSpanExporter,
+)
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import ReadableSpan, SpanLimits, TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -14,6 +19,7 @@ from opentelemetry.sdk.trace.export import (
     SpanExportResult,
 )
 from opentelemetry.trace import StatusCode
+from opentelemetry.util.re import parse_env_headers
 
 from workflow.extensions.otlp.util.ip import ip
 
@@ -74,6 +80,48 @@ class FileSpanExporter(SpanExporter):
         return None
 
 
+def _append_trace_path(endpoint: str) -> str:
+    endpoint = endpoint.rstrip("/")
+    if endpoint.endswith("/v1/traces"):
+        return endpoint
+    return f"{endpoint}/v1/traces"
+
+
+def _get_otlp_protocol() -> str:
+    return os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL",
+        os.getenv("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
+    ).strip().lower()
+
+
+def _get_otlp_endpoint(endpoint: str, protocol: str) -> str:
+    trace_endpoint = os.getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+    if trace_endpoint:
+        return trace_endpoint
+
+    otel_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    if otel_endpoint:
+        if protocol == "http/protobuf":
+            return _append_trace_path(otel_endpoint)
+        return otel_endpoint
+
+    return endpoint
+
+
+def _get_otlp_headers(headers: str | None) -> dict | str | None:
+    standard_headers = os.getenv(
+        "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+        os.getenv("OTEL_EXPORTER_OTLP_HEADERS", ""),
+    )
+    if standard_headers:
+        return parse_env_headers(standard_headers)
+
+    if headers:
+        return ",".join([f"{k}={v}" for k, v in json.loads(headers).items()])
+
+    return None
+
+
 def init_trace(
     endpoint: str,
     service_name: str,
@@ -119,11 +167,23 @@ def init_trace(
 
     # Create OTLP exporter for remote trace export
     if os.getenv("OTLP_ENABLE", "0") == "1":
-        if headers:
-            headers = ",".join([f"{k}={v}" for k, v in json.loads(headers).items()])
-        exporter = OTLPSpanExporter(
-            insecure=True, endpoint=endpoint, timeout=timeout, headers=headers
-        )
+        protocol = _get_otlp_protocol()
+        resolved_endpoint = _get_otlp_endpoint(endpoint, protocol)
+        resolved_headers = _get_otlp_headers(headers)
+
+        if protocol == "http/protobuf":
+            exporter = HttpOTLPSpanExporter(
+                endpoint=resolved_endpoint,
+                headers=resolved_headers,
+                timeout=timeout,
+            )
+        else:
+            exporter = GrpcOTLPSpanExporter(
+                insecure=True,
+                endpoint=resolved_endpoint,
+                timeout=timeout,
+                headers=resolved_headers,
+            )
         processor = BatchSpanProcessor(
             exporter,
             max_queue_size=max_queue_size,

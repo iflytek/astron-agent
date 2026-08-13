@@ -68,4 +68,3 @@ def test_init_trace_uses_http_exporter_for_http_protobuf_protocol() -> None:
         timeout=3000,
     )
     grpc_exporter.assert_not_called()
-

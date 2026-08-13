@@ -94,6 +94,9 @@ Configuration items in this document are marked as follows:
 |---------------|-------------------|------|-------------|---------------|
 | OTLP_ENABLE | Required | int | Whether to enable OTLP monitoring (0=disabled, 1=enabled) | 0 |
 | OTLP_ENDPOINT | Required | string | OTLP service endpoint address | 127.0.0.1:4317 |
+| OTEL_EXPORTER_OTLP_PROTOCOL | Use Default | string | Standard OpenTelemetry OTLP exporter protocol. Use `grpc` for the existing exporter or `http/protobuf` for HTTP OTLP backends. | grpc |
+| OTEL_EXPORTER_OTLP_ENDPOINT | Use Default | string | Standard OpenTelemetry OTLP endpoint. When `http/protobuf` is used, `/v1/traces` is appended automatically if absent. | https://cloud.langfuse.com/api/public/otel |
+| OTEL_EXPORTER_OTLP_HEADERS | Use Default | string | Standard OpenTelemetry OTLP headers, URL-encoded when needed. Used for backends that require authentication. | Authorization=Basic%20&lt;token&gt; |
 | OTLP_METRIC_TIMEOUT | Required | int | OTLP metric reporting timeout (milliseconds) | 3000 |
 | OTLP_METRIC_EXPORT_INTERVAL_MILLIS | Required | int | OTLP metric export interval (milliseconds) | 3000 |
 | OTLP_METRIC_EXPORT_TIMEOUT_MILLIS | Required | int | OTLP metric export timeout (milliseconds) | 3000 |
@@ -102,6 +105,15 @@ Configuration items in this document are marked as follows:
 | OTLP_TRACE_SCHEDULE_DELAY_MILLIS | Required | int | OTLP trace schedule delay (milliseconds) | 3000 |
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | Required | int | OTLP trace batch export maximum size | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | Required | int | OTLP trace export timeout (milliseconds) | 3000 |
+
+Example Langfuse OTLP/HTTP configuration:
+
+```bash
+OTLP_ENABLE=1
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_ENDPOINT=https://cloud.langfuse.com/api/public/otel
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64-public-secret-key>
+```
 
 ---
 

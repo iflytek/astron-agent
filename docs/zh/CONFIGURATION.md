@@ -94,6 +94,9 @@
 |--------|----------|------|----------|--------|
 | OTLP_ENABLE | 必填 | int | 是否启用 OTLP 监控(0=禁用, 1=启用) | 0 |
 | OTLP_ENDPOINT | 必填 | string | OTLP 服务端点地址 | 127.0.0.1:4317 |
+| OTEL_EXPORTER_OTLP_PROTOCOL | 使用默认 | string | 标准 OpenTelemetry OTLP 导出协议。`grpc` 保持现有导出方式，`http/protobuf` 用于 HTTP OTLP 后端。 | grpc |
+| OTEL_EXPORTER_OTLP_ENDPOINT | 使用默认 | string | 标准 OpenTelemetry OTLP 端点。使用 `http/protobuf` 时，如果未包含 `/v1/traces` 会自动补齐。 | https://cloud.langfuse.com/api/public/otel |
+| OTEL_EXPORTER_OTLP_HEADERS | 使用默认 | string | 标准 OpenTelemetry OTLP 请求头，需要时进行 URL 编码，用于需要鉴权的后端。 | Authorization=Basic%20&lt;token&gt; |
 | OTLP_METRIC_TIMEOUT | 必填 | int | OTLP 指标上报超时时间(毫秒) | 3000 |
 | OTLP_METRIC_EXPORT_INTERVAL_MILLIS | 必填 | int | OTLP 指标导出间隔(毫秒) | 3000 |
 | OTLP_METRIC_EXPORT_TIMEOUT_MILLIS | 必填 | int | OTLP 指标导出超时(毫秒) | 3000 |
@@ -102,6 +105,15 @@
 | OTLP_TRACE_SCHEDULE_DELAY_MILLIS | 必填 | int | OTLP 追踪调度延迟(毫秒) | 3000 |
 | OTLP_TRACE_MAX_EXPORT_BATCH_SIZE | 必填 | int | OTLP 追踪批量导出最大数量 | 2048 |
 | OTLP_TRACE_EXPORT_TIMEOUT_MILLIS | 必填 | int | OTLP 追踪导出超时(毫秒) | 3000 |
+
+Langfuse OTLP/HTTP 配置示例：
+
+```bash
+OTLP_ENABLE=1
+OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+OTEL_EXPORTER_OTLP_ENDPOINT=https://cloud.langfuse.com/api/public/otel
+OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic%20<base64-public-secret-key>
+```
 
 ---
 

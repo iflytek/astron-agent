@@ -210,6 +210,7 @@ class NodeExecutionTemplate:
         :param span_context: Tracing span context
         :param kwargs: Additional parameters for result handling
         """
+        self._set_observability_attributes(result, span_context)
         if result.status == WorkflowNodeExecutionStatus.CANCELLED:
             await self._handle_cancelled_result(
                 result, span_context, cast(WorkflowLog, kwargs.get("event_log_trace"))
@@ -223,6 +224,82 @@ class NodeExecutionTemplate:
             return
 
         await self._handle_successful_result(result, span_context, **kwargs)
+
+    def _set_observability_attributes(
+        self, result: NodeRunResult, span_context: Span
+    ) -> None:
+        """Attach workflow node semantics to the current trace span."""
+        attributes: Dict[str, Any] = {
+            "workflow.node.id": result.node_id,
+            "workflow.node.name": result.alias_name,
+            "workflow.node.type": result.node_type,
+            "workflow.node.status": result.status.value,
+        }
+
+        question = result.outputs.get("query")
+        if question:
+            attributes["workflow.node.question"] = str(question)
+
+        selected_option = result.outputs.get("content")
+        if selected_option:
+            attributes["workflow.branch.option"] = str(selected_option)
+
+        selected_option_id = result.outputs.get("id")
+        if selected_option_id:
+            attributes["workflow.branch.option_id"] = str(selected_option_id)
+
+        if result.edge_source_handle:
+            attributes["workflow.branch.edge_source_handle"] = result.edge_source_handle
+
+        node_instance = self.node.node_instance
+        model_name = getattr(node_instance, "modelName", None) or getattr(
+            node_instance, "domain", None
+        )
+        if model_name:
+            attributes["gen_ai.request.model"] = str(model_name)
+            attributes["llm.model_name"] = str(model_name)
+
+        for attr_name, otel_key in (
+            ("domain", "llm.model_domain"),
+            ("serviceId", "llm.service_id"),
+            ("source", "llm.provider"),
+            ("url", "llm.endpoint"),
+        ):
+            value = getattr(node_instance, attr_name, None)
+            if value:
+                attributes[otel_key] = str(value)
+
+        if result.token_cost:
+            token_cost = result.token_cost
+            attributes.update(
+                {
+                    "gen_ai.usage.input_tokens": token_cost.prompt_tokens,
+                    "gen_ai.usage.output_tokens": token_cost.completion_tokens,
+                    "gen_ai.usage.total_tokens": token_cost.total_tokens,
+                    "llm.usage.prompt_tokens": token_cost.prompt_tokens,
+                    "llm.usage.completion_tokens": token_cost.completion_tokens,
+                    "llm.usage.total_tokens": token_cost.total_tokens,
+                }
+            )
+
+        span_context.set_attributes(attributes)
+        self._update_observability_span_name(result, span_context, model_name)
+
+    def _update_observability_span_name(
+        self, result: NodeRunResult, span_context: Span, model_name: Any
+    ) -> None:
+        node_type, _, node_uid = result.node_id.partition("::")
+        node_uid = node_uid or result.node_id
+        name_parts = ["run_node", node_type, result.alias_name]
+
+        selected_option = result.outputs.get("content")
+        if selected_option:
+            name_parts.append(str(selected_option))
+        elif model_name:
+            name_parts.append(str(model_name))
+
+        display_name = ":".join(part for part in name_parts if part)
+        span_context.get_otlp_span().update_name(f"{display_name}::{node_uid}")
 
     async def _handle_cancelled_result(
         self, result: NodeRunResult, span_context: Span, event_log_trace: WorkflowLog
