@@ -49,10 +49,8 @@ def is_enabled() -> bool:
         _client_attempted = True
         if not os.getenv(ENV_PUBLIC_KEY) or not os.getenv(ENV_SECRET_KEY):
             logger.warning(
-                "[langfuse] LANGFUSE_ENABLED=true but %s/%s missing; "
-                "tracing disabled.",
-                ENV_PUBLIC_KEY,
-                ENV_SECRET_KEY,
+                "[langfuse] LANGFUSE_ENABLED=true but credentials missing; "
+                "tracing disabled."
             )
             return False
         if not os.getenv(ENV_HOST):
@@ -62,7 +60,7 @@ def is_enabled() -> bool:
     return True
 
 
-def get_client():
+def get_client() -> Optional[Any]:
     """Return the shared Langfuse client (lazy singleton)."""
     global _client
     if _client is None:
@@ -106,7 +104,9 @@ def wrap_openai_client(openai_client: Any) -> Any:
     return openai_client
 
 
-def _safe_observe_start(lf, model_name: str, provider: str, messages: list):
+def _safe_observe_start(
+    lf: Any, model_name: str, provider: str, messages: list
+) -> Optional[Any]:
     """Start a Langfuse generation observation; never raises."""
     try:
         return lf.start_observation(
@@ -121,12 +121,17 @@ def _safe_observe_start(lf, model_name: str, provider: str, messages: list):
         return None
 
 
-def _safe_observe_finish(observation, metadata: dict, level=None, status_message=None):
+def _safe_observe_finish(
+    observation: Optional[Any],
+    metadata: dict,
+    level: Optional[str] = None,
+    status_message: Optional[str] = None,
+) -> None:
     """Finalize an observation (update + end); never raises."""
     if observation is None:
         return
     try:
-        update_kwargs = {"metadata": metadata}
+        update_kwargs: dict[str, Any] = {"metadata": metadata}
         if level is not None:
             update_kwargs["level"] = level
         if status_message is not None:
@@ -151,7 +156,9 @@ async def trace_provider_stream(
     path stays unaffected (graceful degradation).
     """
     lf = get_client() if is_enabled() else None
-    observation = _safe_observe_start(lf, model_name, provider, messages) if lf else None
+    observation = (
+        _safe_observe_start(lf, model_name, provider, messages) if lf else None
+    )
 
     try:
         yield observation

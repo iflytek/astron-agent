@@ -7,6 +7,7 @@ Focus areas (acceptance-relevant):
 """
 
 import asyncio
+from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,7 +20,7 @@ from agent.infra.langfuse_tracing import (
 
 
 @pytest.fixture(autouse=True)
-def clean_env():
+def clean_env() -> Generator[None, None, None]:
     """Ensure LANGFUSE_* env vars are absent during tests."""
     keys = [
         "LANGFUSE_ENABLED",
@@ -45,12 +46,12 @@ def clean_env():
     mod._client_attempted = False
 
 
-def test_disabled_by_default():
+def test_disabled_by_default() -> None:
     """LANGFUSE_ENABLED unset -> tracing disabled."""
     assert is_enabled() is False
 
 
-def test_enabled_requires_credentials():
+def test_enabled_requires_credentials() -> None:
     """Enabled=true but missing credentials -> disabled + warning (no raise)."""
     import os
 
@@ -58,7 +59,7 @@ def test_enabled_requires_credentials():
     assert is_enabled() is False
 
 
-def test_enabled_with_credentials():
+def test_enabled_with_credentials() -> None:
     """Enabled=true with credentials -> enabled."""
     import os
 
@@ -68,7 +69,7 @@ def test_enabled_with_credentials():
     assert is_enabled() is True
 
 
-def test_wrap_returns_original_when_disabled():
+def test_wrap_returns_original_when_disabled() -> None:
     """Disabled -> wrap_openai_client returns the exact same client."""
     original = MagicMock()
     original.api_key = "k"
@@ -78,7 +79,7 @@ def test_wrap_returns_original_when_disabled():
     assert wrap_openai_client(original) is original
 
 
-def test_wrap_falls_back_when_package_missing():
+def test_wrap_falls_back_when_package_missing() -> None:
     """Enabled but langfuse not installed -> returns original client."""
     import os
 
@@ -92,9 +93,7 @@ def test_wrap_falls_back_when_package_missing():
     original.timeout = 300.0
     original.max_retries = 2
 
-    with patch(
-        "agent.infra.langfuse_tracing.is_enabled", return_value=True
-    ), patch(
+    with patch("agent.infra.langfuse_tracing.is_enabled", return_value=True), patch(
         "agent.infra.langfuse_tracing.import_module",
         side_effect=fake_langfuse_import,
     ):
@@ -102,7 +101,7 @@ def test_wrap_falls_back_when_package_missing():
     assert result is original
 
 
-def test_wrap_returns_same_instance_when_enabled():
+def test_wrap_returns_same_instance_when_enabled() -> None:
     """Enabled + package available -> import triggers global instrumentation,
     the client instance itself stays the original (Langfuse v4 patches the
     SDK at import time, not per-client)."""
@@ -114,9 +113,7 @@ def test_wrap_returns_same_instance_when_enabled():
 
     original = MagicMock()
 
-    with patch(
-        "agent.infra.langfuse_tracing.is_enabled", return_value=True
-    ), patch(
+    with patch("agent.infra.langfuse_tracing.is_enabled", return_value=True), patch(
         "agent.infra.langfuse_tracing.import_module",
         return_value=MagicMock(),  # simulate successful langfuse.openai import
     ) as mock_import:
@@ -125,7 +122,7 @@ def test_wrap_returns_same_instance_when_enabled():
     assert result is original
 
 
-def fake_langfuse_import(name, *args, **kwargs):
+def fake_langfuse_import(name: str, *args: object, **kwargs: object) -> object:
     """Import hook that raises ImportError for any langfuse module."""
     import importlib
 
@@ -134,10 +131,10 @@ def fake_langfuse_import(name, *args, **kwargs):
     return importlib.import_module(name)
 
 
-def test_trace_provider_stream_noop_when_disabled():
+def test_trace_provider_stream_noop_when_disabled() -> None:
     """Disabled -> context manager yields None and body still runs."""
 
-    async def body():
+    async def body() -> str:
         async with trace_provider_stream("m", "anthropic", []) as obs:
             assert obs is None
             return "ran"
@@ -145,13 +142,11 @@ def test_trace_provider_stream_noop_when_disabled():
     assert asyncio.run(body()) == "ran"
 
 
-def test_trace_provider_stream_swallows_langfuse_errors():
+def test_trace_provider_stream_swallows_langfuse_errors() -> None:
     """Langfuse raising inside the context manager must not break the call."""
 
-    async def body():
-        with patch(
-            "agent.infra.langfuse_tracing.is_enabled", return_value=True
-        ), patch(
+    async def body() -> str:
+        with patch("agent.infra.langfuse_tracing.is_enabled", return_value=True), patch(
             "agent.infra.langfuse_tracing.get_client",
             return_value=MagicMock(
                 start_observation=MagicMock(side_effect=RuntimeError("boom"))
