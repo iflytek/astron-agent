@@ -6,12 +6,40 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from sqlalchemy.exc import StatementError
 
-from workflow.api.v1.flow.layout import update
+from workflow.api.v1.flow.layout import get_comparison, update
+from workflow.domain.entities.compare_flow import ReadComparisonVo
 from workflow.domain.entities.flow import FlowUpdate
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_get_comparison_returns_only_exact_snapshot_data() -> None:
+    snapshot = MagicMock(data={"data": {"nodes": [], "edges": []}})
+    span_context = MagicMock()
+    span_context.__enter__.return_value = span_context
+    mock_span = Mock(sid="test-sid")
+    mock_span.start.return_value = span_context
+    mock_meter = Mock()
+    session = Mock()
+
+    with (
+        patch("workflow.api.v1.flow.layout.Span", return_value=mock_span),
+        patch("workflow.api.v1.flow.layout.Meter", return_value=mock_meter),
+        patch(
+            "workflow.api.v1.flow.layout.flow_service.get_comparison",
+            return_value=snapshot,
+        ) as lookup,
+    ):
+        response = get_comparison(
+            ReadComparisonVo(flow_id="101", version="cmp-1"), session
+        )
+
+    payload = json.loads(response.body)
+    assert payload["code"] == 0
+    assert payload["data"] == snapshot.data
+    lookup.assert_called_once_with("101", "cmp-1", session, span_context)
 
 
 async def test_update_returns_redacted_parameter_error_for_invalid_protocol() -> None:

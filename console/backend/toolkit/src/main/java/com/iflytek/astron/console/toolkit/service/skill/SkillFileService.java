@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
+import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.commons.util.S3ClientUtil;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillDirectoryUploadResultDto;
@@ -72,6 +73,9 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
 
     @Resource
     private S3ClientUtil s3ClientUtil;
+
+    @Resource
+    private SpaceUserService spaceUserService;
 
     public List<SkillFileTreeNodeDto> listTree(String keyword) {
         List<SkillFile> entries = listScopedEntries();
@@ -332,24 +336,34 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     public List<SkillImportDto> listImportableSkills(String keyword) {
-        List<SkillFile> scopedEntries = listScopedEntries();
+        return listImportableSkills(keyword, currentUid(), currentSpaceId());
+    }
+
+    /**
+     * Lists importable skills for an explicit execution scope. Async publication paths use this
+     * overload because servlet request context is not propagated to approval worker threads.
+     */
+    public List<SkillImportDto> listImportableSkills(String keyword, String uid, Long spaceId) {
+        List<SkillFile> scopedEntries = listScopedEntries(uid, spaceId);
         Map<Long, SkillFile> entryMap = scopedEntries.stream()
                 .collect(Collectors.toMap(SkillFile::getId, item -> item));
         Map<Long, List<SkillFile>> childrenMap = scopedEntries.stream()
                 .collect(Collectors.groupingBy(SkillFile::getParentId));
         List<SkillFile> files = scopedEntries.stream()
                 .filter(item -> ENTRY_TYPE_FILE.equals(item.getEntryType()) && isSkillFile(item.getName()))
-                .filter(item -> StringUtils.isBlank(keyword) || matchesSkillKeyword(item, keyword.trim()))
+                .filter(item -> StringUtils.isBlank(keyword)
+                        || matchesSkillKeyword(item, keyword.trim(), entryMap))
                 .sorted(Comparator.comparing(SkillFile::getUpdateTime, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
                 .toList();
         List<SkillImportDto> result = new ArrayList<>();
         for (SkillFile file : files) {
+            String folderName = parentFolderName(file, entryMap);
             SkillImportDto dto = new SkillImportDto();
             dto.setId(file.getId());
             dto.setParentId(file.getParentId());
             dto.setFileName(file.getName());
-            dto.setFolderName(parentFolderName(file));
-            dto.setName(resolveSkillName(file));
+            dto.setFolderName(folderName);
+            dto.setName(resolveSkillName(file, folderName));
             dto.setDescription(resolveSkillDescription(file));
             dto.setUpdateTime(file.getUpdateTime());
             if (StringUtils.isNotBlank(file.getObjectKey())) {
@@ -362,17 +376,29 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     public List<SkillImportDto> getSkillImportsByIds(Collection<Long> ids) {
+        return getSkillImportsByIds(ids, currentUid(), currentSpaceId());
+    }
+
+    public List<SkillImportDto> getSkillImportsByIds(
+            Collection<Long> ids, String uid, Long spaceId) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }
         Set<Long> selected = ids.stream().filter(Objects::nonNull).collect(Collectors.toSet());
-        return listImportableSkills(null).stream()
+        return listImportableSkills(null, uid, spaceId).stream()
                 .filter(item -> selected.contains(item.getId()))
                 .toList();
     }
 
     private List<SkillFile> listScopedEntries() {
         return list(scopeQuery().orderByAsc(SkillFile::getSortOrder).orderByAsc(SkillFile::getId));
+    }
+
+    private List<SkillFile> listScopedEntries(String uid, Long spaceId) {
+        assertExplicitScope(uid, spaceId);
+        return list(scopeQuery(uid, spaceId)
+                .orderByAsc(SkillFile::getSortOrder)
+                .orderByAsc(SkillFile::getId));
     }
 
     private List<SkillFile> filterTreeEntries(List<SkillFile> entries, String keyword) {
@@ -460,15 +486,32 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
     }
 
     private LambdaQueryWrapper<SkillFile> scopeQuery() {
+        return scopeQuery(currentUid(), currentSpaceId());
+    }
+
+    private LambdaQueryWrapper<SkillFile> scopeQuery(String uid, Long spaceId) {
         LambdaQueryWrapper<SkillFile> wrapper = Wrappers.lambdaQuery(SkillFile.class)
                 .eq(SkillFile::getDeleted, Boolean.FALSE);
-        Long spaceId = currentSpaceId();
         if (spaceId != null) {
             wrapper.eq(SkillFile::getSpaceId, spaceId);
         } else {
-            wrapper.isNull(SkillFile::getSpaceId).eq(SkillFile::getUid, currentUid());
+            if (StringUtils.isBlank(uid)) {
+                throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+            }
+            wrapper.isNull(SkillFile::getSpaceId).eq(SkillFile::getUid, uid);
         }
         return wrapper;
+    }
+
+    private void assertExplicitScope(String uid, Long spaceId) {
+        if (StringUtils.isBlank(uid)) {
+            throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+        }
+        if (spaceId != null
+                && (spaceUserService == null
+                        || spaceUserService.getRole(spaceId, uid) == null)) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
     }
 
     private SkillFile getScopedEntry(Long id) {
@@ -880,11 +923,26 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
                 || StringUtils.containsIgnoreCase(parentFolderName(file), keyword);
     }
 
+    private boolean matchesSkillKeyword(
+            SkillFile file, String keyword, Map<Long, SkillFile> entryMap) {
+        String folderName = parentFolderName(file, entryMap);
+        return StringUtils.containsIgnoreCase(resolveSkillName(file, folderName), keyword)
+                || StringUtils.containsIgnoreCase(resolveSkillDescription(file), keyword)
+                || StringUtils.containsIgnoreCase(folderName, keyword);
+    }
+
     private String resolveSkillName(SkillFile file) {
         if (file == null) {
             return "";
         }
         return StringUtils.defaultIfBlank(file.getSkillName(), parentFolderName(file));
+    }
+
+    private String resolveSkillName(SkillFile file, String folderName) {
+        if (file == null) {
+            return "";
+        }
+        return StringUtils.defaultIfBlank(file.getSkillName(), folderName);
     }
 
     private String resolveSkillDescription(SkillFile file) {
@@ -900,6 +958,14 @@ public class SkillFileService extends ServiceImpl<SkillFileMapper, SkillFile> {
         }
         SkillFile parent = getOne(scopeQuery().eq(SkillFile::getId, file.getParentId()), false);
         return parent == null ? "" : parent.getName();
+    }
+
+    private String parentFolderName(SkillFile file, Map<Long, SkillFile> entryMap) {
+        if (file == null || file.getParentId() == null || file.getParentId() == 0L) {
+            return "";
+        }
+        SkillFile parent = entryMap.get(file.getParentId());
+        return parent == null ? "" : StringUtils.defaultString(parent.getName());
     }
 
     private boolean isDescendant(Long candidateParentId, Long currentFolderId) {

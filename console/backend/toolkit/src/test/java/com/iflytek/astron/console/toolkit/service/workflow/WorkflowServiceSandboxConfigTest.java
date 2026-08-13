@@ -12,8 +12,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -104,5 +106,35 @@ class WorkflowServiceSandboxConfigTest {
                 "flow-1");
 
         assertThat(codeData.getNodeParam().containsKey("sandbox")).isFalse();
+    }
+
+    @Test
+    void injectScriptSandboxUsesExplicitScopeWithoutRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+        SkillSandboxConfigDto config = new SkillSandboxConfigDto();
+        config.setProvider("e2b");
+        config.setEnabled(Boolean.TRUE);
+        config.setApiKey("approval-secret");
+        config.setSpaceId(200L);
+        when(skillSandboxConfigService.toRuntimeDto("approval-user", 200L)).thenReturn(config);
+
+        BizWorkflowNode codeNode = new BizWorkflowNode();
+        codeNode.setId("ifly-code::approval-code");
+        BizNodeData codeData = new BizNodeData();
+        codeData.setNodeParam(new JSONObject());
+        codeNode.setData(codeData);
+
+        ReflectionTestUtils.invokeMethod(
+                workflowService,
+                "injectScriptSandboxIntoCodeNodes",
+                List.of(codeNode),
+                "flow-approval",
+                "approval-user",
+                200L);
+
+        JSONObject sandbox = codeData.getNodeParam().getJSONObject("sandbox");
+        assertThat(sandbox.getString("apiKey")).isEqualTo("approval-secret");
+        assertThat(sandbox.getString("spaceId")).isEqualTo("200");
+        verify(skillSandboxConfigService).toRuntimeDto("approval-user", 200L);
     }
 }

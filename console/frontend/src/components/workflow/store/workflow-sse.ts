@@ -18,6 +18,23 @@ export const throwFatalWorkflowSseError = (error: unknown): never => {
   throw normalizeError(error);
 };
 
+/**
+ * Synchronous controller failures arrive as one SSE frame without a core
+ * workflow step or choices. Treat them as terminal so a normal stream close
+ * cannot overwrite the real business error with "connection interrupted".
+ */
+export const isTerminalWorkflowSseErrorFrame = (
+  data: Record<string, unknown> | null | undefined
+): boolean => {
+  const code = data?.code;
+  return (
+    typeof code === 'number' &&
+    code !== 0 &&
+    data?.workflow_step == null &&
+    (!Array.isArray(data?.choices) || data.choices.length === 0)
+  );
+};
+
 export const createWorkflowSseLifecycle = <TMessage = unknown>({
   isCurrent,
   finalize,

@@ -27,6 +27,14 @@ public class SkillEnrichmentService {
     private final SkillSandboxConfigService skillSandboxConfigService;
 
     public void enrichSkillEntries(JSONArray skillArray) {
+        enrichSkillEntries(skillArray, null, null);
+    }
+
+    /**
+     * Enriches skills for the supplied execution identity. When {@code uid} is absent the legacy
+     * request-scoped behavior is preserved for synchronous callers.
+     */
+    public void enrichSkillEntries(JSONArray skillArray, String uid, Long spaceId) {
         if (skillArray == null || skillArray.isEmpty()) {
             return;
         }
@@ -52,10 +60,15 @@ public class SkillEnrichmentService {
         if (skillIds.isEmpty()) {
             return;
         }
-        Map<Long, SkillImportDto> importMap = skillFileService.getSkillImportsByIds(skillIds)
+        List<SkillImportDto> imports = uid == null
+                ? skillFileService.getSkillImportsByIds(skillIds)
+                : skillFileService.getSkillImportsByIds(skillIds, uid, spaceId);
+        Map<Long, SkillImportDto> importMap = imports
                 .stream()
                 .collect(Collectors.toMap(SkillImportDto::getId, item -> item, (a, b) -> a));
-        SkillSandboxConfigDto sandboxConfig = skillSandboxConfigService.toRuntimeDto();
+        SkillSandboxConfigDto sandboxConfig = uid == null
+                ? skillSandboxConfigService.toRuntimeDto()
+                : skillSandboxConfigService.toRuntimeDto(uid, spaceId);
         for (int i = 0; i < skillArray.size(); i++) {
             Object obj = skillArray.get(i);
             if (!(obj instanceof Map skillObj)) {

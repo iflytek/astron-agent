@@ -1,17 +1,27 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Tooltip, Button, message } from 'antd';
 import { useMemoizedFn } from 'ahooks';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
 import { downloadFileWithHeaders } from '@/utils/http';
 import { getFixedUrl } from '@/components/workflow/utils';
 import WxModal from '@/components/wx-modal';
 import useToggle from '@/hooks/use-toggle';
-import { isCanPublish } from '@/services/flow';
+import {
+  checkWorkflowExecutionEligibility,
+  isCanPublish,
+} from '@/services/flow';
 import { getAgentDetail } from '@/services/release-management';
 import { useBotStateStore } from '@/store/spark-store/bot-state';
+import { getActiveImportDependencyIssues } from '@/components/workflow/utils/workflow-import-dependencies';
+import i18next from 'i18next';
+import useFlowStore from '@/components/workflow/store/use-flow-store';
+import {
+  createWorkflowAsyncGuard,
+  createWorkflowIdentity,
+} from '@/components/workflow/utils/workflow-async-guard';
 
 import publishModalIcon from '@/assets/imgs/workflow/publish-modal-icon.png';
 
@@ -33,8 +43,11 @@ interface NodeType {
 // 流程类型定义
 interface FlowType {
   id?: string;
+  flowId?: string;
   name?: string;
   status?: number;
+  ext?: string;
+  type?: number;
 }
 
 const usePublishHeader = ({
@@ -43,6 +56,7 @@ const usePublishHeader = ({
   setFabuFlag,
   setPublishModal,
 }) => {
+  const location = useLocation();
   // Flow store
   const currentFlow = useFlowsManager(state => state.currentFlow);
   const setVersionManagement = useFlowsManager(
@@ -59,9 +73,26 @@ const usePublishHeader = ({
   const setNodeInfoEditDrawerlInfo = useFlowsManager(
     state => state.setNodeInfoEditDrawerlInfo
   );
-  const currentStore = useFlowsManager(state => state.getCurrentStore());
-  const nodes = currentStore(state => state.nodes);
+  // Publishing is workflow-wide; never inspect only the transient iterator
+  // projection when an iteration/loop editor happens to be open.
+  const nodes = useFlowStore(state => state.nodes);
+  const checkFlow = useFlowsManager(state => state.checkFlow);
+  const flushCurrentFlow = useFlowsManager(state => state.flushCurrentFlow);
   const setBotDetailInfo = useBotStateStore(state => state.setBotDetailInfo);
+  const publishPreflightGuardRef = useRef(createWorkflowAsyncGuard());
+  const workflowIdentity = createWorkflowIdentity({
+    ...currentFlow,
+    routeIdentity: `${location.pathname}${location.search}`,
+  });
+  const currentWorkflowIdentityRef = useRef(workflowIdentity);
+  if (currentWorkflowIdentityRef.current !== workflowIdentity) {
+    publishPreflightGuardRef.current.invalidate();
+  }
+  currentWorkflowIdentityRef.current = workflowIdentity;
+  useEffect(
+    () => (): void => publishPreflightGuardRef.current.invalidate(),
+    []
+  );
   const handleVersionSettings = useMemoizedFn(() => {
     setVersionManagement((prev: boolean) => !prev);
     setAdvancedConfiguration(false);
@@ -113,16 +144,48 @@ const usePublishHeader = ({
     return multiParams;
   }, [nodes]);
 
-  const handlePublish = useMemoizedFn(() => {
+  const handlePublish = useMemoizedFn(async (): Promise<void> => {
     setVersionManagement(false);
-    isCanPublish(currentFlow?.id).then(flag => {
+    const localIssues = getActiveImportDependencyIssues(nodes);
+    if (localIssues.length > 0) {
+      checkFlow();
+      setOpenOperationResult(true);
+      message.error(
+        i18next.t('workflow.promptDebugger.importDependencyPublishBlocked')
+      );
+      return;
+    }
+    if (!currentFlow?.flowId) return;
+
+    const request = publishPreflightGuardRef.current.start(workflowIdentity);
+    if (!request) return;
+    const flowId = currentFlow.flowId;
+    const workflowId = currentFlow.id;
+    const isCurrent = (): boolean =>
+      publishPreflightGuardRef.current.isCurrent(
+        request,
+        currentWorkflowIdentityRef.current
+      );
+
+    try {
+      await flushCurrentFlow();
+      if (!isCurrent()) return;
+      await checkWorkflowExecutionEligibility(flowId);
+      if (!isCurrent()) return;
+      const flag = await isCanPublish(workflowId);
+      if (!isCurrent()) return;
       if (flag) {
         setFabuFlag(true);
         setOpenWxmol(true);
       } else {
         setPublishModal(true);
       }
-    });
+    } catch {
+      // The shared interceptor owns business-error presentation. A rejected
+      // eligibility guard must never enter the legacy publish flow.
+    } finally {
+      publishPreflightGuardRef.current.finish(request);
+    }
   });
   const newBotId = useMemo(() => {
     return currentFlow?.ext ? JSON.parse(currentFlow.ext)?.botId : null;

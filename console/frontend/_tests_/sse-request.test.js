@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { fetchSseWithContext } from '../src/utils/sse-request.ts';
-import { createWorkflowSseLifecycle } from '../src/components/workflow/store/workflow-sse.ts';
+import {
+  createWorkflowSseLifecycle,
+  isTerminalWorkflowSseErrorFrame,
+} from '../src/components/workflow/store/workflow-sse.ts';
 
 const originalDocument = globalThis.document;
 const originalWindow = globalThis.window;
@@ -35,6 +38,8 @@ const requestPaths = [
   '/chat-message/bot-debug',
   '/chat-message/chat',
   '/chat-message/re-answer',
+  '/workflow/chat',
+  '/workflow/resume',
 ];
 
 const captureRequest = async (path, getContext) => {
@@ -193,4 +198,22 @@ test('an active stream that closes early is finalized only once', () => {
   assert.equal(finalizeCount, 1);
   assert.throws(() => lifecycle.onError(new Error('late socket error')));
   assert.equal(finalizeCount, 1);
+});
+
+test('a synchronous workflow business-error frame is terminal', () => {
+  assert.equal(
+    isTerminalWorkflowSseErrorFrame({
+      code: 8129,
+      message: 'Imported workflow dependency is unresolved',
+    }),
+    true
+  );
+  assert.equal(
+    isTerminalWorkflowSseErrorFrame({
+      code: 500,
+      workflow_step: { node: { id: 'plugin::1' } },
+    }),
+    false
+  );
+  assert.equal(isTerminalWorkflowSseErrorFrame({ code: 0 }), false);
 });

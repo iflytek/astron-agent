@@ -1,8 +1,10 @@
 package com.iflytek.astron.console.hub.service.workflow.impl;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.iflytek.astron.console.commons.constant.ResponseEnum;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotApi;
 import com.iflytek.astron.console.commons.enums.bot.ReleaseTypeEnum;
+import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotApiMapper;
 import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
@@ -22,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -66,7 +69,7 @@ class WorkflowReleaseServiceImplTest {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
         when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class), any(), any()))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
@@ -92,7 +95,8 @@ class WorkflowReleaseServiceImplTest {
         assertThat(versionNameCaptor.getValue().getFlowId()).isEqualTo("flow-1");
 
         ArgumentCaptor<WorkflowVersion> createCaptor = ArgumentCaptor.forClass(WorkflowVersion.class);
-        verify(versionService).createForBoundBotPublish(createCaptor.capture());
+        verify(versionService).createForBoundBotPublish(
+                createCaptor.capture(), eq("requester-uid"), eq(1L));
         assertThat(createCaptor.getValue().getBotId()).isEqualTo("25");
         assertThat(createCaptor.getValue().getFlowId()).isEqualTo("flow-1");
         assertThat(createCaptor.getValue().getName()).isEqualTo("v1.0");
@@ -104,7 +108,7 @@ class WorkflowReleaseServiceImplTest {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
         when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class), any(), any()))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
@@ -126,7 +130,8 @@ class WorkflowReleaseServiceImplTest {
 
         assertThat(response.getSuccess()).isTrue();
         ArgumentCaptor<WorkflowVersion> createCaptor = ArgumentCaptor.forClass(WorkflowVersion.class);
-        verify(versionService).createForBoundBotPublish(createCaptor.capture());
+        verify(versionService).createForBoundBotPublish(
+                createCaptor.capture(), eq("requester-uid"), eq(1L));
         assertThat(createCaptor.getValue().getPublishChannel())
                 .isEqualTo(Long.valueOf(ReleaseTypeEnum.BOT_API.getCode()));
         verify(maasUtil).createApi(eq("flow-1"), eq("bound-app"), eq("v1.0"), any(JSONObject.class));
@@ -137,7 +142,7 @@ class WorkflowReleaseServiceImplTest {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
         when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class), any(), any()))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
@@ -153,5 +158,29 @@ class WorkflowReleaseServiceImplTest {
 
         assertThat(response.getSuccess()).isFalse();
         verify(maasUtil, never()).createApi(any(), any(), any(), any(JSONObject.class));
+    }
+
+    @Test
+    void publishWorkflowShouldPreserveUnresolvedDependencyAndSkipExternalPublish() {
+        when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
+        when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
+                .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
+        BusinessException unresolved =
+                new BusinessException(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED);
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class), any(), any()))
+                .thenThrow(unresolved);
+
+        assertThatThrownBy(() -> workflowReleaseService.publishWorkflow(
+                        25,
+                        "requester-uid",
+                        1L,
+                        ReleaseTypeEnum.MARKET.name()))
+                .isSameAs(unresolved)
+                .extracting("code")
+                .isEqualTo(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED.getCode());
+
+        verify(maasUtil, never()).createApi(any(), any(), any(), any(JSONObject.class));
+        verify(workflowVersionMapper, never()).selectOne(any());
+        verify(versionService, never()).update_channel_result(any(WorkflowVersion.class));
     }
 }

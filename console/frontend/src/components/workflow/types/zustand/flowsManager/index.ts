@@ -140,6 +140,7 @@ export type FlowsManagerStoreType = {
   setKnowledgeProStrategy: (knowledgeProStrategy: unknown) => void;
   addTextNodeConfig: (params: unknown) => Promise<void>;
   autoSaveCurrentFlow: () => void;
+  flushCurrentFlow: () => Promise<void>;
   canPublishSetNot: () => void;
   checkFlow: () => boolean;
   canPublish: boolean;

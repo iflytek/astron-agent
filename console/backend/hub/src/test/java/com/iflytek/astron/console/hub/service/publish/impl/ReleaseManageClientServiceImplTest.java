@@ -45,13 +45,14 @@ class ReleaseManageClientServiceImplTest {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
         when(versionService.getVersionNameForBoundBotPublish(any(WorkflowVersion.class)))
                 .thenReturn(ApiResult.success(new JSONObject().fluentPut("workflowVersionName", "v1.0")));
-        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class)))
+        when(versionService.createForBoundBotPublish(any(WorkflowVersion.class), any(), any()))
                 .thenReturn(ApiResult.success(new JSONObject()
                         .fluentPut("workflowVersionId", 18L)
                         .fluentPut("workflowVersionName", "v1.0")));
 
         String versionName = releaseManageClientService.getVersionNameByBotId(25L, 1L, null);
-        releaseManageClientService.releaseBotApi(25, "flow-1", versionName, 1L, null);
+        releaseManageClientService.releaseBotApi(
+                25, "flow-1", versionName, "requester-uid", 1L, null);
 
         assertThat(versionName).isEqualTo("v1.0");
 
@@ -60,7 +61,9 @@ class ReleaseManageClientServiceImplTest {
         assertThat(nameCaptor.getValue().getFlowId()).isEqualTo("flow-1");
 
         ArgumentCaptor<WorkflowVersion> createCaptor = ArgumentCaptor.forClass(WorkflowVersion.class);
-        verify(versionService).createForBoundBotPublish(createCaptor.capture());
+        verify(versionService).createForBoundBotPublish(
+                createCaptor.capture(), org.mockito.ArgumentMatchers.eq("requester-uid"),
+                org.mockito.ArgumentMatchers.eq(1L));
         WorkflowVersion created = createCaptor.getValue();
         assertThat(created.getBotId()).isEqualTo("25");
         assertThat(created.getFlowId()).isEqualTo("flow-1");
@@ -73,11 +76,13 @@ class ReleaseManageClientServiceImplTest {
     void releaseBotApiShouldFailWhenFlowIdDoesNotMatchBotBinding() {
         when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-actual");
 
-        assertThatThrownBy(() -> releaseManageClientService.releaseBotApi(25, "flow-other", "v1.0", 1L, null))
+        assertThatThrownBy(() -> releaseManageClientService.releaseBotApi(
+                25, "flow-other", "v1.0", "requester-uid", 1L, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("responseEnum")
                 .isEqualTo(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
 
-        verify(versionService, never()).createForBoundBotPublish(any(WorkflowVersion.class));
+        verify(versionService, never()).createForBoundBotPublish(
+                any(WorkflowVersion.class), any(), any());
     }
 }

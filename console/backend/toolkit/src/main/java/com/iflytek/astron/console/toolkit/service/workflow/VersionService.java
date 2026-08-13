@@ -12,6 +12,7 @@ import com.iflytek.astron.console.commons.entity.workflow.Workflow;
 import com.iflytek.astron.console.commons.enums.bot.BotTypeEnum;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.response.ApiResult;
+import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowData;
@@ -19,6 +20,7 @@ import com.iflytek.astron.console.toolkit.entity.core.workflow.FlowProtocol;
 import com.iflytek.astron.console.toolkit.entity.dto.WorkflowReq;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowConfig;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
+import com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler;
 import com.iflytek.astron.console.toolkit.mapper.workflow.*;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import lombok.extern.slf4j.Slf4j;
@@ -49,6 +51,9 @@ public class VersionService {
 
     @Autowired
     DataPermissionCheckTool dataPermissionCheckTool;
+
+    @Autowired
+    SpaceUserService spaceUserService;
 
     @Autowired
     WorkflowMapper workflowMapper;
@@ -157,9 +162,10 @@ public class VersionService {
     @Transactional
     public ApiResult<JSONObject> createForSpace(WorkflowVersion createDto, Long spaceId) {
         log.info("Starting to add version, input data: {}", createDto);
+        String executionUid = UserInfoManagerHandler.getUserId();
         Workflow workflow = requireWorkflow(createDto.getFlowId());
-        dataPermissionCheckTool.checkWorkflowBelong(workflow, spaceId);
-        return createVersion(createDto, workflow);
+        assertWorkflowExecutionScope(workflow, executionUid, spaceId);
+        return createVersion(createDto, workflow, executionUid, spaceId);
     }
 
     /**
@@ -168,12 +174,42 @@ public class VersionService {
      */
     @Transactional
     public ApiResult<JSONObject> createForBoundBotPublish(WorkflowVersion createDto) {
-        log.info("Starting to add version for bound bot publish, input data: {}", createDto);
-        Workflow workflow = requireWorkflow(createDto.getFlowId());
-        return createVersion(createDto, workflow);
+        return createForBoundBotPublish(
+                createDto,
+                UserInfoManagerHandler.getUserId(),
+                SpaceInfoUtil.getSpaceId());
     }
 
-    private ApiResult<JSONObject> createVersion(WorkflowVersion createDto, Workflow workflow) {
+    @Transactional
+    public ApiResult<JSONObject> createForBoundBotPublish(
+            WorkflowVersion createDto, String executionUid, Long executionSpaceId) {
+        log.info("Starting to add version for bound bot publish, input data: {}", createDto);
+        Workflow workflow = requireWorkflow(createDto.getFlowId());
+        assertWorkflowExecutionScope(workflow, executionUid, executionSpaceId);
+        return createVersion(createDto, workflow, executionUid, executionSpaceId);
+    }
+
+    private void assertWorkflowExecutionScope(
+            Workflow workflow, String executionUid, Long executionSpaceId) {
+        if (StringUtils.isBlank(executionUid)) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
+        if (executionSpaceId == null) {
+            if (workflow.getSpaceId() != null
+                    || !Objects.equals(workflow.getUid(), executionUid)) {
+                throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+            }
+            return;
+        }
+        if (!Objects.equals(workflow.getSpaceId(), executionSpaceId)
+                || spaceUserService == null
+                || spaceUserService.getRole(executionSpaceId, executionUid) == null) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
+    }
+
+    private ApiResult<JSONObject> createVersion(
+            WorkflowVersion createDto, Workflow workflow, String executionUid, Long executionSpaceId) {
         try {
             // Create workflow version
             WorkflowVersion workflowVersion = new WorkflowVersion();
@@ -181,16 +217,17 @@ public class VersionService {
             // Set version number
             String versionNum = generateVersionNumber();
 
-            // Set currently using this version
-            updateIsVersionForFlowId(createDto.getFlowId());
-
             // Get core test protocol
             WorkflowReq workflowReq = new WorkflowReq();
             workflowReq.setId(workflow.getId());
             workflowReq.setName(workflow.getName());
             workflowReq.setDescription(workflow.getDescription());
             workflowReq.setData(JSONObject.parseObject(workflow.getData(), BizWorkflowData.class));
-            FlowProtocol flowProtocol = workflowService.buildWorkflowData(workflowReq, createDto.getFlowId());
+            FlowProtocol flowProtocol = workflowService.buildWorkflowData(
+                    workflowReq, createDto.getFlowId(), executionUid, executionSpaceId);
+
+            // Only mutate version state after the authoritative workflow build validation succeeds.
+            updateIsVersionForFlowId(createDto.getFlowId());
 
             // Data setting
             workflowVersion.setBotId(createDto.getBotId());
@@ -232,6 +269,8 @@ public class VersionService {
             return ApiResult.success(new JSONObject()
                     .fluentPut("workflowVersionId", workflowVersion.getId())
                     .fluentPut("workflowVersionName", createDto.getName()));
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_ADD_FAILED);
         }
@@ -239,8 +278,10 @@ public class VersionService {
     }
 
     private Workflow requireWorkflow(String flowId) {
-        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class).eq(Workflow::getFlowId, flowId));
-        if (workflow == null) {
+        Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class)
+                .eq(Workflow::getFlowId, flowId)
+                .eq(Workflow::getDeleted, false));
+        if (workflow == null || Boolean.TRUE.equals(workflow.getDeleted())) {
             throw new BusinessException(ResponseEnum.WORKFLOW_NOT_EXIST);
         }
         return workflow;

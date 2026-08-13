@@ -21,6 +21,13 @@ import useIteratorFlowStore from './use-iterator-flow-store';
 import { FlowStoreType } from '../types/zustand/flow';
 import { UseBoundStore, StoreApi } from 'zustand';
 import loopNodeIcon from '@/assets/imgs/workflow/loop-node-icon.svg';
+import { getActiveImportDependencyIssues } from '@/components/workflow/utils/workflow-import-dependencies';
+import {
+  createSaveCoordinator,
+  SaveCoordinator,
+  SaveSnapshot,
+  shouldPersistWorkflowDraft,
+} from './workflow-save-coordinator';
 
 export const initialStatus = {
   willAddNode: null, //Pending Node Information
@@ -266,6 +273,7 @@ export const getFlowDetail = (get): void => {
 };
 // Init Flow Data
 export const initFlowData = async (id: string, set): Promise<void> => {
+  resetCurrentFlowSave();
   set({
     isLoading: true,
   });
@@ -314,46 +322,108 @@ export const initFlowData = async (id: string, set): Promise<void> => {
   });
 };
 
-let saveTimeoutId: number | null = null;
-// Auto Save Current Flow
-export const autoSaveCurrentFlow = (get): void => {
-  if (saveTimeoutId) {
-    window.clearTimeout(saveTimeoutId);
+interface WorkflowSaveParams {
+  id?: string;
+  flowId?: string;
+  name?: string;
+  description?: string;
+  data: {
+    nodes: Node[];
+    edges: unknown[];
+  };
+}
+
+interface WorkflowSaveResult {
+  updateTime?: unknown;
+  data?: unknown;
+}
+
+let currentFlowSaveCoordinator: SaveCoordinator | undefined;
+
+const captureCurrentFlowSnapshot = (
+  get
+): SaveSnapshot<WorkflowSaveParams> | undefined => {
+  const currentFlow = get().currentFlow;
+  if (!currentFlow || !shouldPersistWorkflowDraft(get().historyVersion)) {
+    return undefined;
   }
-  saveTimeoutId = window.setTimeout(() => {
-    const currentFlow = get().currentFlow;
-    const flowStore = useFlowStore.getState();
-    const nodes = flowStore.nodes;
-    const edges = flowStore.edges;
-    if (currentFlow) {
-      const params = {
-        id: currentFlow?.id,
-        flowId: currentFlow?.flowId,
-        name: currentFlow?.name,
-        description: currentFlow?.description,
+
+  const flowStore = useFlowStore.getState();
+  const params: WorkflowSaveParams = cloneDeep({
+    id: currentFlow.id,
+    flowId: currentFlow.flowId,
+    name: currentFlow.name,
+    description: currentFlow.description,
+    data: {
+      nodes: flowStore.nodes?.map(({ nodeType, ...reset }) => ({
+        ...reset,
         data: {
-          nodes: nodes?.map(({ nodeType, ...reset }) => ({
-            ...reset,
-            data: {
-              ...reset?.data,
-              updatable: false,
-            },
-          })),
-          edges,
+          ...reset?.data,
+          updatable: false,
         },
-      };
-      get().setIsLoading(true);
-      saveFlowAPI(params)
-        .then(data =>
-          get().setCurrentFlow({
-            ...currentFlow,
-            updateTime: data.updateTime,
-            originData: data.data,
-          })
-        )
-        .finally(() => get().setIsLoading(false));
-    }
-  }, 300);
+      })),
+      edges: flowStore.edges,
+    },
+  });
+
+  return {
+    value: params,
+    fingerprint: JSON.stringify(params),
+  };
+};
+
+const getCurrentFlowSaveCoordinator = (get): SaveCoordinator => {
+  if (!currentFlowSaveCoordinator) {
+    currentFlowSaveCoordinator = createSaveCoordinator<
+      WorkflowSaveParams,
+      WorkflowSaveResult
+    >({
+      captureSnapshot: () => captureCurrentFlowSnapshot(get),
+      persistSnapshot: params =>
+        saveFlowAPI(params) as Promise<WorkflowSaveResult>,
+      isSnapshotCurrent: params => {
+        const currentFlow = get().currentFlow;
+        return (
+          shouldPersistWorkflowDraft(get().historyVersion) &&
+          currentFlow?.id === params.id &&
+          currentFlow?.flowId === params.flowId
+        );
+      },
+      onPersisted: (data, params) => {
+        const currentFlow = get().currentFlow;
+        if (
+          !currentFlow ||
+          currentFlow.id !== params.id ||
+          currentFlow.flowId !== params.flowId
+        ) {
+          return;
+        }
+        get().setCurrentFlow({
+          ...currentFlow,
+          updateTime: data.updateTime,
+          originData: data.data,
+        });
+      },
+      onSavingChange: saving => get().setIsLoading(saving),
+    });
+  }
+  return currentFlowSaveCoordinator;
+};
+
+// Debounce background saves while preserving a single, ordered write stream.
+export const autoSaveCurrentFlow = (get): void => {
+  if (!shouldPersistWorkflowDraft(get().historyVersion)) return;
+  getCurrentFlowSaveCoordinator(get).schedule();
+};
+
+// Persist the latest editable main-canvas snapshot before a server preflight.
+export const flushCurrentFlow = async (get): Promise<void> => {
+  if (!shouldPersistWorkflowDraft(get().historyVersion)) return;
+  await getCurrentFlowSaveCoordinator(get).flush();
+};
+
+export const resetCurrentFlowSave = (): void => {
+  currentFlowSaveCoordinator?.reset();
 };
 // Can Publish Set Not
 export const canPublishSetNot = (get): void => {
@@ -442,6 +512,15 @@ function validateNodeBase({
   checkNode,
   errNodes,
 }): void {
+  const importIssues = getActiveImportDependencyIssues([currentCheckNode]);
+  if (importIssues.length > 0) {
+    addErrNode({
+      errNodes,
+      currentNode: currentCheckNode,
+      msg: getFlowErrorMsg('importDependencyUnresolved'),
+    });
+    return;
+  }
   if (
     !checkNode(
       currentCheckNode.id,

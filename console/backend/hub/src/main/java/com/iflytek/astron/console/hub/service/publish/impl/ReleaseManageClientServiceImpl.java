@@ -51,7 +51,8 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
     }
 
     @Override
-    public void releaseBotApi(Integer botId, String flowId, String versionName, Long spaceId, HttpServletRequest request) {
+    public void releaseBotApi(Integer botId, String flowId, String versionName, String executionUid,
+            Long spaceId, HttpServletRequest request) {
         if (botId == null || StrUtil.isBlank(flowId) || StrUtil.isBlank(versionName)) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
         }
@@ -70,7 +71,8 @@ public class ReleaseManageClientServiceImpl implements ReleaseManageClientServic
         workflowVersion.setDescription("");
         workflowVersion.setName(versionName);
 
-        ApiResult<JSONObject> response = versionService.createForBoundBotPublish(workflowVersion);
+        ApiResult<JSONObject> response = versionService.createForBoundBotPublish(
+                workflowVersion, executionUid, spaceId);
         if (response == null || response.code() != 0 || response.data() == null) {
             log.error("releaseBotApi - Failed to create workflow version, botId={}, flowId={}, versionName={}, spaceId={}",
                     botId, flowId, versionName, spaceId);

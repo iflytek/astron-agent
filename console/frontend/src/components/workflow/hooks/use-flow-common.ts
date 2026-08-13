@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useMemoizedFn } from 'ahooks';
+import { useLocation } from 'react-router-dom';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { message } from 'antd';
 import useUserStore from '@/store/user-store';
@@ -17,6 +18,14 @@ import { isJSON } from '@/utils';
 import useSpaceStore from '@/store/space-store';
 import { v4 as uuid } from 'uuid';
 import { cloneDeep } from 'lodash';
+import { checkWorkflowExecutionEligibility } from '@/services/flow';
+import { getActiveImportDependencyIssues } from '@/components/workflow/utils/workflow-import-dependencies';
+import useFlowStore from '@/components/workflow/store/use-flow-store';
+import { shouldPersistWorkflowDraft } from '@/components/workflow/store/workflow-save-coordinator';
+import {
+  createWorkflowAsyncGuard,
+  createWorkflowIdentity,
+} from '@/components/workflow/utils/workflow-async-guard';
 
 // 类型导入
 import {
@@ -37,6 +46,7 @@ import { UseFlowCommonReturn } from '@/components/workflow/types/hooks';
 import { RpaNodeParam } from '@/types/rpa';
 import { Edge } from 'reactflow';
 import { transRpaParameters } from '@/utils/rpa';
+import i18next from 'i18next';
 
 const useAddNode = (): UseAddNodeReturn => {
   const { spaceId } = useSpaceStore();
@@ -529,17 +539,27 @@ const useAddRpaNode = ({ addEdge }): UseAddRpaNodeReturn => {
 };
 
 export const useFlowCommon = (): UseFlowCommonReturn => {
+  const location = useLocation();
   const setWillAddNode = useFlowsManager(state => state.setWillAddNode);
   const setNodeInfoEditDrawerlInfo = useFlowsManager(
     state => state.setNodeInfoEditDrawerlInfo
   );
   const checkFlow = useFlowsManager(state => state.checkFlow);
   const currentStore = useFlowsManager(state => state.getCurrentStore());
+  // Workflow-wide guards always use the complete main canvas. The iterator
+  // store is a transient editing projection of one container only.
+  const workflowNodes = useFlowStore(state => state.nodes);
+  const currentFlow = useFlowsManager(state => state.currentFlow);
+  const historyVersion = useFlowsManager(state => state.historyVersion);
+  const flushCurrentFlow = useFlowsManager(state => state.flushCurrentFlow);
   const setEdges = currentStore(state => state.setEdges);
   const edgeType = useFlowsManager(state => state.edgeType);
   const setBeforeNode = useFlowsManager(state => state.setBeforeNode);
   const setOpenOperationResult = useFlowsManager(
     state => state.setOpenOperationResult
+  );
+  const openOperationResult = useFlowsManager(
+    state => state.openOperationResult
   );
   const setVersionManagement = useFlowsManager(
     state => state.setVersionManagement
@@ -552,6 +572,20 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
   );
   const showKnowledgeDetailModal = useFlowsManager(
     state => state.knowledgeDetailModalInfo.open
+  );
+  const debuggerPreflightGuardRef = useRef(createWorkflowAsyncGuard());
+  const workflowIdentity = createWorkflowIdentity({
+    ...currentFlow,
+    routeIdentity: `${location.pathname}${location.search}`,
+  });
+  const currentWorkflowIdentityRef = useRef(workflowIdentity);
+  if (currentWorkflowIdentityRef.current !== workflowIdentity) {
+    debuggerPreflightGuardRef.current.invalidate();
+  }
+  currentWorkflowIdentityRef.current = workflowIdentity;
+  useEffect(
+    () => (): void => debuggerPreflightGuardRef.current.invalidate(),
+    []
   );
   const addEdge = useMemoizedFn(
     (
@@ -605,14 +639,57 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
     }
   );
 
-  const handleDebugger = useMemoizedFn((): void => {
-    setOpenOperationResult(openOperationResult => !openOperationResult);
+  const handleDebugger = useMemoizedFn(async (): Promise<void> => {
     setVersionManagement(false);
     setNodeInfoEditDrawerlInfo({
       open: false,
       nodeId: '',
     });
-    checkFlow();
+    if (openOperationResult) {
+      setOpenOperationResult(false);
+      return;
+    }
+    const localIssues = getActiveImportDependencyIssues(workflowNodes);
+    const locallyValid = checkFlow();
+    if (localIssues.length > 0) {
+      setOpenOperationResult(true);
+      message.error(
+        i18next.t('workflow.promptDebugger.importDependencyExecutionBlocked')
+      );
+      return;
+    }
+    if (!locallyValid || !currentFlow?.flowId) {
+      setOpenOperationResult(true);
+      return;
+    }
+
+    const request = debuggerPreflightGuardRef.current.start(workflowIdentity);
+    if (!request) return;
+    const flowId = currentFlow.flowId;
+    const persistDraft = shouldPersistWorkflowDraft(historyVersion);
+    const isCurrent = (): boolean =>
+      debuggerPreflightGuardRef.current.isCurrent(
+        request,
+        currentWorkflowIdentityRef.current
+      );
+
+    setOpenOperationResult(false);
+
+    try {
+      if (persistDraft) {
+        await flushCurrentFlow();
+        if (!isCurrent()) return;
+        await checkWorkflowExecutionEligibility(flowId);
+        if (!isCurrent()) return;
+      }
+      setOpenOperationResult(true);
+    } catch {
+      // Business errors (including 8129) are displayed by the shared Axios
+      // interceptor. Never leave the chat debugger open after a failed guard.
+      if (isCurrent()) setOpenOperationResult(false);
+    } finally {
+      debuggerPreflightGuardRef.current.finish(request);
+    }
   });
 
   const resetBeforeAndWillNode = useMemoizedFn((): void => {

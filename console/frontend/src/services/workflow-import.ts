@@ -66,6 +66,26 @@ export interface WorkflowImportReportSummary {
   hasProblem: boolean;
 }
 
+export type WorkflowImportDependencyKind =
+  | 'plugin'
+  | 'database'
+  | 'workflow'
+  | 'knowledge'
+  | 'unknown';
+
+export interface WorkflowImportDependencyPresentation {
+  kind: WorkflowImportDependencyKind;
+  resourceLabelKey:
+    | 'importReportPluginId'
+    | 'importReportDatabaseId'
+    | 'importReportWorkflowId'
+    | 'importReportKnowledgeId'
+    | 'importReportResourceId';
+  sourceResourceId?: string;
+  targetResourceId?: string;
+  showPluginDetails: boolean;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -113,6 +133,43 @@ const firstNonEmpty = (...values: unknown[]): string | undefined => {
     if (typeof value === 'string' && value.trim()) return value.trim();
   }
   return undefined;
+};
+
+const DEPENDENCY_PRESENTATION = {
+  plugin: 'importReportPluginId',
+  database: 'importReportDatabaseId',
+  workflow: 'importReportWorkflowId',
+  knowledge: 'importReportKnowledgeId',
+  unknown: 'importReportResourceId',
+} as const;
+
+/**
+ * The current backend protocol reuses the plugin ID fields for every resource
+ * kind. Keep that wire-format detail out of the UI so non-plugin dependencies
+ * are labelled accurately and never expose plugin-only metadata.
+ */
+export const getWorkflowImportDependencyPresentation = (
+  entry: WorkflowImportReportEntry
+): WorkflowImportDependencyPresentation => {
+  const rawKind = String(entry.dependencyType ?? '')
+    .trim()
+    .toLowerCase();
+  const normalizedKind = rawKind === 'flow' ? 'workflow' : rawKind;
+  const kind: WorkflowImportDependencyKind =
+    Object.prototype.hasOwnProperty.call(
+      DEPENDENCY_PRESENTATION,
+      normalizedKind
+    )
+      ? (normalizedKind as Exclude<WorkflowImportDependencyKind, 'unknown'>)
+      : 'unknown';
+
+  return {
+    kind,
+    resourceLabelKey: DEPENDENCY_PRESENTATION[kind],
+    sourceResourceId: firstNonEmpty(entry.sourcePluginId),
+    targetResourceId: firstNonEmpty(entry.targetPluginId),
+    showPluginDetails: kind === 'plugin',
+  };
 };
 
 const normalizeStatus = (status: unknown): string =>

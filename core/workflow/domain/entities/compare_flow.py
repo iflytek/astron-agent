@@ -22,6 +22,18 @@ class SaveComparisonVo(BaseModel):
     version: str
 
 
+class ReadComparisonVo(BaseModel):
+    """
+    Value object for reading one exact flow comparison snapshot.
+
+    ``flow_id`` is the original draft flow ID. It is kept separate from the
+    comparison row ID so callers cannot substitute a row from another group.
+    """
+
+    flow_id: str = Field(..., min_length=1, description="Original flow ID")
+    version: str = Field(..., min_length=1, description="Comparison version")
+
+
 class DeleteComparisonVo(BaseModel):
     """
     Value object for deleting flow comparison data.

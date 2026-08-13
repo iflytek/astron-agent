@@ -194,6 +194,17 @@ public class WorkflowController {
         return workflowService.build(buildDto);
     }
 
+    /**
+     * Validate the persisted workflow draft against the same authorization and dependency guard used by
+     * debug execution. This endpoint is read-only and never trusts a client-submitted workflow
+     * protocol.
+     */
+    @GetMapping("/execution-eligibility")
+    public ApiResult<Void> executionEligibility(@RequestParam @NotBlank String flowId) {
+        workflowService.ensureExecutionEligible(flowId);
+        return ApiResult.success();
+    }
+
     // ---------------------- Nodes and Dialogs ----------------------
 
     @PostMapping("/node/debug/{nodeId}")

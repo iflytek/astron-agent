@@ -144,6 +144,8 @@ public class McpServiceImpl implements McpService {
                 return generateDefaultVersion();
             }
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Exception occurred while getting version name for MCP: botId={}", botId, e);
             return generateDefaultVersion();

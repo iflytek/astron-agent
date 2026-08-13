@@ -3,12 +3,16 @@ package com.iflytek.astron.console.toolkit.service.skill;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.iflytek.astron.console.commons.constant.ResponseEnum;
+import com.iflytek.astron.console.commons.exception.BusinessException;
+import com.iflytek.astron.console.commons.service.space.SpaceUserService;
 import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.toolkit.entity.dto.skill.SkillSandboxConfigDto;
 import com.iflytek.astron.console.toolkit.entity.table.skill.SkillSandboxConfig;
 import com.iflytek.astron.console.toolkit.entity.vo.skill.SkillSandboxConfigReq;
 import com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler;
 import com.iflytek.astron.console.toolkit.mapper.skill.SkillSandboxConfigMapper;
+import jakarta.annotation.Resource;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -29,6 +33,9 @@ public class SkillSandboxConfigService
 
     @Value("${skill.sandbox.artifact-upload-token:}")
     private String artifactUploadToken;
+
+    @Resource
+    private SpaceUserService spaceUserService;
 
     public SkillSandboxConfigDto getMaskedConfig() {
         return toDto(getScopedConfig(), false);
@@ -95,28 +102,65 @@ public class SkillSandboxConfigService
     }
 
     public SkillSandboxConfigDto toRuntimeDto() {
-        SkillSandboxConfig config = getActiveConfig();
+        return toRuntimeDto(currentUid(), currentSpaceId());
+    }
+
+    /** Resolve the runtime sandbox without relying on servlet request context. */
+    public SkillSandboxConfigDto toRuntimeDto(String uid, Long spaceId) {
+        SkillSandboxConfig config = getActiveConfig(uid, spaceId);
         SkillSandboxConfigDto dto = toDto(config, true);
         if (config != null) {
             dto.setArtifactUploadUrl(StringUtils.trimToEmpty(artifactUploadUrl));
             dto.setArtifactUploadToken(StringUtils.trimToEmpty(artifactUploadToken));
-            dto.setSpaceId(currentSpaceId());
+            dto.setSpaceId(spaceId);
         }
         return dto;
+    }
+
+    private SkillSandboxConfig getActiveConfig(String uid, Long spaceId) {
+        SkillSandboxConfig config = getScopedConfig(uid, spaceId);
+        if (config == null
+                || !Boolean.TRUE.equals(config.getEnabled())
+                || StringUtils.isBlank(config.getApiKey())) {
+            return null;
+        }
+        return config;
     }
 
     private SkillSandboxConfig getScopedConfig() {
         return getOne(scopeQuery(), false);
     }
 
+    private SkillSandboxConfig getScopedConfig(String uid, Long spaceId) {
+        assertExplicitScope(uid, spaceId);
+        return getOne(scopeQuery(uid, spaceId), false);
+    }
+
+    private void assertExplicitScope(String uid, Long spaceId) {
+        if (StringUtils.isBlank(uid)) {
+            throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+        }
+        if (spaceId != null
+                && (spaceUserService == null
+                        || spaceUserService.getRole(spaceId, uid) == null)) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
+    }
+
     private LambdaQueryWrapper<SkillSandboxConfig> scopeQuery() {
+        return scopeQuery(currentUid(), currentSpaceId());
+    }
+
+    private LambdaQueryWrapper<SkillSandboxConfig> scopeQuery(String uid, Long spaceId) {
         LambdaQueryWrapper<SkillSandboxConfig> wrapper = Wrappers.lambdaQuery(SkillSandboxConfig.class)
                 .eq(SkillSandboxConfig::getDeleted, Boolean.FALSE);
-        Long spaceId = currentSpaceId();
         if (spaceId != null) {
             wrapper.eq(SkillSandboxConfig::getSpaceId, spaceId);
         } else {
-            wrapper.isNull(SkillSandboxConfig::getSpaceId).eq(SkillSandboxConfig::getUid, currentUid());
+            if (StringUtils.isBlank(uid)) {
+                throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+            }
+            wrapper.isNull(SkillSandboxConfig::getSpaceId).eq(SkillSandboxConfig::getUid, uid);
         }
         return wrapper.last("limit 1");
     }

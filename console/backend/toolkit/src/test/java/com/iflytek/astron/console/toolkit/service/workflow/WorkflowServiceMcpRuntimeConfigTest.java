@@ -9,6 +9,8 @@ import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowData;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.BizWorkflowNode;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.node.BizNodeData;
+import com.iflytek.astron.console.toolkit.entity.table.relation.FlowRepoRel;
+import com.iflytek.astron.console.toolkit.mapper.relation.FlowRepoRelMapper;
 import com.iflytek.astron.console.toolkit.service.skill.SkillEnrichmentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,11 +18,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 class WorkflowServiceMcpRuntimeConfigTest {
@@ -31,6 +37,9 @@ class WorkflowServiceMcpRuntimeConfigTest {
     @Mock
     private SkillEnrichmentService skillEnrichmentService;
 
+    @Mock
+    private FlowRepoRelMapper flowRepoRelMapper;
+
     private WorkflowService workflowService;
 
     @BeforeEach
@@ -38,6 +47,7 @@ class WorkflowServiceMcpRuntimeConfigTest {
         workflowService = new WorkflowService();
         ReflectionTestUtils.setField(workflowService, "chatBotBaseMapper", chatBotBaseMapper);
         ReflectionTestUtils.setField(workflowService, "skillEnrichmentService", skillEnrichmentService);
+        ReflectionTestUtils.setField(workflowService, "flowRepoRelMapper", flowRepoRelMapper);
     }
 
     @Test
@@ -93,5 +103,72 @@ class WorkflowServiceMcpRuntimeConfigTest {
                 workflowData);
 
         assertThat(result).isTrue();
+    }
+
+    @Test
+    void checkAndEditDataUsesExplicitSkillScopeWithoutRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+        BizNodeData data = new BizNodeData();
+        data.setNodeMeta(new JSONObject());
+        JSONObject plugin = new JSONObject()
+                .fluentPut("skills", new JSONArray(List.of(
+                        new JSONObject().fluentPut("skillId", "42"))));
+        data.setNodeParam(new JSONObject().fluentPut("plugin", plugin));
+
+        ReflectionTestUtils.invokeMethod(
+                workflowService,
+                "checkAndEditData",
+                data,
+                WorkflowConst.NodeType.AGENT,
+                List.of(),
+                "approval-user",
+                200L);
+
+        verify(skillEnrichmentService)
+                .enrichSkillEntries(plugin.getJSONArray("skills"), "approval-user", 200L);
+    }
+
+    @Test
+    void refreshRepoRelationsUsesEffectiveKnowledgeBindingsAndDeduplicatesThem() {
+        BizWorkflowData workflow = new BizWorkflowData();
+        workflow.setNodes(List.of(
+                node("knowledge-base::normal", new JSONObject()
+                        .fluentPut("repos", new JSONArray(List.of(
+                                new JSONObject().fluentPut("repoId", "active-repo"))))
+                        .fluentPut("repoId", new JSONArray(List.of("ignored-legacy")))),
+                node("knowledge-pro-base::professional", new JSONObject()
+                        .fluentPut("repoIds", new JSONArray(List.of("pro-repo", "active-repo")))
+                        .fluentPut("repoList", new JSONArray(List.of(
+                                new JSONObject().fluentPut("repoId", "ignored-display"))))),
+                node("knowledge-expert-base::expert", new JSONObject()
+                        .fluentPut("repos", new JSONArray(List.of(
+                                new JSONObject().fluentPut("repoId", "expert-repo"))))),
+                node("agent::agent", new JSONObject().fluentPut("plugin", new JSONObject()
+                        .fluentPut("knowledge", new JSONArray(List.of(new JSONObject()
+                                .fluentPut("match", new JSONObject().fluentPut("repoIds",
+                                        new JSONArray(List.of("agent-repo", "active-repo")))))))))));
+        when(flowRepoRelMapper.selectList(any())).thenReturn(List.of(
+                new FlowRepoRel("flow-1", "stale-repo"),
+                new FlowRepoRel("flow-1", "active-repo")));
+
+        ReflectionTestUtils.invokeMethod(workflowService, "refreshRepoRelations", "flow-1", workflow);
+
+        verify(flowRepoRelMapper).insert(new FlowRepoRel("flow-1", "pro-repo"));
+        verify(flowRepoRelMapper).insert(new FlowRepoRel("flow-1", "expert-repo"));
+        verify(flowRepoRelMapper).insert(new FlowRepoRel("flow-1", "agent-repo"));
+        verify(flowRepoRelMapper, never()).insert(new FlowRepoRel("flow-1", "ignored-legacy"));
+        verify(flowRepoRelMapper, never()).insert(new FlowRepoRel("flow-1", "ignored-display"));
+        verify(flowRepoRelMapper, never()).insert(new FlowRepoRel("flow-1", "active-repo"));
+        verify(flowRepoRelMapper).delete(any());
+    }
+
+    private BizWorkflowNode node(String id, JSONObject param) {
+        BizNodeData data = new BizNodeData();
+        data.setNodeMeta(new JSONObject());
+        data.setNodeParam(param);
+        BizWorkflowNode node = new BizWorkflowNode();
+        node.setId(id);
+        node.setData(data);
+        return node;
     }
 }

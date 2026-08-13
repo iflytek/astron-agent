@@ -1,11 +1,14 @@
 import http from '@/utils/http';
 export {
   getWorkflowImportEntryStatus,
+  getWorkflowImportDependencyPresentation,
   normalizeWorkflowImportResult,
   shouldShowWorkflowImportError,
   summarizeWorkflowImportReport,
   type NormalizedWorkflowImportResult,
   type WorkflowImportEntryStatus,
+  type WorkflowImportDependencyKind,
+  type WorkflowImportDependencyPresentation,
   type WorkflowImportReport,
   type WorkflowImportReportEntry,
   type WorkflowImportReportSummary,
@@ -68,6 +71,26 @@ export async function publishFlowAPI(params): Promise<unknown> {
 
 export async function isCanPublish(id): Promise<unknown> {
   return http.get(`/workflow/can-publish?id=${id}`);
+}
+
+export async function checkWorkflowExecutionEligibility(
+  flowId: string
+): Promise<void> {
+  return http.get('/workflow/execution-eligibility', { params: { flowId } });
+}
+
+export async function debugWorkflowNode(
+  nodeId: string,
+  params: unknown,
+  signal?: AbortSignal
+): Promise<unknown> {
+  return http.post(
+    `/workflow/node/debug/${encodeURIComponent(nodeId)}`,
+    params,
+    {
+      signal,
+    }
+  );
 }
 
 export async function canPublishSetNotAPI(id): Promise<unknown> {

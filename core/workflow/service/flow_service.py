@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import Session  # type: ignore
 
 from workflow.cache import flow as flow_cache
+from workflow.consts.comparisons import Tag
 from workflow.domain.entities.flow import FlowUpdate
 from workflow.domain.entities.node_debug_vo import NodeDebugRespVo
 from workflow.domain.models.ai_app import App
@@ -152,6 +153,23 @@ def get_flow_by_version(
 
     if db_flow:
         return db_flow
+    raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
+
+
+def get_comparison(flow_id: str, version: str, session: Session, span: Span) -> Flow:
+    """Retrieve the exact comparison snapshot belonging to an original flow."""
+    db_flow = get(flow_id, session, span)
+    comparison = (
+        session.query(Flow)
+        .filter_by(
+            group_id=db_flow.group_id,
+            version=version,
+            tag=Tag.COMPARISON.value,
+        )
+        .first()
+    )
+    if comparison:
+        return comparison
     raise CustomException(CodeEnum.FLOW_NOT_FOUND_ERROR)
 
 

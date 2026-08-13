@@ -697,6 +697,29 @@ class WorkflowControllerTest {
 
             verify(workflowService).build(validWorkflowReq);
         }
+
+        @Test
+        @DisplayName("Should report successful execution eligibility")
+        void executionEligibility_whenPersistedDraftIsExecutable_shouldReturnSuccess() {
+            ApiResult<Void> result = controller.executionEligibility(VALID_FLOW_ID);
+
+            assertThat(result.code()).isZero();
+            assertThat(result.data()).isNull();
+            verify(workflowService).ensureExecutionEligible(VALID_FLOW_ID);
+        }
+
+        @Test
+        @DisplayName("Should preserve unresolved dependency errors from execution eligibility")
+        void executionEligibility_whenDependencyIsUnresolved_shouldPropagateBusinessError() {
+            BusinessException unresolved =
+                    new BusinessException(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED);
+            doThrow(unresolved).when(workflowService).ensureExecutionEligible(VALID_FLOW_ID);
+
+            assertThatThrownBy(() -> controller.executionEligibility(VALID_FLOW_ID))
+                    .isSameAs(unresolved)
+                    .extracting("code")
+                    .isEqualTo(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED.getCode());
+        }
     }
 
     // ==================== Node Debug Tests ====================

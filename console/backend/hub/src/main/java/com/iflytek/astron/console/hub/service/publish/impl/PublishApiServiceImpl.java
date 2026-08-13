@@ -149,6 +149,8 @@ public class PublishApiServiceImpl implements PublishApiService {
             } else {
                 throw new BusinessException(ResponseEnum.BOT_TYPE_NOT_SUPPORT);
             }
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("PublishApiServiceImpl.createBotApi : create Bot api error, request: {}", createBotApiVo, e);
             throw new BusinessException(ResponseEnum.BOT_API_CREATE_ERROR);
@@ -203,7 +205,7 @@ public class PublishApiServiceImpl implements PublishApiService {
         String flowId = userLangChainInfo.getFlowId();
         // Synchronize with Maas service
         String versionName = releaseManageClientService.getVersionNameByBotId(Long.valueOf(botId), spaceId, request);
-        releaseManageClientService.releaseBotApi(botId, flowId, versionName, spaceId, request);
+        releaseManageClientService.releaseBotApi(botId, flowId, versionName, uid, spaceId, request);
         maasUtil.createApi(flowId, appMst.getAppId(), versionName);
 
         ChatBotApi chatBotApi = ChatBotApi.builder()

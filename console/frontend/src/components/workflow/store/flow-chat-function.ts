@@ -29,13 +29,16 @@ import useFlowStore from './use-flow-store';
 import { isJSON } from '@/utils';
 import i18n from 'i18next';
 import { cloneDeep } from 'lodash';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { getFixedUrl } from '@/components/workflow/utils';
 import {
   createWorkflowSseLifecycle,
+  isTerminalWorkflowSseErrorFrame,
   throwFatalWorkflowSseError,
   type WorkflowSseLifecycle,
 } from './workflow-sse';
+import { fetchSseWithContext } from '@/utils/sse-request';
+import { getLanguageCode } from '@/utils/http';
+import useSpaceStore from '@/store/space-store';
 
 const initInterruptChat: InterruptChatType = {
   eventId: '',
@@ -78,6 +81,17 @@ export const initialStatus = {
   userWheel: false,
   deleteAllModal: false,
   chatIdRef: uuid().replace(/-/g, ''),
+};
+
+const getWorkflowSseContext = () => {
+  const { spaceId, spaceType, enterpriseId } = useSpaceStore.getState();
+  return {
+    languageCode: getLanguageCode(),
+    accessToken: localStorage.getItem('accessToken'),
+    spaceId,
+    spaceType,
+    enterpriseId,
+  };
 };
 
 export const handleChatTypeChange = (type: string, set) => {
@@ -450,6 +464,11 @@ const handleMessage = (
   if (data?.code === 21103) {
     handleAuditFailed(data, get);
     return;
+  } else if (
+    isTerminalWorkflowSseErrorFrame(data as unknown as Record<string, unknown>)
+  ) {
+    handleFlowStop(data, get);
+    return;
   } else if (flowResult === null && nodeId !== 'flow_obj') {
     handleNodeStatusChange({
       nodes,
@@ -597,11 +616,11 @@ const handleResumeChat = (content, get, set): void => {
       return get().wsMessageStatus === 'end';
     }
   );
-  void fetchEventSource(url, {
+  void fetchSseWithContext(url, {
+    getContext: getWorkflowSseContext,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: getAuthorization(),
     },
     body: JSON.stringify(params),
     signal: controller.signal,
@@ -664,11 +683,11 @@ const runDebugger = (obj: unknown): void => {
       return get().wsMessageStatus === 'end';
     }
   );
-  void fetchEventSource(url, {
+  void fetchSseWithContext(url, {
+    getContext: getWorkflowSseContext,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: getAuthorization(),
     },
     body: JSON.stringify(params),
     signal: controller.signal,
@@ -952,11 +971,11 @@ const handleStopConversation = (get): void => {
       eventId: get().interruptChat?.eventId,
       eventType: 'abort',
     };
-    void fetchEventSource(url, {
+    void fetchSseWithContext(url, {
+      getContext: getWorkflowSseContext,
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: getAuthorization(),
       },
       body: JSON.stringify(params),
       openWhenHidden: true,

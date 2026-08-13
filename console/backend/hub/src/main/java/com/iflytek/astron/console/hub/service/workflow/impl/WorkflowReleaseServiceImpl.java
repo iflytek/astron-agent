@@ -4,6 +4,7 @@ import com.iflytek.astron.console.commons.enums.bot.ReleaseTypeEnum;
 import com.iflytek.astron.console.commons.service.data.UserLangChainDataService;
 import com.iflytek.astron.console.commons.mapper.bot.ChatBotApiMapper;
 import com.iflytek.astron.console.commons.dto.bot.ChatBotApi;
+import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.commons.util.MaasUtil;
 import com.iflytek.astron.console.toolkit.common.constant.WorkflowConst;
 import com.iflytek.astron.console.toolkit.entity.table.workflow.WorkflowVersion;
@@ -82,7 +83,7 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             request.setDescription("");
             request.setName(versionName);
 
-            WorkflowReleaseResponseDto response = createWorkflowVersion(request);
+            WorkflowReleaseResponseDto response = createWorkflowVersion(request, uid, spaceId);
             if (!response.getSuccess()) {
                 return response;
             }
@@ -104,6 +105,8 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
 
             return response;
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Workflow bot publish failed: botId={}, uid={}, spaceId={}", botId, uid, spaceId, e);
             return createErrorResponse("Publish failed: " + e.getMessage());
@@ -166,7 +169,8 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
         }
     }
 
-    private WorkflowReleaseResponseDto createWorkflowVersion(WorkflowReleaseRequestDto request) {
+    private WorkflowReleaseResponseDto createWorkflowVersion(
+            WorkflowReleaseRequestDto request, String executionUid, Long executionSpaceId) {
         log.info("Creating workflow version: request={}", request);
 
         try {
@@ -178,7 +182,8 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
             workflowVersion.setDescription(request.getDescription());
             workflowVersion.setName(request.getName());
 
-            var response = versionService.createForBoundBotPublish(workflowVersion);
+            var response = versionService.createForBoundBotPublish(
+                    workflowVersion, executionUid, executionSpaceId);
             JSONObject data = response == null ? null : response.data();
             if (response == null || response.code() != 0 || data == null) {
                 return createErrorResponse("Invalid response data format");
@@ -196,6 +201,8 @@ public class WorkflowReleaseServiceImpl implements WorkflowReleaseService {
                     result.getWorkflowVersionId(), result.getWorkflowVersionName());
             return result;
 
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Exception occurred while creating workflow version: request={}", request, e);
             return createErrorResponse("Exception occurred while creating version: " + e.getMessage());

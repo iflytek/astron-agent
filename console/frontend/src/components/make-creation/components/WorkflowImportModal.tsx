@@ -3,6 +3,7 @@ import { Alert, Button, message, Modal, Tag, Upload, UploadFile } from 'antd';
 import { v4 as uuid } from 'uuid';
 import {
   getWorkflowImportEntryStatus,
+  getWorkflowImportDependencyPresentation,
   normalizeWorkflowImportResult,
   shouldShowWorkflowImportError,
   summarizeWorkflowImportReport,
@@ -80,13 +81,46 @@ const getLocalizedReason = (reasonCode: unknown, reason: unknown): string => {
   return key ? i18next.t(`workflow.promptDebugger.${key}`) : reason.trim();
 };
 
+const getProtocolCode = (value: unknown, fallback = 'UNKNOWN'): string => {
+  if (typeof value !== 'string' || !value.trim()) return fallback;
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[-\s]+/g, '_');
+};
+
+const getLocalizedMappingType = (mappingType: unknown): string => {
+  const code = getProtocolCode(mappingType, '');
+  if (!code) {
+    return i18next.t('workflow.promptDebugger.importReportNotProvided');
+  }
+  const key = `workflow.promptDebugger.importMappingType_${code}`;
+  const translated = i18next.t(key);
+  return translated === key ? code : translated;
+};
+
+const getDisplayValue = (value: unknown): string =>
+  typeof value === 'string' && value.trim()
+    ? value.trim()
+    : i18next.t('workflow.promptDebugger.importReportNotProvided');
+
+const getMappingDisplay = (
+  sourceValue: unknown,
+  targetValue: unknown
+): string => {
+  const source = getDisplayValue(sourceValue);
+  return typeof targetValue === 'string' && targetValue.trim()
+    ? `${source} → ${targetValue.trim()}`
+    : source;
+};
+
 function ImportReportView({
   report,
   onOpenCanvas,
 }: {
   report: WorkflowImportReport;
   onOpenCanvas: () => void;
-}) {
+}): React.ReactElement {
   const entries = getEntries(report);
   const { total, resolved, ambiguous, unresolved, hasProblem } =
     summarizeWorkflowImportReport(report);
@@ -100,6 +134,12 @@ function ImportReportView({
     }[status];
     return i18next.t(`workflow.promptDebugger.${key}`);
   };
+
+  const protocolLabel = (
+    humanLabel: string,
+    value: unknown,
+    fallback = 'UNKNOWN'
+  ): string => `${humanLabel} (${getProtocolCode(value, fallback)})`;
 
   const statusColor = (status: WorkflowImportEntryStatus): string => {
     if (status === 'resolved') return 'success';
@@ -187,6 +227,10 @@ function ImportReportView({
         <div className="mt-3 max-h-[220px] overflow-y-auto rounded-lg border border-[#F0F0F0]">
           {entries.map((entry, index) => {
             const status = getWorkflowImportEntryStatus(entry);
+            const dependencyPresentation =
+              getWorkflowImportDependencyPresentation(entry);
+            const mappingType = getProtocolCode(entry.mappingType, '');
+            const reasonCode = getProtocolCode(entry.reasonCode, '');
             return (
               <div
                 key={`${String(entry.nodeId ?? index)}-${index}`}
@@ -204,13 +248,83 @@ function ImportReportView({
                       </span>
                     ) : null}
                   </div>
-                  <Tag color={statusColor(status)}>{statusLabel(status)}</Tag>
+                  <Tag color={statusColor(status)}>
+                    {protocolLabel(statusLabel(status), entry.status)}
+                  </Tag>
                 </div>
-                {status !== 'resolved' && (
-                  <div className="mt-1 text-xs text-[#8C8C8C]">
-                    {entryReason(entry)}
+                <div className="mt-2 grid gap-1 text-xs text-[#697386]">
+                  <div>
+                    <span className="text-[#8C8C8C]">
+                      {i18next.t(
+                        'workflow.promptDebugger.importReportMappingType'
+                      )}
+                    </span>
+                    {getLocalizedMappingType(entry.mappingType)}
+                    <span className="ml-1 font-mono text-[#8C8C8C]">
+                      ({mappingType || '—'})
+                    </span>
                   </div>
-                )}
+                  <div>
+                    <span className="text-[#8C8C8C]">
+                      {i18next.t('workflow.promptDebugger.importReportReason')}
+                    </span>
+                    {entryReason(entry)}
+                    <span className="ml-1 font-mono text-[#8C8C8C]">
+                      ({reasonCode || '—'})
+                    </span>
+                  </div>
+                  <div className="break-all font-mono">
+                    <span className="font-sans text-[#8C8C8C]">
+                      {i18next.t(
+                        `workflow.promptDebugger.${dependencyPresentation.resourceLabelKey}`
+                      )}
+                    </span>
+                    {getMappingDisplay(
+                      dependencyPresentation.sourceResourceId,
+                      dependencyPresentation.targetResourceId
+                    )}
+                  </div>
+                  {dependencyPresentation.showPluginDetails &&
+                    (entry.sourceOperationId || entry.targetOperationId) && (
+                      <div className="break-all font-mono">
+                        <span className="font-sans text-[#8C8C8C]">
+                          {i18next.t(
+                            'workflow.promptDebugger.importReportOperationId'
+                          )}
+                        </span>
+                        {getMappingDisplay(
+                          entry.sourceOperationId,
+                          entry.targetOperationId
+                        )}
+                      </div>
+                    )}
+                  {dependencyPresentation.showPluginDetails &&
+                    (entry.sourceVersion || entry.targetVersion) && (
+                      <div className="break-all font-mono">
+                        <span className="font-sans text-[#8C8C8C]">
+                          {i18next.t(
+                            'workflow.promptDebugger.importReportVersion'
+                          )}
+                        </span>
+                        {getMappingDisplay(
+                          entry.sourceVersion,
+                          entry.targetVersion
+                        )}
+                      </div>
+                    )}
+                  {dependencyPresentation.showPluginDetails &&
+                    Array.isArray(entry.candidatePluginIds) &&
+                    entry.candidatePluginIds.length > 0 && (
+                      <div className="break-all font-mono">
+                        <span className="font-sans text-[#8C8C8C]">
+                          {i18next.t(
+                            'workflow.promptDebugger.importReportCandidatePluginIds'
+                          )}
+                        </span>
+                        {entry.candidatePluginIds.join(', ')}
+                      </div>
+                    )}
+                </div>
               </div>
             );
           })}

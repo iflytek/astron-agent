@@ -2046,32 +2046,16 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     private void refreshRepoRelations(String flowId, BizWorkflowData bizWorkflowData) {
         List<FlowRepoRel> had = flowRepoRelMapper.selectList(Wrappers.lambdaQuery(FlowRepoRel.class)
                 .eq(FlowRepoRel::getFlowId, flowId));
-        List<String> hadRepos = had.stream().map(FlowRepoRel::getRepoId).toList();
+        Set<String> hadRepos = had.stream()
+                .map(FlowRepoRel::getRepoId)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        List<String> nowRepos = new ArrayList<>();
+        Set<String> nowRepos = new LinkedHashSet<>();
         if (bizWorkflowData != null) {
             bizWorkflowData.getNodes().forEach(n -> {
-                if (n.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE)) {
-                    JSONArray array = n.getData().getNodeParam().getJSONArray("repoId");
-                    if (array != null && !array.isEmpty())
-                        nowRepos.addAll(array.toJavaList(String.class));
-                }
-                if (n.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE_PRO)) {
-                    JSONArray array = n.getData().getNodeParam().getJSONArray("repoIds");
-                    if (array != null && !array.isEmpty())
-                        nowRepos.addAll(array.toJavaList(String.class));
-                }
-                if (n.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
-                    JSONArray array = n.getData().getNodeParam().getJSONObject("plugin").getJSONArray("knowledge");
-                    if (array != null && !array.isEmpty()) {
-                        for (int i = 0; i < array.size(); i++) {
-                            JSONObject item = (array.get(i) instanceof JSONObject)
-                                    ? (JSONObject) array.get(i)
-                                    : new JSONObject((Map<?, ?>) array.get(i));
-                            JSONArray jsonArray = item.getJSONObject("match").getJSONArray("repoIds");
-                            nowRepos.addAll(jsonArray.toJavaList(String.class));
-                        }
-                    }
+                if (n != null && n.getData() != null && n.getData().getNodeParam() != null) {
+                    collectKnowledgeIds(n, n.getData().getNodeParam(), nowRepos);
                 }
             });
             List<String> addRepos = CollectionUtil.subtractToList(nowRepos, hadRepos);
@@ -2236,9 +2220,18 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     }
 
     public FlowProtocol buildWorkflowData(WorkflowReq saveDto, String flowId) {
+        return buildWorkflowData(
+                saveDto,
+                flowId,
+                UserInfoManagerHandler.getUserId(),
+                SpaceInfoUtil.getSpaceId());
+    }
+
+    public FlowProtocol buildWorkflowData(
+            WorkflowReq saveDto, String flowId, String executionUid, Long executionSpaceId) {
         FlowProtocol protocol = null;
         BizWorkflowData bizWorkflowData = saveDto.getData();
-        ensureNoUnresolvedImportDependencies(bizWorkflowData);
+        ensureNoUnresolvedImportDependencies(bizWorkflowData, executionUid, executionSpaceId);
         // Fill app elements
         String appId;
         String apiKey;
@@ -2275,8 +2268,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 configs = Arrays.asList(configInfo.getValue().split(","));
             }
             // check and fix node
-            checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret, configuredMcpServerUrls);
-            injectScriptSandboxIntoCodeNodes(nodes, flowId);
+            checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret,
+                    configuredMcpServerUrls, executionUid, executionSpaceId);
+            injectScriptSandboxIntoCodeNodes(nodes, flowId, executionUid, executionSpaceId);
 
             // Update core system flow
 
@@ -2300,8 +2294,20 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         if (workflowData == null || workflowData.getNodes() == null) {
             return;
         }
-        String uid = UserInfoManagerHandler.getUserId();
-        ExecutionScope scope = loadExecutionScope(uid);
+        ensureNoUnresolvedImportDependencies(
+                workflowData,
+                UserInfoManagerHandler.getUserId(),
+                SpaceInfoUtil.getSpaceId());
+    }
+
+    void ensureNoUnresolvedImportDependencies(BizWorkflowData workflowData, String uid, Long spaceId) {
+        if (workflowData == null || workflowData.getNodes() == null) {
+            return;
+        }
+        if (StringUtils.isBlank(uid)) {
+            throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+        }
+        ExecutionScope scope = loadExecutionScope(uid, spaceId);
         ImportDependencyResources resources = loadImportDependencyResources(workflowData, scope);
         boolean unresolved = workflowData.getNodes()
                 .stream()
@@ -2338,20 +2344,21 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             return;
         }
         JSONObject param = node.getData().getNodeParam();
-        if (node.getId().startsWith(WorkflowConst.NodeType.DATABASE)) {
+        String nodeType = WorkflowKnowledgeBindingParser.nodeType(node.getId());
+        if (WorkflowConst.NodeType.DATABASE.equals(nodeType)) {
             addLongId(databaseIds, param.getString("dbId"));
-        } else if (node.getId().startsWith(WorkflowConst.NodeType.FLOW)) {
+        } else if (WorkflowConst.NodeType.FLOW.equals(nodeType)) {
             addStringId(workflowIds, param.getString("flowId"));
-        } else if (node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE)
-                || node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE_PRO)
-                || node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+        } else if (WorkflowKnowledgeBindingParser.isDirectKnowledgeType(nodeType)
+                || WorkflowConst.NodeType.AGENT.equals(nodeType)) {
             collectKnowledgeIds(node, param, repositoryIds);
         }
     }
 
     private void collectKnowledgeIds(BizWorkflowNode node, JSONObject param,
             Set<String> repositoryIds) {
-        if (node.getId() != null && node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+        String nodeType = WorkflowKnowledgeBindingParser.nodeType(node.getId());
+        if (WorkflowConst.NodeType.AGENT.equals(nodeType)) {
             JSONObject plugin = param.getJSONObject("plugin");
             JSONArray knowledge = plugin == null ? null : plugin.getJSONArray("knowledge");
             for (Object rawKnowledge : knowledge == null ? new JSONArray() : knowledge) {
@@ -2361,17 +2368,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             }
             return;
         }
-        addStringIds(repositoryIds, param.getJSONArray("repoId"));
-        addStringIds(repositoryIds, param.getJSONArray("repoIds"));
-        JSONArray repoList = param.getJSONArray("repoList");
-        for (Object rawRepo : repoList == null ? new JSONArray() : repoList) {
-            JSONObject repo = asJsonObjectOrNull(rawRepo);
-            if (repo != null) {
-                addStringId(repositoryIds, firstNonBlank(
-                        repo.getString("coreRepoId"), repo.getString("outerRepoId"),
-                        repo.getString("repoId")));
-            }
-        }
+        repositoryIds.addAll(WorkflowKnowledgeBindingParser.parse(nodeType, param).repositoryIds());
     }
 
     private void addLongId(Set<Long> values, String value) {
@@ -2463,9 +2460,14 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 });
         if (scope.spaceId() == null && !executableIds.containsAll(repositoryIds)
                 && repoService != null) {
+            HttpServletRequest currentRequest = RequestContextUtil.getCurrentRequest();
+            if (currentRequest == null) {
+                log.warn("Skip remote personal repository validation without caller credentials, uid={}",
+                        scope.uid());
+                return executableIds;
+            }
             try {
-                JSONArray remoteRepositories = repoService.getStarFireData(
-                        RequestContextUtil.getCurrentRequest());
+                JSONArray remoteRepositories = repoService.getStarFireData(currentRequest);
                 List<RepoDto> remote = RepoService.convertAndMergeJsonArrays(
                         new ArrayList<>(), remoteRepositories, "", null);
                 remote.stream()
@@ -2497,7 +2499,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return scope.spaceId() == null
                 ? Objects.equals(workflow.getUid(), scope.uid())
                         || Objects.equals(workflow.getUid(), bizConfig.getAdminUid())
-                : Objects.equals(workflow.getSpaceId(), scope.spaceId());
+                : scope.spaceMember()
+                        && Objects.equals(workflow.getSpaceId(), scope.spaceId());
     }
 
     /** Repositories additionally accept the same type=1 group shares shown by the selector. */
@@ -2531,7 +2534,10 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     }
 
     private ExecutionScope loadExecutionScope(String uid) {
-        Long spaceId = SpaceInfoUtil.getSpaceId();
+        return loadExecutionScope(uid, SpaceInfoUtil.getSpaceId());
+    }
+
+    private ExecutionScope loadExecutionScope(String uid, Long spaceId) {
         boolean spaceMember = spaceId == null
                 || spaceUserService != null && spaceUserService.getRole(spaceId, uid) != null;
         return new ExecutionScope(uid, spaceId, spaceMember);
@@ -2621,7 +2627,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             return false;
         }
         JSONObject param = node.getData().getNodeParam();
-        if (node.getId().startsWith(WorkflowConst.NodeType.DATABASE)) {
+        String nodeType = WorkflowKnowledgeBindingParser.nodeType(node.getId());
+        if (WorkflowConst.NodeType.DATABASE.equals(nodeType)) {
             String dbId = param.getString("dbId");
             if (StringUtils.isBlank(dbId)) {
                 return false;
@@ -2635,14 +2642,19 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 return true;
             }
         }
-        if (node.getId().startsWith(WorkflowConst.NodeType.FLOW)) {
+        if (WorkflowConst.NodeType.FLOW.equals(nodeType)) {
             String flowId = param.getString("flowId");
             return StringUtils.isNotBlank(flowId)
                     && !resources.executableWorkflowIds().contains(flowId);
         }
-        if (node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE)
-                || node.getId().startsWith(WorkflowConst.NodeType.KNOWLEDGE_PRO)
-                || node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
+        if (WorkflowKnowledgeBindingParser.isDirectKnowledgeType(nodeType)) {
+            WorkflowKnowledgeBindingParser.KnowledgeBindings bindings =
+                    WorkflowKnowledgeBindingParser.parse(nodeType, param);
+            return bindings.malformed()
+                    || !resources.executableRepositoryIds()
+                            .containsAll(bindings.repositoryIds());
+        }
+        if (WorkflowConst.NodeType.AGENT.equals(nodeType)) {
             Set<String> repositoryIds = new LinkedHashSet<>();
             collectKnowledgeIds(node, param, repositoryIds);
             return !resources.executableRepositoryIds().containsAll(repositoryIds);
@@ -2695,18 +2707,98 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         JSONObject meta = node.getData().getNodeMeta();
         JSONArray issues = meta.getJSONArray("importDependencies");
         if (CollUtil.isEmpty(issues)) {
-            return StringUtils.isNotBlank(meta.getString("importDependencyStatus"));
+            String fallbackStatus = meta.getString("importDependencyStatus");
+            if (StringUtils.isBlank(fallbackStatus)) {
+                return false;
+            }
+            // Legacy imports can carry only the aggregate marker. A known resolved marker is safe
+            // to clear only for a node kind whose runtime binding is validated below. Unknown node
+            // kinds and unknown states remain fail-closed.
+            if (!isKnownImportStatus(fallbackStatus)
+                    || !isKnownImportDependencyNode(node)
+                    || !isResolvedImportStatus(fallbackStatus)) {
+                return true;
+            }
+            meta.remove("importDependencyStatus");
+            meta.remove("importDependencyReason");
+            return false;
         }
-        boolean active = issues.stream()
-                .map(this::asJsonObjectOrNull)
-                .filter(Objects::nonNull)
-                .anyMatch(issue -> !isImportIssueRepaired(node, issue, resources));
+        boolean active = issues.stream().anyMatch(rawIssue -> {
+            JSONObject issue = asJsonObjectOrNull(rawIssue);
+            if (!isWellFormedImportIssue(node, issue)) {
+                return true;
+            }
+            if (isResolvedImportStatus(issue.getString("status"))) {
+                return false;
+            }
+            return !isImportIssueRepaired(node, issue, resources);
+        });
         if (!active) {
             meta.remove("importDependencies");
             meta.remove("importDependencyStatus");
             meta.remove("importDependencyReason");
         }
         return active;
+    }
+
+    private boolean isKnownImportDependencyNode(BizWorkflowNode node) {
+        String nodeType = node == null ? null : WorkflowKnowledgeBindingParser.nodeType(node.getId());
+        return nodeType != null && Set.of(WorkflowConst.NodeType.PLUGIN, WorkflowConst.NodeType.DATABASE,
+                WorkflowConst.NodeType.FLOW, WorkflowConst.NodeType.KNOWLEDGE,
+                WorkflowConst.NodeType.KNOWLEDGE_PRO, WorkflowConst.NodeType.KNOWLEDGE_EXPERT,
+                WorkflowConst.NodeType.AGENT).contains(nodeType);
+    }
+
+    private boolean isWellFormedImportIssue(BizWorkflowNode node, JSONObject issue) {
+        if (issue == null) {
+            return false;
+        }
+        String dependencyType = issue.getString("dependencyType");
+        String status = issue.getString("status");
+        if (!Set.of("plugin", "database", "workflow", "knowledge").contains(dependencyType)
+                || !isKnownImportStatus(status)) {
+            return false;
+        }
+        String nodeType = WorkflowKnowledgeBindingParser.nodeType(node.getId());
+        if (!isKnownImportDependencyNode(node)
+                || !isImportDependencyTypeCompatible(dependencyType, nodeType)) {
+            return false;
+        }
+        if (isResolvedImportStatus(status)) {
+            return true;
+        }
+        if ("knowledge".equals(dependencyType)
+                && WorkflowConst.NodeType.AGENT.equals(nodeType)) {
+            // Agent knowledge cleanup currently records one aggregate marker for all removed repos.
+            return true;
+        }
+        return StringUtils.isNotBlank(issue.getString("sourcePluginId"));
+    }
+
+    private boolean isImportDependencyTypeCompatible(String dependencyType, String nodeType) {
+        return switch (dependencyType) {
+            case "plugin" -> Set.of(WorkflowConst.NodeType.PLUGIN, WorkflowConst.NodeType.AGENT)
+                    .contains(nodeType);
+            case "database" -> WorkflowConst.NodeType.DATABASE.equals(nodeType);
+            case "workflow" -> WorkflowConst.NodeType.FLOW.equals(nodeType);
+            case "knowledge" -> WorkflowKnowledgeBindingParser.isDirectKnowledgeType(nodeType)
+                    || WorkflowConst.NodeType.AGENT.equals(nodeType);
+            default -> false;
+        };
+    }
+
+    private boolean isKnownImportStatus(String status) {
+        return Set.of(
+                "MAPPED", "RESOLVED", "SUCCESS", "OK", "AUTO_MAPPED", "AUTO_RESOLVED",
+                "AMBIGUOUS", "MULTIPLE_MATCHES", "UNRESOLVED", "UNRESOLVED_DEPENDENCY",
+                "MISSING", "NO_MATCH", "FORBIDDEN", "PERMISSION_DENIED", "INCOMPATIBLE",
+                "FAILED", "NOT_FOUND")
+                .contains(StringUtils.upperCase(StringUtils.trim(status)));
+    }
+
+    private boolean isResolvedImportStatus(String status) {
+        return Set.of("MAPPED", "RESOLVED", "SUCCESS", "OK", "AUTO_MAPPED", "AUTO_RESOLVED")
+                .contains(StringUtils.upperCase(StringUtils.trim(status)));
     }
 
     private JSONObject asJsonObjectOrNull(Object value) {
@@ -2837,7 +2929,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     }
 
     private void checkAndFixNode(List<BizWorkflowNode> nodes, boolean fixedAppEnv, List<String> configs, String appId,
-            String apiKey, String apiSecret, List<String> configuredMcpServerUrls) {
+            String apiKey, String apiSecret, List<String> configuredMcpServerUrls,
+            String executionUid, Long executionSpaceId) {
         for (BizWorkflowNode node : nodes) {
             boolean notFlowNode = !node.getId().startsWith(WorkflowConst.NodeType.FLOW);
             BizNodeData bizNodeData = node.getData();
@@ -2866,7 +2959,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     }
                 }
                 // Agent node changes
-                checkAndEditData(bizNodeData, prefix, configuredMcpServerUrls);
+                checkAndEditData(
+                        bizNodeData,
+                        prefix,
+                        configuredMcpServerUrls,
+                        executionUid,
+                        executionSpaceId);
                 // Knowledge base node new parameter passing logic
                 fixOnRepoNode(type, bizNodeData, prefix);
                 // Handle retry strategy information
@@ -2949,6 +3047,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     @SuppressWarnings("unchecked")
     private void checkAndEditData(BizNodeData bizNodeData, String prefix, List<String> configuredMcpServerUrls) {
+        checkAndEditData(bizNodeData, prefix, configuredMcpServerUrls, null, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void checkAndEditData(BizNodeData bizNodeData, String prefix,
+            List<String> configuredMcpServerUrls, String executionUid, Long executionSpaceId) {
         if (!isAgentNode(bizNodeData, prefix)) {
             return;
         }
@@ -2969,7 +3073,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         mergeConfiguredMcpServerUrls(plugin, configuredMcpServerUrls);
 
         // (2.2) Skills: inject stable metadata and on-demand download urls
-        enrichSkills(plugin);
+        enrichSkills(plugin, executionUid, executionSpaceId);
 
         // (2.3) Knowledge: aggregate docIds based on repoIds
         JSONArray knowledgeArray = plugin.getJSONArray("knowledge");
@@ -2981,7 +3085,17 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     @SuppressWarnings("rawtypes")
     private void enrichSkills(JSONObject plugin) {
-        skillEnrichmentService.enrichSkillEntries(plugin.getJSONArray("skills"));
+        enrichSkills(plugin, null, null);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private void enrichSkills(JSONObject plugin, String executionUid, Long executionSpaceId) {
+        if (executionUid == null) {
+            skillEnrichmentService.enrichSkillEntries(plugin.getJSONArray("skills"));
+            return;
+        }
+        skillEnrichmentService.enrichSkillEntries(
+                plugin.getJSONArray("skills"), executionUid, executionSpaceId);
     }
 
     private List<String> resolveBotMcpServerUrls(WorkflowReq saveDto, Workflow workflow) {
@@ -3351,6 +3465,12 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     }
 
     private void injectScriptSandboxIntoCodeNodes(List<BizWorkflowNode> nodes, String flowId) {
+        injectScriptSandboxIntoCodeNodes(nodes, flowId, null, null);
+    }
+
+    private void injectScriptSandboxIntoCodeNodes(
+            List<BizWorkflowNode> nodes, String flowId, String executionUid,
+            Long executionSpaceId) {
         if (nodes == null || nodes.isEmpty()) {
             return;
         }
@@ -3358,7 +3478,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             if (node == null || node.getData() == null || !isCodeNode(node.getId())) {
                 continue;
             }
-            JSONObject sandbox = buildRuntimeSandbox(flowId, node.getId());
+            JSONObject sandbox = buildRuntimeSandbox(
+                    flowId, node.getId(), executionUid, executionSpaceId);
             if (sandbox == null) {
                 node.getData().getNodeParam().remove("sandbox");
                 continue;
@@ -3368,9 +3489,16 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     }
 
     private JSONObject buildRuntimeSandbox(String flowId, String nodeId) {
+        return buildRuntimeSandbox(flowId, nodeId, null, null);
+    }
+
+    private JSONObject buildRuntimeSandbox(
+            String flowId, String nodeId, String executionUid, Long executionSpaceId) {
         SkillSandboxConfigDto sandboxConfig;
         try {
-            sandboxConfig = skillSandboxConfigService.toRuntimeDto();
+            sandboxConfig = executionUid == null
+                    ? skillSandboxConfigService.toRuntimeDto()
+                    : skillSandboxConfigService.toRuntimeDto(executionUid, executionSpaceId);
         } catch (Exception ex) {
             log.warn("Skip injecting code sandbox config, flowId={}, nodeId={}, reason={}", flowId, nodeId, ex.getMessage());
             return null;
@@ -3944,21 +4072,24 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             // return SseEmitterUtil.newSseAndSendMessageClose("Too fast request! Please try again later");
             // }
 
-            Workflow workflow = loadWorkflowForDebugExecution(flowId);
+            Workflow workflow = loadWorkflowForDebugExecution(flowId, bizReq.getVersion());
             AkSk akSk = appService.remoteCallAkSk(workflow.getAppId());
             Assert.notNull(akSk);
             Assert.notEmpty(akSk.getApiKey());
             Assert.notEmpty(akSk.getApiSecret());
 
-            // Multi-round conversation validation
-            BizWorkflowData bizWorkflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
-            List<BizWorkflowNode> nodes = bizWorkflowData.getNodes();
             boolean isEnabled = false;
             int maxRounds = 0;
-            for (BizWorkflowNode node : nodes) {
-                if (isMultiRoundEnabled(node)) {
-                    isEnabled = true;
-                    maxRounds = Math.max(maxRounds, getMaxRounds(node));
+            // Historical comparison snapshots are immutable one-off evaluations and do not reuse
+            // the live draft's conversation-history policy.
+            if (StringUtils.isBlank(bizReq.getVersion())) {
+                BizWorkflowData bizWorkflowData = JSON.parseObject(
+                        workflow.getData(), BizWorkflowData.class);
+                for (BizWorkflowNode node : bizWorkflowData.getNodes()) {
+                    if (isMultiRoundEnabled(node)) {
+                        isEnabled = true;
+                        maxRounds = Math.max(maxRounds, getMaxRounds(node));
+                    }
                 }
             }
             Map<String, String> headerMap = new HashMap<>();
@@ -3988,6 +4119,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             }
 
             return sseEmitter;
+        } catch (BusinessException e) {
+            log.warn("Workflow chat rejected, flowId={}, code={}, reason={}",
+                    bizReq == null ? null : bizReq.getFlowId(), e.getCode(), e.getMessage());
+            return SseEmitterUtil.newSseAndSendMessageClose(
+                    new ChatResponse(e.getCode(), e.getMessage()));
         } catch (Exception e) {
             log.error("SSE error occurred: {}", e.getMessage(), e);
             return SseEmitterUtil.newSseAndSendMessageClose(new ChatResponse(e.getMessage()));
@@ -4012,7 +4148,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             // }
             String flowId = bizReq.getFlowId();
             Assert.notEmpty(flowId);
-            Workflow workflow = loadWorkflowForDebugExecution(flowId);
+            Workflow workflow = loadWorkflowForDebugExecution(flowId, bizReq.getVersion());
             AkSk akSk = appService.remoteCallAkSk(workflow.getAppId());
             Assert.notNull(akSk);
             Assert.notEmpty(akSk.getApiKey());
@@ -4040,6 +4176,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 workflowDialogMapper.delete(Wrappers.lambdaQuery(WorkflowDialog.class).eq(WorkflowDialog::getId, latestDialog.getId()));
             }
             return sseEmitter;
+        } catch (BusinessException e) {
+            log.warn("Workflow resume rejected, flowId={}, code={}, reason={}",
+                    bizReq == null ? null : bizReq.getFlowId(), e.getCode(), e.getMessage());
+            return SseEmitterUtil.newSseAndSendMessageClose(
+                    new ChatResponse(e.getCode(), e.getMessage()));
         } catch (Exception e) {
             log.error("workflow resume SSE error occurred: {}", e.getMessage(), e);
             return SseEmitterUtil.newSseAndSendMessageClose(new ChatResponse(e.getMessage()));
@@ -4051,21 +4192,77 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
      * request fields and a previously synchronized core protocol are not execution authorization
      * boundaries.
      */
+    public void ensureExecutionEligible(String flowId) {
+        loadWorkflowForDebugExecution(flowId);
+    }
+
     private Workflow loadWorkflowForDebugExecution(String flowId) {
+        return loadWorkflowForDebugExecution(flowId, null);
+    }
+
+    /**
+     * Revalidates the exact protocol that Core will execute. A comparison must not be checked against
+     * the unrelated live draft, and validation performed when it was saved is not sufficient because
+     * resource ownership, sharing, or deletion can change before execution.
+     */
+    private Workflow loadWorkflowForDebugExecution(String flowId, String comparisonVersion) {
         Workflow workflow = workflowMapper.selectOne(Wrappers.lambdaQuery(Workflow.class)
                 .eq(Workflow::getFlowId, flowId)
                 .eq(Workflow::getDeleted, false));
         Assert.notNull(workflow);
+        assertTopLevelWorkflowExecutableByCurrentUser(workflow);
         dataPermissionCheckTool.checkWorkflowBelong(workflow, SpaceInfoUtil.getSpaceId());
         if (StringUtils.isBlank(workflow.getData())) {
             throw new BusinessException(ResponseEnum.WORKFLOW_PROTOCOL_EMPTY);
         }
-        BizWorkflowData workflowData = JSON.parseObject(workflow.getData(), BizWorkflowData.class);
+        BizWorkflowData workflowData = StringUtils.isBlank(comparisonVersion)
+                ? JSON.parseObject(workflow.getData(), BizWorkflowData.class)
+                : comparisonSnapshotToBizData(coreSystemService.getComparison(flowId, comparisonVersion));
         if (workflowData == null || workflowData.getNodes() == null) {
             throw new BusinessException(ResponseEnum.WORKFLOW_PROTOCOL_EMPTY);
         }
         ensureNoUnresolvedImportDependencies(workflowData);
         return workflow;
+    }
+
+    private BizWorkflowData comparisonSnapshotToBizData(JSONObject protocol) {
+        JSONObject protocolData = protocol == null ? null : protocol.getJSONObject("data");
+        JSONArray rawNodes = protocolData == null ? null : protocolData.getJSONArray("nodes");
+        if (rawNodes == null) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_PROTOCOL_EMPTY);
+        }
+        BizWorkflowData workflowData = new BizWorkflowData();
+        List<BizWorkflowNode> nodes = new ArrayList<>(rawNodes.size());
+        for (Object rawNode : rawNodes) {
+            JSONObject nodeObject = asJsonObjectOrNull(rawNode);
+            JSONObject dataObject = nodeObject == null ? null : nodeObject.getJSONObject("data");
+            if (nodeObject == null || dataObject == null) {
+                throw new BusinessException(ResponseEnum.WORKFLOW_PROTOCOL_EMPTY);
+            }
+            BizWorkflowNode node = new BizWorkflowNode();
+            node.setId(nodeObject.getString("id"));
+            node.setData(JSON.parseObject(dataObject.toJSONString(), BizNodeData.class));
+            nodes.add(node);
+        }
+        workflowData.setNodes(nodes);
+        return workflowData;
+    }
+
+    /** Top-level draft execution is stricter than nested public-workflow visibility. */
+    private void assertTopLevelWorkflowExecutableByCurrentUser(Workflow workflow) {
+        String uid = UserInfoManagerHandler.getUserId();
+        Long requestSpaceId = SpaceInfoUtil.getSpaceId();
+        if (requestSpaceId == null) {
+            if (workflow.getSpaceId() != null || !Objects.equals(workflow.getUid(), uid)) {
+                throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+            }
+            return;
+        }
+        if (!Objects.equals(workflow.getSpaceId(), requestSpaceId)
+                || spaceUserService == null
+                || spaceUserService.getRole(requestSpaceId, uid) == null) {
+            throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        }
     }
 
     /**
@@ -4611,6 +4808,9 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
 
     public Object addComparisons(WorkflowComparisonReq workflowComparisonReq) {
         try {
+            // A comparison row is later addressed only by workflow group + caller-supplied version.
+            // Authorize the top-level workflow before creating that executable snapshot.
+            loadWorkflowForDebugExecution(workflowComparisonReq.getFlowId());
             // Workflow protocol conversion
             WorkflowReq workflowReq = new WorkflowReq();
             workflowReq.setData(workflowComparisonReq.getData());
@@ -4618,6 +4818,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             FlowProtocol protocol = buildWorkflowData(workflowReq, workflowComparisonReq.getFlowId());
             // Call core system to add comparison group protocol
             coreSystemService.addComparisons(protocol, workflowComparisonReq.getFlowId(), workflowComparisonReq.getVersion());
+        } catch (BusinessException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.error("Failed to add comparison group protocol, flowId={}, version={}, error={}", workflowComparisonReq.getFlowId(), workflowComparisonReq.getVersion(), ex.getMessage(), ex);
             throw new BusinessException(ResponseEnum.PROMPT_GROUP_SAVE_FAILED);

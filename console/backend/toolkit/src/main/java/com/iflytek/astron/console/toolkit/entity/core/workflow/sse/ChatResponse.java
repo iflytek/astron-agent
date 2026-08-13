@@ -33,4 +33,9 @@ public class ChatResponse {
         code = -1;
         message = content;
     }
+
+    public ChatResponse(Integer code, String message) {
+        this.code = code;
+        this.message = message;
+    }
 }

@@ -8,5 +8,6 @@ import jakarta.servlet.http.HttpServletRequest;
 public interface ReleaseManageClientService {
     String getVersionNameByBotId(Long botId, Long spaceId, HttpServletRequest request);
 
-    void releaseBotApi(Integer botId, String flowId, String versionName, Long spaceId, HttpServletRequest request);
+    void releaseBotApi(Integer botId, String flowId, String versionName, String executionUid,
+            Long spaceId, HttpServletRequest request);
 }

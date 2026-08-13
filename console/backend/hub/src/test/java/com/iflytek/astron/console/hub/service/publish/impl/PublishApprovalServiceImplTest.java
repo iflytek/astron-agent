@@ -230,6 +230,32 @@ class PublishApprovalServiceImplTest {
     }
 
     @Test
+    void approveShouldPreserveUnresolvedDependencyAndMarkExecutionFailed() {
+        PublishApproval approval = pendingApproval(123L, "member-uid");
+        when(spaceUserService.getRole(100L, "admin-uid")).thenReturn(SpaceRoleEnum.ADMIN);
+        when(publishApprovalMapper.selectById(123L)).thenReturn(approval);
+        when(publishApprovalMapper.update(any(PublishApproval.class), any())).thenReturn(1);
+        when(publishApprovalExecutor.supports(approval)).thenReturn(true);
+        BusinessException unresolved =
+                new BusinessException(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED);
+        when(publishApprovalExecutor.execute(approval)).thenThrow(unresolved);
+
+        assertThatThrownBy(() -> publishApprovalService.approve(
+                123L,
+                PublishApprovalReviewDto.builder().reviewComment("ok").build(),
+                "admin-uid",
+                100L))
+                .isSameAs(unresolved)
+                .extracting("code")
+                .isEqualTo(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED.getCode());
+
+        ArgumentCaptor<PublishApproval> captor = ArgumentCaptor.forClass(PublishApproval.class);
+        verify(publishApprovalMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getApprovalStatus())
+                .isEqualTo(PublishApprovalStatusEnum.EXECUTE_FAILED.name());
+    }
+
+    @Test
     void memberShouldNotApproveApproval() {
         when(spaceUserService.getRole(100L, "member-uid")).thenReturn(SpaceRoleEnum.MEMBER);
 

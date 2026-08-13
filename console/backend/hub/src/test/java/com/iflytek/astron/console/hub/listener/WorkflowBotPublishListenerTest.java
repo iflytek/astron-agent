@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,5 +89,28 @@ class WorkflowBotPublishListenerTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("responseEnum")
                 .isEqualTo(ResponseEnum.WORKFLOW_VERSION_PUBLISH_FAILED);
+    }
+
+    @Test
+    void handleBotPublishStatusChangedShouldPreserveUnresolvedDependencyError() {
+        ChatBotBase botBase = new ChatBotBase();
+        botBase.setId(25);
+        botBase.setVersion(BotTypeEnum.WORKFLOW_BOT.getType());
+        when(chatBotBaseMapper.selectById(25)).thenReturn(botBase);
+        when(userLangChainDataService.findFlowIdByBotId(25)).thenReturn("flow-1");
+        BusinessException unresolved =
+                new BusinessException(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED);
+        when(workflowReleaseService.publishWorkflow(25, "requester-uid", 1L, "MARKET"))
+                .thenThrow(unresolved);
+
+        BotPublishStatusChangedEvent event = new BotPublishStatusChangedEvent(
+                this, 25, "requester-uid", 1L, "PUBLISH", null, 1, "MARKET");
+
+        assertThatThrownBy(() -> listener.handleBotPublishStatusChanged(event))
+                .isSameAs(unresolved)
+                .extracting("code")
+                .isEqualTo(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED.getCode());
+
+        verify(workflowReleaseService).publishWorkflow(25, "requester-uid", 1L, "MARKET");
     }
 }

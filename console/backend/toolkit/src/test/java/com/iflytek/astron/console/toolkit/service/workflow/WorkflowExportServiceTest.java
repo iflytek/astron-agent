@@ -928,6 +928,7 @@ class WorkflowExportServiceTest {
                 .fluentPut("outerRepoId", "outer-shared")
                 .fluentPut("userId", USER_ID);
         BizWorkflowNode knowledge = node("knowledge-base::authoritative", new JSONObject()
+                .fluentPut("repoId", new JSONArray(List.of("core-owned", "outer-shared")))
                 .fluentPut("repoList", new JSONArray(List.of(first, second))));
 
         service.cleanNodesForImport(workflow(knowledge), USER_ID, request, List.of(),
@@ -939,6 +940,85 @@ class WorkflowExportServiceTest {
     }
 
     @Test
+    void invisibleExpertKnowledgeRepoIsClearedAndReportedAsUnresolved() {
+        Repo foreign = repository(
+                1101L, "foreign-expert-repo", null, "other-user", null, 0);
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(foreign));
+        JSONObject param = new JSONObject().fluentPut("repos", new JSONArray(List.of(
+                new JSONObject()
+                        .fluentPut("repoId", "foreign-expert-repo")
+                        .fluentPut("docIds", new JSONArray(List.of("document-1"))))));
+        BizWorkflowNode expert = node("knowledge-expert-base::invisible", param);
+        WorkflowImportReport report = new WorkflowImportReport();
+
+        service.cleanNodesForImport(workflow(expert), USER_ID, request, List.of(), report);
+
+        assertThat(param.getJSONArray("repos")).isEmpty();
+        assertThat(param.getJSONArray("repoList")).isEmpty();
+        assertThat(param.getJSONArray("repoId")).isEmpty();
+        assertThat(param.getJSONArray("repoIds")).isEmpty();
+        assertThat(expert.getData().getNodeMeta())
+                .containsEntry("importDependencyStatus", "MISSING")
+                .containsKey("importDependencies");
+        assertThat(expert.getData().getNodeMeta().getJSONArray("importDependencies"))
+                .singleElement()
+                .satisfies(rawIssue -> assertThat((JSONObject) rawIssue)
+                        .containsEntry("dependencyType", "knowledge")
+                        .containsEntry("status", "MISSING")
+                        .containsEntry("sourcePluginId", "foreign-expert-repo"));
+        assertThat(report.getTotal()).isEqualTo(1);
+        assertThat(report.getUnresolved()).isEqualTo(1);
+        assertThat(report.getEntries()).singleElement().satisfies(entry -> {
+            assertThat(entry.getNodeId()).isEqualTo("knowledge-expert-base::invisible");
+            assertThat(entry.getNodeType()).isEqualTo("knowledge-expert-base");
+            assertThat(entry.getDependencyType()).isEqualTo("knowledge");
+            assertThat(entry.getStatus()).isEqualTo("MISSING");
+            assertThat(entry.getReasonCode()).isEqualTo("KNOWLEDGE_MISSING");
+            assertThat(entry.getSourcePluginId()).isEqualTo("foreign-expert-repo");
+        });
+    }
+
+    @Test
+    void visibleExpertKnowledgeRepoIsRetainedWithoutUnresolvedReport() {
+        Repo owned = repository(
+                1102L, "owned-expert-repo", null, USER_ID, null, 0);
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(owned));
+        JSONObject binding = new JSONObject()
+                .fluentPut("repoId", "owned-expert-repo")
+                .fluentPut("docIds", new JSONArray(List.of("document-1")));
+        JSONObject param = new JSONObject().fluentPut(
+                "repos", new JSONArray(List.of(binding)));
+        BizWorkflowNode expert = node("knowledge-expert-base::visible", param);
+        WorkflowImportReport report = new WorkflowImportReport();
+
+        service.cleanNodesForImport(workflow(expert), USER_ID, request, List.of(), report);
+
+        assertThat(param.getJSONArray("repos")).containsExactly(binding);
+        assertThat(expert.getData().getNodeMeta()).isNull();
+        assertThat(report.getTotal()).isZero();
+        assertThat(report.getEntries()).isEmpty();
+    }
+
+    @Test
+    void knowledgeReposTakePrecedenceOverLegacyRepoIdDuringImportValidation() {
+        Repo owned = repository(1103L, "active-repo", null, USER_ID, null, 0);
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(owned));
+        JSONObject binding = new JSONObject().fluentPut("repoId", "active-repo");
+        JSONObject param = new JSONObject()
+                .fluentPut("repos", new JSONArray(List.of(binding)))
+                .fluentPut("repoId", new JSONArray(List.of("ignored-legacy-repo")));
+        BizWorkflowNode knowledge = node("knowledge-base::new-format", param);
+        WorkflowImportReport report = new WorkflowImportReport();
+
+        service.cleanNodesForImport(workflow(knowledge), USER_ID, request, List.of(), report);
+
+        assertThat(param.getJSONArray("repos")).containsExactly(binding);
+        assertThat(param.getJSONArray("repoId")).containsExactly("ignored-legacy-repo");
+        assertThat(knowledge.getData().getNodeMeta()).isNull();
+        assertThat(report.getTotal()).isZero();
+    }
+
+    @Test
     void personalRemoteRepositoryWithoutLocalRowRemainsVisible() {
         when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
         when(repoService.getStarFireData(request)).thenReturn(new JSONArray(List.of(
@@ -947,12 +1027,12 @@ class WorkflowExportServiceTest {
                         .fluentPut("uid", USER_ID)
                         .fluentPut("name", "Remote repository"))));
         BizWorkflowNode knowledge = node("knowledge-base::remote", new JSONObject()
-                .fluentPut("repoIds", new JSONArray(List.of("2001"))));
+                .fluentPut("repoId", new JSONArray(List.of("2001"))));
 
         service.cleanNodesForImport(workflow(knowledge), USER_ID, request, List.of(),
                 new WorkflowImportReport());
 
-        assertThat(knowledge.getData().getNodeParam().getJSONArray("repoIds"))
+        assertThat(knowledge.getData().getNodeParam().getJSONArray("repoId"))
                 .containsExactly("2001");
     }
 
@@ -1074,16 +1154,16 @@ class WorkflowExportServiceTest {
     @Test
     void malformedRepositoryListFailsClosedAndRepositoryQueryFailureIsExplicit() {
         BizWorkflowNode malformed = node("knowledge-base::malformed", new JSONObject()
-                .fluentPut("repoList", new JSONArray(List.of(new JSONObject()))));
+                .fluentPut("repos", new JSONArray(List.of(new JSONObject()))));
         WorkflowImportReport report = new WorkflowImportReport();
 
         service.cleanNodesForImport(workflow(malformed), USER_ID, request, List.of(), report);
 
-        assertThat(malformed.getData().getNodeParam().getJSONArray("repoList")).isEmpty();
+        assertThat(malformed.getData().getNodeParam().getJSONArray("repos")).isEmpty();
         assertThat(report.getUnresolved()).isEqualTo(1);
 
         BizWorkflowNode bound = node("knowledge-base::failure", new JSONObject()
-                .fluentPut("repoIds", new JSONArray(List.of("core-repo"))));
+                .fluentPut("repoId", new JSONArray(List.of("core-repo"))));
         when(repoMapper.selectList(any(Wrapper.class))).thenThrow(new IllegalStateException("db down"));
         assertThatThrownBy(() -> service.cleanNodesForImport(
                 workflow(bound), USER_ID, request, List.of(), new WorkflowImportReport()))

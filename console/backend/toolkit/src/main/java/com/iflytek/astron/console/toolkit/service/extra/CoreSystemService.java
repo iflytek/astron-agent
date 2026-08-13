@@ -46,6 +46,7 @@ public class CoreSystemService {
     public static final String UPLOAD_FILE_PATH = "/workflow/v1/upload_file";
     public static final String BATCH_UPLOAD_FILE_PATH = "/workflow/v1/upload_files";
     public static final String ADD_COMPARISONS_PATH = "/workflow/v1/protocol/compare/save";
+    public static final String GET_COMPARISON_PATH = "/workflow/v1/protocol/compare/get";
     public static final String DELETE_COMPARISONS_PATH = "/workflow/v1/protocol/compare/delete";
     public static final String CREATE_DATABASE_PATH = "/xingchen-db/v1/create_database";
     public static final String EXEC_DDL_PATH = "/xingchen-db/v1/exec_ddl";
@@ -328,6 +329,27 @@ public class CoreSystemService {
         if (result.code() != 0) {
             throw new BusinessException(ResponseEnum.RESPONSE_FAILED, result.message());
         }
+    }
+
+    /**
+     * Loads one exact comparison snapshot from Core for a fresh caller-scope authorization check. The
+     * original flow ID and comparison version are both required so a caller cannot substitute a row
+     * from another workflow group.
+     */
+    public JSONObject getComparison(String flowId, String version) {
+        String url = apiUrl.getWorkflow().concat(GET_COMPARISON_PATH);
+        String body = new JSONObject()
+                .fluentPut("flow_id", flowId)
+                .fluentPut("version", version)
+                .toString();
+        String response = OkHttpUtil.post(url, body);
+        JSONObject result = JSON.parseObject(response);
+        if (result == null || result.getIntValue("code") != 0
+                || !(result.get("data") instanceof Map<?, ?>)) {
+            throw new BusinessException(ResponseEnum.RESPONSE_FAILED,
+                    result == null ? "Invalid comparison response" : result.getString("message"));
+        }
+        return result.getJSONObject("data");
     }
 
     /**

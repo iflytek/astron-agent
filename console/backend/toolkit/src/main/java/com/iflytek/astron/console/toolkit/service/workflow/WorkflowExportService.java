@@ -484,7 +484,8 @@ public class WorkflowExportService {
             // Legacy YAML may contain credentials produced by an older exporter.
             removeSensitivePluginFields(param);
             removeAgentSkillSandbox(param);
-            String prefix = node.getId() == null ? "" : node.getId().split("::")[0];
+            String prefix = StringUtils.defaultString(
+                    WorkflowKnowledgeBindingParser.nodeType(node.getId()));
 
             switch (prefix) {
                 case "spark-llm":
@@ -502,6 +503,7 @@ public class WorkflowExportService {
                     break;
                 case "knowledge-base":
                 case "knowledge-pro-base":
+                case "knowledge-expert-base":
                     cleanKnowledgeNode(node, param, uid, allowedLlmSet, prefix,
                             visibleResources.repositoryIds(), report);
                     break;
@@ -591,14 +593,16 @@ public class WorkflowExportService {
                     || node.getData().getNodeParam() == null) {
                 continue;
             }
-            if (node.getId().startsWith("flow::")) {
+            String nodeType = WorkflowKnowledgeBindingParser.nodeType(node.getId());
+            if ("flow".equals(nodeType)) {
                 addNonBlank(flowIds, node.getData().getNodeParam().getString("flowId"));
-            } else if (node.getId().startsWith("database::")) {
+            } else if ("database".equals(nodeType)) {
                 addDatabaseId(databaseIds, node.getData().getNodeParam().getString("dbId"));
-            } else if (node.getId().startsWith("knowledge-base::")
-                    || node.getId().startsWith("knowledge-pro-base::")) {
-                repositoryIds.addAll(collectNormalKnowledgeIds(node.getData().getNodeParam()));
-            } else if (node.getId().startsWith("agent::")) {
+            } else if (WorkflowKnowledgeBindingParser.isDirectKnowledgeType(nodeType)) {
+                repositoryIds.addAll(WorkflowKnowledgeBindingParser
+                        .parse(nodeType, node.getData().getNodeParam())
+                        .repositoryIds());
+            } else if ("agent".equals(nodeType)) {
                 collectAgentKnowledgeIds(node.getData().getNodeParam(), repositoryIds);
             }
         }
@@ -1030,37 +1034,18 @@ public class WorkflowExportService {
         if ("knowledge-pro-base".equals(prefix)) {
             cleanLlmNode(param, allowedLlmSet, uid);
         }
-        Set<String> boundRepositoryIds = collectNormalKnowledgeIds(param);
-        if (!visibleRepositoryIds.containsAll(boundRepositoryIds)) {
+        WorkflowKnowledgeBindingParser.KnowledgeBindings bindings =
+                WorkflowKnowledgeBindingParser.parse(prefix, param);
+        Set<String> boundRepositoryIds = bindings.repositoryIds();
+        if (bindings.malformed() || !visibleRepositoryIds.containsAll(boundRepositoryIds)) {
             clearKnowledgeBinding(param);
             addUnresolvedEntry(node, "knowledge",
-                    boundRepositoryIds.stream().findFirst().orElse(null),
+                    boundRepositoryIds.stream()
+                            .filter(id -> !visibleRepositoryIds.contains(id))
+                            .findFirst()
+                            .orElseGet(() -> boundRepositoryIds.stream().findFirst().orElse(null)),
                     "knowledge base is not visible in target space", report);
         }
-    }
-
-    private Set<String> collectNormalKnowledgeIds(JSONObject param) {
-        Set<String> ids = new LinkedHashSet<>();
-        collectStringValues(ids, param.get("repoId"));
-        collectStringValues(ids, param.get("repoIds"));
-        Object rawRepoList = param.get("repoList");
-        if (rawRepoList instanceof Collection<?> repoList) {
-            for (Object rawRepo : repoList) {
-                JSONObject repo = asJsonObject(rawRepo);
-                String id = repo == null ? null
-                        : firstNonBlank(repo.getString("coreRepoId"),
-                                repo.getString("outerRepoId"), repo.getString("repoId"));
-                if (StringUtils.isBlank(id)) {
-                    ids.add("__malformed_repository_binding__");
-                } else {
-                    ids.add(id);
-                }
-            }
-        } else if (rawRepoList != null) {
-            // A malformed binding must not survive merely because no ID could be extracted.
-            ids.add("__malformed_repository_binding__");
-        }
-        return ids;
     }
 
     private void collectStringValues(Set<String> values, Object rawValue) {
@@ -1072,6 +1057,7 @@ public class WorkflowExportService {
     }
 
     private void clearKnowledgeBinding(JSONObject param) {
+        param.put("repos", Collections.emptyList());
         param.put("repoList", Collections.emptyList());
         param.put("repoId", Collections.emptyList());
         param.put("repoIds", Collections.emptyList());

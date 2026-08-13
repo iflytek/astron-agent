@@ -637,6 +637,8 @@ const translation = {
       nodeNotSatisfied:
         'Node validation failed, please check for empty values or naming rule violations',
       subNodeNotSatisfied: 'Child nodes contain unsatisfied requirements',
+      importDependencyUnresolved:
+        'This imported dependency is unresolved. Rebind it before debugging or publishing.',
       if: 'If',
       elseIf: 'Else if (priority {{priority}})',
       else: 'Else',
@@ -934,6 +936,25 @@ const translation = {
     importReportUnknownNode: 'Unknown node',
     importReportNoReason:
       'No usable dependency was found in the target environment',
+    importReportMappingType: 'Mapping: ',
+    importReportReason: 'Reason: ',
+    importReportPluginId: 'Plugin ID: ',
+    importReportDatabaseId: 'Database ID: ',
+    importReportWorkflowId: 'Workflow ID: ',
+    importReportKnowledgeId: 'Knowledge base ID: ',
+    importReportResourceId: 'Resource ID: ',
+    importReportOperationId: 'Operation ID: ',
+    importReportVersion: 'Version: ',
+    importReportCandidatePluginIds: 'Candidate plugin IDs: ',
+    importReportNotProvided: 'Not provided',
+    importMappingType_SOURCE_ID: 'Exact source ID match',
+    importMappingType_COMPATIBLE_NAME: 'Compatible name match',
+    importDependencyExecutionBlocked:
+      'This workflow has unresolved imported dependencies. Rebind them before debugging.',
+    importDependencyPublishBlocked:
+      'This workflow has unresolved imported dependencies. Rebind and debug them before publishing.',
+    nodeDebugCancelled: 'Node debugging was cancelled',
+    nodeDebugRequestFailed: 'The node debug request failed. Please try again.',
     importReasonDatabaseMissing:
       'No usable database was found in the target space',
     importReasonContractIncompatible:

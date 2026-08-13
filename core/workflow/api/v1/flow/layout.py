@@ -23,7 +23,11 @@ from starlette.responses import JSONResponse, StreamingResponse
 
 from workflow.cache.flow import del_flow_by_id
 from workflow.consts.comparisons import Tag
-from workflow.domain.entities.compare_flow import DeleteComparisonVo, SaveComparisonVo
+from workflow.domain.entities.compare_flow import (
+    DeleteComparisonVo,
+    ReadComparisonVo,
+    SaveComparisonVo,
+)
 from workflow.domain.entities.flow import FlowRead, FlowUpdate
 from workflow.domain.entities.response import Resp, Streaming
 from workflow.domain.models.flow import Flow
@@ -367,6 +371,40 @@ def save_comparisons(
             )
 
         return Resp.success(None, span.sid)
+
+
+@router.post("/protocol/compare/get")
+def get_comparison(
+    read_input: ReadComparisonVo,
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    """Return one exact comparison snapshot for server-side authorization checks."""
+    m = Meter()
+    span = Span()
+    with span.start(
+        attributes={"flow_id": read_input.flow_id},
+    ) as span_context:
+        try:
+            comparison = flow_service.get_comparison(
+                read_input.flow_id,
+                read_input.version,
+                session,
+                span_context,
+            )
+            m.in_success_count()
+            return Resp.success(comparison.data, span.sid)
+        except CustomException as err:
+            span_context.record_exception(err)
+            m.in_error_count(err.code, span=span_context)
+            return Resp.error(err.code, err.message, span.sid)
+        except Exception as err:
+            span_context.record_exception(err)
+            m.in_error_count(CodeEnum.PROTOCOL_GET_ERROR.code, span=span_context)
+            return Resp.error(
+                CodeEnum.PROTOCOL_GET_ERROR.code,
+                CodeEnum.PROTOCOL_GET_ERROR.msg,
+                span.sid,
+            )
 
 
 @router.delete("/protocol/compare/delete")

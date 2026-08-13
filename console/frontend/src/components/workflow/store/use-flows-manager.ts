@@ -8,6 +8,7 @@ import {
   getFlowDetail,
   initFlowData,
   autoSaveCurrentFlow,
+  flushCurrentFlow,
   checkFlow,
   canPublishSetNot,
   setModels,
@@ -17,6 +18,7 @@ import {
   setTextNodeConfigList,
   setAgentStrategy,
   setKnowledgeProStrategy,
+  resetCurrentFlowSave,
 } from './flow-manager-function';
 import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
@@ -167,8 +169,10 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   getFlowDetail: (): void => getFlowDetail(get),
   initFlowData: (id): Promise<void> => initFlowData(id, set),
   autoSaveCurrentFlow: (): void => autoSaveCurrentFlow(get),
+  flushCurrentFlow: (): Promise<void> => flushCurrentFlow(get),
   checkFlow: (): boolean => checkFlow(get),
   resetFlowsManager: (): void => {
+    resetCurrentFlowSave();
     set({
       ...initialStatus,
     });

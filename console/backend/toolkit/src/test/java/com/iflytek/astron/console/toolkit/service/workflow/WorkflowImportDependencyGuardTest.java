@@ -20,8 +20,11 @@ import com.iflytek.astron.console.toolkit.entity.biz.workflow.ChatBizReq;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.ChatResumeReq;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.WorkflowDebugDto;
 import com.iflytek.astron.console.toolkit.entity.biz.workflow.node.BizNodeData;
+import com.iflytek.astron.console.toolkit.entity.dto.WorkflowComparisonReq;
 import com.iflytek.astron.console.toolkit.entity.dto.WorkflowReq;
+import com.iflytek.astron.console.toolkit.entity.core.workflow.sse.ChatResponse;
 import com.iflytek.astron.console.toolkit.entity.table.database.DbInfo;
+import com.iflytek.astron.console.toolkit.entity.table.ConfigInfo;
 import com.iflytek.astron.console.toolkit.entity.table.group.GroupVisibility;
 import com.iflytek.astron.console.toolkit.entity.table.repo.Repo;
 import com.iflytek.astron.console.toolkit.entity.table.tool.ToolBox;
@@ -32,6 +35,7 @@ import com.iflytek.astron.console.toolkit.mapper.repo.RepoMapper;
 import com.iflytek.astron.console.toolkit.mapper.tool.ToolBoxMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
 import com.iflytek.astron.console.toolkit.service.extra.AppService;
+import com.iflytek.astron.console.toolkit.service.extra.CoreSystemService;
 import com.iflytek.astron.console.toolkit.service.repo.RepoService;
 import com.iflytek.astron.console.toolkit.tool.DataPermissionCheckTool;
 import com.iflytek.astron.console.toolkit.util.OkHttpUtil;
@@ -44,8 +48,10 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,6 +82,7 @@ class WorkflowImportDependencyGuardTest {
     private RepoService repoService;
     private DataPermissionCheckTool dataPermissionCheckTool;
     private AppService appService;
+    private CoreSystemService coreSystemService;
     private ApiUrl apiUrl;
     private ConfigInfoMapper configInfoMapper;
 
@@ -91,6 +98,7 @@ class WorkflowImportDependencyGuardTest {
         repoService = mock(RepoService.class);
         dataPermissionCheckTool = mock(DataPermissionCheckTool.class);
         appService = mock(AppService.class);
+        coreSystemService = mock(CoreSystemService.class);
         apiUrl = new ApiUrl();
         apiUrl.setWorkflow("http://core");
         configInfoMapper = mock(ConfigInfoMapper.class);
@@ -104,8 +112,12 @@ class WorkflowImportDependencyGuardTest {
         ReflectionTestUtils.setField(workflowService, "dataPermissionCheckTool",
                 dataPermissionCheckTool);
         ReflectionTestUtils.setField(workflowService, "appService", appService);
+        ReflectionTestUtils.setField(workflowService, "coreSystemService", coreSystemService);
         ReflectionTestUtils.setField(workflowService, "apiUrl", apiUrl);
         ReflectionTestUtils.setField(workflowService, "configInfoMapper", configInfoMapper);
+        ConfigInfo multiRoundTypes = new ConfigInfo();
+        multiRoundTypes.setValue("");
+        when(configInfoMapper.selectOne(any(Wrapper.class))).thenReturn(multiRoundTypes);
         when(repoService.getStarFireData(any())).thenReturn(new JSONArray());
         BizConfig bizConfig = new BizConfig();
         bizConfig.setAdminUid("admin-user");
@@ -129,6 +141,119 @@ class WorkflowImportDependencyGuardTest {
         request.setData(workflowWithUnresolvedDependency());
 
         assertUnresolvedDependencyFailure(() -> workflowService.build(request));
+    }
+
+    @Test
+    void executionEligibilityRejectsPersistedUnresolvedDependency() {
+        Workflow workflow = executableWorkflow("flow-eligibility-unresolved",
+                workflowWithUnresolvedDependency());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureExecutionEligible("flow-eligibility-unresolved"));
+
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+    }
+
+    @Test
+    void executionEligibilityAcceptsAuthorizedExecutablePersistedDraft() {
+        Workflow workflow = executableWorkflow("flow-eligibility-valid", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+
+        assertThatCode(() -> workflowService.ensureExecutionEligible("flow-eligibility-valid"))
+                .doesNotThrowAnyException();
+
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+    }
+
+    @Test
+    void executionEligibilityRejectsWorkflowOutsideCurrentPermissionScopeBeforeDependencyQueries() {
+        Workflow workflow = executableWorkflow("flow-eligibility-foreign", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        BusinessException forbidden = new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        doThrow(forbidden).when(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+
+        assertThatThrownBy(() -> workflowService.ensureExecutionEligible("flow-eligibility-foreign"))
+                .isSameAs(forbidden);
+
+        verifyNoInteractions(toolBoxMapper, dbInfoMapper, repoMapper, groupVisibilityMapper);
+    }
+
+    @Test
+    void explicitExecutionScopeKeepsResourceLevelFailClosedSemanticsForNonMember() {
+        setSpaceContext(100L);
+        when(spaceUserService.getRole(100L, "requester-uid")).thenReturn(null);
+
+        assertUnresolvedDependencyFailure(() -> workflowService.ensureNoUnresolvedImportDependencies(
+                workflowWithUnresolvedDependency(), "requester-uid", 100L));
+
+        verify(spaceUserService).getRole(100L, "requester-uid");
+    }
+
+    @Test
+    void explicitExecutionScopeRejectsPrivateSameSpaceWorkflowForFormerMember() {
+        BizWorkflowData workflow = workflowWithNode("flow::node",
+                new JSONObject().fluentPut("flowId", "private-space-flow"));
+        when(workflowMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                nestedWorkflow("private-space-flow", "space-owner", 100L, false, false)));
+        when(spaceUserService.getRole(100L, "former-member")).thenReturn(null);
+
+        assertUnresolvedDependencyFailure(() -> workflowService.ensureNoUnresolvedImportDependencies(
+                workflow, "former-member", 100L));
+
+        verify(spaceUserService).getRole(100L, "former-member");
+    }
+
+    @Test
+    void explicitExecutionScopeAllowsPrivateSameSpaceWorkflowForCurrentMember() {
+        BizWorkflowData workflow = workflowWithNode("flow::node",
+                new JSONObject().fluentPut("flowId", "private-space-flow"));
+        when(workflowMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                nestedWorkflow("private-space-flow", "space-owner", 100L, false, false)));
+        when(spaceUserService.getRole(100L, "current-member"))
+                .thenReturn(SpaceRoleEnum.MEMBER);
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(
+                workflow, "current-member", 100L)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void explicitExecutionScopeAllowsPublicCrossSpaceWorkflowForNonMember() {
+        BizWorkflowData workflow = workflowWithNode("flow::node",
+                new JSONObject().fluentPut("flowId", "public-cross-space-flow"));
+        when(workflowMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                nestedWorkflow("public-cross-space-flow", "other-owner", 200L, true, false)));
+        when(spaceUserService.getRole(100L, "non-member")).thenReturn(null);
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(
+                workflow, "non-member", 100L)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void addComparisonsPreservesUnresolvedDependencyError() {
+        WorkflowComparisonReq request = new WorkflowComparisonReq();
+        request.setFlowId("flow-comparison-unresolved");
+        request.setData(workflowWithUnresolvedDependency());
+        Workflow workflow = executableWorkflow("flow-comparison-unresolved", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+
+        assertUnresolvedDependencyFailure(() -> workflowService.addComparisons(request));
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+    }
+
+    @Test
+    void addComparisonsRejectsForeignWorkflowBeforeWritingCoreSnapshot() {
+        WorkflowComparisonReq request = new WorkflowComparisonReq();
+        request.setFlowId("flow-comparison-foreign");
+        request.setData(emptyWorkflow());
+        Workflow workflow = executableWorkflow("flow-comparison-foreign", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        BusinessException forbidden = new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+        doThrow(forbidden).when(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+
+        assertThatThrownBy(() -> workflowService.addComparisons(request)).isSameAs(forbidden);
+
+        verifyNoInteractions(toolBoxMapper, dbInfoMapper, repoMapper, groupVisibilityMapper);
     }
 
     @Test
@@ -242,6 +367,120 @@ class WorkflowImportDependencyGuardTest {
         }
 
         verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+        verifyNoInteractions(appService);
+    }
+
+    @Test
+    void historicalComparisonChatValidatesExactSnapshotInsteadOfLiveDraft() {
+        Workflow workflow = executableWorkflow("flow-chat-comparison",
+                workflowWithUnresolvedDependency());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        when(coreSystemService.getComparison("flow-chat-comparison", "comparison-version"))
+                .thenReturn(comparisonProtocol(emptyWorkflow()));
+        when(appService.remoteCallAkSk("app-1")).thenReturn(new AkSk("api-key", "api-secret"));
+        ChatBizReq request = chatRequest("flow-chat-comparison", "chat-comparison");
+        request.setVersion("comparison-version");
+
+        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
+            workflowService.sseChat(request);
+
+            okHttp.verify(() -> OkHttpUtil.connectRealEventSource(
+                    eq("http://core/workflow/v1/debug/chat/completions"), anyMap(),
+                    anyString(), any(EventSourceListener.class)), times(1));
+        }
+
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+        verify(coreSystemService).getComparison("flow-chat-comparison", "comparison-version");
+        verifyNoInteractions(toolBoxMapper, dbInfoMapper, repoMapper, groupVisibilityMapper);
+    }
+
+    @Test
+    void historicalComparisonChatRejectsRevokedSnapshotDependencyBeforeCoreExecution() {
+        Workflow workflow = executableWorkflow("flow-chat-comparison-revoked", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        BizWorkflowData snapshot = workflowWithNode("plugin::snapshot", new JSONObject()
+                .fluentPut("pluginId", "revoked-tool")
+                .fluentPut("operationId", "operation")
+                .fluentPut("version", "V1.0"));
+        when(coreSystemService.getComparison(
+                "flow-chat-comparison-revoked", "comparison-version"))
+                .thenReturn(comparisonProtocol(snapshot));
+        when(toolBoxMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                tool("revoked-tool", "operation", "V1.0", "other-user", null,
+                        false, 1, false)));
+        ChatBizReq request = chatRequest(
+                "flow-chat-comparison-revoked", "chat-comparison-revoked");
+        request.setVersion("comparison-version");
+
+        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
+            workflowService.sseChat(request);
+
+            okHttp.verify(() -> OkHttpUtil.connectRealEventSource(anyString(), anyMap(),
+                    anyString(), any(EventSourceListener.class)), never());
+        }
+
+        verifyNoInteractions(appService);
+    }
+
+    @Test
+    void historicalComparisonResumeRejectsDeletedSnapshotDependencyBeforeCoreExecution() {
+        Workflow workflow = executableWorkflow("flow-resume-comparison-deleted", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        BizWorkflowData snapshot = workflowWithNode("flow::snapshot",
+                new JSONObject().fluentPut("flowId", "deleted-nested-flow"));
+        when(coreSystemService.getComparison(
+                "flow-resume-comparison-deleted", "comparison-version"))
+                .thenReturn(comparisonProtocol(snapshot));
+        when(workflowMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        ChatResumeReq request = resumeRequest(
+                "flow-resume-comparison-deleted", "resume-comparison-deleted");
+        request.setVersion("comparison-version");
+
+        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
+            workflowService.sseChatResume(request);
+
+            okHttp.verify(() -> OkHttpUtil.connectRealEventSource(anyString(), anyMap(),
+                    anyString(), any(EventSourceListener.class)), never());
+        }
+
+        verifyNoInteractions(appService);
+    }
+
+    @Test
+    void historicalComparisonChatStillRejectsForeignTopLevelWorkflow() {
+        Workflow workflow = executableWorkflow("flow-chat-comparison-foreign",
+                workflowWithUnresolvedDependency());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        doThrow(new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS))
+                .when(dataPermissionCheckTool)
+                .checkWorkflowBelong(workflow, null);
+        ChatBizReq request = chatRequest("flow-chat-comparison-foreign", "chat-comparison-foreign");
+        request.setVersion("comparison-version");
+
+        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
+            workflowService.sseChat(request);
+
+            okHttp.verify(() -> OkHttpUtil.connectRealEventSource(anyString(), anyMap(),
+                    anyString(), any(EventSourceListener.class)), never());
+        }
+
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+        verifyNoInteractions(appService, toolBoxMapper, dbInfoMapper, repoMapper);
+    }
+
+    @Test
+    void chatReturnsUnresolvedDependencyBusinessCodeInSseFrame() {
+        Workflow workflow = executableWorkflow("flow-chat-code",
+                workflowWithUnresolvedDependency());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+
+        SseEmitter emitter = workflowService.sseChat(
+                chatRequest("flow-chat-code", "chat-code"));
+
+        ChatResponse response = extractEarlySseResponse(emitter);
+        assertThat(response.getCode())
+                .isEqualTo(ResponseEnum.WORKFLOW_IMPORT_DEPENDENCY_UNRESOLVED.getCode());
+        assertThat(response.getMessage()).isNotBlank();
         verifyNoInteractions(appService);
     }
 
@@ -418,6 +657,142 @@ class WorkflowImportDependencyGuardTest {
     }
 
     @Test
+    void malformedUnknownAndIncompleteImportIssuesFailClosed() {
+        BizWorkflowData malformed = workflowWithIssue("plugin::malformed",
+                new JSONObject(), new JSONObject());
+        malformed.getNodes()
+                .getFirst()
+                .getData()
+                .getNodeMeta()
+                .put(
+                        "importDependencies", new JSONArray(List.of("not-an-object")));
+
+        BizWorkflowData unknownStatus = workflowWithIssue("plugin::unknown-status",
+                importIssue("plugin", "source-plugin", null)
+                        .fluentPut("status", "FUTURE_STATE"),
+                new JSONObject()
+                        .fluentPut("pluginId", "target-plugin")
+                        .fluentPut("operationId", "target-operation")
+                        .fluentPut("version", "V1.0"));
+
+        BizWorkflowData unknownType = workflowWithIssue("plugin::unknown-type",
+                importIssue("future-resource", "source-plugin", null), new JSONObject());
+
+        BizWorkflowData missingIdentity = workflowWithIssue("plugin::missing-identity",
+                importIssue("plugin", null, null), new JSONObject()
+                        .fluentPut("pluginId", "target-plugin")
+                        .fluentPut("operationId", "target-operation")
+                        .fluentPut("version", "V1.0"));
+
+        when(toolBoxMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                tool("target-plugin", "target-operation", "V1.0", "current-user", null,
+                        false, 1, false)));
+
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(malformed));
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(unknownStatus));
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(unknownType));
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(missingIdentity));
+    }
+
+    @Test
+    void knownResolvedImportIssueDoesNotBlockAnExecutableBinding() {
+        BizWorkflowData workflow = workflowWithIssue("plugin::mapped",
+                importIssue("plugin", null, null).fluentPut("status", "MAPPED"),
+                new JSONObject()
+                        .fluentPut("pluginId", "target-plugin")
+                        .fluentPut("operationId", "target-operation")
+                        .fluentPut("version", "V1.0"));
+        when(toolBoxMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                tool("target-plugin", "target-operation", "V1.0", "current-user", null,
+                        false, 1, false)));
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(workflow))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void resolvedImportIssueOnUnknownNodeFailsClosed() {
+        BizWorkflowData workflow = workflowWithIssue("future-resource::mapped",
+                importIssue("plugin", null, null).fluentPut("status", "MAPPED"),
+                new JSONObject());
+
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(workflow));
+    }
+
+    @Test
+    void resolvedImportIssueWithMismatchedNodeTypeFailsClosed() {
+        BizWorkflowData workflow = workflowWithIssue("database::mapped",
+                importIssue("plugin", null, null).fluentPut("status", "MAPPED"),
+                new JSONObject());
+
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(workflow));
+    }
+
+    @Test
+    void knownResolvedFallbackOnKnownNodeIsClearedAndUnknownFallbacksFailClosed() {
+        BizWorkflowData resolved = workflowWithNode("plugin::mapped", new JSONObject()
+                .fluentPut("pluginId", "target-plugin")
+                .fluentPut("operationId", "target-operation")
+                .fluentPut("version", "V1.0"));
+        resolved.getNodes()
+                .getFirst()
+                .getData()
+                .getNodeMeta()
+                .put("importDependencyStatus", "MAPPED");
+        when(toolBoxMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                tool("target-plugin", "target-operation", "V1.0", "current-user", null,
+                        false, 1, false)));
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(resolved))
+                .doesNotThrowAnyException();
+        assertThat(resolved.getNodes().getFirst().getData().getNodeMeta())
+                .doesNotContainKey("importDependencyStatus");
+
+        BizWorkflowData unknownStatus = workflowWithNode("plugin::future", new JSONObject());
+        unknownStatus.getNodes()
+                .getFirst()
+                .getData()
+                .getNodeMeta()
+                .put("importDependencyStatus", "FUTURE_STATE");
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(unknownStatus));
+
+        BizWorkflowData unknownNode = workflowWithNode("future-resource::mapped", new JSONObject());
+        unknownNode.getNodes()
+                .getFirst()
+                .getData()
+                .getNodeMeta()
+                .put("importDependencyStatus", "MAPPED");
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(unknownNode));
+    }
+
+    @Test
+    void displayOnlyRepoListDoesNotBecomeAnExecutableKnowledgeBinding() {
+        BizWorkflowData normal = workflowWithNode("knowledge-base::display-only",
+                new JSONObject().fluentPut("repoList", new JSONArray(List.of(
+                        new JSONObject().fluentPut("coreRepoId", "display-repo")))));
+        BizWorkflowData professional = workflowWithNode("knowledge-pro-base::display-only",
+                new JSONObject().fluentPut("repoList", new JSONArray(List.of(
+                        new JSONObject().fluentPut("repoId", "display-repo")))));
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                repository("display-repo", "current-user", null, false)));
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(normal))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(professional))
+                .doesNotThrowAnyException();
+
+        verifyNoInteractions(repoMapper);
+    }
+
+    @Test
     void restoredSameSourcePluginClearsMarkerOnlyWhenDatabaseBindingIsExecutable() {
         when(toolBoxMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
                 tool("source-plugin", "source-operation", "V1.0", "current-user", null,
@@ -454,7 +829,7 @@ class WorkflowImportDependencyGuardTest {
     @Test
     void fabricatedDatabaseIdCannotClearImportMarker() {
         BizWorkflowData workflow = workflowWithIssue("database::node",
-                importIssue("database", null, null),
+                importIssue("database", "source-database", null),
                 new JSONObject().fluentPut("dbId", "999"));
 
         assertUnresolvedDependencyFailure(
@@ -469,7 +844,7 @@ class WorkflowImportDependencyGuardTest {
     @Test
     void fabricatedOrForeignNestedWorkflowCannotClearImportMarker() {
         BizWorkflowData workflow = workflowWithIssue("flow::node",
-                importIssue("workflow", null, null),
+                importIssue("workflow", "source-flow", null),
                 new JSONObject().fluentPut("flowId", "target-flow"));
 
         assertUnresolvedDependencyFailure(
@@ -489,7 +864,7 @@ class WorkflowImportDependencyGuardTest {
     @Test
     void fabricatedKnowledgeIdsCannotClearNormalOrAgentMarkers() {
         BizWorkflowData normal = workflowWithIssue("knowledge-base::node",
-                importIssue("knowledge", null, null),
+                importIssue("knowledge", "source-repo", null),
                 new JSONObject().fluentPut("repoId", new JSONArray(List.of("repo-a"))));
         JSONObject knowledge = new JSONObject().fluentPut("match",
                 new JSONObject().fluentPut("repoIds", new JSONArray(List.of("repo-a", "repo-b"))));
@@ -551,6 +926,50 @@ class WorkflowImportDependencyGuardTest {
     }
 
     @Test
+    void expertKnowledgeReposRejectRepositoryOutsideExecutionScope() {
+        BizWorkflowData workflow = workflowWithNode("knowledge-expert-base::node",
+                new JSONObject().fluentPut("repos", new JSONArray(List.of(
+                        new JSONObject().fluentPut("repoId", "foreign-expert-repo")))));
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                repository("foreign-expert-repo", "other-user", null, false)));
+
+        assertUnresolvedDependencyFailure(
+                () -> workflowService.ensureNoUnresolvedImportDependencies(workflow));
+
+        verify(repoMapper, times(1)).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    void expertKnowledgeReposAllowRepositoryVisibleInExecutionScope() {
+        BizWorkflowData workflow = workflowWithNode("knowledge-expert-base::node",
+                new JSONObject().fluentPut("repos", new JSONArray(List.of(
+                        new JSONObject().fluentPut("repoId", "owned-expert-repo")))));
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                repository("owned-expert-repo", "current-user", null, false)));
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(workflow))
+                .doesNotThrowAnyException();
+
+        verify(repoMapper, times(1)).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    void knowledgeReposTakePrecedenceOverLegacyRepoIdDuringExecutionValidation() {
+        BizWorkflowData workflow = workflowWithNode("knowledge-base::node",
+                new JSONObject()
+                        .fluentPut("repos", new JSONArray(List.of(
+                                new JSONObject().fluentPut("repoId", "active-repo"))))
+                        .fluentPut("repoId", new JSONArray(List.of("ignored-legacy-repo"))));
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                repository("active-repo", "current-user", null, false)));
+
+        assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(workflow))
+                .doesNotThrowAnyException();
+
+        verify(repoMapper, times(1)).selectList(any(Wrapper.class));
+    }
+
+    @Test
     void fabricatedAgentKnowledgeIdIsRejectedAfterImportMarkersAreDeleted() {
         JSONObject knowledge = new JSONObject().fluentPut("match",
                 new JSONObject().fluentPut("repoIds",
@@ -600,6 +1019,72 @@ class WorkflowImportDependencyGuardTest {
 
         assertThatCode(() -> workflowService.ensureNoUnresolvedImportDependencies(workflow))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void explicitPersonalRemoteKnowledgeWithoutRequestContextFailsClosedAsUnresolved() {
+        BizWorkflowData workflow = workflowWithNode("knowledge-base::node",
+                new JSONObject().fluentPut("repoId", new JSONArray(List.of("2001"))));
+        when(repoMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+        RequestContextHolder.resetRequestAttributes();
+
+        assertUnresolvedDependencyFailure(() -> workflowService.ensureNoUnresolvedImportDependencies(
+                workflow, "approval-user", null));
+
+        verify(repoService, never()).getStarFireData(any());
+    }
+
+    @Test
+    void topLevelSpaceWorkflowRejectsFormerMemberBeforeCredentialsAndCore() {
+        Workflow workflow = executableWorkflow("flow-former-member", emptyWorkflow());
+        workflow.setUid("space-owner");
+        workflow.setSpaceId(100L);
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        setSpaceContext(100L);
+        when(spaceUserService.getRole(100L, "current-user")).thenReturn(null);
+
+        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
+            assertThatThrownBy(() -> workflowService.ensureExecutionEligible("flow-former-member"))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting("responseEnum")
+                    .isEqualTo(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+
+            okHttp.verifyNoInteractions();
+        }
+
+        verifyNoInteractions(appService, toolBoxMapper, dbInfoMapper, repoMapper);
+        verify(dataPermissionCheckTool, never()).checkWorkflowBelong(any(), any());
+    }
+
+    @Test
+    void topLevelSpaceWorkflowAllowsCurrentMember() {
+        Workflow workflow = executableWorkflow("flow-current-member", emptyWorkflow());
+        workflow.setUid("space-owner");
+        workflow.setSpaceId(100L);
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        setSpaceContext(100L);
+        when(spaceUserService.getRole(100L, "current-user"))
+                .thenReturn(SpaceRoleEnum.MEMBER);
+
+        assertThatCode(() -> workflowService.ensureExecutionEligible("flow-current-member"))
+                .doesNotThrowAnyException();
+
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, 100L);
+    }
+
+    @Test
+    void topLevelPublicWorkflowCannotExecuteAcrossScope() {
+        Workflow workflow = executableWorkflow("flow-public-foreign", emptyWorkflow());
+        workflow.setUid("other-user");
+        workflow.setIsPublic(Boolean.TRUE);
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+
+        assertThatThrownBy(() -> workflowService.ensureExecutionEligible("flow-public-foreign"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("responseEnum")
+                .isEqualTo(ResponseEnum.INSUFFICIENT_PERMISSIONS);
+
+        verify(dataPermissionCheckTool, never()).checkWorkflowBelong(any(), any());
     }
 
     @Test
@@ -705,6 +1190,7 @@ class WorkflowImportDependencyGuardTest {
     @Test
     void spaceWorkflowAllowsPublicAndSameSpaceButRejectsPrivateCrossSpaceAdminWorkflow() {
         setSpaceContext(7L);
+        when(spaceUserService.getRole(7L, "current-user")).thenReturn(SpaceRoleEnum.MEMBER);
         BizWorkflowData workflow = workflowWithNode("flow::node",
                 new JSONObject().fluentPut("flowId", "target-flow"));
         when(workflowMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
@@ -993,6 +1479,12 @@ class WorkflowImportDependencyGuardTest {
         return workflow;
     }
 
+    private JSONObject comparisonProtocol(BizWorkflowData workflowData) {
+        return new JSONObject().fluentPut("data", new JSONObject()
+                .fluentPut("nodes", JSON.parseArray(JSON.toJSONString(workflowData.getNodes())))
+                .fluentPut("edges", new JSONArray()));
+    }
+
     private Workflow executableWorkflow(String flowId, BizWorkflowData data) {
         Workflow workflow = new Workflow();
         workflow.setId(1L);
@@ -1091,6 +1583,20 @@ class WorkflowImportDependencyGuardTest {
         meta.remove("importDependencies");
         meta.remove("importDependencyStatus");
         meta.remove("importDependencyReason");
+    }
+
+    @SuppressWarnings("unchecked")
+    private ChatResponse extractEarlySseResponse(SseEmitter emitter) {
+        Collection<ResponseBodyEmitter.DataWithMediaType> events =
+                (Collection<ResponseBodyEmitter.DataWithMediaType>) ReflectionTestUtils.getField(
+                        emitter, "earlySendAttempts");
+        assertThat(events).isNotNull();
+        return events.stream()
+                .map(ResponseBodyEmitter.DataWithMediaType::getData)
+                .filter(ChatResponse.class::isInstance)
+                .map(ChatResponse.class::cast)
+                .findFirst()
+                .orElseThrow();
     }
 
     private void assertUnresolvedDependencyFailure(ThrowingCall call) {
