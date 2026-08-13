@@ -170,9 +170,7 @@ test('a failed background save retries an edit queued while it was in flight', a
     captureSnapshot: () => snapshot(current),
     persistSnapshot: value => {
       writes.push(value);
-      return writes.length === 1
-        ? firstWrite.promise
-        : Promise.resolve(value);
+      return writes.length === 1 ? firstWrite.promise : Promise.resolve(value);
     },
     onBackgroundError: error => backgroundErrors.push(error),
     setTimer: callback => {
@@ -226,9 +224,7 @@ test('a successful save retries an edit queued before active-run cleanup', async
     captureSnapshot: () => snapshot(current),
     persistSnapshot: value => {
       writes.push(value);
-      return writes.length === 1
-        ? firstWrite.promise
-        : Promise.resolve(value);
+      return writes.length === 1 ? firstWrite.promise : Promise.resolve(value);
     },
     setTimer: callback => {
       callback();

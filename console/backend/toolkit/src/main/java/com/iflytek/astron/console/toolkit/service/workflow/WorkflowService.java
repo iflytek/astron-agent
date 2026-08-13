@@ -2815,48 +2815,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         JSONObject param = data.getNodeParam();
         if ("plugin".equals(dependencyType) && param != null) {
             if (node.getId() != null && node.getId().startsWith(WorkflowConst.NodeType.AGENT)) {
-                JSONObject plugin = param.getJSONObject("plugin");
-                JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
-                JSONArray toolsList = plugin == null ? null : plugin.getJSONArray("toolsList");
-                String sourceId = issue.getString("sourcePluginId");
-                String sourceName = issue.getString("sourceName");
-                JSONObject unresolvedDisplay = toolsList == null ? null
-                        : toolsList.stream()
-                                .map(this::asJsonObjectOrNull)
-                                .filter(Objects::nonNull)
-                                .filter(tool -> Objects.equals(sourceId, tool.getString("sourcePluginId"))
-                                        || Objects.equals(sourceId, tool.getString("toolId"))
-                                                && StringUtils.isNotBlank(
-                                                        tool.getString("importDependencyStatus")))
-                                .findFirst()
-                                .orElse(null);
-                if (unresolvedDisplay == null) {
-                    return true;
-                }
-                String currentToolId = unresolvedDisplay.getString("toolId");
-                Map<String, String> runtimeToolVersions = agentRuntimeToolVersions(tools);
-                boolean reboundInPlace = StringUtils.isNotBlank(currentToolId)
-                        && isExecutableAgentRuntimeBinding(currentToolId, runtimeToolVersions,
-                                resources);
-                JSONObject replacementDisplay = toolsList.stream()
-                        .map(this::asJsonObjectOrNull)
-                        .filter(Objects::nonNull)
-                        .filter(tool -> tool != unresolvedDisplay)
-                        .filter(tool -> StringUtils.isBlank(tool.getString("importDependencyStatus")))
-                        .filter(tool -> isExecutableAgentRuntimeBinding(tool.getString("toolId"),
-                                runtimeToolVersions, resources))
-                        .filter(tool -> isAgentToolReplacement(tool, issue, sourceName))
-                        .findFirst()
-                        .orElse(null);
-                boolean rebound = reboundInPlace || replacementDisplay != null;
-                if (rebound) {
-                    if (replacementDisplay == null) {
-                        clearAgentImportMarker(unresolvedDisplay);
-                    } else {
-                        toolsList.remove(unresolvedDisplay);
-                    }
-                }
-                return rebound;
+                return isAgentPluginImportIssueRepaired(param, issue, resources);
             }
             String pluginId = param.getString("pluginId");
             String operationId = param.getString("operationId");
@@ -2884,6 +2843,51 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     && resources.executableRepositoryIds().containsAll(boundRepositoryIds);
         }
         return false;
+    }
+
+    private boolean isAgentPluginImportIssueRepaired(JSONObject param, JSONObject issue,
+            ImportDependencyResources resources) {
+        JSONObject plugin = param.getJSONObject("plugin");
+        JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
+        JSONArray toolsList = plugin == null ? null : plugin.getJSONArray("toolsList");
+        String sourceId = issue.getString("sourcePluginId");
+        String sourceName = issue.getString("sourceName");
+        JSONObject unresolvedDisplay = toolsList == null ? null
+                : toolsList.stream()
+                        .map(this::asJsonObjectOrNull)
+                        .filter(Objects::nonNull)
+                        .filter(tool -> Objects.equals(sourceId, tool.getString("sourcePluginId"))
+                                || Objects.equals(sourceId, tool.getString("toolId"))
+                                        && StringUtils.isNotBlank(
+                                                tool.getString("importDependencyStatus")))
+                        .findFirst()
+                        .orElse(null);
+        if (unresolvedDisplay == null) {
+            return true;
+        }
+        String currentToolId = unresolvedDisplay.getString("toolId");
+        Map<String, String> runtimeToolVersions = agentRuntimeToolVersions(tools);
+        boolean reboundInPlace = StringUtils.isNotBlank(currentToolId)
+                && isExecutableAgentRuntimeBinding(currentToolId, runtimeToolVersions, resources);
+        JSONObject replacementDisplay = toolsList.stream()
+                .map(this::asJsonObjectOrNull)
+                .filter(Objects::nonNull)
+                .filter(tool -> tool != unresolvedDisplay)
+                .filter(tool -> StringUtils.isBlank(tool.getString("importDependencyStatus")))
+                .filter(tool -> isExecutableAgentRuntimeBinding(tool.getString("toolId"),
+                        runtimeToolVersions, resources))
+                .filter(tool -> isAgentToolReplacement(tool, issue, sourceName))
+                .findFirst()
+                .orElse(null);
+        boolean rebound = reboundInPlace || replacementDisplay != null;
+        if (rebound) {
+            if (replacementDisplay == null) {
+                clearAgentImportMarker(unresolvedDisplay);
+            } else {
+                toolsList.remove(unresolvedDisplay);
+            }
+        }
+        return rebound;
     }
 
     private Map<String, String> agentRuntimeToolVersions(JSONArray tools) {

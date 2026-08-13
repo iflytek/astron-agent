@@ -145,9 +145,7 @@ test('merges a response into the latest node without reverting edits made in fli
   assert.notEqual(merged, latestNode);
   assert.notEqual(merged.data, latestNode.data);
   assert.equal(merged.data.label, 'edited while debugging');
-  assert.deepEqual(merged.data.inputs, [
-    { id: 'input-1', value: 'new value' },
-  ]);
+  assert.deepEqual(merged.data.inputs, [{ id: 'input-1', value: 'new value' }]);
   assert.equal(merged.data.status, 'success');
   assert.deepEqual(merged.data.debuggerResult, { output: 'new output' });
   assert.equal(latestNode.data.status, 'running');
@@ -170,11 +168,17 @@ test('builds the request from the latest node with transient debugger inputs', (
         },
         {
           id: 'input-2',
-          schema: { type: 'string', value: { type: 'literal', content: 'edited' } },
+          schema: {
+            type: 'string',
+            value: { type: 'literal', content: 'edited' },
+          },
         },
         {
           id: 'input-3',
-          schema: { type: 'string', value: { type: 'literal', content: 'added' } },
+          schema: {
+            type: 'string',
+            value: { type: 'literal', content: 'added' },
+          },
         },
       ],
     },
@@ -194,7 +198,10 @@ test('builds the request from the latest node with transient debugger inputs', (
         },
         {
           id: 'input-2',
-          schema: { type: 'string', value: { type: 'literal', content: 'old' } },
+          schema: {
+            type: 'string',
+            value: { type: 'literal', content: 'old' },
+          },
         },
       ],
     },
@@ -211,7 +218,10 @@ test('builds the request from the latest node with transient debugger inputs', (
         },
         {
           id: 'input-2',
-          schema: { type: 'string', value: { type: 'literal', content: 'old' } },
+          schema: {
+            type: 'string',
+            value: { type: 'literal', content: 'old' },
+          },
         },
       ],
     },

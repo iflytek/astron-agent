@@ -196,6 +196,36 @@ public class WorkflowExportService {
     @SneakyThrows
     @Transactional(rollbackFor = Exception.class)
     public ApiResult importWorkflowFromYaml(InputStream inputStream, HttpServletRequest request) {
+        JSONObject root = loadWorkflowYaml(inputStream);
+        String uid = UserInfoManagerHandler.getUserId();
+        ParsedWorkflowDsl dsl = parseWorkflowDsl(root);
+        Workflow wf = createImportedWorkflow(dsl.meta(), uid);
+        BizWorkflowData bizWorkflowData = convertImportedWorkflowData(dsl.flow());
+        normalizeImportedNodeParams(bizWorkflowData);
+        WorkflowImportReport report = new WorkflowImportReport();
+        List<Map<String, Object>> dependencyManifest =
+                parseDependencyManifest(root.get("dependencyManifest"));
+        cleanNodesForImport(bizWorkflowData, uid, request, dependencyManifest, report);
+        wf.setData(objectMapper.writeValueAsString(bizWorkflowData));
+
+        WorkflowReq workflowReq = new WorkflowReq();
+        workflowReq.setName(wf.getName());
+        workflowReq.setDescription(wf.getDescription());
+        workflowReq.setAppId(wf.getAppId());
+        ApiResult<String> addResult = workflowService.callProtocolAdd(workflowReq);
+        if (addResult.code() != 0) {
+            return addResult;
+        }
+        wf.setFlowId(addResult.data());
+        try {
+            return persistImportedWorkflow(wf, report);
+        } catch (Exception importFailure) {
+            compensateProtocolCreation(wf.getAppId(), wf.getFlowId(), importFailure);
+            throw importFailure;
+        }
+    }
+
+    private JSONObject loadWorkflowYaml(InputStream inputStream) {
         Object loaded;
         try {
             LoaderOptions loaderOptions = createLoaderOptions();
@@ -211,8 +241,10 @@ public class WorkflowExportService {
         if (!root.containsKey("flowMeta") || !root.containsKey("flowData")) {
             throw invalidWorkflowDsl(null);
         }
-        String uid = UserInfoManagerHandler.getUserId();
+        return root;
+    }
 
+    private ParsedWorkflowDsl parseWorkflowDsl(JSONObject root) {
         if (!(root.get("flowMeta") instanceof Map<?, ?> metaRaw)
                 || !(root.get("flowData") instanceof Map<?, ?> flowRaw)) {
             throw invalidWorkflowDsl(null);
@@ -221,8 +253,10 @@ public class WorkflowExportService {
         Map<String, Object> flow = toStringKeyMap(flowRaw);
         validateWorkflowMetaShape(meta);
         validateWorkflowDslShape(flow);
+        return new ParsedWorkflowDsl(meta, flow);
+    }
 
-        // Build new Workflow entity
+    private Workflow createImportedWorkflow(Map<String, Object> meta, String uid) {
         Workflow wf = new Workflow();
         wf.setUid(uid);
         String name = (String) meta.get("name");
@@ -237,68 +271,56 @@ public class WorkflowExportService {
                 ? category.intValue()
                 : null);
         wf.setAdvancedConfig(stringValue(meta.get("advancedConfig")));
-        BizWorkflowData bizWorkflowData;
+        return wf;
+    }
+
+    private BizWorkflowData convertImportedWorkflowData(Map<String, Object> flow) {
         try {
-            bizWorkflowData = objectMapper.convertValue(flow, BizWorkflowData.class);
+            return objectMapper.convertValue(flow, BizWorkflowData.class);
         } catch (IllegalArgumentException e) {
             throw invalidWorkflowDsl(e);
         }
-        normalizeImportedNodeParams(bizWorkflowData);
-        WorkflowImportReport report = new WorkflowImportReport();
-        List<Map<String, Object>> dependencyManifest = parseDependencyManifest(root.get("dependencyManifest"));
-        // Clear node private information
-        cleanNodesForImport(bizWorkflowData, uid, request, dependencyManifest, report);
-        String data = objectMapper.writeValueAsString(bizWorkflowData);
-        wf.setData(data);
-        // Call core system to get flowId
-        WorkflowReq workflowReq = new WorkflowReq();
-        workflowReq.setName(wf.getName());
-        workflowReq.setDescription(wf.getDescription());
-        workflowReq.setAppId(wf.getAppId());
-        ApiResult<String> addResult = workflowService.callProtocolAdd(workflowReq);
-        if (addResult.code() != 0) {
-            return addResult;
-        }
-        wf.setFlowId(addResult.data());
-        try {
-            wf.setCreateTime(new Date());
-            wf.setUpdateTime(new Date());
-            if (wf.getSource() == null) {
-                wf.setSource(0);
-            }
-            if (StringUtils.isBlank(wf.getAvatarColor())) {
-                wf.setAvatarColor("#FFEAD5");
-            }
-            if (StringUtils.isBlank(wf.getAvatarIcon())) {
-                wf.setAvatarIcon("icon/common/emojiitem_00_10@2x.png");
-            }
-            // All local writes below participate in this method's transaction.
-            Long spaceId = SpaceInfoUtil.getSpaceId();
-            wf.setSpaceId(spaceId);
-            if (!workflowService.save(wf)) {
-                throw new BusinessException(ResponseEnum.WORKFLOW_IMPORT_FAILED);
-            }
-            Integer botId = botUtil.syncToSparkDatabase(
-                    wf, UserInfoManagerHandler.getUserId(), spaceId);
-            JSONObject jsonData = new JSONObject();
-            jsonData.put("botId", botId);
-            wf.setExt(jsonData.toJSONString());
-            if (!workflowService.updateById(wf)) {
-                throw new BusinessException(ResponseEnum.WORKFLOW_IMPORT_FAILED);
-            }
-            log.info(
-                    "workflow import dependency resolution completed, flowId={}, total={}, resolved={}, unresolved={}, ambiguous={}",
-                    wf.getFlowId(), report.getTotal(), report.getResolved(), report.getUnresolved(),
-                    report.getAmbiguous());
-            WorkflowImportResponse response = new WorkflowImportResponse();
-            org.springframework.beans.BeanUtils.copyProperties(wf, response);
-            response.setImportReport(report);
-            return ApiResult.success(response);
-        } catch (Exception importFailure) {
-            compensateProtocolCreation(wf.getAppId(), wf.getFlowId(), importFailure);
-            throw importFailure;
-        }
     }
+
+    private ApiResult<WorkflowImportResponse> persistImportedWorkflow(
+            Workflow wf, WorkflowImportReport report) {
+        wf.setCreateTime(new Date());
+        wf.setUpdateTime(new Date());
+        if (wf.getSource() == null) {
+            wf.setSource(0);
+        }
+        if (StringUtils.isBlank(wf.getAvatarColor())) {
+            wf.setAvatarColor("#FFEAD5");
+        }
+        if (StringUtils.isBlank(wf.getAvatarIcon())) {
+            wf.setAvatarIcon("icon/common/emojiitem_00_10@2x.png");
+        }
+        // All local writes participate in importWorkflowFromYaml's transaction.
+        Long spaceId = SpaceInfoUtil.getSpaceId();
+        wf.setSpaceId(spaceId);
+        if (!workflowService.save(wf)) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_IMPORT_FAILED);
+        }
+        Integer botId = botUtil.syncToSparkDatabase(
+                wf, UserInfoManagerHandler.getUserId(), spaceId);
+        JSONObject jsonData = new JSONObject();
+        jsonData.put("botId", botId);
+        wf.setExt(jsonData.toJSONString());
+        if (!workflowService.updateById(wf)) {
+            throw new BusinessException(ResponseEnum.WORKFLOW_IMPORT_FAILED);
+        }
+        log.info(
+                "workflow import dependency resolution completed, flowId={}, total={}, resolved={}, unresolved={}, ambiguous={}",
+                wf.getFlowId(), report.getTotal(), report.getResolved(), report.getUnresolved(),
+                report.getAmbiguous());
+        WorkflowImportResponse response = new WorkflowImportResponse();
+        org.springframework.beans.BeanUtils.copyProperties(wf, response);
+        response.setImportReport(report);
+        return ApiResult.success(response);
+    }
+
+    private record ParsedWorkflowDsl(
+            Map<String, Object> meta, Map<String, Object> flow) {}
 
     /** Best-effort compensation for the core resource created before the local transaction. */
     private void compensateProtocolCreation(String appId, String flowId, Exception importFailure) {
@@ -698,52 +720,76 @@ public class WorkflowExportService {
         }
         JSONObject param = node.getData().getNodeParam();
         if (node.getId().startsWith("plugin::")) {
-            String toolId = param.getString("pluginId");
-            addNonBlank(toolIds, toolId);
-            String sourceName = firstNonBlank(
-                    param.getString("pluginName"), node.getData().getPluginName());
-            Map<String, Object> manifest = trustedManifest(
-                    dependencyManifest, node.getId(), toolId,
-                    sourceName, param.getString("operationId"));
-            addNonBlank(toolNames, firstNonBlank(
-                    manifest == null ? null : stringValue(manifest.get("name")),
-                    sourceName));
+            collectPluginImportToolReference(
+                    node, param, dependencyManifest, toolIds, toolNames);
             return;
         }
-        if (!node.getId().startsWith("agent::")) {
-            return;
+        if (node.getId().startsWith("agent::")) {
+            collectAgentImportToolReferences(
+                    node, param, dependencyManifest, toolIds, toolNames);
         }
+    }
+
+    private void collectPluginImportToolReference(BizWorkflowNode node, JSONObject param,
+            List<Map<String, Object>> dependencyManifest, Set<String> toolIds,
+            Set<String> toolNames) {
+        String toolId = param.getString("pluginId");
+        addNonBlank(toolIds, toolId);
+        String sourceName = firstNonBlank(
+                param.getString("pluginName"), node.getData().getPluginName());
+        Map<String, Object> manifest = trustedManifest(
+                dependencyManifest, node.getId(), toolId,
+                sourceName, param.getString("operationId"));
+        addNonBlank(toolNames, firstNonBlank(
+                manifest == null ? null : stringValue(manifest.get("name")), sourceName));
+    }
+
+    private void collectAgentImportToolReferences(BizWorkflowNode node, JSONObject param,
+            List<Map<String, Object>> dependencyManifest, Set<String> toolIds,
+            Set<String> toolNames) {
         JSONObject plugin = param.getJSONObject("plugin");
         JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
         JSONArray toolsList = plugin == null ? null : plugin.getJSONArray("toolsList");
         for (Object rawTool : tools == null ? new JSONArray() : tools) {
-            JSONObject runtime = asJsonObject(rawTool);
-            String toolId = runtime == null ? stringValue(rawTool) : runtime.getString("tool_id");
-            addNonBlank(toolIds, toolId);
-            JSONObject display = findAgentTool(toolsList, toolId);
-            String sourceName = display == null ? null : display.getString("pluginName");
-            String sourceOperationId = display == null ? null : display.getString("operationId");
-            Map<String, Object> manifest = trustedManifest(
-                    dependencyManifest, node.getId(), toolId, sourceName, sourceOperationId);
-            addNonBlank(toolNames, firstNonBlank(
-                    manifest == null ? null : stringValue(manifest.get("name")),
-                    sourceName));
+            collectAgentRuntimeToolReference(
+                    node, rawTool, toolsList, dependencyManifest, toolIds, toolNames);
         }
         for (Object rawTool : toolsList == null ? new JSONArray() : toolsList) {
             JSONObject display = asJsonObject(rawTool);
             if (display == null || !"tool".equals(display.getString("type"))) {
                 continue;
             }
-            String toolId = display.getString("toolId");
-            addNonBlank(toolIds, toolId);
-            String sourceName = display.getString("pluginName");
-            Map<String, Object> manifest = trustedManifest(
-                    dependencyManifest, node.getId(), toolId,
-                    sourceName, display.getString("operationId"));
-            addNonBlank(toolNames, firstNonBlank(
-                    manifest == null ? null : stringValue(manifest.get("name")),
-                    sourceName));
+            collectAgentDisplayToolReference(
+                    node, display, dependencyManifest, toolIds, toolNames);
         }
+    }
+
+    private void collectAgentRuntimeToolReference(BizWorkflowNode node, Object rawTool,
+            JSONArray toolsList, List<Map<String, Object>> dependencyManifest,
+            Set<String> toolIds, Set<String> toolNames) {
+        JSONObject runtime = asJsonObject(rawTool);
+        String toolId = runtime == null ? stringValue(rawTool) : runtime.getString("tool_id");
+        addNonBlank(toolIds, toolId);
+        JSONObject display = findAgentTool(toolsList, toolId);
+        String sourceName = display == null ? null : display.getString("pluginName");
+        String sourceOperationId = display == null ? null : display.getString("operationId");
+        Map<String, Object> manifest = trustedManifest(
+                dependencyManifest, node.getId(), toolId, sourceName, sourceOperationId);
+        addNonBlank(toolNames, firstNonBlank(
+                manifest == null ? null : stringValue(manifest.get("name")), sourceName));
+    }
+
+    private void collectAgentDisplayToolReference(BizWorkflowNode node, JSONObject display,
+            List<Map<String, Object>> dependencyManifest, Set<String> toolIds,
+            Set<String> toolNames) {
+        String toolId = display.getString("toolId");
+        addNonBlank(toolIds, toolId);
+        String sourceName = display.getString("pluginName");
+        Map<String, Object> manifest = trustedManifest(
+                dependencyManifest, node.getId(), toolId,
+                sourceName, display.getString("operationId"));
+        addNonBlank(toolNames, firstNonBlank(
+                manifest == null ? null : stringValue(manifest.get("name")), sourceName));
     }
 
     private JSONObject findAgentTool(JSONArray toolsList, String toolId) {
@@ -1074,224 +1120,266 @@ public class WorkflowExportService {
             Set<Long> allowedLlmSet, Set<String> visibleRepositoryIds,
             List<Map<String, Object>> dependencyManifest, ImportToolIndex toolIndex,
             WorkflowImportReport report) {
-
-        if (!allowedLlmSet.contains(param.getLong("llmId"))) {
-            param.remove("serviceId");
-            param.remove("llmId");
-            JSONObject modelConfig = param.getJSONObject("modelConfig");
-            if (modelConfig != null) {
-                modelConfig.remove("domain");
-                modelConfig.remove("api");
-                param.replace("modelConfig", modelConfig);
-            }
-            param.remove("uid");
-        }
-
+        cleanAgentLlmBinding(param, allowedLlmSet);
         JSONObject plugin = param.getJSONObject("plugin");
-        if (plugin == null)
+        if (plugin == null) {
             return;
-
-        JSONArray toolsList = plugin.getJSONArray("toolsList");
-        JSONArray knowledgeArray = plugin.getJSONArray("knowledge");
-
-        if (CollUtil.isNotEmpty(knowledgeArray)) {
-            boolean hasInvalidRepo = knowledgeArray.stream().anyMatch(o -> {
-                JSONObject j = asJsonObject(o);
-                JSONObject match = j == null ? null : j.getJSONObject("match");
-                JSONArray repoIds = match == null ? null : match.getJSONArray("repoIds");
-                return repoIds == null
-                        || repoIds.stream()
-                                .anyMatch(
-                                        r -> !visibleRepositoryIds.contains(String.valueOf(r)));
-            });
-
-            if (hasInvalidRepo) {
-                plugin.put("knowledge", Collections.emptyList());
-                if (toolsList != null) {
-                    toolsList.removeIf(tool -> {
-                        JSONObject display = asJsonObject(tool);
-                        return display == null || "knowledge".equals(display.getString("type"));
-                    });
-                }
-                addUnresolvedEntry(node, "knowledge", null,
-                        "one or more knowledge bases are not visible in target space", report);
-            }
         }
-
+        JSONArray toolsList = plugin.getJSONArray("toolsList");
+        cleanAgentKnowledgeBindings(
+                node, plugin, toolsList, visibleRepositoryIds, report);
         JSONArray tools = plugin.getJSONArray("tools");
         Set<String> unresolvedToolIds = new HashSet<>();
-        for (int i = 0; tools != null && i < tools.size(); i++) {
-            JSONObject toolConfig = asJsonObject(tools.get(i));
-            String toolId = toolConfig == null ? tools.getString(i) : toolConfig.getString("tool_id");
-            String sourceVersion = toolConfig == null ? null : toolConfig.getString("version");
-            int toolListIndex = findAgentToolIndex(toolsList, toolId);
-            JSONObject toolListItem = toolListIndex < 0 ? null : asJsonObject(toolsList.get(toolListIndex));
-            String toolName = toolListItem == null ? null
-                    : toolListItem.getString("pluginName");
-            String nodeOperationId = toolListItem == null
-                    ? null
-                    : toolListItem.getString("operationId");
-            Map<String, Object> manifest = trustedManifest(
-                    dependencyManifest, node.getId(), toolId, toolName, nodeOperationId);
-            String sourceOperationId = firstNonBlank(
-                    manifest == null ? null : stringValue(manifest.get("operationId")),
-                    nodeOperationId);
-            if (manifest != null) {
-                toolName = firstNonBlank(stringValue(manifest.get("name")), toolName);
-                sourceVersion = firstNonBlank(stringValue(manifest.get("version")), sourceVersion);
+        cleanAgentRuntimeTools(node, plugin, tools, unresolvedToolIds,
+                dependencyManifest, toolIndex, report);
+        cleanAgentDisplayTools(node, plugin, unresolvedToolIds,
+                dependencyManifest, toolIndex, report);
+    }
+
+    private void cleanAgentLlmBinding(JSONObject param, Set<Long> allowedLlmSet) {
+        if (allowedLlmSet.contains(param.getLong("llmId"))) {
+            return;
+        }
+        param.remove("serviceId");
+        param.remove("llmId");
+        JSONObject modelConfig = param.getJSONObject("modelConfig");
+        if (modelConfig != null) {
+            modelConfig.remove("domain");
+            modelConfig.remove("api");
+            param.replace("modelConfig", modelConfig);
+        }
+        param.remove("uid");
+    }
+
+    private void cleanAgentKnowledgeBindings(BizWorkflowNode node, JSONObject plugin,
+            JSONArray toolsList, Set<String> visibleRepositoryIds,
+            WorkflowImportReport report) {
+        JSONArray knowledgeArray = plugin.getJSONArray("knowledge");
+        if (CollUtil.isEmpty(knowledgeArray) || !hasInvalidAgentKnowledge(
+                knowledgeArray, visibleRepositoryIds)) {
+            return;
+        }
+        plugin.put("knowledge", Collections.emptyList());
+        if (toolsList != null) {
+            toolsList.removeIf(tool -> {
+                JSONObject display = asJsonObject(tool);
+                return display == null || "knowledge".equals(display.getString("type"));
+            });
+        }
+        addUnresolvedEntry(node, "knowledge", null,
+                "one or more knowledge bases are not visible in target space", report);
+    }
+
+    private boolean hasInvalidAgentKnowledge(
+            JSONArray knowledgeArray, Set<String> visibleRepositoryIds) {
+        return knowledgeArray.stream().anyMatch(rawKnowledge -> {
+            JSONObject knowledge = asJsonObject(rawKnowledge);
+            JSONObject match = knowledge == null ? null : knowledge.getJSONObject("match");
+            JSONArray repoIds = match == null ? null : match.getJSONArray("repoIds");
+            return repoIds == null || repoIds.stream()
+                    .anyMatch(repoId -> !visibleRepositoryIds.contains(String.valueOf(repoId)));
+        });
+    }
+
+    private void cleanAgentRuntimeTools(BizWorkflowNode node, JSONObject plugin,
+            JSONArray tools, Set<String> unresolvedToolIds,
+            List<Map<String, Object>> dependencyManifest, ImportToolIndex toolIndex,
+            WorkflowImportReport report) {
+        for (int i = 0; tools != null && i < tools.size();) {
+            boolean removed = cleanAgentRuntimeTool(node, plugin, tools, i,
+                    unresolvedToolIds, dependencyManifest, toolIndex, report);
+            if (!removed) {
+                i++;
             }
-            ToolResolution resolution = resolveTool(
-                    toolIndex.findById(toolId), sourceVersion, sourceOperationId, manifest, false);
-            boolean verifiableLegacyName = manifest != null
-                    || toolListItem != null
-                            && StringUtils.isNotBlank(toolListItem.getString("pluginName"))
-                            && StringUtils.isNotBlank(sourceOperationId);
-            if (resolution.target() == null && "MISSING".equals(resolution.status())
-                    && verifiableLegacyName && StringUtils.isNotBlank(toolName)) {
-                resolution = resolveTool(
-                        toolIndex.findByName(toolName), sourceVersion,
-                        sourceOperationId, manifest, true);
+        }
+    }
+
+    private boolean cleanAgentRuntimeTool(BizWorkflowNode node, JSONObject plugin,
+            JSONArray tools, int toolIndexInRuntime, Set<String> unresolvedToolIds,
+            List<Map<String, Object>> dependencyManifest, ImportToolIndex toolIndex,
+            WorkflowImportReport report) {
+        JSONObject toolConfig = asJsonObject(tools.get(toolIndexInRuntime));
+        String toolId = toolConfig == null
+                ? tools.getString(toolIndexInRuntime)
+                : toolConfig.getString("tool_id");
+        String sourceVersion = toolConfig == null ? null : toolConfig.getString("version");
+        JSONArray toolsList = plugin.getJSONArray("toolsList");
+        int toolListIndex = findAgentToolIndex(toolsList, toolId);
+        JSONObject toolListItem = toolListIndex < 0
+                ? null
+                : asJsonObject(toolsList.get(toolListIndex));
+        String toolName = toolListItem == null ? null : toolListItem.getString("pluginName");
+        String nodeOperationId = toolListItem == null
+                ? null
+                : toolListItem.getString("operationId");
+        AgentToolResolution resolution = resolveAgentTool(node, toolId, toolName,
+                nodeOperationId, sourceVersion, toolListItem, dependencyManifest, toolIndex);
+        if (resolution.resolution().target() != null) {
+            mapAgentRuntimeTool(node, plugin, tools, toolIndexInRuntime, toolConfig,
+                    toolListItem, toolListIndex, resolution, report);
+            return false;
+        }
+        tools.remove(toolIndexInRuntime);
+        unresolvedToolIds.add(toolId);
+        WorkflowImportReportEntry entry = unresolvedAgentToolEntry(node, resolution);
+        report.add(entry);
+        if (toolListItem == null) {
+            toolListItem = new JSONObject()
+                    .fluentPut("type", "tool")
+                    .fluentPut("toolId", toolId)
+                    .fluentPut("name", resolution.toolName());
+            toolsList = ensureAgentToolsList(plugin, toolsList);
+            toolsList.add(toolListItem);
+        }
+        markAgentToolUnresolved(toolListItem, entry);
+        markImportIssue(node.getData(), entry);
+        return true;
+    }
+
+    private void mapAgentRuntimeTool(BizWorkflowNode node, JSONObject plugin,
+            JSONArray tools, int runtimeIndex, JSONObject toolConfig,
+            JSONObject toolListItem, int toolListIndex, AgentToolResolution resolution,
+            WorkflowImportReport report) {
+        ToolBox target = resolution.resolution().target();
+        if (toolConfig == null) {
+            tools.set(runtimeIndex, target.getToolId());
+        } else {
+            toolConfig.put("tool_id", target.getToolId());
+            putNullableVersion(toolConfig, "version", target.getVersion());
+            tools.set(runtimeIndex, toolConfig);
+        }
+        JSONArray toolsList = plugin.getJSONArray("toolsList");
+        if (toolListItem == null) {
+            toolListItem = new JSONObject().fluentPut("type", "tool");
+            toolsList = ensureAgentToolsList(plugin, toolsList);
+            toolListIndex = toolsList.size();
+            toolsList.add(toolListItem);
+        }
+        applyAgentToolDisplayTarget(toolListItem, target);
+        toolsList.set(toolListIndex, toolListItem);
+        addMappedAgentToolReport(node, resolution, report);
+    }
+
+    private JSONArray ensureAgentToolsList(JSONObject plugin, JSONArray toolsList) {
+        if (toolsList != null) {
+            return toolsList;
+        }
+        JSONArray created = new JSONArray();
+        plugin.put("toolsList", created);
+        return created;
+    }
+
+    private void cleanAgentDisplayTools(BizWorkflowNode node, JSONObject plugin,
+            Set<String> unresolvedToolIds,
+            List<Map<String, Object>> dependencyManifest, ImportToolIndex toolIndex,
+            WorkflowImportReport report) {
+        JSONArray toolsList = plugin.getJSONArray("toolsList");
+        JSONArray runtimeTools = plugin.getJSONArray("tools");
+        for (int i = 0; toolsList != null && i < toolsList.size(); i++) {
+            JSONObject toolListItem = asJsonObject(toolsList.get(i));
+            if (toolListItem == null || !"tool".equals(toolListItem.getString("type"))) {
+                continue;
             }
-            if (resolution.target() != null) {
-                ToolBox target = resolution.target();
-                if (toolConfig == null) {
-                    tools.set(i, target.getToolId());
-                } else {
-                    toolConfig.put("tool_id", target.getToolId());
-                    putNullableVersion(toolConfig, "version", target.getVersion());
-                    tools.set(i, toolConfig);
-                }
-                if (toolListItem == null) {
-                    toolListItem = new JSONObject().fluentPut("type", "tool");
-                    if (toolsList == null) {
-                        toolsList = new JSONArray();
-                        plugin.put("toolsList", toolsList);
-                    }
-                    toolListIndex = toolsList.size();
-                    toolsList.add(toolListItem);
-                }
+            String toolId = toolListItem.getString("toolId");
+            if (containsAgentTool(runtimeTools, toolId) || unresolvedToolIds.contains(toolId)) {
+                continue;
+            }
+            String toolName = toolListItem.getString("pluginName");
+            String nodeOperationId = toolListItem.getString("operationId");
+            AgentToolResolution resolution = resolveAgentTool(node, toolId, toolName,
+                    nodeOperationId, toolListItem.getString("version"), toolListItem,
+                    dependencyManifest, toolIndex);
+            if (resolution.resolution().target() != null) {
+                ToolBox target = resolution.resolution().target();
                 applyAgentToolDisplayTarget(toolListItem, target);
-                toolsList.set(toolListIndex, toolListItem);
-                WorkflowImportReportEntry entry = baseEntry(node, "plugin", toolId, toolName,
-                        sourceOperationId, sourceVersion, manifest);
-                entry.setStatus("MAPPED");
-                entry.setMappingType(Objects.equals(toolId, target.getToolId())
-                        ? WorkflowImportReportEntry.MAPPING_SOURCE_ID
-                        : WorkflowImportReportEntry.MAPPING_COMPATIBLE_NAME);
-                entry.setReasonCode(Objects.equals(toolId, target.getToolId())
-                        ? WorkflowImportReportEntry.REASON_SOURCE_ID_MATCHED
-                        : WorkflowImportReportEntry.REASON_UNIQUE_COMPATIBLE_NAME_MATCHED);
-                entry.setReason(Objects.equals(toolId, target.getToolId())
-                        ? "source id matched"
-                        : "unique compatible name matched");
-                entry.setTargetPluginId(target.getToolId());
-                entry.setTargetOperationId(target.getOperationId());
-                entry.setTargetVersion(target.getVersion());
-                report.add(entry);
-            } else {
-                tools.remove(i--);
-                unresolvedToolIds.add(toolId);
-                WorkflowImportReportEntry entry = baseEntry(node, "plugin", toolId, toolName,
-                        sourceOperationId, sourceVersion, manifest);
-                entry.setStatus(resolution.status());
-                entry.setReasonCode(resolution.reasonCode());
-                entry.setReason(resolution.reason());
-                entry.setCandidatePluginIds(resolution.candidatePluginIds());
-                report.add(entry);
-                if (toolListItem == null) {
-                    toolListItem = new JSONObject()
-                            .fluentPut("type", "tool")
-                            .fluentPut("toolId", toolId)
-                            .fluentPut("name", toolName);
-                    if (toolsList == null) {
-                        toolsList = new JSONArray();
-                        plugin.put("toolsList", toolsList);
-                    }
-                    toolsList.add(toolListItem);
+                toolsList.set(i, toolListItem);
+                if (runtimeTools == null) {
+                    runtimeTools = new JSONArray();
+                    plugin.put("tools", runtimeTools);
                 }
+                JSONObject runtimeTool = new JSONObject()
+                        .fluentPut("tool_id", target.getToolId());
+                putNullableVersion(runtimeTool, "version", target.getVersion());
+                runtimeTools.add(runtimeTool);
+                addMappedAgentToolReport(node, resolution, report);
+            } else {
+                unresolvedToolIds.add(toolId);
+                WorkflowImportReportEntry entry = unresolvedAgentToolEntry(node, resolution);
+                report.add(entry);
                 markAgentToolUnresolved(toolListItem, entry);
                 markImportIssue(node.getData(), entry);
             }
         }
-
-        if (toolsList != null) {
-            for (int i = 0; i < toolsList.size(); i++) {
-                JSONObject toolListItem = asJsonObject(toolsList.get(i));
-                if (toolListItem == null || !"tool".equals(toolListItem.getString("type"))) {
-                    continue;
-                }
-                String toolId = toolListItem.getString("toolId");
-                if (containsAgentTool(tools, toolId) || unresolvedToolIds.contains(toolId)) {
-                    continue;
-                }
-                String toolName = toolListItem.getString("pluginName");
-                String nodeOperationId = toolListItem.getString("operationId");
-                Map<String, Object> manifest = trustedManifest(
-                        dependencyManifest, node.getId(), toolId, toolName, nodeOperationId);
-                String sourceOperationId = firstNonBlank(
-                        manifest == null ? null : stringValue(manifest.get("operationId")),
-                        nodeOperationId);
-                if (manifest != null) {
-                    toolName = firstNonBlank(stringValue(manifest.get("name")), toolName);
-                }
-                String sourceVersion = firstNonBlank(
-                        manifest == null ? null : stringValue(manifest.get("version")),
-                        toolListItem.getString("version"));
-                ToolResolution resolution = resolveTool(
-                        toolIndex.findById(toolId), sourceVersion,
-                        sourceOperationId, manifest, false);
-                boolean verifiableLegacyName = manifest != null
-                        || StringUtils.isNotBlank(toolListItem.getString("pluginName"))
-                                && StringUtils.isNotBlank(sourceOperationId);
-                if (resolution.target() == null && "MISSING".equals(resolution.status())
-                        && verifiableLegacyName && StringUtils.isNotBlank(toolName)) {
-                    resolution = resolveTool(
-                            toolIndex.findByName(toolName), sourceVersion,
-                            sourceOperationId, manifest, true);
-                }
-                if (resolution.target() != null) {
-                    ToolBox target = resolution.target();
-                    applyAgentToolDisplayTarget(toolListItem, target);
-                    toolsList.set(i, toolListItem);
-                    if (tools == null) {
-                        tools = new JSONArray();
-                        plugin.put("tools", tools);
-                    }
-                    JSONObject runtimeTool = new JSONObject()
-                            .fluentPut("tool_id", target.getToolId());
-                    putNullableVersion(runtimeTool, "version", target.getVersion());
-                    tools.add(runtimeTool);
-                    WorkflowImportReportEntry entry = baseEntry(node, "plugin", toolId, toolName,
-                            sourceOperationId, sourceVersion, manifest);
-                    entry.setStatus("MAPPED");
-                    entry.setMappingType(Objects.equals(toolId, target.getToolId())
-                            ? WorkflowImportReportEntry.MAPPING_SOURCE_ID
-                            : WorkflowImportReportEntry.MAPPING_COMPATIBLE_NAME);
-                    entry.setReasonCode(Objects.equals(toolId, target.getToolId())
-                            ? WorkflowImportReportEntry.REASON_SOURCE_ID_MATCHED
-                            : WorkflowImportReportEntry.REASON_UNIQUE_COMPATIBLE_NAME_MATCHED);
-                    entry.setReason(Objects.equals(toolId, target.getToolId())
-                            ? "source id matched"
-                            : "unique compatible name matched");
-                    entry.setTargetPluginId(target.getToolId());
-                    entry.setTargetOperationId(target.getOperationId());
-                    entry.setTargetVersion(target.getVersion());
-                    report.add(entry);
-                } else {
-                    unresolvedToolIds.add(toolId);
-                    WorkflowImportReportEntry entry = baseEntry(node, "plugin", toolId, toolName,
-                            sourceOperationId, sourceVersion, manifest);
-                    entry.setStatus(resolution.status());
-                    entry.setReasonCode(resolution.reasonCode());
-                    entry.setReason(resolution.reason());
-                    entry.setCandidatePluginIds(resolution.candidatePluginIds());
-                    report.add(entry);
-                    markAgentToolUnresolved(toolListItem, entry);
-                    markImportIssue(node.getData(), entry);
-                }
-            }
-        }
     }
+
+    private AgentToolResolution resolveAgentTool(BizWorkflowNode node, String toolId,
+            String toolName, String nodeOperationId, String sourceVersion,
+            JSONObject toolListItem, List<Map<String, Object>> dependencyManifest,
+            ImportToolIndex toolIndex) {
+        Map<String, Object> manifest = trustedManifest(
+                dependencyManifest, node.getId(), toolId, toolName, nodeOperationId);
+        String sourceOperationId = firstNonBlank(
+                manifest == null ? null : stringValue(manifest.get("operationId")),
+                nodeOperationId);
+        String resolvedName = firstNonBlank(
+                manifest == null ? null : stringValue(manifest.get("name")), toolName);
+        String resolvedVersion = firstNonBlank(
+                manifest == null ? null : stringValue(manifest.get("version")), sourceVersion);
+        ToolResolution resolution = resolveTool(
+                toolIndex.findById(toolId), resolvedVersion,
+                sourceOperationId, manifest, false);
+        boolean verifiableLegacyName = manifest != null
+                || toolListItem != null
+                        && StringUtils.isNotBlank(toolListItem.getString("pluginName"))
+                        && StringUtils.isNotBlank(sourceOperationId);
+        if (resolution.target() == null && "MISSING".equals(resolution.status())
+                && verifiableLegacyName && StringUtils.isNotBlank(resolvedName)) {
+            resolution = resolveTool(toolIndex.findByName(resolvedName), resolvedVersion,
+                    sourceOperationId, manifest, true);
+        }
+        return new AgentToolResolution(toolId, resolvedName, sourceOperationId,
+                resolvedVersion, manifest, resolution);
+    }
+
+    private void addMappedAgentToolReport(BizWorkflowNode node,
+            AgentToolResolution resolution, WorkflowImportReport report) {
+        ToolBox target = resolution.resolution().target();
+        WorkflowImportReportEntry entry = baseEntry(node, "plugin", resolution.toolId(),
+                resolution.toolName(), resolution.sourceOperationId(),
+                resolution.sourceVersion(), resolution.manifest());
+        entry.setStatus("MAPPED");
+        boolean sourceIdMatched = Objects.equals(resolution.toolId(), target.getToolId());
+        entry.setMappingType(sourceIdMatched
+                ? WorkflowImportReportEntry.MAPPING_SOURCE_ID
+                : WorkflowImportReportEntry.MAPPING_COMPATIBLE_NAME);
+        entry.setReasonCode(sourceIdMatched
+                ? WorkflowImportReportEntry.REASON_SOURCE_ID_MATCHED
+                : WorkflowImportReportEntry.REASON_UNIQUE_COMPATIBLE_NAME_MATCHED);
+        entry.setReason(sourceIdMatched
+                ? "source id matched"
+                : "unique compatible name matched");
+        entry.setTargetPluginId(target.getToolId());
+        entry.setTargetOperationId(target.getOperationId());
+        entry.setTargetVersion(target.getVersion());
+        report.add(entry);
+    }
+
+    private WorkflowImportReportEntry unresolvedAgentToolEntry(
+            BizWorkflowNode node, AgentToolResolution resolution) {
+        WorkflowImportReportEntry entry = baseEntry(node, "plugin", resolution.toolId(),
+                resolution.toolName(), resolution.sourceOperationId(),
+                resolution.sourceVersion(), resolution.manifest());
+        ToolResolution toolResolution = resolution.resolution();
+        entry.setStatus(toolResolution.status());
+        entry.setReasonCode(toolResolution.reasonCode());
+        entry.setReason(toolResolution.reason());
+        entry.setCandidatePluginIds(toolResolution.candidatePluginIds());
+        return entry;
+    }
+
+    private record AgentToolResolution(String toolId, String toolName,
+            String sourceOperationId, String sourceVersion, Map<String, Object> manifest,
+            ToolResolution resolution) {}
 
     private boolean containsAgentTool(JSONArray tools, String toolId) {
         for (int i = 0; tools != null && i < tools.size(); i++) {
@@ -1310,42 +1398,55 @@ public class WorkflowExportService {
         }
         Map<String, ManifestToolReference> references = new LinkedHashMap<>();
         for (BizWorkflowNode node : workflowData.getNodes()) {
-            if (node == null) {
-                continue;
-            }
-            BizNodeData data = node.getData();
-            if (data == null || data.getNodeParam() == null || node.getId() == null) {
-                continue;
-            }
-            JSONObject param = data.getNodeParam();
-            if (node.getId().startsWith("plugin::")) {
-                addManifestToolReference(references, node.getId(), param.getString("pluginId"),
-                        param.getString("operationId"), param.getString("version"));
-            } else if (node.getId().startsWith("agent::")) {
-                JSONObject plugin = param.getJSONObject("plugin");
-                JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
-                for (int i = 0; tools != null && i < tools.size(); i++) {
-                    JSONObject tool = asJsonObject(tools.get(i));
-                    String toolId = tool == null ? tools.getString(i) : tool.getString("tool_id");
-                    String version = tool == null ? null : tool.getString("version");
-                    addManifestToolReference(references, node.getId(), toolId, null, version);
-                }
-                JSONArray toolsList = plugin == null ? null : plugin.getJSONArray("toolsList");
-                for (int i = 0; toolsList != null && i < toolsList.size(); i++) {
-                    JSONObject tool = asJsonObject(toolsList.get(i));
-                    if (tool != null && "tool".equals(tool.getString("type"))) {
-                        addManifestToolReference(references, node.getId(), tool.getString("toolId"),
-                                tool.getString("operationId"), tool.getString("version"));
-                    }
-                }
-            }
+            collectManifestToolReferences(node, references);
         }
         if (references.isEmpty()) {
             return Collections.emptyList();
         }
+        return resolveDependencyManifest(references);
+    }
 
-        Set<String> toolIds = references.values()
-                .stream()
+    private void collectManifestToolReferences(BizWorkflowNode node,
+            Map<String, ManifestToolReference> references) {
+        if (node == null) {
+            return;
+        }
+        BizNodeData data = node.getData();
+        if (data == null || data.getNodeParam() == null || node.getId() == null) {
+            return;
+        }
+        JSONObject param = data.getNodeParam();
+        if (node.getId().startsWith("plugin::")) {
+            addManifestToolReference(references, node.getId(), param.getString("pluginId"),
+                    param.getString("operationId"), param.getString("version"));
+        } else if (node.getId().startsWith("agent::")) {
+            collectAgentManifestToolReferences(node.getId(), param, references);
+        }
+    }
+
+    private void collectAgentManifestToolReferences(String nodeId, JSONObject param,
+            Map<String, ManifestToolReference> references) {
+        JSONObject plugin = param.getJSONObject("plugin");
+        JSONArray tools = plugin == null ? null : plugin.getJSONArray("tools");
+        for (int i = 0; tools != null && i < tools.size(); i++) {
+            JSONObject tool = asJsonObject(tools.get(i));
+            String toolId = tool == null ? tools.getString(i) : tool.getString("tool_id");
+            String version = tool == null ? null : tool.getString("version");
+            addManifestToolReference(references, nodeId, toolId, null, version);
+        }
+        JSONArray toolsList = plugin == null ? null : plugin.getJSONArray("toolsList");
+        for (int i = 0; toolsList != null && i < toolsList.size(); i++) {
+            JSONObject tool = asJsonObject(toolsList.get(i));
+            if (tool != null && "tool".equals(tool.getString("type"))) {
+                addManifestToolReference(references, nodeId, tool.getString("toolId"),
+                        tool.getString("operationId"), tool.getString("version"));
+            }
+        }
+    }
+
+    private List<Map<String, Object>> resolveDependencyManifest(
+            Map<String, ManifestToolReference> references) {
+        Set<String> toolIds = references.values().stream()
                 .map(ManifestToolReference::toolId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         List<ToolBox> versions = toolBoxService.list(new LambdaQueryWrapper<ToolBox>()
@@ -1356,7 +1457,6 @@ public class WorkflowExportService {
         String uid = UserInfoManagerHandler.getUserId();
         Map<String, List<ToolBox>> versionsByToolId = visibleToolIndex(
                 versions, uid, ToolBox::getToolId);
-
         List<Map<String, Object>> manifest = new ArrayList<>(references.size());
         for (ManifestToolReference reference : references.values()) {
             ToolBox tool = selectManifestVersion(
