@@ -1,16 +1,20 @@
 from types import SimpleNamespace
+from typing import Any, Dict
 
 import pytest
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
-    InMemorySpanExporter,
-)
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.node import NodeExecutionTemplate
 from workflow.engine.nodes.entities.node_run_result import NodeRunResult
 from workflow.extensions.otlp.trace.span import Span
+
+
+def attrs_of(span: ReadableSpan) -> Dict[str, Any]:
+    """Return span attributes as a plain dict for assertion convenience."""
+    return dict(span.attributes or {})
 
 
 def _make_template(node_instance: object) -> NodeExecutionTemplate:
@@ -47,10 +51,10 @@ async def test_llm_node_records_model_and_usage(
     span, exporter = _make_span()
     with span.start("run_node:spark-llm::n1") as ctx:
         await template._record_gen_ai_attributes(result, ctx)
-    finished = exporter.get_finished_spans()[0]
-    assert finished.attributes["gen_ai.request.model"] == "gpt-4o"
-    assert finished.attributes["gen_ai.usage.total_tokens"] == 15
-    assert '"query"' in finished.attributes["langfuse.observation.input"]
+    attributes = attrs_of(exporter.get_finished_spans()[0])
+    assert attributes["gen_ai.request.model"] == "gpt-4o"
+    assert attributes["gen_ai.usage.total_tokens"] == 15
+    assert '"query"' in attributes["langfuse.observation.input"]
 
 
 @pytest.mark.asyncio
@@ -70,7 +74,7 @@ async def test_non_llm_node_records_io_without_model(
     span, exporter = _make_span()
     with span.start("run_node:ifly-code::n2") as ctx:
         await template._record_gen_ai_attributes(result, ctx)
-    finished = exporter.get_finished_spans()[0]
-    assert "gen_ai.request.model" not in finished.attributes
-    assert "gen_ai.usage.total_tokens" not in finished.attributes
-    assert '"y"' in finished.attributes["langfuse.observation.output"]
+    attributes = attrs_of(exporter.get_finished_spans()[0])
+    assert "gen_ai.request.model" not in attributes
+    assert "gen_ai.usage.total_tokens" not in attributes
+    assert '"y"' in attributes["langfuse.observation.output"]
