@@ -60,7 +60,6 @@ import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.SafeConstructor;
-import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.representer.Representer;
 
 import java.io.InputStream;
@@ -85,9 +84,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class WorkflowExportService {
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    private static final int MAX_YAML_ALIASES = 50;
-    private static final int MAX_YAML_NESTING_DEPTH = 50;
-    private static final int MAX_YAML_CODE_POINTS = 20 * 1024 * 1024;
     private static final int IMPORT_MODEL_PAGE_SIZE = 999;
     private static final int MAX_DEPENDENCY_MANIFEST_ENTRIES = 10_000;
     private static final int MAX_MANIFEST_ID_LENGTH = 512;
@@ -174,7 +170,7 @@ public class WorkflowExportService {
             options.setIndent(2);
             options.setDefaultScalarStyle(DumperOptions.ScalarStyle.PLAIN);
 
-            LoaderOptions loaderOptions = createLoaderOptions();
+            LoaderOptions loaderOptions = WorkflowYamlParser.createLoaderOptions();
             Representer representer = new Representer(options);
             representer.getPropertyUtils().setSkipMissingProperties(true);
             // Output
@@ -196,15 +192,14 @@ public class WorkflowExportService {
     @SneakyThrows
     @Transactional(rollbackFor = Exception.class)
     public ApiResult importWorkflowFromYaml(InputStream inputStream, HttpServletRequest request) {
-        JSONObject root = loadWorkflowYaml(inputStream);
+        WorkflowYamlParser.ParsedWorkflowDsl dsl = WorkflowYamlParser.parse(inputStream);
         String uid = UserInfoManagerHandler.getUserId();
-        ParsedWorkflowDsl dsl = parseWorkflowDsl(root);
         Workflow wf = createImportedWorkflow(dsl.meta(), uid);
         BizWorkflowData bizWorkflowData = convertImportedWorkflowData(dsl.flow());
         normalizeImportedNodeParams(bizWorkflowData);
         WorkflowImportReport report = new WorkflowImportReport();
         List<Map<String, Object>> dependencyManifest =
-                parseDependencyManifest(root.get("dependencyManifest"));
+                parseDependencyManifest(dsl.dependencyManifest());
         cleanNodesForImport(bizWorkflowData, uid, request, dependencyManifest, report);
         wf.setData(objectMapper.writeValueAsString(bizWorkflowData));
 
@@ -223,37 +218,6 @@ public class WorkflowExportService {
             compensateProtocolCreation(wf.getAppId(), wf.getFlowId(), importFailure);
             throw importFailure;
         }
-    }
-
-    private JSONObject loadWorkflowYaml(InputStream inputStream) {
-        Object loaded;
-        try {
-            LoaderOptions loaderOptions = createLoaderOptions();
-            Yaml yaml = new Yaml(new SafeConstructor(loaderOptions));
-            loaded = yaml.load(inputStream);
-        } catch (YAMLException | ClassCastException e) {
-            throw invalidWorkflowDsl(e);
-        }
-        if (!(loaded instanceof Map<?, ?> rootMap)) {
-            throw invalidWorkflowDsl(null);
-        }
-        JSONObject root = new JSONObject(toStringKeyMap(rootMap));
-        if (!root.containsKey("flowMeta") || !root.containsKey("flowData")) {
-            throw invalidWorkflowDsl(null);
-        }
-        return root;
-    }
-
-    private ParsedWorkflowDsl parseWorkflowDsl(JSONObject root) {
-        if (!(root.get("flowMeta") instanceof Map<?, ?> metaRaw)
-                || !(root.get("flowData") instanceof Map<?, ?> flowRaw)) {
-            throw invalidWorkflowDsl(null);
-        }
-        Map<String, Object> meta = toStringKeyMap(metaRaw);
-        Map<String, Object> flow = toStringKeyMap(flowRaw);
-        validateWorkflowMetaShape(meta);
-        validateWorkflowDslShape(flow);
-        return new ParsedWorkflowDsl(meta, flow);
     }
 
     private Workflow createImportedWorkflow(Map<String, Object> meta, String uid) {
@@ -319,9 +283,6 @@ public class WorkflowExportService {
         return ApiResult.success(response);
     }
 
-    private record ParsedWorkflowDsl(
-            Map<String, Object> meta, Map<String, Object> flow) {}
-
     /** Best-effort compensation for the core resource created before the local transaction. */
     private void compensateProtocolCreation(String appId, String flowId, Exception importFailure) {
         try {
@@ -333,99 +294,6 @@ public class WorkflowExportService {
             log.error(
                     "failed to compensate core workflow protocol after local import failure, appId={}, flowId={}",
                     appId, flowId, compensationFailure);
-        }
-    }
-
-    private Map<String, Object> toStringKeyMap(Map<?, ?> raw) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        raw.forEach((key, value) -> result.put(String.valueOf(key), value));
-        return result;
-    }
-
-    /** Metadata is optional, but typed fields must retain the export contract. */
-    private void validateWorkflowMetaShape(Map<String, Object> meta) {
-        for (String field : List.of(
-                "name", "description", "avatarIcon", "avatarColor", "edgeType",
-                "advancedConfig")) {
-            Object value = meta.get(field);
-            if (value != null && !(value instanceof String)) {
-                throw invalidWorkflowDsl(null);
-            }
-        }
-        Object category = meta.get("category");
-        if (category != null && !(category instanceof Number)) {
-            throw invalidWorkflowDsl(null);
-        }
-    }
-
-    /** Reject malformed collection shapes before Jackson or node cleaners dereference them. */
-    private void validateWorkflowDslShape(Map<String, Object> flow) {
-        Object rawNodes = flow.get("nodes");
-        Object rawEdges = flow.get("edges");
-        if (!(rawNodes instanceof Collection<?> nodes)
-                || !(rawEdges instanceof Collection<?> edges)) {
-            throw invalidWorkflowDsl(null);
-        }
-        for (Object rawNode : nodes) {
-            if (!(rawNode instanceof Map<?, ?> node)
-                    || StringUtils.isBlank(stringValue(node.get("id")))
-                    || !(node.get("data") instanceof Map<?, ?> data)) {
-                throw invalidWorkflowDsl(null);
-            }
-            Object nodeParam = data.get("nodeParam");
-            if (nodeParam != null && !(nodeParam instanceof Map<?, ?>)) {
-                throw invalidWorkflowDsl(null);
-            }
-            validateAgentDslShape(stringValue(node.get("id")), nodeParam);
-        }
-        if (edges.stream()
-                .anyMatch(edge -> !(edge instanceof Map<?, ?> edgeMap)
-                        || StringUtils.isBlank(stringValue(edgeMap.get("source")))
-                        || StringUtils.isBlank(stringValue(edgeMap.get("target"))))) {
-            throw invalidWorkflowDsl(null);
-        }
-    }
-
-    /** Agent dependency containers are security-sensitive and must have deterministic shapes. */
-    private void validateAgentDslShape(String nodeId, Object rawNodeParam) {
-        if (!StringUtils.startsWith(nodeId, "agent::") || rawNodeParam == null) {
-            return;
-        }
-        Map<?, ?> nodeParam = (Map<?, ?>) rawNodeParam;
-        Object rawPlugin = nodeParam.get("plugin");
-        if (rawPlugin == null) {
-            return;
-        }
-        if (!(rawPlugin instanceof Map<?, ?> plugin)) {
-            throw invalidWorkflowDsl(null);
-        }
-        validateCollectionOfMaps(plugin.get("tools"), true);
-        validateCollectionOfMaps(plugin.get("toolsList"), false);
-        Object rawKnowledge = plugin.get("knowledge");
-        if (rawKnowledge == null) {
-            return;
-        }
-        if (!(rawKnowledge instanceof Collection<?> knowledge)) {
-            throw invalidWorkflowDsl(null);
-        }
-        for (Object rawItem : knowledge) {
-            if (!(rawItem instanceof Map<?, ?> item)
-                    || !(item.get("match") instanceof Map<?, ?> match)
-                    || !(match.get("repoIds") instanceof Collection<?>)) {
-                throw invalidWorkflowDsl(null);
-            }
-        }
-    }
-
-    private void validateCollectionOfMaps(Object rawCollection, boolean allowStrings) {
-        if (rawCollection == null) {
-            return;
-        }
-        if (!(rawCollection instanceof Collection<?> collection)
-                || collection.stream()
-                        .anyMatch(item -> !(item instanceof Map<?, ?>)
-                                && !(allowStrings && item instanceof String))) {
-            throw invalidWorkflowDsl(null);
         }
     }
 
@@ -2632,16 +2500,6 @@ public class WorkflowExportService {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
-    }
-
-    private static LoaderOptions createLoaderOptions() {
-        LoaderOptions options = new LoaderOptions();
-        options.setAllowDuplicateKeys(false);
-        options.setAllowRecursiveKeys(false);
-        options.setMaxAliasesForCollections(MAX_YAML_ALIASES);
-        options.setNestingDepthLimit(MAX_YAML_NESTING_DEPTH);
-        options.setCodePointLimit(MAX_YAML_CODE_POINTS);
-        return options;
     }
 
     private static void removeLlmParamNew(JSONObject nodeParam) {
