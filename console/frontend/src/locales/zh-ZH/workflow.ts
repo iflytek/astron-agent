@@ -654,6 +654,10 @@ const translation = {
         '用于筛选与 用户问题相似度最高的文本片段。系统同时会根据选用模型上下文窗口大小动态调整分段数量。',
       scoreThreshold: 'Score 阈值',
       scoreThresholdDescription: '用于设置文本片段筛选的相似度阈值。',
+      rerankModelId: 'Rerank 模型 ID',
+      rerankModelIdDescription:
+        '可选。填写 RAGFlow 中已配置的 Rerank 模型 ID；留空时保持当前检索行为。',
+      rerankModelIdPlaceholder: '请输入 Rerank 模型 ID',
     },
     relatedKnowledgeModal: {
       title: '选择知识库',

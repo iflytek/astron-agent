@@ -51,6 +51,7 @@ import {
 import { Icons } from '@/components/workflow/icons';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { clearRerankIdForNonRagflow } from '../knowledge-rerank';
 
 function KnowledgePreviewModal(): React.ReactElement {
   const knowledgeDetailModalOpen = useFlowsManager(
@@ -185,6 +186,10 @@ const KnowledgeToolbar = ({
           old.data.nodeParam.repoList.splice(findKnowledgeIndex, 1);
         }
         old.data.nodeParam.ragType = knowledge?.tag;
+        clearRerankIdForNonRagflow(
+          old.data.nodeParam,
+          (knowledge as { tag?: string }).tag
+        );
         old.data.outputs = generateKnowledgeOutput(knowledge?.tag);
         return {
           ...cloneDeep(old),

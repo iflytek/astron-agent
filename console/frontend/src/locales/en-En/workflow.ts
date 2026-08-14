@@ -681,6 +681,10 @@ const translation = {
       scoreThreshold: 'Score Threshold',
       scoreThresholdDescription:
         'Used to set the similarity threshold for text fragment filtering.',
+      rerankModelId: 'Rerank model ID',
+      rerankModelIdDescription:
+        'Optional. Enter a rerank model ID configured in RAGFlow. Leave it empty to keep the current retrieval behavior.',
+      rerankModelIdPlaceholder: 'Enter a rerank model ID',
     },
     relatedKnowledgeModal: {
       title: 'Select Knowledge Base',
