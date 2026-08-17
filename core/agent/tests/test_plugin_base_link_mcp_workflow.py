@@ -10,6 +10,8 @@ from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
 from openai import AsyncOpenAI
 from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
@@ -256,7 +258,9 @@ class TestWorkflowPluginRunnerAndFactory:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
         monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+        monkeypatch.setenv("ASTRON_TRACE_CONTEXT_SECRET", "astron-trace-test-secret")
         captured: dict[str, Any] = {}
 
         async def handle_request(request: httpx.Request) -> httpx.Response:
@@ -318,8 +322,16 @@ class TestWorkflowPluginRunnerAndFactory:
     async def test_workflow_runner_timeout(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+        monkeypatch.setenv("ASTRON_TRACE_CONTEXT_SECRET", "astron-trace-test-secret")
         runner = WorkflowPluginRunner(app_id="app", uid="u", flow_id="fid")
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
         span = Span(app_id="app", uid="u")
+        span.tracer = provider.get_tracer("workflow-plugin-log-redaction-test")
 
         # mock AsyncOpenAI.chat.completions.create to raise timeout
         import httpx
@@ -349,9 +361,29 @@ class TestWorkflowPluginRunnerAndFactory:
         # workflow module originally doesn't have agent_config attribute, here dynamically add it via raising=False
         monkeypatch.setattr(wf_mod, "agent_config", DummyConfig(), raising=False)
 
-        with pytest.raises(PluginExc):
-            async for _ in runner.run({"x": 1}, span):
-                pass
+        try:
+            with pytest.raises(PluginExc):
+                async for _ in runner.run({"x": 1}, span):
+                    pass
+
+            finished = exporter.get_finished_spans()
+            assert len(finished) == 1
+            event_attributes = [
+                dict(event.attributes or {}) for event in finished[0].events
+            ]
+            logged_request = next(
+                attributes["workflow-plugin-run-inputs"]
+                for attributes in event_attributes
+                if "workflow-plugin-run-inputs" in attributes
+            )
+            assert isinstance(logged_request, str)
+            assert "traceparent" not in logged_request
+            assert "tracestate" not in logged_request
+            assert "baggage" not in logged_request
+            assert "x-astron-langfuse-trace-timestamp" not in logged_request
+            assert "x-astron-langfuse-trace-signature" not in logged_request
+        finally:
+            provider.shutdown()
 
     @pytest.mark.asyncio
     async def test_workflow_factory_create_default_plugin(

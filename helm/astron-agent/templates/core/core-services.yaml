@@ -9,6 +9,7 @@
 {{- $langfuseRelease := default "" (get $langfuse "release") }}
 {{- $langfusePublicKeyKey := default "public-key" (get $langfuseSecret "publicKeyKey") }}
 {{- $langfuseSecretKeyKey := default "secret-key" (get $langfuseSecret "secretKeyKey") }}
+{{- $langfuseTraceContextSecretKey := default "trace-context-secret" (get $langfuseSecret "traceContextSecretKey") }}
 {{- range $serviceName := $services }}
 {{- $serviceConfig := index $.Values $serviceName }}
 {{- if $serviceConfig.enabled }}
@@ -120,6 +121,12 @@ spec:
             secretKeyRef:
               name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
               key: {{ $langfuseSecretKeyKey | quote }}
+        - name: ASTRON_TRACE_CONTEXT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "langfuse.existingSecret.name is required when langfuse.enabled=true" (get $langfuseSecret "name") | quote }}
+              key: {{ $langfuseTraceContextSecretKey | quote }}
+              optional: true
         {{- end }}
         {{- end }}
         ports:

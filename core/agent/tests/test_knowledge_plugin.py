@@ -74,6 +74,8 @@ class TestKnowledgePluginFactory:
     ) -> None:
         """Test successful knowledge retrieval"""
         monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
         monkeypatch.delenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", raising=False)
         monkeypatch.setenv("KNOWLEDGE_CALL_TIMEOUT", "90")
         span = Span(app_id="test_app", uid="test_uid")

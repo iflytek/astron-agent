@@ -11,6 +11,7 @@ import pytest
 from common.otlp import sid as sid_module
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.langfuse import (
+    AGENT_TRACE_AUDIENCE,
     LangfuseBaggageSpanProcessor,
     extract_trusted_langfuse_context,
     inject_trusted_langfuse_context,
@@ -50,6 +51,7 @@ def _enable_langfuse(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LANGFUSE_ENABLED", "true")
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+    monkeypatch.setenv("ASTRON_TRACE_CONTEXT_SECRET", "astron-trace-test-secret")
 
 
 @dataclass
@@ -581,10 +583,15 @@ async def test_workflow_handoff_continues_exact_parent_trace(
         with langfuse_trace_context(workflow_attributes), tracer.start_as_current_span(
             "workflow.agent-node"
         ) as parent:
-            carrier = inject_trusted_langfuse_context()
+            binding = {
+                "method": "POST",
+                "audience": AGENT_TRACE_AUDIENCE,
+                "tenant_id": "synthetic-app",
+            }
+            carrier = inject_trusted_langfuse_context(**binding)
             parent_context = parent.get_span_context()
 
-        verified_carrier = extract_trusted_langfuse_context(carrier)
+        verified_carrier = extract_trusted_langfuse_context(carrier, **binding)
         assert verified_carrier
 
         # Invoke the Agent side after leaving the Workflow context.  This

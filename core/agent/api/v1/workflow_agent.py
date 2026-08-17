@@ -6,6 +6,7 @@ from contextlib import aclosing
 from typing import Annotated, Any, AsyncGenerator, Dict, Optional, cast
 
 from common.otlp.trace.langfuse import (
+    AGENT_TRACE_AUDIENCE,
     LangfuseConfig,
     extract_trusted_langfuse_context,
     langfuse_observation_attributes,
@@ -133,7 +134,7 @@ class CustomChatCompletion(CompletionBase):
             parent_context=parent_context,
             trust_parent=is_workflow_child,
         ), self.span.start(
-            "agent.run" if config.enabled else "WorkflowAgentNode",
+            "agent.run" if config.is_effectively_enabled else "WorkflowAgentNode",
             attributes=root_attributes,
         ) as sp:
             root_span = sp.get_otlp_span()
@@ -156,7 +157,10 @@ class CustomChatCompletion(CompletionBase):
                 async with aclosing(response_stream):
                     async for response in response_stream:
                         error_code = _chunk_error_code(response) or error_code
-                        if config.enabled and config.capture_input_output:
+                        if (
+                            config.is_effectively_enabled
+                            and config.capture_input_output
+                        ):
                             content = _chunk_content(response)
                             remaining = config.max_attribute_length - captured_length
                             if content and remaining > 0:
@@ -170,7 +174,7 @@ class CustomChatCompletion(CompletionBase):
                 final_attributes = langfuse_observation_attributes(
                     "agent", output_value="".join(output_parts)
                 )
-                if error_code and config.enabled:
+                if error_code and config.is_effectively_enabled:
                     root_span.set_status(Status(StatusCode.ERROR))
                     final_attributes.update(
                         {
@@ -274,7 +278,12 @@ async def custom_chat_completions(
             }.items()
             if value
         }
-        carrier = extract_trusted_langfuse_context(inbound_headers)
+        carrier = extract_trusted_langfuse_context(
+            inbound_headers,
+            method="POST",
+            audience=AGENT_TRACE_AUDIENCE,
+            tenant_id=x_consumer_username,
+        )
         response_stream = (
             completion.do_complete(trace_context=carrier)
             if carrier

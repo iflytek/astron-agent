@@ -5,7 +5,11 @@ from typing import Any, Dict, List, Tuple
 
 import aiohttp
 from aiohttp import ClientResponse, ClientTimeout
-from common.otlp.trace.langfuse import inject_trusted_langfuse_context
+from common.otlp.trace.langfuse import (
+    AGENT_TRACE_AUDIENCE,
+    inject_trusted_langfuse_context,
+    redact_trusted_trace_headers,
+)
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from workflow.consts.engine.chat_status import ChatStatus
@@ -266,19 +270,26 @@ class AgentNode(BaseNode):
             "Content-Type": "application/json",
             "x-consumer-username": self.appId,
         }
-        headers.update(inject_trusted_langfuse_context())
+        headers.update(
+            inject_trusted_langfuse_context(
+                method="POST",
+                audience=AGENT_TRACE_AUDIENCE,
+                tenant_id=self.appId,
+            )
+        )
 
         req_body = self._generate_agent_request(
             reasoning_instruction, answer_instruction, messages, variable_pool, span
         )
-        await span.add_info_event_async(f"req header: {headers}")
+        logged_headers = redact_trusted_trace_headers(headers)
+        await span.add_info_event_async(f"req header: {logged_headers}")
         await span.add_info_event_async(f"req body: {req_body}")
 
         if event_log_node_trace:
             event_log_node_trace.append_config_data(
                 {
                     "url": f"{os.getenv('AGENT_BASE_URL')}/agent/v1/custom/chat/completions",
-                    "req_headers": headers,
+                    "req_headers": logged_headers,
                     "req_body": json.dumps(req_body, ensure_ascii=False),
                 }
             )

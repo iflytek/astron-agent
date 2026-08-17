@@ -7,7 +7,11 @@ from typing import Any, Dict, Optional, Tuple
 
 import aiohttp
 from aiohttp import ClientTimeout
-from common.otlp.trace.langfuse import inject_trusted_langfuse_context
+from common.otlp.trace.langfuse import (
+    WORKFLOW_TRACE_AUDIENCE,
+    inject_trusted_langfuse_context,
+    redact_trusted_trace_headers,
+)
 from pydantic import Field
 
 from workflow.consts.engine.chat_status import ChatStatus
@@ -316,7 +320,13 @@ class FlowNode(BaseNode):
         """
         # Initialize request headers
         headers = {"Content-Type": "application/json"}
-        headers.update(inject_trusted_langfuse_context())
+        headers.update(
+            inject_trusted_langfuse_context(
+                method="POST",
+                audience=WORKFLOW_TRACE_AUDIENCE,
+                tenant_id=self.appId,
+            )
+        )
 
         chat_id: str = variable_pool.system_params.get(ParamKey.ChatId, default="")
         uid: str = variable_pool.system_params.get(ParamKey.Uid, default="")
@@ -360,7 +370,7 @@ class FlowNode(BaseNode):
             event_log_node_trace.append_config_data(
                 {
                     "url": url,
-                    "req_headers": headers,
+                    "req_headers": redact_trusted_trace_headers(headers),
                     "req_body": json.dumps(req_body, ensure_ascii=False),
                 }
             )

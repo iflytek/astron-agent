@@ -12,15 +12,18 @@ import pytest
 from common.otlp.trace import langfuse as langfuse_bridge
 from common.otlp.trace import trace as common_trace
 from common.otlp.trace.langfuse import (
+    WORKFLOW_TRACE_AUDIENCE,
     LangfuseBaggageSpanProcessor,
     LangfuseConfig,
     SanitizingSpanExporter,
     add_langfuse_span_processor,
     extract_trusted_langfuse_context,
     inject_trusted_langfuse_context,
+    langfuse_enabled,
     langfuse_observation_attributes,
     langfuse_trace_attributes,
     langfuse_trace_context,
+    redact_trusted_trace_headers,
     serialize_langfuse_value,
 )
 from fastapi import FastAPI
@@ -99,6 +102,7 @@ def _enable_langfuse(monkeypatch: pytest.MonkeyPatch, *, capture: bool = False) 
     monkeypatch.setenv("LANGFUSE_ENABLED", "true")
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+    monkeypatch.setenv("ASTRON_TRACE_CONTEXT_SECRET", "astron-trace-test-secret")
     monkeypatch.setenv("LANGFUSE_HOST", "https://langfuse.example.test/")
     monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true" if capture else "false")
     monkeypatch.setenv("LANGFUSE_MAX_ATTRIBUTE_LENGTH", "8192")
@@ -109,6 +113,8 @@ def test_config_defaults_and_endpoint_normalization() -> None:
     config = LangfuseConfig.from_env({})
 
     assert config.enabled is False
+    assert config.is_effectively_enabled is False
+    assert config.trace_context_secret == ""
     assert config.capture_input_output is False
     assert config.max_attribute_length == 8192
     assert config.environment == "default"
@@ -160,6 +166,7 @@ def test_unsigned_public_trace_context_is_rejected(
     _enable_langfuse(monkeypatch)
     carrier = _trusted_trace_carrier(
         {
+            "x-consumer-username": "synthetic-app",
             "traceparent": "00-00000000000000000000000000000001-0000000000000001-01",
             "tracestate": "vendor=synthetic-sensitive,other=value",
             "baggage": (
@@ -169,7 +176,9 @@ def test_unsigned_public_trace_context_is_rejected(
                 "+langfuse.trace.name=spoofed,"
                 "%09langfuse.session.id=spoofed"
             ),
-        }
+        },
+        method="POST",
+        path="/workflow/v1/chat/completions",
     )
 
     assert carrier == {}
@@ -186,25 +195,72 @@ def test_signed_internal_trace_context_round_trips_and_detects_tampering(
     )
     try:
         with langfuse_trace_context(attributes), tracer.start_as_current_span("parent"):
-            signed = inject_trusted_langfuse_context()
+            signed = inject_trusted_langfuse_context(
+                method="POST",
+                audience=WORKFLOW_TRACE_AUDIENCE,
+                tenant_id="synthetic-app",
+            )
 
-        verified = extract_trusted_langfuse_context(signed)
+        binding = {
+            "method": "POST",
+            "audience": WORKFLOW_TRACE_AUDIENCE,
+            "tenant_id": "synthetic-app",
+        }
+        verified = extract_trusted_langfuse_context(signed, **binding)
         assert verified["traceparent"] == signed["traceparent"]
         assert "langfuse.trace.name=workflow%3Aflow" in verified["baggage"]
+        request_headers = {"X-Consumer-Username": "synthetic-app", **signed}
+        assert (
+            _trusted_trace_carrier(
+                request_headers,
+                method="POST",
+                path="/workflow/v1/chat/completions",
+            )
+            == verified
+        )
+        assert (
+            _trusted_trace_carrier(
+                request_headers,
+                method="POST",
+                path="/workflow/v1/debug/chat/completions",
+            )
+            == {}
+        )
 
         tampered = dict(signed)
         tampered["traceparent"] = (
             "00-00000000000000000000000000000001-0000000000000001-01"
         )
-        assert extract_trusted_langfuse_context(tampered) == {}
+        assert extract_trusted_langfuse_context(tampered, **binding) == {}
+        assert (
+            extract_trusted_langfuse_context(signed, **{**binding, "method": "GET"})
+            == {}
+        )
+        assert (
+            extract_trusted_langfuse_context(
+                signed, **{**binding, "audience": "astron-workflow:/other"}
+            )
+            == {}
+        )
+        assert (
+            extract_trusted_langfuse_context(
+                signed, **{**binding, "tenant_id": "another-app"}
+            )
+            == {}
+        )
+
+        recorded = redact_trusted_trace_headers(
+            {"Content-Type": "application/json", **signed}
+        )
+        assert recorded == {"Content-Type": "application/json"}
 
         issued_at = int(signed["x-astron-langfuse-trace-timestamp"])
         monkeypatch.setattr(
             langfuse_bridge.time,
             "time",
-            lambda: issued_at + 301,
+            lambda: issued_at + 61,
         )
-        assert extract_trusted_langfuse_context(signed) == {}
+        assert extract_trusted_langfuse_context(signed, **binding) == {}
     finally:
         provider.shutdown()
 
@@ -221,7 +277,14 @@ def test_disabled_helpers_do_not_change_span_or_baggage_shape(
 
     assert langfuse_observation_attributes("generation", model="model") == {}
     assert langfuse_trace_attributes("trace", session_id="session") == {}
-    assert inject_trusted_langfuse_context() == {}
+    assert (
+        inject_trusted_langfuse_context(
+            method="POST",
+            audience=WORKFLOW_TRACE_AUDIENCE,
+            tenant_id="synthetic-app",
+        )
+        == {}
+    )
     with langfuse_trace_context({"langfuse.trace.name": "must-not-appear"}):
         assert "langfuse.trace.name" not in baggage.get_all()
         with tracer.start_as_current_span("existing", attributes={"existing": "value"}):
@@ -305,6 +368,59 @@ async def test_middleware_context_reaches_background_workflow_observation(
         }
     finally:
         provider.shutdown()
+
+
+@pytest.mark.parametrize(
+    "invalid_config",
+    ["missing_credentials", "invalid_host", "invalid_environment"],
+)
+def test_invalid_configuration_is_effectively_disabled_and_inert(
+    invalid_config: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_langfuse(monkeypatch)
+    if invalid_config == "missing_credentials":
+        monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+        monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    elif invalid_config == "invalid_host":
+        monkeypatch.setenv("LANGFUSE_HOST", "https://user:password@example.test")
+    else:
+        monkeypatch.setenv("LANGFUSE_ENVIRONMENT", "Production EU")
+
+    provider = TracerProvider()
+    try:
+        assert langfuse_enabled() is False
+        assert langfuse_observation_attributes("generation", model="model") == {}
+        assert langfuse_trace_attributes("trace", session_id="session") == {}
+        assert (
+            inject_trusted_langfuse_context(
+                method="POST",
+                audience=WORKFLOW_TRACE_AUDIENCE,
+                tenant_id="synthetic-app",
+            )
+            == {}
+        )
+        assert add_langfuse_span_processor(provider) is False
+    finally:
+        provider.shutdown()
+
+
+def test_missing_internal_trace_secret_disables_only_trusted_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_langfuse(monkeypatch)
+    monkeypatch.delenv("ASTRON_TRACE_CONTEXT_SECRET", raising=False)
+
+    assert langfuse_enabled() is True
+    assert langfuse_observation_attributes("generation", model="model")
+    assert (
+        inject_trusted_langfuse_context(
+            method="POST",
+            audience=WORKFLOW_TRACE_AUDIENCE,
+            tenant_id="synthetic-app",
+        )
+        == {}
+    )
 
 
 def test_missing_credentials_and_invalid_host_fail_closed(

@@ -37,12 +37,15 @@ Trace 筛选的语义属性。
 - Astron 在内存中使用 Langfuse 项目的 Public Key 和 Secret Key 为请求鉴权，
   不会把凭据添加为 Span 属性。
 - 仅在启用 Langfuse 时，Workflow 到 Agent 及嵌套 Workflow 调用才传播标准
-  W3C `traceparent`/`tracestate`。Astron 使用共享 Langfuse 项目 Secret 派生的
-  短时 HMAC 对内部 carrier 的完整内容鉴权；未签名、过期或被修改的公共 Header
-  会开启新的本地 Trace，且不能提供 Langfuse Trace 级字段。
-- `LANGFUSE_ENABLED=false` 时完全惰性：不会新增 Langfuse/GenAI 属性或
-  baggage，不会改变模型供应方请求体、继承远程 parent、重命名现有 Span，
-  也不会向常规 OTLP/file pipeline 添加仅服务于 Langfuse 的子 Span。
+  W3C `traceparent`/`tracestate`。Astron 使用独立、仅供内部使用的密钥对 carrier
+  生成短时 HMAC，并绑定 HTTP 方法、目标服务/路径、租户身份和时间戳。未签名、
+  过期、在其他端点或租户重放、或被修改的公共 Header 会开启新的本地 Trace，
+  且不能提供 Langfuse Trace 级字段。签名传播 Header 不会写入 Span event 或节点
+  日志。
+- 只有开关为 true、两个项目 Key 均存在且 Host、Environment 合法时，Langfuse
+  才真正启用；其他情况下集成保持完全惰性：不会新增 Langfuse/GenAI 属性或
+  baggage，不会改变模型供应方请求体或流式帧、继承远程 parent、重命名现有
+  Span，也不会向常规 OTLP/file pipeline 添加仅服务于 Langfuse 的子 Span。
 
 同时启用两个 exporter 时，一次执行可以分别发送到现有 collector 和 Langfuse。
 除非明确需要重复上报，否则不要把两个 exporter 都指向同一个 Langfuse 项目。
@@ -56,14 +59,19 @@ Workflow 与 Agent 服务使用相同配置。
 | `LANGFUSE_ENABLED` | `false` | 启用独立的 Langfuse exporter。 |
 | `LANGFUSE_PUBLIC_KEY` | 空 | Langfuse 项目 Public Key，启用时必填。 |
 | `LANGFUSE_SECRET_KEY` | 空 | Langfuse 项目 Secret Key，启用时必填。 |
+| `ASTRON_TRACE_CONTEXT_SECRET` | 空 | Agent 与 Workflow 共享、仅供 Astron 内部使用的独立密钥；建议配置以保持可信跨服务 Trace 连续性。 |
 | `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Langfuse Cloud 或自托管实例的基础 URL。 |
 | `LANGFUSE_CAPTURE_INPUT_OUTPUT` | `false` | 允许提示词/输入及响应/输出内容离开 Astron。 |
 | `LANGFUSE_MAX_ATTRIBUTE_LENGTH` | `8192` | 导出的字符串属性最大长度。 |
 | `LANGFUSE_ENVIRONMENT` | `default` | 小写环境标签（仅 `[a-z0-9_-]`，最长 40 个字符，且不能以 `langfuse` 开头）。非法值会禁用 exporter。 |
 | `LANGFUSE_RELEASE` | 空 | 可选的应用发布或部署标签。 |
 
-启用导出前必须同时配置两个项目 Key。Secret Key 应按生产凭据管理：通过
-Secret 管理器在运行时注入，禁止写入源码、截图或命令日志。
+启用导出前必须同时配置两个项目 Key。请为 `ASTRON_TRACE_CONTEXT_SECRET` 生成
+单独的强随机值，并向 Agent 和 Workflow 注入相同值。它仅用于内部 Trace
+上下文鉴权，可与 Langfuse 凭据独立轮换，也不会发送给 Langfuse。两个 Secret
+都应按生产凭据管理：通过 Secret 管理器在运行时注入，禁止写入源码、截图或
+命令日志。若未配置 Astron 内部密钥，本地导出仍可工作，但跨服务 Trace 上下文
+不会被信任或延续。
 
 ### Docker Compose
 
@@ -78,6 +86,7 @@ cp .env.example .env
 LANGFUSE_ENABLED=true
 LANGFUSE_PUBLIC_KEY=pk-lf-your-project
 LANGFUSE_SECRET_KEY=sk-lf-your-project
+ASTRON_TRACE_CONTEXT_SECRET=replace-with-a-separate-random-secret
 LANGFUSE_HOST=https://cloud.langfuse.com
 LANGFUSE_CAPTURE_INPUT_OUTPUT=false
 LANGFUSE_MAX_ATTRIBUTE_LENGTH=8192
@@ -93,7 +102,7 @@ docker compose up -d
 docker compose up -d --force-recreate core-workflow core-agent
 ```
 
-Compose 会把八个配置项同时传入两个服务。自托管 Langfuse 与 Astron 位于同一
+Compose 会把所有配置项同时传入两个服务。自托管 Langfuse 与 Astron 位于同一
 Docker 网络时，应使用其服务名，例如 `http://langfuse-web:3000`。Astron 容器
 内的 `localhost` 指向该容器自身，而不是 Docker 主机。
 
@@ -104,8 +113,8 @@ Docker 网络时，应使用其服务名，例如 `http://langfuse-web:3000`。A
 服务。
 
 Helm 部署应先通过凭据文件或现有 ExternalSecret/GitOps 流程创建 Kubernetes
-Secret。默认键名为 `public-key` 和 `secret-key`；禁止把凭据值写入 Helm
-values：
+Secret。默认键名为 `public-key`、`secret-key` 和 `trace-context-secret`；禁止
+把凭据值写入 Helm values：
 
 ```bash
 ASTRON_NAMESPACE=astron-agent
@@ -114,6 +123,7 @@ kubectl create namespace "$ASTRON_NAMESPACE" --dry-run=client -o yaml | kubectl 
 kubectl --namespace "$ASTRON_NAMESPACE" create secret generic "$LANGFUSE_SECRET_NAME" \
   --from-file=public-key=/secure/path/langfuse-public-key \
   --from-file=secret-key=/secure/path/langfuse-secret-key \
+  --from-file=trace-context-secret=/secure/path/astron-trace-context-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 
 helm upgrade --install astron-agent ./helm/astron-agent \
@@ -131,8 +141,10 @@ values 文件，并在 `helm upgrade` 时继续传入该文件；只复制少量
 Chart 只会向 Agent 和 Workflow Deployment 注入同一组非敏感配置与 Secret
 引用。启用 Langfuse 却未指定已有 Secret 名称时，模板渲染会直接失败。若已有
 Secret 使用其他键名，可设置 `langfuse.existingSecret.publicKeyKey` 和
-`langfuse.existingSecret.secretKeyKey`。若只轮换 Secret 数据而没有修改 values，
-需要重启这两个 Deployment 以刷新环境变量。
+`langfuse.existingSecret.secretKeyKey`；独立的内部密钥可通过
+`langfuse.existingSecret.traceContextSecretKey` 指定。为兼容已有部署，该键可
+缺省；缺省时各服务仍导出本地 Span，但不会信任跨服务 Trace 上下文。若只轮换
+Secret 数据而没有修改 values，需要重启这两个 Deployment 以刷新环境变量。
 
 ## 隐私默认值
 

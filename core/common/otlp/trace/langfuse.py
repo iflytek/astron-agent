@@ -41,11 +41,20 @@ from opentelemetry.trace import SpanContext, Status, TraceState
 _DEFAULT_LANGFUSE_HOST = "https://cloud.langfuse.com"
 _DEFAULT_MAX_ATTRIBUTE_LENGTH = 8192
 _LANGFUSE_TRACE_PATH = "/api/public/otel/v1/traces"
+AGENT_TRACE_AUDIENCE = "astron-agent:/agent/v1/custom/chat/completions"
+WORKFLOW_TRACE_AUDIENCE = "astron-workflow:/workflow/v1/chat/completions"
 _TRUSTED_TRACE_TIMESTAMP_HEADER = "x-astron-langfuse-trace-timestamp"
 _TRUSTED_TRACE_SIGNATURE_HEADER = "x-astron-langfuse-trace-signature"
-_TRUSTED_TRACE_MAX_AGE_SECONDS = 300
+_TRUSTED_TRACE_MAX_AGE_SECONDS = 60
 _TRUSTED_TRACE_FIELDS = ("traceparent", "tracestate", "baggage")
-_TRUSTED_TRACE_DOMAIN = "astron-langfuse-trace-v1"
+_TRUSTED_TRACE_DOMAIN = "astron-langfuse-trace-v2"
+_TRUSTED_TRACE_LOG_REDACTED_FIELDS = frozenset(
+    {
+        *_TRUSTED_TRACE_FIELDS,
+        _TRUSTED_TRACE_TIMESTAMP_HEADER,
+        _TRUSTED_TRACE_SIGNATURE_HEADER,
+    }
+)
 _TRUTHY_VALUES = frozenset({"1", "true", "yes", "on"})
 _LANGFUSE_ENVIRONMENT_PATTERN = re.compile(r"^(?!langfuse)[a-z0-9_-]{1,40}$")
 
@@ -223,6 +232,7 @@ class LangfuseConfig:
     max_attribute_length: int = _DEFAULT_MAX_ATTRIBUTE_LENGTH
     environment: str = "default"
     release: str = ""
+    trace_context_secret: str = ""
 
     @classmethod
     def from_env(cls, environ: Optional[Mapping[str, str]] = None) -> "LangfuseConfig":
@@ -249,6 +259,7 @@ class LangfuseConfig:
             environment=source.get("LANGFUSE_ENVIRONMENT", "default").strip()
             or "default",
             release=source.get("LANGFUSE_RELEASE", "").strip(),
+            trace_context_secret=source.get("ASTRON_TRACE_CONTEXT_SECRET", "").strip(),
         )
 
     @property
@@ -277,37 +288,73 @@ class LangfuseConfig:
 
         return bool(_LANGFUSE_ENVIRONMENT_PATTERN.fullmatch(self.environment))
 
+    @property
+    def is_effectively_enabled(self) -> bool:
+        """Whether instrumentation and export are both valid and requested."""
+
+        return bool(
+            self.enabled
+            and self.has_credentials
+            and self.has_valid_host
+            and self.has_valid_environment
+        )
+
 
 def langfuse_enabled() -> bool:
-    """Return whether Langfuse instrumentation is explicitly enabled."""
+    """Return whether Langfuse is requested and completely configured."""
 
-    return LangfuseConfig.from_env().enabled
+    return LangfuseConfig.from_env().is_effectively_enabled
 
 
 def _case_insensitive_headers(headers: Mapping[str, str]) -> dict[str, str]:
     return {str(key).lower(): str(value) for key, value in headers.items()}
 
 
-def _trusted_trace_payload(carrier: Mapping[str, str], timestamp: str) -> bytes:
+def _trusted_trace_payload(
+    carrier: Mapping[str, str],
+    timestamp: str,
+    *,
+    method: str,
+    audience: str,
+    tenant_id: str,
+) -> bytes:
     normalized = _case_insensitive_headers(carrier)
-    values = [
-        _TRUSTED_TRACE_DOMAIN,
-        timestamp,
-        *(normalized.get(field, "") for field in _TRUSTED_TRACE_FIELDS),
-    ]
-    return "\n".join(values).encode("utf-8")
+    payload = {
+        "audience": audience,
+        "carrier": {
+            field: normalized.get(field, "") for field in _TRUSTED_TRACE_FIELDS
+        },
+        "domain": _TRUSTED_TRACE_DOMAIN,
+        "method": method,
+        "tenant_id": tenant_id,
+        "timestamp": timestamp,
+    }
+    return json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
 
 
-def inject_trusted_langfuse_context() -> dict[str, str]:
+def inject_trusted_langfuse_context(
+    *, method: str, audience: str, tenant_id: str
+) -> dict[str, str]:
     """Inject and authenticate trace context for an Astron service-to-service call.
 
-    The Langfuse project secret is already shared by services that export one
-    logical trace.  It is reused only as HMAC key material with an explicit
-    domain separator; the key itself is never placed in a header.
+    The MAC uses an Astron-only credential and binds the carrier to one HTTP
+    method, destination audience, and tenant.  Langfuse credentials are never
+    used as an internal trust root or placed in propagation headers.
     """
 
     config = LangfuseConfig.from_env()
-    if not config.enabled or not config.secret_key:
+    normalized_method = method.strip().upper()
+    normalized_audience = audience.strip()
+    normalized_tenant = tenant_id.strip()
+    if (
+        not config.is_effectively_enabled
+        or not config.trace_context_secret
+        or not normalized_method
+        or not normalized_audience
+        or not normalized_tenant
+    ):
         return {}
 
     carrier: dict[str, str] = {}
@@ -317,8 +364,14 @@ def inject_trusted_langfuse_context() -> dict[str, str]:
 
     timestamp = str(int(time.time()))
     signature = hmac.new(
-        config.secret_key.encode("utf-8"),
-        _trusted_trace_payload(carrier, timestamp),
+        config.trace_context_secret.encode("utf-8"),
+        _trusted_trace_payload(
+            carrier,
+            timestamp,
+            method=normalized_method,
+            audience=normalized_audience,
+            tenant_id=normalized_tenant,
+        ),
         hashlib.sha256,
     ).hexdigest()
     carrier[_TRUSTED_TRACE_TIMESTAMP_HEADER] = timestamp
@@ -328,11 +381,24 @@ def inject_trusted_langfuse_context() -> dict[str, str]:
 
 def extract_trusted_langfuse_context(
     headers: Mapping[str, str],
+    *,
+    method: str,
+    audience: str,
+    tenant_id: str,
 ) -> dict[str, str]:
     """Return a verified internal W3C carrier, or fail closed with an empty one."""
 
     config = LangfuseConfig.from_env()
-    if not config.enabled or not config.secret_key:
+    normalized_method = method.strip().upper()
+    normalized_audience = audience.strip()
+    normalized_tenant = tenant_id.strip()
+    if (
+        not config.is_effectively_enabled
+        or not config.trace_context_secret
+        or not normalized_method
+        or not normalized_audience
+        or not normalized_tenant
+    ):
         return {}
 
     normalized = _case_insensitive_headers(headers)
@@ -353,13 +419,29 @@ def extract_trusted_langfuse_context(
     if "traceparent" not in carrier:
         return {}
     expected_signature = hmac.new(
-        config.secret_key.encode("utf-8"),
-        _trusted_trace_payload(carrier, timestamp),
+        config.trace_context_secret.encode("utf-8"),
+        _trusted_trace_payload(
+            carrier,
+            timestamp,
+            method=normalized_method,
+            audience=normalized_audience,
+            tenant_id=normalized_tenant,
+        ),
         hashlib.sha256,
     ).hexdigest()
     if not hmac.compare_digest(supplied_signature, expected_signature):
         return {}
     return carrier
+
+
+def redact_trusted_trace_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    """Return headers safe to record, excluding every signed propagation field."""
+
+    return {
+        str(key): str(value)
+        for key, value in headers.items()
+        if str(key).lower() not in _TRUSTED_TRACE_LOG_REDACTED_FIELDS
+    }
 
 
 def _truncate(value: str, max_length: int) -> str:
@@ -458,7 +540,7 @@ def langfuse_content_attributes(
     """Build explicitly opted-in observation content attributes."""
 
     config = LangfuseConfig.from_env()
-    if not config.enabled or not config.capture_input_output:
+    if not config.is_effectively_enabled or not config.capture_input_output:
         return {}
 
     attributes: dict[str, Any] = {}
@@ -534,7 +616,7 @@ def langfuse_observation_attributes(
     """Return stable Langfuse attributes for one nested observation."""
 
     config = LangfuseConfig.from_env()
-    if not config.enabled:
+    if not config.is_effectively_enabled:
         return {}
     normalized_type = str(observation_type).strip().lower()
     if normalized_type not in _OBSERVATION_TYPES:
@@ -599,7 +681,7 @@ def langfuse_trace_attributes(
     """Return trace-wide attributes suitable for baggage propagation."""
 
     config = LangfuseConfig.from_env()
-    if not config.enabled:
+    if not config.is_effectively_enabled:
         return {}
     environment = config.environment if config.has_valid_environment else ""
     attributes: dict[str, Any] = {}
@@ -682,7 +764,7 @@ def langfuse_trace_context(
     baggage_context = (
         parent_context if parent_context is not None else context_api.get_current()
     )
-    if not config.enabled:
+    if not config.is_effectively_enabled:
         yield baggage_context
         return
     # Baggage is an unsigned caller-controlled header at an HTTP boundary.  It
@@ -876,22 +958,21 @@ def add_langfuse_span_processor(provider: TracerProvider) -> bool:
     """Add a dedicated Langfuse OTLP/HTTP processor, failing closed on config errors."""
 
     config = LangfuseConfig.from_env()
-    if not config.enabled:
-        return False
-    if not config.has_credentials:
-        logger.warning(
-            "Langfuse tracing requested but required credentials are missing; exporter disabled"
-        )
-        return False
-    if not config.has_valid_host:
-        logger.warning(
-            "Langfuse tracing requested with an invalid host; exporter disabled"
-        )
-        return False
-    if not config.has_valid_environment:
-        logger.warning(
-            "Langfuse tracing requested with an invalid environment; exporter disabled"
-        )
+    if not config.is_effectively_enabled:
+        if not config.enabled:
+            return False
+        if not config.has_credentials:
+            logger.warning(
+                "Langfuse tracing requested but required credentials are missing; exporter disabled"
+            )
+        elif not config.has_valid_host:
+            logger.warning(
+                "Langfuse tracing requested with an invalid host; exporter disabled"
+            )
+        elif not config.has_valid_environment:
+            logger.warning(
+                "Langfuse tracing requested with an invalid environment; exporter disabled"
+            )
         return False
 
     with _registration_lock:
@@ -930,9 +1011,11 @@ def add_langfuse_span_processor(provider: TracerProvider) -> bool:
 
 
 __all__ = [
+    "AGENT_TRACE_AUDIENCE",
     "LangfuseBaggageSpanProcessor",
     "LangfuseConfig",
     "SanitizingSpanExporter",
+    "WORKFLOW_TRACE_AUDIENCE",
     "add_langfuse_span_processor",
     "extract_trusted_langfuse_context",
     "inject_trusted_langfuse_context",
@@ -941,5 +1024,6 @@ __all__ = [
     "langfuse_observation_attributes",
     "langfuse_trace_attributes",
     "langfuse_trace_context",
+    "redact_trusted_trace_headers",
     "serialize_langfuse_value",
 ]

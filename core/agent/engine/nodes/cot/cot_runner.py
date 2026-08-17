@@ -558,7 +558,7 @@ class CotRunner(RunnerBase):
                 async with aclosing(response_stream):
                     async for agent_response in response_stream:
                         if (
-                            capture_config.enabled
+                            capture_config.is_effectively_enabled
                             and capture_config.capture_input_output
                             and agent_response.typ in {"content", "reasoning_content"}
                         ):
@@ -767,7 +767,7 @@ class CotRunner(RunnerBase):
                 async with aclosing(plugin_stream):
                     async for plugin_response in plugin_stream:
                         if (
-                            capture_config.enabled
+                            capture_config.is_effectively_enabled
                             and capture_config.capture_input_output
                         ):
                             workflow_output = plugin_response.result

@@ -502,7 +502,7 @@ class AnthropicLLMModel(ProviderLLMModel):
                     ]
                 }
             )
-        if has_usage:
+        if has_usage and langfuse_enabled():
             yield CompatChunk(choices=[], usage=CompatUsage(**usage))
 
 
@@ -661,5 +661,5 @@ class GoogleLLMModel(ProviderLLMModel):
                     ]
                 }
             )
-        if latest_usage is not None:
+        if latest_usage is not None and langfuse_enabled():
             yield CompatChunk(choices=[], usage=latest_usage)

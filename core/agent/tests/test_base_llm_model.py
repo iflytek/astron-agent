@@ -45,6 +45,21 @@ def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LANGFUSE_ENABLED", "true")
     monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
     monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+    monkeypatch.setenv("ASTRON_TRACE_CONTEXT_SECRET", "astron-trace-test-secret")
+
+
+def _make_langfuse_ineffective(monkeypatch: pytest.MonkeyPatch, reason: str) -> None:
+    """Apply one requested-but-unusable or explicitly disabled configuration."""
+
+    if reason == "disabled":
+        monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+    elif reason == "missing_credentials":
+        monkeypatch.delenv("LANGFUSE_PUBLIC_KEY", raising=False)
+        monkeypatch.delenv("LANGFUSE_SECRET_KEY", raising=False)
+    elif reason == "invalid_host":
+        monkeypatch.setenv("LANGFUSE_HOST", "https://user:password@example.test")
+    else:
+        monkeypatch.setenv("LANGFUSE_ENVIRONMENT", "Production EU")
 
 
 class TestBaseLLMModel:
@@ -114,6 +129,34 @@ class TestBaseLLMModel:
     ) -> None:
         """Disabled Langfuse preserves the pre-integration provider request."""
         monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
+        mock_response = AsyncMock()
+        model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "test"}]
+        result = await model.create_completion(messages, stream=True)
+
+        model.llm.chat.completions.create.assert_awaited_once_with(
+            messages=messages,
+            stream=True,
+            model="test_model",
+            timeout=90,
+        )
+        assert result == mock_response
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "ineffective_reason",
+        ["disabled", "missing_credentials", "invalid_host", "invalid_environment"],
+    )
+    async def test_ineffective_langfuse_does_not_change_stream_request_body(
+        self,
+        ineffective_reason: str,
+        model: BaseLLMModel,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A requested but unusable exporter must preserve provider compatibility."""
+        _make_langfuse_ineffective(monkeypatch, ineffective_reason)
         monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
         mock_response = AsyncMock()
         model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
@@ -706,6 +749,50 @@ async def test_anthropic_stream_merges_cumulative_usage_once() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "ineffective_reason",
+    ["disabled", "missing_credentials", "invalid_host", "invalid_environment"],
+)
+async def test_ineffective_langfuse_does_not_add_anthropic_usage_frame(
+    monkeypatch: pytest.MonkeyPatch,
+    ineffective_reason: str,
+) -> None:
+    _make_langfuse_ineffective(monkeypatch, ineffective_reason)
+    response = _sse_response(
+        [
+            (
+                "message_start",
+                {
+                    "type": "message_start",
+                    "message": {"content": [], "usage": {"input_tokens": 5}},
+                },
+            ),
+            (
+                "message_delta",
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "end_turn"},
+                    "usage": {"output_tokens": 2},
+                },
+            ),
+            ("message_stop", {"type": "message_stop"}),
+        ]
+    )
+    async with httpx.AsyncClient(trust_env=False) as client:
+        model = AnthropicLLMModel(
+            name="claude-test",
+            model_url="https://provider.test",
+            api_key="synthetic",
+            http_client=client,
+        )
+        chunks = [chunk async for chunk in model._yield_normalized_chunks(response)]
+
+    assert chunks
+    assert all(chunk.usage is None for chunk in chunks)
+    assert all(chunk.choices for chunk in chunks)
+
+
+@pytest.mark.asyncio
 async def test_google_stream_keeps_latest_cumulative_usage_once() -> None:
     """Repeated Gemini total snapshots must not be summed across chunks."""
     payloads = [
@@ -758,3 +845,43 @@ async def test_google_stream_keeps_latest_cumulative_usage_once() -> None:
         completion_tokens=4,
         total_tokens=14,
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "ineffective_reason",
+    ["disabled", "missing_credentials", "invalid_host", "invalid_environment"],
+)
+async def test_ineffective_langfuse_does_not_add_google_usage_frame(
+    monkeypatch: pytest.MonkeyPatch,
+    ineffective_reason: str,
+) -> None:
+    _make_langfuse_ineffective(monkeypatch, ineffective_reason)
+    payload = {
+        "candidates": [
+            {"content": {"parts": [{"text": "done"}]}, "finishReason": "STOP"}
+        ],
+        "usageMetadata": {
+            "promptTokenCount": 3,
+            "candidatesTokenCount": 1,
+            "totalTokenCount": 4,
+        },
+    }
+    response = httpx.Response(
+        200,
+        headers={"content-type": "text/event-stream"},
+        content=f"data: {json.dumps(payload)}\n\n",
+        request=httpx.Request("POST", "https://provider.test/streamGenerateContent"),
+    )
+    async with httpx.AsyncClient(trust_env=False) as client:
+        model = GoogleLLMModel(
+            name="gemini-test",
+            model_url="https://provider.test",
+            api_key="synthetic",
+            http_client=client,
+        )
+        chunks = [chunk async for chunk in model._yield_normalized_chunks(response)]
+
+    assert chunks
+    assert all(chunk.usage is None for chunk in chunks)
+    assert all(chunk.choices for chunk in chunks)

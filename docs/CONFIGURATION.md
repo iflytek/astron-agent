@@ -105,6 +105,7 @@ Configuration items in this document are marked as follows:
 | LANGFUSE_ENABLED | Use Default | bool | Enable the independent Langfuse OTLP/HTTP trace exporter | false |
 | LANGFUSE_PUBLIC_KEY | Required when enabled | string | Langfuse project public key | (empty) |
 | LANGFUSE_SECRET_KEY | Required when enabled | string | Langfuse project secret key; inject it through a secret manager in production | (empty) |
+| ASTRON_TRACE_CONTEXT_SECRET | Recommended when enabled | string | Independent Astron-only secret shared by Agent and Workflow to authenticate internal trace propagation | (empty) |
 | LANGFUSE_HOST | Use Default | url | Langfuse base URL; Astron derives the v4 OTLP traces endpoint | https://cloud.langfuse.com |
 | LANGFUSE_CAPTURE_INPUT_OUTPUT | Use Default | bool | Export prompt/input and response/output content; disabled for privacy by default | false |
 | LANGFUSE_MAX_ATTRIBUTE_LENGTH | Use Default | int | Maximum exported string attribute length | 8192 |

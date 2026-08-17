@@ -16,11 +16,13 @@ langfuse:
   maxAttributeLength: 8192
   environment: "default"
   release: ""
-  # Pre-created Kubernetes Secret; never store project keys in values.yaml.
+  # Pre-created Kubernetes Secret; never store credentials in values.yaml.
   existingSecret:
     name: ""
     publicKeyKey: "public-key"
     secretKeyKey: "secret-key"
+    # Independent Astron-only secret, not a Langfuse project credential.
+    traceContextSecretKey: "trace-context-secret"
 
 # Override the full name for consistent resource naming
 fullnameOverride: "astron-agent"

@@ -105,6 +105,7 @@
 | LANGFUSE_ENABLED | 使用默认 | bool | 启用独立的 Langfuse OTLP/HTTP Trace exporter | false |
 | LANGFUSE_PUBLIC_KEY | 启用时必填 | string | Langfuse 项目 Public Key | （空） |
 | LANGFUSE_SECRET_KEY | 启用时必填 | string | Langfuse 项目 Secret Key；生产环境应通过 Secret 管理器注入 | （空） |
+| ASTRON_TRACE_CONTEXT_SECRET | 启用时建议配置 | string | Agent 与 Workflow 共享、仅供 Astron 内部 Trace 传播鉴权使用的独立密钥 | （空） |
 | LANGFUSE_HOST | 使用默认 | url | Langfuse 基础 URL；Astron 会自动生成 v4 OTLP Trace endpoint | https://cloud.langfuse.com |
 | LANGFUSE_CAPTURE_INPUT_OUTPUT | 使用默认 | bool | 是否导出提示词/输入及响应/输出内容；为保护隐私默认关闭 | false |
 | LANGFUSE_MAX_ATTRIBUTE_LENGTH | 使用默认 | int | 导出的字符串属性最大长度 | 8192 |

@@ -507,7 +507,7 @@ async def _run(
         },
     )
     root_attributes.update(trace_attributes)
-    if config.enabled:
+    if config.is_effectively_enabled:
         root_attributes.update(
             {
                 "astron.workflow.flow.id": chat_vo.flow_id,
@@ -521,7 +521,8 @@ async def _run(
     with langfuse_trace_context(
         trace_attributes, trust_parent=is_nested_trace
     ), span.start(
-        "workflow.run" if config.enabled else "", attributes=root_attributes
+        "workflow.run" if config.is_effectively_enabled else "",
+        attributes=root_attributes,
     ) as span_context:
         await span.add_info_event_async(f"user input: {chat_vo.json()}")
         await span.add_info_event_async(

@@ -45,14 +45,18 @@ and its documented
   attributes.
 - Workflow-to-agent and nested-workflow calls propagate the standard W3C
   `traceparent`/`tracestate` context only when Langfuse is enabled. Astron
-  authenticates the exact internal carrier with a short-lived HMAC derived
-  from the shared Langfuse project secret. Unsigned, expired, or modified
-  public headers start a new local trace and cannot provide trace-wide
-  Langfuse fields.
-- `LANGFUSE_ENABLED=false` is inert: it does not add Langfuse/GenAI attributes
-  or baggage, alter provider request bodies, propagate remote parentage, rename
-  existing spans, or add Langfuse-only child spans to the normal OTLP/file
-  pipelines.
+  authenticates the exact internal carrier with a separate Astron-only secret.
+  The short-lived HMAC is bound to the HTTP method, destination service/path,
+  tenant identity, and timestamp. Unsigned, expired, replayed against another
+  endpoint or tenant, or modified public headers start a new local trace and
+  cannot provide trace-wide Langfuse fields. Signed propagation headers are
+  removed from span events and node logs.
+- Langfuse is effectively enabled only when the flag is true, both project
+  keys are present, and the host and environment values are valid. Otherwise
+  the integration is inert: it does not add Langfuse/GenAI attributes or
+  baggage, alter provider request bodies or streaming frames, propagate remote
+  parentage, rename existing spans, or add Langfuse-only child spans to the
+  normal OTLP/file pipelines.
 
 If both exporters are enabled, one execution can therefore be sent to both
 your existing collector and Langfuse. Do not point both exporter paths at the
@@ -67,15 +71,22 @@ The same settings apply to the workflow and agent services.
 | `LANGFUSE_ENABLED` | `false` | Enables the independent Langfuse exporter. |
 | `LANGFUSE_PUBLIC_KEY` | empty | Langfuse project public key. Required when enabled. |
 | `LANGFUSE_SECRET_KEY` | empty | Langfuse project secret key. Required when enabled. |
+| `ASTRON_TRACE_CONTEXT_SECRET` | empty | Independent Astron-only secret shared by Agent and Workflow. Recommended to preserve trusted trace continuity across services. |
 | `LANGFUSE_HOST` | `https://cloud.langfuse.com` | Cloud or self-hosted Langfuse base URL. |
 | `LANGFUSE_CAPTURE_INPUT_OUTPUT` | `false` | Allows prompt/input and response/output content to leave Astron. |
 | `LANGFUSE_MAX_ATTRIBUTE_LENGTH` | `8192` | Maximum length of an exported string attribute. |
 | `LANGFUSE_ENVIRONMENT` | `default` | Lowercase environment label (`[a-z0-9_-]`, at most 40 characters, and not starting with `langfuse`). Invalid values disable the exporter. |
 | `LANGFUSE_RELEASE` | empty | Optional application release or deployment label. |
 
-Both project keys must be configured before export can be enabled. Treat the
-secret key like any other production credential: inject it at runtime with a
-secret manager, never put it in source control, screenshots, or command logs.
+Both project keys must be configured before export can be enabled. Generate a
+separate strong random value for `ASTRON_TRACE_CONTEXT_SECRET` and inject the
+same value into Agent and Workflow. It is used only for internal trace-context
+authentication, can be rotated independently from the Langfuse credentials,
+and is never sent to Langfuse. Treat both secrets like production credentials:
+inject them at runtime with a secret manager and never put them in source
+control, screenshots, or command logs. If the Astron-only secret is omitted,
+local export still works, but cross-service trace context is not trusted or
+continued.
 
 ### Docker Compose
 
@@ -90,6 +101,7 @@ cp .env.example .env
 LANGFUSE_ENABLED=true
 LANGFUSE_PUBLIC_KEY=pk-lf-your-project
 LANGFUSE_SECRET_KEY=sk-lf-your-project
+ASTRON_TRACE_CONTEXT_SECRET=replace-with-a-separate-random-secret
 LANGFUSE_HOST=https://cloud.langfuse.com
 LANGFUSE_CAPTURE_INPUT_OUTPUT=false
 LANGFUSE_MAX_ATTRIBUTE_LENGTH=8192
@@ -106,7 +118,7 @@ docker compose up -d
 docker compose up -d --force-recreate core-workflow core-agent
 ```
 
-The Compose file passes all eight settings to both services. For a self-hosted
+The Compose file passes all settings to both services. For a self-hosted
 Langfuse instance on the same Docker network, use its service name, for example
 `http://langfuse-web:3000`. `localhost` inside an Astron container refers to
 that container, not to the Docker host.
@@ -119,7 +131,8 @@ both services after a configuration change.
 
 For Helm, first create a Kubernetes Secret from credential files or through
 your normal ExternalSecret/GitOps mechanism. The default key names are
-`public-key` and `secret-key`; credential values never belong in Helm values:
+`public-key`, `secret-key`, and `trace-context-secret`; credential values never
+belong in Helm values:
 
 ```bash
 ASTRON_NAMESPACE=astron-agent
@@ -128,6 +141,7 @@ kubectl create namespace "$ASTRON_NAMESPACE" --dry-run=client -o yaml | kubectl 
 kubectl --namespace "$ASTRON_NAMESPACE" create secret generic "$LANGFUSE_SECRET_NAME" \
   --from-file=public-key=/secure/path/langfuse-public-key \
   --from-file=secret-key=/secure/path/langfuse-secret-key \
+  --from-file=trace-context-secret=/secure/path/astron-trace-context-secret \
   --dry-run=client -o yaml | kubectl apply -f -
 
 helm upgrade --install astron-agent ./helm/astron-agent \
@@ -147,9 +161,12 @@ The chart injects the same non-secret settings and Secret references into only
 the Agent and Workflow deployments. Enabling Langfuse without an existing
 Secret name fails during template rendering. For a Secret that uses different
 data keys, set `langfuse.existingSecret.publicKeyKey` and
-`langfuse.existingSecret.secretKeyKey`. If Secret data is rotated without
-another values change, restart those two deployments so their environment is
-refreshed.
+`langfuse.existingSecret.secretKeyKey`; use
+`langfuse.existingSecret.traceContextSecretKey` for the independent internal
+secret. That key is optional for backward-compatible upgrades; when absent,
+each service still exports its local spans but does not trust cross-service
+trace context. If Secret data is rotated without another values change,
+restart those two deployments so their environment is refreshed.
 
 ## Privacy defaults
 
