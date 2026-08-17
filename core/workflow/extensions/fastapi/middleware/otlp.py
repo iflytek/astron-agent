@@ -1,9 +1,12 @@
+from contextlib import nullcontext
 from typing import Any, Mapping
 
 from common.otlp.trace.langfuse import (
     WORKFLOW_TRACE_AUDIENCE,
     extract_trusted_langfuse_context,
+    langfuse_trace_context,
 )
+from opentelemetry.propagate import extract
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
@@ -55,8 +58,16 @@ class OtlpMiddleware(BaseHTTPMiddleware):
             method=request.method,
             path=request.url.path,
         )
-        with span.start(
-            func_name=request.url.path,
-            trace_context=trace_context or None,
-        ):
+        # Starting a span with an explicit parent preserves traceparent but does
+        # not attach the parent's baggage to the current execution context.
+        # The carrier is authenticated above, so keep its approved trace-wide
+        # attributes active for the request and every nested workflow span.
+        trusted_parent = (
+            langfuse_trace_context(
+                {}, parent_context=extract(trace_context), trust_parent=True
+            )
+            if trace_context
+            else nullcontext()
+        )
+        with trusted_parent, span.start(func_name=request.url.path):
             return await call_next(request)
