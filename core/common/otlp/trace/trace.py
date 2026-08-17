@@ -3,8 +3,6 @@ import os
 from enum import Enum
 from typing import Sequence
 
-from common.otlp.ip import local_ip
-from common.otlp.trace.langfuse import add_langfuse_span_processor
 from loguru import logger
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -17,6 +15,9 @@ from opentelemetry.sdk.trace.export import (
     SpanExportResult,
 )
 from opentelemetry.trace import StatusCode
+
+from common.otlp.ip import local_ip
+from common.otlp.trace.langfuse import add_langfuse_span_processor
 
 
 class SpanLevel(Enum):

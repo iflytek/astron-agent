@@ -12,6 +12,7 @@ from typing import Any, AsyncGenerator, List
 from common.exceptions.base import BaseExc
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
+from common.otlp.trace.langfuse import langfuse_enabled
 from common.otlp.trace.span import Span
 from opentelemetry.trace import Status as OtelStatus
 from opentelemetry.trace import StatusCode
@@ -151,11 +152,10 @@ class CompletionBase(BaseModel, ABC):
         """Perform output-free cleanup, including on cancellation/aclose."""
         if os.getenv("UPLOAD_METRICS"):
             context.meter.in_error_count(context.error.c)
-        attributes: dict[str, Any] = {
-            "code": context.error.c,
-            "astron.agent.error_code": context.error.c,
-        }
-        if context.error.c != 0:
+        attributes: dict[str, Any] = {"code": context.error.c}
+        if langfuse_enabled():
+            attributes["astron.agent.error_code"] = context.error.c
+        if context.error.c != 0 and langfuse_enabled():
             # The application protocol reports errors as terminal SSE frames,
             # so no exception escapes this span context automatically.  Mark
             # the swallowed failure explicitly without exporting its possibly

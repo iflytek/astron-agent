@@ -1,6 +1,6 @@
 from typing import Any, Mapping
-from urllib.parse import unquote_plus
 
+from common.otlp.trace.langfuse import extract_trusted_langfuse_context
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
@@ -8,28 +8,10 @@ from starlette.types import ASGIApp
 from workflow.extensions.otlp.trace.span import Span
 
 
-def _safe_trace_carrier(headers: Mapping[str, str]) -> dict[str, str]:
-    """Preserve ordinary W3C baggage while removing Langfuse authority fields."""
-    carrier = dict(headers)
-    baggage_value = next(
-        (value for key, value in carrier.items() if key.lower() == "baggage"), ""
-    )
-    if not baggage_value:
-        return carrier
+def _trusted_trace_carrier(headers: Mapping[str, str]) -> dict[str, str]:
+    """Accept remote parentage only from an authenticated Astron service call."""
 
-    safe_members = []
-    for member in baggage_value.split(","):
-        raw_key = member.split("=", 1)[0]
-        key = unquote_plus(raw_key).strip().lower()
-        if not key.startswith("langfuse."):
-            safe_members.append(member.strip())
-
-    baggage_key = next(key for key in carrier if key.lower() == "baggage")
-    if safe_members:
-        carrier[baggage_key] = ",".join(safe_members)
-    else:
-        carrier.pop(baggage_key, None)
-    return carrier
+    return extract_trusted_langfuse_context(headers)
 
 
 class OtlpMiddleware(BaseHTTPMiddleware):
@@ -51,11 +33,11 @@ class OtlpMiddleware(BaseHTTPMiddleware):
         :return: The response object
         """
         span = Span()
-        # Continue an upstream W3C trace when workflow calls are nested under an
-        # agent or another workflow.  ``Headers`` is a case-insensitive mapping
-        # and is accepted by the OpenTelemetry propagator as a carrier.
-        # Keep W3C parentage, but do not treat unsigned remote baggage as an
-        # authority for Langfuse user/session/trace attribution.
-        trace_context = _safe_trace_carrier(dict(request.headers))
-        with span.start(func_name=request.url.path, trace_context=trace_context):
+        # Public W3C headers are untrusted.  Internal callers authenticate the
+        # exact traceparent/tracestate/baggage carrier with a short-lived HMAC.
+        trace_context = _trusted_trace_carrier(dict(request.headers))
+        with span.start(
+            func_name=request.url.path,
+            trace_context=trace_context or None,
+        ):
             return await call_next(request)

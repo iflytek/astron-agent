@@ -59,6 +59,8 @@ class KnowledgePluginFactory(BaseModel):
             output_value=output_value,
             metadata=metadata,
         )
+        if not attributes:
+            return {}
         attributes["gen_ai.operation.name"] = "retrieval"
         return attributes
 

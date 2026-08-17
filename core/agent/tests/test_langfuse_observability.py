@@ -12,11 +12,12 @@ from common.otlp import sid as sid_module
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.langfuse import (
     LangfuseBaggageSpanProcessor,
+    extract_trusted_langfuse_context,
+    inject_trusted_langfuse_context,
     langfuse_trace_attributes,
     langfuse_trace_context,
 )
 from common.otlp.trace.span import Span
-from common.otlp.trace.trace import Trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -42,6 +43,13 @@ from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
 from agent.exceptions.agent_exc import AgentInternalExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
 from agent.service.plugin.workflow import WorkflowPlugin
+
+
+@pytest.fixture(autouse=True)
+def _enable_langfuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
 
 
 @dataclass
@@ -567,19 +575,24 @@ async def test_workflow_handoff_continues_exact_parent_trace(
         "workflow:flow-42",
         user_id="synthetic-user",
         session_id="synthetic-session",
+        tags=["astron-agent", "workflow", "root"],
     )
     try:
         with langfuse_trace_context(workflow_attributes), tracer.start_as_current_span(
             "workflow.agent-node"
         ) as parent:
-            carrier = Trace.inject_context()
+            carrier = inject_trusted_langfuse_context()
             parent_context = parent.get_span_context()
+
+        verified_carrier = extract_trusted_langfuse_context(carrier)
+        assert verified_carrier
 
         # Invoke the Agent side after leaving the Workflow context.  This
         # simulates a real process boundary and proves the carrier, rather than
         # asyncio context inheritance, establishes the parent relationship.
         frames = [
-            frame async for frame in completion.do_complete(trace_context=carrier)
+            frame
+            async for frame in completion.do_complete(trace_context=verified_carrier)
         ]
 
         agent_run = _finished_span(exporter, "agent.run")
@@ -587,11 +600,16 @@ async def test_workflow_handoff_continues_exact_parent_trace(
         assert agent_run.context.trace_id == parent_context.trace_id
         assert agent_run.parent is not None
         assert agent_run.parent.span_id == parent_context.span_id
-        assert "langfuse.trace.name" not in (agent_run.attributes or {})
+        assert (agent_run.attributes or {})["langfuse.trace.name"] == (
+            "workflow:flow-42"
+        )
+        assert (agent_run.attributes or {})["langfuse.session.id"] == (
+            "synthetic-session"
+        )
         assert (agent_run.attributes or {})["langfuse.trace.tags"] == (
             "astron-agent",
-            "agent",
-            "workflow-child",
+            "workflow",
+            "root",
         )
     finally:
         provider.shutdown()

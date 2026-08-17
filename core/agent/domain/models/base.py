@@ -5,6 +5,7 @@ from typing import Any, AsyncIterator, Optional
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
+from common.otlp.trace.langfuse import langfuse_enabled
 from common.otlp.trace.span import Span
 from openai import APIError, APIStatusError, APITimeoutError
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
@@ -152,7 +153,7 @@ class BaseLLMModel(BaseModel):
             "model": self.name,
             "timeout": int(os.getenv("DEFAULT_LLM_TIMEOUT", "90")),
         }
-        if stream and self._stream_usage_supported:
+        if stream and langfuse_enabled() and self._stream_usage_supported:
             request_kwargs["stream_options"] = {"include_usage": True}
         max_tokens = os.getenv("DEFAULT_LLM_MAX_TOKEN")
         if max_tokens:

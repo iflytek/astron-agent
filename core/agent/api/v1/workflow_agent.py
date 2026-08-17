@@ -7,6 +7,7 @@ from typing import Annotated, Any, AsyncGenerator, Dict, Optional, cast
 
 from common.otlp.trace.langfuse import (
     LangfuseConfig,
+    extract_trusted_langfuse_context,
     langfuse_observation_attributes,
     langfuse_trace_attributes,
     langfuse_trace_context,
@@ -98,22 +99,24 @@ class CustomChatCompletion(CompletionBase):
         config = LangfuseConfig.from_env()
         workflow_id = self.inputs.meta_data.workflow_id
         is_workflow_child = bool(
-            workflow_id and self.inputs.meta_data.caller == "workflow-agent-node"
+            trace_context
+            and workflow_id
+            and self.inputs.meta_data.caller == "workflow-agent-node"
         )
-        trace_attributes = langfuse_trace_attributes(
-            "" if is_workflow_child else f"agent:{self.app_id}",
-            user_id=self.uid,
-            session_id="" if is_workflow_child else self.span.sid,
-            tags=[
-                "astron-agent",
-                "agent",
-                "workflow-child" if is_workflow_child else "agent-root",
-            ],
-            metadata={
-                "app_id": self.app_id,
-                "bot_id": self.bot_id,
-                "workflow_id": workflow_id,
-            },
+        trace_attributes = (
+            {}
+            if is_workflow_child
+            else langfuse_trace_attributes(
+                f"agent:{self.app_id}",
+                user_id=self.uid,
+                session_id=self.span.sid,
+                tags=["astron-agent", "agent", "agent-root"],
+                metadata={
+                    "app_id": self.app_id,
+                    "bot_id": self.bot_id,
+                    "workflow_id": workflow_id,
+                },
+            )
         )
         root_attributes = langfuse_observation_attributes(
             "agent",
@@ -126,8 +129,13 @@ class CustomChatCompletion(CompletionBase):
         error_code = 0
 
         with langfuse_trace_context(
-            trace_attributes, parent_context=parent_context
-        ), self.span.start("agent.run", attributes=root_attributes) as sp:
+            trace_attributes,
+            parent_context=parent_context,
+            trust_parent=is_workflow_child,
+        ), self.span.start(
+            "agent.run" if config.enabled else "WorkflowAgentNode",
+            attributes=root_attributes,
+        ) as sp:
             root_span = sp.get_otlp_span()
             sp.set_attributes(
                 attributes={
@@ -148,7 +156,7 @@ class CustomChatCompletion(CompletionBase):
                 async with aclosing(response_stream):
                     async for response in response_stream:
                         error_code = _chunk_error_code(response) or error_code
-                        if config.capture_input_output:
+                        if config.enabled and config.capture_input_output:
                             content = _chunk_content(response)
                             remaining = config.max_attribute_length - captured_length
                             if content and remaining > 0:
@@ -162,7 +170,7 @@ class CustomChatCompletion(CompletionBase):
                 final_attributes = langfuse_observation_attributes(
                     "agent", output_value="".join(output_parts)
                 )
-                if error_code:
+                if error_code and config.enabled:
                     root_span.set_status(Status(StatusCode.ERROR))
                     final_attributes.update(
                         {
@@ -222,6 +230,8 @@ async def custom_chat_completions(
     traceparent: Annotated[Optional[str], Header()] = None,
     tracestate: Annotated[Optional[str], Header()] = None,
     baggage: Annotated[Optional[str], Header()] = None,
+    x_astron_langfuse_trace_timestamp: Annotated[Optional[str], Header()] = None,
+    x_astron_langfuse_trace_signature: Annotated[Optional[str], Header()] = None,
 ) -> StreamingResponse:
     """Agent execution - user mode
 
@@ -249,15 +259,22 @@ async def custom_chat_completions(
 
     async def generate() -> AsyncGenerator[str, None]:
         """Generator for streaming response."""
-        carrier = {
+        inbound_headers = {
             key: value
             for key, value in {
                 "traceparent": traceparent,
                 "tracestate": tracestate,
                 "baggage": baggage,
+                "x-astron-langfuse-trace-timestamp": (
+                    x_astron_langfuse_trace_timestamp
+                ),
+                "x-astron-langfuse-trace-signature": (
+                    x_astron_langfuse_trace_signature
+                ),
             }.items()
             if value
         }
+        carrier = extract_trusted_langfuse_context(inbound_headers)
         response_stream = (
             completion.do_complete(trace_context=carrier)
             if carrier

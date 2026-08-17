@@ -53,6 +53,8 @@ def llm_generation_attributes(
         usage_details=usage_details,
         metadata={"provider": provider},
     )
+    if not attributes:
+        return {}
     attributes.update(
         {
             "gen_ai.operation.name": "chat",

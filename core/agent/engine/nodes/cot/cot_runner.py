@@ -9,7 +9,11 @@ from common.otlp.log_trace.base import Usage
 # Use unified common package import module
 from common.otlp.log_trace.node_log import Data, NodeLog
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.langfuse import LangfuseConfig, langfuse_observation_attributes
+from common.otlp.trace.langfuse import (
+    LangfuseConfig,
+    langfuse_enabled,
+    langfuse_observation_attributes,
+)
 from common.otlp.trace.span import Span
 from loguru import logger
 from opentelemetry.trace import Span as OtelSpan
@@ -76,6 +80,8 @@ def _mark_plugin_span_failed(
 ) -> None:
     """Represent a non-exception plugin failure consistently in OTel/Langfuse."""
 
+    if not langfuse_enabled():
+        return
     message = f"{operation} execution failed (code={code})"
     span.set_status(Status(StatusCode.ERROR))
     span.set_attributes(
@@ -552,7 +558,8 @@ class CotRunner(RunnerBase):
                 async with aclosing(response_stream):
                     async for agent_response in response_stream:
                         if (
-                            capture_config.capture_input_output
+                            capture_config.enabled
+                            and capture_config.capture_input_output
                             and agent_response.typ in {"content", "reasoning_content"}
                         ):
                             content = str(agent_response.content)
@@ -677,7 +684,8 @@ class CotRunner(RunnerBase):
             input_value=cot_step.action_input,
             metadata=plugin_metadata,
         )
-        tool_attributes["gen_ai.tool.name"] = cot_step.action
+        if tool_attributes:
+            tool_attributes["gen_ai.tool.name"] = cot_step.action
         with span.start("RunPlugin", attributes=tool_attributes) as sp:
             tool_span = sp.get_otlp_span()
             plugin_response: PluginResponse | None = None
@@ -723,7 +731,8 @@ class CotRunner(RunnerBase):
                     ),
                     metadata=plugin_metadata,
                 )
-                final_attributes["gen_ai.tool.name"] = cot_step.action
+                if final_attributes:
+                    final_attributes["gen_ai.tool.name"] = cot_step.action
                 tool_span.set_attributes(final_attributes)
                 if plugin_response is not None and plugin_response.code != 0:
                     _mark_plugin_span_failed(tool_span, plugin_response.code)
@@ -742,8 +751,9 @@ class CotRunner(RunnerBase):
             input_value=cot_step.action_input,
             metadata=workflow_metadata,
         )
-        chain_attributes["gen_ai.operation.name"] = "execute_tool"
-        chain_attributes["gen_ai.tool.name"] = plugin.name
+        if chain_attributes:
+            chain_attributes["gen_ai.operation.name"] = "execute_tool"
+            chain_attributes["gen_ai.tool.name"] = plugin.name
         capture_config = LangfuseConfig.from_env()
         with span.start("RunWorkflowPlugin", attributes=chain_attributes) as sp:
             workflow_span = sp.get_otlp_span()
@@ -756,7 +766,10 @@ class CotRunner(RunnerBase):
                 plugin_stream = plugin.run(action_input=cot_step.action_input, span=sp)
                 async with aclosing(plugin_stream):
                     async for plugin_response in plugin_stream:
-                        if capture_config.capture_input_output:
+                        if (
+                            capture_config.enabled
+                            and capture_config.capture_input_output
+                        ):
                             workflow_output = plugin_response.result
                         is_failure = plugin_response.code != 0
                         if is_failure:
@@ -801,8 +814,9 @@ class CotRunner(RunnerBase):
                     output_value=workflow_output,
                     metadata=workflow_metadata,
                 )
-                final_attributes["gen_ai.operation.name"] = "execute_tool"
-                final_attributes["gen_ai.tool.name"] = plugin.name
+                if final_attributes:
+                    final_attributes["gen_ai.operation.name"] = "execute_tool"
+                    final_attributes["gen_ai.tool.name"] = plugin.name
                 workflow_span.set_attributes(final_attributes)
 
     async def is_valid_plugin(self, plugin_name: str) -> bool:

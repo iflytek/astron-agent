@@ -34,7 +34,7 @@ class _DummySidGen:
 
 
 @pytest.fixture(autouse=True)
-def _setup_test_environment() -> None:
+def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatically inject environment fixes for all tests.
 
     - Ensure `sid_generator2` is initialized to avoid `Span` construction failure.
@@ -42,6 +42,9 @@ def _setup_test_environment() -> None:
     # Initialize sid generator to avoid Span throwing "sid_generator2 is not initialized"
     if sid_module.sid_generator2 is None:
         sid_module.sid_generator2 = _DummySidGen()  # type: ignore[assignment]
+    monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
 
 
 class TestBaseLLMModel:
@@ -100,6 +103,27 @@ class TestBaseLLMModel:
         model.llm.chat.completions.create.assert_awaited_once_with(
             messages=messages,
             stream=False,
+            model="test_model",
+            timeout=90,
+        )
+        assert result == mock_response
+
+    @pytest.mark.asyncio
+    async def test_disabled_langfuse_does_not_change_stream_request_body(
+        self, model: BaseLLMModel, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Disabled Langfuse preserves the pre-integration provider request."""
+        monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+        monkeypatch.delenv("DEFAULT_LLM_MAX_TOKEN", raising=False)
+        mock_response = AsyncMock()
+        model.llm.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        messages = [{"role": "user", "content": "test"}]
+        result = await model.create_completion(messages, stream=True)
+
+        model.llm.chat.completions.create.assert_awaited_once_with(
+            messages=messages,
+            stream=True,
             model="test_model",
             timeout=90,
         )

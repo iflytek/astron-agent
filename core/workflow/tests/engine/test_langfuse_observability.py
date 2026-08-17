@@ -32,6 +32,13 @@ from workflow.extensions.otlp.trace.span import Span
 from workflow.extensions.otlp.trace.trace import Trace
 
 
+@pytest.fixture(autouse=True)
+def _enable_langfuse(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+
+
 class _SuccessfulToolNode(BaseNode):
     async def async_execute(
         self,
@@ -137,6 +144,40 @@ async def test_node_execution_emits_typed_child_without_content_by_default(
 
 
 @pytest.mark.asyncio
+async def test_disabled_langfuse_preserves_existing_workflow_span_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+    span, exporter, provider = _span_with_exporter()
+    node_instance = _SuccessfulToolNode(
+        input_identifier=[],
+        output_identifier=[],
+        node_id="plugin::weather",
+        node_type="plugin",
+        alias_name="Local weather tool",
+    )
+    engine_node = SparkFlowEngineNode(
+        node_id="plugin::weather",
+        node_type="plugin",
+        node_alias_name="Local weather tool",
+        node_instance=node_instance,
+    )
+    template = NodeExecutionTemplate(engine_node)
+    template._handle_execution_result = AsyncMock()  # type: ignore[method-assign]
+
+    with span.start("existing-root"):
+        await template.execute(span=span)
+
+    spans = {item.name: item for item in exporter.get_finished_spans()}
+    assert set(spans) == {"existing-root", "run_node:plugin::weather"}
+    child_attributes = spans["run_node:plugin::weather"].attributes or {}
+    assert not any(
+        key.startswith(("langfuse.", "gen_ai.", "astron.")) for key in child_attributes
+    )
+    provider.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_retrieval_node_emits_retriever_observation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -218,6 +259,42 @@ async def test_llm_boundary_emits_generation_model_usage_and_content_opt_in(
     assert "synthetic question" in attributes["langfuse.observation.input"]
     assert attributes["langfuse.observation.output"] == "synthetic answer"
     assert attributes["astron.llm.time_to_first_token_ms"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_disabled_langfuse_does_not_add_generation_child_span(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+    span, exporter, provider = _span_with_exporter()
+    node = _ObservableLLMNode(
+        input_identifier=[],
+        output_identifier=[],
+        node_id="spark-llm::writer",
+        node_type="spark-llm",
+        alias_name="Writer",
+        domain="gpt-test",
+        appId="synthetic-app",
+        source="openai",
+    )
+    variable_pool = MagicMock()
+    variable_pool.system_params.get.return_value = "synthetic-user"
+
+    with span.start("existing-llm-node"):
+        await node._chat_with_llm(
+            flow_id="flow-test",
+            variable_pool=variable_pool,
+            span=span,
+            prompt_template="synthetic question",
+        )
+
+    spans = exporter.get_finished_spans()
+    assert [item.name for item in spans] == ["existing-llm-node"]
+    assert not any(
+        key.startswith(("langfuse.", "gen_ai.", "astron."))
+        for key in (spans[0].attributes or {})
+    )
+    provider.shutdown()
 
 
 def test_w3c_trace_and_langfuse_baggage_continue_across_services() -> None:

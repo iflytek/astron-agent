@@ -16,6 +16,8 @@ from common.otlp.trace.langfuse import (
     LangfuseConfig,
     SanitizingSpanExporter,
     add_langfuse_span_processor,
+    extract_trusted_langfuse_context,
+    inject_trusted_langfuse_context,
     langfuse_observation_attributes,
     langfuse_trace_attributes,
     langfuse_trace_context,
@@ -38,7 +40,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from workflow.extensions.fastapi.middleware import otlp as otlp_middleware
-from workflow.extensions.fastapi.middleware.otlp import _safe_trace_carrier
+from workflow.extensions.fastapi.middleware.otlp import _trusted_trace_carrier
 from workflow.extensions.otlp.trace.span import Span as WorkflowSpan
 
 
@@ -152,8 +154,11 @@ def test_environment_validation_matches_langfuse_contract(
     assert config.has_valid_environment is is_valid
 
 
-def test_inbound_carrier_keeps_only_non_langfuse_baggage() -> None:
-    carrier = _safe_trace_carrier(
+def test_unsigned_public_trace_context_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_langfuse(monkeypatch)
+    carrier = _trusted_trace_carrier(
         {
             "traceparent": "00-00000000000000000000000000000001-0000000000000001-01",
             "tracestate": "vendor=synthetic-sensitive,other=value",
@@ -167,9 +172,66 @@ def test_inbound_carrier_keeps_only_non_langfuse_baggage() -> None:
         }
     )
 
-    assert carrier["baggage"] == "tenant=safe"
-    assert "traceparent" in carrier
-    assert carrier["tracestate"] == "vendor=synthetic-sensitive,other=value"
+    assert carrier == {}
+
+
+def test_signed_internal_trace_context_round_trips_and_detects_tampering(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _enable_langfuse(monkeypatch)
+    provider = TracerProvider()
+    tracer = provider.get_tracer("trusted-trace-carrier-test")
+    attributes = langfuse_trace_attributes(
+        "workflow:flow", session_id="session", tags=["workflow", "root"]
+    )
+    try:
+        with langfuse_trace_context(attributes), tracer.start_as_current_span("parent"):
+            signed = inject_trusted_langfuse_context()
+
+        verified = extract_trusted_langfuse_context(signed)
+        assert verified["traceparent"] == signed["traceparent"]
+        assert "langfuse.trace.name=workflow%3Aflow" in verified["baggage"]
+
+        tampered = dict(signed)
+        tampered["traceparent"] = (
+            "00-00000000000000000000000000000001-0000000000000001-01"
+        )
+        assert extract_trusted_langfuse_context(tampered) == {}
+
+        issued_at = int(signed["x-astron-langfuse-trace-timestamp"])
+        monkeypatch.setattr(
+            langfuse_bridge.time,
+            "time",
+            lambda: issued_at + 301,
+        )
+        assert extract_trusted_langfuse_context(signed) == {}
+    finally:
+        provider.shutdown()
+
+
+def test_disabled_helpers_do_not_change_span_or_baggage_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+    monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true")
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    tracer = provider.get_tracer("disabled-langfuse-test")
+
+    assert langfuse_observation_attributes("generation", model="model") == {}
+    assert langfuse_trace_attributes("trace", session_id="session") == {}
+    assert inject_trusted_langfuse_context() == {}
+    with langfuse_trace_context({"langfuse.trace.name": "must-not-appear"}):
+        assert "langfuse.trace.name" not in baggage.get_all()
+        with tracer.start_as_current_span("existing", attributes={"existing": "value"}):
+            pass
+
+    finished = exporter.get_finished_spans()
+    assert len(finished) == 1
+    assert finished[0].name == "existing"
+    assert dict(finished[0].attributes or {}) == {"existing": "value"}
+    provider.shutdown()
 
 
 @pytest.mark.asyncio
@@ -178,7 +240,7 @@ async def test_middleware_context_reaches_background_workflow_observation(
 ) -> None:
     """Mirror the production middleware -> route -> background task hierarchy."""
 
-    monkeypatch.setenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", "true")
+    _enable_langfuse(monkeypatch, capture=True)
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))

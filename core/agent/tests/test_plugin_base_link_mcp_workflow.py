@@ -252,7 +252,11 @@ class TestWorkflowPluginRunnerAndFactory:
         assert "extra_body" not in params["extra_body"]
 
     @pytest.mark.asyncio
-    async def test_openai_wire_request_preserves_nested_trace_context(self) -> None:
+    async def test_openai_wire_request_preserves_nested_trace_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("LANGFUSE_ENABLED", "true")
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
         captured: dict[str, Any] = {}
 
         async def handle_request(request: httpx.Request) -> httpx.Response:
@@ -296,6 +300,8 @@ class TestWorkflowPluginRunnerAndFactory:
         traceparent = captured["headers"]["traceparent"].split("-")
         assert traceparent[1] == f"{parent_context.trace_id:032x}"
         assert traceparent[2] == f"{parent_context.span_id:016x}"
+        assert "x-astron-langfuse-trace-timestamp" in captured["headers"]
+        assert "x-astron-langfuse-trace-signature" in captured["headers"]
 
     def test_create_error_and_success_response(self) -> None:
         runner = WorkflowPluginRunner(app_id="app", uid="u", flow_id="fid")

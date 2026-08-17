@@ -13,6 +13,16 @@ Trace 筛选的语义属性。
 > Langfuse 导出默认关闭。启用后会把遥测数据发送到所配置的 Langfuse 部署，
 > 因此在接入生产流量前必须检查隐私配置。
 
+## 支持版本
+
+- 支持 Langfuse v4.x；已对自托管 Langfuse v4.6.0 完成端到端验证。
+- 当前 bridge 使用 v4 observations-first 属性模型和 ingestion header，且没有
+  v3 测试矩阵，因此不声明支持 Langfuse v3；不支持 Langfuse v2。
+- Astron 要求 Python 3.11 或更高版本。Workflow 锁定 OpenTelemetry 1.25.x；
+  Agent 和共享 bridge 已验证 1.27.x，并将 OpenTelemetry 依赖限制在受支持的
+  2.0 之前。
+- Langfuse 仅支持 OTLP over HTTP/protobuf；本集成不支持 OTLP/gRPC。
+
 ## Bridge 的工作方式
 
 - Workflow 和 Agent 服务继续使用已有的 OpenTelemetry tracer provider 与嵌套
@@ -26,10 +36,13 @@ Trace 筛选的语义属性。
   填写完整 OTLP endpoint。
 - Astron 在内存中使用 Langfuse 项目的 Public Key 和 Secret Key 为请求鉴权，
   不会把凭据添加为 Span 属性。
-- Workflow 到 Agent 以及嵌套 Workflow 的调用会传播标准 W3C
-  `traceparent`/`tracestate` 上下文。Astron 不信任入站 `langfuse.*`
-  baggage 中的 Trace 名称、用户/会话身份、标签、发布版本或环境；各服务会从
-  本地处理的请求状态重新生成这些字段，同时保留无关的 W3C baggage。
+- 仅在启用 Langfuse 时，Workflow 到 Agent 及嵌套 Workflow 调用才传播标准
+  W3C `traceparent`/`tracestate`。Astron 使用共享 Langfuse 项目 Secret 派生的
+  短时 HMAC 对内部 carrier 的完整内容鉴权；未签名、过期或被修改的公共 Header
+  会开启新的本地 Trace，且不能提供 Langfuse Trace 级字段。
+- `LANGFUSE_ENABLED=false` 时完全惰性：不会新增 Langfuse/GenAI 属性或
+  baggage，不会改变模型供应方请求体、继承远程 parent、重命名现有 Span，
+  也不会向常规 OTLP/file pipeline 添加仅服务于 Langfuse 的子 Span。
 
 同时启用两个 exporter 时，一次执行可以分别发送到现有 collector 和 Langfuse。
 除非明确需要重复上报，否则不要把两个 exporter 都指向同一个 Langfuse 项目。

@@ -7,11 +7,14 @@ default.
 """
 
 import base64
+import hashlib
+import hmac
 import json
 import math
 import os
 import re
 import threading
+import time
 import weakref
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -25,6 +28,7 @@ from opentelemetry.context import Context
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
     OTLPSpanExporter as OTLPHTTPSpanExporter,
 )
+from opentelemetry.propagate import inject
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import (
@@ -37,6 +41,11 @@ from opentelemetry.trace import SpanContext, Status, TraceState
 _DEFAULT_LANGFUSE_HOST = "https://cloud.langfuse.com"
 _DEFAULT_MAX_ATTRIBUTE_LENGTH = 8192
 _LANGFUSE_TRACE_PATH = "/api/public/otel/v1/traces"
+_TRUSTED_TRACE_TIMESTAMP_HEADER = "x-astron-langfuse-trace-timestamp"
+_TRUSTED_TRACE_SIGNATURE_HEADER = "x-astron-langfuse-trace-signature"
+_TRUSTED_TRACE_MAX_AGE_SECONDS = 300
+_TRUSTED_TRACE_FIELDS = ("traceparent", "tracestate", "baggage")
+_TRUSTED_TRACE_DOMAIN = "astron-langfuse-trace-v1"
 _TRUTHY_VALUES = frozenset({"1", "true", "yes", "on"})
 _LANGFUSE_ENVIRONMENT_PATTERN = re.compile(r"^(?!langfuse)[a-z0-9_-]{1,40}$")
 
@@ -269,6 +278,90 @@ class LangfuseConfig:
         return bool(_LANGFUSE_ENVIRONMENT_PATTERN.fullmatch(self.environment))
 
 
+def langfuse_enabled() -> bool:
+    """Return whether Langfuse instrumentation is explicitly enabled."""
+
+    return LangfuseConfig.from_env().enabled
+
+
+def _case_insensitive_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    return {str(key).lower(): str(value) for key, value in headers.items()}
+
+
+def _trusted_trace_payload(carrier: Mapping[str, str], timestamp: str) -> bytes:
+    normalized = _case_insensitive_headers(carrier)
+    values = [
+        _TRUSTED_TRACE_DOMAIN,
+        timestamp,
+        *(normalized.get(field, "") for field in _TRUSTED_TRACE_FIELDS),
+    ]
+    return "\n".join(values).encode("utf-8")
+
+
+def inject_trusted_langfuse_context() -> dict[str, str]:
+    """Inject and authenticate trace context for an Astron service-to-service call.
+
+    The Langfuse project secret is already shared by services that export one
+    logical trace.  It is reused only as HMAC key material with an explicit
+    domain separator; the key itself is never placed in a header.
+    """
+
+    config = LangfuseConfig.from_env()
+    if not config.enabled or not config.secret_key:
+        return {}
+
+    carrier: dict[str, str] = {}
+    inject(carrier)
+    if "traceparent" not in carrier:
+        return {}
+
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        config.secret_key.encode("utf-8"),
+        _trusted_trace_payload(carrier, timestamp),
+        hashlib.sha256,
+    ).hexdigest()
+    carrier[_TRUSTED_TRACE_TIMESTAMP_HEADER] = timestamp
+    carrier[_TRUSTED_TRACE_SIGNATURE_HEADER] = signature
+    return carrier
+
+
+def extract_trusted_langfuse_context(
+    headers: Mapping[str, str],
+) -> dict[str, str]:
+    """Return a verified internal W3C carrier, or fail closed with an empty one."""
+
+    config = LangfuseConfig.from_env()
+    if not config.enabled or not config.secret_key:
+        return {}
+
+    normalized = _case_insensitive_headers(headers)
+    timestamp = normalized.get(_TRUSTED_TRACE_TIMESTAMP_HEADER, "")
+    supplied_signature = normalized.get(_TRUSTED_TRACE_SIGNATURE_HEADER, "")
+    try:
+        issued_at = int(timestamp)
+    except (TypeError, ValueError):
+        return {}
+    if abs(int(time.time()) - issued_at) > _TRUSTED_TRACE_MAX_AGE_SECONDS:
+        return {}
+
+    carrier = {
+        field: normalized[field]
+        for field in _TRUSTED_TRACE_FIELDS
+        if normalized.get(field)
+    }
+    if "traceparent" not in carrier:
+        return {}
+    expected_signature = hmac.new(
+        config.secret_key.encode("utf-8"),
+        _trusted_trace_payload(carrier, timestamp),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(supplied_signature, expected_signature):
+        return {}
+    return carrier
+
+
 def _truncate(value: str, max_length: int) -> str:
     if len(value) <= max_length:
         return value
@@ -365,7 +458,7 @@ def langfuse_content_attributes(
     """Build explicitly opted-in observation content attributes."""
 
     config = LangfuseConfig.from_env()
-    if not config.capture_input_output:
+    if not config.enabled or not config.capture_input_output:
         return {}
 
     attributes: dict[str, Any] = {}
@@ -441,6 +534,8 @@ def langfuse_observation_attributes(
     """Return stable Langfuse attributes for one nested observation."""
 
     config = LangfuseConfig.from_env()
+    if not config.enabled:
+        return {}
     normalized_type = str(observation_type).strip().lower()
     if normalized_type not in _OBSERVATION_TYPES:
         normalized_type = "span"
@@ -504,6 +599,8 @@ def langfuse_trace_attributes(
     """Return trace-wide attributes suitable for baggage propagation."""
 
     config = LangfuseConfig.from_env()
+    if not config.enabled:
+        return {}
     environment = config.environment if config.has_valid_environment else ""
     attributes: dict[str, Any] = {}
     for key, value in (
@@ -576,20 +673,26 @@ def _decode_baggage_value(key: str, value: Any, max_length: int) -> Any:
 def langfuse_trace_context(
     trace_attributes: Mapping[str, Any],
     parent_context: Optional[Context] = None,
+    *,
+    trust_parent: bool = False,
 ) -> Iterator[Context]:
-    """Attach server-derived trace attributes after dropping remote Langfuse baggage."""
+    """Attach local trace fields, preserving only explicitly trusted parent baggage."""
 
     config = LangfuseConfig.from_env()
     baggage_context = (
         parent_context if parent_context is not None else context_api.get_current()
     )
+    if not config.enabled:
+        yield baggage_context
+        return
     # Baggage is an unsigned caller-controlled header at an HTTP boundary.  It
     # may carry ordinary application correlation values, but it must not be an
     # authority for Langfuse user/session attribution or trace metadata.
-    existing = baggage.get_all(context=baggage_context)
-    for key in existing:
-        if key.startswith("langfuse."):
-            baggage_context = baggage.remove_baggage(key, context=baggage_context)
+    if not trust_parent:
+        existing = baggage.get_all(context=baggage_context)
+        for key in existing:
+            if key.startswith("langfuse."):
+                baggage_context = baggage.remove_baggage(key, context=baggage_context)
     for key, value in trace_attributes.items():
         if not _is_trace_attribute(key) or _is_sensitive_key(key):
             continue
@@ -831,7 +934,10 @@ __all__ = [
     "LangfuseConfig",
     "SanitizingSpanExporter",
     "add_langfuse_span_processor",
+    "extract_trusted_langfuse_context",
+    "inject_trusted_langfuse_context",
     "langfuse_content_attributes",
+    "langfuse_enabled",
     "langfuse_observation_attributes",
     "langfuse_trace_attributes",
     "langfuse_trace_context",

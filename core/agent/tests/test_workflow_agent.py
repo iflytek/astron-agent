@@ -8,6 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from starlette.responses import StreamingResponse
 
 from agent.api.schemas.llm_message import LLMMessage
@@ -129,6 +132,40 @@ class TestCustomChatCompletion:
                         results.append(result)
 
                     assert len(results) > 0
+
+    @pytest.mark.asyncio
+    async def test_disabled_langfuse_preserves_existing_root_span_shape(
+        self,
+        completion: CustomChatCompletion,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("LANGFUSE_ENABLED", "false")
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        completion.span.tracer = provider.get_tracer("disabled-agent-root-test")
+
+        async def mock_run_runner(*_args: Any, **_kwargs: Any) -> AsyncIterator[str]:
+            yield 'data: {"code":0,"choices":[]}\n\n'
+
+        with (
+            patch.object(
+                CustomChatCompletion, "build_node_trace", return_value=object()
+            ),
+            patch.object(CustomChatCompletion, "build_meter", return_value=object()),
+            patch.object(CustomChatCompletion, "run_runner", mock_run_runner),
+        ):
+            results = [item async for item in completion.do_complete()]
+
+        spans = exporter.get_finished_spans()
+        assert results
+        assert len(spans) == 1
+        assert spans[0].name == "WorkflowAgentNode"
+        assert not any(
+            key.startswith(("langfuse.", "gen_ai."))
+            for key in (spans[0].attributes or {})
+        )
+        provider.shutdown()
 
 
 class TestCustomChatCompletionsEndpoint:

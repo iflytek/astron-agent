@@ -73,6 +73,7 @@ class TestKnowledgePluginFactory:
         request: pytest.FixtureRequest,
     ) -> None:
         """Test successful knowledge retrieval"""
+        monkeypatch.setenv("LANGFUSE_ENABLED", "true")
         monkeypatch.delenv("LANGFUSE_CAPTURE_INPUT_OUTPUT", raising=False)
         monkeypatch.setenv("KNOWLEDGE_CALL_TIMEOUT", "90")
         span = Span(app_id="test_app", uid="test_uid")

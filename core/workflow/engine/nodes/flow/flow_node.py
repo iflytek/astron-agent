@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import aiohttp
 from aiohttp import ClientTimeout
+from common.otlp.trace.langfuse import inject_trusted_langfuse_context
 from pydantic import Field
 
 from workflow.consts.engine.chat_status import ChatStatus
@@ -29,7 +30,6 @@ from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.middleware.database.utils import session_getter
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
-from workflow.extensions.otlp.trace.trace import Trace
 
 
 class FlowNode(BaseNode):
@@ -316,7 +316,7 @@ class FlowNode(BaseNode):
         """
         # Initialize request headers
         headers = {"Content-Type": "application/json"}
-        headers.update(Trace.inject_context())
+        headers.update(inject_trusted_langfuse_context())
 
         chat_id: str = variable_pool.system_params.get(ParamKey.ChatId, default="")
         uid: str = variable_pool.system_params.get(ParamKey.Uid, default="")

@@ -15,6 +15,19 @@ and its documented
 > configured Langfuse deployment, so review the privacy settings before using
 > production traffic.
 
+## Supported versions
+
+- Langfuse v4.x is supported; self-hosted Langfuse v4.6.0 is verified end to
+  end.
+- Langfuse v3 is not claimed because this bridge uses the v4
+  observations-first attribute model and ingestion header without a v3 test
+  matrix. Langfuse v2 is not supported.
+- Astron requires Python 3.11 or newer. Workflow is locked to OpenTelemetry
+  1.25.x; Agent and the shared bridge are tested with 1.27.x and constrain
+  OpenTelemetry packages to the supported pre-2.0 range.
+- The only supported Langfuse transport is OTLP over HTTP/protobuf; OTLP/gRPC
+  is not supported by this integration.
+
 ## How the bridge works
 
 - Workflow and agent services keep using their existing OpenTelemetry tracer
@@ -31,10 +44,15 @@ and its documented
   project public and secret keys. Credentials are not added to span
   attributes.
 - Workflow-to-agent and nested-workflow calls propagate the standard W3C
-  `traceparent`/`tracestate` context. Astron does not trust inbound
-  `langfuse.*` baggage for trace names, user/session identity, tags, release,
-  or environment; each service derives those fields from locally handled
-  request state while preserving unrelated W3C baggage.
+  `traceparent`/`tracestate` context only when Langfuse is enabled. Astron
+  authenticates the exact internal carrier with a short-lived HMAC derived
+  from the shared Langfuse project secret. Unsigned, expired, or modified
+  public headers start a new local trace and cannot provide trace-wide
+  Langfuse fields.
+- `LANGFUSE_ENABLED=false` is inert: it does not add Langfuse/GenAI attributes
+  or baggage, alter provider request bodies, propagate remote parentage, rename
+  existing spans, or add Langfuse-only child spans to the normal OTLP/file
+  pipelines.
 
 If both exporters are enabled, one execution can therefore be sent to both
 your existing collector and Langfuse. Do not point both exporter paths at the

@@ -3,7 +3,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Union, cast
 
-from common.otlp.trace.langfuse import langfuse_observation_attributes
+from common.otlp.trace.langfuse import langfuse_enabled, langfuse_observation_attributes
 from loguru import logger
 from pydantic import BaseModel
 
@@ -67,6 +67,8 @@ def _langfuse_node_type(node_type: str) -> str:
 def _node_span_attributes(node: "SparkFlowEngineNode") -> Dict[str, Any]:
     node_type = node.node_id.split("::")[0]
     attributes = langfuse_observation_attributes(_langfuse_node_type(node_type))
+    if not attributes:
+        return {}
     attributes.update(
         {
             "astron.workflow.node.id": node.node_id,
@@ -86,6 +88,8 @@ def _node_result_attributes(result: NodeRunResult) -> Dict[str, Any]:
         output_value=output,
         usage_details=usage,
     )
+    if not attributes:
+        return {}
     attributes["astron.workflow.node.status"] = result.status.value
     if result.error:
         error_type = type(result.error).__name__
@@ -213,8 +217,13 @@ class NodeExecutionTemplate:
         """
         span = kwargs.get("span", Span())
         node_name = self.node.node_instance.alias_name or self.node.node_id
+        span_name = (
+            f"workflow.node:{node_name}"
+            if langfuse_enabled()
+            else f"run_node:{self.node.node_id}"
+        )
         with span.start(
-            f"workflow.node:{node_name}",
+            span_name,
             attributes=_node_span_attributes(self.node),
         ) as span_context:
 

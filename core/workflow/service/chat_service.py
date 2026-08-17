@@ -8,11 +8,13 @@ from datetime import datetime
 from typing import Any, AsyncIterator, Dict, Iterable, List, Optional, Tuple, cast
 
 from common.otlp.trace.langfuse import (
+    LangfuseConfig,
     langfuse_observation_attributes,
     langfuse_trace_attributes,
     langfuse_trace_context,
 )
 from loguru import logger
+from opentelemetry import baggage as otel_baggage
 
 from workflow.consts.runtime_env import RuntimeEnv
 from workflow.consts.tenant_publish_matrix import Platform, TenantPublishMatrix
@@ -466,23 +468,33 @@ async def _run(
     m = Meter(app_id=app_alias_id, func=func_name)
     m.set_label("flow_id", chat_vo.flow_id)
 
+    config = LangfuseConfig.from_env()
     caller = chat_vo.ext.get("caller", "")
-    is_nested_trace = caller in {"agent", "workflow"}
-    trace_attributes = langfuse_trace_attributes(
-        "" if is_nested_trace else f"workflow:{chat_vo.flow_id}",
-        user_id=chat_vo.uid,
-        session_id="" if is_nested_trace else chat_vo.chat_id or event_id,
-        tags=[
-            "astron-agent",
-            "workflow",
-            "nested" if is_nested_trace else "root",
-            "release" if is_release else "debug",
-        ],
-        metadata={
-            "app_id": app_alias_id,
-            "flow_id": chat_vo.flow_id,
-            "workflow_version": chat_vo.version,
-        },
+    has_trusted_trace_attributes = any(
+        str(key).startswith("langfuse.") for key in otel_baggage.get_all()
+    )
+    is_nested_trace = bool(
+        caller in {"agent", "workflow"} and has_trusted_trace_attributes
+    )
+    trace_attributes = (
+        {}
+        if is_nested_trace
+        else langfuse_trace_attributes(
+            f"workflow:{chat_vo.flow_id}",
+            user_id=chat_vo.uid,
+            session_id=chat_vo.chat_id or event_id,
+            tags=[
+                "astron-agent",
+                "workflow",
+                "root",
+                "release" if is_release else "debug",
+            ],
+            metadata={
+                "app_id": app_alias_id,
+                "flow_id": chat_vo.flow_id,
+                "workflow_version": chat_vo.version,
+            },
+        )
     )
     root_attributes = langfuse_observation_attributes(
         "chain",
@@ -495,16 +507,21 @@ async def _run(
         },
     )
     root_attributes.update(trace_attributes)
-    root_attributes.update(
-        {
-            "astron.workflow.flow.id": chat_vo.flow_id,
-            "astron.workflow.event.id": event_id,
-            "astron.workflow.release": is_release,
-        }
-    )
+    if config.enabled:
+        root_attributes.update(
+            {
+                "astron.workflow.flow.id": chat_vo.flow_id,
+                "astron.workflow.event.id": event_id,
+                "astron.workflow.release": is_release,
+            }
+        )
+    else:
+        root_attributes = {"flow_id": chat_vo.flow_id}
 
-    with langfuse_trace_context(trace_attributes), span.start(
-        "workflow.run", attributes=root_attributes
+    with langfuse_trace_context(
+        trace_attributes, trust_parent=is_nested_trace
+    ), span.start(
+        "workflow.run" if config.enabled else "", attributes=root_attributes
     ) as span_context:
         await span.add_info_event_async(f"user input: {chat_vo.json()}")
         await span.add_info_event_async(

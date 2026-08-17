@@ -5,11 +5,12 @@ import os
 import time
 from abc import abstractmethod
 from asyncio import Event
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
 
-from common.otlp.trace.langfuse import langfuse_observation_attributes
+from common.otlp.trace.langfuse import langfuse_enabled, langfuse_observation_attributes
 from pydantic import BaseModel, Field, PrivateAttr
 
 from workflow.consts.engine.chat_status import ChatStatus, SparkLLMStatus
@@ -1295,16 +1296,17 @@ class BaseLLMNode(BaseNode):
                 request.chat_ai.decode_message(msg)
             )
             if not completion_started and (content or reasoning_content):
-                request.span.set_attributes(
-                    {
-                        "astron.llm.time_to_first_token_ms": round(
-                            (time.monotonic() - started_at) * 1000, 3
-                        ),
-                        "langfuse.observation.completion_start_time": (
-                            datetime.now(timezone.utc).isoformat()
-                        ),
-                    }
-                )
+                if langfuse_enabled():
+                    request.span.set_attributes(
+                        {
+                            "astron.llm.time_to_first_token_ms": round(
+                                (time.monotonic() - started_at) * 1000, 3
+                            ),
+                            "langfuse.observation.completion_start_time": (
+                                datetime.now(timezone.utc).isoformat()
+                            ),
+                        }
+                    )
                 completion_started = True
             if not self.stream_node_first_token.is_set():
                 self.stream_node_first_token.set()
@@ -1352,6 +1354,8 @@ class BaseLLMNode(BaseNode):
             model=self.domain,
             usage_details=token_usage,
         )
+        if not result_attributes:
+            return
         result_attributes["gen_ai.response.model"] = self.domain
         if status:
             result_attributes["gen_ai.response.finish_reasons"] = [str(status)]
@@ -1419,21 +1423,25 @@ class BaseLLMNode(BaseNode):
             model_parameters=model_parameters,
             metadata={"provider": self.source, "flow_id": flow_id},
         )
-        generation_attributes.update(
-            {
-                "astron.workflow.node.id": self.node_id,
-                "gen_ai.operation.name": "chat",
-                "gen_ai.provider.name": self.source,
-                "gen_ai.request.model": self.domain,
-                "gen_ai.request.max_tokens": self.maxTokens,
-                "gen_ai.request.temperature": self.temperature,
-                "gen_ai.request.top_k": self.topK,
-            }
-        )
+        if generation_attributes:
+            generation_attributes.update(
+                {
+                    "astron.workflow.node.id": self.node_id,
+                    "gen_ai.operation.name": "chat",
+                    "gen_ai.provider.name": self.source,
+                    "gen_ai.request.model": self.domain,
+                    "gen_ai.request.max_tokens": self.maxTokens,
+                    "gen_ai.request.temperature": self.temperature,
+                    "gen_ai.request.top_k": self.topK,
+                }
+            )
 
-        with span.start(
-            f"llm.generate:{self.domain}", attributes=generation_attributes
-        ) as generation_span:
+        generation_context = (
+            span.start(f"llm.generate:{self.domain}", attributes=generation_attributes)
+            if langfuse_enabled()
+            else nullcontext(span)
+        )
+        with generation_context as generation_span:
             token_usage, answer, reasoning, status = await self._consume_llm_stream(
                 _LLMStreamRequest(
                     chat_ai=chat_ai,

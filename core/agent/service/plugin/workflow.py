@@ -7,8 +7,8 @@ from typing import Any, AsyncIterator
 
 import aiohttp
 import httpx
+from common.otlp.trace.langfuse import inject_trusted_langfuse_context
 from common.otlp.trace.span import Span
-from common.otlp.trace.trace import Trace
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
@@ -65,7 +65,7 @@ class WorkflowPluginRunner(BaseModel):
             },
             "extra_headers": {
                 "X-consumer-username": self.app_id,
-                **Trace.inject_context(),
+                **inject_trusted_langfuse_context(),
             },
         }
 
