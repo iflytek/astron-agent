@@ -106,6 +106,7 @@ After startup, you can access the services at the following addresses:
 
 - [🔌 Integration Guide](/guide/integration) — call published workflows from an existing project via HTTP/SSE
 - [🚀 Deployment Guide](/DEPLOYMENT_GUIDE)
+- [🧩 RISC-V support status](/RISCV64)
 - [🔧 Configuration](/CONFIGURATION)
 - [🏢 Case Studies](/cases/)
 - [🚀 Quick Start](https://www.xfyun.cn/doc/spark/Agent02-%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B.html)

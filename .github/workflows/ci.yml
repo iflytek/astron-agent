@@ -296,6 +296,9 @@ jobs:
               go test -coverprofile=coverage.out -covermode=atomic ./...
               echo "📊 Generating coverage report..."
               go tool cover -func=coverage.out
+              echo "🏗️ Cross-compiling core-tenant for linux/riscv64..."
+              CGO_ENABLED=0 GOOS=linux GOARCH=riscv64 go build -trimpath -o /tmp/core-tenant-linux-riscv64 .
+              file /tmp/core-tenant-linux-riscv64
               ;;
             python)
               echo "📦 Installing dependencies..."

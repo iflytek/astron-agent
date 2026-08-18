@@ -125,6 +125,7 @@ docker compose -f docker-compose-with-auth.yaml up -d
 
 - [🔌 集成指南](guide/integration.md) — 通过 HTTP/SSE 在现有项目中调用已发布工作流
 - [🚀 部署指南](DEPLOYMENT_GUIDE.md)
+- [🧩 RISC-V 支持状态](RISCV64.md)
 - [🔧 配置说明](CONFIGURATION.md)
 - [🏗️ 模块说明](PROJECT_MODULES.md)
 - [🤝 贡献指南](CONTRIBUTING.md)

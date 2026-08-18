@@ -120,7 +120,7 @@ jobs:
         with:
           context: .
           file: ./core/tenant/Dockerfile
-          platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
+          platforms: linux/amd64,linux/arm64,linux/riscv64
           push: ${{ needs.detect-and-prepare.outputs.should-push }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -575,7 +575,8 @@ jobs:
           echo "🔍 Project Detection: ${{ needs.detect-and-prepare.result }}"
           echo "📊 Version: ${{ needs.detect-and-prepare.outputs.version }}"
           echo "📤 Push to Registry: ${{ needs.detect-and-prepare.outputs.should-push }}"
-          echo "🏗️ Target Platforms: ${{ needs.detect-and-prepare.outputs.platforms }}"
+          echo "🏗️ Default Target Platforms: ${{ needs.detect-and-prepare.outputs.platforms }}"
+          echo "🏢 Core Tenant Platforms: linux/amd64,linux/arm64,linux/riscv64"
           echo ""
 
           echo "🐳 Docker Build Results:"

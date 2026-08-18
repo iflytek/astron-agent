@@ -1,0 +1,88 @@
+# syntax=docker/dockerfile:1
+
+ARG BIANBU_IMAGE=astron/bianbu-base:24.04.1-riscv64
+
+FROM ${BIANBU_IMAGE} AS native-wheel-builder
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG LIBRDKAFKA_VERSION=2.11.1
+ARG LIBRDKAFKA_SHA256=a2c87186b081e2705bb7d5338d5a01bc88d43273619b372ccb7bb0d264d0ca9f
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential ca-certificates curl libcurl4-openssl-dev libffi-dev \
+      liblz4-dev libsasl2-dev libssl-dev libzstd-dev pkg-config \
+      python3-dev python3-venv zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/riscv64/.cache/core-agent/librdkafka-2.11.1.tar.gz /tmp/librdkafka.tar.gz
+RUN echo "${LIBRDKAFKA_SHA256}  /tmp/librdkafka.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/librdkafka.tar.gz -C /tmp \
+    && cd "/tmp/librdkafka-${LIBRDKAFKA_VERSION}" \
+    && ./configure --prefix="/opt/librdkafka-${LIBRDKAFKA_VERSION}" \
+    && make -C src -j"$(nproc)" \
+    && make -C src install
+
+ENV PKG_CONFIG_PATH=/opt/librdkafka-2.11.1/lib/pkgconfig \
+    CPPFLAGS=-I/opt/librdkafka-2.11.1/include \
+    CFLAGS=-I/opt/librdkafka-2.11.1/include \
+    LDFLAGS="-L/opt/librdkafka-2.11.1/lib -Wl,-rpath,/opt/librdkafka-2.11.1/lib" \
+    LD_LIBRARY_PATH=/opt/librdkafka-2.11.1/lib
+
+COPY docker/riscv64/.cache/core-agent/confluent_kafka-2.11.1.tar.gz /tmp/confluent_kafka-2.11.1.tar.gz
+RUN echo "a9366d9dc07a527ed0dcef9c24ba38238cf9dc63c3f53b79da15d45ce4459166  /tmp/confluent_kafka-2.11.1.tar.gz" | sha256sum -c - \
+    && python3 -m venv /tmp/wheel-venv \
+    && /tmp/wheel-venv/bin/pip wheel --no-deps \
+      --wheel-dir /tmp/wheelhouse /tmp/confluent_kafka-2.11.1.tar.gz
+
+FROM ${BIANBU_IMAGE} AS runtime
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG UV_VERSION=0.12.5
+ARG UV_SHA256=2a6fe4a685225082d82f8afba169d038d669f85bf6cff7f5f733079a7b7282d5
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates curl libcurl4 liblz4-1 libsasl2-2 libssl3t64 libzstd1 \
+      python3 python3-venv zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/riscv64/.cache/core-agent/uv-0.12.5-riscv64.tar.gz /tmp/uv.tar.gz
+RUN echo "${UV_SHA256}  /tmp/uv.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/uv.tar.gz -C /tmp \
+    && install -m 0755 /tmp/uv-riscv64gc-unknown-linux-gnu/uv /usr/local/bin/uv
+
+COPY --from=native-wheel-builder /opt/librdkafka-2.11.1 /opt/librdkafka-2.11.1
+COPY --from=native-wheel-builder /tmp/wheelhouse /tmp/wheels
+
+ENV LD_LIBRARY_PATH=/opt/librdkafka-2.11.1/lib \
+    UV_PROJECT_ENVIRONMENT=/opt/core/.venv \
+    PYTHONPATH=/opt/core
+
+WORKDIR /opt/core
+COPY core/agent/pyproject.toml core/agent/uv.lock ./
+
+COPY docker/riscv64/.cache/core-agent/aiohttp-3.11.14-cp312-cp312-linux_riscv64.whl /tmp/wheels/
+COPY docker/riscv64/.cache/core-agent/grpcio-1.75.1-cp312-cp312-linux_riscv64.whl /tmp/wheels/
+COPY docker/riscv64/.cache/core-agent/jiter-0.9.0-cp312-cp312-linux_riscv64.whl /tmp/wheels/
+COPY docker/riscv64/.cache/core-agent/pydantic_core-2.33.0-cp312-cp312-linux_riscv64.whl /tmp/wheels/
+RUN echo "e45d8935d09e6d760486c544c1fd55f4f316410c259aefafaadb872fb36e228a  /tmp/wheels/aiohttp-3.11.14-cp312-cp312-linux_riscv64.whl" | sha256sum -c - \
+    && echo "b8d38a13fb82911b0afc77b228d8ebbf36fee1fd1411065d7f5a8558093c9c12  /tmp/wheels/grpcio-1.75.1-cp312-cp312-linux_riscv64.whl" | sha256sum -c - \
+    && echo "f89e843d3bbfb41d97c95e6f0f78ee3e06120d1e0b2830488dca9359c954d37d  /tmp/wheels/jiter-0.9.0-cp312-cp312-linux_riscv64.whl" | sha256sum -c - \
+    && echo "a86e3495e492f6856e77aa01dd162c1a0402a7fea43279df5d66581424e9f12d  /tmp/wheels/pydantic_core-2.33.0-cp312-cp312-linux_riscv64.whl" | sha256sum -c -
+
+RUN uv sync --frozen --no-install-project \
+      --no-install-package aiohttp \
+      --no-install-package confluent-kafka \
+      --no-install-package grpcio \
+      --no-install-package jiter \
+      --no-install-package pydantic-core \
+      -i https://pypi.tuna.tsinghua.edu.cn/simple/ \
+    && uv pip install --no-deps --python /opt/core/.venv/bin/python /tmp/wheels/*.whl \
+    && uv pip install --no-deps --python /opt/core/.venv/bin/python /usr/share/python-wheels/setuptools-*.whl \
+    && uv pip check --python /opt/core/.venv/bin/python \
+    && rm -rf /root/.cache/uv /tmp/wheels
+
+COPY core/common ./common
+COPY core/agent ./agent
+
+STOPSIGNAL SIGTERM
+CMD ["/opt/core/.venv/bin/python", "agent/main.py"]
