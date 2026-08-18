@@ -180,7 +180,7 @@ npm run docs:build
 ## 🌟 Star 历史
 
 <div align="center">
-  <img src="https://api.star-history.com/svg?repos=iflytek/astron-agent&type=Date" alt="Star 历史图表" width="600">
+  <img src="https://star-history.dera.page/svg?repos=iflytek/astron-agent&type=Date" alt="Star 历史图表" width="600">
 </div>
 
 ## 📞 支持

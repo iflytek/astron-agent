@@ -123,7 +123,7 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](/CONT
 ## 🌟 Star History
 
 <div align="center">
-  <img src="https://api.star-history.com/svg?repos=iflytek/astron-agent&type=Date" alt="Star History Chart" width="600">
+  <img src="https://star-history.dera.page/svg?repos=iflytek/astron-agent&type=Date" alt="Star History Chart" width="600">
 </div>
 
 ## 📞 Support
