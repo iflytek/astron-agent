@@ -40,6 +40,7 @@ const ProviderLogoGlyph: React.FC<{ provider: ModelProviderType }> = ({
     [ModelProviderType.QWEN]: chatgptIcon, // 使用ChatGPT图标，因为也是OpenAI兼容
     [ModelProviderType.MOONSHOT]: chatgptIcon, // 使用ChatGPT图标，因为也是OpenAI兼容
     [ModelProviderType.DOUBAO]: chatgptIcon, // 使用ChatGPT图标，因为也是OpenAI兼容
+    [ModelProviderType.ORCAROUTER]: chatgptIcon, // 使用ChatGPT图标，因为也是OpenAI兼容
   };
 
   return (

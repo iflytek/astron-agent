@@ -16,6 +16,7 @@ export function mapProviderToVendor(provider?: string | null): string {
     ModelProviderType.QWEN,
     ModelProviderType.MOONSHOT,
     ModelProviderType.DOUBAO,
+    ModelProviderType.ORCAROUTER,
   ];
 
   if (openaiCompatibleProviders.includes(provider as ModelProviderType)) {
@@ -93,6 +94,7 @@ export function getSpecificProviderOptions(): Array<{
     { label: 'Moonshot', value: ModelProviderType.MOONSHOT },
     { label: 'Doubao (ByteDance)', value: ModelProviderType.DOUBAO },
     { label: 'DeepSeek', value: ModelProviderType.DEEPSEEK },
+    { label: 'OrcaRouter', value: ModelProviderType.ORCAROUTER },
   ];
 }
 

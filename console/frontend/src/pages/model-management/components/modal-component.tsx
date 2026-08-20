@@ -647,7 +647,8 @@ const ModelBasicForm = ({
     currentProvider === ModelProviderType.MOONSHOT ||
     currentProvider === ModelProviderType.DOUBAO ||
     currentProvider === ModelProviderType.DEEPSEEK ||
-    currentProvider === ModelProviderType.MINIMAX;
+    currentProvider === ModelProviderType.MINIMAX ||
+    currentProvider === ModelProviderType.ORCAROUTER;
 
   const providerHint = isAnthropicProvider
     ? t('model.providerHintAnthropic')

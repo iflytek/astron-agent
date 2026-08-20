@@ -154,6 +154,7 @@ const translation = {
   providerMoonshot: 'Moonshot',
   providerChatGPT: 'ChatGPT',
   providerDoubao: 'Doubao',
+  providerOrcaRouter: 'OrcaRouter',
   providerHintOpenAI:
     'Use an OpenAI-compatible endpoint such as /v1/chat/completions.',
   providerHintMiniMax:
@@ -213,6 +214,8 @@ const translation = {
     'Connect Doubao official models for enterprise assistant, conversation and tool orchestration scenarios.',
   providerCardDeepSeekDesc:
     'Connect DeepSeek-V3, DeepSeek-R1 and other models for general generation, reasoning and workflow Q&A.',
+  providerCardOrcaRouterDesc:
+    'Connect OrcaRouter, a gateway-level zero-trust LLM routing gateway, to route chat across leading models with a single API key.',
   thinkingCapability: 'Thinking Capability',
   enableThinkingCapability: 'Enable thinking content output',
   multimodalCapability: 'Multimodal Capability',

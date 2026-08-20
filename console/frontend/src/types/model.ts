@@ -61,6 +61,7 @@ export enum ModelProviderType {
   MOONSHOT = 'moonshot',
   CHATGPT = 'chatgpt',
   DOUBAO = 'doubao',
+  ORCAROUTER = 'orcarouter',
 }
 
 export enum LocalModelStatus {

@@ -21,6 +21,7 @@ import zhipuIcon from '@/assets/imgs/modelManage/providers/custom/zhipu.svg';
 import qwenIcon from '@/assets/imgs/modelManage/providers/custom/qwen.svg';
 import moonshotIcon from '@/assets/imgs/modelManage/providers/custom/moonshot.svg';
 import doubaoIcon from '@/assets/imgs/modelManage/providers/custom/doubao.svg';
+import orcaRouterIcon from '@/assets/imgs/modelManage/providers/custom/orcarouter.svg';
 
 interface OfficialProviderCard {
   provider: ModelProviderType;
@@ -45,6 +46,7 @@ const ProviderLogoGlyph: React.FC<{ provider: ModelProviderType }> = ({
     [ModelProviderType.QWEN]: qwenIcon,
     [ModelProviderType.MOONSHOT]: moonshotIcon,
     [ModelProviderType.DOUBAO]: doubaoIcon,
+    [ModelProviderType.ORCAROUTER]: orcaRouterIcon,
   };
 
   return (
@@ -156,6 +158,14 @@ const OfficialModelContent: React.FC = () => {
         description: t('model.providerCardDeepSeekDesc'),
         accentClass: 'from-[#EEF2FF] via-[#F7F8FF] to-white',
         endpoint: 'https://api.deepseek.com/v1',
+      },
+      {
+        provider: ModelProviderType.ORCAROUTER,
+        title: 'OrcaRouter',
+        subtitle: 'orcarouter/auto',
+        description: t('model.providerCardOrcaRouterDesc'),
+        accentClass: 'from-[#F0F9FF] via-[#F8FCFF] to-white',
+        endpoint: 'https://api.orcarouter.ai/v1',
       },
     ],
     [t]

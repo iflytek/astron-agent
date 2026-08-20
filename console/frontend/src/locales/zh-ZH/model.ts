@@ -150,6 +150,7 @@ const translation = {
   providerMoonshot: '月之暗面',
   providerChatGPT: 'ChatGPT',
   providerDoubao: '豆包',
+  providerOrcaRouter: 'OrcaRouter',
   providerHintOpenAI: '使用 OpenAI 接口地址，例如 /v1/chat/completions。',
   providerHintMiniMax:
     '使用 MiniMax 官方接口地址，并填写 MiniMax-M3 等模型名称。',
@@ -207,6 +208,8 @@ const translation = {
     '接入豆包官方模型，适合企业助手、对话生成与工具编排场景。',
   providerCardDeepSeekDesc:
     '接入 DeepSeek-V3、DeepSeek-R1 等模型，适合通用生成、推理与工作流问答。',
+  providerCardOrcaRouterDesc:
+    '接入 OrcaRouter 网关级零信任 LLM 路由网关，使用一个 API Key 路由到多个主流模型。',
   thinkingCapability: '思维能力',
   enableThinkingCapability: '启用思考内容输出',
   multimodalCapability: '多模态能力',

@@ -33,6 +33,9 @@ export function getModelProviderLabel(provider?: string | null): string {
   if (normalizedProvider === ModelProviderType.DEEPSEEK) {
     return i18next.t('model.providerDeepSeek');
   }
+  if (normalizedProvider === ModelProviderType.ORCAROUTER) {
+    return i18next.t('model.providerOrcaRouter');
+  }
   if (normalizedProvider === ModelProviderType.ANTHROPIC) {
     return i18next.t('model.providerAnthropic');
   }
