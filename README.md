@@ -30,7 +30,7 @@ The platform supports **high-availability** deployment, enabling organizations t
 
 ### Key Features
 - **Enterprise-Grade High Availability:** Full-stack capabilities for development, building, optimization, and management. Supports one-click deployment with strong reliability.  
-- **Intelligent RPA Integration:** Enables cross-system process automation, empowering Agents with controllable execution to achieve a complete loop “from decision to action.”  
+- **Intelligent RPA Integration:** Enables cross-system process automation, empowering Agents with controllable execution to achieve a complete loop "from decision to action."  
 - **Ready-to-Use Tool Ecosystem:** Integrates massive AI capabilities and tools from the [iFLYTEK Open Platform](https://www.xfyun.cn), validated by millions of developers, supporting plug-and-play integration without extra development.  
 - **Flexible Large Model Support:** Offers diverse access methods, from rapid API-based model access and validation to one-click deployment of enterprise-level MaaS (Model as a Service) on-premises clusters, meeting needs of all scales.  
 
@@ -141,6 +141,10 @@ After startup, you can access the services at the following addresses:
 - [❓ FAQ](https://www.xfyun.cn/doc/spark/Agent06-FAQ.html)
 - [🌐 Open Source Workflows](https://awesome-astron-workflow.dev/#workflows)
 
+## ☁️ One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Astron%20Agent/)
+
 ## 🤝 Contributing
 
 We welcome contributions of all kinds! Please see our [Contributing Guide](CONTRIBUTING.md)
@@ -183,4 +187,3 @@ This project is licensed under the [Apache 2.0 License](LICENSE), allowing free 
 <p align="center">
   Astron Agent is listed in the <a href="https://landscape.cncf.io/?landscape=observability-and-analysis&group=ai-native&item=ai-agent--workflow-orchestration--astron-agent">CNCF Landscape</a>.
 </p>
-
