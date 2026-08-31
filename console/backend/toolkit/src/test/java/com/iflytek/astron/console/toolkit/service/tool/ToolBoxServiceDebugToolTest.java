@@ -76,7 +76,8 @@ class ToolBoxServiceDebugToolTest {
         // This client-visible schema flag is informational only and must not grant private-network
         // access in core-link.
         assertThat(JSONObject.parseObject(request.getOpenapiSchema())
-                .getJSONObject("info").getBoolean("x-is-official")).isFalse();
+                .getJSONObject("info")
+                .getBoolean("x-is-official")).isFalse();
         verify(urlCheckTool, never()).checkUrl(INTERNAL_ENDPOINT);
     }
 
