@@ -27,8 +27,8 @@ import java.util.regex.Pattern;
  * <li>Restricts protocols to HTTP/HTTPS;</li>
  * <li>Prohibits user information (user:pass@host format);</li>
  * <li>Rejects IPv6 and IPv4-mapped IPv6 (can be relaxed as needed);</li>
- * <li>Resolves the submitted hostname and performs blacklist/whitelist validation without making
- * an HTTP request;</li>
+ * <li>Resolves the submitted hostname and performs blacklist/whitelist validation without making an
+ * HTTP request;</li>
  * <li>Blocks common short link domains;</li>
  * <li>Supports IP blacklist, network segment blacklist, and domain whitelist (configuration source:
  * ConfigInfo table).</li>
@@ -105,8 +105,8 @@ public class UrlCheckTool {
      * <li>Hit IP blacklist → reject;</li>
      * <li>Hit network segment blacklist (CIDR) → reject;</li>
      * </ol>
-     * The component that actually performs the HTTP request is responsible for disabling redirects
-     * and binding destination-IP validation to the socket connection. A validator must not probe a
+     * The component that actually performs the HTTP request is responsible for disabling redirects and
+     * binding destination-IP validation to the socket connection. A validator must not probe a
      * user-controlled URL because that probe is itself an SSRF sink.
      *
      * @param url the URL to validate against blacklists and whitelists
