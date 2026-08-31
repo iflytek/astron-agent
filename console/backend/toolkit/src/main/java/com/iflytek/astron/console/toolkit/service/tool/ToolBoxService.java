@@ -171,9 +171,10 @@ public class ToolBoxService extends ServiceImpl<ToolBoxMapper, ToolBox> {
         } else {
             toolBox = new ToolBox();
         }
-        // Validate endpoint URL legality
-        if (StringUtils.isNotBlank(toolBox.getEndPoint())) {
-            urlCheckTool.checkUrl(toolBox.getEndPoint());
+        // Validate the endpoint submitted in this request before it is copied to the entity or sent
+        // to the tool service. Validating the existing entity would miss new and changed endpoints.
+        if (StringUtils.isNotBlank(toolBoxDto.getEndPoint())) {
+            urlCheckTool.checkUrl(toolBoxDto.getEndPoint());
         }
         toolBoxDto.setVersion("V1.0");
         String schemaString = buildToolBox(toolBox, toolBoxDto);

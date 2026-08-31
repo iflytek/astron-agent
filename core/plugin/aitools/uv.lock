@@ -188,6 +188,7 @@ dependencies = [
     { name = "websocket-client" },
     { name = "websockets" },
     { name = "xlrd" },
+    { name = "yarl" },
 ]
 
 [package.dev-dependencies]
@@ -203,7 +204,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", specifier = ">=3.10.5" },
+    { name = "aiohttp", specifier = ">=3.12.15" },
     { name = "aiokafka", specifier = ">=0.13.0" },
     { name = "anyio", specifier = ">=4.10.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3" },
@@ -252,6 +253,7 @@ requires-dist = [
     { name = "websocket-client", specifier = "==1.8.0" },
     { name = "websockets", specifier = ">=12.0" },
     { name = "xlrd", specifier = ">=1.2.0" },
+    { name = "yarl", specifier = ">=1.20.1" },
 ]
 
 [package.metadata.requires-dev]

@@ -6,13 +6,12 @@ import com.iflytek.astron.console.toolkit.mapper.ConfigInfoMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -21,150 +20,110 @@ import static org.mockito.Mockito.when;
 class UrlCheckToolTest {
 
     @Test
-    void checkBlackListRejectsTemporaryRedirectToBlacklistedIp() throws Exception {
-        ConfigInfoMapper mapper = mockConfigMapper("169.254.169.254", "");
-        UrlCheckTool tool = new UrlCheckTool(mapper);
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/redirect", exchange -> {
-            exchange.getResponseHeaders().set("Location", "http://169.254.169.254/latest/meta-data/");
-            exchange.sendResponseHeaders(307, -1);
-            exchange.close();
-        });
-        server.start();
-        try {
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/redirect";
-            assertThrows(BusinessException.class, () -> tool.checkBlackList(url));
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    void checkBlackListRejectsBlacklistedTargetAfterMultipleRedirects() {
-        ConfigInfoMapper mapper = mockConfigMapper("169.254.169.254", "");
-        UrlCheckTool tool = new RedirectingUrlCheckTool(mapper, Map.of(
-                "http://example.com/start", "http://example.org/hop",
-                "http://example.org/hop", "http://169.254.169.254/latest/meta-data/"));
-
-        assertThrows(BusinessException.class, () -> tool.checkBlackList("http://example.com/start"));
-    }
-
-    @Test
-    void checkUrlRejectsRedirectToNonHttpProtocol() throws Exception {
-        ConfigInfoMapper mapper = mockConfigMapper("", "");
-        UrlCheckTool tool = new UrlCheckTool(mapper);
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/redirect", exchange -> {
-            exchange.getResponseHeaders().set("Location", "file:///etc/passwd");
-            exchange.sendResponseHeaders(302, -1);
-            exchange.close();
-        });
-        server.start();
-        try {
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/redirect";
-            assertThrows(BusinessException.class, () -> tool.checkUrl(url));
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    void checkUrlRejectsRedirectWithUserInfo() {
-        ConfigInfoMapper mapper = mockConfigMapper("", "");
-        UrlCheckTool tool = new RedirectingUrlCheckTool(mapper, Map.of(
-                "http://example.com/start", "http://user@example.org/path"));
-
-        assertThrows(BusinessException.class, () -> tool.checkUrl("http://example.com/start"));
-    }
-
-    @Test
-    void checkBlackListAllowsWhitelistedRedirectTarget() {
-        ConfigInfoMapper mapper = mockConfigMapper(
-                "", "127.0.0.0/8,169.254.0.0/16", "127.0.0.1,169.254.169.254");
-        UrlCheckTool tool = new RedirectingUrlCheckTool(mapper, Map.of(
-                "http://127.0.0.1/start", "http://169.254.169.254/target"));
-
-        tool.checkBlackList("http://127.0.0.1/start");
-    }
-
-    @Test
-    void checkBlackListRejectsRedirectTargetOutsideWhitelist() {
-        ConfigInfoMapper mapper = mockConfigMapper(
-                "", "127.0.0.0/8,169.254.0.0/16", "127.0.0.1");
-        UrlCheckTool tool = new RedirectingUrlCheckTool(mapper, Map.of(
-                "http://127.0.0.1/start", "http://169.254.169.254/target"));
+    void checkUrlRejectsLoopbackAddressDirectly() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper("", ""));
 
         assertThrows(BusinessException.class,
-                () -> tool.checkBlackList("http://127.0.0.1/start"));
+                () -> tool.checkUrl("http://127.0.0.1/internal"));
     }
 
     @Test
-    void checkUrlRejectsLoopbackAddressDirectly() {
-        ConfigInfoMapper mapper = mockConfigMapper("", "");
-        UrlCheckTool tool = new UrlCheckTool(mapper);
+    void checkUrlRejectsPrivateAddressOutsideWhitelist() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper(
+                "", "", "192.168.1.10"));
 
-        assertThrows(BusinessException.class, () -> tool.checkUrl("http://127.0.0.1/internal"));
+        assertThrows(BusinessException.class,
+                () -> tool.checkUrl("http://169.254.169.254/latest/meta-data"));
     }
 
     @Test
-    void checkUrlAllowsIpInWhitelist() throws Exception {
-        ConfigInfoMapper mapper = mockConfigMapper("", "127.0.0.0/8", "127.0.0.1");
-        UrlCheckTool tool = new UrlCheckTool(mapper);
+    void checkUrlAllowsIpLiteralInWhitelist() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper(
+                "", "127.0.0.0/8", "127.0.0.1"));
+
+        assertDoesNotThrow(() -> tool.checkUrl("http://127.0.0.1/allowed"));
+    }
+
+    @Test
+    void checkUrlAllowsIpLiteralInWhitelistCidr() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper(
+                "", "127.0.0.0/8", "127.0.0.0/8"));
+
+        assertDoesNotThrow(() -> tool.checkUrl("http://127.0.0.1/allowed"));
+    }
+
+    @Test
+    void domainWhitelistDoesNotBypassRestrictedAddressPolicy() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper(
+                "", "", "", "localhost"));
+
+        assertThrows(BusinessException.class,
+                () -> tool.checkUrl("http://localhost/internal"));
+    }
+
+    @Test
+    void checkUrlDoesNotProbeUserControlledEndpoint() throws Exception {
+        AtomicInteger requestCount = new AtomicInteger();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/allowed", exchange -> {
+            requestCount.incrementAndGet();
             exchange.sendResponseHeaders(200, -1);
             exchange.close();
         });
         server.start();
         try {
+            UrlCheckTool tool = new UrlCheckTool(mockConfigMapper(
+                    "", "127.0.0.0/8", "127.0.0.1"));
             String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/allowed";
-            tool.checkUrl(url);
+
+            assertDoesNotThrow(() -> tool.checkUrl(url));
+            assertEquals(0, requestCount.get());
         } finally {
             server.stop(0);
         }
     }
 
     @Test
-    void checkUrlAllowsIpInWhitelistCidr() throws Exception {
-        ConfigInfoMapper mapper = mockConfigMapper("", "127.0.0.0/8", "127.0.0.0/8");
-        UrlCheckTool tool = new UrlCheckTool(mapper);
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/allowed", exchange -> {
-            exchange.sendResponseHeaders(200, -1);
-            exchange.close();
-        });
-        server.start();
-        try {
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/allowed";
-            tool.checkUrl(url);
-        } finally {
-            server.stop(0);
-        }
+    void checkUrlRejectsNonHttpProtocol() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper("", ""));
+
+        assertThrows(BusinessException.class,
+                () -> tool.checkUrl("file:///etc/passwd"));
     }
 
     @Test
-    void toSafeHttpUrlPreservesEncodedPathAndQuery() throws Exception {
-        ConfigInfoMapper mapper = mockConfigMapper("", "");
-        UrlCheckTool tool = new UrlCheckTool(mapper);
-        Method method = UrlCheckTool.class.getDeclaredMethod("toSafeHttpUrl", String.class);
-        method.setAccessible(true);
+    void checkUrlRejectsUserInfo() {
+        UrlCheckTool tool = new UrlCheckTool(mockConfigMapper("", ""));
 
-        URL safeUrl = (URL) method.invoke(tool, "https://example.com/a%20b?q=a%20b");
-
-        assertEquals("https://example.com/a%20b?q=a%20b", safeUrl.toString());
+        assertThrows(BusinessException.class,
+                () -> tool.checkUrl("http://user@example.org/path"));
     }
 
-    private static ConfigInfoMapper mockConfigMapper(String ipBlackList, String segmentBlackList) {
+    private static ConfigInfoMapper mockConfigMapper(
+            String ipBlackList, String segmentBlackList) {
         return mockConfigMapper(ipBlackList, segmentBlackList, "");
     }
 
     private static ConfigInfoMapper mockConfigMapper(
             String ipBlackList, String segmentBlackList, String ipWhiteList) {
+        return mockConfigMapper(ipBlackList, segmentBlackList, ipWhiteList, "");
+    }
+
+    private static ConfigInfoMapper mockConfigMapper(String ipBlackList,
+            String segmentBlackList,
+            String ipWhiteList,
+            String domainWhiteList) {
         ConfigInfoMapper mapper = mock(ConfigInfoMapper.class);
-        when(mapper.getListByCategory("IP_BLACK_LIST")).thenReturn(List.of(config(ipBlackList)));
-        when(mapper.getListByCategory("NETWORK_SEGMENT_BLACK_LIST")).thenReturn(List.of(config(segmentBlackList)));
-        when(mapper.getListByCategory("DOMAIN_WHITE_LIST")).thenReturn(Collections.emptyList());
-        when(mapper.getListByCategory("IP_WHITE_LIST")).thenReturn(List.of(config(ipWhiteList)));
+        when(mapper.getListByCategory("IP_BLACK_LIST"))
+                .thenReturn(List.of(config(ipBlackList)));
+        when(mapper.getListByCategory("NETWORK_SEGMENT_BLACK_LIST"))
+                .thenReturn(List.of(config(segmentBlackList)));
+        when(mapper.getListByCategory("DOMAIN_WHITE_LIST"))
+                .thenReturn(domainWhiteList.isBlank()
+                        ? Collections.emptyList()
+                        : List.of(config(domainWhiteList)));
+        when(mapper.getListByCategory("IP_WHITE_LIST"))
+                .thenReturn(List.of(config(ipWhiteList)));
         return mapper;
     }
 
@@ -172,19 +131,5 @@ class UrlCheckToolTest {
         ConfigInfo config = new ConfigInfo();
         config.setValue(value);
         return config;
-    }
-
-    private static final class RedirectingUrlCheckTool extends UrlCheckTool {
-        private final Map<String, String> redirects;
-
-        private RedirectingUrlCheckTool(ConfigInfoMapper configInfoMapper, Map<String, String> redirects) {
-            super(configInfoMapper);
-            this.redirects = redirects;
-        }
-
-        @Override
-        protected String getRedirectUrl(String url, List<String> ipWhiteList) {
-            return redirects.getOrDefault(url, url);
-        }
     }
 }

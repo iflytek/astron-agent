@@ -27,6 +27,7 @@ dependencies = [
     "orjson>=3.10.15",
     "mcp>=1.28.1,<2",
     "aiohttp>=3.12.15",
+    "yarl>=1.20.1",
     "rich>=14.1.0",
     "toml>=0.10.2",
     "confluent-kafka>=2.11.1",

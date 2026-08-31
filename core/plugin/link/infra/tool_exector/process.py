@@ -4,21 +4,26 @@ This module provides HTTP request execution functionality with various
 authentication methods and security validations.
 """
 
-import ipaddress
 import json
-import os
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
-from urllib.parse import quote, urljoin, urlparse, urlunparse
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import quote
 
 import aiohttp
-from plugin.link.consts import const
 from plugin.link.exceptions.sparklink_exceptions import CallThirdApiException
 from plugin.link.infra.tool_exector.http_auth import (
     assemble_ws_auth_url,
     public_query_url,
 )
+from plugin.link.infra.tool_exector.ssrf_guard import (
+    OutboundPolicy,
+    OutboundPolicyError,
+    create_socket_factory,
+    ensure_same_origin,
+)
 from plugin.link.utils.errors.code import ErrCode
+
+_PATH_PARAMETER_PATTERN = re.compile(r"\{([^{}]+)\}")
 
 
 class HttpRun:
@@ -43,8 +48,8 @@ class HttpRun:
         - auth_con_js: HMAC authentication configuration object
 
     Security Validation:
-        - _is_official: Boolean flag marking official API status
-        - _is_in_blacklist: Boolean flag for blacklist validation result
+        - _is_official: Informational flag used only for response classification
+        - _outbound_policy: Connection-bound destination policy
 
     All attributes serve specific roles in HTTP request processing,
     authentication handling, and security validation workflows.
@@ -81,23 +86,23 @@ class HttpRun:
             self._is_official = HttpRun.is_official(open_api_schema)
         except Exception:
             self._is_official = False
-        try:
-            self._is_in_blacklist = HttpRun.is_in_blacklist(self.server)
-        except Exception:
-            self._is_in_blacklist = False
+        # Invalid security configuration must fail closed instead of silently disabling checks.
+        self._outbound_policy = OutboundPolicy.from_environment()
 
-    def _validate_blacklist(self) -> None:
-        """Validate server is not blacklisted.
+    def _validate_destination(self, url: str) -> None:
+        """Validate the final URL before constructing an outbound connection.
 
         Raises:
-            CallThirdApiException: When server is blacklisted
+            CallThirdApiException: When the destination violates egress policy
         """
-        if self._is_in_blacklist:
+        try:
+            self._outbound_policy.validate_url(url)
+        except OutboundPolicyError as exc:
             raise CallThirdApiException(
                 code=ErrCode.SERVER_VALIDATE_ERR.code,
                 err_pre=ErrCode.SERVER_VALIDATE_ERR.msg,
-                err="Request tool path hostname is in blacklist",
-            )
+                err=str(exc),
+            ) from exc
 
     def _build_url(self) -> str:
         """Build request URL with authentication and query parameters.
@@ -107,10 +112,27 @@ class HttpRun:
         """
         url = self.server
 
-        # URL path construction
-        path_res = [frag for _, frag in self.path.items()]
-        if self.path:
-            url = urljoin(url, path_res[0])
+        # Substitute OpenAPI path parameters as individual path segments. urljoin is unsafe here:
+        # an absolute value, a scheme-relative value, or a dot segment can replace/escape the
+        # persisted endpoint path.
+        for name, value in self.path.items():
+            placeholder = "{" + str(name) + "}"
+            if placeholder not in url:
+                raise OutboundPolicyError(
+                    f"Tool path parameter has no matching placeholder: {name}"
+                )
+            raw_value = str(value)
+            if (
+                raw_value in {".", ".."}
+                or "/" in raw_value
+                or "\\" in raw_value
+                or any(ord(character) < 0x20 for character in raw_value)
+            ):
+                raise OutboundPolicyError("Tool path parameter is unsafe")
+            url = url.replace(placeholder, quote(raw_value, safe=""))
+
+        if _PATH_PARAMETER_PATTERN.search(url):
+            raise OutboundPolicyError("Tool URL has unresolved path parameters")
 
         # Authentication method selection and URL construction
         if self._is_authorization_md5:
@@ -126,6 +148,8 @@ class HttpRun:
             if self.query:
                 url = url + "?" + "&".join([f"{k}={v}" for k, v in self.query.items()])
 
+        # Authentication helpers may add query data, but must not replace the endpoint origin.
+        ensure_same_origin(self.server, url)
         return url
 
     def _get_error_codes(self) -> Tuple[int, str]:
@@ -161,7 +185,8 @@ class HttpRun:
             pass
 
         if not self._is_authorization_md5 and not self._is_auth_hmac:
-            encoded_url = quote(url, safe="/:?=&")
+            # Preserve percent escapes introduced by safe path-parameter substitution.
+            encoded_url = quote(url, safe="/:?=&%")
             span_context.add_info_event(f"raw_url: {url}, encoded_url: {encoded_url}")
             url = encoded_url
 
@@ -174,7 +199,19 @@ class HttpRun:
             "json": self.body if self.body else None,
         }
 
-        async with aiohttp.ClientSession() as session:
+        self._validate_destination(url)
+        socket_factory = create_socket_factory(
+            self._outbound_policy,
+            url,
+        )
+        connector = aiohttp.TCPConnector(
+            use_dns_cache=False,
+            socket_factory=socket_factory,
+        )
+        async with aiohttp.ClientSession(
+            connector=connector,
+            trust_env=False,
+        ) as session:
             async with session.request(
                 self.method, url, allow_redirects=False, **kwargs
             ) as response:
@@ -198,14 +235,30 @@ class HttpRun:
         Raises:
             CallThirdApiException: When request fails or server is blacklisted
         """
-        self._validate_blacklist()
-        url = self._build_url()
+        try:
+            url = self._build_url()
+        except OutboundPolicyError as err:
+            raise CallThirdApiException(
+                code=ErrCode.SERVER_VALIDATE_ERR.code,
+                err_pre=ErrCode.SERVER_VALIDATE_ERR.msg,
+                err=str(err),
+            ) from err
+        self._validate_destination(url)
 
         with span.start(func_name="http_run") as span_context:
             try:
                 third_result, status_code = await self._execute_request(
                     url, span_context
                 )
+            except CallThirdApiException:
+                raise
+            except OutboundPolicyError as err:
+                span.add_error_event(str(err))
+                raise CallThirdApiException(
+                    code=ErrCode.SERVER_VALIDATE_ERR.code,
+                    err_pre=ErrCode.SERVER_VALIDATE_ERR.msg,
+                    err=str(err),
+                ) from err
             except Exception as err:
                 span.add_error_event(str(err))
                 code_return, err_pre_return = self._get_error_codes()
@@ -293,132 +346,3 @@ class HttpRun:
                 return True
 
         return False
-
-    @staticmethod
-    def is_in_black_domain(url: str) -> bool:
-        """Check if URL domain is in the domain blacklist.
-
-        Args:
-            url: URL to check
-
-        Returns:
-            bool: True if domain is blacklisted
-        """
-        # Get environment variable and handle unset or empty cases
-        black_list_str = os.getenv(const.DOMAIN_BLACK_LIST_KEY, "")
-        if not black_list_str:
-            return False
-
-        # Split blacklist string into list
-        domain_black_list = [
-            domain.strip().lower() for domain in black_list_str.split(",")
-        ]
-
-        # Convert URL to lowercase to avoid case issues
-        url_lower = url.lower()
-
-        # Check if blacklisted domains are in URL
-        for black_domain in domain_black_list:
-            # Ensure matching complete domain names, not substrings
-            if black_domain.lower() in url_lower:
-                return True
-
-        return False
-
-    @staticmethod
-    def _get_blacklist_config() -> (
-        Tuple[List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]], List[str]]
-    ):
-        """Get blacklist configuration from environment variables.
-
-        Returns:
-            tuple: (segment_blacklist, ip_blacklist)
-        """
-        segment_black_list = []
-        for black_i in (os.getenv(const.SEGMENT_BLACK_LIST_KEY) or "").split(","):
-            segment_black_list.append(ipaddress.ip_network(black_i))
-        ip_black_list = (os.getenv(const.IP_BLACK_LIST_KEY) or "").split(",")
-        return segment_black_list, ip_black_list
-
-    @staticmethod
-    def _extract_ip_from_url(url: Optional[str]) -> Optional[str]:
-        """Extract IP address from URL.
-
-        Args:
-            url: URL to extract IP from
-
-        Returns:
-            str or None: IP address if found, None otherwise
-        """
-        if not url:
-            return None
-
-        match = re.search(r"://([^/?#]+)", url)
-        if not match:
-            return None
-
-        host = match.group(1)
-        # Handle cases that might include port numbers
-        if ":" in host:
-            return host.split(":")[0]
-        return host
-
-    @staticmethod
-    def _is_ip_blacklisted(
-        ip: str,
-        ip_black_list: List[str],
-        segment_black_list: List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]],
-    ) -> bool:
-        """Check if IP is in blacklist or blacklisted network segments.
-
-        Args:
-            ip: IP address to check
-            ip_black_list: List of blacklisted IPs
-            segment_black_list: List of blacklisted network segments
-
-        Returns:
-            bool: True if IP is blacklisted
-        """
-        # Check IP blacklist
-        for i_ip in ip_black_list:
-            if ip == i_ip:
-                return True
-
-        # Check network segment validation
-        try:
-            ip_obj = ipaddress.ip_address(ip)
-            for subnet in segment_black_list:
-                if ip_obj in subnet:
-                    return True
-            return False
-        except ValueError:
-            return False
-
-    @staticmethod
-    def is_in_blacklist(url: str) -> bool:
-        """Check if URL is in IP or network segment blacklist.
-
-        Args:
-            url: URL to validate against blacklists
-
-        Returns:
-            bool: True if URL is blacklisted
-        """
-        # Domain-based blacklist validation
-        if HttpRun.is_in_black_domain(str(url)):
-            return True
-
-        # URL parsing and normalization
-        parsed = urlparse(url)
-        url = urlunparse((parsed.scheme, parsed.hostname, parsed.path, "", "", ""))
-
-        # Extract IP from URL
-        ip = HttpRun._extract_ip_from_url(url)
-        if not ip:
-            return False
-
-        # Get blacklist configuration
-        segment_black_list, ip_black_list = HttpRun._get_blacklist_config()
-
-        # Check if IP is blacklisted
-        return HttpRun._is_ip_blacklisted(ip, ip_black_list, segment_black_list)

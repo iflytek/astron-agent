@@ -172,6 +172,12 @@ spec:
           value: {{ $value | quote }}
         {{- end }}
         {{- end }}
+        {{- if eq $serviceName "coreAitools" }}
+        # Caller-controlled remote files may use Console-generated object URLs. Only this exact
+        # server-configured bucket is eligible for the private MinIO origin exception.
+        - name: OSS_BUCKET_CONSOLE
+          value: {{ required "consoleHub.env.ossBucketConsole is required for Core AiTools remote file validation" $.Values.consoleHub.env.ossBucketConsole | quote }}
+        {{- end }}
         {{- if $usesTenantBootstrap }}
         - name: TENANT_ID
           value: {{ include "astron-agent.tenantBootstrapID" $ | quote }}
