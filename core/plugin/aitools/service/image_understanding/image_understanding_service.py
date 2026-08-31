@@ -13,7 +13,7 @@ from fastapi import Request
 from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.clients.adapters import SpanLike
-from plugin.aitools.common.clients.aiohttp_client import HttpClient
+from plugin.aitools.common.clients.safe_download import fetch_public_resource
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
@@ -30,31 +30,28 @@ class ImageUnderstandingRequest(BaseModel):
 async def gen_params(
     app_id: str | None, question: str, image_url: str, span: Optional[SpanLike]
 ) -> Dict[str, Any]:
-    async with HttpClient("GET", image_url, span).start() as client:
-        async with client.request() as response:
-            imagedata = base64.b64encode(await response.data["content"].read()).decode(  # type: ignore[index]
-                "utf-8"
-            )
-        return {
-            "header": {"app_id": app_id},
-            "parameter": {
-                "chat": {
-                    "domain": "imagev3",
-                    "temperature": 0.5,
-                    "top_k": 4,
-                    "max_tokens": 8192,
-                    "auditing": "default",
-                }
-            },
-            "payload": {
-                "message": {
-                    "text": [
-                        {"role": "user", "content": imagedata, "content_type": "image"},
-                        {"role": "user", "content": question},
-                    ]
-                }
-            },
-        }
+    image_bytes = await fetch_public_resource(image_url, span)
+    imagedata = base64.b64encode(image_bytes).decode("utf-8")
+    return {
+        "header": {"app_id": app_id},
+        "parameter": {
+            "chat": {
+                "domain": "imagev3",
+                "temperature": 0.5,
+                "top_k": 4,
+                "max_tokens": 8192,
+                "auditing": "default",
+            }
+        },
+        "payload": {
+            "message": {
+                "text": [
+                    {"role": "user", "content": imagedata, "content_type": "image"},
+                    {"role": "user", "content": question},
+                ]
+            }
+        },
+    }
 
 
 @api_service(

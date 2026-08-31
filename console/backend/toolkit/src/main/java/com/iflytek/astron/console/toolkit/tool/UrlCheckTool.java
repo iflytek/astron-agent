@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,17 +27,12 @@ import java.util.regex.Pattern;
  * <li>Restricts protocols to HTTP/HTTPS;</li>
  * <li>Prohibits user information (user:pass@host format);</li>
  * <li>Rejects IPv6 and IPv4-mapped IPv6 (can be relaxed as needed);</li>
- * <li>Resolves a bounded redirect chain and performs blacklist/whitelist validation on each
- * hop;</li>
+ * <li>Resolves the submitted hostname and performs blacklist/whitelist validation without making
+ * an HTTP request;</li>
  * <li>Blocks common short link domains;</li>
  * <li>Supports IP blacklist, network segment blacklist, and domain whitelist (configuration source:
  * ConfigInfo table).</li>
  * </ul>
- *
- * <p>
- * Note: External public method signatures remain unchanged, internal implementation enhanced for
- * robustness and readability.
- * </p>
  *
  * @author astron-console-toolkit
  */
@@ -56,71 +50,12 @@ public class UrlCheckTool {
     private static final String IP_WHITE_CATEGORY = "IP_WHITE_LIST";
 
     // ===== Other constants =====
-    private static final int CONNECT_TIMEOUT_MS = (int) Duration.ofSeconds(5).toMillis();
-    private static final int READ_TIMEOUT_MS = (int) Duration.ofSeconds(5).toMillis();
-    private static final int MAX_REDIRECTS = 5;
     private static final Pattern DOMAIN_PATTERN = Pattern.compile("https?://([^/]+)", Pattern.CASE_INSENSITIVE);
-    private static final Set<Integer> REDIRECT_STATUS_CODES = Set.of(301, 302, 303, 307, 308);
 
     // Common short link domains
     private static final Set<String> SHORT_LINK_DOMAINS = Set.of(
             "bit.ly", "tinyurl.com", "t.co", "rebrandly.com", "is.gd", "t.ly",
             "monojson.com", "t.cn", "url.cn", "dwz.cn");
-
-    /**
-     * Gets the direct redirected URL without following it automatically.
-     *
-     * <p>
-     * Implementation details: Uses HEAD method only, disables auto-follow, and only retrieves the
-     * Location header.
-     * </p>
-     *
-     * @param url the original URL to check for redirects
-     * @return the redirected URL if redirect found, otherwise the original URL
-     */
-    public String getRedirectUrl(String url) {
-        return getRedirectUrl(url, readCsvConfig(IP_WHITE_CATEGORY));
-    }
-
-    protected String getRedirectUrl(String url, List<String> ipWhiteList) {
-        if (StringUtils.isBlank(url))
-            return url;
-
-        try {
-            RedirectLookupResult result = lookupRedirect(url, ipWhiteList);
-            if (REDIRECT_STATUS_CODES.contains(result.statusCode)
-                    && StringUtils.isNotBlank(result.location)) {
-                return new URL(new URL(url), result.location).toString();
-            }
-        } catch (IOException e) {
-            // Use original URL on network exception
-            log.debug("getRedirectUrl error: {}", e.toString());
-        }
-        return url;
-    }
-
-    private RedirectLookupResult lookupRedirect(String url, List<String> ipWhiteList) throws IOException {
-        HttpURLConnection conn = null;
-        try {
-            URL u = toSafeHttpUrl(url);
-            ensurePublicAddresses(u.getHost(), ipWhiteList);
-            URLConnection urlConnection = u.openConnection();
-            if (!(urlConnection instanceof HttpURLConnection httpURLConnection)) {
-                throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
-            }
-            conn = httpURLConnection;
-            conn.setInstanceFollowRedirects(false);
-            conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            conn.setReadTimeout(READ_TIMEOUT_MS);
-            conn.setRequestMethod("HEAD");
-            int code = conn.getResponseCode();
-            return new RedirectLookupResult(code, conn.getHeaderField("Location"));
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-    }
 
     /**
      * Throws exception if URL host is IPv6 (current policy: disable IPv6). Silently returns on parsing
@@ -162,17 +97,17 @@ public class UrlCheckTool {
     }
 
     /**
-     * Blacklist/whitelist validation (considering a bounded redirect chain).
+     * Blacklist/whitelist validation without issuing an outbound request.
      * <ol>
-     * <li>First validate the original URL before any connection;</li>
+     * <li>Validate the original URL syntax and destination policy;</li>
      * <li>Domain in whitelist → allow;</li>
      * <li>Resolve A record to get IPv4/IPv6 (this policy focuses on IPv4 validation);</li>
      * <li>Hit IP blacklist → reject;</li>
      * <li>Hit network segment blacklist (CIDR) → reject;</li>
-     * <li>Then inspect redirects and validate every redirected URL before proceeding.</li>
      * </ol>
-     * Silently returns on parsing exception (doesn't affect main flow), let upper layer handle
-     * uniformly.
+     * The component that actually performs the HTTP request is responsible for disabling redirects
+     * and binding destination-IP validation to the socket connection. A validator must not probe a
+     * user-controlled URL because that probe is itself an SSRF sink.
      *
      * @param url the URL to validate against blacklists and whitelists
      * @throws BusinessException if the URL is blacklisted
@@ -184,22 +119,7 @@ public class UrlCheckTool {
             List<String> domainWhiteList = readCsvConfig(DOMAIN_WHITE_CATEGORY);
             List<String> ipWhiteList = readCsvConfig(IP_WHITE_CATEGORY);
 
-            String currentUrl = url;
-            Set<String> visitedUrls = new HashSet<>();
-            for (int i = 0; i <= MAX_REDIRECTS; i++) {
-                validateUrlPolicy(
-                        currentUrl, ipBlackList, segmentBlackList, domainWhiteList, ipWhiteList);
-                if (!visitedUrls.add(currentUrl)) {
-                    throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
-                }
-
-                String redirectUrl = getRedirectUrl(currentUrl, ipWhiteList);
-                if (currentUrl.equals(redirectUrl)) {
-                    return;
-                }
-                currentUrl = redirectUrl;
-            }
-            throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            validateUrlPolicy(url, ipBlackList, segmentBlackList, domainWhiteList, ipWhiteList);
 
         } catch (BusinessException e) {
             throw e;
@@ -240,11 +160,14 @@ public class UrlCheckTool {
         if (StringUtils.isBlank(host))
             return;
 
-        // Whitelist (case insensitive)
+        // A domain whitelist may bypass configured IP/CIDR deny lists, but never the built-in
+        // restricted-address policy. Trusted official internal tools use a separate server-side path.
         String asciiHost = IDN.toASCII(host).toLowerCase(Locale.ROOT);
+        boolean domainWhitelisted = false;
         for (String white : domainWhiteList) {
             if (asciiHost.equalsIgnoreCase(StringUtils.trimToEmpty(white))) {
-                return;
+                domainWhitelisted = true;
+                break;
             }
         }
 
@@ -260,6 +183,9 @@ public class UrlCheckTool {
             }
             if (SsrfValidators.isRestrictedAddress(inet)) {
                 throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
+            }
+            if (domainWhitelisted) {
+                continue;
             }
             String ip = inet.getHostAddress();
 
@@ -408,7 +334,7 @@ public class UrlCheckTool {
      * <li>Prohibit userInfo/@</li>
      * <li>IPv4-mapped / IPv6 rejection</li>
      * <li>Short link rejection</li>
-     * <li>Blacklist/whitelist validation (considering one redirect)</li>
+     * <li>Blacklist/whitelist validation without probing the endpoint</li>
      * </ol>
      *
      * <p>
@@ -485,65 +411,4 @@ public class UrlCheckTool {
         }
     }
 
-    private record RedirectLookupResult(int statusCode, String location) {}
-
-    private boolean isHostInDomainAllowList(String host, List<String> domainWhiteList) {
-        if (StringUtils.isBlank(host) || domainWhiteList == null || domainWhiteList.isEmpty()) {
-            return false;
-        }
-        String normalizedHost = StringUtils.lowerCase(StringUtils.trim(host), Locale.ROOT);
-        for (String allowed : domainWhiteList) {
-            String normalizedAllowed = StringUtils.lowerCase(StringUtils.trimToEmpty(allowed), Locale.ROOT);
-            // Remove leading dot if present (e.g., ".example.com" -> "example.com")
-            if (normalizedAllowed.startsWith(".")) {
-                normalizedAllowed = normalizedAllowed.substring(1);
-            }
-            if (normalizedAllowed.isEmpty()) {
-                continue;
-            }
-            if (normalizedHost.equals(normalizedAllowed) || normalizedHost.endsWith("." + normalizedAllowed)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private URL toSafeHttpUrl(String url) throws IOException {
-        try {
-            URI uri = new URI(url);
-            String scheme = StringUtils.lowerCase(uri.getScheme(), Locale.ROOT);
-            if (!"http".equals(scheme) && !"https".equals(scheme)) {
-                throw new BusinessException(ResponseEnum.TOOLBOX_URL_HTTP_HTTPS_ONLY);
-            }
-            if (StringUtils.isNotBlank(uri.getUserInfo())) {
-                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
-            }
-            String host = uri.getHost();
-            if (StringUtils.isBlank(host)) {
-                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
-            }
-            String asciiHost = IDN.toASCII(host);
-            String path = StringUtils.defaultIfBlank(uri.getPath(), "/");
-            return new URI(
-                    scheme,
-                    null,
-                    asciiHost,
-                    uri.getPort(),
-                    path,
-                    uri.getQuery(),
-                    null).toURL();
-        } catch (URISyntaxException e) {
-            throw new IOException("Illegal URL", e);
-        }
-    }
-
-    private void ensurePublicAddresses(String host, List<String> ipWhiteList) throws UnknownHostException {
-        boolean ipLiteral = SsrfValidators.isIpLiteral(host);
-        for (InetAddress address : InetAddress.getAllByName(host)) {
-            if (!(ipLiteral && SsrfValidators.isAddressMatchedByIpRules(address, ipWhiteList))
-                    && SsrfValidators.isRestrictedAddress(address)) {
-                throw new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL);
-            }
-        }
-    }
 }

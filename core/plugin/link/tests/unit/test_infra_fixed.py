@@ -11,6 +11,7 @@ import pytest
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
 from plugin.link.infra.tool_exector.http_auth import generate_13_digit_timestamp
 from plugin.link.infra.tool_exector.process import HttpRun
+from plugin.link.infra.tool_exector.ssrf_guard import OutboundPolicyError
 
 
 @pytest.mark.unit
@@ -255,11 +256,15 @@ class TestHttpRun:
         http_run = HttpRun(**sample_http_run_params)
         span_context = Mock()
         session = MockSession()
+        connector = Mock()
 
         with patch(
+            "plugin.link.infra.tool_exector.process.aiohttp.TCPConnector",
+            return_value=connector,
+        ) as connector_mock, patch(
             "plugin.link.infra.tool_exector.process.aiohttp.ClientSession",
             return_value=session,
-        ):
+        ) as session_mock:
             result, status_code = asyncio.run(
                 http_run._execute_request("https://api.example.com/test", span_context)
             )
@@ -267,6 +272,54 @@ class TestHttpRun:
         assert result == "ok"
         assert status_code == 200
         assert session.request_kwargs["allow_redirects"] is False
+        assert connector_mock.call_args.kwargs["use_dns_cache"] is False
+        assert callable(connector_mock.call_args.kwargs["socket_factory"])
+        assert session_mock.call_args.kwargs["connector"] is connector
+        assert session_mock.call_args.kwargs["trust_env"] is False
+
+    @pytest.mark.parametrize(
+        "path_value",
+        [
+            "http://169.254.169.254/latest/meta-data",
+            "//127.0.0.1/internal",
+            "/admin",
+            "../../admin",
+            "..",
+            "admin\\settings",
+        ],
+    )
+    def test_build_url_rejects_path_that_escapes_endpoint(
+        self, sample_http_run_params: Any, path_value: str
+    ) -> None:
+        sample_http_run_params["server"] = "https://api.example.com/items/{id}"
+        sample_http_run_params["path"] = {"id": path_value}
+        http_run = HttpRun(**sample_http_run_params)
+
+        with pytest.raises(OutboundPolicyError):
+            http_run._build_url()
+
+    def test_build_url_substitutes_encoded_path_segment_on_original_endpoint(
+        self, sample_http_run_params: Any
+    ) -> None:
+        sample_http_run_params["server"] = "https://api.example.com/items/{id}"
+        sample_http_run_params["path"] = {"id": "safe value"}
+        http_run = HttpRun(**sample_http_run_params)
+
+        assert http_run._build_url().startswith(
+            "https://api.example.com/items/safe%20value"
+        )
+
+    def test_forged_official_marker_does_not_authorize_private_endpoint(
+        self, sample_http_run_params: Any
+    ) -> None:
+        sample_http_run_params["server"] = "http://169.254.169.254/latest/meta-data"
+        sample_http_run_params["open_api_schema"] = {"info": {"x-is-official": True}}
+        http_run = HttpRun(**sample_http_run_params)
+
+        with pytest.raises(Exception) as exc_info:
+            http_run._validate_destination(sample_http_run_params["server"])
+
+        assert "Outbound address is unsafe" in str(exc_info.value)
 
 
 @pytest.mark.unit

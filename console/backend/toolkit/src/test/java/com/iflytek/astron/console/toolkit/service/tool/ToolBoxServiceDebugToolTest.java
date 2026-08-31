@@ -33,6 +33,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ToolBoxServiceDebugToolTest {
@@ -72,7 +73,31 @@ class ToolBoxServiceDebugToolTest {
         assertThat(request.getServer()).isEqualTo(INTERNAL_ENDPOINT);
         assertThat(request.getMethod()).isEqualTo("POST");
         assertThat(request.getBody().getString("prompt")).isEqualTo("生成一张小狗的图片");
+        // This client-visible schema flag is informational only and must not grant private-network
+        // access in core-link.
+        assertThat(JSONObject.parseObject(request.getOpenapiSchema())
+                .getJSONObject("info").getBoolean("x-is-official")).isFalse();
         verify(urlCheckTool, never()).checkUrl(INTERNAL_ENDPOINT);
+    }
+
+    @Test
+    void createTool_validatesSubmittedEndpointBeforeBuildingOrSending() {
+        ToolBoxService service = new ToolBoxService();
+        UrlCheckTool urlCheckTool = mock(UrlCheckTool.class);
+        ToolServiceCallHandler toolServiceCallHandler = mock(ToolServiceCallHandler.class);
+        ReflectionTestUtils.setField(service, "urlCheckTool", urlCheckTool);
+        ReflectionTestUtils.setField(service, "toolServiceCallHandler", toolServiceCallHandler);
+        ToolBoxDto dto = new ToolBoxDto();
+        dto.setEndPoint("http://169.254.169.254/latest/meta-data");
+        doThrow(new BusinessException(ResponseEnum.TOOLBOX_URL_ILLEGAL))
+                .when(urlCheckTool)
+                .checkUrl(dto.getEndPoint());
+
+        assertThatThrownBy(() -> service.createTool(dto))
+                .isInstanceOf(BusinessException.class);
+
+        verify(urlCheckTool).checkUrl(dto.getEndPoint());
+        verifyNoInteractions(toolServiceCallHandler);
     }
 
     @Test

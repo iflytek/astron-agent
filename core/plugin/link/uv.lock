@@ -2066,6 +2066,7 @@ dependencies = [
     { name = "toml" },
     { name = "types-pyyaml" },
     { name = "websocket-client" },
+    { name = "yarl" },
 ]
 
 [package.metadata]
@@ -2108,6 +2109,7 @@ requires-dist = [
     { name = "toml", specifier = ">=0.10.2" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
     { name = "websocket-client", specifier = ">=1.8.0" },
+    { name = "yarl", specifier = ">=1.20.1" },
 ]
 
 [[package]]

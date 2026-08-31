@@ -20,6 +20,7 @@ from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.clients.adapters import SpanLike
 from plugin.aitools.common.clients.aiohttp_client import HttpClient
+from plugin.aitools.common.clients.safe_download import fetch_public_resource
 from plugin.aitools.common.clients.websockets_client import WebSocketClient
 from plugin.aitools.common.exceptions.error.code_enums import CodeEnums
 from plugin.aitools.common.exceptions.exceptions import ServiceException
@@ -521,10 +522,7 @@ async def req_ase_ability_ocr_service(
     meter: Optional[Meter] = None,
     node_trace: Optional[NodeTraceLog] = None,
 ) -> BaseResponse:
-    image_byte_arrays = []
-    async with HttpClient("GET", body.file_url, span).start() as client:
-        async with client.request() as response:
-            image_byte_arrays.append(await response.data["content"].read())  # type: ignore[index]
+    image_byte_arrays = [await fetch_public_resource(body.file_url, span)]
 
     url = os.getenv(
         OCR_LLM_HTTP_URL_KEY,
