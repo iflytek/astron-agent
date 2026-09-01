@@ -7,7 +7,7 @@ tool listing and tool execution requests and responses.
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class MCPTransport(str, Enum):
@@ -93,26 +93,12 @@ class MCPCallToolRequest(BaseModel):
     transport: MCPTransport = MCPTransport.AUTO
 
 
-class MCPTextResponse(BaseModel):
-    """Text content response from MCP tool execution.
+class MCPContentBlock(BaseModel):
+    """Forward-compatible MCP content block that preserves protocol fields."""
 
-    Represents text-based output from an MCP tool call.
-    """
+    model_config = ConfigDict(extra="allow")
 
-    type: str = "text"
-    text: str
-
-
-class MCPImageResponse(BaseModel):
-    """Image content response from MCP tool execution.
-
-    Represents image-based output from an MCP tool call with
-    base64 encoded data and MIME type.
-    """
-
-    type: str = "image"
-    data: str
-    mineType: str
+    type: str
 
 
 class MCPCallToolData(BaseModel):
@@ -123,7 +109,8 @@ class MCPCallToolData(BaseModel):
     """
 
     isError: bool | None = None
-    content: list[MCPTextResponse | MCPImageResponse] | None = None
+    content: list[MCPContentBlock] | None = None
+    structuredContent: dict[str, Any] | None = None
 
 
 class MCPCallToolResponse(BaseModel):
@@ -137,3 +124,37 @@ class MCPCallToolResponse(BaseModel):
     message: str
     sid: str
     data: MCPCallToolData
+
+
+class MCPSingleServerRequest(BaseModel):
+    """Select one MCP server for resource or prompt operations."""
+
+    mcp_server_id: str | None = None
+    mcp_server_url: str | None = None
+    transport: MCPTransport = MCPTransport.AUTO
+
+
+class MCPListResourcesRequest(MCPSingleServerRequest):
+    cursor: str | None = None
+
+
+class MCPReadResourceRequest(MCPSingleServerRequest):
+    uri: str
+
+
+class MCPListPromptsRequest(MCPSingleServerRequest):
+    cursor: str | None = None
+
+
+class MCPGetPromptRequest(MCPSingleServerRequest):
+    name: str
+    arguments: dict[str, str] | None = None
+
+
+class MCPProtocolResponse(BaseModel):
+    """Envelope for resource and prompt SDK results."""
+
+    code: int
+    message: str
+    sid: str
+    data: dict[str, Any] | None = None
