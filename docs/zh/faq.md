@@ -26,6 +26,10 @@ npm install
 npm run docs:dev
 ```
 
+## 为什么工作流里的模型选择下拉框是空的
+
+模型需要先在模型管理界面中添加和配置，之后才会出现在工作流编辑器里。请先完成模型配置，再返回工作流编辑器并重新打开模型选择下拉框。
+
 ## 完整问题排查去哪里看
 
 - [仓库根目录 FAQ](https://github.com/iflytek/astron-agent/blob/main/FAQ.md)
