@@ -36,6 +36,7 @@ from workflow.engine.nodes.loop.loop_node import (
 from workflow.engine.nodes.mcp.mcp_node import MCPNode
 from workflow.engine.nodes.memory import MemoryAddNode, MemorySearchNode
 from workflow.engine.nodes.message.message_node import MessageNode
+from workflow.engine.nodes.openclaw.openclaw_node import OpenClawNode
 from workflow.engine.nodes.params_extractor.pe_node import ParamsExtractorNode
 from workflow.engine.nodes.pgsql.pgsql_node import PGSqlNode
 from workflow.engine.nodes.plugin_tool.plugin_node import PluginNode
@@ -77,6 +78,7 @@ tool_classes = {
     "database": PGSqlNode,  # PostgreSQL database node for data operations
     "rpa": RPANode,
     "mcp": MCPNode,
+    "openclaw": OpenClawNode,
     "memory-add": MemoryAddNode,
     "memory-search": MemorySearchNode,
 }
