@@ -5,7 +5,7 @@
     <!-- 根据智能体ID获取最新的MCP数据 -->
     <select id="selectLatestByBotId" resultType="com.iflytek.astron.console.commons.entity.model.McpData">
         SELECT id, bot_id, uid, space_id, server_name, description, content, 
-               icon, server_url, args, version_name, released, is_delete, 
+               icon, server_url, auth_type, credential_ciphertext, args, version_name, released, is_delete,
                create_time, update_time
         FROM mcp_data
         WHERE bot_id = #{botId} 
@@ -17,7 +17,7 @@
     <!-- 根据用户ID获取MCP数据列表 -->
     <select id="selectByUid" resultType="com.iflytek.astron.console.commons.entity.model.McpData">
         SELECT id, bot_id, uid, space_id, server_name, description, content, 
-               icon, server_url, args, version_name, released, is_delete, 
+               icon, server_url, auth_type, credential_ciphertext, args, version_name, released, is_delete,
                create_time, update_time
         FROM mcp_data
         WHERE uid = #{uid} 

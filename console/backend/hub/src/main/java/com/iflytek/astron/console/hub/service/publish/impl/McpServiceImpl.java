@@ -65,6 +65,8 @@ public class McpServiceImpl implements McpService {
             throw new BusinessException(ResponseEnum.BOT_CHAIN_SUBMIT_ERROR);
         }
 
+        String authType = normalizeAuthType(request);
+
         // 3. Content moderation (simplified here, should call moderation service in production)
         // TODO: Call moderation service to check text and images
         // String allText = request.getServerName() + request.getDescription() + request.getContent();
@@ -91,6 +93,8 @@ public class McpServiceImpl implements McpService {
                 .content(request.getContent())
                 .icon(request.getIcon())
                 .serverUrl(serverUrl) // Use server URL from MCP registration
+                .authType(authType)
+                .credentialCiphertext(request.getCredentialCiphertext())
                 .args(request.getArgs())
                 .versionName(versionName)
                 .released(1)
@@ -113,6 +117,19 @@ public class McpServiceImpl implements McpService {
 
         log.info("MCP published successfully: botId={}, mcpId={}, versionName={}",
                 botId, mcpData.getId(), versionName);
+    }
+
+    private String normalizeAuthType(McpPublishRequestDto request) {
+        String authType = request.getAuthType();
+        if (authType == null || authType.isBlank() || "none".equalsIgnoreCase(authType)) {
+            return "none";
+        }
+        if (!"bearer".equalsIgnoreCase(authType)
+                || request.getCredentialCiphertext() == null
+                || request.getCredentialCiphertext().isBlank()) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
+        return "bearer";
     }
 
     /**
