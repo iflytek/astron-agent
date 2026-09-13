@@ -26,10 +26,7 @@ def mcp_server() -> Iterator[Any]:
         "plugin.link.domain.models.manager": Mock(get_db_engine=Mock()),
         "plugin.link.infra.kafka_telemetry": Mock(send_telemetry_sync=Mock()),
         "plugin.link.infra.tool_crud.process": Mock(ToolCrudOperation=Mock),
-        "plugin.link.utils.security.access_interceptor": Mock(
-            is_in_blacklist=Mock(return_value=False),
-            is_local_url=Mock(return_value=False),
-        ),
+        "plugin.link.utils.security.access_interceptor": Mock(),
     }
 
     try:
@@ -178,8 +175,7 @@ async def test_url_processing_forwards_transport_selector(
     monkeypatch: pytest.MonkeyPatch, mcp_server: Any
 ) -> None:
     connect = AsyncMock(return_value=Mock(server_status=ErrCode.SUCCESSES.code))
-    monkeypatch.setattr(mcp_server, "is_local_url", lambda _: False)
-    monkeypatch.setattr(mcp_server, "is_in_blacklist", lambda **_: False)
+    monkeypatch.setattr(mcp_server, "_reject_unsafe_mcp_url", lambda _: None)
     monkeypatch.setattr(mcp_server, "_connect_and_get_tools", connect)
 
     await mcp_server._process_mcp_server_by_url(
@@ -191,3 +187,29 @@ async def test_url_processing_forwards_transport_selector(
         server_url="https://example.com/mcp",
         transport=MCPTransport.STREAMABLE_HTTP,
     )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("http://127.0.0.1/mcp", ErrCode.MCP_SERVER_LOCAL_URL_ERR),
+        ("http://10.0.0.8/mcp", ErrCode.MCP_SERVER_LOCAL_URL_ERR),
+    ],
+)
+async def test_url_processing_rejects_restricted_literals(
+    monkeypatch: pytest.MonkeyPatch,
+    mcp_server: Any,
+    url: str,
+    expected: ErrCode,
+) -> None:
+    connect = AsyncMock()
+    monkeypatch.setattr(mcp_server, "_connect_and_get_tools", connect)
+
+    result = await mcp_server._process_mcp_server_by_url(url, MCPTransport.AUTO)
+
+    connect.assert_not_awaited()
+    assert result.server_status == expected.code
+    assert result.server_message == expected.msg
+    assert result.tools == []

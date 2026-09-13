@@ -163,6 +163,39 @@ def create_socket_factory(
     return socket_factory
 
 
+def validate_resolved_destination(
+    url: str,
+    policy: Union[OutboundPolicy, None] = None,
+) -> SplitResult:
+    """Validate a URL and every current DNS result before an outbound connect."""
+    if policy is None:
+        policy = OutboundPolicy.from_environment()
+    parsed = policy.validate_url(url)
+    hostname = _normalize_hostname(parsed.hostname or "")
+    if _parse_ip(hostname) is not None:
+        return parsed
+
+    allow_private_endpoint = policy.is_private_endpoint_allowed(parsed)
+    try:
+        results = socket.getaddrinfo(hostname, parsed.port or 0, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise OutboundPolicyError("Outbound hostname could not be resolved") from exc
+    if not results:
+        raise OutboundPolicyError("Outbound hostname could not be resolved")
+
+    for _family, _type, _proto, _canonname, sockaddr in results:
+        try:
+            address = ipaddress.ip_address(sockaddr[0])
+        except ValueError as exc:
+            raise OutboundPolicyError("Resolved outbound address is invalid") from exc
+        policy.validate_address(
+            address,
+            allow_private_endpoint=allow_private_endpoint,
+            allow_literal_exception=False,
+        )
+    return parsed
+
+
 def _origin(url: str) -> Tuple[str, str, int]:
     try:
         parsed = urlsplit(url)

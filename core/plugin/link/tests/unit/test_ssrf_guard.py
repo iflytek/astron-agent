@@ -8,6 +8,7 @@ from plugin.link.infra.tool_exector.ssrf_guard import (
     OutboundPolicyError,
     create_socket_factory,
     ensure_same_origin,
+    validate_resolved_destination,
 )
 
 SECURITY_SETTINGS = (
@@ -65,6 +66,46 @@ def test_literal_restricted_addresses_are_rejected(url: str) -> None:
 
     with pytest.raises(OutboundPolicyError):
         policy.validate_url(url)
+
+
+def test_resolved_hostname_is_rejected_when_every_address_is_restricted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy = OutboundPolicy.from_environment()
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: (ipv4_addr_info("10.0.0.8", 443),),
+    )
+
+    with pytest.raises(OutboundPolicyError):
+        validate_resolved_destination("https://public.example/mcp", policy)
+
+
+def test_resolved_hostname_is_accepted_when_addresses_are_global(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy = OutboundPolicy.from_environment()
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: (ipv4_addr_info("8.8.8.8", 443),),
+    )
+
+    parsed = validate_resolved_destination("https://public.example/mcp", policy)
+    assert parsed.hostname == "public.example"
+
+
+def test_unresolved_hostname_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    policy = OutboundPolicy.from_environment()
+
+    def raise_gaierror(*_args: object, **_kwargs: object) -> None:
+        raise socket.gaierror("name not known")
+
+    monkeypatch.setattr(socket, "getaddrinfo", raise_gaierror)
+
+    with pytest.raises(OutboundPolicyError, match="could not be resolved"):
+        validate_resolved_destination("https://public.example/mcp", policy)
 
 
 def test_socket_factory_binds_validation_to_resolved_address() -> None:

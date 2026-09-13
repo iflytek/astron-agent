@@ -32,13 +32,28 @@ from plugin.link.consts import const
 from plugin.link.domain.models.manager import get_db_engine
 from plugin.link.infra.kafka_telemetry import send_telemetry_sync
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
+from plugin.link.infra.tool_exector.ssrf_guard import (
+    OutboundPolicyError,
+    validate_resolved_destination,
+)
 from plugin.link.service.community.tools.mcp.mcp_transport import (
     MCPTransportError,
     initialized_mcp_session,
 )
 from plugin.link.utils.errors.code import ErrCode
-from plugin.link.utils.security.access_interceptor import is_in_blacklist, is_local_url
 from plugin.link.utils.sid.sid_generator2 import new_sid
+
+
+def _reject_unsafe_mcp_url(url: str) -> ErrCode | None:
+    """Return the public MCP error when a URL is not a safe outbound target."""
+    try:
+        validate_resolved_destination(url)
+    except OutboundPolicyError as exc:
+        message = str(exc).lower()
+        if "blocked" in message:
+            return ErrCode.MCP_SERVER_BLACKLIST_URL_ERR
+        return ErrCode.MCP_SERVER_LOCAL_URL_ERR
+    return None
 
 
 async def _process_mcp_server_by_id(
@@ -56,8 +71,8 @@ async def _process_mcp_server_by_id(
             tools=[],
         )
 
-    if is_local_url(url):
-        err = ErrCode.MCP_SERVER_LOCAL_URL_ERR
+    err = _reject_unsafe_mcp_url(url)
+    if err is not None:
         return MCPItemInfo(
             server_id=mcp_server_id,
             server_status=err.code,
@@ -74,17 +89,8 @@ async def _process_mcp_server_by_url(
     url: str, transport: MCPTransport = MCPTransport.AUTO
 ) -> MCPItemInfo:
     """Process a single MCP server by URL and return its tools."""
-    if is_local_url(url):
-        err = ErrCode.MCP_SERVER_LOCAL_URL_ERR
-        return MCPItemInfo(
-            server_url=str(url),
-            server_status=err.code,
-            server_message=err.msg,
-            tools=[],
-        )
-
-    if is_in_blacklist(url=url):
-        err = ErrCode.MCP_SERVER_BLACKLIST_URL_ERR
+    err = _reject_unsafe_mcp_url(url)
+    if err is not None:
         return MCPItemInfo(
             server_url=str(url),
             server_status=err.code,
@@ -354,13 +360,6 @@ def _validate_and_get_url(
     """Validate URL and get it from database if needed."""
     url = call_info.mcp_server_url
 
-    # Check blacklist first
-    if url and is_in_blacklist(url=url):
-        err = ErrCode.MCP_SERVER_BLACKLIST_URL_ERR
-        if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
-            m.in_error_count(err.code)
-        return err, ""
-
     # Get URL from database if not provided
     if not url:
         err, url = get_mcp_server_url(
@@ -371,9 +370,8 @@ def _validate_and_get_url(
                 m.in_error_count(err.code)
             return err, ""
 
-    # Check local URL
-    if is_local_url(url):
-        err = ErrCode.MCP_SERVER_LOCAL_URL_ERR
+    err = _reject_unsafe_mcp_url(url)
+    if err is not None:
         if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
             m.in_error_count(err.code)
         return err, ""
