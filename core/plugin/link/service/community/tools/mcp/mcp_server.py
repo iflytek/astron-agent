@@ -34,7 +34,7 @@ from plugin.link.infra.kafka_telemetry import send_telemetry_sync
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
 from plugin.link.infra.tool_exector.ssrf_guard import (
     OutboundPolicyError,
-    validate_resolved_destination,
+    validate_resolved_destination_async,
 )
 from plugin.link.service.community.tools.mcp.mcp_transport import (
     MCPTransportError,
@@ -44,13 +44,12 @@ from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.sid.sid_generator2 import new_sid
 
 
-def _reject_unsafe_mcp_url(url: str) -> ErrCode | None:
+async def _reject_unsafe_mcp_url(url: str) -> ErrCode | None:
     """Return the public MCP error when a URL is not a safe outbound target."""
     try:
-        validate_resolved_destination(url)
+        await validate_resolved_destination_async(url)
     except OutboundPolicyError as exc:
-        message = str(exc).lower()
-        if "blocked" in message:
+        if exc.blocked:
             return ErrCode.MCP_SERVER_BLACKLIST_URL_ERR
         return ErrCode.MCP_SERVER_LOCAL_URL_ERR
     return None
@@ -71,7 +70,7 @@ async def _process_mcp_server_by_id(
             tools=[],
         )
 
-    err = _reject_unsafe_mcp_url(url)
+    err = await _reject_unsafe_mcp_url(url)
     if err is not None:
         return MCPItemInfo(
             server_id=mcp_server_id,
@@ -89,7 +88,7 @@ async def _process_mcp_server_by_url(
     url: str, transport: MCPTransport = MCPTransport.AUTO
 ) -> MCPItemInfo:
     """Process a single MCP server by URL and return its tools."""
-    err = _reject_unsafe_mcp_url(url)
+    err = await _reject_unsafe_mcp_url(url)
     if err is not None:
         return MCPItemInfo(
             server_url=str(url),
@@ -354,7 +353,7 @@ async def _call_mcp_tool(
         return _create_error_response(err, session_id)
 
 
-def _validate_and_get_url(
+async def _validate_and_get_url(
     call_info: MCPCallToolRequest, session_id: str, span_context: Any, m: Meter
 ) -> Tuple[ErrCode, str]:
     """Validate URL and get it from database if needed."""
@@ -370,7 +369,7 @@ def _validate_and_get_url(
                 m.in_error_count(err.code)
             return err, ""
 
-    err = _reject_unsafe_mcp_url(url)
+    err = await _reject_unsafe_mcp_url(url)
     if err is not None:
         if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
             m.in_error_count(err.code)
@@ -416,7 +415,7 @@ async def call_tool(call_info: MCPCallToolRequest = Body()) -> MCPCallToolRespon
         m = Meter(app_id=span_context.app_id, func="call_tool")
 
         # Validate URL and get it from database if needed
-        err, url = _validate_and_get_url(call_info, session_id, span_context, m)
+        err, url = await _validate_and_get_url(call_info, session_id, span_context, m)
         if err is not ErrCode.SUCCESSES:
             if not call_info.mcp_server_url:
                 node_trace.answer = err.msg

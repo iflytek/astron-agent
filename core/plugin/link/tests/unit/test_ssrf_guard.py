@@ -1,5 +1,6 @@
 """Security regression tests for connection-bound outbound URL validation."""
 
+import ipaddress
 import socket
 
 import pytest
@@ -9,6 +10,7 @@ from plugin.link.infra.tool_exector.ssrf_guard import (
     create_socket_factory,
     ensure_same_origin,
     validate_resolved_destination,
+    validate_resolved_destination_async,
 )
 
 SECURITY_SETTINGS = (
@@ -330,3 +332,50 @@ def test_same_origin_allows_relative_path_result() -> None:
         "https://public.example/base",
         "https://public.example/next?value=1",
     )
+
+
+def test_blocked_policy_errors_set_blocked_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DOMAIN_BLACK_LIST", "blocked.example")
+    policy = OutboundPolicy.from_environment()
+
+    with pytest.raises(OutboundPolicyError) as hostname_error:
+        policy.validate_url("https://api.blocked.example/path")
+    assert hostname_error.value.blocked is True
+
+    with pytest.raises(OutboundPolicyError) as address_error:
+        policy.validate_address(
+            ipaddress.ip_address("10.0.0.1"),
+            allow_private_endpoint=False,
+            allow_literal_exception=False,
+        )
+    assert address_error.value.blocked is False
+
+
+def test_network_block_sets_blocked_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SEGMENT_BLACK_LIST", "8.8.8.0/24")
+    policy = OutboundPolicy.from_environment()
+    with pytest.raises(OutboundPolicyError) as error:
+        policy.validate_address(
+            ipaddress.ip_address("8.8.8.8"),
+            allow_private_endpoint=False,
+            allow_literal_exception=False,
+        )
+    assert error.value.blocked is True
+
+
+@pytest.mark.asyncio
+async def test_async_resolved_hostname_is_rejected_when_restricted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy = OutboundPolicy.from_environment()
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: (ipv4_addr_info("10.0.0.8", 443),),
+    )
+
+    with pytest.raises(OutboundPolicyError) as error:
+        await validate_resolved_destination_async("https://public.example/mcp", policy)
+    assert error.value.blocked is False
