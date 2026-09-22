@@ -26,7 +26,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 class S3ClientUtilMinioPolicyCompatibilityIT {
     private static final String MINIO_IMAGE =
-            "minio/minio:RELEASE.2025-07-23T15-54-02Z";
+            "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z";
     private static final String ACCESS_KEY = "codex-policy-root";
     private static final String SECRET_KEY = "codex-policy-password-2026";
     private static final String DEFAULT_BUCKET = "console-oss";
