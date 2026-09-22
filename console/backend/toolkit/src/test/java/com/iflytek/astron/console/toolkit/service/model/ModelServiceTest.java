@@ -500,6 +500,31 @@ class ModelServiceTest {
         }
     }
 
+    @Test
+    void testGetRuntimeModelDetailForPublishedBot_UsesPublisherOwnership() {
+        Model model = customModelWithApiKey("sk-published");
+        model.setUid("publisher");
+        model.setSpaceId(null);
+        when(mapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(model);
+        when(modelCategoryService.getTree(12L)).thenReturn(Collections.emptyList());
+        when(s3UtilClient.getS3Prefix()).thenReturn("s3://x");
+
+        try (MockedStatic<com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler> user =
+                mockStatic(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler.class)) {
+            com.iflytek.astron.console.commons.entity.user.UserInfo userInfo =
+                    new com.iflytek.astron.console.commons.entity.user.UserInfo();
+            userInfo.setUid("consumer");
+            userInfo.setUsername("consumer-name");
+            user.when(com.iflytek.astron.console.toolkit.handler.UserInfoManagerHandler::get)
+                    .thenReturn(userInfo);
+
+            LLMInfoVo vo = modelService.getRuntimeModelDetailForPublishedBot(12L, "consumer", "publisher");
+
+            assertEquals("sk-published", vo.getApiKey());
+            verify(mapper).selectOne(any(LambdaQueryWrapper.class));
+        }
+    }
+
     private Model customModelWithApiKey(String apiKey) {
         Model model = new Model();
         model.setId(12L);

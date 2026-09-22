@@ -145,7 +145,8 @@ public class BotChatServiceImpl implements BotChatService {
             } else {
                 ChatReqRecords chatReqRecords = createChatRequest(chatBotReqDto);
                 ModelConfigResult modelConfig = resolveChatModelConfiguration(
-                        botConfig.modelId, botConfig.model, chatBotReqDto.getUid(), spaceId, sseEmitter);
+                        botConfig.modelId, botConfig.model, chatBotReqDto.getUid(), spaceId,
+                        botConfig.modelOwnerUid, sseEmitter);
                 int maxInputTokens = modelConfig == null ? this.maxInputTokens : modelConfig.maxInputTokens();
                 List<SparkChatRequest.MessageDto> messages = buildMessageList(chatBotReqDto, botConfig.supportContext,
                         botConfig.supportDocument, botConfig.prompt, maxInputTokens, chatReqRecords.getId());
@@ -199,7 +200,8 @@ public class BotChatServiceImpl implements BotChatService {
             chatBotReqDto.setEdit(true);
             Long spaceId = SpaceInfoUtil.getSpaceId();
             ModelConfigResult modelConfig = resolveChatModelConfiguration(
-                    botConfig.modelId, botConfig.model, chatBotReqDto.getUid(), spaceId, sseEmitter);
+                    botConfig.modelId, botConfig.model, chatBotReqDto.getUid(), spaceId,
+                    botConfig.modelOwnerUid, sseEmitter);
             int maxInputTokens = modelConfig == null ? this.maxInputTokens : modelConfig.maxInputTokens();
             List<SparkChatRequest.MessageDto> messages = buildMessageList(chatBotReqDto, botConfig.supportContext,
                     botConfig.supportDocument, botConfig.prompt, maxInputTokens, chatReqRecords.getId());
@@ -243,7 +245,7 @@ public class BotChatServiceImpl implements BotChatService {
             // get personality config prompt
             String prompt = personalityConfigService.getChatPrompt(request.getPersonalityConfig(), request.getPrompt());
             ModelConfigResult modelConfig = resolveChatModelConfiguration(
-                    request.getModelId(), request.getModel(), request.getUid(), request.getSpaceId(), sseEmitter);
+                    request.getModelId(), request.getModel(), request.getUid(), request.getSpaceId(), null, sseEmitter);
             int maxInputTokens = modelConfig == null ? this.maxInputTokens : modelConfig.maxInputTokens();
             messageList = buildDebugMessageList(request.getText(), prompt, request.getMessages(), maxInputTokens,
                     request.getMaasDatasetList());
@@ -334,14 +336,22 @@ public class BotChatServiceImpl implements BotChatService {
     }
 
     private ModelConfigResult resolveChatModelConfiguration(
-            Long modelId, String model, String uid, Long spaceId, SseEmitter sseEmitter) {
+            Long modelId, String model, String uid, Long spaceId, String modelOwnerUid, SseEmitter sseEmitter) {
         if (modelId != null) {
+            if (StringUtils.isNotBlank(modelOwnerUid)) {
+                return getPublishedBotModelConfiguration(modelId, uid, modelOwnerUid);
+            }
             return getModelConfiguration(modelId, uid, spaceId, sseEmitter);
         }
         if (isSparkModel(model)) {
             return null;
         }
         return getModelConfigurationByDomain(model, uid, spaceId, sseEmitter);
+    }
+
+    private ModelConfigResult getPublishedBotModelConfiguration(Long modelId, String uid, String publisherUid) {
+        LLMInfoVo llmInfoVo = modelService.getRuntimeModelDetailForPublishedBot(modelId, uid, publisherUid);
+        return buildModelConfigResult(llmInfoVo);
     }
 
     private ModelConfigResult getModelConfigurationByDomain(
@@ -384,7 +394,7 @@ public class BotChatServiceImpl implements BotChatService {
         }
         boolean remoteSynced = false;
         ModelConfigResult modelConfigResult = resolveChatModelConfiguration(
-                botConfig.modelId, botConfig.model, uid, spaceId, sseEmitter);
+                botConfig.modelId, botConfig.model, uid, spaceId, botConfig.modelOwnerUid, sseEmitter);
         if (modelConfigResult != null) {
             remoteSynced = workflowService.syncWorkflowModelConfig(userLangChainInfo.getFlowId(), modelConfigResult.llmInfoVo());
         }
@@ -441,6 +451,7 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotMarket.getOpenedTool(),
                     chatBotMarket.getVersion(),
                     chatBotMarket.getModelId(),
+                    chatBotMarket.getUid(),
                     chatBotMarket.getSupportDocument() == 1,
                     resolveBaseMcpServerUrls(botId),
                     resolveBaseSkills(botId),
@@ -456,6 +467,7 @@ public class BotChatServiceImpl implements BotChatService {
                     chatBotBase.getOpenedTool(),
                     chatBotBase.getVersion(),
                     chatBotBase.getModelId(),
+                    null,
                     chatBotBase.getSupportDocument() == 1,
                     chatBotBase.getMcpServerUrls(),
                     chatBotBase.getSkills(),
@@ -804,7 +816,7 @@ public class BotChatServiceImpl implements BotChatService {
     }
 
     private record BotConfiguration(String prompt, boolean supportContext, String model, String openedTool,
-            Integer version, Long modelId, boolean supportDocument, String mcpServerUrls, String skills,
+            Integer version, Long modelId, String modelOwnerUid, boolean supportDocument, String mcpServerUrls, String skills,
             String tools, String workflows) {}
 
     private record TokenStatistics(int systemTokens, int currentUserTokens, int reservedTokens, int availableTokens) {}

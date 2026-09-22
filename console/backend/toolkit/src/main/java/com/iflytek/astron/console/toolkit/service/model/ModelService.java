@@ -930,7 +930,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
 
     public LLMInfoVo getRuntimeModelDetail(Long modelId, String authenticatedUid, Long authorizedSpaceId) {
         UserInfo userInfo = UserInfoManagerHandler.get();
-        if (!Objects.equals(userInfo.getUid(), authenticatedUid)) {
+        if (userInfo == null || !Objects.equals(userInfo.getUid(), authenticatedUid)) {
             throw new BusinessException(ResponseEnum.UNAUTHORIZED);
         }
 
@@ -938,6 +938,37 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         if (model == null) {
             throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
         }
+        return buildRuntimeLLMInfoVoFromModel(model, userInfo);
+    }
+
+    /**
+     * Resolve the runtime model referenced by a published market bot.
+     *
+     * <p>
+     * A published bot may be used by a different account than the model owner. The normal runtime
+     * lookup intentionally scopes personal models to the authenticated user, so market execution needs
+     * a separate, trusted lookup by the publisher recorded on the market row.
+     * </p>
+     */
+    public LLMInfoVo getRuntimeModelDetailForPublishedBot(
+            Long modelId, String authenticatedUid, String publisherUid) {
+        UserInfo userInfo = UserInfoManagerHandler.get();
+        if (userInfo == null || !Objects.equals(userInfo.getUid(), authenticatedUid)) {
+            throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+        }
+        if (modelId == null || StringUtils.isBlank(publisherUid)) {
+            throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
+        }
+
+        Model model = mapper.selectOne(new LambdaQueryWrapper<Model>()
+                .eq(Model::getId, modelId)
+                .eq(Model::getUid, publisherUid)
+                .eq(Model::getIsDeleted, 0));
+        if (model == null) {
+            throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
+        }
+        log.debug("Resolved published bot model, modelId={}, publisherUid={}, consumerUid={}",
+                modelId, publisherUid, authenticatedUid);
         return buildRuntimeLLMInfoVoFromModel(model, userInfo);
     }
 

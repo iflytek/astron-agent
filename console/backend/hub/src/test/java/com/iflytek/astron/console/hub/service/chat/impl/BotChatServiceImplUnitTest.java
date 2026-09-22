@@ -194,6 +194,31 @@ class BotChatServiceImplUnitTest {
     }
 
     @Test
+    void testChatMessageBot_MarketModel_UsesPublisherModelForDifferentAccount() {
+        ChatBotReqDto chatBotReqDto = createChatBotReqDto();
+        chatBotReqDto.setUid("consumer-uid");
+        SseEmitter sseEmitter = new SseEmitter();
+
+        ChatBotMarket chatBotMarket = createChatBotMarket();
+        chatBotMarket.setModelId(1L);
+        chatBotMarket.setUid("publisher-uid");
+        chatBotMarket.setSupportDocument(0);
+
+        when(chatBotDataService.findMarketBotByBotId(anyInt())).thenReturn(chatBotMarket);
+        when(chatDataService.createRequest(any())).thenReturn(createChatReqRecords());
+        when(chatHistoryService.getSystemBotHistory(anyString(), anyLong(), anyBoolean())).thenReturn(historyMessages());
+        when(modelService.getRuntimeModelDetailForPublishedBot(1L, "consumer-uid", "publisher-uid"))
+                .thenReturn(createLLMInfoVo());
+
+        botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
+
+        AgentChatTask task = captureTask();
+        assertNotNull(task.getLlmInfoVo());
+        verify(modelService).getRuntimeModelDetailForPublishedBot(1L, "consumer-uid", "publisher-uid");
+        verify(modelService, never()).getRuntimeModelDetail(1L, "consumer-uid", 1L);
+    }
+
+    @Test
     void testChatMessageBot_BaseBot_PassesSavedMcpServerUrls() {
         ChatBotReqDto chatBotReqDto = createChatBotReqDto();
         SseEmitter sseEmitter = new SseEmitter();
