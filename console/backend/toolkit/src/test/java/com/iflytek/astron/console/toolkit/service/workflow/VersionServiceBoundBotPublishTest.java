@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -158,7 +159,9 @@ class VersionServiceBoundBotPublishTest {
                 any(), any(), org.mockito.ArgumentMatchers.eq("current-member"),
                 org.mockito.ArgumentMatchers.eq(1L));
         verify(versionService).updateIsVersionForFlowId("flow-1");
-        verify(workflowVersionMapper).insert(any(WorkflowVersion.class));
+        ArgumentCaptor<WorkflowVersion> insertedVersion = ArgumentCaptor.forClass(WorkflowVersion.class);
+        verify(workflowVersionMapper).insert(insertedVersion.capture());
+        assertThat(insertedVersion.getValue().getDeleted()).isEqualTo(1L);
     }
 
     @Test

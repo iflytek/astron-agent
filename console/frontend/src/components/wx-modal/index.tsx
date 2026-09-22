@@ -18,6 +18,7 @@ import {
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import eventBus from '@/utils/event-bus';
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useBotStateStore } from '@/store/spark-store/bot-state';
 
 // import wxImg from '@/assets/imgs/workflow/wechat-icon.png';
@@ -254,7 +255,9 @@ const WxModal: React.FC<MultiModeCpnProps> = ({
         }
       })
       .catch(err => {
-        err?.message && message.error(err.message);
+        if (shouldShowRequestError(err) && err?.message) {
+          message.error(err.message);
+        }
       });
 
     return;

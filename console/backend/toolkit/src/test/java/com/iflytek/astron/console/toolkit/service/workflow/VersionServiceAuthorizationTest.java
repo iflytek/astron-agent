@@ -1,5 +1,6 @@
 package com.iflytek.astron.console.toolkit.service.workflow;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -27,6 +29,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -143,6 +146,64 @@ class VersionServiceAuthorizationTest {
 
         verify(workflowVersionMapper).update(any(), any(Wrapper.class));
         verify(permissionCheck, never()).checkWorkflowBelong(any(Workflow.class), any());
+    }
+
+    @Test
+    void resultUpdateFindsActiveVersionAndWritesResultUsingNumericDeletionFlag() {
+        WorkflowVersion stored = version(99L, "flow-1");
+        stored.setDeleted(1L);
+        when(workflowVersionMapper.selectOne(any())).thenReturn(stored);
+        when(workflowMapper.selectOne(any())).thenReturn(workflow("flow-1"));
+        when(workflowVersionMapper.update(any(), any(Wrapper.class))).thenReturn(1);
+        WorkflowVersion request = version(99L, "flow-1");
+        request.setPublishResult("Success");
+
+        assertThat(service.update_channel_result(request).code()).isZero();
+
+        ArgumentCaptor<Wrapper<WorkflowVersion>> lookup = ArgumentCaptor.forClass(Wrapper.class);
+        verify(workflowVersionMapper).selectOne(lookup.capture());
+        assertActiveVersionFilter(lookup.getValue());
+        ArgumentCaptor<Wrapper<WorkflowVersion>> update = ArgumentCaptor.forClass(Wrapper.class);
+        verify(workflowVersionMapper).update(any(), update.capture());
+        assertActiveVersionFilter(update.getValue());
+        assertThat(((AbstractWrapper<?, ?, ?>) update.getValue()).getParamNameValuePairs().values())
+                .contains("成功");
+    }
+
+    @Test
+    void deleteTransitionsActiveVersionFromOneToTwo() {
+        WorkflowVersion stored = version(99L, "flow-1");
+        stored.setDeleted(1L);
+        when(workflowVersionMapper.selectOne(any())).thenReturn(stored);
+        when(workflowMapper.selectOne(any())).thenReturn(workflow("flow-1"));
+        when(workflowVersionMapper.update(any(), any(Wrapper.class))).thenReturn(1);
+
+        service.logicDelete(99L);
+
+        ArgumentCaptor<Wrapper<WorkflowVersion>> update = ArgumentCaptor.forClass(Wrapper.class);
+        verify(workflowVersionMapper).update(any(), update.capture());
+        assertActiveVersionFilter(update.getValue());
+        assertThat(((AbstractWrapper<?, ?, ?>) update.getValue()).getParamNameValuePairs().values())
+                .contains(2L);
+    }
+
+    @Test
+    void publishResultOnlyQueriesActiveVersions() {
+        when(workflowMapper.selectOne(any())).thenReturn(workflow("flow-1"));
+        when(workflowVersionMapper.selectList(any())).thenReturn(java.util.List.of());
+
+        service.publishResult("flow-1", "v1.0");
+
+        ArgumentCaptor<Wrapper<WorkflowVersion>> lookup = ArgumentCaptor.forClass(Wrapper.class);
+        verify(workflowVersionMapper).selectList(lookup.capture());
+        assertActiveVersionFilter(lookup.getValue());
+    }
+
+    private void assertActiveVersionFilter(Wrapper<WorkflowVersion> wrapper) {
+        assertThat(wrapper.getSqlSegment()).contains("deleted =");
+        assertThat(((AbstractWrapper<?, ?, ?>) wrapper).getParamNameValuePairs().values())
+                .contains(1L)
+                .doesNotContain(false, 0, 0L);
     }
 
     @Test

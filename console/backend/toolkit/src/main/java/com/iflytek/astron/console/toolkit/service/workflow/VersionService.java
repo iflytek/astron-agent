@@ -48,6 +48,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class VersionService {
 
+    // workflow_version uses 1/2, unlike the boolean deletion flag on workflow.
+    private static final long VERSION_ACTIVE = 1L;
+    private static final long VERSION_DELETED = 2L;
+
     @Autowired
     WorkflowService workflowService;
 
@@ -242,6 +246,7 @@ public class VersionService {
             workflowVersion.setPublishChannel(createDto.getPublishChannel());
             workflowVersion.setPublishResult(WorkflowConst.PublishResult.normalize(createDto.getPublishResult()));
             workflowVersion.setFlowId(createDto.getFlowId());
+            workflowVersion.setDeleted(VERSION_ACTIVE);
             workflowVersion.setDescription(createDto.getDescription());
             // Set advanced configuration information
             workflowVersion.setAdvancedConfig(workflow.getAdvancedConfig());
@@ -434,7 +439,7 @@ public class VersionService {
         dataPermissionCheckTool.checkWorkflowVisible(workflow, SpaceInfoUtil.getSpaceId());
         List<WorkflowVersion> workflowVersions = workflowVersionMapper.selectList(Wrappers.lambdaQuery(WorkflowVersion.class)
                 .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                .eq(WorkflowVersion::getDeleted, false)
+                .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                 .eq(WorkflowVersion::getName, createDto.getName()));
         if (workflowVersions.isEmpty()) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
@@ -516,7 +521,7 @@ public class VersionService {
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getId, createDto.getId())
                             .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                            .eq(WorkflowVersion::getDeleted, false)
+                            .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                             .last("limit 1"));
             if (workflowVersion == null) {
                 throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
@@ -528,7 +533,7 @@ public class VersionService {
             LambdaUpdateWrapper<WorkflowVersion> updateWrapper1 = new LambdaUpdateWrapper<>();
             // Update flowId corresponding records, set isVersion to 2
             updateWrapper1.eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                    .eq(WorkflowVersion::getDeleted, false)
+                    .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                     .set(WorkflowVersion::getIsVersion, 2);
             // Execute update
             if (workflowVersionMapper.update(null, updateWrapper1) < 1) {
@@ -541,7 +546,7 @@ public class VersionService {
             updateWrapper2
                     .eq(WorkflowVersion::getId, createDto.getId())
                     .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                    .eq(WorkflowVersion::getDeleted, false)
+                    .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                     .set(WorkflowVersion::getIsVersion, 1);
             // Execute update
             if (workflowVersionMapper.update(null, updateWrapper2) != 1) {
@@ -586,7 +591,7 @@ public class VersionService {
         WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(
                 Wrappers.lambdaQuery(WorkflowVersion.class)
                         .eq(WorkflowVersion::getId, id)
-                        .eq(WorkflowVersion::getDeleted, false)
+                        .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                         .last("limit 1"));
         if (workflowVersion == null) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
@@ -603,8 +608,8 @@ public class VersionService {
         updateWrapper
                 .eq(WorkflowVersion::getId, id)
                 .eq(WorkflowVersion::getFlowId, flowId)
-                .eq(WorkflowVersion::getDeleted, false)
-                .set(WorkflowVersion::getDeleted, 2);
+                .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
+                .set(WorkflowVersion::getDeleted, VERSION_DELETED);
         // Execute update
         if (workflowVersionMapper.update(null, updateWrapper) != 1) {
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
@@ -629,7 +634,7 @@ public class VersionService {
         List<WorkflowVersion> workflowVersions = workflowVersionMapper.selectList(
                 Wrappers.lambdaQuery(WorkflowVersion.class)
                         .eq(WorkflowVersion::getFlowId, flowId)
-                        .eq(WorkflowVersion::getDeleted, false)
+                        .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                         .eq(WorkflowVersion::getName, name));
         List<Map<String, Object>> resultList = new ArrayList<>();
         Set<Long> addedChannels = new HashSet<>();
@@ -691,11 +696,13 @@ public class VersionService {
         WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(
                 Wrappers.lambdaQuery(WorkflowVersion.class)
                         .eq(WorkflowVersion::getId, createDto.getId())
-                        .eq(WorkflowVersion::getDeleted, false)
+                        .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                         .last("limit 1"));
         if (workflowVersion == null
                 || (StringUtils.isNotBlank(createDto.getFlowId())
                         && !StringUtils.equals(createDto.getFlowId(), workflowVersion.getFlowId()))) {
+            log.warn("Active workflow version not found for result update: versionId={}, flowId={}",
+                    createDto.getId(), createDto.getFlowId());
             throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
         }
         createDto.setFlowId(workflowVersion.getFlowId());
@@ -716,7 +723,7 @@ public class VersionService {
             // Update flowId corresponding records, set isVersion to 2
             updateWrapper.eq(WorkflowVersion::getId, createDto.getId())
                     .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                    .eq(WorkflowVersion::getDeleted, false)
+                    .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                     .set(WorkflowVersion::getPublishResult,
                             WorkflowConst.PublishResult.normalize(createDto.getPublishResult()))
                     .set(WorkflowVersion::getUpdatedTime, new Date());
@@ -756,7 +763,7 @@ public class VersionService {
                     Wrappers.lambdaQuery(WorkflowVersion.class)
                             .eq(WorkflowVersion::getBotId, botId)
                             .eq(WorkflowVersion::getFlowId, flowId)
-                            .eq(WorkflowVersion::getDeleted, false)
+                            .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
                             .in(WorkflowVersion::getPublishResult,
                                     WorkflowConst.PublishResult.SUCCESS,
                                     WorkflowConst.PublishResult.LEGACY_SUCCESS,
