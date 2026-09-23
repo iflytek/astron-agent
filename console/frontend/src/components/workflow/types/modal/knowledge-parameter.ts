@@ -3,4 +3,5 @@
 export interface RepoConfig {
   topN?: number;
   score?: number;
+  rerankId?: string;
 }

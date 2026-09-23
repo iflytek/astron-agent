@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Slider, InputNumber, Button } from 'antd';
+import type { Node } from 'reactflow';
+import { Slider, InputNumber, Input, Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useMemoizedFn } from 'ahooks';
 import { cloneDeep } from 'lodash';
 import { RepoConfig } from '@/components/workflow/types';
+import { applyRerankId, RAGFLOW_RAG_TYPE } from '../knowledge-rerank';
 
 const KnowledgeParameter = (): React.ReactElement => {
   const { t } = useTranslation();
@@ -31,12 +33,14 @@ const KnowledgeParameter = (): React.ReactElement => {
     setRepoConfig({
       topN: currentNode?.data.nodeParam.topN,
       score: currentNode?.data.nodeParam.score,
+      rerankId: currentNode?.data.nodeParam.rerankId,
     });
   }, [currentNode]);
 
-  const handleParameterChange = useMemoizedFn((fn: (old: unknown) => void) => {
+  const handleParameterChange = useMemoizedFn((fn: (old: Node) => void) => {
+    if (!currentNode) return;
     autoSaveCurrentFlow();
-    setNode(currentNode?.id, old => {
+    setNode(currentNode.id, old => {
       fn(old);
       return {
         ...cloneDeep(old),
@@ -49,12 +53,19 @@ const KnowledgeParameter = (): React.ReactElement => {
     handleParameterChange(old => {
       old.data.nodeParam.topN = repoConfig?.topN;
       old.data.nodeParam.score = repoConfig?.score || 0.2;
+      applyRerankId(
+        old.data.nodeParam,
+        currentNode.data.nodeParam.ragType,
+        repoConfig?.rerankId
+      );
     });
     setKnowledgeParameterModalInfo({
       open: false,
       nodeId: '',
     });
   });
+
+  const isRagflow = currentNode?.data.nodeParam.ragType === RAGFLOW_RAG_TYPE;
 
   return (
     <>
@@ -126,7 +137,7 @@ const KnowledgeParameter = (): React.ReactElement => {
                     onChange={(value: unknown) => {
                       setRepoConfig({
                         ...repoConfig,
-                        score: value,
+                        score: typeof value === 'number' ? value : undefined,
                       });
                     }}
                     precision={2}
@@ -135,6 +146,33 @@ const KnowledgeParameter = (): React.ReactElement => {
                     controls={false}
                   />
                 </div>
+                {isRagflow ? (
+                  <>
+                    <p className="text-second font-medium mt-2.5">
+                      {t('workflow.nodes.parameterModal.rerankModelId')}
+                    </p>
+                    <p className="text-desc mt-1.5">
+                      {t(
+                        'workflow.nodes.parameterModal.rerankModelIdDescription'
+                      )}
+                    </p>
+                    <Input
+                      className="global-input mt-3"
+                      value={repoConfig.rerankId}
+                      placeholder={t(
+                        'workflow.nodes.parameterModal.rerankModelIdPlaceholder'
+                      )}
+                      maxLength={512}
+                      allowClear
+                      onChange={event =>
+                        setRepoConfig({
+                          ...repoConfig,
+                          rerankId: event.target.value,
+                        })
+                      }
+                    />
+                  </>
+                ) : null}
                 <div className="flex flex-row-reverse gap-3 mt-7">
                   <Button
                     type="primary"
