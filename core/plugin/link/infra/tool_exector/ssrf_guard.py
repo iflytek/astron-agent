@@ -1,10 +1,11 @@
 """Connection-bound SSRF protection for outbound HTTP tool calls."""
 
+import asyncio
 import ipaddress
 import os
 import socket
 from dataclasses import dataclass
-from typing import Callable, Tuple, Union
+from typing import Callable, Sequence, Tuple, Union
 from urllib.parse import SplitResult, urlsplit
 
 import aiohttp
@@ -40,6 +41,10 @@ _NEVER_CONNECT_NETWORKS: Tuple[IpNetwork, ...] = tuple(
 
 class OutboundPolicyError(ValueError):
     """Raised when an outbound URL or its actual socket destination is unsafe."""
+
+    def __init__(self, message: str, *, blocked: bool = False) -> None:
+        super().__init__(message)
+        self.blocked = blocked
 
 
 @dataclass(frozen=True)
@@ -81,7 +86,7 @@ class OutboundPolicy:
         parsed = _parse_http_url(url)
         normalized_host = _normalize_hostname(parsed.hostname or "")
         if self.is_domain_blocked(normalized_host):
-            raise OutboundPolicyError("Outbound hostname is blocked")
+            raise OutboundPolicyError("Outbound hostname is blocked", blocked=True)
 
         literal = _parse_ip(normalized_host)
         if literal is not None:
@@ -111,7 +116,7 @@ class OutboundPolicy:
     ) -> None:
         """Validate the exact IP address that aiohttp is about to connect to."""
         if _matches_any(address, self.blocked_networks):
-            raise OutboundPolicyError("Outbound address is blocked")
+            raise OutboundPolicyError("Outbound address is blocked", blocked=True)
         if allow_literal_exception and _matches_any(
             address, self.allowed_literal_networks
         ):
@@ -161,6 +166,79 @@ def create_socket_factory(
         return socket.socket(family=family, type=type_, proto=proto)
 
     return socket_factory
+
+
+def _check_resolved_addresses(
+    parsed: SplitResult,
+    policy: OutboundPolicy,
+    results: Sequence[tuple],
+) -> SplitResult:
+    """Apply address policy to already-resolved DNS answers."""
+    allow_private_endpoint = policy.is_private_endpoint_allowed(parsed)
+    if not results:
+        raise OutboundPolicyError("Outbound hostname could not be resolved")
+    for _family, _type, _proto, _canonname, sockaddr in results:
+        try:
+            address = ipaddress.ip_address(sockaddr[0])
+        except ValueError as exc:
+            raise OutboundPolicyError("Resolved outbound address is invalid") from exc
+        policy.validate_address(
+            address,
+            allow_private_endpoint=allow_private_endpoint,
+            allow_literal_exception=False,
+        )
+    return parsed
+
+
+def validate_resolved_destination(
+    url: str,
+    policy: Union[OutboundPolicy, None] = None,
+) -> SplitResult:
+    """Validate a URL and every current DNS result before an outbound connect.
+
+    Residual: this checks the answers from this lookup only. httpx (MCP
+    transport) resolves again on connect, so a short-TTL rebind can pass
+    here and then reach a private address. The HTTP executor binds the
+    check to the connected sockaddr via create_socket_factory. MCP cannot
+    inject that factory yet.
+    """
+    if policy is None:
+        policy = OutboundPolicy.from_environment()
+    parsed = policy.validate_url(url)
+    hostname = _normalize_hostname(parsed.hostname or "")
+    if _parse_ip(hostname) is not None:
+        return parsed
+
+    try:
+        results = socket.getaddrinfo(hostname, parsed.port or 0, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise OutboundPolicyError("Outbound hostname could not be resolved") from exc
+    return _check_resolved_addresses(parsed, policy, results)
+
+
+async def validate_resolved_destination_async(
+    url: str,
+    policy: Union[OutboundPolicy, None] = None,
+) -> SplitResult:
+    """Async form of validate_resolved_destination for request handlers.
+
+    Offloads getaddrinfo so a slow resolver does not stall concurrent
+    MCP requests on the same worker.
+    """
+    if policy is None:
+        policy = OutboundPolicy.from_environment()
+    parsed = policy.validate_url(url)
+    hostname = _normalize_hostname(parsed.hostname or "")
+    if _parse_ip(hostname) is not None:
+        return parsed
+
+    try:
+        results = await asyncio.to_thread(
+            socket.getaddrinfo, hostname, parsed.port or 0, type=socket.SOCK_STREAM
+        )
+    except socket.gaierror as exc:
+        raise OutboundPolicyError("Outbound hostname could not be resolved") from exc
+    return _check_resolved_addresses(parsed, policy, results)
 
 
 def _origin(url: str) -> Tuple[str, str, int]:
