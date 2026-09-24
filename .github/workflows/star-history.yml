@@ -1,0 +1,57 @@
+name: Refresh star history chart
+
+on:
+  schedule:
+    - cron: '0 3 1 * *'   # 03:00 UTC on the 1st of each month
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: star-history
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require a token that can push branches and create pull requests
+        env:
+          STAR_HISTORY_TOKEN: ${{ secrets.STAR_HISTORY_TOKEN }}
+        run: |
+          if [ -z "$STAR_HISTORY_TOKEN" ]; then
+            echo "STAR_HISTORY_TOKEN is required (repository contents write and pull-request write access)." >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          # Persist this PAT so the generated snapshot branch can be pushed.
+          token: ${{ secrets.STAR_HISTORY_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Record the monthly star count and regenerate the chart
+        env:
+          GH_TOKEN: ${{ secrets.STAR_HISTORY_TOKEN }}
+        run: node .github/scripts/gen-star-history.mjs --color '#2f7ed8'
+      - name: Open a pull request if the chart changed
+        env:
+          GH_TOKEN: ${{ secrets.STAR_HISTORY_TOKEN }}
+        run: |
+          if git diff --quiet -- docs/star-history.json docs/star-history.svg; then
+            echo "Star history chart unchanged."
+            exit 0
+          fi
+          branch="automation/star-history-${GITHUB_RUN_ID}"
+          git switch -c "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/star-history.json docs/star-history.svg
+          git commit -s -m 'chore: refresh star history chart'
+          git push origin "HEAD:refs/heads/$branch"
+          gh pr create \
+            --base "$GITHUB_REF_NAME" \
+            --head "$branch" \
+            --title 'chore: refresh star history chart' \
+            --body 'Monthly snapshot of GitHub stargazers_count and refresh of the self-hosted chart. Merging this PR triggers the normal docs deployment workflow.'

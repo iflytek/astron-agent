@@ -148,8 +148,10 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](CONTR
 ## 🌟 Star History
 
 <div align="center">
-  <img src="https://api.star-history.com/svg?repos=iflytek/astron-agent&type=Date" alt="Star History Chart" width="600">
+  <img src="docs/star-history.svg" alt="Star History Chart" width="600">
 </div>
+
+> This self-hosted chart is regenerated from stored monthly snapshots of GitHub's `stargazers_count`. Past points are kept in `docs/star-history.json` and are not recomputed when users later unstar or restar the repository.
 
 ## 📞 Support
 
@@ -183,4 +185,3 @@ This project is licensed under the [Apache 2.0 License](LICENSE), allowing free 
 <p align="center">
   Astron Agent is listed in the <a href="https://landscape.cncf.io/?landscape=observability-and-analysis&group=ai-native&item=ai-agent--workflow-orchestration--astron-agent">CNCF Landscape</a>.
 </p>
-
