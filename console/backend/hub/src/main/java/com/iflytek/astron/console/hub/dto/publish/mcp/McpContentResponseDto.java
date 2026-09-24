@@ -38,6 +38,12 @@ public class McpContentResponseDto {
     @Schema(description = "MCP server URL")
     private String serverUrl;
 
+    @Schema(description = "MCP authentication type")
+    private String authType;
+
+    @Schema(description = "Whether a credential is configured")
+    private Boolean hasCredential;
+
     @Schema(description = "MCP service parameter configuration")
     private Object args;
 

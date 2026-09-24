@@ -11,6 +11,10 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.streamable_http import streamable_http_client
 from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import MCPTransport
+from plugin.link.service.community.tools.mcp.mcp_auth import (
+    MCPAuthConfigurationError,
+    resolve_mcp_auth_headers,
+)
 
 _FALLBACK_HTTP_STATUSES = frozenset({404, 405})
 _AUTH_HTTP_STATUSES = frozenset({401, 403})
@@ -96,6 +100,39 @@ def _transport_candidates(transport: MCPTransport) -> tuple[MCPTransport, ...]:
     return (transport,)
 
 
+def _resolve_transport_auth(url: str, transport: MCPTransport) -> dict[str, str]:
+    try:
+        auth_headers = resolve_mcp_auth_headers(url)
+    except MCPAuthConfigurationError as auth_error:
+        raise MCPTransportError(
+            "authentication configuration", transport, auth_error
+        ) from auth_error
+
+    if auth_headers and transport is MCPTransport.SSE:
+        transport_error = MCPAuthConfigurationError(
+            "Configured Bearer credentials require Streamable HTTP"
+        )
+        raise MCPTransportError(
+            "authentication configuration", transport, transport_error
+        ) from transport_error
+    return auth_headers
+
+
+def _raise_if_fallback_disallowed(
+    error: Exception,
+    *,
+    initialized: bool,
+    authenticated: bool,
+    requested: MCPTransport,
+    candidate: MCPTransport,
+    phase: str,
+) -> None:
+    if initialized:
+        raise error
+    if authenticated or requested is not MCPTransport.AUTO:
+        raise MCPTransportError(phase, candidate, error) from error
+
+
 @asynccontextmanager
 async def initialized_mcp_session(
     url: str, transport: MCPTransport = MCPTransport.AUTO
@@ -105,6 +142,8 @@ async def initialized_mcp_session(
     Automatic fallback is limited to Streamable HTTP connection and initialization.
     Exceptions raised by operations after initialization are never retried through SSE.
     """
+    auth_headers = _resolve_transport_auth(url, transport)
+
     for candidate in _transport_candidates(transport):
         initialized = False
         response_status: int | None = None
@@ -120,7 +159,8 @@ async def initialized_mcp_session(
             async with AsyncExitStack() as stack:
                 if candidate is MCPTransport.STREAMABLE_HTTP:
                     http_client = httpx.AsyncClient(
-                        follow_redirects=True,
+                        headers=auth_headers,
+                        follow_redirects=not auth_headers,
                         timeout=httpx.Timeout(30.0, read=300.0),
                         event_hooks={"response": [capture_response]},
                     )
@@ -143,10 +183,14 @@ async def initialized_mcp_session(
                 yield session, candidate
                 return
         except Exception as error:
-            if initialized:
-                raise
-            if transport is not MCPTransport.AUTO:
-                raise MCPTransportError(phase, candidate, error) from error
+            _raise_if_fallback_disallowed(
+                error,
+                initialized=initialized,
+                authenticated=bool(auth_headers),
+                requested=transport,
+                candidate=candidate,
+                phase=phase,
+            )
 
             reason = _fallback_reason(error, response_status)
             if candidate is not MCPTransport.STREAMABLE_HTTP or reason is None:

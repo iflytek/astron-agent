@@ -28,6 +28,7 @@ public interface McpDataConverter {
      */
     @Mapping(target = "released", expression = "java(mcpData.getReleased() != null && mcpData.getReleased() == 1 ? \"1\" : \"0\")")
     @Mapping(target = "args", source = "args")
+    @Mapping(target = "hasCredential", expression = "java(mcpData.getCredentialCiphertext() != null && !mcpData.getCredentialCiphertext().isBlank())")
     McpContentResponseDto toResponseDto(McpData mcpData);
 
 }

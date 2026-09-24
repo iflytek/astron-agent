@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -38,6 +39,34 @@ class McpServiceImplBusinessExceptionTest {
     private WorkflowReleaseService workflowReleaseService;
     @Mock
     private UserLangChainDataService userLangChainDataService;
+
+    @Test
+    void publishMcpShouldRejectBearerWithoutCiphertextBeforeReleaseMutation() {
+        McpServiceImpl service = new McpServiceImpl(
+                mcpDataMapper,
+                chatBotBaseMapper,
+                userLangChainInfoMapper,
+                botPublishService,
+                workflowReleaseService,
+                userLangChainDataService);
+        McpPublishRequestDto request = new McpPublishRequestDto();
+        request.setBotId(25);
+        request.setServerName("gitnexus");
+        request.setAuthType("bearer");
+
+        when(chatBotBaseMapper.checkBotPermission(25, "requester-uid", 1L)).thenReturn(1);
+        when(userLangChainInfoMapper.selectOne(any())).thenReturn(
+                new com.iflytek.astron.console.commons.entity.bot.UserLangChainInfo());
+
+        assertThatThrownBy(() -> service.publishMcp(request, "requester-uid", 1L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("code")
+                .isEqualTo(ResponseEnum.PARAM_ERROR.getCode());
+
+        verify(mcpDataMapper, never()).insert(any(McpData.class));
+        verify(workflowReleaseService, never()).publishWorkflow(any(), any(), any(), any());
+        verify(botPublishService, never()).updatePublishChannel(any(), any(), any(), any(), anyBoolean());
+    }
 
     @Test
     void publishMcpShouldPreserveUnresolvedDependencyErrorBeforeAnyPublishMutation() {

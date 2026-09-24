@@ -37,6 +37,12 @@ public class McpPublishRequestDto {
     @Schema(description = "MCP server URL", example = "https://weather-mcp.example.com")
     private String serverUrl;
 
+    @Schema(description = "Authentication type: none or bearer")
+    private String authType;
+
+    @Schema(description = "RSA encrypted Bearer credential; never plaintext")
+    private String credentialCiphertext;
+
     @Schema(description = "MCP service parameter configuration")
     private Object args;
 
