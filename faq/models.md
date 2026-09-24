@@ -11,11 +11,36 @@
 2. 接口地址: 填对应的 API 地址。
 3. API 密钥: 填对应的 Key。
 
-## 添加本地模型报错 IP 在黑名单？
+## 添加本地模型报错「URL validation failed」/ IP 在黑名单？
 
-默认配置可能禁止连接私有网段。
-- 解决方法: 进入数据库，删除或清空 config_info  表中 category =
-'NETWORK_SEGMENT_BLACK_LIST'  的记录。
+端点填写私有网段地址（如 `http://192.168.60.13:9090/v1/chat/completions`）时，
+控制台后端会在**发出模型校验请求之前**先做 SSRF / 私有 IP 校验，因此即使该地址
+本身可达，也会被拦下并报「URL validation failed」。
+
+**推荐做法：把可信 IP 加入白名单**（自 [#1562](https://github.com/iflytek/astron-agent/pull/1562)
+起支持），而不是清空黑名单——白名单是精确的显式放行，安全性更好：
+
+```sql
+START TRANSACTION;
+
+-- 精确到单个 IP（推荐，范围最小），也可用 CIDR 如 192.168.60.0/24
+UPDATE config_info
+SET `value` = '192.168.60.13', is_valid = 1, update_time = NOW()
+WHERE category = 'IP_WHITE_LIST' AND code = 'ip_white_list';
+
+UPDATE config_info_en
+SET `value` = '192.168.60.13', is_valid = 1, update_time = NOW()
+WHERE category = 'IP_WHITE_LIST' AND code = 'ip_white_list';
+
+COMMIT;
+```
+
+注意：
+- `config_info` 和 `config_info_en` **两张表都要改**，配置表按请求语言（locale）选取。
+- 白名单只接受 IP 或 CIDR，**不要**填完整 URL 或域名；端口不影响匹配。
+- **不要清空** `NETWORK_SEGMENT_BLACK_LIST`，用白名单显式放行即可。
+- 改完后确认 **console-backend 容器**能访问该端点。若报错随后变成 OpenAI 兼容性错误，
+  参见下一条「消耗 0 token」及模型校验对非流式响应结构的要求。
 
 ## 显示“消耗 0 token”调试成功的情况？
 
@@ -31,8 +56,9 @@
 - 使用宿主机的局域网 IP（如 192.168.x.x ）或 Docker 的特殊 DNS
 host.docker.internal （视 Docker 版本和系统而定）。
 
-2. 黑名单限制：默认配置可能禁止连接私有网段（如 192.168.x.x ）。如果遇到拦截，需要修改
-数据库表 config_info  (或 config_info_en ) 中的黑名单配置。
+2. 私有网段拦截：默认配置会禁止连接私有网段（如 192.168.x.x ）。如果遇到「URL validation
+failed」拦截，请按上文「添加本地模型报错」一条，把该 IP / CIDR 加入 `IP_WHITE_LIST` 白名单
+（`config_info` 与 `config_info_en` 两张表都要改），不要清空黑名单。
 
 ## 图片理解/OCR 插件报错？
 
