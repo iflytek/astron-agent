@@ -753,6 +753,77 @@ function validateRetryConfig(currentCheckNode: unknown): boolean {
   return true;
 }
 
+function isOpenClawRpaControlEnabled(nodeParam: unknown): boolean {
+  return Boolean(
+    nodeParam?.triggerSource === 'openclaw' ||
+      nodeParam?.triggerAuthRequired ||
+      nodeParam?.approvalRequired ||
+      nodeParam?.allowedScenarios?.length
+  );
+}
+
+function validateRpaOpenClawParams(currentCheckNode: unknown): boolean {
+  if (currentCheckNode?.nodeType !== 'rpa') {
+    return true;
+  }
+
+  const nodeParam = currentCheckNode?.data?.nodeParam;
+  if (!nodeParam || !isOpenClawRpaControlEnabled(nodeParam)) {
+    if (nodeParam) {
+      nodeParam.scenarioErrMsg = '';
+      nodeParam.triggerSecretEnvErrMsg = '';
+      nodeParam.triggerSignatureInputErrMsg = '';
+    }
+    return true;
+  }
+
+  const valueCannotBeEmpty = i18next.t(
+    'workflow.nodes.validation.valueCannotBeEmpty'
+  );
+  let passFlag = true;
+  if (!nodeParam?.scenario?.trim()) {
+    nodeParam.scenarioErrMsg = valueCannotBeEmpty;
+    passFlag = false;
+  } else {
+    nodeParam.scenarioErrMsg = '';
+  }
+
+  if (
+    nodeParam?.triggerAuthRequired &&
+    Object.hasOwn(nodeParam, 'triggerSecretEnv') &&
+    !nodeParam?.triggerSecretEnv?.trim()
+  ) {
+    nodeParam.triggerSecretEnvErrMsg = valueCannotBeEmpty;
+    passFlag = false;
+  } else {
+    nodeParam.triggerSecretEnvErrMsg = '';
+  }
+
+  if (nodeParam?.triggerAuthRequired) {
+    const signatureInput =
+      nodeParam?.triggerSignatureInput?.trim() || 'trigger_signature';
+    const hasSignatureInput = currentCheckNode?.data?.inputs?.some(
+      (input: unknown) =>
+        Boolean(
+          input &&
+            typeof input === 'object' &&
+            'name' in input &&
+            input.name === signatureInput
+        )
+    );
+    if (!hasSignatureInput) {
+      nodeParam.triggerSignatureInputErrMsg = valueCannotBeEmpty;
+      passFlag = false;
+    } else {
+      nodeParam.triggerSignatureInputErrMsg = '';
+    }
+  } else {
+    nodeParam.triggerSignatureInputErrMsg = '';
+  }
+
+  return passFlag;
+}
+
 export const checkedNodeParams = (currentCheckNode: unknown): boolean => {
   const validations = [
     validateTemplateParams,
@@ -768,6 +839,7 @@ export const checkedNodeParams = (currentCheckNode: unknown): boolean => {
     validateDatabaseParams,
     validateServiceIdParams,
     validateRetryConfig,
+    validateRpaOpenClawParams,
     validateVariableAggregationNode,
   ];
 
