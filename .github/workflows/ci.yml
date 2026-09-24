@@ -463,13 +463,33 @@ jobs:
           chmod +x makefiles/check-comments.sh
           ./makefiles/check-comments.sh
 
+  boilerplate-check:
+    name: 📜 Boilerplate Check
+    runs-on: ubuntu-latest
+    needs: [detect-projects]
+    if: needs.detect-projects.outputs.has-projects == 'true'
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check license headers
+        env:
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
+        run: |
+          echo "📜 Checking license headers on newly added files..."
+          chmod +x makefiles/check-boilerplate.sh
+          ./makefiles/check-boilerplate.sh
+
   # ============================================================================
   # Stage 5: Summary
   # ============================================================================
   summary:
     name: 📊 Summary
     runs-on: ubuntu-latest
-    needs: [detect-projects, check, test, comment-check]
+    needs: [detect-projects, check, test, comment-check, boilerplate-check]
     if: always() && needs.detect-projects.outputs.has-projects == 'true'
     timeout-minutes: 2
     steps:
@@ -481,13 +501,15 @@ jobs:
           echo "🔍 Quality Checks: ${{ needs.check.result }}"
           echo "🧪 Tests: ${{ needs.test.result }}"
           echo "💬 Comment Check: ${{ needs.comment-check.result }} (temporarily disabled)"
+          echo "📜 Boilerplate Check: ${{ needs.boilerplate-check.result }}"
           echo ""
 
           # Check overall success (comment-check is temporarily disabled, so we accept 'skipped')
           if [[ "${{ needs.detect-projects.result }}" == "success" && \
                 "${{ needs.check.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \
-                ("${{ needs.comment-check.result }}" == "success" || "${{ needs.comment-check.result }}" == "skipped") ]]; then
+                ("${{ needs.comment-check.result }}" == "success" || "${{ needs.comment-check.result }}" == "skipped") && \
+                "${{ needs.boilerplate-check.result }}" == "success" ]]; then
             echo "✅ 🎉 All checks passed! Ready for merge."
           else
             echo "❌ 🚨 Some checks failed. Please review the logs."
