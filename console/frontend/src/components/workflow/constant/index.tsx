@@ -22,6 +22,7 @@ import { QuestionAnswerDetail } from '@/components/workflow/nodes/question-answe
 import { NodeCommonProps } from '@/components/workflow/types/hooks';
 import { RpaDetail } from '@/components/workflow/nodes/rpa';
 import { McpDetail } from '@/components/workflow/nodes/mcp';
+import { OpenClawDetail } from '@/components/workflow/nodes/openclaw';
 
 // 定义输出类型选项的接口（支持嵌套结构）
 interface OriginOutputType {
@@ -61,6 +62,7 @@ export const nodeTypeComponentMap: Record<
   message: MessageDetail,
   rpa: RpaDetail,
   mcp: McpDetail,
+  openclaw: OpenClawDetail,
 };
 
 export const originOutputTypeList: OriginOutputType[] = [
