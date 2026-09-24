@@ -5,9 +5,9 @@ tool listing and tool execution requests and responses.
 """
 
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
 
 
 class MCPTransport(str, Enum):
@@ -93,37 +93,128 @@ class MCPCallToolRequest(BaseModel):
     transport: MCPTransport = MCPTransport.AUTO
 
 
-class MCPTextResponse(BaseModel):
-    """Text content response from MCP tool execution.
+class MCPContentBlock(BaseModel):
+    """Base MCP content block.
 
-    Represents text-based output from an MCP tool call.
+    Unknown protocol fields are preserved (``extra="allow"``) so newer
+    servers do not lose data when passing through the plugin link.
     """
 
-    type: str = "text"
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    type: str
+    annotations: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = Field(default=None, alias="_meta")
+
+
+class MCPTextBlock(MCPContentBlock):
+    type: Literal["text"] = "text"
     text: str
 
 
-class MCPImageResponse(BaseModel):
-    """Image content response from MCP tool execution.
+class MCPImageBlock(MCPContentBlock):
+    type: Literal["image"] = "image"
+    data: str
+    mimeType: str
+    mineType: str | None = Field(
+        default=None,
+        description=(
+            "Deprecated misspelling of mimeType, kept for clients of the previous "
+            "response schema. Read mimeType instead; mineType will be removed."
+        ),
+    )
 
-    Represents image-based output from an MCP tool call with
-    base64 encoded data and MIME type.
+
+class MCPAudioBlock(MCPContentBlock):
+    type: Literal["audio"] = "audio"
+    data: str
+    mimeType: str
+
+
+class MCPResourceContents(BaseModel):
+    """Embedded resource contents: exactly one of ``text`` or ``blob``."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    uri: str
+    mimeType: str | None = None
+    text: str | None = None
+    blob: str | None = None
+    meta: dict[str, Any] | None = Field(default=None, alias="_meta")
+
+
+class MCPEmbeddedResourceBlock(MCPContentBlock):
+    type: Literal["resource"] = "resource"
+    resource: MCPResourceContents
+
+
+class MCPResourceLinkBlock(MCPContentBlock):
+    type: Literal["resource_link"] = "resource_link"
+    uri: str
+    name: str
+    title: str | None = None
+    description: str | None = None
+    mimeType: str | None = None
+    size: int | None = None
+
+
+class MCPUnsupportedBlock(MCPContentBlock):
+    """A content block type this service does not model yet.
+
+    It is passed through with all of its fields and flagged explicitly
+    instead of being dropped.
     """
 
-    type: str = "image"
-    data: str
-    mineType: str
+    unsupported: bool = True
+
+
+KNOWN_CONTENT_TYPES = frozenset({"text", "image", "audio", "resource", "resource_link"})
+
+
+def _content_tag(value: Any) -> str:
+    block_type = (
+        value.get("type") if isinstance(value, dict) else getattr(value, "type", None)
+    )
+    return block_type if block_type in KNOWN_CONTENT_TYPES else "unsupported"
+
+
+MCPContent = Annotated[
+    Annotated[MCPTextBlock, Tag("text")]
+    | Annotated[MCPImageBlock, Tag("image")]
+    | Annotated[MCPAudioBlock, Tag("audio")]
+    | Annotated[MCPEmbeddedResourceBlock, Tag("resource")]
+    | Annotated[MCPResourceLinkBlock, Tag("resource_link")]
+    | Annotated[MCPUnsupportedBlock, Tag("unsupported")],
+    Discriminator(_content_tag),
+]
+
+
+class MCPResultTruncation(BaseModel):
+    """Explains which parts of a tool result were withheld by size limits."""
+
+    reason: Literal["max_blocks", "max_bytes"]
+    maxBlocks: int
+    maxBytes: int
+    originalBlockCount: int
+    returnedBlockCount: int
+    structuredContentOmitted: bool = False
 
 
 class MCPCallToolData(BaseModel):
     """Data payload for MCP tool execution response.
 
-    Contains execution status and content (text or image responses)
-    from the tool call.
+    ``isError`` is the tool-level error flag reported by the MCP server; it
+    is independent of the envelope ``code``, which reports transport and
+    session failures.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     isError: bool | None = None
-    content: list[MCPTextResponse | MCPImageResponse] | None = None
+    content: list[MCPContent] | None = None
+    structuredContent: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = Field(default=None, alias="_meta")
+    truncation: MCPResultTruncation | None = None
 
 
 class MCPCallToolResponse(BaseModel):
@@ -137,3 +228,37 @@ class MCPCallToolResponse(BaseModel):
     message: str
     sid: str
     data: MCPCallToolData
+
+
+class MCPSingleServerRequest(BaseModel):
+    """Select one MCP server for resource or prompt operations."""
+
+    mcp_server_id: str | None = None
+    mcp_server_url: str | None = None
+    transport: MCPTransport = MCPTransport.AUTO
+
+
+class MCPListResourcesRequest(MCPSingleServerRequest):
+    cursor: str | None = None
+
+
+class MCPReadResourceRequest(MCPSingleServerRequest):
+    uri: str
+
+
+class MCPListPromptsRequest(MCPSingleServerRequest):
+    cursor: str | None = None
+
+
+class MCPGetPromptRequest(MCPSingleServerRequest):
+    name: str
+    arguments: dict[str, str] | None = None
+
+
+class MCPProtocolResponse(BaseModel):
+    """Envelope for resource and prompt SDK results."""
+
+    code: int
+    message: str
+    sid: str
+    data: dict[str, Any] | None = None
