@@ -1,0 +1,126 @@
+flowMeta:
+  name: Memcode Memory Search
+  description: Explicitly search approved personal memories through Memcode MCP.
+  category: 10
+  dslVersion: v1
+flowData:
+  nodes:
+    - id: node-start::679b7d7e-3318-4c32-b0d0-4f2af99a14d1
+      type: custom
+      position:
+        x: 0
+        y: 100
+      data:
+        allowInputReference: false
+        allowOutputReference: true
+        label: Start
+        nodeMeta:
+          aliasName: Start
+          nodeType: Basic
+        inputs: []
+        outputs:
+          - id: 91e069fd-3ff5-43a4-8bf6-adc9db9ecb42
+            name: AGENT_USER_INPUT
+            schema:
+              type: string
+              default: ""
+            required: true
+        nodeParam: {}
+    - id: mcp::c64819d7-54cc-4c60-a942-9f96a59ba6e2
+      type: MCP
+      position:
+        x: 430
+        y: 100
+      data:
+        allowInputReference: true
+        allowOutputReference: true
+        label: Search Memcode
+        nodeMeta:
+          aliasName: MCP
+          nodeType: Tool
+        inputs:
+          - id: e3cd5d1e-391c-47bc-991b-9f85942b69c9
+            name: query
+            required: true
+            schema:
+              type: string
+              value:
+                type: ref
+                content:
+                  id: 91e069fd-3ff5-43a4-8bf6-adc9db9ecb42
+                  nodeId: node-start::679b7d7e-3318-4c32-b0d0-4f2af99a14d1
+                  name: AGENT_USER_INPUT
+          - id: 0669f1a5-80b2-4679-b5db-984965848a3d
+            name: top_k
+            required: false
+            schema:
+              type: integer
+              value:
+                type: literal
+                content: "5"
+          - id: 11bfb029-c834-4dcf-a12b-e0878f253091
+            name: mode
+            required: false
+            schema:
+              type: string
+              value:
+                type: literal
+                content: memories
+        outputs:
+          - id: 974ab890-f739-4d76-b851-d38f41afc0b1
+            name: result
+            schema:
+              type: object
+              default: ""
+        nodeParam:
+          mcpServerId: ""
+          mcpServerUrl: https://mcp.memcode.in/mcp
+          toolName: search_memories
+          toolDescription: Search approved personal memories.
+    - id: node-end::43b21f28-3667-46c1-9e36-350b88aa6ac0
+      type: custom
+      position:
+        x: 860
+        y: 100
+      data:
+        allowInputReference: true
+        allowOutputReference: false
+        label: End
+        nodeMeta:
+          aliasName: End
+          nodeType: Basic
+        inputs:
+          - id: 5249ce9a-8a59-42e5-b8eb-55792ad1a1d5
+            name: output
+            schema:
+              type: object
+              value:
+                type: ref
+                content:
+                  id: 974ab890-f739-4d76-b851-d38f41afc0b1
+                  nodeId: mcp::c64819d7-54cc-4c60-a942-9f96a59ba6e2
+                  name: result
+        outputs: []
+        nodeParam:
+          template: "{{output}}"
+          streamOutput: false
+          outputMode: 1
+  edges:
+    - source: node-start::679b7d7e-3318-4c32-b0d0-4f2af99a14d1
+      target: mcp::c64819d7-54cc-4c60-a942-9f96a59ba6e2
+      type: customEdge
+      id: reactflow__edge-node-start-mcp
+      markerEnd:
+        type: arrow
+        color: "#6356EA"
+      data:
+        edgeType: curve
+    - source: mcp::c64819d7-54cc-4c60-a942-9f96a59ba6e2
+      target: node-end::43b21f28-3667-46c1-9e36-350b88aa6ac0
+      type: customEdge
+      id: reactflow__edge-mcp-node-end
+      markerEnd:
+        type: arrow
+        color: "#6356EA"
+      data:
+        edgeType: curve
