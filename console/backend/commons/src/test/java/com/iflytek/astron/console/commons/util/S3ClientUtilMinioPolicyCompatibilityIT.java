@@ -26,7 +26,8 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 class S3ClientUtilMinioPolicyCompatibilityIT {
     private static final String MINIO_IMAGE =
-            "quay.io/minio/minio:RELEASE.2025-07-23T15-54-02Z";
+            "docker.io/bitnamilegacy/minio:2025.7.23-debian-12-r5"
+                    + "@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20";
     private static final String ACCESS_KEY = "codex-policy-root";
     private static final String SECRET_KEY = "codex-policy-password-2026";
     private static final String DEFAULT_BUCKET = "console-oss";
@@ -44,7 +45,8 @@ class S3ClientUtilMinioPolicyCompatibilityIT {
             new GenericContainer<>(DockerImageName.parse(MINIO_IMAGE))
                     .withEnv("MINIO_ROOT_USER", ACCESS_KEY)
                     .withEnv("MINIO_ROOT_PASSWORD", SECRET_KEY)
-                    .withCommand("server", "/data", "--address", ":9000")
+                    // Bitnami runs as UID 1001; this test uses disposable, writable storage.
+                    .withCommand("server", "/tmp/minio-policy-data", "--address", ":9000")
                     .withExposedPorts(9000)
                     .waitingFor(Wait.forHttp("/minio/health/cluster").forStatusCode(200))
                     .withStartupTimeout(Duration.ofMinutes(2));

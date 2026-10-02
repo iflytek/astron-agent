@@ -134,7 +134,8 @@ redis:
 
 minio:
   enabled: true
-  image: minio/minio:RELEASE.2025-07-23T15-54-02Z
+  # Same upstream release, archived by Bitnami; pin the multi-platform digest.
+  image: docker.io/bitnamilegacy/minio:2025.7.23-debian-12-r5@sha256:6dabb4a2088c9a79908de3bc05f4586c23ad2182c8908e7e3acbf61c1467fb20
   replicaCount: 1
   resources:
     requests:

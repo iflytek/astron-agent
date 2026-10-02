@@ -60,6 +60,10 @@ spec:
       - name: minio
         image: "{{ .Values.minio.image }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        # Preserve the original MinIO image's user and existing /data ownership.
+        securityContext:
+          runAsUser: 0
+          runAsGroup: 0
         command:
         - minio
         - server
