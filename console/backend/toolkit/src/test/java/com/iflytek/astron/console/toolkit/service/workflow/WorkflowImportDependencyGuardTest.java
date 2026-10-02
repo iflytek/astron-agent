@@ -567,6 +567,47 @@ class WorkflowImportDependencyGuardTest {
     }
 
     @Test
+    void nodeDebugSuppliesCurrentUidForImportedCodeWithoutClientIdentity() {
+        Workflow workflow = executableWorkflow("flow-code-uid", emptyWorkflow());
+        when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);
+        when(appService.remoteCallAkSk("app-1"))
+                .thenReturn(new AkSk("api-key", "api-secret"));
+        WorkflowDebugDto request = new WorkflowDebugDto();
+        request.setFlowId("flow-code-uid");
+        BizWorkflowData submitted = workflowWithNode(
+                "ifly-code::node", new JSONObject()
+                        .fluentPut("appId", "app-1")
+                        .fluentPut("codeLanguage", "python")
+                        .fluentPut("code", "def main():\n    return {}"));
+        submitted.setEdges(List.of());
+        submitted.getNodes().getFirst().getData().setInputs(List.of());
+        submitted.getNodes().getFirst().getData().setOutputs(List.of());
+        request.setData(submitted);
+        AtomicReference<String> forwardedBody = new AtomicReference<>();
+
+        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
+            okHttp.when(() -> OkHttpUtil.post(
+                    eq("http://core/workflow/v1/node/debug/"), anyMap(), anyString()))
+                    .thenAnswer(invocation -> {
+                        forwardedBody.set(invocation.getArgument(2));
+                        return "{\"code\":0,\"data\":{}}";
+                    });
+
+            assertThat(workflowService.nodeDebug("ifly-code::node", request).code()).isZero();
+        }
+
+        JSONObject param = JSON.parseObject(forwardedBody.get())
+                .getJSONObject("data")
+                .getJSONArray("nodes")
+                .getJSONObject(0)
+                .getJSONObject("data")
+                .getJSONObject("nodeParam");
+        assertThat(param.getString("uid")).isEqualTo("current-user");
+        assertThat(param).doesNotContainKey("sandbox");
+        verify(dataPermissionCheckTool).checkWorkflowBelong(workflow, null);
+    }
+
+    @Test
     void runCodeAuthorizesFlowAndReplacesClientSandboxWithNonSecretScope() {
         Workflow workflow = executableWorkflow("flow-code-sandbox", emptyWorkflow());
         when(workflowMapper.selectOne(any(Wrapper.class))).thenReturn(workflow);

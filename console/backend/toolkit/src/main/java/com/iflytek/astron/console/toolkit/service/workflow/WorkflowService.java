@@ -1494,7 +1494,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
      */
     public ApiResult<Object> nodeDebug(String nodeId, WorkflowDebugDto debugDto) {
         BizWorkflowNode node = prepareNodeDebug(debugDto);
-        injectScriptSandboxIntoCodeNodes(List.of(node), debugDto.getFlowId());
+        injectCodeNodeRuntimeConfig(List.of(node), debugDto.getFlowId());
         return executeNodeDebug(nodeId, debugDto);
     }
 
@@ -2496,7 +2496,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             // check and fix node
             checkAndFixNode(nodes, fixedAppEnv, configs, appId, apiKey, apiSecret,
                     configuredMcpServerUrls, executionUid, executionSpaceId);
-            injectScriptSandboxIntoCodeNodes(nodes, flowId, executionUid, executionSpaceId);
+            injectCodeNodeRuntimeConfig(nodes, flowId, executionUid, executionSpaceId);
 
             // Update core system flow
 
@@ -3744,11 +3744,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 WorkflowInternalApiKey.requireConfigured(workflowInternalApiKey));
     }
 
-    private void injectScriptSandboxIntoCodeNodes(List<BizWorkflowNode> nodes, String flowId) {
-        injectScriptSandboxIntoCodeNodes(nodes, flowId, null, null);
+    private void injectCodeNodeRuntimeConfig(List<BizWorkflowNode> nodes, String flowId) {
+        injectCodeNodeRuntimeConfig(nodes, flowId, null, null);
     }
 
-    private void injectScriptSandboxIntoCodeNodes(
+    private void injectCodeNodeRuntimeConfig(
             List<BizWorkflowNode> nodes, String flowId, String executionUid,
             Long executionSpaceId) {
         if (nodes == null || nodes.isEmpty()) {
@@ -3758,6 +3758,13 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
             if (node == null || node.getData() == null || !isCodeNode(node.getId())) {
                 continue;
             }
+            // Imported DSLs can omit or retain another user's uid. Bind code execution to the
+            // authorized request/publish scope, including when no optional sandbox is configured.
+            String uid = executionUid == null ? UserInfoManagerHandler.getUserId() : executionUid;
+            if (StringUtils.isBlank(uid)) {
+                throw new BusinessException(ResponseEnum.UNAUTHORIZED);
+            }
+            node.getData().getNodeParam().put("uid", uid);
             JSONObject sandbox = buildRuntimeSandbox(
                     flowId, node.getId(), executionUid, executionSpaceId);
             if (sandbox == null) {
