@@ -18,6 +18,7 @@ import {
   useAddKnowledgeProps,
 } from '@/components/workflow/types';
 import { Icons } from '@/components/workflow/icons';
+import { clearRerankIdForNonRagflow } from '../knowledge-rerank';
 
 const useAddKnowledge = (): useAddKnowledgeProps => {
   const { t } = useTranslation();
@@ -130,6 +131,7 @@ const useAddKnowledge = (): useAddKnowledgeProps => {
             old.data.nodeParam.repoList.splice(findKnowledgeIndex, 1);
           }
           old.data.nodeParam.ragType = knowledge?.tag;
+          clearRerankIdForNonRagflow(old.data.nodeParam, knowledge?.tag);
           old.data.outputs = generateKnowledgeOutput(knowledge?.tag);
           return {
             ...cloneDeep(old),

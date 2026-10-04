@@ -84,6 +84,7 @@ class KnowledgeNode(BaseLLMNode):
         default_factory=list
     )  # Optional list of specific document IDs to search
     datasetIds: list[str] = Field(default_factory=list)
+    rerankId: str = Field(default="", max_length=512)
     score: float = Field(default=0.1)  # Minimum similarity threshold for results
     enableChatHistoryV2: EnableChatHistoryV2 = Field(
         default_factory=EnableChatHistoryV2
@@ -328,6 +329,7 @@ class KnowledgeNode(BaseLLMNode):
                 dataset_ids=repo_and_doc_ids.dataset_ids,
                 threshold=self.score,
                 history=history,
+                rerank_id=self.rerankId,
             )
             # Perform knowledge base search
             search_result = await KnowledgeClient(config=knowledge_config).top_k(

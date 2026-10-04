@@ -31,6 +31,7 @@ class KnowledgeConfig:
         dataset_ids: list[str] = [],
         threshold: float = 0.1,
         history: list[HistoryItem] = [],
+        rerank_id: str = "",
     ):
         """
         Initialize knowledge configuration parameters.
@@ -43,6 +44,7 @@ class KnowledgeConfig:
         :param flow_id: Optional flow ID for context
         :param doc_ids: Optional list of specific document IDs to search
         :param threshold: Minimum similarity threshold for results (default: 0.1)
+        :param rerank_id: Optional RAGFlow rerank model identifier
         """
         self.top_n = top_n
         self.rag_type = rag_type
@@ -54,6 +56,7 @@ class KnowledgeConfig:
         self.dataset_ids = dataset_ids
         self.threshold = threshold
         self.history = history
+        self.rerank_id = rerank_id
 
 
 class KnowledgeClient:
@@ -151,18 +154,18 @@ class KnowledgeClient:
         if self.config.rag_type == "Ragflow-RAG" and self.config.dataset_ids:
             match["datasetId"] = self.config.dataset_ids
 
-        _payload = json.dumps(
-            {
-                "query": self.config.query,
-                "topN": self.config.top_n,
-                "ragType": self.config.rag_type,
-                "match": match,
-                "history": [item.dict() for item in self.config.history],
-            },
-            ensure_ascii=True,
-        )
+        payload = {
+            "query": self.config.query,
+            "topN": self.config.top_n,
+            "ragType": self.config.rag_type,
+            "match": match,
+            "history": [item.dict() for item in self.config.history],
+        }
+        rerank_id = self.config.rerank_id.strip()
+        if self.config.rag_type == "Ragflow-RAG" and rerank_id:
+            payload["ragflow_ext"] = {"rerank_id": rerank_id}
 
-        return _payload
+        return json.dumps(payload, ensure_ascii=True)
 
     def headers(self) -> dict[str, str]:
         return {
