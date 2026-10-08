@@ -39,4 +39,4 @@ make fmt-typescript && make check-typescript  # TypeScript
 
 - [分支与提交规范](./branch-commit-standards-zh.md) - 分支管理和提交消息规范
 - [Makefile使用指南](../../docs/zh/Makefile-readme.md) - 完整的Makefile命令说明
-- [本地开发配置](../../docs/zh/Makefile-readme.md#local-development-configuration) - 使用`.localci.toml`进行模块化开发
+- [本地开发配置](../../docs/zh/Makefile-readme.md#本地开发配置) - 使用`.localci.toml`进行模块化开发
