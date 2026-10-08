@@ -159,6 +159,32 @@ _PGSQL_DANGEROUS_FUNCTIONS = [
     "pg_export_snapshot",
     "pg_advisory_lock",
     "pg_try_advisory_lock",
+    # Functions that execute SQL passed as a string or dump whole schemas/tables.
+    # The SQL inside the string is invisible to AST table checks, so these would
+    # bypass the schema-qualifier restriction (cross-space data access).
+    "query_to_xml",
+    "query_to_xmlschema",
+    "query_to_xml_and_xmlschema",
+    "cursor_to_xml",
+    "cursor_to_xmlschema",
+    "table_to_xml",
+    "table_to_xmlschema",
+    "table_to_xml_and_xmlschema",
+    "schema_to_xml",
+    "schema_to_xmlschema",
+    "schema_to_xml_and_xmlschema",
+    "database_to_xml",
+    "database_to_xmlschema",
+    "database_to_xml_and_xmlschema",
+    "dblink",
+    "dblink_exec",
+    # Server file system access
+    "pg_read_file",
+    "pg_read_binary_file",
+    "pg_ls_dir",
+    "pg_stat_file",
+    "lo_import",
+    "lo_export",
 ]
 
 

@@ -37,6 +37,15 @@ exec_dml_router = APIRouter(tags=["EXEC_DML"])
 
 INSERT_EXTRA_COLUMNS = ["id", "uid", "create_time", "update_time"]
 
+# System schemas that users are not allowed to access directly
+# This prevents information disclosure attacks and schema enumeration
+FORBIDDEN_SCHEMAS = {
+    "information_schema",
+    "pg_catalog",
+    "pg_toast",
+    "pg_temp",
+}
+
 
 def _normalize_bind_placeholders(sql: str) -> str:
     """Normalize SQLGlot placeholders to SQLAlchemy text() bind syntax."""
@@ -1141,6 +1150,26 @@ async def _set_search_path(
         )
 
 
+def _find_forbidden_table_reference(parsed: Any, dialect: str) -> Optional[str]:
+    """Return a log message if the statement references a table outside the
+    current schema, otherwise None.
+
+    The statement runs with search_path set to the caller's own schema. Any
+    schema/catalog qualifier (e.g. "other_schema".table) would escape that
+    schema and reach other spaces' data, so qualifiers are rejected outright.
+    Bare references to system schemas are rejected as well.
+    """
+    for table in parsed.find_all(exp.Table):
+        if (table.name or "").lower() in FORBIDDEN_SCHEMAS:
+            return f"Access to system schema '{table.name}' is not allowed"
+        if table.db or table.catalog:
+            return (
+                "Schema-qualified table names are not allowed. "
+                f"Found: {table.sql(dialect=dialect)}"
+            )
+    return None
+
+
 async def _dml_split(
     dml: str, db: Any, schema: str, uid: str, span_context: Any
 ) -> Any:
@@ -1163,6 +1192,15 @@ async def _dml_split(
         try:
             dialect = get_adapter().get_sqlglot_dialect()
             parsed = parse_one(statement, dialect=dialect)
+            forbidden_ref = _find_forbidden_table_reference(parsed, dialect)
+            if forbidden_ref:
+                span_context.add_error_event(forbidden_ref)
+                logger.error(forbidden_ref)
+                return None, format_response(
+                    code=CodeEnum.DMLNotAllowed.code,
+                    message="Schema-qualified or system table access is not allowed",
+                    sid=span_context.sid,
+                )
             tables = {table.name for table in parsed.find_all(exp.Table)}
         except Exception as parse_error:  # pylint: disable=broad-except
             span_context.record_exception(parse_error)
