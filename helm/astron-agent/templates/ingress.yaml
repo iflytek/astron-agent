@@ -3,7 +3,8 @@
 {{- $gatewayAuthDenyPath := "/console-api/internal/gateway/auth/workflow(/|$)(.*)" -}}
 {{- $artifactUploadDenyPath := "/console-api/workflow/artifacts/internal-upload(/|$)(.*)" -}}
 {{- $runtimeConfigDenyPath := "/console-api/skill-sandbox/internal-runtime-config(/|$)(.*)" -}}
-{{- if or (le (len $gatewayAuthDenyPath) (len $consoleApiPath)) (le (len $artifactUploadDenyPath) (len $consoleApiPath)) (le (len $runtimeConfigDenyPath) (len $consoleApiPath)) -}}
+{{- $agentRuntimeDenyPath := "/console-api/internal/agent-runtime(/|$)(.*)" -}}
+{{- if or (le (len $gatewayAuthDenyPath) (len $consoleApiPath)) (le (len $artifactUploadDenyPath) (len $consoleApiPath)) (le (len $runtimeConfigDenyPath) (len $consoleApiPath)) (le (len $agentRuntimeDenyPath) (len $consoleApiPath)) -}}
 {{- fail "internal console API deny paths must remain longer than the generic /console-api regex so ingress-nginx orders them first" -}}
 {{- end -}}
 apiVersion: networking.k8s.io/v1
@@ -107,6 +108,15 @@ spec:
                 name: {{ include "astron-agent.fullname" $ }}-core-workflow
                 port:
                   number: {{ $.Values.coreWorkflow.service.port }}
+          {{- if $.Values.coreRuntime.enabled }}
+          - path: /openapi/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-core-runtime
+                port:
+                  number: {{ $.Values.coreRuntime.service.port }}
+          {{- end }}
     {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
@@ -192,6 +202,13 @@ spec:
                 port:
                   number: 80
           - path: {{ $runtimeConfigDenyPath | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-console-api-deny
+                port:
+                  number: 80
+          - path: {{ $agentRuntimeDenyPath | quote }}
             pathType: ImplementationSpecific
             backend:
               service:

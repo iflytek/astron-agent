@@ -1,3 +1,22 @@
+x-agent-runtime-environment: &agent-runtime-environment
+  RUNTIME_DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-spark}:${POSTGRES_PASSWORD:-spark123}@postgres:5432/sparkdb_manager"
+  RUNTIME_REDIS_URL: "${RUNTIME_REDIS_URL:-redis://redis:6379/1}"
+  RUNTIME_DELEGATION_ISSUERS_JSON: "${RUNTIME_DELEGATION_ISSUERS_JSON:-{}}"
+  RUNTIME_DELEGATION_AUDIENCE: "${RUNTIME_DELEGATION_AUDIENCE:-astron-agent-runtime}"
+  RUNTIME_CORE_AGENT_URL: "http://core-agent:${CORE_AGENT_PORT:-17870}"
+  RUNTIME_CORE_WORKFLOW_URL: "http://core-workflow:${CORE_WORKFLOW_PORT:-7880}"
+  RUNTIME_CONSOLE_HUB_URL: "http://console-hub:${CONSOLE_HUB_PORT:-8080}"
+
+x-agent-runtime-api-environment: &agent-runtime-api-environment
+  <<: *agent-runtime-environment
+  RUNTIME_GATEWAY_IDENTITY_SECRET_FILE: "/app/secrets/workflow/workflow-internal-api-key"
+  RUNTIME_INTERNAL_API_KEY_FILE: "/app/secrets/agent-runtime/runtime-internal-api-key"
+
+x-agent-runtime-worker-environment: &agent-runtime-worker-environment
+  <<: *agent-runtime-environment
+  RUNTIME_INTERNAL_API_KEY_FILE: "/app/secrets/agent-runtime/runtime-internal-api-key"
+  RUNTIME_WORKFLOW_INTERNAL_API_KEY_FILE: "/app/secrets/workflow/workflow-internal-api-key"
+
 services:
   # ============================================================================
   # Infrastructure Services
@@ -11,6 +30,7 @@ services:
     container_name: astron-agent-internal-credentials-init
     environment:
       CONFIGURED_WORKFLOW_INTERNAL_API_KEY: "${WORKFLOW_INTERNAL_API_KEY:-}"
+      CONFIGURED_RUNTIME_INTERNAL_API_KEY: "${RUNTIME_INTERNAL_API_KEY:-}"
       CONFIGURED_TENANT_KEY: "${TENANT_KEY:-}"
       CONFIGURED_TENANT_SECRET: "${TENANT_SECRET:-}"
     command:
@@ -79,6 +99,17 @@ services:
           [ -n "$$workflow_key" ] || workflow_key="$$(generate_hex 32)"
         fi
 
+        runtime_key="$$CONFIGURED_RUNTIME_INTERNAL_API_KEY"
+        if [ -n "$$runtime_key" ]; then
+          safe_token "$$runtime_key" 32 128 || {
+            echo 'RUNTIME_INTERNAL_API_KEY must contain 32-128 safe characters.' >&2
+            exit 1
+          }
+        else
+          runtime_key="$$(read_valid_file /secrets/agent-runtime/runtime-internal-api-key 32 128 || true)"
+          [ -n "$$runtime_key" ] || runtime_key="$$(generate_hex 32)"
+        fi
+
         tenant_key="$$CONFIGURED_TENANT_KEY"
         tenant_secret="$$CONFIGURED_TENANT_SECRET"
         if [ "$$tenant_key" = "$$legacy_tenant_key" ] && [ "$$tenant_secret" = "$$legacy_tenant_secret" ]; then
@@ -107,6 +138,7 @@ services:
         fi
 
         write_secret /secrets/workflow workflow-internal-api-key "$$workflow_key"
+        write_secret /secrets/agent-runtime runtime-internal-api-key "$$runtime_key"
         write_secret /secrets/tenant tenant-key "$$tenant_key"
         write_secret /secrets/tenant tenant-secret "$$tenant_secret"
 
@@ -138,6 +170,7 @@ services:
     network_mode: none
     volumes:
       - workflow_internal_secrets:/secrets/workflow
+      - agent_runtime_internal_secrets:/secrets/agent-runtime
       - tenant_bootstrap_secrets:/secrets/tenant
     restart: "no"
 
@@ -633,6 +666,89 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-60}
     restart: always
 
+  # Durable asynchronous Agent Runtime. API, dispatcher, and workers are
+  # separate processes so queue admission and execution scale independently.
+  agent-runtime-migrate:
+    image: ghcr.io/iflytek/astron-agent/core-runtime:${ASTRON_AGENT_VERSION:-latest}
+    container_name: astron-agent-runtime-migrate
+    command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
+    environment: *agent-runtime-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - astron-agent-network
+    restart: "no"
+
+  agent-runtime-api:
+    image: ghcr.io/iflytek/astron-agent/core-runtime:${ASTRON_AGENT_VERSION:-latest}
+    container_name: astron-agent-runtime-api
+    environment: *agent-runtime-api-environment
+    depends_on:
+      internal-credentials-init:
+        condition: service_completed_successfully
+      agent-runtime-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    volumes:
+      - agent_runtime_internal_secrets:/app/secrets/agent-runtime:ro
+      - workflow_internal_secrets:/app/secrets/workflow:ro
+    networks:
+      - astron-agent-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8790/health/ready', timeout=5).read()\""]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-60}
+    restart: always
+
+  agent-runtime-dispatcher:
+    image: ghcr.io/iflytek/astron-agent/core-runtime:${ASTRON_AGENT_VERSION:-latest}
+    container_name: astron-agent-runtime-dispatcher
+    command: ["uv", "run", "--no-sync", "python", "-m", "agent_runtime.worker.outbox"]
+    environment: *agent-runtime-environment
+    depends_on:
+      agent-runtime-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    networks:
+      - astron-agent-network
+    restart: always
+
+  agent-runtime-worker:
+    image: ghcr.io/iflytek/astron-agent/core-runtime:${ASTRON_AGENT_VERSION:-latest}
+    container_name: astron-agent-runtime-worker
+    command:
+      - uv
+      - run
+      - --no-sync
+      - celery
+      - -A
+      - agent_runtime.worker.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --concurrency=${RUNTIME_WORKER_CONCURRENCY:-5}
+    environment: *agent-runtime-worker-environment
+    depends_on:
+      internal-credentials-init:
+        condition: service_completed_successfully
+      agent-runtime-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      core-agent:
+        condition: service_healthy
+      core-workflow:
+        condition: service_healthy
+    volumes:
+      - agent_runtime_internal_secrets:/app/secrets/agent-runtime:ro
+      - workflow_internal_secrets:/app/secrets/workflow:ro
+    networks:
+      - astron-agent-network
+    restart: always
+
   # Knowledge Base Service
   core-knowledge:
     image: ghcr.io/iflytek/astron-agent/core-knowledge:${ASTRON_AGENT_VERSION:-latest}
@@ -794,6 +910,7 @@ services:
     depends_on:
       - console-frontend
       - console-hub
+      - agent-runtime-api
     networks:
       - astron-agent-network
     restart: always
@@ -859,6 +976,7 @@ services:
       KNOWLEDGE_URL: "${KNOWLEDGE_URL:-}"
       TOOL_URL: "${TOOL_URL:-}"
       AGENT_URL: "${AGENT_URL:-http://core-agent:${CORE_AGENT_PORT}}"
+      AGENT_RUNTIME_EXECUTION_URL: "http://core-agent:${CORE_AGENT_PORT:-17870}/agent/v1/custom/chat/completions"
       TOOL_RPA_URL: "${TOOL_RPA_URL:-}"
       WORKFLOW_URL: "${WORKFLOW_URL:-}"
       SPARK_DB_URL: "${SPARK_DB_URL:-}"
@@ -877,6 +995,8 @@ services:
       MAAS_WORKFLOW_CONFIG: "${MAAS_WORKFLOW_CONFIG:-}"
       BOT_API_CBM_BASE_URL: "${BOT_API_CBM_BASE_URL:-}"
       BOT_API_MAAS_BASE_URL: "${BOT_API_MAAS_BASE_URL:-}"
+      AGENT_RUNTIME_MANAGEMENT_URL: "http://agent-runtime-api:8790/internal/v1"
+      AGENT_RUNTIME_INTERNAL_API_KEY_FILE: "/app/secrets/agent-runtime/runtime-internal-api-key"
       TENANT_CREATE_APP: "${TENANT_CREATE_APP:-}"
       TENANT_GET_APP_DETAIL: "${TENANT_GET_APP_DETAIL:-}"
       TENANT_VERIFY_APP_AUTH: "${TENANT_VERIFY_APP_AUTH:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/key/verify}"
@@ -893,6 +1013,7 @@ services:
       - artifact_upload_secrets:/app/secrets/artifact
       - sandbox_runtime_credential_secrets:/app/secrets/runtime
       - workflow_internal_secrets:/app/secrets/workflow:ro
+      - agent_runtime_internal_secrets:/app/secrets/agent-runtime:ro
       - tenant_bootstrap_secrets:/app/secrets/tenant:ro
 
     expose:
@@ -905,6 +1026,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      agent-runtime-api:
         condition: service_healthy
       minio:
         condition: service_healthy
@@ -947,6 +1070,8 @@ volumes:
   sandbox_runtime_credential_secrets:
     driver: local
   workflow_internal_secrets:
+    driver: local
+  agent_runtime_internal_secrets:
     driver: local
   tenant_bootstrap_secrets:
     driver: local

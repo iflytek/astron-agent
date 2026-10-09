@@ -1,0 +1,14 @@
+[MESSAGES CONTROL]
+disable=
+    duplicate-code,
+    line-too-long,
+    missing-class-docstring,
+    missing-function-docstring,
+    missing-module-docstring,
+    no-member,
+    too-few-public-methods,
+    too-many-locals,
+    wrong-import-position
+
+[BASIC]
+good-names=db,id

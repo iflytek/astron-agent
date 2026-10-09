@@ -23,8 +23,8 @@ import com.iflytek.astron.console.commons.util.space.SpaceInfoUtil;
 import com.iflytek.astron.console.hub.data.ReqKnowledgeRecordsDataService;
 import com.iflytek.astron.console.hub.service.agentmemory.runtime.AgentMemoryRuntimeService;
 import com.iflytek.astron.console.hub.service.chat.ChatListService;
+import com.iflytek.astron.console.hub.service.chat.runtime.CoreAgentChatService;
 import com.iflytek.astron.console.hub.service.chat.springai.AgentChatTask;
-import com.iflytek.astron.console.hub.service.chat.springai.SpringAiAgentChatService;
 import com.iflytek.astron.console.hub.service.knowledge.KnowledgeService;
 import com.iflytek.astron.console.toolkit.entity.vo.CategoryTreeVO;
 import com.iflytek.astron.console.toolkit.entity.vo.LLMInfoVo;
@@ -60,7 +60,7 @@ class BotChatServiceImplUnitTest {
     @Mock
     private ChatDataService chatDataService;
     @Mock
-    private SpringAiAgentChatService springAiAgentChatService;
+    private CoreAgentChatService coreAgentChatService;
     @Mock
     private ChatHistoryService chatHistoryService;
     @Mock
@@ -124,7 +124,7 @@ class BotChatServiceImplUnitTest {
         botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", "op", "v1");
 
         verify(workflowBotChatService).chatWorkflowBot(eq(chatBotReqDto), eq(sseEmitter), eq("sse"), eq("op"), eq("v1"));
-        verify(springAiAgentChatService, never()).chat(any(), any(), any());
+        verify(coreAgentChatService, never()).chat(any(), any(), any());
     }
 
     @ParameterizedTest
@@ -139,7 +139,7 @@ class BotChatServiceImplUnitTest {
             botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null);
 
             verifyNoInteractions(chatBotDataService, chatDataService, workflowService,
-                    workflowBotChatService, springAiAgentChatService);
+                    workflowBotChatService, coreAgentChatService);
             sse.verify(() -> SseEmitterUtil.completeWithError(sseEmitter, "Please enter chat content"));
         }
     }
@@ -250,7 +250,7 @@ class BotChatServiceImplUnitTest {
         lenient().when(chatBotDataService.findById(anyInt())).thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> botChatService.chatMessageBot(chatBotReqDto, sseEmitter, "sse", null, null));
-        verify(springAiAgentChatService, never()).chat(any(), any(), any());
+        verify(coreAgentChatService, never()).chat(any(), any(), any());
     }
 
     @Test
@@ -429,7 +429,7 @@ class BotChatServiceImplUnitTest {
 
     private AgentChatTask captureTask() {
         ArgumentCaptor<AgentChatTask> captor = ArgumentCaptor.forClass(AgentChatTask.class);
-        verify(springAiAgentChatService).chat(captor.capture(), any(SseEmitter.class), anyString());
+        verify(coreAgentChatService).chat(captor.capture(), any(SseEmitter.class), anyString());
         return captor.getValue();
     }
 

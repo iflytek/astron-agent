@@ -118,11 +118,17 @@ class EventRegistry(BaseShutdownEvent):
             raise e
 
     @classmethod
-    def lock_event(cls, event_id: str, sid: str, timeout: int = 180) -> None:
-        get_cache_service().set_ex(
+    def lock_event(cls, event_id: str, sid: str, timeout: int = 180) -> bool:
+        """Atomically claim an event for resume processing.
+
+        A separate ``check`` followed by ``set`` allows two callers to resume the
+        same event concurrently. Redis ``SET NX EX`` makes the claim a single
+        operation and keeps the existing expiry safety net.
+        """
+        return get_cache_service().setnx(
             key=f"event_lock:{event_id}",
             value=f"locked_by_{sid}",
-            expire_time=timeout,
+            ex=timeout,
         )
 
     @classmethod

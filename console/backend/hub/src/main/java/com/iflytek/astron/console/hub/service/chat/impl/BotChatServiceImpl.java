@@ -37,7 +37,7 @@ import com.iflytek.astron.console.hub.service.bot.PersonalityConfigService;
 import com.iflytek.astron.console.hub.service.chat.BotChatService;
 import com.iflytek.astron.console.hub.service.chat.ChatListService;
 import com.iflytek.astron.console.hub.service.chat.springai.AgentChatTask;
-import com.iflytek.astron.console.hub.service.chat.springai.SpringAiAgentChatService;
+import com.iflytek.astron.console.hub.service.chat.runtime.CoreAgentChatService;
 import com.iflytek.astron.console.hub.service.knowledge.KnowledgeService;
 import com.iflytek.astron.console.toolkit.entity.biz.modelconfig.ModelDto;
 import com.iflytek.astron.console.toolkit.entity.vo.CategoryTreeVO;
@@ -72,7 +72,7 @@ public class BotChatServiceImpl implements BotChatService {
     private ChatDataService chatDataService;
 
     @Autowired
-    private SpringAiAgentChatService springAiAgentChatService;
+    private CoreAgentChatService coreAgentChatService;
 
     @Autowired
     private SkillEnrichmentService skillEnrichmentService;
@@ -169,7 +169,7 @@ public class BotChatServiceImpl implements BotChatService {
                         .debug(false)
                         .build();
                 task.setMessages(agentMemoryRuntimeService.enrichMessages(task));
-                springAiAgentChatService.chat(task, sseEmitter, sseId);
+                coreAgentChatService.chat(task, sseEmitter, sseId);
             }
         } catch (Exception e) {
             log.error("Bot chat error for sseId: {}, chatId: {}, uid: {}", sseId, chatBotReqDto.getChatId(), chatBotReqDto.getUid(), e);
@@ -224,7 +224,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .debug(false)
                     .build();
             task.setMessages(agentMemoryRuntimeService.enrichMessages(task));
-            springAiAgentChatService.chat(task, sseEmitter, sseId);
+            coreAgentChatService.chat(task, sseEmitter, sseId);
         } catch (Exception e) {
             log.error("Bot reAnswer error for sseId: {}, requestId: {}", sseId, requestId, e);
             SseEmitterUtil.completeWithError(sseEmitter, "Failed to process re-answer request: " + e.getMessage());
@@ -275,7 +275,7 @@ public class BotChatServiceImpl implements BotChatService {
                     .debug(true)
                     .build();
             task.setMessages(agentMemoryRuntimeService.enrichMessages(task));
-            springAiAgentChatService.chat(task, sseEmitter, sseId);
+            coreAgentChatService.chat(task, sseEmitter, sseId);
         } catch (Exception e) {
             log.error("Bot debug error for sseId: {}, uid: {}", sseId, request.getUid(), e);
             SseEmitterUtil.completeWithError(sseEmitter, "Failed to process chat request: " + e.getMessage());

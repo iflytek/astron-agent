@@ -988,6 +988,25 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         return mapper.selectOne(wrapper);
     }
 
+    /** Resolve only the credential referenced by a published, space-bound Agent snapshot. */
+    public String getPublishedRuntimeModelCredential(
+            Long modelId, String ownerUid, Long spaceId) {
+        if (modelId == null || StringUtils.isBlank(ownerUid) || spaceId == null) {
+            throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
+        }
+        if (enterpriseSpaceService.checkUserBelongSpace(spaceId, ownerUid) == null) {
+            throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
+        }
+        Model model = mapper.selectOne(new LambdaQueryWrapper<Model>()
+                .eq(Model::getId, modelId)
+                .eq(Model::getSpaceId, spaceId)
+                .eq(Model::getIsDeleted, 0));
+        if (model == null) {
+            throw new BusinessException(ResponseEnum.MODEL_NOT_EXIST);
+        }
+        return model.getApiKey();
+    }
+
     /**
      * Build LLMInfoVo from Model entity
      */

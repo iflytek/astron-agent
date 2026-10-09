@@ -32,6 +32,8 @@ INTERNAL_CREDENTIAL_CONSUMERS = (
     "core-agent",
     "core-workflow",
     "console-hub",
+    "agent-runtime-api",
+    "agent-runtime-worker",
 )
 
 LEGACY_TENANT_KEY = "7b709739e8da44536127a333c7603a83"
@@ -55,6 +57,38 @@ GENERATED_CREDENTIALS = (
                 ),
             },
             "console-hub": {},
+            "agent-runtime-api": {
+                "RUNTIME_GATEWAY_IDENTITY_SECRET_FILE": (
+                    "/app/secrets/workflow/workflow-internal-api-key"
+                ),
+            },
+            "agent-runtime-worker": {
+                "RUNTIME_WORKFLOW_INTERNAL_API_KEY_FILE": (
+                    "/app/secrets/workflow/workflow-internal-api-key"
+                ),
+            },
+        },
+    },
+    {
+        "volume": "agent_runtime_internal_secrets",
+        "init_target": "/secrets/agent-runtime",
+        "consumer_target": "/app/secrets/agent-runtime",
+        "consumers": {
+            "console-hub": {
+                "AGENT_RUNTIME_INTERNAL_API_KEY_FILE": (
+                    "/app/secrets/agent-runtime/runtime-internal-api-key"
+                ),
+            },
+            "agent-runtime-api": {
+                "RUNTIME_INTERNAL_API_KEY_FILE": (
+                    "/app/secrets/agent-runtime/runtime-internal-api-key"
+                ),
+            },
+            "agent-runtime-worker": {
+                "RUNTIME_INTERNAL_API_KEY_FILE": (
+                    "/app/secrets/agent-runtime/runtime-internal-api-key"
+                ),
+            },
         },
     },
     {
@@ -99,6 +133,16 @@ FORBIDDEN_INLINE_CREDENTIALS = {
         "TENANT_KEY",
         "TENANT_SECRET",
         "WORKFLOW_INTERNAL_API_KEY",
+    ),
+    "agent-runtime-api": (
+        "RUNTIME_GATEWAY_IDENTITY_SECRET",
+        "RUNTIME_INTERNAL_API_KEY",
+        "RUNTIME_WORKFLOW_INTERNAL_API_KEY",
+    ),
+    "agent-runtime-worker": (
+        "RUNTIME_GATEWAY_IDENTITY_SECRET",
+        "RUNTIME_INTERNAL_API_KEY",
+        "RUNTIME_WORKFLOW_INTERNAL_API_KEY",
     ),
 }
 
@@ -292,6 +336,7 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
         "umask 077",
         "/dev/urandom",
         "workflow-internal-api-key",
+        "runtime-internal-api-key",
         "tenant-bootstrap.properties",
         "api.url.apiKey=%s",
         "api.url.apiSecret=%s",
@@ -708,9 +753,11 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
     with tempfile.TemporaryDirectory(prefix="astron-credential-") as temporary:
         root = Path(temporary)
         workflow_directory = root / "workflow"
+        runtime_directory = root / "agent-runtime"
         tenant_directory = root / "tenant"
         script = command[2].replace("$$", "$")
         script = script.replace("/secrets/workflow", str(workflow_directory))
+        script = script.replace("/secrets/agent-runtime", str(runtime_directory))
         script = script.replace("/secrets/tenant", str(tenant_directory))
 
         def run_initializer(
@@ -764,10 +811,15 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
             workflow_key = read_single_line(
                 workflow_directory / "workflow-internal-api-key"
             )
+            runtime_key = read_single_line(
+                runtime_directory / "runtime-internal-api-key"
+            )
             tenant_key = read_single_line(tenant_directory / "tenant-key")
             tenant_secret = read_single_line(tenant_directory / "tenant-secret")
             if not _safe_token(workflow_key, 32, 128):
                 raise GateError("credential shell lifecycle workflow key is invalid")
+            if not _safe_token(runtime_key, 32, 128):
+                raise GateError("credential shell lifecycle runtime key is invalid")
             if not (
                 _safe_token(tenant_key, 32, 50)
                 and _safe_token(tenant_secret, 32, 50)
@@ -815,6 +867,7 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
 
         empty_environment = {
             "CONFIGURED_WORKFLOW_INTERNAL_API_KEY": "",
+            "CONFIGURED_RUNTIME_INTERNAL_API_KEY": "",
             "CONFIGURED_TENANT_KEY": "",
             "CONFIGURED_TENANT_SECRET": "",
         }
@@ -834,6 +887,7 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
             path.write_text(f"{value}\n")
         legacy_environment = {
             "CONFIGURED_WORKFLOW_INTERNAL_API_KEY": WORKFLOW_PLACEHOLDER,
+            "CONFIGURED_RUNTIME_INTERNAL_API_KEY": "",
             "CONFIGURED_TENANT_KEY": LEGACY_TENANT_KEY,
             "CONFIGURED_TENANT_SECRET": LEGACY_TENANT_SECRET,
         }
@@ -845,6 +899,7 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
         tenant_secret_override = "S" * 48
         override_environment = {
             "CONFIGURED_WORKFLOW_INTERNAL_API_KEY": workflow_override,
+            "CONFIGURED_RUNTIME_INTERNAL_API_KEY": "",
             "CONFIGURED_TENANT_KEY": tenant_key_override,
             "CONFIGURED_TENANT_SECRET": tenant_secret_override,
         }
@@ -862,6 +917,7 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
 
         invalid_environment = {
             "CONFIGURED_WORKFLOW_INTERNAL_API_KEY": "",
+            "CONFIGURED_RUNTIME_INTERNAL_API_KEY": "",
             "CONFIGURED_TENANT_KEY": tenant_key_override,
             "CONFIGURED_TENANT_SECRET": "",
         }
@@ -871,6 +927,7 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
 
         mixed_legacy_environment = {
             "CONFIGURED_WORKFLOW_INTERNAL_API_KEY": "",
+            "CONFIGURED_RUNTIME_INTERNAL_API_KEY": "",
             "CONFIGURED_TENANT_KEY": LEGACY_TENANT_KEY,
             "CONFIGURED_TENANT_SECRET": tenant_secret_override,
         }
@@ -1147,7 +1204,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     print(
         "security contract gate: PASS "
-        f"(5 services, 4 independent credential volumes, "
+        f"({len(set(SERVICES + INTERNAL_CREDENTIAL_CONSUMERS))} services, "
+        f"{len(CREDENTIALS + GENERATED_CREDENTIALS)} independent credential volumes, "
         f"{len(_negative_cases())} negative cases, shell lifecycle exercised"
         + (
             ", credential lifecycle exercised"

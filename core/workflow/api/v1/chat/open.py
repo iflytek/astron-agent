@@ -104,7 +104,10 @@ async def chat_open(
 
 
 @router.post("/resume", response_model=None)
-async def resume_open(request: ResumeVo) -> Union[StreamingResponse, JSONResponse]:
+async def resume_open(
+    x_consumer_username: Annotated[str, Header()],
+    request: ResumeVo,
+) -> Union[StreamingResponse, JSONResponse]:
     """
     Resume an interrupted chat event
     :param request: Resume request data
@@ -127,9 +130,20 @@ async def resume_open(request: ResumeVo) -> Union[StreamingResponse, JSONRespons
                     CodeEnum.EVENT_REGISTRY_NOT_FOUND_ERROR,
                     "Event not found",
                 )
-            if EventRegistry().check_event_lock(event_id=event_id):
+            if event.app_id != x_consumer_username:
+                raise CustomException(
+                    CodeEnum.APP_FLOW_NO_LICENSE_ERROR,
+                    "Event does not belong to the authenticated application",
+                )
+
+            if not event.status == ChatStatus.INTERRUPT.value:
+                raise CustomException(
+                    CodeEnum.EVENT_REGISTRY_NOT_FOUND_ERROR,
+                    "Current event is not paused",
+                )
+
+            if not EventRegistry().lock_event(event_id=event_id, sid=span.sid):
                 raise CustomException(CodeEnum.EVENT_REGISTRY_LOCK_ERROR)
-            EventRegistry().lock_event(event_id=event_id, sid=span.sid)
 
             m.set_label("flow_id", event.flow_id)
             m.set_label("app_id", event.app_id)
@@ -142,12 +156,6 @@ async def resume_open(request: ResumeVo) -> Union[StreamingResponse, JSONRespons
             await span_context.add_info_events_async(
                 {"resume_event": json.dumps(event.dict(), ensure_ascii=False)}
             )
-
-            if not event.status == ChatStatus.INTERRUPT.value:
-                raise CustomException(
-                    CodeEnum.EVENT_REGISTRY_NOT_FOUND_ERROR,
-                    "Current event is not paused",
-                )
 
             # Input audit
             with session_getter(auto_commit=False) as session:

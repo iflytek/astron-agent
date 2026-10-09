@@ -12,7 +12,9 @@ import com.iflytek.astron.console.commons.service.user.AppMstService;
 import com.iflytek.astron.console.commons.util.MaasUtil;
 import com.iflytek.astron.console.hub.dto.publish.CreateBotApiVo;
 import com.iflytek.astron.console.hub.service.chat.ChatBotApiService;
+import com.iflytek.astron.console.hub.service.publish.AgentRuntimeManagementClient;
 import com.iflytek.astron.console.hub.service.publish.ReleaseManageClientService;
+import com.iflytek.astron.console.toolkit.service.model.ModelService;
 import com.iflytek.astron.console.toolkit.util.RedisUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,6 +49,10 @@ class PublishApiServiceImplBusinessExceptionTest {
     private MaasUtil maasUtil;
     @Mock
     private ReleaseManageClientService releaseManageClientService;
+    @Mock
+    private AgentRuntimeManagementClient agentRuntimeManagementClient;
+    @Mock
+    private ModelService modelService;
 
     private PublishApiServiceImpl publishApiService;
 
@@ -60,6 +66,9 @@ class PublishApiServiceImplBusinessExceptionTest {
         ReflectionTestUtils.setField(publishApiService, "userLangChainDataService", userLangChainDataService);
         ReflectionTestUtils.setField(publishApiService, "maasUtil", maasUtil);
         ReflectionTestUtils.setField(publishApiService, "releaseManageClientService", releaseManageClientService);
+        ReflectionTestUtils.setField(
+                publishApiService, "agentRuntimeManagementClient", agentRuntimeManagementClient);
+        ReflectionTestUtils.setField(publishApiService, "modelService", modelService);
     }
 
     @Test

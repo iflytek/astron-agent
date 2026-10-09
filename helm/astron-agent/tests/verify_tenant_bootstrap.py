@@ -17,6 +17,8 @@ MANAGED_SECRET_KEY = "tenant-secret"
 WORKFLOW_MANAGED_SECRET = "astron-agent-workflow-internal-auth"
 WORKFLOW_MANAGED_KEY = "workflow-internal-api-key"
 WORKFLOW_PLACEHOLDER = "CHANGE_ME_WORKFLOW_INTERNAL_API_KEY"
+RUNTIME_MANAGED_SECRET = "astron-agent-runtime-internal-auth"
+RUNTIME_MANAGED_KEY = "runtime-internal-api-key"
 WORKFLOW_CONSUMERS = (
     "astron-agent-core-agent",
     "astron-agent-core-workflow",
@@ -135,48 +137,54 @@ def _main_container_environment(
 
     names: List[str] = []
     entries: Dict[str, Dict[str, str]] = {}
+    environment_indent = len(lines[environment_index]) - len(
+        lines[environment_index].lstrip()
+    )
     index = environment_index + 1
     while index < len(lines):
         line = lines[index]
-        item = re.fullmatch(r"        - name: ([A-Z0-9_]+)", line)
+        item = re.fullmatch(r"\s+- name: ([A-Z0-9_]+)", line)
         if not item:
-            if re.match(r"^        [A-Za-z]", line):
+            indent = len(line) - len(line.lstrip())
+            if line.strip() and indent <= environment_indent:
                 break
             index += 1
             continue
+        item_indent = len(line) - len(line.lstrip())
         env_name = item.group(1)
         names.append(env_name)
         block: List[str] = []
         index += 1
         while index < len(lines):
             next_line = lines[index]
-            if re.fullmatch(r"        - name: [A-Z0-9_]+", next_line):
+            next_indent = len(next_line) - len(next_line.lstrip())
+            if re.fullmatch(rf"\s{{{item_indent}}}- name: [A-Z0-9_]+", next_line):
                 break
-            if re.match(r"^        [A-Za-z]", next_line):
+            if next_line.strip() and next_indent <= environment_indent:
                 break
             block.append(next_line)
             index += 1
         value_match = next(
             (
-                re.fullmatch(r"          value:\s*[\"']?([^\"']*)[\"']?", item_line)
+                re.fullmatch(r"\s+value:\s*[\"']?([^\"']*)[\"']?", item_line)
                 for item_line in block
-                if item_line.startswith("          value:")
+                if item_line.lstrip().startswith("value:")
             ),
             None,
         )
         secret_name_match = next(
             (
-                re.fullmatch(r"              name:\s*[\"']?([^\"']*)[\"']?", item_line)
+                re.fullmatch(r"\s+name:\s*[\"']?([^\"']*)[\"']?", item_line)
                 for item_line in block
-                if item_line.startswith("              name:")
+                if item_line.lstrip().startswith("name:")
             ),
             None,
         )
         secret_key_match = next(
             (
-                re.fullmatch(r"              key:\s*[\"']?([^\"']*)[\"']?", item_line)
+                re.fullmatch(r"\s+key:\s*[\"']?([^\"']*)[\"']?", item_line)
                 for item_line in block
-                if item_line.startswith("              key:")
+                if item_line.lstrip().startswith("key:")
             ),
             None,
         )
@@ -307,6 +315,81 @@ def _verify_managed_workflow_internal_auth(rendered: str) -> None:
     )
 
 
+def _verify_runtime_internal_auth_bindings(
+    rendered: str,
+    runtime_secret_name: str,
+    runtime_secret_key: str,
+    workflow_secret_name: str = WORKFLOW_MANAGED_SECRET,
+    workflow_secret_key: str = WORKFLOW_MANAGED_KEY,
+) -> None:
+    expected = {
+        "astron-agent-console-hub": {
+            "AGENT_RUNTIME_INTERNAL_API_KEY": (
+                runtime_secret_name,
+                runtime_secret_key,
+            ),
+        },
+        "astron-agent-core-runtime": {
+            "RUNTIME_INTERNAL_API_KEY": (runtime_secret_name, runtime_secret_key),
+            "RUNTIME_GATEWAY_IDENTITY_SECRET": (
+                workflow_secret_name,
+                workflow_secret_key,
+            ),
+        },
+        "astron-agent-core-runtime-worker": {
+            "RUNTIME_INTERNAL_API_KEY": (runtime_secret_name, runtime_secret_key),
+            "RUNTIME_WORKFLOW_INTERNAL_API_KEY": (
+                workflow_secret_name,
+                workflow_secret_key,
+            ),
+        },
+    }
+    for deployment_name, bindings in expected.items():
+        deployment = _find_document(rendered, "Deployment", deployment_name)
+        names, environment = _main_container_environment(deployment)
+        if len(names) != len(set(names)):
+            raise VerificationError(
+                f"duplicate environment variable: {deployment_name}"
+            )
+        for env_name, (secret_name, secret_key) in bindings.items():
+            entry = environment.get(env_name, {})
+            if (
+                entry.get("secret_name") != secret_name
+                or entry.get("secret_key") != secret_key
+            ):
+                raise VerificationError(
+                    f"runtime Secret binding mismatch: {deployment_name}.{env_name}"
+                )
+
+    dispatcher = _find_document(
+        rendered, "Deployment", "astron-agent-core-runtime-dispatcher"
+    )
+    _names, dispatcher_environment = _main_container_environment(dispatcher)
+    forbidden = {
+        "RUNTIME_INTERNAL_API_KEY",
+        "RUNTIME_GATEWAY_IDENTITY_SECRET",
+        "RUNTIME_WORKFLOW_INTERNAL_API_KEY",
+    }
+    if forbidden.intersection(dispatcher_environment):
+        raise VerificationError("runtime dispatcher received execution credentials")
+
+
+def _verify_managed_runtime_internal_auth(rendered: str) -> None:
+    runtime_secret = _find_document(rendered, "Secret", RUNTIME_MANAGED_SECRET)
+    runtime_value = _secret_string_data(runtime_secret).get(RUNTIME_MANAGED_KEY, "")
+    if not re.fullmatch(r"[A-Za-z0-9]{64}", runtime_value):
+        raise VerificationError("managed runtime internal key is not strong")
+    workflow_secret = _find_document(rendered, "Secret", WORKFLOW_MANAGED_SECRET)
+    workflow_value = _secret_string_data(workflow_secret).get(WORKFLOW_MANAGED_KEY, "")
+    if runtime_value == workflow_value:
+        raise VerificationError(
+            "runtime and workflow internal keys are not independent"
+        )
+    _verify_runtime_internal_auth_bindings(
+        rendered, RUNTIME_MANAGED_SECRET, RUNTIME_MANAGED_KEY
+    )
+
+
 def _verify_default_render() -> None:
     rendered = _render()
     if LEGACY_KEY in rendered or LEGACY_SECRET in rendered:
@@ -330,6 +413,7 @@ def _verify_default_render() -> None:
         raise VerificationError("managed tenant credentials are not independent")
     _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
     _verify_managed_workflow_internal_auth(rendered)
+    _verify_managed_runtime_internal_auth(rendered)
     _verify_workflow_ingress_gateway_headers(rendered)
 
 
@@ -398,6 +482,30 @@ def _verify_workflow_external_secret_render() -> None:
             "managed workflow Secret was emitted while using an external Secret"
         )
     _verify_workflow_internal_auth_bindings(rendered, external_name, external_key)
+
+
+def _verify_runtime_external_secret_render() -> None:
+    external_name = "external-runtime-internal-auth"
+    external_key = "external-runtime-key"
+    rendered = _render(
+        (
+            "--set-string",
+            f"runtimeInternalAuth.existingSecret.name={external_name}",
+            "--set-string",
+            f"runtimeInternalAuth.existingSecret.key={external_key}",
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.checksum=rotation-v2",
+        )
+    )
+    try:
+        _find_document(rendered, "Secret", RUNTIME_MANAGED_SECRET)
+    except VerificationError:
+        pass
+    else:
+        raise VerificationError(
+            "managed runtime Secret was emitted while using an external Secret"
+        )
+    _verify_runtime_internal_auth_bindings(rendered, external_name, external_key)
 
 
 def _verify_workflow_managed_upgrade_render() -> None:
@@ -526,6 +634,28 @@ def _verify_negative_renders() -> int:
             "--set-string",
             "workflowInternalAuth.existingSecret.key=bad/key",
         ),
+        (
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.name=external",
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.key=",
+        ),
+        (
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.name=external",
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.key=bad/key",
+        ),
+        (
+            "--set-string",
+            "workflowInternalAuth.existingSecret.name=shared-internal",
+            "--set-string",
+            "workflowInternalAuth.existingSecret.key=shared-key",
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.name=shared-internal",
+            "--set-string",
+            "runtimeInternalAuth.existingSecret.key=shared-key",
+        ),
     )
     for arguments in cases:
         completed = _run_helm(
@@ -599,6 +729,7 @@ def main() -> int:
         _verify_explicit_render()
         _verify_external_secret_render()
         _verify_workflow_external_secret_render()
+        _verify_runtime_external_secret_render()
         _verify_workflow_managed_upgrade_render()
         _verify_legacy_compatibility_overrides_are_ignored()
         _verify_legacy_custom_pair_is_preserved()
@@ -614,7 +745,7 @@ def main() -> int:
         return 1
     print(
         "tenant bootstrap Helm gate: PASS "
-        f"(7 positive modes, 4 tenant consumers, 3 workflow consumers, "
+        f"(8 positive modes, 4 tenant consumers, 3 workflow consumers, "
         f"{negative_count} negative cases)"
     )
     return 0

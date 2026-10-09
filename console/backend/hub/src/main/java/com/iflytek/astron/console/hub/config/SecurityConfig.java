@@ -1,10 +1,12 @@
 package com.iflytek.astron.console.hub.config;
 
 import com.iflytek.astron.console.commons.config.JwtClaimsFilter;
+import com.iflytek.astron.console.hub.config.security.AgentRuntimeAuthenticationFilter;
 import com.iflytek.astron.console.hub.config.security.ArtifactUploadTokenAuthenticationFilter;
 import com.iflytek.astron.console.hub.config.security.RestfulAccessDeniedHandler;
 import com.iflytek.astron.console.hub.config.security.RestfulAuthenticationEntryPoint;
 import com.iflytek.astron.console.hub.config.security.SandboxRuntimeCredentialAuthenticationFilter;
+import com.iflytek.astron.console.hub.service.publish.AgentRuntimeInternalKeyProvider;
 import com.iflytek.astron.console.toolkit.config.properties.SandboxRuntimeCredentialProperties;
 import com.iflytek.astron.console.toolkit.config.properties.SkillSandboxArtifactProperties;
 import com.iflytek.astron.console.toolkit.security.ArtifactUploadTokenProvider;
@@ -47,6 +49,7 @@ public class SecurityConfig {
     private final RestfulAccessDeniedHandler restfulAccessDeniedHandler;
     private final ArtifactUploadTokenProvider artifactUploadTokenProvider;
     private final SandboxRuntimeCredentialTokenProvider sandboxRuntimeCredentialTokenProvider;
+    private final AgentRuntimeInternalKeyProvider agentRuntimeInternalKeyProvider;
 
     @Bean
     @Order(1)
@@ -116,6 +119,30 @@ public class SecurityConfig {
 
     @Bean
     @Order(4)
+    public SecurityFilterChain agentRuntimeCredentialFilterChain(HttpSecurity http)
+            throws Exception {
+        AgentRuntimeAuthenticationFilter tokenFilter =
+                new AgentRuntimeAuthenticationFilter(
+                        agentRuntimeInternalKeyProvider, restfulAuthenticationEntryPoint);
+        http
+                .securityMatcher("/internal/agent-runtime/**")
+                .authorizeHttpRequests(authorize -> authorize
+                        .anyRequest()
+                        .hasRole("AGENT_RUNTIME_CREDENTIAL_READER"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/internal/agent-runtime/**"))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(restfulAuthenticationEntryPoint)
+                        .accessDeniedHandler(restfulAccessDeniedHandler))
+                .sessionManagement(session -> session.sessionCreationPolicy(
+                        SessionCreationPolicy.STATELESS))
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .addFilterBefore(tokenFilter, AnonymousAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(5)
     public SecurityFilterChain resourceServerFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(authorize -> authorize

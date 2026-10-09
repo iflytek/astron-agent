@@ -69,7 +69,7 @@ jobs:
           fi
 
           # Python projects - use pyproject.toml detection
-          for project in core/memory/database core/plugin/rpa core/plugin/link core/plugin/aitools core/agent core/knowledge core/workflow; do
+          for project in core/memory/database core/plugin/rpa core/plugin/link core/plugin/aitools core/agent core/runtime core/knowledge core/workflow; do
             if [[ -f "$project/pyproject.toml" ]] || [[ -f "$project/requirements.txt" ]]; then
               [[ "$first" == "false" ]] && matrix+=","
               name=$(basename "$project")

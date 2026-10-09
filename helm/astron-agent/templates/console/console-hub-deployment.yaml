@@ -1,6 +1,8 @@
 {{- if .Values.consoleHub.enabled }}
 {{- $workflowAuthSecretName := include "astron-agent.workflowInternalAuthSecretName" . }}
 {{- $workflowAuthSecretKey := include "astron-agent.workflowInternalAuthSecretKey" . }}
+{{- $runtimeAuthSecretName := include "astron-agent.runtimeInternalAuthSecretName" . }}
+{{- $runtimeAuthSecretKey := include "astron-agent.runtimeInternalAuthSecretKey" . }}
 {{- $tenantBootstrapSecretName := include "astron-agent.tenantBootstrapSecretName" . }}
 {{- $tenantBootstrapKeyKey := include "astron-agent.tenantBootstrapSecretKeyKey" . }}
 {{- $tenantBootstrapSecretKey := include "astron-agent.tenantBootstrapSecretSecretKey" . }}
@@ -27,6 +29,10 @@ spec:
         checksum/object-storage-secret: {{ include "astron-agent.minioSecretChecksum" . | quote }}
         checksum/workflow-internal-auth-secret: {{ include "astron-agent.workflowInternalAuthSecretChecksum" . | quote }}
         internal-secret-name/workflow-internal-auth: {{ $workflowAuthSecretName | quote }}
+        {{- if .Values.coreRuntime.enabled }}
+        checksum/runtime-internal-auth-secret: {{ include "astron-agent.runtimeInternalAuthSecretChecksum" . | quote }}
+        internal-secret-name/runtime-internal-auth: {{ $runtimeAuthSecretName | quote }}
+        {{- end }}
         checksum/tenant-bootstrap-secret: {{ include "astron-agent.tenantBootstrapSecretChecksum" . | quote }}
         internal-secret-name/tenant-bootstrap: {{ $tenantBootstrapSecretName | quote }}
       labels:
@@ -107,7 +113,7 @@ spec:
           value: {{ include "astron-agent.minioPublicEndpoint" $ | quote }}
         {{- else if eq $key "botApiMaasBaseUrl" }}
         - name: {{ upper (snakecase $key) }}
-          value: {{ printf "%s/workflow/v1/chat/completions" $.Values.global.hostBaseAddress | quote }}
+          value: {{ $.Values.global.hostBaseAddress | trimSuffix "/" | quote }}
         {{- else if eq $key "mysqlPassword" }}
         - name: {{ upper (snakecase $key) }}
           valueFrom:
@@ -191,6 +197,17 @@ spec:
             secretKeyRef:
               name: {{ $workflowAuthSecretName | quote }}
               key: {{ $workflowAuthSecretKey | quote }}
+        {{- if .Values.coreRuntime.enabled }}
+        - name: AGENT_RUNTIME_MANAGEMENT_URL
+          value: {{ printf "http://%s-core-runtime:%d/internal/v1" (include "astron-agent.fullname" .) (.Values.coreRuntime.service.port | int) | quote }}
+        - name: AGENT_RUNTIME_EXECUTION_URL
+          value: {{ printf "http://%s-core-agent:%d/agent/v1/custom/chat/completions" (include "astron-agent.fullname" .) (.Values.coreAgent.service.port | int) | quote }}
+        - name: AGENT_RUNTIME_INTERNAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ $runtimeAuthSecretName | quote }}
+              key: {{ $runtimeAuthSecretKey | quote }}
+        {{- end }}
         ports:
         - name: http
           containerPort: {{ .Values.consoleHub.service.port }}

@@ -35,6 +35,14 @@ workflowInternalAuth:
     # rotated in place so all consumers restart and reload the environment.
     checksum: ""
 
+# Authentication used only by Console Hub to manage Agent Runtime releases.
+# It is deliberately independent from the Workflow execution credential.
+runtimeInternalAuth:
+  existingSecret:
+    name: ""
+    key: "runtime-internal-api-key"
+    checksum: ""
+
 # Bootstrap identity shared by Tenant, Console Hub, Agent, and Workflow. The
 # tenant ID is intentionally stable because existing data refers to it. Leave
 # key/secret and existingSecret.name empty for a zero-configuration install:
@@ -420,6 +428,34 @@ coreAgent:
     # upgrades using older values cannot reintroduce the published credential.
     appAuthApiKey: ""
     appAuthSecret: ""
+
+coreRuntime:
+  enabled: true
+  image: core-runtime
+  apiReplicaCount: 1
+  workerReplicaCount: 1
+  dispatcherReplicaCount: 1
+  workerConcurrency: 5
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  service:
+    type: ClusterIP
+    port: 8790
+  env:
+    delegationAudience: "astron-agent-runtime"
+    # JSON mapping trusted issuers to algorithms and rotating verification
+    # keys. Public keys may be stored here; symmetric keys must use an
+    # externally managed values source or Secret override.
+    delegationIssuersJson: "{}"
+    postgresDatabase: "sparkdb_manager"
+    redisDatabase: "1"
+    workerSoftTimeLimitSeconds: "900"
+    workerTimeLimitSeconds: "960"
 
 coreKnowledge:
   enabled: true

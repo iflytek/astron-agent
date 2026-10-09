@@ -1,0 +1,218 @@
+{{- define "astron-agent.runtimeBaseEnv" }}
+{{- $root := index . 0 }}
+{{- $env := index . 1 }}
+{{- range $key, $value := $env }}
+- name: {{ $key }}
+  value: {{ $value | quote }}
+{{- end }}
+- name: RUNTIME_POSTGRES_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "astron-agent.fullname" $root }}-postgres-secret
+      key: postgres-password
+- name: RUNTIME_REDIS_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "astron-agent.fullname" $root }}-redis-secret
+      key: redis-password
+{{- end }}
+{{- define "astron-agent.runtimeApiEnv" }}
+{{- $root := index . 0 }}
+{{- $env := index . 1 }}
+{{- $secretName := index . 2 }}
+{{- $secretKey := index . 3 }}
+{{- $runtimeSecretName := index . 4 }}
+{{- $runtimeSecretKey := index . 5 }}
+{{- include "astron-agent.runtimeBaseEnv" (list $root $env) }}
+- name: RUNTIME_GATEWAY_IDENTITY_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName }}
+      key: {{ $secretKey }}
+- name: RUNTIME_INTERNAL_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $runtimeSecretName }}
+      key: {{ $runtimeSecretKey }}
+{{- end }}
+{{- define "astron-agent.runtimeWorkerEnv" }}
+{{- $root := index . 0 }}
+{{- $env := index . 1 }}
+{{- $secretName := index . 2 }}
+{{- $secretKey := index . 3 }}
+{{- $runtimeSecretName := index . 4 }}
+{{- $runtimeSecretKey := index . 5 }}
+{{- include "astron-agent.runtimeBaseEnv" (list $root $env) }}
+- name: RUNTIME_INTERNAL_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $runtimeSecretName }}
+      key: {{ $runtimeSecretKey }}
+- name: RUNTIME_WORKFLOW_INTERNAL_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secretName }}
+      key: {{ $secretKey }}
+{{- end }}
+{{- if .Values.coreRuntime.enabled }}
+{{- $fullname := include "astron-agent.fullname" . }}
+{{- $runtime := .Values.coreRuntime }}
+{{- $workflowSecretName := include "astron-agent.workflowInternalAuthSecretName" . }}
+{{- $workflowSecretKey := include "astron-agent.workflowInternalAuthSecretKey" . }}
+{{- $runtimeSecretName := include "astron-agent.runtimeInternalAuthSecretName" . }}
+{{- $runtimeSecretKey := include "astron-agent.runtimeInternalAuthSecretKey" . }}
+{{- $image := printf "%s/%s:%s" .Values.global.imageRegistry $runtime.image .Values.global.astronAgentVersion }}
+{{- $commonEnv := dict
+  "RUNTIME_POSTGRES_HOST" (printf "%s-postgres" $fullname)
+  "RUNTIME_POSTGRES_PORT" "5432"
+  "RUNTIME_POSTGRES_DATABASE" $runtime.env.postgresDatabase
+  "RUNTIME_POSTGRES_USER" .Values.postgresql.auth.username
+  "RUNTIME_REDIS_HOST" (printf "%s-redis" $fullname)
+  "RUNTIME_REDIS_PORT" "6379"
+  "RUNTIME_REDIS_DATABASE" $runtime.env.redisDatabase
+  "RUNTIME_DELEGATION_AUDIENCE" $runtime.env.delegationAudience
+  "RUNTIME_DELEGATION_ISSUERS_JSON" $runtime.env.delegationIssuersJson
+  "RUNTIME_CORE_AGENT_URL" (printf "http://%s-core-agent:%d" $fullname (.Values.coreAgent.service.port | int))
+  "RUNTIME_CORE_WORKFLOW_URL" (printf "http://%s-core-workflow:%d" $fullname (.Values.coreWorkflow.service.port | int))
+  "RUNTIME_CONSOLE_HUB_URL" (printf "http://%s-console-hub:%d" $fullname (.Values.consoleHub.service.port | int))
+  "RUNTIME_WORKER_SOFT_TIME_LIMIT_SECONDS" $runtime.env.workerSoftTimeLimitSeconds
+  "RUNTIME_WORKER_TIME_LIMIT_SECONDS" $runtime.env.workerTimeLimitSeconds
+}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-core-runtime-migrate
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: core-runtime-migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: core-runtime-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: migrate
+        image: {{ $image | quote }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        command: ["uv", "run", "--no-sync", "alembic", "upgrade", "head"]
+        env:
+          {{- include "astron-agent.runtimeBaseEnv" (list . $commonEnv) | nindent 10 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-core-runtime
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: core-runtime
+spec:
+  replicas: {{ $runtime.apiReplicaCount }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: core-runtime
+  template:
+    metadata:
+      annotations:
+        checksum/workflow-internal-auth-secret: {{ include "astron-agent.workflowInternalAuthSecretChecksum" . | quote }}
+        checksum/runtime-internal-auth-secret: {{ include "astron-agent.runtimeInternalAuthSecretChecksum" . | quote }}
+      labels:
+        {{- include "astron-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: core-runtime
+    spec:
+      containers:
+      - name: api
+        image: {{ $image | quote }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+          {{- include "astron-agent.runtimeApiEnv" (list . $commonEnv $workflowSecretName $workflowSecretKey $runtimeSecretName $runtimeSecretKey) | nindent 10 }}
+        ports:
+        - name: http
+          containerPort: {{ $runtime.service.port }}
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+        resources:
+          {{- toYaml $runtime.resources | nindent 10 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-core-runtime
+  labels:
+    {{- include "astron-agent.labels" . | nindent 4 }}
+spec:
+  type: {{ $runtime.service.type }}
+  ports:
+  - name: http
+    port: {{ $runtime.service.port }}
+    targetPort: http
+  selector:
+    {{- include "astron-agent.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: core-runtime
+{{- range $component := list "dispatcher" "worker" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-core-runtime-{{ $component }}
+  labels:
+    {{- include "astron-agent.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: core-runtime-{{ $component }}
+spec:
+  replicas: {{ ternary $runtime.dispatcherReplicaCount $runtime.workerReplicaCount (eq $component "dispatcher") }}
+  selector:
+    matchLabels:
+      {{- include "astron-agent.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: core-runtime-{{ $component }}
+  template:
+    metadata:
+      annotations:
+        checksum/workflow-internal-auth-secret: {{ include "astron-agent.workflowInternalAuthSecretChecksum" $ | quote }}
+        checksum/runtime-internal-auth-secret: {{ include "astron-agent.runtimeInternalAuthSecretChecksum" $ | quote }}
+      labels:
+        {{- include "astron-agent.selectorLabels" $ | nindent 8 }}
+        app.kubernetes.io/component: core-runtime-{{ $component }}
+    spec:
+      containers:
+      - name: {{ $component }}
+        image: {{ $image | quote }}
+        imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+        {{- if eq $component "dispatcher" }}
+        command: ["uv", "run", "--no-sync", "python", "-m", "agent_runtime.worker.outbox"]
+        {{- else }}
+        command:
+        - uv
+        - run
+        - --no-sync
+        - celery
+        - -A
+        - agent_runtime.worker.celery_app:celery_app
+        - worker
+        - --loglevel=INFO
+        - --concurrency={{ $runtime.workerConcurrency }}
+        {{- end }}
+        env:
+          {{- if eq $component "dispatcher" }}
+          {{- include "astron-agent.runtimeBaseEnv" (list $ $commonEnv) | nindent 10 }}
+          {{- else }}
+          {{- include "astron-agent.runtimeWorkerEnv" (list $ $commonEnv $workflowSecretName $workflowSecretKey $runtimeSecretName $runtimeSecretKey) | nindent 10 }}
+          {{- end }}
+        resources:
+          {{- toYaml $runtime.resources | nindent 10 }}
+{{- end }}
+{{- end }}

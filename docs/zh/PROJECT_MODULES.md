@@ -60,6 +60,25 @@
 
 ### 核心微服务层（Core Microservices）
 
+#### Agent Runtime（异步运行服务）
+
+**模块路径**：`core/runtime/`
+
+**使用语言**：Python
+
+**主要职责**：
+- 对外提供异步 Agent Run API 和持久化 SSE 事件
+- 管理不可变发布版本与应用绑定
+- 校验应用网关身份和终端用户委托 JWT
+- 通过 PostgreSQL outbox 与 Celery Worker 调度执行
+- 承担步骤恢复、审批和受治理工具调用
+
+**技术栈**：FastAPI、SQLAlchemy 2.0、Alembic、Celery、Redis、PostgreSQL、LangGraph
+
+**详细说明**：[Agent Runtime 运行与接入说明](./AGENT_RUNTIME.md)
+
+---
+
 #### 3. Agent Service（智能体服务）
 
 **模块路径**：`core/agent/`

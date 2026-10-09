@@ -273,6 +273,81 @@ never read; operators advance their non-secret checksum marker when rotating.
 {{- end -}}
 {{- end }}
 
+{{/* Resolve the independent Agent Runtime management credential. */}}
+{{- define "astron-agent.runtimeInternalAuthValidate" -}}
+{{- $config := default (dict) .Values.runtimeInternalAuth -}}
+{{- $external := default (dict) (get $config "existingSecret") -}}
+{{- $externalName := default "" (get $external "name") | toString | trim -}}
+{{- $runtimeName := default (printf "%s-runtime-internal-auth" (include "astron-agent.fullname" .)) $externalName -}}
+{{- $runtimeKey := default "runtime-internal-api-key" (get $external "key") | toString -}}
+{{- $workflowConfig := default (dict) .Values.workflowInternalAuth -}}
+{{- $workflowExternal := default (dict) (get $workflowConfig "existingSecret") -}}
+{{- $workflowExternalName := default "" (get $workflowExternal "name") | toString | trim -}}
+{{- $workflowName := default (printf "%s-workflow-internal-auth" (include "astron-agent.fullname" .)) $workflowExternalName -}}
+{{- $workflowKey := default "workflow-internal-api-key" (get $workflowExternal "key") | toString -}}
+{{- if $externalName -}}
+{{- $externalKey := required "runtimeInternalAuth.existingSecret.key is required when using an existing Secret" (get $external "key") | toString -}}
+{{- if not (regexMatch "^[A-Za-z0-9._-]+$" $externalKey) -}}
+{{- fail "runtimeInternalAuth.existingSecret.key may contain only letters, digits, '.', '_' or '-'" -}}
+{{- end -}}
+{{- end -}}
+{{- if and (eq $runtimeName $workflowName) (eq $runtimeKey $workflowKey) -}}
+{{- fail "runtimeInternalAuth must not reuse the workflow internal credential" -}}
+{{- end -}}
+{{- end }}
+
+{{- define "astron-agent.runtimeInternalAuthSecretName" -}}
+{{- include "astron-agent.runtimeInternalAuthValidate" . -}}
+{{- $config := default (dict) .Values.runtimeInternalAuth -}}
+{{- $external := default (dict) (get $config "existingSecret") -}}
+{{- $externalName := default "" (get $external "name") | toString | trim -}}
+{{- if $externalName -}}
+{{- $externalName -}}
+{{- else -}}
+{{- printf "%s-runtime-internal-auth" (include "astron-agent.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{- define "astron-agent.runtimeInternalAuthSecretKey" -}}
+{{- $config := default (dict) .Values.runtimeInternalAuth -}}
+{{- $external := default (dict) (get $config "existingSecret") -}}
+{{- $externalName := default "" (get $external "name") | toString | trim -}}
+{{- if $externalName -}}
+{{- required "runtimeInternalAuth.existingSecret.key is required when using an existing Secret" (get $external "key") -}}
+{{- else -}}
+runtime-internal-api-key
+{{- end -}}
+{{- end }}
+
+{{- define "astron-agent.runtimeInternalAuthSecretChecksum" -}}
+{{- include "astron-agent.runtimeInternalAuthValidate" . -}}
+{{- $config := default (dict) .Values.runtimeInternalAuth -}}
+{{- $external := default (dict) (get $config "existingSecret") -}}
+{{- $externalName := default "" (get $external "name") | toString | trim -}}
+{{- $secretName := include "astron-agent.runtimeInternalAuthSecretName" . -}}
+{{- $secretKey := include "astron-agent.runtimeInternalAuthSecretKey" . -}}
+{{- if $externalName -}}
+{{- printf "%s:%s:%s" $secretName $secretKey (default "" (get $external "checksum")) | sha256sum -}}
+{{- else -}}
+{{- $existingSecret := lookup "v1" "Secret" .Release.Namespace $secretName -}}
+{{- $existingData := dict -}}
+{{- if $existingSecret -}}
+{{- $existingData = default (dict) (get $existingSecret "data") -}}
+{{- end -}}
+{{- $resolvedKey := "" -}}
+{{- if hasKey $existingData $secretKey -}}
+{{- $candidateKey := index $existingData $secretKey | b64dec -}}
+{{- if and (ge (len $candidateKey) 32) (le (len $candidateKey) 128) (not (contains "\r" $candidateKey)) (not (contains "\n" $candidateKey)) -}}
+{{- $resolvedKey = $candidateKey -}}
+{{- end -}}
+{{- end -}}
+{{- if not $resolvedKey -}}
+{{- $resolvedKey = randAlphaNum 64 -}}
+{{- end -}}
+{{- printf "%s:%s" $secretName $resolvedKey | sha256sum -}}
+{{- end -}}
+{{- end }}
+
 {{/*
 Validate the shared tenant bootstrap configuration. Credentials are capped at
 50 characters because Workflow's legacy app schema stores each value in a

@@ -64,6 +64,29 @@ class GatewayAuthControllerTest {
     }
 
     @Test
+    void authWorkflowSignsRuntimeReadPath() {
+        when(gatewayAuthService.authenticateWorkflow("Bearer key:secret")).thenReturn("app-123");
+
+        ResponseEntity<Void> response = controller.authWorkflow(
+                "Bearer key:secret",
+                "/openapi/v1/runs/run-123?view=status",
+                "GET");
+
+        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        String timestamp = response.getHeaders().getFirst(
+                WorkflowGatewayIdentity.TIMESTAMP_HEADER);
+        assertEquals(
+                WorkflowGatewayIdentity.sign(
+                        INTERNAL_KEY,
+                        "GET",
+                        "/openapi/v1/runs/run-123",
+                        "app-123",
+                        Long.parseLong(timestamp)),
+                response.getHeaders().getFirst(
+                        WorkflowGatewayIdentity.SIGNATURE_HEADER));
+    }
+
+    @Test
     void authWorkflowFailsClosedWithoutExposingIdentityWhenInternalKeyIsInvalid() {
         when(gatewayAuthService.authenticateWorkflow("Bearer key:secret"))
                 .thenReturn("app-123");
