@@ -6,7 +6,7 @@ error handling, observability tracing, and security validations.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -19,10 +19,13 @@ from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import (
     MCPCallToolData,
     MCPCallToolRequest,
     MCPCallToolResponse,
-    MCPImageResponse,
+    MCPGetPromptRequest,
     MCPInfo,
     MCPItemInfo,
-    MCPTextResponse,
+    MCPListPromptsRequest,
+    MCPListResourcesRequest,
+    MCPProtocolResponse,
+    MCPReadResourceRequest,
     MCPToolListData,
     MCPToolListRequest,
     MCPToolListResponse,
@@ -32,6 +35,7 @@ from plugin.link.consts import const
 from plugin.link.domain.models.manager import get_db_engine
 from plugin.link.infra.kafka_telemetry import send_telemetry_sync
 from plugin.link.infra.tool_crud.process import ToolCrudOperation
+from plugin.link.service.community.tools.mcp.mcp_content import build_call_tool_data
 from plugin.link.service.community.tools.mcp.mcp_transport import (
     MCPTransportError,
     initialized_mcp_session,
@@ -270,32 +274,23 @@ async def _execute_tool_call(
     node_trace: NodeTraceLog,
     mcp_server_id: str,
     m: Meter,
-) -> Union[
-    Tuple[bool, List[Union[MCPTextResponse, MCPImageResponse]]],
-    Tuple[MCPCallToolResponse, None],
-]:
-    """Execute the actual tool call and process response."""
+) -> MCPCallToolData | MCPCallToolResponse:
+    """Execute the tool call; return the result data or an error response."""
     try:
         call_result = await session.call_tool(tool_name, arguments=tool_args)
-        call_dict = call_result.model_dump()
-        is_error = call_dict["isError"]
-        content = []
-
-        for data in call_dict["content"]:
-            if data["type"] == "text":
-                text = MCPTextResponse(text=data["text"])
-                content.append(text)
-            elif data["type"] == "image":
-                image = MCPImageResponse(data=data["data"], mineType=data["mineType"])
-                content.append(image)
-
-        return is_error, content
+        data = build_call_tool_data(call_result)
+        if data.truncation is not None:
+            logger.warning(
+                f"MCP tool result truncated: server={mcp_server_id}, "
+                f"tool={tool_name}, truncation={data.truncation.model_dump()}"
+            )
+        return data
     except Exception:
         err = ErrCode.MCP_SERVER_CALL_TOOL_ERR
         span_context.add_error_event(err.msg)
         span_context.set_status(OTelStatus(StatusCode.ERROR))
         _log_error_to_kafka(err, node_trace, mcp_server_id, m)
-        return _create_error_response(err, session_id), None
+        return _create_error_response(err, session_id)
 
 
 async def _call_mcp_tool(
@@ -323,16 +318,15 @@ async def _call_mcp_tool(
                 m,
             )
 
-            if isinstance(call_result[0], MCPCallToolResponse):
-                return call_result[0]
+            if isinstance(call_result, MCPCallToolResponse):
+                return call_result
 
-            is_error, content = call_result
             success = ErrCode.SUCCESSES
             return MCPCallToolResponse(
                 code=success.code,
                 message=success.msg,
                 sid=session_id,
-                data=MCPCallToolData(isError=is_error, content=content),
+                data=call_result,
             )
     except MCPTransportError as error:
         err = _transport_error_code(error)
@@ -451,6 +445,83 @@ async def call_tool(call_info: MCPCallToolRequest = Body()) -> MCPCallToolRespon
                 send_telemetry_sync(node_trace)
 
         return result
+
+
+def _resolve_protocol_url(request: Any, span_context: Any) -> tuple[ErrCode, str]:
+    url = request.mcp_server_url
+    if url and is_in_blacklist(url=url):
+        return ErrCode.MCP_SERVER_BLACKLIST_URL_ERR, ""
+    if not url:
+        error, url = get_mcp_server_url(request.mcp_server_id, span_context)
+        if error is not ErrCode.SUCCESSES:
+            return error, ""
+    if is_local_url(url):
+        return ErrCode.MCP_SERVER_LOCAL_URL_ERR, ""
+    return ErrCode.SUCCESSES, url
+
+
+async def _run_protocol_operation(
+    request: Any, operation: str, **arguments: Any
+) -> MCPProtocolResponse:
+    session_id = new_sid()
+    span = Span(app_id="appid_mcp", uid="mcp_uid")
+    if session_id:
+        span.sid = session_id
+
+    with span.start(func_name=operation) as span_context:
+        error, url = _resolve_protocol_url(request, span_context)
+        if error is not ErrCode.SUCCESSES:
+            return MCPProtocolResponse(
+                code=error.code, message=error.msg, sid=session_id, data=None
+            )
+        try:
+            async with initialized_mcp_session(url, request.transport) as (session, _):
+                method = getattr(session, operation)
+                result = await method(**arguments)
+                return MCPProtocolResponse(
+                    code=ErrCode.SUCCESSES.code,
+                    message=ErrCode.SUCCESSES.msg,
+                    sid=session_id,
+                    data=result.model_dump(mode="json", by_alias=True),
+                )
+        except MCPTransportError as transport_error:
+            error = _transport_error_code(transport_error)
+        except Exception:
+            error = ErrCode.MCP_SERVER_SESSION_ERR
+        return MCPProtocolResponse(
+            code=error.code, message=error.msg, sid=session_id, data=None
+        )
+
+
+async def list_resources(
+    request: MCPListResourcesRequest = Body(),
+) -> MCPProtocolResponse:
+    """List resources exposed by one MCP server, forwarding the cursor."""
+    arguments = {} if request.cursor is None else {"cursor": request.cursor}
+    return await _run_protocol_operation(request, "list_resources", **arguments)
+
+
+async def read_resource(
+    request: MCPReadResourceRequest = Body(),
+) -> MCPProtocolResponse:
+    """Read one resource through the selected MCP session."""
+    return await _run_protocol_operation(request, "read_resource", uri=request.uri)
+
+
+async def list_prompts(
+    request: MCPListPromptsRequest = Body(),
+) -> MCPProtocolResponse:
+    """List prompts exposed by one MCP server, forwarding the cursor."""
+    arguments = {} if request.cursor is None else {"cursor": request.cursor}
+    return await _run_protocol_operation(request, "list_prompts", **arguments)
+
+
+async def get_prompt(request: MCPGetPromptRequest = Body()) -> MCPProtocolResponse:
+    """Render one prompt with the caller-provided arguments."""
+    arguments: dict[str, Any] = {"name": request.name}
+    if request.arguments is not None:
+        arguments["arguments"] = request.arguments
+    return await _run_protocol_operation(request, "get_prompt", **arguments)
 
 
 def get_mcp_server_url(mcp_server_id: str, span: Span) -> Tuple[ErrCode, str]:
