@@ -5,42 +5,43 @@ data in other spaces via schema-qualified table names or system schemas.
 """
 
 import json
+from typing import Any, List
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from memory.database.api.v1.exec_dml import _dml_split
+from memory.database.api.v1.exec_dml import _dml_split, _validate_dml_legality
 from memory.database.exceptions.error_code import CodeEnum
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.responses import JSONResponse
 
 
-def extract_response_data(response):
+def extract_response_data(response: Any) -> Any:
     """Extract data from JSONResponse object."""
     if isinstance(response, JSONResponse):
-        return json.loads(response.body.decode())
+        return json.loads(bytes(response.body).decode())
     return response
 
 
 class MockSpanContext:
     """Mock span context for testing."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sid = "test-session-id"
-        self.events = []
-        self.errors = []
+        self.events: List[Any] = []
+        self.errors: List[Any] = []
 
-    def add_info_event(self, event):
+    def add_info_event(self, event: Any) -> None:
         self.events.append(event)
 
-    def add_error_event(self, error):
+    def add_error_event(self, error: Any) -> None:
         self.errors.append(error)
 
-    def record_exception(self, exc):
+    def record_exception(self, exc: Any) -> None:
         self.errors.append(str(exc))
 
 
 @pytest.mark.asyncio
-async def test_reject_schema_qualified_select():
+async def test_reject_schema_qualified_select() -> None:
     """Test that SELECT with schema qualifier is rejected."""
     dml = 'SELECT * FROM "other_schema".customer_data'
     span_context = MockSpanContext()
@@ -58,7 +59,7 @@ async def test_reject_schema_qualified_select():
 
 
 @pytest.mark.asyncio
-async def test_reject_schema_qualified_update():
+async def test_reject_schema_qualified_update() -> None:
     """Test that UPDATE with schema qualifier is rejected."""
     dml = "UPDATE \"test_victim_schema\".customer_data SET name = 'hacked'"
     span_context = MockSpanContext()
@@ -75,7 +76,7 @@ async def test_reject_schema_qualified_update():
 
 
 @pytest.mark.asyncio
-async def test_reject_schema_qualified_delete():
+async def test_reject_schema_qualified_delete() -> None:
     """Test that DELETE with schema qualifier is rejected."""
     dml = 'DELETE FROM "other_schema".customer_data WHERE id = 1'
     span_context = MockSpanContext()
@@ -92,7 +93,7 @@ async def test_reject_schema_qualified_delete():
 
 
 @pytest.mark.asyncio
-async def test_reject_information_schema_access():
+async def test_reject_information_schema_access() -> None:
     """Test that access to information_schema is blocked."""
     dml = "SELECT schema_name FROM information_schema.schemata"
     span_context = MockSpanContext()
@@ -110,7 +111,7 @@ async def test_reject_information_schema_access():
 
 
 @pytest.mark.asyncio
-async def test_reject_pg_catalog_access():
+async def test_reject_pg_catalog_access() -> None:
     """Test that access to pg_catalog is blocked."""
     dml = "SELECT * FROM pg_catalog.pg_tables"
     span_context = MockSpanContext()
@@ -127,7 +128,7 @@ async def test_reject_pg_catalog_access():
 
 
 @pytest.mark.asyncio
-async def test_reject_qualified_information_schema():
+async def test_reject_qualified_information_schema() -> None:
     """Test that schema-qualified information_schema access is blocked."""
     dml = 'SELECT * FROM "information_schema".tables'
     span_context = MockSpanContext()
@@ -144,7 +145,7 @@ async def test_reject_qualified_information_schema():
 
 
 @pytest.mark.asyncio
-async def test_allow_normal_select():
+async def test_allow_normal_select() -> None:
     """Test that normal SELECT without schema qualifier is allowed."""
     dml = "SELECT * FROM customer_data WHERE id = 1"
     span_context = MockSpanContext()
@@ -158,7 +159,7 @@ async def test_allow_normal_select():
     schema = "test_current_schema"
     uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    _, error = await _dml_split(dml, db, schema, uid, span_context)
 
     # Should pass validation (may fail on table existence check in real env)
     # The key is that it doesn't fail on schema qualifier check
@@ -168,7 +169,7 @@ async def test_allow_normal_select():
 
 
 @pytest.mark.asyncio
-async def test_allow_normal_update():
+async def test_allow_normal_update() -> None:
     """Test that normal UPDATE without schema qualifier is allowed."""
     dml = "UPDATE customer_data SET name = 'test' WHERE id = 1"
     span_context = MockSpanContext()
@@ -182,7 +183,7 @@ async def test_allow_normal_update():
     schema = "test_current_schema"
     uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    _, error = await _dml_split(dml, db, schema, uid, span_context)
 
     # Should pass schema qualifier validation
     if error:
@@ -191,7 +192,7 @@ async def test_allow_normal_update():
 
 
 @pytest.mark.asyncio
-async def test_case_insensitive_forbidden_schema():
+async def test_case_insensitive_forbidden_schema() -> None:
     """Test that forbidden schema check is case-insensitive."""
     test_cases = [
         "SELECT * FROM INFORMATION_SCHEMA.tables",
@@ -217,7 +218,7 @@ async def test_case_insensitive_forbidden_schema():
 
 
 @pytest.mark.asyncio
-async def test_reject_complex_query_with_schema_qualifier():
+async def test_reject_complex_query_with_schema_qualifier() -> None:
     """Test that complex queries with schema qualifiers are rejected."""
     dml = """
         SELECT a.id, b.name
@@ -252,10 +253,8 @@ async def test_reject_complex_query_with_schema_qualifier():
         "SELECT pg_read_file('/etc/passwd') FROM customer_data",
     ],
 )
-async def test_reject_string_sql_execution_functions(dml):
+async def test_reject_string_sql_execution_functions(dml: str) -> None:
     """Functions that run SQL from strings or dump schemas must be rejected."""
-    from memory.database.api.v1.exec_dml import _validate_dml_legality
-
     span_context = MockSpanContext()
     error = await _validate_dml_legality(dml, "test_uid", span_context)
 
