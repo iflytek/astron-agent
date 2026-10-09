@@ -1,0 +1,82 @@
+name: Publish MCP Server
+
+# Push a tag like mcp-server-v0.1.0 to publish integrations/mcp-server to PyPI
+# and then to the official MCP Registry as io.github.iflytek/astron-agent.
+on:
+  push:
+    tags:
+      - "mcp-server-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-mcp-server-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: integrations/mcp-server
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check tag matches package and server.json versions
+        run: python3 scripts/check_versions.py "${GITHUB_REF_NAME#mcp-server-v}"
+      - name: Test
+        run: |
+          uv sync --locked
+          uv run pytest -q
+      - name: Build
+        run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcp-server-dist
+          path: integrations/mcp-server/dist/
+
+  pypi:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcp-server-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  registry:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write # GitHub OIDC login for the io.github.iflytek namespace
+      contents: read
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for the release to appear on PyPI
+        run: |
+          version="${GITHUB_REF_NAME#mcp-server-v}"
+          for attempt in $(seq 1 30); do
+            if curl -fsS "https://pypi.org/pypi/astron-agent-mcp/${version}/json" > /dev/null; then
+              echo "astron-agent-mcp ${version} is on PyPI"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::astron-agent-mcp ${version} did not appear on PyPI"
+          exit 1
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+      - name: Publish to the MCP Registry
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
