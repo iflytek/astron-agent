@@ -53,6 +53,12 @@ public class McpData {
     @Schema(description = "URL address of the MCP server")
     private String serverUrl;
 
+    @Schema(description = "MCP authentication type")
+    private String authType;
+
+    @Schema(description = "RSA encrypted MCP credential")
+    private String credentialCiphertext;
+
     @Schema(description = "Service parameters in JSON format")
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Object args;
