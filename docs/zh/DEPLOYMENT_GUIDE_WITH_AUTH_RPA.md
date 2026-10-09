@@ -242,10 +242,14 @@ CONSOLE_CASDOOR_APP=your-casdoor-app-name
 CONSOLE_CASDOOR_ORG=your-casdoor-org-name
 ```
 
-7. 重启 AstronAgent 服务以应用新配置：
+7. 重新创建相关容器以应用新配置：
 ```bash
-docker compose restart console-frontend console-hub
+docker compose up -d console-frontend console-hub
 ```
+
+> `docker compose restart` 只会重启已有容器，不会重新读取 `.env`，修改后的 Casdoor 配置不会生效。修改 `.env` 后请使用 `docker compose up -d` 重新创建容器。
+>
+> 这四项不要注释掉：注释后变量为空，前端不会回退到其他组织。切换组织时应改为新应用对应的值。
 
 ## 📊 服务访问地址
 
