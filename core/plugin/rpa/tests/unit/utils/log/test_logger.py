@@ -4,12 +4,10 @@ This module contains comprehensive tests for logging configuration,
 serialization, and path handling functionality.
 """
 
-import os
-from pathlib import Path
+import datetime
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
-import pytest
 from plugin.rpa.utils.log.logger import VALID_LOG_LEVELS, patching, serialize, set_log
 
 
@@ -33,8 +31,6 @@ class TestSerialize:
     def test_serialize_timestamp_extraction(self) -> None:
         """Test that serialize correctly extracts timestamp from record."""
         # Arrange
-        import datetime
-
         test_time = datetime.datetime(2021, 1, 1, 0, 0, 0)
         mock_record = {"time": test_time}
 
@@ -45,6 +41,7 @@ class TestSerialize:
             result = serialize(mock_record)
 
             # Assert
+            assert result == b'{"timestamp": 1609459200.0}'
             mock_dumps.assert_called_once()
             called_args = mock_dumps.call_args[0][0]
             assert "timestamp" in called_args
@@ -102,7 +99,7 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
+        _mock_appdirs: MagicMock,
         mock_logger: MagicMock,
     ) -> None:
         """Test set_log function with all parameters provided."""
@@ -136,7 +133,7 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
+        _mock_appdirs: MagicMock,
         mock_logger: MagicMock,
     ) -> None:
         """Test set_log using log level from environment variable."""
@@ -163,7 +160,7 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
+        _mock_appdirs: MagicMock,
         mock_logger: MagicMock,
     ) -> None:
         """Test set_log with default log level when not specified."""
@@ -189,7 +186,7 @@ class TestSetLog:
         mock_getenv: MagicMock,
         mock_path: MagicMock,
         mock_appdirs: MagicMock,
-        mock_logger: MagicMock,
+        _mock_logger: MagicMock,
     ) -> None:
         """Test set_log with default log path when not specified."""
         # Arrange
@@ -214,8 +211,8 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
-        mock_logger: MagicMock,
+        _mock_appdirs: MagicMock,
+        _mock_logger: MagicMock,
     ) -> None:
         """Test that set_log creates log directory if it doesn't exist."""
         # Arrange
@@ -240,7 +237,7 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
+        _mock_appdirs: MagicMock,
         mock_logger: MagicMock,
     ) -> None:
         """Test that set_log configures logger with correct format."""
@@ -277,7 +274,7 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
+        _mock_appdirs: MagicMock,
         mock_logger: MagicMock,
     ) -> None:
         """Test that set_log logs info message when path is configured."""
@@ -315,7 +312,7 @@ class TestSetLog:
         self,
         mock_getenv: MagicMock,
         mock_path: MagicMock,
-        mock_appdirs: MagicMock,
+        _mock_appdirs: MagicMock,
         mock_logger: MagicMock,
     ) -> None:
         """Test that set_log handles case insensitive log levels."""

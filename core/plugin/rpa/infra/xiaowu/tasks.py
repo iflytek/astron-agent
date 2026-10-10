@@ -72,7 +72,9 @@ async def create_task(
                 logger.error("Task creation failed: No task ID returned")
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Task creation failed: No task ID returned: {response_data}",
+                    detail=(
+                        f"Task creation failed: No task ID returned: {response_data}"
+                    ),
                 )
 
             return task_id
@@ -143,7 +145,7 @@ async def query_task_status(
                     r_data,
                 )
 
-            elif status in ["FAILED"]:
+            if status in ["FAILED"]:
                 error = execution.get("error", "")
                 result = execution.get("result", {})
                 if not result:
@@ -162,7 +164,7 @@ async def query_task_status(
                     r_data or {},
                 )
 
-            elif status in ["PENDING"]:
+            if status in ["PENDING"]:
                 return None
 
             raise HTTPException(

@@ -1,5 +1,6 @@
 """DTO definition module for RPA execution requests and responses.
-This module defines data transfer objects (DTOs) related to RPA execution requests and responses.
+This module defines data transfer objects (DTOs) related to RPA execution
+requests and responses.
 """
 
 from typing import Any, Dict, Optional
@@ -7,6 +8,8 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 
+# Pydantic models are data containers without public methods.
+# pylint: disable-next=too-few-public-methods
 class RPAExecutionRequest(BaseModel):
     """DTO definition for RPA execution request."""
 
@@ -18,6 +21,8 @@ class RPAExecutionRequest(BaseModel):
     params: Optional[Dict[Any, Any]] = None
 
 
+# Pydantic models are data containers without public methods.
+# pylint: disable-next=too-few-public-methods
 class RPAExecutionResponse(BaseModel):
     """DTO definition for RPA execution response."""
 

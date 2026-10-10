@@ -4,6 +4,8 @@ This module contains comprehensive tests for the ErrorCode enum including
 code values, messages, and string representations.
 """
 
+from enum import Enum
+
 import pytest
 from plugin.rpa.errors.error_code import ErrorCode
 
@@ -170,7 +172,10 @@ class TestErrorCode:
         """Test ErrorCode comparison operations."""
         # Test equality
         assert ErrorCode.SUCCESS == ErrorCode.SUCCESS
-        assert ErrorCode.CREATE_TASK_ERROR != ErrorCode.QUERY_TASK_ERROR  # type: ignore[comparison-overlap]
+        assert (
+            ErrorCode.CREATE_TASK_ERROR  # type: ignore[comparison-overlap]
+            != ErrorCode.QUERY_TASK_ERROR
+        )
 
         # Test that error codes can be compared by their codes
         assert ErrorCode.SUCCESS.code < ErrorCode.FAILURE.code
@@ -188,8 +193,6 @@ class TestErrorCode:
     def test_error_code_type_checking(self) -> None:
         """Test ErrorCode type properties."""
         # Assert ErrorCode is an enum
-        from enum import Enum
-
         assert issubclass(ErrorCode, Enum)
 
         # Assert each error code is an instance of ErrorCode

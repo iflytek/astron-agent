@@ -4,7 +4,9 @@ This module contains comprehensive tests for constant definitions,
 imports, and key collections used throughout the RPA service.
 """
 
-import pytest
+# Expected values are restated on purpose rather than imported.
+# pylint: disable=duplicate-code
+
 from plugin.rpa.consts import const
 
 
@@ -272,7 +274,7 @@ class TestKeyCollectionsSeparation:
         ), f"base_keys and otlp_keys should not overlap. Found: {overlap}"
 
     def test_all_keys_accounted_for_in_collections(self) -> None:
-        """Test that important keys are accounted for in either base or OTLP collections."""
+        """Test that important keys are in either the base or OTLP collections."""
         # Get all keys from __all__ that should be in collections
         all_key_names = [name for name in const.__all__ if name.endswith("_KEY")]
 
@@ -285,9 +287,8 @@ class TestKeyCollectionsSeparation:
             key_value = getattr(const, key_name)
             all_key_values.add(key_value)
 
-        # Assert that most keys are accounted for in collections
-        # (Some keys might be defined but not used in collections, which is acceptable)
-        missing_keys = all_key_values - all_collection_keys
+        # Some keys might be defined but not used in collections, which is
+        # acceptable, so only the core keys below are required.
 
         # We expect at least the core keys to be in collections
         core_keys = {

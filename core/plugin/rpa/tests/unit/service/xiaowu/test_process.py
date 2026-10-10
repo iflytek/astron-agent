@@ -4,9 +4,6 @@ This module contains comprehensive tests for task monitoring, span/trace setup,
 logging, metrics, and OTLP handling functionality.
 """
 
-import asyncio
-import os
-import time
 from typing import Any, Dict, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -398,7 +395,7 @@ class TestSetupSpanAndTrace:
         )
 
 
-class TestSetupLoggingAndMetrics:
+class TestSetupLoggingAndMetrics:  # pylint: disable=too-few-public-methods
     """Test class for setup_logging_and_metrics function."""
 
     @patch("plugin.rpa.service.xiaowu.process.Meter")

@@ -4,8 +4,9 @@ This module contains comprehensive tests for the RPAServer class and related
 functionality including server setup, configuration checking, and startup.
 """
 
-import os
-from typing import Any
+# Expected values are restated on purpose rather than imported.
+# pylint: disable=duplicate-code
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -83,9 +84,9 @@ class TestRPAServer:
     @patch("builtins.print")
     def test_load_polaris_success(
         self,
-        mock_print: MagicMock,
+        _mock_print: MagicMock,
         mock_getenv: MagicMock,
-        mock_config_filter: MagicMock,
+        _mock_config_filter: MagicMock,
         mock_polaris: MagicMock,
     ) -> None:
         """Test successful polaris configuration loading."""
@@ -123,9 +124,9 @@ class TestRPAServer:
     @patch("builtins.print")
     def test_load_polaris_missing_required_params(
         self,
-        mock_print: MagicMock,
+        _mock_print: MagicMock,
         mock_getenv: MagicMock,
-        mock_config_filter: MagicMock,
+        _mock_config_filter: MagicMock,
         mock_polaris: MagicMock,
     ) -> None:
         """Test polaris loading with missing required parameters."""
@@ -151,7 +152,7 @@ class TestRPAServer:
     def test_load_polaris_connection_error(
         self,
         mock_getenv: MagicMock,
-        mock_config_filter: MagicMock,
+        _mock_config_filter: MagicMock,
         mock_polaris: MagicMock,
         mock_print: MagicMock,
     ) -> None:
@@ -208,7 +209,7 @@ class TestRPAServer:
     @patch("plugin.rpa.api.app.os.getenv")
     @patch("builtins.print")
     def test_check_env_missing_keys(
-        self, mock_print: MagicMock, mock_getenv: MagicMock, mock_const: MagicMock
+        self, _mock_print: MagicMock, mock_getenv: MagicMock, mock_const: MagicMock
     ) -> None:
         """Test environment checking with missing keys."""
         # Arrange
@@ -318,7 +319,7 @@ class TestRPAServer:
         mock_server_instance.run.assert_called_once()
 
 
-class TestRPAServerApp:
+class TestRPAServerApp:  # pylint: disable=too-few-public-methods
     """Test class for rpa_server_app function."""
 
     def test_rpa_server_app_creates_fastapi_instance(self) -> None:
