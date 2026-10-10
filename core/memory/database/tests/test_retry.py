@@ -81,7 +81,7 @@ class TestRetryDecorator:
         call_count = 0
 
         @retry_on_invalid_cached_statement(max_retries=2, delay=0.0)
-        async def func(db: object) -> str:
+        async def func(_db: object) -> str:
             nonlocal call_count
             call_count += 1
             if call_count == 1:

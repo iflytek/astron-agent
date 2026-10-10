@@ -58,7 +58,10 @@ class DatabaseAdapter(ABC):
 
     @abstractmethod
     def get_column_types_sql(self) -> str:
-        """Return SQL to get column types. Uses :table_name and :table_schema as parameters."""
+        """Return SQL to get column types.
+
+        Uses :table_name and :table_schema as bind parameters.
+        """
 
     @abstractmethod
     def get_reserved_keywords(self) -> List[str]:

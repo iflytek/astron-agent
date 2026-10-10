@@ -253,7 +253,8 @@ class MySQLAdapter(DatabaseAdapter):
                 logger.debug(
                     f"Restored active database to {safe_name} after cache clearing"
                 )
-            except Exception as restore_error:
+            # Best effort: the retry continues even if the database is not restored.
+            except Exception as restore_error:  # pylint: disable=broad-exception-caught
                 logger.warning(
                     f"Failed to restore active database to {current_schema} "
                     f"after cache clearing: {restore_error}"

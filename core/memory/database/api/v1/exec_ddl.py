@@ -25,7 +25,7 @@ from memory.database.repository.middleware.adapters import get_adapter
 from memory.database.repository.middleware.getters import get_session
 from sqlglot import exp
 from sqlglot.errors import ParseError
-from sqlglot.expressions import Alter, ColumnDef, Command, Create, Drop
+from sqlglot.expressions import Alter, ColumnDef, Command, Comment, Create, Drop, Table
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.responses import JSONResponse
 
@@ -86,8 +86,6 @@ def is_ddl_allowed(sql: str, span_context: Span) -> bool:
 
 def _extract_drop_info(parsed_ast: Any) -> tuple[str, str]:
     """Extract info from DROP statement."""
-    from sqlglot.expressions import Table
-
     if hasattr(parsed_ast, "kind") and parsed_ast.kind:
         return "DROP", parsed_ast.kind.upper()
     if parsed_ast.find(Table):
@@ -97,8 +95,6 @@ def _extract_drop_info(parsed_ast: Any) -> tuple[str, str]:
 
 def _extract_create_info(parsed_ast: Any) -> tuple[str, str]:
     """Extract info from CREATE statement."""
-    from sqlglot.expressions import Table
-
     if hasattr(parsed_ast, "kind") and parsed_ast.kind:
         return "CREATE", parsed_ast.kind.upper()
     if parsed_ast.find(Table):
@@ -108,8 +104,6 @@ def _extract_create_info(parsed_ast: Any) -> tuple[str, str]:
 
 def _extract_alter_info(parsed_ast: Any) -> tuple[str, str]:
     """Extract info from ALTER statement."""
-    from sqlglot.expressions import Table
-
     if hasattr(parsed_ast, "kind") and parsed_ast.kind:
         return "ALTER", parsed_ast.kind.upper()
     if parsed_ast.find(Table):
@@ -119,7 +113,7 @@ def _extract_alter_info(parsed_ast: Any) -> tuple[str, str]:
 
 def _extract_ddl_statement_info(parsed_ast: Any) -> Union[tuple[str, str], None]:
     """
-    Extract statement type and object type from parsed AST using official SQLGlot methods.
+    Extract statement type and object type from a parsed AST using SQLGlot.
 
     Args:
         parsed_ast: Parsed SQLGlot AST
@@ -127,15 +121,13 @@ def _extract_ddl_statement_info(parsed_ast: Any) -> Union[tuple[str, str], None]
     Returns:
         tuple: (statement_type, object_type) or None if extraction fails
     """
-    from sqlglot.expressions import Comment
-
     if isinstance(parsed_ast, Drop):
         return _extract_drop_info(parsed_ast)
-    elif isinstance(parsed_ast, Create):
+    if isinstance(parsed_ast, Create):
         return _extract_create_info(parsed_ast)
-    elif isinstance(parsed_ast, Alter):
+    if isinstance(parsed_ast, Alter):
         return _extract_alter_info(parsed_ast)
-    elif isinstance(parsed_ast, Comment):
+    if isinstance(parsed_ast, Comment):
         return "COMMENT", ""
 
     return None
@@ -216,9 +208,7 @@ def _collect_ddl_identifiers(parsed: Any) -> list:
     return column_names
 
 
-def _validate_name_pattern_ddl(
-    names: list, name_type: str, uid: str, span_context: Any
-) -> Any:
+def _validate_name_pattern_ddl(names: list, name_type: str, span_context: Any) -> Any:
     """
     Validate name pattern for DDL identifiers.
 
@@ -241,42 +231,30 @@ def _validate_name_pattern_ddl(
     """
     # Allowed characters for DDL identifiers (column names, etc.)
     # Business rule: Only ASCII letters and underscores are allowed (no digits)
-    # This is intentionally more restrictive than standard SQL but is a deliberate design choice
+    # This is intentionally more restrictive than standard SQL but is a
+    # deliberate design choice.
     # DO NOT modify this validation to allow digits - it violates business requirements
-    # Using string.ascii_letters constant instead of regex to avoid code scanning false positives
+    # Using string.ascii_letters constant instead of regex to avoid code scanning
+    # false positives
     allow_chars = string.ascii_letters + "_"
     for name in names:
-        # Check if name is empty
-        if not name:
-            span_context.add_error_event(
-                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
+        # Reject empty names and names with characters outside allow_chars
+        if not name or not all(c in allow_chars for c in name):
+            error_msg = (
+                f"{name_type}: '{name}' does not conform to rules, "
+                "only letters and underscores are supported"
             )
-            logger.error(
-                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
-            )
+            span_context.add_error_event(error_msg)
+            logger.error(error_msg)
             return format_response(
                 code=CodeEnum.DDLNotAllowed.code,
-                message=f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported",
-                sid=span_context.sid,
-            )
-
-        # Validate using column name
-        if not all(c in allow_chars for c in name):
-            span_context.add_error_event(
-                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
-            )
-            logger.error(
-                f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported"
-            )
-            return format_response(
-                code=CodeEnum.DDLNotAllowed.code,
-                message=f"{name_type}: '{name}' does not conform to rules, only letters and underscores are supported",
+                message=error_msg,
                 sid=span_context.sid,
             )
     return None
 
 
-async def _validate_ddl_legality(ddl: str, uid: str, span_context: Any) -> Any:
+async def _validate_ddl_legality(ddl: str, span_context: Any) -> Any:
     """
     Validate DDL statement legality similar to DML validation logic.
 
@@ -315,7 +293,7 @@ async def _validate_ddl_legality(ddl: str, uid: str, span_context: Any) -> Any:
         # Validate column names
         if column_names:
             error_result = _validate_name_pattern_ddl(
-                column_names, "Column name", uid, span_context
+                column_names, "Column name", span_context
             )
             if error_result:
                 return error_result
@@ -381,7 +359,8 @@ def _rebuild_ddl_from_ast(ddl: str, span_context: Span) -> str:
         )
         logger.error(f"DDL reconstruction parse error: {str(parse_error)}")
         return ""
-    except Exception as error:
+    # Any other failure means the statement cannot be rebuilt safely: reject it.
+    except Exception as error:  # pylint: disable=broad-exception-caught
         span_context.record_exception(error)
         span_context.add_error_event(f"DDL reconstruction failed: {str(error)}")
         logger.error(f"DDL reconstruction failed: {str(error)}")
@@ -459,12 +438,14 @@ async def exec_ddl(
         if error_resp:
             return error_resp  # type: ignore[no-any-return]
 
-        ddls, error_split = await _ddl_split(ddl, uid, span_context)
+        ddls, error_split = await _ddl_split(ddl, span_context)
         if error_split:
             return error_split  # type: ignore[no-any-return]
 
         try:
-            await _execute_ddl_statements(db, schema_list, ddls, span_context)  # type: ignore[arg-type]
+            await _execute_ddl_statements(
+                db, schema_list, ddls, span_context  # type: ignore[arg-type]
+            )
             await db.commit()
             m.in_success_count(lables={"uid": uid})
             return format_response(  # type: ignore[no-any-return]
@@ -515,7 +496,7 @@ async def _reset_uid(
     return new_uid, None
 
 
-async def _ddl_split(ddl: str, uid: str, span_context: Any) -> Any:
+async def _ddl_split(ddl: str, span_context: Any) -> Any:
     """Split DDL statements, validate them, and reconstruct safe versions."""
     ddl = ddl.strip()
     original_ddls = [
@@ -537,7 +518,7 @@ async def _ddl_split(ddl: str, uid: str, span_context: Any) -> Any:
             )
 
         # After validation passes, validate DDL legality (identifier validation)
-        error_legality = await _validate_ddl_legality(statement, uid, span_context)
+        error_legality = await _validate_ddl_legality(statement, span_context)
         if error_legality:
             return None, error_legality
 

@@ -1,5 +1,9 @@
 """Unit tests for DDL execution functionality."""
 
+# Tests restate request payloads and mocks on purpose rather than
+# sharing helpers across modules.
+# pylint: disable=duplicate-code
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,6 +26,7 @@ from memory.database.api.v1.exec_ddl import (
     is_ddl_allowed,
 )
 from memory.database.exceptions.error_code import CodeEnum
+from sqlglot import parse_one
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -92,9 +97,8 @@ async def test_ddl_split_success() -> None:
             ALTER TABLE users ADD COLUMN name TEXT;
             DROP TABLE old_users;
         """
-        uid = "u1"
 
-        ddls, error_resp = await _ddl_split(raw_ddl, uid, mock_span_context)
+        ddls, error_resp = await _ddl_split(raw_ddl, mock_span_context)
 
         assert error_resp is None
         assert len(ddls) == 3
@@ -195,9 +199,8 @@ async def test_exec_ddl_success() -> None:
 
                                 # Mock span service and instance
                                 mock_span_instance = MagicMock()
-                                mock_span_instance.start.return_value.__enter__.return_value = (  # noqa: E501
-                                    fake_span_context
-                                )
+                                span_cm = mock_span_instance.start.return_value
+                                span_cm.__enter__.return_value = fake_span_context
                                 mock_span_service = MagicMock()
                                 mock_span_service.get_span.return_value = (
                                     lambda uid: mock_span_instance
@@ -219,8 +222,6 @@ async def test_exec_ddl_success() -> None:
 
 def test_extract_ddl_statement_info() -> None:
     """Test DDL statement information extraction."""
-    from sqlglot import parse_one
-
     # Test CREATE TABLE
     create_sql = "CREATE TABLE users (id INT, name TEXT)"
     parsed_create = parse_one(create_sql)
@@ -248,8 +249,6 @@ def test_extract_ddl_statement_info() -> None:
 
 def test_extract_create_info() -> None:
     """Test CREATE statement information extraction."""
-    from sqlglot import parse_one
-
     # CREATE TABLE
     create_table_sql = "CREATE TABLE users (id INT, name TEXT)"
     parsed = parse_one(create_table_sql)
@@ -267,8 +266,6 @@ def test_extract_create_info() -> None:
 
 def test_extract_drop_info() -> None:
     """Test DROP statement information extraction."""
-    from sqlglot import parse_one
-
     # DROP TABLE
     drop_table_sql = "DROP TABLE users"
     parsed = parse_one(drop_table_sql)
@@ -286,8 +283,6 @@ def test_extract_drop_info() -> None:
 
 def test_extract_alter_info() -> None:
     """Test ALTER statement information extraction."""
-    from sqlglot import parse_one
-
     # ALTER TABLE
     alter_sql = "ALTER TABLE users ADD COLUMN email TEXT"
     parsed = parse_one(alter_sql)
@@ -329,8 +324,6 @@ def test_rebuild_ddl_from_ast() -> None:
 
 def test_collect_functions_names() -> None:
     """Test collecting function names from DDL statements."""
-    from sqlglot import parse_one
-
     # DDL with default function - e.g. DEFAULT current_user
     ddl = "CREATE TABLE users (id INT, created_by TEXT DEFAULT current_user)"
     parsed = parse_one(ddl)
@@ -346,8 +339,6 @@ def test_collect_functions_names() -> None:
 
 def test_collect_ddl_identifiers() -> None:
     """Test collecting column identifiers from DDL statements."""
-    from sqlglot import parse_one
-
     # CREATE TABLE - should collect column names
     create_sql = "CREATE TABLE users (id INT, name TEXT, email VARCHAR(255))"
     parsed = parse_one(create_sql)
@@ -398,9 +389,8 @@ def test_validate_name_pattern_ddl_valid() -> None:
     names = ["user_name", "age", "email_address", "first_name", "last_name"]
     span_context = MagicMock()
     span_context.sid = "test-sid"
-    uid = "u1"
 
-    result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
+    result = _validate_name_pattern_ddl(names, "Column name", span_context)
     assert result is None
 
 
@@ -412,9 +402,8 @@ def test_validate_name_pattern_ddl_invalid_with_digits() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
+    result = _validate_name_pattern_ddl(names, "Column name", span_context)
     assert result is not None
     span_context.add_error_event.assert_called_once()
     # Parse JSONResponse body to verify error code
@@ -429,9 +418,8 @@ def test_validate_name_pattern_ddl_invalid_with_special_chars() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
+    result = _validate_name_pattern_ddl(names, "Column name", span_context)
     assert result is not None
     span_context.add_error_event.assert_called_once()
     body = json.loads(result.body)
@@ -444,9 +432,8 @@ def test_validate_name_pattern_ddl_invalid_empty_name() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = _validate_name_pattern_ddl(names, "Column name", uid, span_context)
+    result = _validate_name_pattern_ddl(names, "Column name", span_context)
     assert result is not None
     span_context.add_error_event.assert_called_once()
     body = json.loads(result.body)
@@ -459,9 +446,8 @@ async def test_validate_ddl_legality_valid() -> None:
     ddl = "CREATE TABLE users (id INT, name TEXT)"
     span_context = MagicMock()
     span_context.sid = "test-sid"
-    uid = "u1"
 
-    result = await _validate_ddl_legality(ddl, uid, span_context)
+    result = await _validate_ddl_legality(ddl, span_context)
     assert result is None
 
 
@@ -475,9 +461,8 @@ async def test_validate_ddl_legality_invalid_column_name_with_digits() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_ddl_legality(ddl, uid, span_context)
+    result = await _validate_ddl_legality(ddl, span_context)
     assert result is not None
     # Parse JSONResponse body to get code
     body = json.loads(result.body)
@@ -492,9 +477,8 @@ async def test_validate_ddl_legality_invalid_column_name_alter() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_ddl_legality(ddl, uid, span_context)
+    result = await _validate_ddl_legality(ddl, span_context)
     assert result is not None
     body = json.loads(result.body)
     assert body["code"] == CodeEnum.DDLNotAllowed.code
@@ -507,9 +491,8 @@ async def test_validate_ddl_legality_reserved_keyword() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_ddl_legality(ddl, uid, span_context)
+    result = await _validate_ddl_legality(ddl, span_context)
     assert result is not None
     body = json.loads(result.body)
     # Reserved keyword may be rejected by parser (SQLParseError)
@@ -528,9 +511,8 @@ async def test_validate_ddl_legality_function_reserved_keyword() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_ddl_legality(ddl, uid, span_context)
+    result = await _validate_ddl_legality(ddl, span_context)
     assert result is not None
     body = json.loads(result.body)
     assert body["code"] == CodeEnum.DMLNotAllowed.code
@@ -547,9 +529,8 @@ async def test_validate_ddl_legality_invalid_sql() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_ddl_legality(ddl, uid, span_context)
+    result = await _validate_ddl_legality(ddl, span_context)
     assert result is not None
     # Parse JSONResponse body to get code
     body = json.loads(result.body)
@@ -563,7 +544,6 @@ async def test_ddl_split_reconstruction_fails() -> None:
     mock_span_context = MagicMock()
     mock_span_context.sid = "test-sid"
     mock_span_context.add_error_event = MagicMock()
-    uid = "u1"
 
     with patch("memory.database.api.v1.exec_ddl.is_ddl_allowed", return_value=True):
         with patch(
@@ -576,7 +556,7 @@ async def test_ddl_split_reconstruction_fails() -> None:
                 return_value="",  # Simulate reconstruction failure
             ):
                 raw_ddl = "CREATE TABLE users (id INT);"
-                ddls, error_resp = await _ddl_split(raw_ddl, uid, mock_span_context)
+                ddls, error_resp = await _ddl_split(raw_ddl, mock_span_context)
 
                 assert error_resp is not None
                 assert ddls is None

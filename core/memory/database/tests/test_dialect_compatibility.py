@@ -4,6 +4,10 @@ This test module ensures that all SQL parsing operations correctly use the
 database-specific dialect (MySQL or PostgreSQL) to avoid parsing errors.
 """
 
+# Tests restate request payloads and mocks on purpose rather than
+# sharing helpers across modules.
+# pylint: disable=duplicate-code
+
 import os
 from unittest.mock import MagicMock, patch
 
@@ -80,7 +84,10 @@ class TestDDLDialectCompatibility:
             assert isinstance(adapter, MySQLAdapter)
 
             mock_span_context = MagicMock()
-            mysql_ddl = "ALTER TABLE `users` ADD COLUMN `email` VARCHAR(255) COMMENT 'Email address'"
+            mysql_ddl = (
+                "ALTER TABLE `users` ADD COLUMN `email` VARCHAR(255) "
+                "COMMENT 'Email address'"
+            )
 
             result = is_ddl_allowed(mysql_ddl, mock_span_context)
             assert result is True, "MySQL ALTER TABLE should be allowed"
@@ -106,7 +113,10 @@ class TestDDLDialectCompatibility:
             assert isinstance(adapter, MySQLAdapter)
 
             mock_span_context = MagicMock()
-            mysql_ddl = "CREATE TABLE users (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))"
+            mysql_ddl = (
+                "CREATE TABLE users "
+                "(id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255))"
+            )
 
             rebuilt = _rebuild_ddl_from_ast(mysql_ddl, mock_span_context)
             assert isinstance(rebuilt, str)
@@ -155,7 +165,7 @@ class TestDMLDialectCompatibility:
             uid = "user456"
             limit_num = 100
 
-            rewritten_sql, insert_ids, params_dict = rewrite_dml_with_uid_and_limit(
+            rewritten_sql, _, params_dict = rewrite_dml_with_uid_and_limit(
                 dml=test_dml,
                 app_id=app_id,
                 uid=uid,
@@ -180,7 +190,7 @@ class TestDMLDialectCompatibility:
             uid = "user456"
             limit_num = 100
 
-            rewritten_sql, insert_ids, params_dict = rewrite_dml_with_uid_and_limit(
+            rewritten_sql, _, params_dict = rewrite_dml_with_uid_and_limit(
                 dml=test_dml,
                 app_id=app_id,
                 uid=uid,
@@ -206,7 +216,7 @@ class TestDMLDialectCompatibility:
             uid = "user456"
             limit_num = 100
 
-            rewritten_sql, insert_ids, params_dict = rewrite_dml_with_uid_and_limit(
+            rewritten_sql, _, _ = rewrite_dml_with_uid_and_limit(
                 dml=test_dml,
                 app_id=app_id,
                 uid=uid,
@@ -230,7 +240,7 @@ class TestDMLDialectCompatibility:
             uid = "user456"
             limit_num = 100
 
-            rewritten_sql, insert_ids, params_dict = rewrite_dml_with_uid_and_limit(
+            rewritten_sql, _, _ = rewrite_dml_with_uid_and_limit(
                 dml=test_dml,
                 app_id=app_id,
                 uid=uid,
@@ -254,7 +264,7 @@ class TestDMLDialectCompatibility:
             app_id = "app123"
             uid = "user456"
 
-            rewritten_sql, insert_ids, params_dict = rewrite_dml_with_uid_and_limit(
+            rewritten_sql, insert_ids, _ = rewrite_dml_with_uid_and_limit(
                 dml=test_dml,
                 app_id=app_id,
                 uid=uid,
@@ -278,7 +288,7 @@ class TestDMLDialectCompatibility:
             app_id = "app123"
             uid = "user456"
 
-            rewritten_sql, insert_ids, params_dict = rewrite_dml_with_uid_and_limit(
+            rewritten_sql, insert_ids, _ = rewrite_dml_with_uid_and_limit(
                 dml=test_dml,
                 app_id=app_id,
                 uid=uid,

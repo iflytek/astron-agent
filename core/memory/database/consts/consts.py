@@ -1,3 +1,5 @@
+"""Metric names used by the memory database service."""
+
 # Entry error count error code
 SERVER_REQUEST_TOTAL = "server_request_total"
 # Exit error count error code

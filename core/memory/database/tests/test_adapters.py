@@ -13,6 +13,7 @@ from memory.database.repository.middleware.adapters.registry import (
     get_adapter,
     reset_adapter,
 )
+from sqlalchemy.exc import NotSupportedError
 
 # ---------------------------------------------------------------------------
 # A. DatabaseAdapter ABC
@@ -25,6 +26,8 @@ class TestDatabaseAdapterABC:
     def test_cannot_instantiate_directly(self) -> None:
         """DatabaseAdapter cannot be instantiated because it is abstract."""
         with pytest.raises(TypeError):
+            # Instantiating the ABC is the behaviour under test.
+            # pylint: disable-next=abstract-class-instantiated
             DatabaseAdapter()  # type: ignore[abstract]
 
     def test_has_all_expected_abstract_methods(self) -> None:
@@ -72,6 +75,8 @@ class TestPostgreSQLAdapter:
 
     def setup_method(self) -> None:
         """Create a fresh adapter for each test."""
+        # pytest's xunit-style setup_method replaces __init__ for test classes.
+        # pylint: disable-next=attribute-defined-outside-init
         self.adapter = PostgreSQLAdapter()
 
     def test_get_db_type(self) -> None:
@@ -123,15 +128,13 @@ class TestPostgreSQLAdapter:
             assert kw in keywords
 
     def test_get_dangerous_functions_contains_expected(self) -> None:
-        """Dangerous functions include 'current_user', 'pg_cancel_backend', 'version'."""
+        """Dangerous functions include current_user, pg_cancel_backend and version."""
         funcs = self.adapter.get_dangerous_functions()
         for fn in ("current_user", "pg_cancel_backend", "version"):
             assert fn in funcs
 
     def test_is_retryable_cache_error_not_supported_error(self) -> None:
         """NotSupportedError with 'invalidcachedstatementerror' is retryable."""
-        from sqlalchemy.exc import NotSupportedError
-
         exc = NotSupportedError(
             "sqlalchemy", {}, Exception("InvalidCachedStatementError occurred")
         )
@@ -144,6 +147,8 @@ class TestPostgreSQLAdapter:
     def test_is_retryable_cache_error_chained_cause(self) -> None:
         """Exception with __cause__ being InvalidCachedStatementError is retryable."""
         try:
+            # asyncpg is optional (PostgreSQL deployments only).
+            # pylint: disable-next=import-outside-toplevel
             from asyncpg.exceptions import InvalidCachedStatementError
 
             outer = RuntimeError("wrapper")
@@ -174,7 +179,8 @@ class TestPostgreSQLAdapter:
     async def test_restore_search_path_with_schema(self) -> None:
         """restore_search_path executes SET search_path when _current_schema is set."""
         session = AsyncMock()
-        session._current_schema = "my_schema"
+        # The adapter reads the schema the session wrapper stores privately.
+        session._current_schema = "my_schema"  # pylint: disable=protected-access
         await self.adapter.restore_search_path(session)
         session.execute.assert_called_once()
         call_arg = session.execute.call_args[0][0]
@@ -223,6 +229,8 @@ class TestMySQLAdapter:
 
     def setup_method(self) -> None:
         """Create a fresh adapter for each test."""
+        # pytest's xunit-style setup_method replaces __init__ for test classes.
+        # pylint: disable-next=attribute-defined-outside-init
         self.adapter = MySQLAdapter()
 
     def test_get_db_type(self) -> None:
@@ -245,6 +253,8 @@ class TestMySQLAdapter:
 
     def test_get_engine_connect_args(self) -> None:
         """get_engine_connect_args returns empty dict."""
+        # Assert the exact empty-dict return value, not just falsiness.
+        # pylint: disable-next=use-implicit-booleaness-not-comparison
         assert self.adapter.get_engine_connect_args() == {}
 
     def test_safe_create_schema_sql(self) -> None:
@@ -298,7 +308,8 @@ class TestMySQLAdapter:
     async def test_restore_search_path_with_schema(self) -> None:
         """restore_search_path executes USE `...` when _current_schema is set."""
         session = AsyncMock()
-        session._current_schema = "my_schema"
+        # The adapter reads the schema the session wrapper stores privately.
+        session._current_schema = "my_schema"  # pylint: disable=protected-access
         await self.adapter.restore_search_path(session)
         session.execute.assert_called_once()
         call_arg = session.execute.call_args[0][0]
@@ -336,6 +347,8 @@ class TestMySQLAdapter:
 
     def test_model_table_args(self) -> None:
         """Model table_args is empty dict."""
+        # Assert the exact empty-dict return value, not just falsiness.
+        # pylint: disable-next=use-implicit-booleaness-not-comparison
         assert self.adapter.get_model_table_args() == {}
 
     def test_env_prefix(self) -> None:

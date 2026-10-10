@@ -17,5 +17,6 @@ async def set_search_path_by_schema(session: AsyncSession, schema: str) -> None:
     adapter = get_adapter()
     sql = adapter.set_search_path_sql(schema)
     await session.exec(text(sql))  # type: ignore[call-overload]
-    # Store current schema on session object for potential recovery after connection invalidation
+    # Store current schema on session object for potential recovery after
+    # connection invalidation
     setattr(session, "_current_schema", schema)
