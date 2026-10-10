@@ -120,7 +120,7 @@ async def initialized_mcp_session(
             async with AsyncExitStack() as stack:
                 if candidate is MCPTransport.STREAMABLE_HTTP:
                     http_client = httpx.AsyncClient(
-                        follow_redirects=True,
+                        follow_redirects=False,
                         timeout=httpx.Timeout(30.0, read=300.0),
                         event_hooks={"response": [capture_response]},
                     )
