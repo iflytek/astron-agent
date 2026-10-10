@@ -123,8 +123,10 @@ docker compose -f docker-compose-with-auth.yaml up -d
 ## 🌟 スター履歴
 
 <div align="center">
-  <img src="https://api.star-history.com/svg?repos=iflytek/astron-agent&type=Date" alt="Star History Chart" width="600">
+  <img src="../star-history.svg" alt="Star History Chart" width="600">
 </div>
+
+> このセルフホスト図は、GitHub の `stargazers_count` を月ごとに保存したスナップショットから再生成されます。過去の点は `star-history.json` に保持され、後から Star を解除または再登録しても再計算されません。
 
 ## 📞 サポート
 
