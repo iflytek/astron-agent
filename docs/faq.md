@@ -26,6 +26,10 @@ npm install
 npm run docs:dev
 ```
 
+## Why Is The Model Selection Dropdown Empty In A Workflow
+
+Models do not appear in the workflow editor until they have been added in the model management interface. Add and configure the model there first, then return to the workflow editor and reopen the model selection dropdown.
+
 ## Where Should I Go For Deeper Troubleshooting
 
 - [Repository FAQ](https://github.com/iflytek/astron-agent/blob/main/FAQ.md)
