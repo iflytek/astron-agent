@@ -89,3 +89,27 @@ RUN pip install json5
 ```
 
 然后修改 `docker-compose.yaml` 使用该镜像，并重新构建：`docker compose up -d --build`。
+
+## 代码节点偶发报错 `SyntaxError: unterminated string literal`，或下游代码节点拿不到入参？
+
+**现象：** 同一个工作流有时运行正常、有时失败；在调试面板里看到代码节点报 `SyntaxError: unterminated string literal`，或上游大模型节点输出正常、下游代码节点入参却为空。
+
+**原因：** 当代码节点的字符串入参里含有换行（最常见的是大模型输出的 JSON 字符串带换行），旧版工作流服务把参数传给 Pyodide 执行器时，换行转义会被改写，生成的代码因此出现语法错误。模型输出是否带换行并不固定，所以表现为"偶发"。
+
+**解决方法：**
+
+1. 该问题已在 [#1671](https://github.com/iflytek/astron-agent/pull/1671)（合入 `main`：[#1672](https://github.com/iflytek/astron-agent/pull/1672)）修复。修复晚于 `v1.1.2` 合并，请重新拉取 `core-workflow` 服务的 `latest` 镜像（`ghcr.io/iflytek/astron-agent/core-workflow:latest`）并重建容器，或升级到包含该修复的后续版本。
+2. 升级前的临时规避：在大模型节点的提示词里要求输出**不换行**的 JSON。
+
+## 多轮对话跑完了，但最后一轮（或长回复）的 Trace 日志不见了？
+
+**现象：** 调试或多轮问询时，流程已正常结束，但 Trace 里缺少最后一轮的记录；workflow 日志中出现：
+
+```text
+Failed to produce message: KafkaError{code=MSG_SIZE_TOO_LARGE,...}
+```
+
+**原因：** 长回复（尤其是流式输出）产生的 Trace 负载超过 Kafka 消息大小上限，整条 Trace 上报失败。只调大 Broker 端的 `message.max.bytes` 并不能解决，生产者端同样有消息大小限制。
+
+**解决方法：** 该问题已在 [#1673](https://github.com/iflytek/astron-agent/pull/1673)（合入 `main`：[#1675](https://github.com/iflytek/astron-agent/pull/1675)）修复：流式响应不再逐帧写入 Trace，超长字符串先转存对象存储再上报。修复晚于 `v1.1.2` 合并，请重新拉取 `core-workflow` 服务的 `latest` 镜像（`ghcr.io/iflytek/astron-agent/core-workflow:latest`）并重建容器，或升级到包含该修复的后续版本。若升级后仍出现，请参考[功能与使用 FAQ](features.md)中的「workflow 服务的日志在哪里看？」收集日志后提交 issue。
+
