@@ -37,7 +37,7 @@ const PUBLISHED_BOT_STATUSES = [1, 2, 4];
 const isPublishedBotStatus = (botStatus?: number): boolean =>
   botStatus !== undefined && PUBLISHED_BOT_STATUSES.includes(botStatus);
 
-function ConfigHeader(props: ConfigHeaderProps) {
+function ConfigHeader(props: ConfigHeaderProps): React.ReactElement {
   const [searchParams] = useSearchParams();
   const { currentRobot, currentTab } = props;
   const { t } = useTranslation();
@@ -48,10 +48,10 @@ function ConfigHeader(props: ConfigHeaderProps) {
 
   useEffect(() => {
     document.body.addEventListener('click', clickOutside);
-    return () => document.body.removeEventListener('click', clickOutside);
+    return (): void => document.body.removeEventListener('click', clickOutside);
   }, []);
 
-  function clickOutside(event: MouseEvent) {
+  function clickOutside(event: MouseEvent): void {
     if (
       optionsRef.current &&
       !optionsRef.current.contains(event.target as Node)

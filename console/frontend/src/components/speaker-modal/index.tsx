@@ -71,11 +71,11 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
   const [showVoiceTraining, setShowVoiceTraining] = useState<boolean>(false);
 
   // 创建发音人点击
-  const createMyVCN = () => {
+  const createMyVCN = (): void => {
     setShowVoiceTraining(true);
   };
 
-  const updateVCNName = (item: MyVCNItem) => {
+  const updateVCNName = (item: MyVCNItem): void => {
     const regex = /^[\u4e00-\u9fa5a-zA-Z0-9\s_]+$/;
     if (!regex.test(editVCNName)) {
       message.info(t('speakerNameOnlySupport'));
@@ -94,13 +94,13 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
   };
 
   //edit my vcn name
-  const editMySpeaker = (item: MyVCNItem) => {
+  const editMySpeaker = (item: MyVCNItem): void => {
     setEditVCNId(item.id);
     setEditVCNName(item.name);
   };
 
   // delete my speaker
-  const deleteSpeaker = (item: MyVCNItem) => {
+  const deleteSpeaker = (item: MyVCNItem): void => {
     Modal.confirm({
       title: t('deleteSpeaker'),
       content: t('deleteSpeakerTip'),
@@ -163,12 +163,12 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
     });
   };
 
-  const closeTrainModal = () => {
+  const closeTrainModal = (): void => {
     setShowVoiceTraining(false);
     getMyVoicerList();
   };
 
-  const getMyVoicerList = () => {
+  const getMyVoicerList = (): void => {
     getMySpeakerList()
       .then(res => {
         setMySpeaker(res);

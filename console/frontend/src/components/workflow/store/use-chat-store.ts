@@ -41,7 +41,7 @@ const useChatStore = create<ChatStoreType>((set, get) => ({
   setUserWheel: (change): void => setUserWheel(change, get, set),
   setDebuggering: (change): void => setDebuggering(change, get, set),
   setDeleteAllModal: (change): void => setDeleteAllModal(change, get, set),
-  handleChatTypeChange: (type: string) => handleChatTypeChange(type, set),
+  handleChatTypeChange: (type: string): void => handleChatTypeChange(type, set),
   getDialogues: (id: string, shouldAddDivider = false): void =>
     getDialogues(id, set, shouldAddDivider),
   clearNodeStatus: (): void => clearNodeStatus(get),

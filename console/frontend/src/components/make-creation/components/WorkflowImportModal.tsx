@@ -344,7 +344,7 @@ function WorkflowImportModal({
   setWorkflowImportModalVisible,
 }: {
   setWorkflowImportModalVisible: (visible: boolean) => void;
-}) {
+}): React.ReactElement {
   const navigate = useNavigate();
   // 使用自定义类型替代原始UploadFile类型
   const [uploadList, setUploadList] = useState<CustomUploadFile[]>([]);
@@ -357,14 +357,14 @@ function WorkflowImportModal({
 
   useEffect(() => {
     mountedRef.current = true;
-    return () => {
+    return (): void => {
       mountedRef.current = false;
       requestInFlightRef.current = false;
       requestGenerationRef.current += 1;
     };
   }, []);
 
-  const closeModal = () => {
+  const closeModal = (): void => {
     if (requestInFlightRef.current) return;
     setImportResult(null);
     setWorkflowImportModalVisible(false);
@@ -373,7 +373,7 @@ function WorkflowImportModal({
   const openImportedCanvas = (
     result = importResult,
     requestGeneration?: number
-  ) => {
+  ): void => {
     if (
       !mountedRef.current ||
       !result?.flowId ||
@@ -388,7 +388,7 @@ function WorkflowImportModal({
     navigate(`/work_flow/${encodeURIComponent(result.flowId)}/arrange`);
   };
 
-  function beforeUpload(file: UploadFile) {
+  function beforeUpload(file: UploadFile): boolean {
     const maxSize = 20 * 1024 * 1024;
     if (file.size && file.size > maxSize) {
       message.error(
@@ -409,7 +409,7 @@ function WorkflowImportModal({
     }
   }
 
-  const formatFileSize = (sizeInBytes: number) => {
+  const formatFileSize = (sizeInBytes: number): string => {
     if (sizeInBytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -420,7 +420,7 @@ function WorkflowImportModal({
     );
   };
 
-  const fileUpload = (event: unknown) => {
+  const fileUpload = (event: unknown): void => {
     const file = (event as FileUploadEvent).file;
     const id = uuid();
     // 使用自定义类型创建文件对象
@@ -448,7 +448,7 @@ function WorkflowImportModal({
     customRequest: fileUpload,
   };
 
-  const handleOk = () => {
+  const handleOk = (): void => {
     const file = uploadList[0]?.file;
     if (!file || requestInFlightRef.current) return;
     const requestGeneration = ++requestGenerationRef.current;

@@ -2,7 +2,7 @@ import React from 'react';
 import Icon from '@ant-design/icons';
 import type { CustomIconComponentProps } from '@ant-design/icons/lib/components/Icon';
 
-const SpaceManageSvg = () => (
+const SpaceManageSvg = (): React.ReactElement => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
@@ -58,7 +58,7 @@ const SpaceManageSvg = () => (
   </svg>
 );
 
-const MemberManageSvg = () => (
+const MemberManageSvg = (): React.ReactElement => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
@@ -102,7 +102,7 @@ const MemberManageSvg = () => (
   </svg>
 );
 
-const TeamSettingsSvg = () => (
+const TeamSettingsSvg = (): React.ReactElement => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
@@ -175,14 +175,14 @@ const TeamSettingsSvg = () => (
   </svg>
 );
 
-export const SpaceManageIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={SpaceManageSvg} {...props} />
-);
+export const SpaceManageIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={SpaceManageSvg} {...props} />;
 
-export const MemberManageIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={MemberManageSvg} {...props} />
-);
+export const MemberManageIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={MemberManageSvg} {...props} />;
 
-export const TeamSettingsIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={TeamSettingsSvg} {...props} />
-);
+export const TeamSettingsIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={TeamSettingsSvg} {...props} />;

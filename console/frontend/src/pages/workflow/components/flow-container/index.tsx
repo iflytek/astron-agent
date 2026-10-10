@@ -158,7 +158,7 @@ const useFlowContainerEffect = ({
       window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('mousemove', handleMouseMove);
 
-    return () => {
+    return (): void => {
       startWorkflowKeydownEvent &&
         window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousemove', handleMouseMove);

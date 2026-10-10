@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, type ReactElement } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import useOrderStore from '@/store/spark-store/order-store';
 
@@ -12,7 +12,6 @@ import {
   Tag,
 } from 'antd';
 import { BarsOutlined } from '@ant-design/icons';
-import type { DatePickerProps, GetProps } from 'antd';
 import CheckModal from './CheckModal';
 import ExportBtn from './ExportBtn';
 import dayjs from 'dayjs';
@@ -24,7 +23,6 @@ import classNames from 'classnames';
 
 // 从config统一入口导入所有需要的配置、工具函数和类型
 import {
-  SEPERATOR,
   timeRangeMap,
   searchValueFormat,
   convertSearchValueToRange,
@@ -33,11 +31,9 @@ import {
   columnsMap,
   requiredOptions,
   checkboxOptions,
-  // 工具函数
   parseJsonValue,
   convertToTree,
   checkTimeRangeInPackagePermission,
-  // 类型定义
   type DataType,
 } from './config';
 
@@ -45,9 +41,8 @@ import { getTraceList as getTraceListAPI } from '@/services/trace';
 import { useTranslation } from 'react-i18next';
 
 const { RangePicker } = DatePicker;
-type RangePickerProps = GetProps<typeof DatePicker.RangePicker>;
 
-const index = () => {
+const index = (): ReactElement => {
   const { record, botId } = useOutletContext<{
     record: any;
     botId: string;
@@ -68,7 +63,7 @@ const index = () => {
         setSourceOptionsTick(v => v + 1);
       }
     }, 1000);
-    return () => clearInterval(timer);
+    return (): void => clearInterval(timer);
   }, []);
 
   /** ## 生成选择器选项 */
@@ -169,7 +164,7 @@ const index = () => {
     title: t('releaseDetail.TraceLogPage.serialNumber'),
     dataIndex: 'index',
     key: 'index',
-    render: (_: any, __: any, index: number) =>
+    render: (_: any, __: any, index: number): number =>
       (pagination.current - 1) * pagination.pageSize + index + 1,
     width: 100,
   });
@@ -181,7 +176,7 @@ const index = () => {
         const originalRender = column.render;
         return {
           ...column,
-          render: (value: any) => {
+          render: (value: any): ReactElement => {
             const result = originalRender(value, isEnglish);
             return <Tag color={result.props.color}>{result.children}</Tag>;
           },
@@ -216,7 +211,7 @@ const index = () => {
   }, []);
 
   // 处理复选框变更，确保必选项始终被选中
-  const handleCheckboxChange = (checkedValues: string[]) => {
+  const handleCheckboxChange = (checkedValues: string[]): void => {
     // 合并必选项和用户选择的项
     const combinedValues = [...requiredOptions];
 
@@ -291,7 +286,7 @@ const index = () => {
   };
 
   /** ## 获取trace列表数据 */
-  const getTraceList = async (customParams?: any) => {
+  const getTraceList = async (customParams?: any): Promise<void> => {
     if (!customParams) return;
 
     // TODO: 调用接口获取trace列表数据
@@ -314,7 +309,7 @@ const index = () => {
   };
 
   /** ## 重置搜索 */
-  const resetSearch = () => {
+  const resetSearch = (): void => {
     // TODO: 重置搜索条件
     const _searchValue = sourceOptions[0]?.value ?? '';
     setSearchValue(_searchValue);
@@ -336,7 +331,7 @@ const index = () => {
   };
 
   /** ## 搜索 */
-  const search = () => {
+  const search = (): void => {
     const _pagination = {
       ...pagination,
       current: 1,
@@ -354,7 +349,7 @@ const index = () => {
   };
 
   /** ## 分页 */
-  const handlePageChange = ({ current, pageSize }: any) => {
+  const handlePageChange = ({ current, pageSize }: any): void => {
     console.log({ current, pageSize }, '======== pagination =======');
     const newCurrent = pageSize !== pagination.pageSize ? 1 : current;
     const _pagination = {
@@ -374,7 +369,7 @@ const index = () => {
   };
 
   /** ## 选择时间范围 */
-  const handleSelectChange = (value: string) => {
+  const handleSelectChange = (value: string): void => {
     console.log('Selected Source: ', value);
     // 判断时间范围是否在套餐权限内
     const isInPackagePermission = checkTimeRangeInPackagePermission(
@@ -397,30 +392,17 @@ const index = () => {
     getTraceList(params);
   };
 
-  /** ## 处理时间范围变更 */
-  const handleRangeChange = (value: any, dateString: string[]) => {
-    console.log('Selected Time: ', value);
-    setRangeValue(value);
-    const params = generateListParams(
-      dateString.join(SEPERATOR),
-      pagination,
-      'YYYY-MM-DD HH:mm',
-      { botId }
-    );
-    getTraceList(params);
-  };
-
   const [isModalVisible, setIsModalVisible] = useState<boolean>(false);
   const [selectedRecord, setSelectedRecord] = useState<DataType | null>(null);
 
   // 处理行点击
-  const handleRowClick = (record: DataType) => {
+  const handleRowClick = (record: DataType): void => {
     setSelectedRecord(record);
     setIsModalVisible(true);
   };
 
   // 关闭弹窗
-  const handleCloseModal = () => {
+  const handleCloseModal = (): void => {
     setIsModalVisible(false);
   };
 
@@ -483,7 +465,7 @@ const index = () => {
     registerSlotContent(configContent);
 
     // 组件卸载时清理插槽内容
-    return () => {
+    return (): void => {
       unregisterSlotContent();
     };
   }, [
@@ -521,7 +503,7 @@ const index = () => {
               y: 'max(200px ,calc(100vh - 350px))',
             }}
             onRow={record => ({
-              onClick: () => handleRowClick(record),
+              onClick: (): void => handleRowClick(record),
               style: { cursor: 'pointer' },
             })}
             loading={loading}

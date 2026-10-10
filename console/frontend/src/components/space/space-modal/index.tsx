@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Button, message } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
+import { Modal, Form, Input, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 import createSpaceBg from '@/assets/imgs/space/createSpaceBg.png';
 import styles from './index.module.scss';
@@ -10,8 +9,7 @@ import type { ButtonConfig } from '@/components/button-group';
 import { useSpaceType } from '@/hooks/use-space-type';
 import useSpaceStore from '@/store/space-store';
 import ComboModal from '@/components/combo-modal';
-import { getMyCreateSpace, visitSpace } from '@/services/space';
-import { getUserMeta } from '@/services/order';
+import { visitSpace } from '@/services/space';
 import { patterns } from '@/utils/pattern';
 
 const { TextArea } = Input;
@@ -30,11 +28,6 @@ interface SpaceModalProps {
   };
 }
 
-interface FormValues {
-  name: string;
-  description: string;
-  avatarUrl: string;
-}
 const defaultAvatar =
   'https://openres.xfyun.cn/xfyundoc/2025-07-28/1b05a0cf-e3b5-424c-8fd7-7a527488ab70/1753700397686/spaceAvatar.png';
 
@@ -56,10 +49,9 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
   const [description, setDescription] = useState<string>(
     initialData?.description || ''
   );
-  const { spaceType, setSpaceName, setSpaceAvatar, setSpaceId } =
-    useSpaceStore();
+  const { setSpaceName, setSpaceAvatar, setSpaceId } = useSpaceStore();
   const [comboModalVisible, setComboModalVisible] = useState<boolean>(false); //套餐弹窗
-  const [isNeedUpgrade, setIsNeedUpgrade] = useState<boolean>(false); //是否需要升级
+  const [isNeedUpgrade] = useState<boolean>(false); //是否需要升级
 
   useEffect(() => {
     if (open && initialData) {
@@ -76,20 +68,22 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
   const modeHandlers = {
     create: {
       handler: createSpace,
-      postProcess: async (res: any) => {
+      postProcess: async (res: any): Promise<void> => {
         setSpaceId(res);
         await visitSpace(res);
       },
     },
     edit: {
       handler: editSpace,
-      postProcess: async () => {
+      postProcess: async (): Promise<void> => {
         // 编辑模式无需额外处理
       },
     },
   };
 
-  const defaultSubmitHandle = async (data: Record<string, any>) => {
+  const defaultSubmitHandle = async (
+    data: Record<string, any>
+  ): Promise<void> => {
     const checkParams = {
       name,
       id: mode === 'create' ? '' : initialData?.id,
@@ -110,7 +104,7 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
     await currentHandler.postProcess(res);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     try {
       const values = await form.validateFields();
       // 将头像地址添加到提交数据中
@@ -180,7 +174,7 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
   //   }
   // };
 
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     form.resetFields();
     setName('');
     setDescription('');
@@ -205,7 +199,7 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
             : t('space.save'),
       type: isNeedUpgrade && mode === 'create' ? 'default' : 'primary',
       disabled: isNeedUpgrade && mode === 'create',
-      onClick: () => {
+      onClick: (): void => {
         if (isNeedUpgrade && mode === 'create') {
           return;
         }

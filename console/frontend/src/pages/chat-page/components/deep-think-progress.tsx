@@ -15,7 +15,7 @@ const DeepThinkProgress: React.FC<{
     return null;
   }
   const thinkComplete = Boolean(answerItem.message || answerItem.sid);
-  const renderThinkText = () => {
+  const renderThinkText = (): React.ReactElement => {
     return (
       <div className="flex relative">
         <div className="w-auto flex mr-2.5 flex-col items-center">

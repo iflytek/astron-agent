@@ -387,14 +387,14 @@ function WorkflowTracePanel(): React.ReactElement {
         title: '节点',
         dataIndex: 'name',
         key: 'name',
-        render: (_, record) => <div>{record.name}</div>,
+        render: (_, record): React.ReactElement => <div>{record.name}</div>,
       },
       {
         title: '状态',
         dataIndex: 'status',
         key: 'status',
         width: 100,
-        render: (value: TraceStatus) => (
+        render: (value: TraceStatus): React.ReactElement => (
           <Tag
             color={
               value === 'success'
@@ -413,7 +413,7 @@ function WorkflowTracePanel(): React.ReactElement {
         dataIndex: 'duration',
         key: 'duration',
         width: 120,
-        render: (value: number) => formatDuration(value),
+        render: (value: number): string => formatDuration(value),
       },
       {
         title: '总 Token',
@@ -426,7 +426,7 @@ function WorkflowTracePanel(): React.ReactElement {
         dataIndex: 'offset',
         key: 'offset',
         width: 120,
-        render: (value: number) => `${value}ms`,
+        render: (value: number): string => `${value}ms`,
       },
     ],
     []
@@ -457,7 +457,7 @@ function WorkflowTracePanel(): React.ReactElement {
         }
       });
 
-    return () => {
+    return (): void => {
       cancelled = true;
     };
   }, [workflowTracePanelOpen, currentFlow?.flowId, reloadSeq]);
@@ -498,7 +498,7 @@ function WorkflowTracePanel(): React.ReactElement {
         }
       });
 
-    return () => {
+    return (): void => {
       cancelled = true;
     };
   }, [workflowTracePanelOpen, currentFlow?.flowId, selectedExecutionId]);
@@ -548,7 +548,7 @@ function WorkflowTracePanel(): React.ReactElement {
 
     observer.observe(element);
 
-    return () => {
+    return (): void => {
       observer.disconnect();
     };
   }, []);
@@ -616,7 +616,7 @@ function WorkflowTracePanel(): React.ReactElement {
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
 
-    return () => {
+    return (): void => {
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };

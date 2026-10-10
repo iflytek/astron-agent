@@ -93,8 +93,6 @@ const VendorGroupCard: React.FC<VendorGroupCardProps> = ({
   providers,
   onOpenProviderModal,
 }) => {
-  const { t } = useTranslation();
-
   const vendorName = getVendorDisplayName(vendor);
 
   return (

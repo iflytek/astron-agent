@@ -25,7 +25,7 @@ interface SlotContextType {
 const SlotContext = createContext<SlotContextType | null>(null);
 
 // 导出hook供子组件使用
-export const useSlot = () => {
+export const useSlot = (): SlotContextType => {
   const context = useContext(SlotContext);
   if (!context) {
     throw new Error('useSlot must be used within SlotProvider');
@@ -33,7 +33,7 @@ export const useSlot = () => {
   return context;
 };
 
-const DetailListPage = () => {
+const DetailListPage = (): React.ReactElement => {
   const navigate = useNavigate();
   const location = useLocation();
   const { botId } = useParams();

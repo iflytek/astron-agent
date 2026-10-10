@@ -53,7 +53,10 @@ export const getTabOptions = (locale: string) => [
 ];
 
 // 角色 number => string
-export const roleToRoleType = (role: number, isEnterprise: boolean = false) => {
+export const roleToRoleType = (
+  role: number,
+  isEnterprise: boolean = false
+): RoleType => {
   if (role === undefined) {
     return RoleType.MEMBER;
   }
@@ -77,7 +80,9 @@ const roleTypeMap = {
   [RoleType.MEMBER]: MEMBER_ROLE,
   default: ALL_ROLE,
 } as const;
-export const roleTypeToRole = (roleType: string | undefined) => {
+export const roleTypeToRole = (
+  roleType: string | undefined
+): '0' | '1' | '2' | '3' => {
   return (
     roleTypeMap[roleType as keyof typeof roleTypeMap] || roleTypeMap.default
   );

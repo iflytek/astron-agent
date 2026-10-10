@@ -32,7 +32,7 @@ const RecorderCom = forwardRef<RecorderRef, RecorderProps>(
   ({ send, changeStatus, disabled = false }, ref) => {
     const [status, setStatus] = useState<RecorderStatus>('ready');
     const record = useRef<any>(
-      new (Media as any)({ resetText: (text: any) => handleRecord(text) })
+      new (Media as any)({ resetText: (text: any): void => handleRecord(text) })
     );
     // 处理录音文本回调
     const handleRecord = useCallback(

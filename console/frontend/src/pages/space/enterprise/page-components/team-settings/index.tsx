@@ -11,7 +11,7 @@ import styles from './index.module.scss';
 
 const TeamSettings: React.FC = () => {
   const {
-    info: { name, officerName, serviceType },
+    info: { serviceType },
   } = useEnterpriseStore();
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
 

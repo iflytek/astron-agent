@@ -47,7 +47,7 @@ const Banner: React.FC<BannerProps> = ({
   autoPlay = true,
   interval = 5000,
 }) => {
-  const [images, setImages] = useState<BannerImage[]>(defaultBannerImgs);
+  const [images] = useState<BannerImage[]>(defaultBannerImgs);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false); // 鼠标悬停状态
   const [containerWidth, setContainerWidth] = useState(0); // 容器宽度
@@ -62,7 +62,7 @@ const Banner: React.FC<BannerProps> = ({
 
   // 监听容器宽度变化
   useEffect(() => {
-    const updateContainerWidth = () => {
+    const updateContainerWidth = (): void => {
       if (containerRef.current) {
         setContainerWidth(containerRef.current.offsetWidth);
       }
@@ -77,7 +77,7 @@ const Banner: React.FC<BannerProps> = ({
       resizeObserver.observe(containerRef.current);
     }
 
-    return () => {
+    return (): void => {
       resizeObserver.disconnect();
     };
   }, []);
@@ -104,7 +104,7 @@ const Banner: React.FC<BannerProps> = ({
       }, interval);
     }
 
-    return () => {
+    return (): void => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
@@ -112,7 +112,7 @@ const Banner: React.FC<BannerProps> = ({
   }, [autoPlay, interval, images.length, isHovered]);
 
   // 计算每个slide相对于当前active slide的位置
-  const getSlidePosition = (slideIndex: number) => {
+  const getSlidePosition = (slideIndex: number): number => {
     const totalSlides = images.length;
     let position = slideIndex - currentIndex;
 
@@ -262,7 +262,7 @@ const Banner: React.FC<BannerProps> = ({
   };
 
   // 获取slide的CSS类名
-  const getSlideClass = (position: number) => {
+  const getSlideClass = (position: number): string => {
     const distance = Math.abs(position);
 
     if (distance === 0) {
@@ -276,7 +276,7 @@ const Banner: React.FC<BannerProps> = ({
     }
   };
 
-  const handleSlideClick = (index: number) => {
+  const handleSlideClick = (index: number): void => {
     const image = images[index];
 
     // 如果点击的是当前激活的图片，且有链接配置，则跳转
@@ -289,12 +289,12 @@ const Banner: React.FC<BannerProps> = ({
   };
 
   // 鼠标进入时暂停轮播
-  const handleMouseEnter = () => {
+  const handleMouseEnter = (): void => {
     setIsHovered(true);
   };
 
   // 鼠标离开时恢复轮播
-  const handleMouseLeave = () => {
+  const handleMouseLeave = (): void => {
     setIsHovered(false);
   };
 

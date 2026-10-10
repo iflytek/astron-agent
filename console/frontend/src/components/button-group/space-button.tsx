@@ -6,7 +6,7 @@ import {
   checkResourceRestrictions,
 } from '@/permissions/utils';
 import type { ButtonConfig, UserRole } from './types';
-import { ModuleType, OperationType, PermissionFailureBehavior } from './types';
+import { PermissionFailureBehavior } from './types';
 import styles from './space-button.module.scss';
 import { useUserStoreHook } from '@/hooks/use-user-store';
 import { useTranslation } from 'react-i18next';
@@ -150,7 +150,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     (!hasPermission && failureBehavior === PermissionFailureBehavior.DISABLE);
 
   // 处理按钮点击事件
-  const handleClick = (event: React.MouseEvent) => {
+  const handleClick = (event: React.MouseEvent): void => {
     if (isDisabled) return;
 
     // 优先使用按钮配置中的onClick
@@ -175,7 +175,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     className
   );
   // 翻译按钮文本（如果文本包含 '.' 且不是纯数字，则认为是 i18n key）
-  const getButtonText = (text: string) => {
+  const getButtonText = (text: string): string => {
     if (!text) return '';
     // 如果包含 '.' 且不是 IP 地址或数字，则认为是 i18n key
     if (text.includes('.') && !/^\d+\.\d+/.test(text)) {

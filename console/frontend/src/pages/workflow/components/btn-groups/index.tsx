@@ -229,7 +229,7 @@ const PublishHeader: React.FC<PublishHeaderProps> = ({
   const checkFlow = useFlowsManager(state => state.checkFlow);
   const isLoading: boolean = useFlowsManager(state => state.isLoading);
   const [botMultiFileParam, setBotMultiFileParam] = useState<boolean>(false);
-  const [editV2Visible, { setLeft: hide, setRight: show }] = useToggle();
+  const [, { setRight: show }] = useToggle();
   const [fabuFlag, setFabuFlag] = useState(false);
   const [openWxmol, setOpenWxmol] = useState(false);
   const {

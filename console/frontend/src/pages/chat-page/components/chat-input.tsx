@@ -90,7 +90,7 @@ const ChatInput = (props: {
   );
 
   //全新对话
-  const handleNewChat = async () => {
+  const handleNewChat = async (): Promise<void> => {
     if (streamId) {
       message.warning(t('chatPage.chatWindow.answeringInProgress'));
       return;
@@ -119,7 +119,7 @@ const ChatInput = (props: {
   };
 
   //清除对话历史点击
-  const handleClearChatList = () => {
+  const handleClearChatList = (): void => {
     if (isLoading || streamId) {
       message.warning(t('chatPage.chatWindow.answeringInProgress'));
       return;
@@ -128,7 +128,7 @@ const ChatInput = (props: {
   };
 
   //发送消息
-  const handleSend = () => {
+  const handleSend = (): void => {
     if (!inputValue.trim()) {
       return;
     }
@@ -149,7 +149,7 @@ const ChatInput = (props: {
   };
 
   //按下回车键
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
       handleSend();

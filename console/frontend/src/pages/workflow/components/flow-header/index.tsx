@@ -140,7 +140,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       : {};
   }, [currentFlow?.flowConfig]);
 
-  const handleEditSumbit = (fields: any) => {
+  const handleEditSumbit = (fields: any): void => {
     const config = {
       ...fields.talkAgentConfig,
     };

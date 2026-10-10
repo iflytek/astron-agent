@@ -61,18 +61,10 @@ const useLogin = (): {
   refreshToken: () => Promise<boolean>;
   tokenStorage: TokenStorage;
 } => {
-  const [state, setState] = useState<LoginState>({
+  const [state] = useState<LoginState>({
     loading: false,
     error: null,
   });
-
-  const setLoading = (loading: boolean): void => {
-    setState(prev => ({ ...prev, loading }));
-  };
-
-  const setError = (error: string | null): void => {
-    setState(prev => ({ ...prev, error }));
-  };
 
   // 刷新 token
   const refreshToken = useCallback(async (): Promise<boolean> => {

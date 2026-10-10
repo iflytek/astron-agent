@@ -1,6 +1,5 @@
 import React, { memo, useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { message } from 'antd';
 import { getModelDetail } from '@/services/model';
 import dayjs from 'dayjs';
@@ -50,7 +49,6 @@ const maskKey = (key = ''): string =>
     : `${key.slice(0, 4)}******${key.slice(-4)}`;
 
 function index(): React.JSX.Element {
-  const { t } = useTranslation();
   const { state } = useLocation();
   const { id } = useParams();
   const [searchParams] = useSearchParams();

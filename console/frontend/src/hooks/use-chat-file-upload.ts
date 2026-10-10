@@ -109,7 +109,7 @@ export default function useChatFileUpload(
     files: File[],
     configOverride?: SupportUploadConfig,
     uploadMaxMB?: number
-  ) => {
+  ): void => {
     // 如果传入了特定配置，使用该配置，否则使用第一个配置（兼容旧逻辑）
     const config = configOverride;
 
@@ -237,7 +237,7 @@ export default function useChatFileUpload(
     }
   };
 
-  const uploadFileToS3 = async (fileObj: UploadFileInfo) => {
+  const uploadFileToS3 = async (fileObj: UploadFileInfo): Promise<void> => {
     try {
       updateFileStatus(fileObj.uid, '', 'pending', 0, '', '');
       const signedRes = await getS3PresignUrl(fileObj.fileName, fileObj.type);
@@ -365,7 +365,7 @@ export default function useChatFileUpload(
     }
   };
 
-  const handleStartUpload = async (files: UploadFileInfo[]) => {
+  const handleStartUpload = async (files: UploadFileInfo[]): Promise<void> => {
     const pendingFiles = files.filter(file => file.status === 'pending');
     if (pendingFiles.length === 0) return;
     const uploadPromises = pendingFiles.map(file => uploadFileToS3(file));
@@ -376,7 +376,7 @@ export default function useChatFileUpload(
     void handleStartUpload(fileList);
   }, [fileList.length]);
 
-  const cancelUpload = (uid: string) => {
+  const cancelUpload = (uid: string): void => {
     const xhr = activeUploads.current.get(uid);
     if (xhr) {
       xhr.abort();
@@ -396,7 +396,7 @@ export default function useChatFileUpload(
     }
   };
 
-  const cancelBinding = (uid: string) => {
+  const cancelBinding = (uid: string): void => {
     const bindController = activeBindings.current.get(uid);
     if (bindController) {
       bindController.abort();
@@ -404,7 +404,7 @@ export default function useChatFileUpload(
     }
   };
 
-  const removeFile = (file: UploadFileInfo) => {
+  const removeFile = (file: UploadFileInfo): void => {
     if (file.fileId) {
       // 已绑定，调用解绑
       unBindChatFile({ chatId: currentChatId, fileId: file.fileId });
@@ -421,13 +421,13 @@ export default function useChatFileUpload(
     event: React.ChangeEvent<HTMLInputElement>,
     config?: SupportUploadConfig,
     uploadMaxMB?: number
-  ) => {
+  ): void => {
     const selectedFiles = Array.from(event.target.files || []);
     processSelectedFiles(selectedFiles, config, uploadMaxMB);
     if (event.target) event.target.value = '';
   };
 
-  const triggerFileSelect = () => {
+  const triggerFileSelect = (): void => {
     fileInputRef.current?.click();
   };
 

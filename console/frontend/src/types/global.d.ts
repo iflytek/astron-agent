@@ -1,4 +1,4 @@
-import { AxiosResponse } from 'axios';
+export {};
 //define the pagination data of response
 type ResponseResultPage<T = unknown> = {
   pageData: T[];

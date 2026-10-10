@@ -20,7 +20,7 @@ function DebuggerTable({
   debuggerParamsData: DebugInput[];
   setDebuggerParamsData: (data: DebugInput[]) => void;
   showTitle?: boolean;
-}) {
+}): React.ReactElement {
   const { t } = useTranslation();
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
 
@@ -272,7 +272,7 @@ function DebuggerTable({
       dataIndex: 'name',
       key: 'name',
       width: '30%',
-      render: (name: string, record: DebugInput) => (
+      render: (name: string, record: DebugInput): React.ReactElement => (
         <Tooltip
           title={record?.description}
           overlayClassName="black-tooltip config-secret"
@@ -292,7 +292,7 @@ function DebuggerTable({
       dataIndex: 'required',
       key: 'required',
       width: '10%',
-      render: (required: boolean) => (
+      render: (required: boolean): React.ReactElement => (
         <div
           style={{
             color: required ? '#6356EA' : '#F74E43',
@@ -309,7 +309,7 @@ function DebuggerTable({
       dataIndex: 'default',
       key: 'default',
       width: '40%',
-      render: (_: unknown, record: DebugInput) => (
+      render: (_: unknown, record: DebugInput): React.ReactElement => (
         <div className="w-full flex flex-col gap-1">
           {record?.type === 'object' || record?.type === 'array'
             ? null
@@ -327,7 +327,7 @@ function DebuggerTable({
       title: t('workflow.nodes.toolNode.operation'),
       key: 'operation',
       width: '5%',
-      render: (_: unknown, record: DebugInput) => (
+      render: (_: unknown, record: DebugInput): React.ReactElement => (
         <div className=" flex items-center gap-2">
           {record?.type === 'array' && (
             <Tooltip

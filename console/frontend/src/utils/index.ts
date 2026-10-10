@@ -91,7 +91,7 @@ const copyText = async (options: {
   text: string;
   origin?: boolean;
   successText?: string;
-}) => {
+}): Promise<void> => {
   const props = { origin: true, ...options };
   const typeList = [
     'metadata',
@@ -515,7 +515,9 @@ const convertToDesiredFormat = (
 /**
  * 格式化对话历史为消息列表
  */
-const formatHistoryToMessages = (chatHistoryList: ChatHistoryResponse[]) => {
+const formatHistoryToMessages = (
+  chatHistoryList: ChatHistoryResponse[]
+): MessageListType[] => {
   if (!chatHistoryList || chatHistoryList.length === 0) return [];
 
   const formattedMessages: MessageListType[] = [];
@@ -577,12 +579,12 @@ const compressImage = (
   imageFile: any,
   quality = 0.6,
   convertSize = 3000000
-) => {
+): Promise<unknown> => {
   return new Promise((resolve, reject) => {
     new Compressor(imageFile, {
       quality,
       convertSize,
-      success(result) {
+      success(result): void {
         if (result.size > 3 * 1024 * 1024) {
           reject('图片太大，请换个试试');
           return;
@@ -595,7 +597,7 @@ const compressImage = (
         ((newFile.uid = imageFile?.uid), // 保持原始的 uid
           resolve(newFile));
       },
-      error(err) {
+      error(err): void {
         console.log(err.message);
         reject(err);
       },
@@ -639,7 +641,7 @@ export const handleShare = async (
 /**
  * 根据文件类型设置文件图标
  */
-const getFileIcon = (file: UploadFileInfo, isLoading?: boolean) => {
+const getFileIcon = (file: UploadFileInfo, isLoading?: boolean): string => {
   const extension = file?.fileName?.split('.')?.pop()?.toLowerCase();
   if (isLoading) {
     return fileIconConfig.loading;

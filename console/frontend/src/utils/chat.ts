@@ -1,5 +1,5 @@
 /** 判断输入是否命中推广 */
-export const judgePromoteType = (question: string) => {
+export const judgePromoteType = (question: string): '' | 'ppt' => {
   if (!question) return '';
   switch (true) {
     case /\b(PPT|PPT生成|年终总结|年终汇报|年终|总结|述职|ppt)\b/.test(

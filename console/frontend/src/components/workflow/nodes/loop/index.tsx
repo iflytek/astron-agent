@@ -157,7 +157,9 @@ export const LoopDetail = memo(
       });
     };
 
-    const updateNodeParam = (updater: (param: Record<string, any>) => void) => {
+    const updateNodeParam = (
+      updater: (param: Record<string, any>) => void
+    ): void => {
       setNode(id, old => {
         const next = cloneDeep(old);
         const param = next.data.nodeParam || (next.data.nodeParam = {});

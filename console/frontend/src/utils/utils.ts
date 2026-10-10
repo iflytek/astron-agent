@@ -1,4 +1,3 @@
-import { message } from 'antd';
 import { v4 as uuid } from 'uuid';
 import clsx, { ClassValue } from 'clsx';
 import { getFileInfoV2BySourceId } from '@/services/knowledge';
@@ -430,7 +429,7 @@ export async function uploadFile(
       },
     });
     const { url, bucket, objectKey: responseObjectKey } = response as any;
-    const putResponse = await axios
+    await axios
       .create({
         headers: {
           'Content-Type': file.type,
@@ -467,7 +466,7 @@ export async function uploadFile(
 export const maskMiddleText = (
   text: string,
   options: { prefixLen?: number; suffixLen?: number; starLen?: number } = {}
-) => {
+): string => {
   // 处理边界：文本为空、null/undefined 或非字符串，直接返回空
   if (!text || typeof text !== 'string') return '';
 

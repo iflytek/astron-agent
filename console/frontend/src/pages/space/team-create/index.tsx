@@ -49,12 +49,12 @@ const TeamCreate: React.FC = () => {
   );
 
   // 触发上传
-  const triggerFileSelectPopup = (callback: () => void) => {
+  const triggerFileSelectPopup = (callback: () => void): void => {
     setTriggerChild(false);
     callback();
   };
 
-  const handleCreateTeam = async () => {
+  const handleCreateTeam = async (): Promise<void> => {
     const name = teamName.trim();
     if (!name) {
       message.error(textConfig.emptyTip);

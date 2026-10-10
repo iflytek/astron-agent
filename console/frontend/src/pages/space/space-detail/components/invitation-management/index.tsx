@@ -1,13 +1,10 @@
 import React, {
-  useState,
-  useEffect,
   useCallback,
   useRef,
   forwardRef,
   useImperativeHandle,
 } from 'react';
-import { Tag, message, Modal } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
+import { message, Modal } from 'antd';
 import SpaceTable, {
   SpaceColumnConfig,
   ActionColumnConfig,
@@ -61,7 +58,7 @@ const InvitationManagement = forwardRef<
     const { invitationStatusTextMap } = useSpaceI18n();
 
     useImperativeHandle(ref, () => ({
-      reload: () => {
+      reload: (): void => {
         tableRef.current?.reload();
       },
     }));
@@ -107,7 +104,7 @@ const InvitationManagement = forwardRef<
     const handleRevokeInvitation = (
       invitationId: string,
       inviteeNickname: string
-    ) => {
+    ): void => {
       Modal.confirm({
         title: t('space.confirmRevoke'),
         content: t('space.confirmRevokeInvitation', {

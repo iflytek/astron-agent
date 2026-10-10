@@ -2,7 +2,7 @@ import React, { JSX } from 'react';
 import Icon from '@ant-design/icons';
 import type { CustomIconComponentProps } from '@ant-design/icons/lib/components/Icon';
 
-const LogoutSvg = () => (
+const LogoutSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="11px"
@@ -57,7 +57,7 @@ const LogoutSvg = () => (
     </g>
   </svg>
 );
-const LockedSvg = () => (
+const LockedSvg = (): React.ReactElement => (
   <svg version="1.1" width="14.6205px" height="19px" viewBox="0 0 14.6205 19">
     <g
       id="734thkasd"
@@ -95,7 +95,7 @@ const LockedSvg = () => (
   </svg>
 );
 
-const CallSvg = () => (
+const CallSvg = (): React.ReactElement => (
   <svg version="1.1" width="21px" height="23px" viewBox="0 0 21.0 23.0">
     <defs>
       <clipPath id="i0">
@@ -132,7 +132,7 @@ const CallSvg = () => (
     </g>
   </svg>
 );
-const CloseSvg = () => (
+const CloseSvg = (): React.ReactElement => (
   <svg viewBox="0 0 1024 1024" version="1.1" width="14" height="14">
     <path
       d="M571.733333 512l268.8-268.8c17.066667-17.066667 17.066667-42.666667 0-59.733333-17.066667-17.066667-42.666667-17.066667-59.733333 0L512 452.266667 243.2 183.466667c-17.066667-17.066667-42.666667-17.066667-59.733333 0-17.066667 17.066667-17.066667 42.666667 0 59.733333L452.266667 512 183.466667 780.8c-17.066667 17.066667-17.066667 42.666667 0 59.733333 8.533333 8.533333 19.2 12.8 29.866666 12.8s21.333333-4.266667 29.866667-12.8L512 571.733333l268.8 268.8c8.533333 8.533333 19.2 12.8 29.866667 12.8s21.333333-4.266667 29.866666-12.8c17.066667-17.066667 17.066667-42.666667 0-59.733333L571.733333 512z"
@@ -141,7 +141,7 @@ const CloseSvg = () => (
     />
   </svg>
 );
-const CopySvg = () => (
+const CopySvg = (): React.ReactElement => (
   <svg width="18px" height="19px" viewBox="0 0 18 19">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g id="gpt纯净版" transform="translate(-1178.000000, -456.000000)">
@@ -186,7 +186,7 @@ const CopySvg = () => (
   </svg>
 );
 
-const PraiseSvg = () => (
+const PraiseSvg = (): React.ReactElement => (
   <svg width="19px" height="19px">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -212,7 +212,7 @@ const PraiseSvg = () => (
   </svg>
 );
 
-const UnPraiseSvg = () => (
+const UnPraiseSvg = (): React.ReactElement => (
   <svg width="19px" height="19px">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -238,7 +238,7 @@ const UnPraiseSvg = () => (
   </svg>
 );
 
-const ReloadSvg = () => (
+const ReloadSvg = (): React.ReactElement => (
   <svg width="18px" height="16px" viewBox="0 0 18 16">
     <title>刷新</title>
     <desc>Created with Sketch.</desc>
@@ -263,7 +263,7 @@ const ReloadSvg = () => (
   </svg>
 );
 
-const PromptReloadSvg = () => (
+const PromptReloadSvg = (): React.ReactElement => (
   <svg width="13px" height="13px" viewBox="0 0 13 13">
     <title>形状结合备份 2</title>
     <desc>Created with Sketch.</desc>
@@ -283,7 +283,7 @@ const PromptReloadSvg = () => (
   </svg>
 );
 
-const AudioPlaySvg = () => (
+const AudioPlaySvg = (): React.ReactElement => (
   <svg width="19px" height="19px" viewBox="0 0 19 19">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -303,7 +303,7 @@ const AudioPlaySvg = () => (
   </svg>
 );
 
-const AudioPauseSvg = () => (
+const AudioPauseSvg = (): React.ReactElement => (
   <svg width="18px" height="18px" viewBox="0 0 18 18">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -326,7 +326,7 @@ const AudioPauseSvg = () => (
   </svg>
 );
 
-const MessageSvgPure = () => (
+const MessageSvgPure = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="17px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="MessageSvgi0">
@@ -365,7 +365,7 @@ const MessageSvgPure = () => (
     </g>
   </svg>
 );
-const MessageSvgDark = () => (
+const MessageSvgDark = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="14px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="i0">
@@ -414,7 +414,7 @@ const MessageSvgDark = () => (
     </g>
   </svg>
 );
-const PluginSvgPure = () => (
+const PluginSvgPure = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="14px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="PluginSvgPurei0">
@@ -450,7 +450,7 @@ const PluginSvgPure = () => (
     </g>
   </svg>
 );
-const PluginSvgDark = () => (
+const PluginSvgDark = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="14px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="PluginSvgDarki0">
@@ -487,7 +487,7 @@ const PluginSvgDark = () => (
   </svg>
 );
 
-const BotCenterSvg = () => (
+const BotCenterSvg = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="14px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="i0">
@@ -532,7 +532,7 @@ const BotCenterSvg = () => (
   </svg>
 );
 
-const AskPromoptReload = () => (
+const AskPromoptReload = (): React.ReactElement => (
   <svg width="18px" height="18px" viewBox="0 0 18 18">
     <title>刷新 (1)</title>
     <desc>Created with Sketch.</desc>
@@ -558,7 +558,7 @@ const AskPromoptReload = () => (
   </svg>
 );
 
-const ConfirmSvg = () => (
+const ConfirmSvg = (): React.ReactElement => (
   <svg width="11px" height="12px" viewBox="0 0 11 12">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -587,7 +587,7 @@ const ConfirmSvg = () => (
   </svg>
 );
 
-const ConfirmALSvg = () => (
+const ConfirmALSvg = (): React.ReactElement => (
   <svg viewBox="0 0 1024 1024" version="1.1" width="18" height="18">
     <path
       d="M448 864a32 32 0 0 1-18.88-6.08l-320-234.24a32 32 0 1 1 37.76-51.52l292.16 213.44 397.76-642.56a32 32 0 0 1 54.4 33.92l-416 672a32 32 0 0 1-21.12 14.4L448 864z"
@@ -597,7 +597,7 @@ const ConfirmALSvg = () => (
   </svg>
 );
 
-const EditSvg = () => (
+const EditSvg = (): React.ReactElement => (
   <svg width="16px" height="16px" viewBox="0 0 16 16" version="1.1">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -618,7 +618,7 @@ const EditSvg = () => (
   </svg>
 );
 
-const BotCenterQuitSvg = () => (
+const BotCenterQuitSvg = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="13px" viewBox="0 0 14.0 13.0">
     <defs>
       <clipPath id="BotCenterQuitSvgi0">
@@ -644,7 +644,7 @@ const BotCenterQuitSvg = () => (
   </svg>
 );
 
-const SearchSvg = () => (
+const SearchSvg = (): React.ReactElement => (
   <svg
     viewBox="0 0 1024 1024"
     version="1.1"
@@ -661,7 +661,7 @@ const SearchSvg = () => (
   </svg>
 );
 
-const NoticeSvg = () => (
+const NoticeSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="10px"
@@ -700,7 +700,7 @@ const NoticeSvg = () => (
   </svg>
 );
 
-const PersonalRecommendSvg = () => (
+const PersonalRecommendSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="12px"
@@ -738,7 +738,7 @@ const PersonalRecommendSvg = () => (
   </svg>
 );
 
-const OrderSvg = () => (
+const OrderSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="12px"
@@ -770,7 +770,7 @@ const OrderSvg = () => (
   </svg>
 );
 
-const SafeSvg = () => (
+const SafeSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="10px"
@@ -804,7 +804,7 @@ const SafeSvg = () => (
   </svg>
 );
 
-const NoticeOnSvg = () => (
+const NoticeOnSvg = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="14px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="notice_on">
@@ -856,7 +856,7 @@ const NoticeOnSvg = () => (
   </svg>
 );
 
-const BotAvatarBg = () => (
+const BotAvatarBg = (): React.ReactElement => (
   <svg version="1.1" width="28px" height="32px" viewBox="0 0 28.0 32.0">
     <defs>
       <clipPath id="i0">
@@ -882,7 +882,7 @@ const BotAvatarBg = () => (
   </svg>
 );
 
-const BotAvatarCardBg = () => (
+const BotAvatarCardBg = (): React.ReactElement => (
   <svg version="1.1" width="38px" height="41px" viewBox="0 0 42.0 41.0">
     <defs>
       <clipPath id="i0">
@@ -915,7 +915,7 @@ const BotAvatarCardBg = () => (
   </svg>
 );
 
-const ChatBotAvatarSvg = () => (
+const ChatBotAvatarSvg = (): React.ReactElement => (
   <svg version="1.1" width="24px" height="26px" viewBox="0 0 24.0 26.0">
     <defs>
       <clipPath id="i01">
@@ -941,7 +941,7 @@ const ChatBotAvatarSvg = () => (
   </svg>
 );
 
-const NewDialogSvg = () => (
+const NewDialogSvg = (): React.ReactElement => (
   <svg version="1.1" width="13px" height="14px" viewBox="0 0 13.0 14.0">
     <defs>
       <clipPath id="NewDialogSvg0">
@@ -987,7 +987,7 @@ const NewDialogSvg = () => (
   </svg>
 );
 
-const ShareSvg = () => (
+const ShareSvg = (): React.ReactElement => (
   <svg version="1.1" width="16px" height="16px" viewBox="0 0 16.0 16.0">
     <defs>
       <clipPath id="share-i0">
@@ -1013,7 +1013,7 @@ const ShareSvg = () => (
     </g>
   </svg>
 );
-const FavoriteSvg = () => (
+const FavoriteSvg = (): React.ReactElement => (
   <svg version="1.1" width="16px" height="16px" viewBox="0 0 16.0 16.0">
     <defs>
       <clipPath id="favorite-i0">
@@ -1038,7 +1038,7 @@ const FavoriteSvg = () => (
     </g>
   </svg>
 );
-const GoBotEditSvg = () => (
+const GoBotEditSvg = (): React.ReactElement => (
   <svg version="1.1" width="16px" height="16px" viewBox="0 0 16.0 16.0">
     <defs>
       <clipPath id="GoBotEdit-i0">
@@ -1063,7 +1063,7 @@ const GoBotEditSvg = () => (
     </g>
   </svg>
 );
-const WriteSvg = () => (
+const WriteSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="13px"
@@ -1074,7 +1074,7 @@ const WriteSvg = () => (
     <path d="M4.67195028,0.512365 C5.03737611,0.512365 5.33361228,0.801721003 5.33361228,1.15865972 C5.33361228,1.51559844 5.03737611,1.80495445 4.67195028,1.80495445 L2.61735357,1.80495445 C1.90268077,1.80495445 1.323324,2.3708555 1.323324,3.06892983 L1.323324,8.87046995 C1.323324,9.56854428 1.90268077,10.1344453 2.61735357,10.1344453 L8.33934235,10.1344453 C9.05401514,10.1344453 9.63337192,9.56854428 9.63337192,8.87046995 L9.63337192,7.29383379 C9.63337192,6.93689508 9.92960808,6.64753907 10.2950339,6.64753907 C10.6604597,6.64753907 10.9566959,6.93689508 10.9566959,7.29383379 L10.9566959,8.87046995 C10.9566959,10.2824217 9.78486681,11.4270348 8.33934235,11.4270348 L2.61735357,11.4270348 C1.17182911,11.4270348 0,10.2824217 0,8.87046995 L0,3.06892983 C0,1.65697806 1.17182911,0.512365 2.61735357,0.512365 L4.67195028,0.512365 Z M10.4774394,0.362193434 L11.6642318,1.63487251 C12.078813,2.0794564 12.072334,2.75930851 11.6497604,3.15336469 L7.29603282,7.21328138 C7.1434304,7.35558544 6.94954528,7.44663027 6.73929185,7.47471655 L5.65732062,7.61924944 C4.91023133,7.71904783 4.19318597,7.18728837 4.05575498,6.43153144 C4.0216235,6.24383645 4.02602674,6.05304927 4.06869094,5.87103289 L4.30932678,4.84441885 C4.35543604,4.64770495 4.45723365,4.47112874 4.60277486,4.33540937 L8.96163672,0.270704925 C9.38421024,-0.123351259 10.0628582,-0.0823904583 10.4774394,0.362193434 Z M9.70991637,1.21385999 L5.44184281,5.19390297 L5.20772409,6.19392111 L5.20243974,6.23559495 L5.20578575,6.27790695 C5.22637859,6.39115055 5.3338216,6.47083008 5.44576644,6.45587616 L6.49765692,6.31496854 L10.7601658,2.34011467 L9.70991637,1.21385999 Z" />
   </svg>
 );
-const DeleteSvg = () => (
+const DeleteSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="14px"
@@ -1085,7 +1085,7 @@ const DeleteSvg = () => (
     <path d="M6.5,0 C7.85582811,0 8.99100207,0.913731224 9.28314829,2.13924331 L12.3563316,2.13984761 C12.7118198,2.13984761 13,2.41857112 13,2.762394 C13,3.10621688 12.7118198,3.3849404 12.3563316,3.3849404 L11.631,3.384 L11.6312607,10.6197004 C11.6312607,11.9343036 10.5294069,13 9.17020134,13 L3.82979866,13 C2.47059309,13 1.36873926,11.9343036 1.36873926,10.6197004 L1.368,3.384 L0.643668423,3.3849404 C0.288180169,3.3849404 0,3.10621688 0,2.762394 C0,2.41857112 0.288180169,2.13984761 0.643668423,2.13984761 L3.71685171,2.13924331 C4.00899793,0.913731224 5.14417189,0 6.5,0 Z M10.343,3.384 L2.656,3.384 L2.65607611,10.6197004 C2.65607611,11.2466578 3.18156959,11.7549072 3.82979866,11.7549072 L9.17020134,11.7549072 C9.81843041,11.7549072 10.3439239,11.2466578 10.3439239,10.6197004 L10.343,3.384 Z M4.92071377,6.00060221 C5.27620202,6.00060221 5.56438219,6.27932572 5.56438219,6.6231486 L5.56438219,8.69830325 C5.56438219,9.04212613 5.27620202,9.32084965 4.92071377,9.32084965 C4.56522551,9.32084965 4.27704535,9.04212613 4.27704535,8.69830325 L4.27704535,6.6231486 C4.27704535,6.27932572 4.56522551,6.00060221 4.92071377,6.00060221 Z M8.07928623,6.00060221 C8.43477449,6.00060221 8.72295465,6.27932572 8.72295465,6.6231486 L8.72295465,8.69830325 C8.72295465,9.04212613 8.43477449,9.32084965 8.07928623,9.32084965 C7.72379798,9.32084965 7.43561781,9.04212613 7.43561781,8.69830325 L7.43561781,6.6231486 C7.43561781,6.27932572 7.72379798,6.00060221 8.07928623,6.00060221 Z M6.5,1.24509279 C5.86311827,1.24509279 5.31487745,1.61215579 5.06909407,2.13948165 L7.93090593,2.13948165 C7.68512255,1.61215579 7.13688173,1.24509279 6.5,1.24509279 Z" />
   </svg>
 );
-const LadingSvg = () => (
+const LadingSvg = (): React.ReactElement => (
   <svg
     viewBox="0 0 1024 1024"
     version="1.1"
@@ -1102,7 +1102,7 @@ const LadingSvg = () => (
   </svg>
 );
 
-const UploadSvg = () => (
+const UploadSvg = (): React.ReactElement => (
   <svg version="1.1" width="22px" height="22px" viewBox="0 0 22.0 22.0">
     <defs>
       <clipPath id="UploadIconi0">
@@ -1159,7 +1159,7 @@ const UploadSvg = () => (
   </svg>
 );
 
-const HotSvg = () => (
+const HotSvg = (): React.ReactElement => (
   <svg version="1.1" width="11px" height="13px" viewBox="0 0 11.0 13.0">
     <defs>
       <clipPath id="i0">
@@ -1198,7 +1198,7 @@ const HotSvg = () => (
     </g>
   </svg>
 );
-const starSvg = () => (
+const starSvg = (): React.ReactElement => (
   <svg version="1.1" width="20px" height="19px" viewBox="0 0 20.0 19.0">
     <defs>
       <clipPath id="starSvgi0">
@@ -1235,7 +1235,7 @@ const starSvg = () => (
     </g>
   </svg>
 );
-const VideoCameraSvg = () => (
+const VideoCameraSvg = (): React.ReactElement => (
   <svg version="1.1" width="26px" height="25px" viewBox="0 0 26.0 25.0">
     <defs>
       <clipPath id="camerasvgi0">
@@ -1262,7 +1262,7 @@ const VideoCameraSvg = () => (
     </g>
   </svg>
 );
-const noteAudioPlaySvg = () => (
+const noteAudioPlaySvg = (): React.ReactElement => (
   <svg version="1.1" width="12px" height="12px" viewBox="0 0 12.0 12.0">
     <defs>
       <clipPath id="noteAudioPlaySvgi0">
@@ -1691,7 +1691,7 @@ const apply7Svg = (): JSX.Element => (
   </svg>
 );
 
-const BranchChangeSvg = () => (
+const BranchChangeSvg = (): React.ReactElement => (
   <svg version="1.1" width="4px" height="7px" viewBox="0 0 4.0 7.0">
     <defs>
       <clipPath id="branchChangeSvgi0">
@@ -1717,7 +1717,7 @@ const BranchChangeSvg = () => (
   </svg>
 );
 
-const GetVideoUrlSvg = () => (
+const GetVideoUrlSvg = (): React.ReactElement => (
   <svg version="1.1" width="20px" height="20px" viewBox="0 0 20.0 20.0">
     <defs>
       <clipPath id="GetVideoUrlSvgi0">
@@ -1782,7 +1782,7 @@ const GetVideoUrlSvg = () => (
   </svg>
 );
 
-const ChangePromptSvg = () => (
+const ChangePromptSvg = (): React.ReactElement => (
   <svg version="1.1" width="5px" height="9px" viewBox="0 0 5.0 9.0">
     <defs>
       <clipPath id="changePromptSvgi0">
@@ -1809,7 +1809,7 @@ const ChangePromptSvg = () => (
   </svg>
 );
 
-const RelocateSvg = () => (
+const RelocateSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="16px"
@@ -1926,7 +1926,7 @@ const AddIcon = ({ strokeColor }: { strokeColor: string }): JSX.Element => (
   </svg>
 );
 
-const LockSvg = () => (
+const LockSvg = (): React.ReactElement => (
   <svg version="1.1" width="16px" height="19px" viewBox="0 0 16.0 19.0">
     <defs>
       <clipPath id="LockSvgi0">
@@ -1979,7 +1979,7 @@ const LockSvg = () => (
     </g>
   </svg>
 );
-const HeaderMenuTTsSvg = () => (
+const HeaderMenuTTsSvg = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="12px" viewBox="0 0 14.0 12.0">
     <defs>
       <clipPath id="HeaderMenuTTsSvgi0">
@@ -2015,7 +2015,7 @@ const HeaderMenuTTsSvg = () => (
   </svg>
 );
 
-const SubGraphSvg = () => (
+const SubGraphSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="16px"
@@ -2089,7 +2089,7 @@ const SubGraphSvg = () => (
   </svg>
 );
 
-const HeaderMenuFeedbackSvg = () => (
+const HeaderMenuFeedbackSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="11px"
@@ -2122,7 +2122,7 @@ const HeaderMenuFeedbackSvg = () => (
     </g>
   </svg>
 );
-const HeaderMenuQaSvg = () => (
+const HeaderMenuQaSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="10px"
@@ -2161,7 +2161,7 @@ const HeaderMenuQaSvg = () => (
   </svg>
 );
 
-const TrashCanSvg = () => (
+const TrashCanSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="14px"
@@ -2192,7 +2192,7 @@ const TrashCanSvg = () => (
     </g>
   </svg>
 );
-const HeaderMenuRecommendSvg = () => (
+const HeaderMenuRecommendSvg = (): React.ReactElement => (
   <svg version="1.1" width="13px" height="13px" viewBox="0 0 13.0 13.0">
     <defs>
       <clipPath id="HeaderMenuRecommendSvgi0">
@@ -2220,7 +2220,7 @@ const HeaderMenuRecommendSvg = () => (
   </svg>
 );
 
-const BotSaveSvg = () => (
+const BotSaveSvg = (): React.ReactElement => (
   <svg
     version="1.1"
     width="15px"
@@ -2261,7 +2261,7 @@ const BotSaveSvg = () => (
   </svg>
 );
 
-const HookSvg = () => (
+const HookSvg = (): React.ReactElement => (
   <svg width="14px" height="12px" viewBox="0 0 14 12" version="1.1">
     <g id="页面-1" stroke="none" strokeWidth="1" fill="none" fillRule="evenodd">
       <g
@@ -2290,7 +2290,7 @@ const HookSvg = () => (
   </svg>
 );
 
-const stopOutputSvg = () => (
+const stopOutputSvg = (): React.ReactElement => (
   <svg version="1.1" width="14px" height="14px" viewBox="0 0 14.0 14.0">
     <defs>
       <clipPath id="stopOutputSvgi0">
@@ -2333,240 +2333,240 @@ const stopOutputSvg = () => (
   </svg>
 );
 
-const LogoutIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={LogoutSvg} {...props} />
-);
+const LogoutIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={LogoutSvg} {...props} />;
 
-const LockedIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={LockedSvg} {...props} />
-);
+const LockedIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={LockedSvg} {...props} />;
 
-const CallIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={CallSvg} {...props} />
-);
-const HeaderMenuTTsSvgIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={HeaderMenuTTsSvg} {...props} />
-);
-const SafeIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={SafeSvg} {...props} />
-);
+const CallIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={CallSvg} {...props} />;
+const HeaderMenuTTsSvgIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={HeaderMenuTTsSvg} {...props} />;
+const SafeIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={SafeSvg} {...props} />;
 const HeaderMenuFeedbackSvgIcon = (
   props: Partial<CustomIconComponentProps>
-) => <Icon component={HeaderMenuFeedbackSvg} {...props} />;
-const HeaderMenuQaSvgIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={HeaderMenuQaSvg} {...props} />
-);
+): React.ReactElement => <Icon component={HeaderMenuFeedbackSvg} {...props} />;
+const HeaderMenuQaSvgIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={HeaderMenuQaSvg} {...props} />;
 const HeaderMenuRecommendSvgIcon = (
   props: Partial<CustomIconComponentProps>
-) => <Icon component={HeaderMenuRecommendSvg} {...props} />;
+): React.ReactElement => <Icon component={HeaderMenuRecommendSvg} {...props} />;
 
-const CopyIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={CopySvg} {...props} />
-);
+const CopyIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={CopySvg} {...props} />;
 
-const PraiseIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={PraiseSvg} {...props} />
-);
+const PraiseIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={PraiseSvg} {...props} />;
 
-const UnPraiseIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={UnPraiseSvg} {...props} />
-);
+const UnPraiseIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={UnPraiseSvg} {...props} />;
 
-const ReloadIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={ReloadSvg} {...props} />
-);
+const ReloadIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={ReloadSvg} {...props} />;
 
-const DeleteIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={DeleteSvg} {...props} />
-);
+const DeleteIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={DeleteSvg} {...props} />;
 
-const PromptReloadIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={PromptReloadSvg} {...props} />
-);
+const PromptReloadIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={PromptReloadSvg} {...props} />;
 
-const AudioPlayIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={AudioPlaySvg} {...props} />
-);
+const AudioPlayIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={AudioPlaySvg} {...props} />;
 
-const AudioPauseIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={AudioPauseSvg} {...props} />
-);
+const AudioPauseIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={AudioPauseSvg} {...props} />;
 
-const MessagePureIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={MessageSvgPure} {...props} />
-);
+const MessagePureIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={MessageSvgPure} {...props} />;
 
-const MessageDarkIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={MessageSvgDark} {...props} />
-);
-const PluginPureIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={PluginSvgPure} {...props} />
-);
-const PluginDarkIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={PluginSvgDark} {...props} />
-);
-const AskPromoptReloadIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={AskPromoptReload} {...props} />
-);
+const MessageDarkIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={MessageSvgDark} {...props} />;
+const PluginPureIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={PluginSvgPure} {...props} />;
+const PluginDarkIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={PluginSvgDark} {...props} />;
+const AskPromoptReloadIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={AskPromoptReload} {...props} />;
 
-const ConfirmIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={ConfirmSvg} {...props} />
-);
+const ConfirmIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={ConfirmSvg} {...props} />;
 
-const ConfirmALIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={ConfirmALSvg} {...props} />
-);
+const ConfirmALIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={ConfirmALSvg} {...props} />;
 
-const EditIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={EditSvg} {...props} />
-);
+const EditIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={EditSvg} {...props} />;
 
-const BotCenterIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={BotCenterSvg} {...props} />
-);
+const BotCenterIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={BotCenterSvg} {...props} />;
 
-const BotCenterQuitIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={BotCenterQuitSvg} {...props} />
-);
+const BotCenterQuitIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={BotCenterQuitSvg} {...props} />;
 
-const SearchIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={SearchSvg} {...props} />
-);
+const SearchIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={SearchSvg} {...props} />;
 
-const NoticeIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={NoticeSvg} {...props} />
-);
+const NoticeIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={NoticeSvg} {...props} />;
 
-const PersonalRecommendIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={PersonalRecommendSvg} {...props} />
-);
+const PersonalRecommendIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={PersonalRecommendSvg} {...props} />;
 
-const OrderIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={OrderSvg} {...props} />
-);
+const OrderIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={OrderSvg} {...props} />;
 
-const NoticeOnIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={NoticeOnSvg} {...props} />
-);
+const NoticeOnIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={NoticeOnSvg} {...props} />;
 
-const LockIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={LockSvg} {...props} />
-);
+const LockIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={LockSvg} {...props} />;
 
-const BotAvatarBgIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={BotAvatarBg} {...props} />
-);
+const BotAvatarBgIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={BotAvatarBg} {...props} />;
 
-const BotAvatarCardIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={BotAvatarCardBg} {...props} />
-);
+const BotAvatarCardIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={BotAvatarCardBg} {...props} />;
 
-const ChatBotAvatarIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={ChatBotAvatarSvg} {...props} />
-);
+const ChatBotAvatarIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={ChatBotAvatarSvg} {...props} />;
 
-const NewDialogIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={NewDialogSvg} {...props} />
-);
+const NewDialogIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={NewDialogSvg} {...props} />;
 
-const ShareIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={ShareSvg} {...props} />
-);
+const ShareIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={ShareSvg} {...props} />;
 
-const FavoriteIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={FavoriteSvg} {...props} />
-);
-const GoBotEditIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={GoBotEditSvg} {...props} />
-);
+const FavoriteIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={FavoriteSvg} {...props} />;
+const GoBotEditIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={GoBotEditSvg} {...props} />;
 
-const LoadingIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={LadingSvg} {...props} />
-);
-const UploadIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={UploadSvg} {...props} />
-);
+const LoadingIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={LadingSvg} {...props} />;
+const UploadIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={UploadSvg} {...props} />;
 
-const HotIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={HotSvg} {...props} />
-);
-const StarIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={starSvg} {...props} />
-);
+const HotIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={HotSvg} {...props} />;
+const StarIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={starSvg} {...props} />;
 
-const NoteAudioPlayIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={noteAudioPlaySvg} {...props} />
-);
-const CameraIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={VideoCameraSvg} {...props} />
-);
-const CollectLoadingIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={CollectLoadingSvg} {...props} />
-);
+const NoteAudioPlayIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={noteAudioPlaySvg} {...props} />;
+const CameraIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={VideoCameraSvg} {...props} />;
+const CollectLoadingIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={CollectLoadingSvg} {...props} />;
 
-const ApplyIcon1 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply1Svg} {...props} />
-);
-const ApplyIcon2 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply2Svg} {...props} />
-);
-const ApplyIcon3 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply3Svg} {...props} />
-);
-const ApplyIcon4 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply4Svg} {...props} />
-);
-const ApplyIcon5 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply5Svg} {...props} />
-);
-const ApplyIcon6 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply6Svg} {...props} />
-);
-const ApplyIcon7 = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={apply7Svg} {...props} />
-);
+const ApplyIcon1 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply1Svg} {...props} />;
+const ApplyIcon2 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply2Svg} {...props} />;
+const ApplyIcon3 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply3Svg} {...props} />;
+const ApplyIcon4 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply4Svg} {...props} />;
+const ApplyIcon5 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply5Svg} {...props} />;
+const ApplyIcon6 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply6Svg} {...props} />;
+const ApplyIcon7 = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={apply7Svg} {...props} />;
 
-const BranchChangeIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={BranchChangeSvg} {...props} />
-);
-const GetVideoUrlIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={GetVideoUrlSvg} {...props} />
-);
+const BranchChangeIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={BranchChangeSvg} {...props} />;
+const GetVideoUrlIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={GetVideoUrlSvg} {...props} />;
 
-const ChangePromptIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={ChangePromptSvg} {...props} />
-);
+const ChangePromptIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={ChangePromptSvg} {...props} />;
 
-const WriteIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={WriteSvg} {...props} />
-);
-const CloseIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={CloseSvg} {...props} />
-);
+const WriteIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={WriteSvg} {...props} />;
+const CloseIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={CloseSvg} {...props} />;
 
-const RelocateIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={RelocateSvg} {...props} />
-);
+const RelocateIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={RelocateSvg} {...props} />;
 
-const SubGraphIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={SubGraphSvg} {...props} />
-);
+const SubGraphIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={SubGraphSvg} {...props} />;
 
-const TrashCanIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={TrashCanSvg} {...props} />
-);
+const TrashCanIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={TrashCanSvg} {...props} />;
 
-const BotSaveIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={BotSaveSvg} {...props} />
-);
+const BotSaveIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={BotSaveSvg} {...props} />;
 
-const HookIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={HookSvg} {...props} />
-);
+const HookIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={HookSvg} {...props} />;
 
-const StopOutputIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={stopOutputSvg} {...props} />
-);
+const StopOutputIcon = (
+  props: Partial<CustomIconComponentProps>
+): React.ReactElement => <Icon component={stopOutputSvg} {...props} />;
 
 export {
   LockedIcon,

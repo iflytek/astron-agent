@@ -5,13 +5,9 @@ import ModelManagementHeader from '../components/model-management-header';
 import CategoryAside from '../components/category-aside';
 import { CreateModal } from '../components/modal-component';
 import { ModelProvider, useModelContext } from '../context/model-context';
-import { useModelFilters } from '../hooks/use-model-filters';
 import { ModelProviderType } from '@/types/model';
 import { getModelProviderLabel } from '../utils/provider';
-import {
-  mapProviderToVendor,
-  getSpecificProviderOptions,
-} from '../utils/provider-group';
+import { getSpecificProviderOptions } from '../utils/provider-group';
 import chatgptIcon from '@/assets/imgs/modelManage/providers/custom/chatgpt.svg';
 import anthropicIcon from '@/assets/imgs/modelManage/providers/custom/anthropic.svg';
 import googleIcon from '@/assets/imgs/modelManage/providers/custom/google.svg';
@@ -70,15 +66,14 @@ const ProviderLogoBadge: React.FC<{ provider: ModelProviderType }> = ({
 
 const OfficialModelContent: React.FC = () => {
   const { t } = useTranslation();
-  const { state, actions } = useModelContext();
-  const filters = useModelFilters();
+  const { actions } = useModelContext();
   const [selectedProvider, setSelectedProvider] = useState<string>('');
   const [searchInput, setSearchInput] = useState<string>('');
   const [selectedCard, setSelectedCard] = useState<OfficialProviderCard | null>(
     null
   );
 
-  const handleProviderChange = (provider?: string) => {
+  const handleProviderChange = (provider?: string): void => {
     setSelectedProvider(provider || '');
   };
 

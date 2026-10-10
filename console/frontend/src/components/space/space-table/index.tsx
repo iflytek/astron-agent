@@ -6,7 +6,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from 'react';
-import { Table, message } from 'antd';
+import { Table } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import ButtonGroup, { ButtonConfig } from '@/components/button-group';
@@ -217,7 +217,7 @@ const SpaceTable = forwardRef(function SpaceTable<
   }, [extraParams]);
 
   // 分页变化处理
-  const handlePaginationChange = (page: number, pageSize: number) => {
+  const handlePaginationChange = (page: number, pageSize: number): void => {
     loadData({ current: page, pageSize });
   };
 
@@ -246,7 +246,7 @@ const SpaceTable = forwardRef(function SpaceTable<
             key: 'action',
             width: actionColumn.width || 200,
             fixed: actionColumn.fixed,
-            render: (_: any, record: T, index: number) => {
+            render: (_: any, record: T, index: number): React.ReactElement => {
               const actionButtons = actionColumn.getActionButtons(
                 record,
                 index

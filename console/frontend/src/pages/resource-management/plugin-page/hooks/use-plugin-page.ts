@@ -47,7 +47,7 @@ export const usePluginPage = (): {
   );
 
   // 处理卡片点击
-  const handleCardClick = (tool: ToolItem) => {
+  const handleCardClick = (tool: ToolItem): void => {
     if (tool.status == 0) {
       if (!user?.login && !user?.uid) {
         return jumpToLogin();
@@ -59,13 +59,13 @@ export const usePluginPage = (): {
   };
 
   // 处理删除点击
-  const handleDeleteClick = (tool: ToolItem) => {
+  const handleDeleteClick = (tool: ToolItem): void => {
     setCurrentTool(tool);
     setDeleteModal(true);
   };
 
   // 处理创建插件
-  const handleCreatePlugin = () => {
+  const handleCreatePlugin = (): void => {
     if (!user?.login && !user?.uid) {
       return jumpToLogin();
     }
@@ -83,14 +83,14 @@ export const usePluginPage = (): {
 
   // 监听Header组件的搜索事件
   useEffect(() => {
-    const handleHeaderSearch = (event: CustomEvent) => {
+    const handleHeaderSearch = (event: CustomEvent): void => {
       const { value, type } = event.detail;
       if (type === 'plugin') {
         handleSearch(value);
       }
     };
 
-    const headerCreatePlugin = (event: CustomEvent) => {
+    const headerCreatePlugin = (event: CustomEvent): void => {
       const { type } = event.detail;
       if (type === 'plugin') {
         handleCreatePlugin();
@@ -105,7 +105,7 @@ export const usePluginPage = (): {
       'headerCreatePlugin',
       headerCreatePlugin as EventListener
     );
-    return () => {
+    return (): void => {
       window.removeEventListener(
         'headerSearch',
         handleHeaderSearch as EventListener

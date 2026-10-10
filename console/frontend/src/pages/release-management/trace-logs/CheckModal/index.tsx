@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Tree, message, Tag } from 'antd';
+import { Modal, Tree, Tag } from 'antd';
 import { DownOutlined } from '@ant-design/icons';
 import TreeNode from './TreeNode/index';
 import ContentDisplay from './ContentDisplay/index';
@@ -100,7 +100,7 @@ const OcrModal: React.FC<OcrModalProps> = ({ visible, onCancel, record }) => {
     (nodes: OcrNodeData[]): React.Key[] => {
       const keys: React.Key[] = [];
 
-      const visit = (nodeList: OcrNodeData[]) => {
+      const visit = (nodeList: OcrNodeData[]): void => {
         nodeList.forEach(node => {
           if (node.children?.length) {
             if (node.node_type !== 'iteration-option') {
@@ -140,7 +140,7 @@ const OcrModal: React.FC<OcrModalProps> = ({ visible, onCancel, record }) => {
   }, [visible, record, collectExpandedKeys, findFirstSelectableNode]);
 
   // 处理树节点选择事件
-  const onSelect = (selectedKeys: React.Key[], info: any) => {
+  const onSelect = (selectedKeys: React.Key[], info: any): void => {
     const node = info.node;
     if (node?.selectable === false) {
       return;
@@ -151,7 +151,7 @@ const OcrModal: React.FC<OcrModalProps> = ({ visible, onCancel, record }) => {
   };
 
   // 自定义树节点渲染
-  const titleRender = (nodeData: OcrNodeData) => {
+  const titleRender = (nodeData: OcrNodeData): React.ReactElement => {
     // 为不同的节点设置合适的类型
     const nodeType = nodeData.node_type;
 
@@ -170,7 +170,7 @@ const OcrModal: React.FC<OcrModalProps> = ({ visible, onCancel, record }) => {
    * 获取输入内容 - 兼容多种字段名
    * 按优先级顺序查找：input -> prompt -> text -> AGENT_USER_INPUT
    */
-  const getInputContent = () => {
+  const getInputContent = (): string => {
     return findFieldByPriority(selectedNode?.data?.input, INPUT_FIELD_PRIORITY);
   };
 
@@ -178,7 +178,7 @@ const OcrModal: React.FC<OcrModalProps> = ({ visible, onCancel, record }) => {
    * 获取输出内容 - 兼容多种字段名
    * 按优先级顺序查找：output -> data
    */
-  const getOutputContent = () => {
+  const getOutputContent = (): string => {
     return findFieldByPriority(
       selectedNode?.data?.output,
       OUTPUT_FIELD_PRIORITY

@@ -4,7 +4,7 @@ import { Routes, Route } from 'react-router-dom';
 
 const AgentPage = React.lazy(() => import('./agent-page'));
 
-function index() {
+function index(): React.ReactElement {
   return (
     <div className="w-full h-full overflow-hidden">
       <Suspense

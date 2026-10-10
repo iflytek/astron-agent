@@ -53,7 +53,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
     async (memberId: string, newRole: string) => {
       try {
         // API调用
-        const res = await updateEnterpriseUserRole({
+        await updateEnterpriseUserRole({
           uid: memberId,
           role: newRole,
         });
@@ -124,7 +124,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
   const handleDelete = useCallback(
     async (record: MemberData) => {
       try {
-        const res = await removeEnterpriseUser({
+        await removeEnterpriseUser({
           uid: record.uid,
         });
 
@@ -156,7 +156,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         dataIndex: 'role',
         key: 'role',
         width: 120,
-        render: (role: string, record: MemberData) => {
+        render: (role: string, record: MemberData): React.ReactElement => {
           const showText =
             role == SUPER_ADMIN_ROLE ||
             !permissionInfo?.checks.hasModulePermission(
@@ -198,7 +198,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
     () => ({
       title: t('common.action'),
       width: 100,
-      getActionButtons: (record: MemberData) => {
+      getActionButtons: (record: MemberData): ButtonConfig[] => {
         const buttons: ButtonConfig[] = [
           {
             key: 'delete',
@@ -206,7 +206,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
             type: 'link',
             // danger: true,
             permission: {
-              customCheck: () => {
+              customCheck: (): boolean => {
                 return !!(
                   record.role != SUPER_ADMIN_ROLE &&
                   permissionInfo?.checks.canRemoveMembers(ModuleType.SPACE) &&
@@ -217,7 +217,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
                 );
               },
             },
-            onClick: () => {
+            onClick: (): void => {
               // 使用确认弹窗
               Modal.confirm({
                 title: t('common.confirmDelete'),

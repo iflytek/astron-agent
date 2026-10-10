@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './index.module.scss';
 
@@ -32,9 +32,8 @@ const ToolCard: React.FC<ToolCardProps> = ({
   onFavoriteClick,
 }) => {
   const { t } = useTranslation();
-  const [isHovering, setIsHovering] = useState<boolean>(false);
 
-  const handleCardClick = () => {
+  const handleCardClick = (): void => {
     onCardClick?.(tool);
   };
 

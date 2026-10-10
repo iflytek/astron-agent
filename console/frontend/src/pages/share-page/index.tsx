@@ -17,7 +17,7 @@ import { useSpaceType } from '@/hooks/use-space-type';
 import { getLanguageCode } from '@/utils/http';
 import { useTranslation } from 'react-i18next';
 
-function index() {
+function index(): React.ReactElement {
   const { setSpaceType, setEnterpriseId } = useSpaceStore();
   const navigate = useNavigate();
   const { getLastVisitSpace, handleTeamSwitch } = useSpaceType(navigate);
@@ -86,7 +86,7 @@ function index() {
       handleJoinTeam();
     }
   };
-  const handleJoinTeam = () => {
+  const handleJoinTeam = (): void => {
     setEnterpriseId(inviteInfo?.enterpriseId);
     setSpaceType('team');
     getJoinedEnterpriseList();

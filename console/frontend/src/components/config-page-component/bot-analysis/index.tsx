@@ -40,11 +40,11 @@ const BotAnalysis = ({
 }: {
   botId: any;
   detailInfo: any;
-}) => {
+}): React.ReactElement => {
   const { t } = useTranslation();
   const [webData, setWebData] = useState<any>({}); //概览数据
   const [overviewType, setOverviewType] = useState<number>(1); //概览时间选择
-  const [channelType, setChannelType] = useState<number>(1); //渠道时间选择
+  const [channelType] = useState<number>(1); //渠道时间选择
   const [monitorType, setMonitorType] = useState<number>(1); //监控时间选择
   const [sessionOptions, setSessionOptions] = useState<any>(sessionOption); //全部会话选项
   const [userOptions, setUserOptions] = useState<any>(userOption); //活跃用户选项
@@ -52,9 +52,8 @@ const BotAnalysis = ({
     useState<any>(interactionOption); //平均会话互动数选项
   const [TokenOptions, setTokenOptions] = useState<any>(TokenOption); //Token消耗量选项
   const [beforeData, setBeforeData] = useState<any>({}); //过去7天数据
-  const [mutiUserOptions, setMutiUserOptions] = useState<any>(mutiUserOption); //多线用户数选项
-  const [mutiSessionOptions, setMutiSessionOptions] =
-    useState<any>(mutiSessionOption); //多线会话数选项
+  const [, setMutiUserOptions] = useState<any>(mutiUserOption); //多线用户数选项
+  const [, setMutiSessionOptions] = useState<any>(mutiSessionOption); //多线会话数选项
   const [nodeErrorList, setNodeErrorList] = useState([]); //节点报错列表
   const [suggestErrorList, setSuggestErrorList] = useState([]); //用户反馈报错列表
   const searchInput = useRef(null);
@@ -84,7 +83,7 @@ const BotAnalysis = ({
   };
 
   //获取节点报错信息
-  const getNodeErrorInfo = async (botId: any) => {
+  const getNodeErrorInfo = async (botId: any): Promise<void> => {
     const res: any = await getErrorNodeList({ botId });
     const dataErrorList: any = res?.errorList.map((item: any, index: any) => ({
       ...item,
@@ -107,7 +106,7 @@ const BotAnalysis = ({
       selectedKeys: React.Key[];
       confirm: () => void;
       clearFilters?: () => void;
-    }) => {
+    }): React.ReactElement => {
       const { setSelectedKeys, selectedKeys, confirm, clearFilters } = props;
       return (
         <div style={{ padding: 8 }} onKeyDown={e => e.stopPropagation()}>
@@ -142,7 +141,7 @@ const BotAnalysis = ({
         </div>
       );
     },
-    filterIcon: (filtered: boolean) => (
+    filterIcon: (filtered: boolean): React.ReactElement => (
       <SearchOutlined style={{ color: filtered ? '#1890ff' : undefined }} />
     ),
     onFilter: (value: boolean | React.Key, record: Record<string, any>) => {
@@ -167,19 +166,19 @@ const BotAnalysis = ({
       title: t('common.botAndFlowAnalysis.errorCode'),
       dataIndex: 'errorCode',
       key: 'errorCode',
-      sorter: (a: any, b: any) => a.errorCode - b.errorCode,
+      sorter: (a: any, b: any): number => a.errorCode - b.errorCode,
       sortDirections: ['descend', 'ascend'] as SortOrder[],
     },
     {
       title: t('common.botAndFlowAnalysis.feedbackTime'),
       dataIndex: 'errorTime',
       key: 'errorTime',
-      sorter: (a: any, b: any) => a.errorTime - b.errorTime,
+      sorter: (a: any, b: any): number => a.errorTime - b.errorTime,
       sortDirections: ['descend', 'ascend'] as SortOrder[],
     },
   ];
 
-  const handleExpandable = (e: NodeErrorInfo) => {
+  const handleExpandable = (e: NodeErrorInfo): void => {
     setIsModalOpen(true);
     setErrorInfo(e.info);
   };
@@ -195,20 +194,20 @@ const BotAnalysis = ({
       title: t('common.botAndFlowAnalysis.totalCalls'),
       dataIndex: 'callNum',
       key: 'callNum',
-      sorter: (a: any, b: any) => a.callNum - b.callNum,
+      sorter: (a: any, b: any): number => a.callNum - b.callNum,
       sortDirections: ['descend', 'ascend'] as SortOrder[],
     },
     {
       title: t('common.botAndFlowAnalysis.errorCount'),
       dataIndex: 'errorNum',
       key: 'errorNum',
-      sorter: (a: any, b: any) => a.errorNum - b.errorNum,
+      sorter: (a: any, b: any): number => a.errorNum - b.errorNum,
       sortDirections: ['descend', 'ascend'] as SortOrder[],
     },
     {
       title: t('common.botAndFlowAnalysis.operation'),
       key: 'action',
-      render: (rootdata: any) => (
+      render: (rootdata: any): React.ReactElement => (
         <Space size="middle">
           <a>
             <Space onClick={() => handleExpandable(rootdata)}>
@@ -221,7 +220,7 @@ const BotAnalysis = ({
   ];
 
   //更新chat数据
-  const updateChatChart = (channelChats: any) => {
+  const updateChatChart = (channelChats: any): void => {
     const processedData = processChannelData(channelChats);
 
     setMutiSessionOptions((pre: typeof mutiSessionOption) => {
@@ -263,7 +262,7 @@ const BotAnalysis = ({
   };
 
   //更新user数据
-  const updateUserChart = (userChats: any) => {
+  const updateUserChart = (userChats: any): void => {
     const processedData = processChannelData(userChats);
 
     setMutiUserOptions((pre: typeof mutiUserOption) => {
@@ -305,21 +304,17 @@ const BotAnalysis = ({
   };
 
   //分析概览时间选择
-  const handleChangeTime = (value: any) => {
+  const handleChangeTime = (value: any): void => {
     setOverviewType(value);
   };
 
-  //渠道分析时间选择
-  const handleChangeChannelTime = (value: any) => {
-    setChannelType(value);
-  };
   //监控时间选择
-  const handleChangeMonitorTime = (value: any) => {
+  const handleChangeMonitorTime = (value: any): void => {
     setMonitorType(value);
   };
 
   // 处理图表数据更新
-  const updateChartData = (res: any) => {
+  const updateChartData = (res: any): void => {
     //全部会话数
     if (res?.chatMessages?.length > 0) {
       setSessionOptions((pre: any) => ({
@@ -390,7 +385,7 @@ const BotAnalysis = ({
   };
 
   //获取全部数据
-  const getAnalysisDataFn = async () => {
+  const getAnalysisDataFn = async (): Promise<void> => {
     const [result01, result02] = await Promise.allSettled([
       getAnalysisData01({
         botId,

@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import useOrderStore from '@/store/spark-store/order-store';
 import {
   getOrderList,
-  getResourceUsage,
   getUserMeta,
   getTeamMeta,
   getSpecialUser,
@@ -17,8 +16,6 @@ export default function useOrderData() {
   const {
     setUserOrderList,
     setUserOrderType,
-    setUserOrderNow,
-    setTraceColumn,
     setUserOrderMeta,
     setSpaceTypeAtom,
     setIsSpecialUser,
@@ -34,7 +31,7 @@ export default function useOrderData() {
    * @description 筛选出用户当前套餐等级，设置 userOrderType
    * @description 筛选出用户当前套餐，设置 userOrderNow
    */
-  const fetchOrderList = async () => {
+  const fetchOrderList = async (): Promise<void> => {
     try {
       const params = { page: '1', pageSize: '50' };
       const res = await getOrderList(params);
@@ -46,7 +43,7 @@ export default function useOrderData() {
   };
 
   /** ## 获取当前用户套餐 -- 根据个人版还是空间版做区分 */
-  const fetchUserMeta = async () => {
+  const fetchUserMeta = async (): Promise<void> => {
     try {
       const res = await (spaceType === 'team' ? getTeamMeta() : getUserMeta());
       // console.log('🚀 ~ useOrderData.ts:115 ~ res:', res);
@@ -60,7 +57,7 @@ export default function useOrderData() {
   };
 
   /** ## 获取是否为特定用户 */
-  const fetchSpecialUser = async () => {
+  const fetchSpecialUser = async (): Promise<void> => {
     try {
       const res = await getSpecialUser();
       setIsSpecialUser(Boolean(res));

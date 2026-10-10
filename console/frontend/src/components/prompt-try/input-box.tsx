@@ -23,7 +23,7 @@ const InputBox = ({
   onChange,
   footerExtra,
   showClear = false,
-}: InputBoxProps) => {
+}: InputBoxProps): React.ReactElement => {
   const { t } = useTranslation();
   const [internalValue, setInternalValue] = useState('');
   const [isComposing, setIsComposing] = useState<boolean>(false);
@@ -32,11 +32,11 @@ const InputBox = ({
   const isControlled = value !== undefined;
   const inputValue = isControlled ? value : internalValue;
   const setInputValue = isControlled
-    ? (val: string) => onChange?.(val)
+    ? (val: string): void | undefined => onChange?.(val)
     : setInternalValue;
 
   // 按下回车键
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     if (e.key === 'Enter' && !e.shiftKey && !isComposing) {
       e.preventDefault();
       handleSendBtnClick();
@@ -44,7 +44,7 @@ const InputBox = ({
   };
 
   // 点击发送按钮
-  const handleSendBtnClick = () => {
+  const handleSendBtnClick = (): void => {
     if (isLoading) {
       message.warning(t('configBase.promptTry.answerPleaseTryAgainLater'));
       return;
@@ -61,7 +61,7 @@ const InputBox = ({
   };
 
   // 清除聊天记录
-  const handleClear = () => {
+  const handleClear = (): void => {
     if (isLoading) {
       message.warning(t('configBase.promptTry.answerPleaseTryAgainLater'));
       return;

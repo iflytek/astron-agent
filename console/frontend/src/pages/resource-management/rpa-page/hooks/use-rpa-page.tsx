@@ -42,14 +42,14 @@ export const useRpaPage = (
 
   // 监听Header组件的搜索事件
   useEffect(() => {
-    const handleHeaderSearch = (event: CustomEvent) => {
+    const handleHeaderSearch = (event: CustomEvent): void => {
       const { value, type } = event.detail;
       if (type === 'rpa') {
         setSearchValue(value);
       }
     };
 
-    const headerCreate = (event: CustomEvent) => {
+    const headerCreate = (event: CustomEvent): void => {
       handleCreateRPA();
     };
 
@@ -58,7 +58,7 @@ export const useRpaPage = (
       handleHeaderSearch as EventListener
     );
     window.addEventListener('headerCreateRPA', headerCreate as EventListener);
-    return () => {
+    return (): void => {
       window.removeEventListener(
         'headerSearch',
         handleHeaderSearch as EventListener

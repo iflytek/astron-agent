@@ -16,7 +16,7 @@ const FilePreview = ({
   const { t } = useTranslation();
   const extension = file.fileName?.split('.').pop()?.toLowerCase();
   const [content, setContent] = useState('');
-  const downloadTxtFile = (url?: string) => {
+  const downloadTxtFile = (url?: string): void => {
     if (!url) return;
     fetch(url)
       .then(response => {

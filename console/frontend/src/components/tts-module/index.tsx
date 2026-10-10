@@ -45,12 +45,12 @@ const TtsModule: React.FC<TtsModuleProps> = ({
       voice: 5,
       pitch: 50,
       text: ttsText,
-      close: () => setIsPlaying(false),
+      close: (): void => setIsPlaying(false),
     });
     setExperienceObj(newExperienceObj);
 
     // 组件卸载时清理
-    return () => {
+    return (): void => {
       newExperienceObj?.resetAudio();
     };
   }, []);
@@ -82,7 +82,7 @@ const TtsModule: React.FC<TtsModuleProps> = ({
       experienceObj?.resetAudio();
     }
 
-    return () => {
+    return (): void => {
       if (timer) clearTimeout(timer);
     };
   }, [isPlaying, voiceName]);

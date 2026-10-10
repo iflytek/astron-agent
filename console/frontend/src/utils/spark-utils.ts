@@ -17,7 +17,7 @@ const copyText = async (options: {
   text: string;
   origin?: boolean;
   successText?: string;
-}) => {
+}): Promise<void> => {
   const languageCode = getLanguageCode();
   const props = { origin: true, ...options };
   const typeList = [
@@ -74,7 +74,7 @@ const copyPureText = (options: {
   text: string;
   origin?: boolean;
   successText?: string;
-}) => {
+}): void => {
   const props = { origin: true, ...options };
   const typeList = [
     'metadata',
@@ -106,7 +106,7 @@ const copyPureText = (options: {
   console.log('复制成功');
 };
 
-const getCookie = (cookieName: string) => {
+const getCookie = (cookieName: string): string => {
   const name = cookieName + '=';
   const decodedCookie = decodeURIComponent(document.cookie);
   const cookieArray = decodedCookie.split(';');
@@ -159,7 +159,7 @@ const transformMultiModal = (str: string) => {
  * @param {*} search
  * @returns
  */
-const getQueryString = (name: string, search?: any) => {
+const getQueryString = (name: string, search?: any): string | null => {
   if (typeof window !== 'undefined') {
     search = search || window.location.search;
   }
@@ -171,7 +171,7 @@ const getQueryString = (name: string, search?: any) => {
   return null;
 };
 
-const getBase64DecodeStr = (str: string) => {
+const getBase64DecodeStr = (str: string): string => {
   try {
     return Base64.decode(str);
   } catch (err) {

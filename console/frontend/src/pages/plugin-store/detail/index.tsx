@@ -22,8 +22,6 @@ import { DebugInput, ToolDetail, DebugToolParams } from '@/types/plugin-store';
 import arrowLeft from '@/assets/svgs/icon-zhishi-arrow-left.svg';
 import offical from '@/assets/svgs/offical.svg';
 import references from '@/assets/svgs/references.svg';
-import favorite from '@/assets/svgs/favorite.svg';
-import selectFavorite from '@/assets/svgs/select-favorite.png';
 
 //弹框
 const PrivacyModal = (props: {

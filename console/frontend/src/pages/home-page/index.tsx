@@ -17,15 +17,14 @@ import {
   cancelFavorite,
 } from '@/services/agent-square';
 import styles from './index.module.scss';
-import { Input, message, Popover, Spin, Tooltip } from 'antd';
+import { Input, message, Spin, Tooltip } from 'antd';
 import classnames from 'classnames';
 import eventBus from '@/utils/event-bus';
 import { debounce } from 'lodash';
 import useChat from '@/hooks/use-chat';
 import useUserStore from '@/store/user-store';
 import useHomeStore from '@/store/home-store';
-import { getLanguageCode } from '@/utils/http';
-import { BotType, Bot, SearchBotParam, Banner } from '@/types/agent-square';
+import { BotType, Bot, SearchBotParam } from '@/types/agent-square';
 import type { ResponseResultPage } from '@/types/global';
 import { handleShare } from '@/utils';
 import { useLocaleStore } from '@/store/spark-store/locale-store';
@@ -43,50 +42,10 @@ const PAGE_INFO_ORIGIN: SearchBotParam = {
 
 const HomePage: React.FC = () => {
   const { t } = useTranslation();
-  const currentLang = getLanguageCode();
 
-  const [bannerList] = useState<Banner[]>([
-    // NOTE: isOpen: open new page
-    {
-      src: 'https://openres.xfyun.cn/xfyundoc/2025-09-01/ec2409cf-17cc-4276-b8f3-acdca4abac42/1756696685915/agentRewardBanner.png',
-      srcEn:
-        'https://openres.xfyun.cn/xfyundoc/2025-09-01/ec2409cf-17cc-4276-b8f3-acdca4abac42/1756696685915/agentRewardBanner.png',
-      url: `${window.location.origin}/activitySummer`,
-      isOpen: false,
-    },
-    {
-      src: 'https://openres.xfyun.cn/xfyundoc/2025-07-28/1b4d1b3b-5fc0-44e5-938a-f11cd399ea09/1753666916737/banner01-07.28.jpg',
-      srcEn:
-        'https://openres.xfyun.cn/xfyundoc/2025-07-29/e6c12f1d-9e5c-4623-b668-d05d2d826a1f/1753771451925/banner-en02.jpg',
-      url: `${window.location.origin}/chat?sharekey=e1e62e4027b882aa7a43d4b25ed4974c&botId=2963659`,
-      isOpen: false,
-    },
-    {
-      src: 'https://openres.xfyun.cn/xfyundoc/2025-07-28/057e265c-d206-42a0-bcc4-e35d1a5950ad/1753666916740/banner02-07.28.jpg',
-      srcEn:
-        'https://openres.xfyun.cn/xfyundoc/2025-07-29/453698ff-0f08-41d7-b847-9db6640852c6/1753771451926/banner-en03.jpg',
-      url: `${window.location.origin}/chat?sharekey=b17abc6f0d4a356ed09a9fe1631ffd2c&botId=2958065`,
-      isOpen: false,
-    },
-    {
-      src: 'https://openres.xfyun.cn/xfyundoc/2025-07-28/d88084c2-16c8-4210-b5cb-7ef3e298a1bb/1753666916741/banner03-07.28.jpg',
-      srcEn:
-        'https://openres.xfyun.cn/xfyundoc/2025-07-29/0d319c45-816c-4d5b-a94c-91bc489c374d/1753771451926/banner-en04.jpg',
-      url: `${window.location.origin}/chat?sharekey=003e4873f478e5f1f9ed82930d0bb4e7&botId=2216831`,
-      isOpen: false,
-    },
-    {
-      src: 'https://openres.xfyun.cn/xfyundoc/2025-07-28/79576df5-7d4c-4cf0-b7cf-b1c343acc11a/1753666916742/banner04-07.28.jpg',
-      srcEn:
-        'https://openres.xfyun.cn/xfyundoc/2025-07-29/4818e1ba-8af5-4374-8238-db7250a14e84/1753771451927/banner-en05.jpg',
-      url: `${window.location.origin}/chat?sharekey=9991b23791117619a3c3608a44c1c499&botId=2813049`,
-      isOpen: false,
-    },
-  ]);
   const [botTypes, setBotTypes] = useState<BotType[]>([]);
   const {
     botType,
-    botOrigin,
     scrollTop,
     loadingPage,
     searchInputValue,
@@ -117,25 +76,6 @@ const HomePage: React.FC = () => {
     return dayjs.utc(normalized).utcOffset(8).format('YYYY-MM-DD HH:mm');
   }, []);
 
-  // filter banner by language
-  const filteredBanners: Banner[] = bannerList
-    .filter((banner: Banner) => currentLang !== 'en' || banner.srcEn)
-    .map((banner: Banner) => ({
-      ...banner,
-      src: currentLang === 'en' ? banner.srcEn : banner.src,
-    }));
-
-  // handle banner click
-  const handleBannerClick = (item: Banner): void => {
-    if (item.url) {
-      if (item.isOpen) {
-        window.open(item.url, '_blank');
-      } else {
-        window.location.href = item.url;
-      }
-    }
-  };
-
   // get agent type list
   const loadAgentTypeList = async (): Promise<void> => {
     const res: BotType[] = await getAgentType();
@@ -154,7 +94,7 @@ const HomePage: React.FC = () => {
   };
 
   // start search
-  const handleStartSearch = (value: string, pageInfo: SearchBotParam) => {
+  const handleStartSearch = (value: string, pageInfo: SearchBotParam): void => {
     setBotOrigin('search');
     setSearchLoading(true);
     setAgentList([]);
@@ -258,7 +198,7 @@ const HomePage: React.FC = () => {
   };
 
   // update bot list
-  const updateBotList = (botId: string | number, isFavorite: boolean) => {
+  const updateBotList = (botId: string | number, isFavorite: boolean): void => {
     setAgentList((agents: Bot[]) => {
       const currentBot: Bot | undefined =
         agents.find((t: Bot) => t.botId === botId) || ({} as Bot);
@@ -268,7 +208,7 @@ const HomePage: React.FC = () => {
   };
 
   // observer favorite change
-  const handleFavoriteChange = (botId: string | number) => {
+  const handleFavoriteChange = (botId: string | number): void => {
     if (botId) {
       updateBotList(botId, false);
     }
@@ -284,7 +224,7 @@ const HomePage: React.FC = () => {
     }
     loadAgentTypeList();
     eventBus.on('favoriteChange', handleFavoriteChange);
-    return () => {
+    return (): void => {
       eventBus.off('favoriteChange', handleFavoriteChange);
     };
   }, []);
@@ -343,14 +283,14 @@ const HomePage: React.FC = () => {
 
     observerRef.current = observer;
 
-    return () => {
+    return (): void => {
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
     };
   }, [loading, hasMore, onGettingPage, searchLoading, loadingPage, loadMore]);
 
-  const handleValueChange = (e: any) => {
+  const handleValueChange = (e: any): void => {
     const value = e.target.value;
     setSearchInputValue(value);
     debouncedSearchRef.current(value, pageInfo);
@@ -362,7 +302,7 @@ const HomePage: React.FC = () => {
   };
 
   // 渲染助手列表
-  const renderCardWrapper = () => {
+  const renderCardWrapper = (): React.ReactElement => {
     return (
       <div className={styles.card_wrapper}>
         {searchLoading ? (

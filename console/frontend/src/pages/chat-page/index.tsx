@@ -24,19 +24,7 @@ import styles from './index.module.scss';
 import vmsIcon from '@/assets/svgs/icon-user-filled.svg';
 import messageIcon from '@/assets/svgs/icon-message-filled.svg';
 import VmsInteractionCmp from '@/components/vms-interaction-cmp';
-import { getSceneList } from '@/services/spark-common';
 import { getTalkAgentConfig } from '@/services/agent-square';
-
-/** 形象项（后端归一化后的前端结构） */
-interface SceneItem {
-  sceneId: string;
-  name: string;
-  gender?: string;
-  posture?: string;
-  type?: string;
-  avatar?: string;
-  defaultVCN?: string;
-}
 
 let vmsInter: any = null;
 //虚拟人形象参数
@@ -86,18 +74,15 @@ const ChatPage = (): ReactElement => {
     (state: any) => state.vmsInteractiveRefStatus
   );
   const [loadingVms, setLoadingVms] = useState<boolean>(false);
-  const setVmsInteractiveRefStatus = useChatStore(
-    (state: any) => state.setVmsInteractiveRefStatus
-  );
   useEffect(() => {
     initializeChatPage();
-    return () => {
+    return (): void => {
       vmsInteractionCmpRef.current?.instance &&
         vmsInteractionCmpRef?.current?.dispose();
     };
   }, []);
 
-  const handleChatTypeChange = (type: string) => {
+  const handleChatTypeChange = (type: string): void => {
     setChatType(type);
     if (type === 'vms') {
       setTimeout(() => {
@@ -218,7 +203,7 @@ const ChatPage = (): ReactElement => {
   const handleRecomendClick = (params: {
     item: string;
     callback?: () => void;
-  }) => {
+  }): void => {
     if (streamId || isDataLoading || isLoading) {
       message.warning(t('chatPage.chatWindow.answeringInProgress'));
       return;
@@ -231,7 +216,7 @@ const ChatPage = (): ReactElement => {
   };
 
   //stop answer
-  const stopAnswer = () => {
+  const stopAnswer = (): void => {
     // Clear the streaming/loading state immediately so the spinner stops even if the SSE `end`
     // event never arrives after stopping (the connection may close before it is delivered).
     useChatStore.getState().finishStreamingMessage();
@@ -241,11 +226,11 @@ const ChatPage = (): ReactElement => {
   };
 
   //set color
-  const getBotNameColor = (imgUrl: string) => {
+  const getBotNameColor = (imgUrl: string): void => {
     const img = new window.Image();
     img.crossOrigin = 'Anonymous'; // handle cross-origin problem
     img.src = imgUrl;
-    img.onload = () => {
+    img.onload = (): void => {
       const canvas = document.createElement('canvas');
       const context: any = canvas.getContext('2d');
       canvas.width = img.width;

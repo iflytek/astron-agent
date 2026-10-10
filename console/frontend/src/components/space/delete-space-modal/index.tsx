@@ -24,7 +24,7 @@ const DeleteSpaceModal: React.FC<DeleteSpaceModalProps> = ({
   const navigate = useNavigate();
   const { deleteSpace, spaceId, deleteSpaceCb } = useSpaceType(navigate);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     try {
       // Since we removed captcha, pass dummy values for mobile and verifyCode
       // This assumes the backend will be updated to not require these fields
@@ -41,7 +41,7 @@ const DeleteSpaceModal: React.FC<DeleteSpaceModalProps> = ({
     }
   };
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     onClose();
   };
 

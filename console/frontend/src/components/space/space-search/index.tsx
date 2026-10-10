@@ -32,7 +32,7 @@ const SpaceSearch: React.FC<SpaceSearchProps> = ({
   const isControlled = propValue !== undefined;
   const value = isControlled ? propValue : internalValue;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const inputValue = e.target.value;
 
     if (!isControlled) {
@@ -42,7 +42,7 @@ const SpaceSearch: React.FC<SpaceSearchProps> = ({
     onChange?.(e);
   };
 
-  const handleSearch = () => {
+  const handleSearch = (): void => {
     // 当输入框展开状态或不启用收缩功能时，且有输入内容，触发搜索
     if ((expand || !retractable) && value) {
       onSearch?.(value as string);
@@ -54,7 +54,7 @@ const SpaceSearch: React.FC<SpaceSearchProps> = ({
     }
   };
 
-  const handlePressEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handlePressEnter = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter' && value) {
       onSearch?.(value as string);
     }

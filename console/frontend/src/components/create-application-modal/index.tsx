@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Form, message } from 'antd';
+import { Modal, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { getLanguageCode } from '@/utils/http';
 import AgentCreationModal from '@/components/agent-creation';
 import MakeCreateModal from '@/components/make-creation';
 import { useTranslation } from 'react-i18next';
@@ -20,10 +19,8 @@ const HeaderFeedbackModal: React.FC<HeaderFeedbackModalProps> = ({
   onCancel,
 }) => {
   const { t } = useTranslation();
-  const languageCode = getLanguageCode();
   const navigate = useNavigate();
   const [makeModalVisible, setMakeModalVisible] = useState(false);
-  const [form] = Form.useForm();
   const [selectedBox, setSelectedBox] = useState('');
   const [AgentCreationModalVisible, IntelligentModalVisible] =
     useState<boolean>(false); //智能体创建

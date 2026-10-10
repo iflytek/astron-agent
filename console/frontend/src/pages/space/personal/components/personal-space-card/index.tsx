@@ -1,15 +1,9 @@
 import React, { useRef } from 'react';
-import { Card, Tooltip } from 'antd';
+import { Card } from 'antd';
 import styles from './index.module.scss';
 
 import spaceAvatar from '@/assets/imgs/space/spaceAvatar.png';
 import { useTranslation } from 'react-i18next';
-
-interface SpaceItem {
-  id: string;
-  avatarUrl?: string;
-  name: string;
-}
 
 const PersonalSpaceCard: React.FC = () => {
   const infoContentRef = useRef<HTMLDivElement>(null);

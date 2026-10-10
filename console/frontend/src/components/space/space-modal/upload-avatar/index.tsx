@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { aiGenerateCover } from '@/services/spark-common';
 import { uploadFile } from '@/utils/utils';
 import { Modal, message } from 'antd';
 import Cropper from 'react-easy-crop';
@@ -7,7 +6,6 @@ import PulseLoader from 'react-spinners/PulseLoader';
 import styles from './index.module.scss';
 import classNames from 'classnames';
 import defaultUploadIcon from '@/assets/imgs/space/upload.png';
-import { FormattedMessage } from 'react-intl';
 import { useImageCropUpload } from '@/hooks/use-image-crop-upload';
 import { useTranslation } from 'react-i18next';
 
@@ -27,7 +25,7 @@ const ImageCropUpload: React.FC<ImageCropUploadProps> = ({
   uploadIcon = defaultUploadIcon,
 }) => {
   const [reUploadImg, setReUploadImg] = useState(false);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const { t } = useTranslation();
@@ -47,7 +45,7 @@ const ImageCropUpload: React.FC<ImageCropUploadProps> = ({
     isFormReady,
   } = useImageCropUpload({ logPerf: true });
 
-  const onCancel = () => {
+  const onCancel = (): void => {
     closeModal();
   };
 
@@ -86,7 +84,7 @@ const ImageCropUpload: React.FC<ImageCropUploadProps> = ({
       />
       <div
         className={classNames(styles.box, coverUrl && styles.noBorder)}
-        onClick={loading ? () => null : triggerFileSelectPopup}
+        onClick={loading ? (): null => null : triggerFileSelectPopup}
       >
         {loading && <PulseLoader color="#425CFF" size={14} />}
         {!loading &&

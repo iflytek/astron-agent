@@ -3,7 +3,6 @@ import {
   ModelInfo,
   LLMSource,
   ShelfStatus,
-  ModelType,
   ModelCreateType,
 } from '@/types/model';
 import React from 'react';

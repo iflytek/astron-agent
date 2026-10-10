@@ -1,10 +1,8 @@
 import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input, message, Modal, Popover, Select, Tooltip } from 'antd';
+import { message, Modal, Popover, Select, Tooltip } from 'antd';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
-import { throttle } from 'lodash';
-import { enableBotFavorite } from '@/services/agent'; // NOTE: 需更换接口
 import { useTranslation } from 'react-i18next';
 import {
   BotData,
@@ -22,10 +20,6 @@ import useUserStore from '@/store/user-store';
 import { jumpToLogin, downloadFileWithHeaders } from '@/utils/http';
 import { getFixedUrl } from '@/components/workflow/utils';
 
-import iconNew from '@/assets/imgs/main/icon_bot_new.png';
-import search from '@/assets/imgs/knowledge/icon_zhishi_search.png';
-import favorite from '@/assets/imgs/main/favorite.png';
-import unfavorite from '@/assets/imgs/main/icon_bot_tag@2x.png';
 import formSelect from '@/assets/imgs/main/icon_nav_dropdown.svg';
 import agentOperationMore from '@/assets/imgs/main/agent-operation-more.svg';
 import chatIcon from '@/assets/imgs/main/chat-bot.svg';
@@ -53,14 +47,11 @@ type WorkflowSkillAgent = Pick<
   'botId' | 'maasId' | 'botName' | 'botDesc'
 >;
 
-function index() {
+function index(): React.ReactElement {
   const creatorLabel = '\u521b\u5efa\u4eba\uff1a';
   const createdAtLabel = '\u521b\u5efa\u65f6\u95f4\uff1a';
   const [showbotNo, setShowbotNo] = useState(false);
   const typePublished = [1, 2, 4]; // 已发布状态
-  const typeUnblished = [];
-  const typeAudit = [];
-  const typeFail = [];
   const user = useUserStore((state: any) => state.user);
   const canManageMarketRelease =
     user?.spaceType === SpaceType.PERSONAL ||
@@ -72,8 +63,6 @@ function index() {
   const loading = useRef<boolean>(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [botDetail, setBotDetail] = useState<any>({});
-  const [isHovered, setIsHovered] = useState<any>(null);
-  const [appInfoModal, setAppInfoModal] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [robots, setRobots] = useState<any>([]);
   const [pageIndex, setPageIndex] = useState(1);
@@ -136,11 +125,11 @@ function index() {
   ];
 
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
+    const handleOutsideClick = (e: MouseEvent): void => {
       setOperationId(null);
     };
     window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
+    return (): void => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
   useEffect(() => {
@@ -184,7 +173,7 @@ function index() {
   }
 
   // NOTE: 现未使用
-  function handleScroll() {
+  function handleScroll(): void {
     const element = robotRef.current;
     if (!element) return;
 
@@ -200,7 +189,7 @@ function index() {
     }
   }
 
-  function moreRobots() {
+  function moreRobots(): void {
     const params: GetAgentListParams = {
       pageIndex: pageIndex,
       pageSize: 20,
@@ -233,36 +222,6 @@ function index() {
       getRobots(value);
     }, 500),
     [searchValue]
-  );
-
-  function jumpChat(e: React.MouseEvent<HTMLDivElement>, id: string): void {
-    e.stopPropagation();
-    navigate(`/space/bot/${id}/chat`);
-  }
-
-  function jumpConfig(e: React.MouseEvent<HTMLDivElement>, id: string): void {
-    e.stopPropagation();
-    navigate('/space/config/' + id + '/base');
-  }
-
-  const handleBotFavorite = useCallback(
-    throttle(robot => {
-      const params = {
-        botId: robot.id,
-        favoriteFlag: robot?.isFavorite ? 1 : 0,
-      };
-
-      enableBotFavorite(params).then(data => {
-        setRobots((robots: any[]) => {
-          const currentBot = robots.find((item: any) => item.id === robot.id);
-          currentBot.isFavorite = !currentBot.isFavorite;
-          currentBot.favoriteCount = data;
-
-          return [...robots];
-        });
-      });
-    }, 1000),
-    []
   );
 
   /** 复制操作 */

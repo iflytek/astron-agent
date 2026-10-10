@@ -10,10 +10,7 @@ import { CaretDownOutlined } from '@ant-design/icons';
 import { Dropdown, Menu, Modal, Button, message, Popconfirm } from 'antd';
 import { CloseIcon } from '@/components/svg-icons';
 import styles from './index.module.scss';
-import { useSparkCommonStore } from '@/store/spark-store/spark-common';
-import BotCard from './bot-card';
 import { useTranslation } from 'react-i18next';
-import messageSpace from '@/assets/imgs/share-page/message_space.svg';
 import { getTextContent, createSafeHTML } from '@/utils/sanitizer';
 interface NoticeModalProps {
   open: boolean;
@@ -31,14 +28,14 @@ const initCoverImg = (messageItem: Notification): string => {
   return systemCover[typeIndex] || '';
 };
 
-const renderSpecialMsg = (selectMessageObj: any) => {
+const renderSpecialMsg = (selectMessageObj: any): null => {
   if (selectMessageObj?.type === 'SYSTEM') {
     return null;
   }
   return null;
 };
 
-const renderEmptyState = (t: any) => (
+const renderEmptyState = (t: any): React.ReactElement => (
   <li className={styles.empty_list}>
     <div className={styles.empty_list_icon} />
     <span>{t('systemMessage.noMoreMessage')}</span>
@@ -51,7 +48,7 @@ const renderNotificationItem = (
   readMessage: (item: Notification) => void,
   delMessage: (item: Notification, e: any) => void,
   t: any
-) => (
+): React.ReactElement => (
   <li
     className={`${selectedId === item.id ? styles.selected : ''}`}
     key={item.id}
@@ -96,7 +93,7 @@ const renderDropdown = (
   messageType: any[],
   selectType: string,
   changeType: (item: any) => void
-) => {
+): React.ReactElement => {
   return (
     <Dropdown
       overlay={
@@ -157,9 +154,7 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
   onMessageRead,
 }) => {
   const [selectType, setSelectType] = useState<string>('0');
-  const myMessage = useSparkCommonStore(state => state.myMessage);
-  const setMyMessage = useSparkCommonStore(state => state.setMyMessage);
-  const [messageType, setMessageType] = useState<any[]>(messageTypeList);
+  const [messageType] = useState<any[]>(messageTypeList);
   const [messageDetail, setMessageDetail] = useState<string>('');
   const [selectedId, setSelectedId] = useState<number>(0);
   const [notificationData, setNotificationData] =
@@ -167,12 +162,12 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
   const [selectMessageObj, setSelectMsgObj] = useState<any>({});
   const { t } = useTranslation();
 
-  const changeType = (item: any) => {
+  const changeType = (item: any): void => {
     setSelectType(item.key);
     getMessages(item.key);
   };
 
-  const getMessages = async (queryMessageType?: string) => {
+  const getMessages = async (queryMessageType?: string): Promise<void> => {
     const queryParam = {
       type: queryMessageType || '0',
       unreadOnly: false,
@@ -191,8 +186,8 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
     //   )
     // );
   };
-  const readMessage = async (messageItem: Notification) => {
-    const readStatus = await changeMessageStatus({
+  const readMessage = async (messageItem: Notification): Promise<void> => {
+    await changeMessageStatus({
       notificationIds: [messageItem.id],
       markAll: false,
     });
@@ -217,7 +212,10 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
     onMessageRead?.();
   };
 
-  const delMessage = async (messageItem: Notification, e: any) => {
+  const delMessage = async (
+    messageItem: Notification,
+    e: any
+  ): Promise<void> => {
     deleteMessage(messageItem.id)
       .then(res => {
         message.success(t('systemMessage.deleteSuccess'));
@@ -230,7 +228,7 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
       });
   };
 
-  const readAll = () => {
+  const readAll = (): void => {
     changeMessageStatus({
       notificationIds:
         notificationData?.notificationsByType[

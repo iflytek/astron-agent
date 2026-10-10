@@ -125,7 +125,7 @@ export const useSpaceType = (navigate?: any) => {
         switchToPersonal();
       }
 
-      const resetTeamPath = (hasSpace: boolean) => {
+      const resetTeamPath = (hasSpace: boolean): void => {
         if (param?.isJump) {
           if (hasSpace) {
             navigate?.('/space/agent');
@@ -135,7 +135,7 @@ export const useSpaceType = (navigate?: any) => {
         }
       };
 
-      const resetSpaceStore = () => {
+      const resetSpaceStore = (): void => {
         const emptyState: Partial<SpaceStoreState> = {
           spaceId: '',
           spaceName: '',
