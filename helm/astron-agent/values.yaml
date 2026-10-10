@@ -3,7 +3,9 @@ global:
   imageRegistry: ghcr.io/iflytek/astron-agent
   imagePullPolicy: IfNotPresent
   storageClass: ""
-  astronAgentVersion: latest
+  # Image tag for Astron Agent services. Empty uses the chart appVersion (a
+  # vX.Y.Z release); set "latest" to track rolling builds from main.
+  astronAgentVersion: ""
   # Host base address for application access (e.g., https://your-domain.com).
   # MinIO endpoints are configured independently under minio so enabling an
   # application ingress never exposes object storage by accident.

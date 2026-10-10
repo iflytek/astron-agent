@@ -24,7 +24,7 @@ spec:
       {{- end }}
       containers:
       - name: console-frontend
-        image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleFrontend.image }}:{{ .Values.global.astronAgentVersion }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleFrontend.image }}:{{ include "astron-agent.imageTag" . }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         env:
         - name: CONSOLE_CASDOOR_URL

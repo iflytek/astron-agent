@@ -20,6 +20,18 @@ cp .env.example .env
 
 After copying the file, fill in model, database, object storage, and authentication settings as required.
 
+### Optional: Pin A Stable Release
+
+The default `ASTRON_AGENT_VERSION=latest` tracks rolling builds from `main` and may include unreleased changes. For long-running deployments, CI, or downstream integrations, pick a `vX.Y.Z` from [Releases](https://github.com/iflytek/astron-agent/releases) and keep the code and images on the same version (switch before copying `.env.example`):
+
+```bash
+git checkout vX.Y.Z
+cp .env.example .env
+# then set ASTRON_AGENT_VERSION=vX.Y.Z in .env
+```
+
+Images are also published with floating `X.Y` and `X` tags if you want to follow patch or minor updates within one release line.
+
 ### 2. Start The Services
 
 ```bash

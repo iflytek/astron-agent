@@ -33,6 +33,7 @@ docker compose -f docker-compose-with-auth.yaml pull
 - Back up important data before upgrading
 - If you use the deployment without authentication, replace `docker-compose-with-auth.yaml` with `docker-compose.yaml`
 - Review whether configuration files need updates after the upgrade
+- If you pinned a release (`ASTRON_AGENT_VERSION=vX.Y.Z`), use `git fetch --tags && git checkout <new-version>` instead of `git pull`, update `ASTRON_AGENT_VERSION` in `.env` to match, and read the release notes before upgrading
 - Start the services only after confirming all environment variables are correct
 
 ---
@@ -43,7 +44,7 @@ Use the following checklist step by step. Back up important data before performi
 
 1. Run `docker compose -f docker-compose-with-auth.yaml down -v` to clear containers and volumes. This removes all persisted data.
 2. Run `git restore docker` to discard local changes under the `docker` directory and return to the repository version.
-3. Set the `ASTRON_AGENT_VERSION` environment variable to a stable release such as `v1.0.0-rc.x`.
+3. Set `ASTRON_AGENT_VERSION` to the newest stable release from [Releases](https://github.com/iflytek/astron-agent/releases) (for example `v1.1.2`), and `git checkout` the same tag so the compose files match the images.
 4. Reconfigure the remaining environment variables according to the deployment guide and verify the values carefully.
 5. Run `docker compose -f docker-compose-with-auth.yaml up -d` to start all services again.
 6. Clear the browser cache or open the page in an incognito window.

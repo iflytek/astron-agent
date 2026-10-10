@@ -2,8 +2,9 @@ apiVersion: v2
 name: astron-agent
 description: A Helm chart for Astron Agent - AI Agent Builder Platform with Authentication
 type: application
-version: 1.0.0
-appVersion: "latest"
+version: 1.1.2
+# Default image tag for all Astron Agent services; bump together with each vX.Y.Z release
+appVersion: "v1.1.2"
 keywords:
   - astron-agent
   - ai-agent
