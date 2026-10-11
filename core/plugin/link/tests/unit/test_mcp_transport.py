@@ -1,5 +1,6 @@
 """Tests for MCP client transport selection and fallback behavior."""
 
+import json
 import ssl
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
@@ -89,6 +90,17 @@ def mock_http_client_factory(status_code: int) -> Callable[..., httpx.AsyncClien
         return real_async_client(*args, **kwargs)
 
     return create_client
+
+
+def configure_bearer_ref(
+    monkeypatch: pytest.MonkeyPatch,
+    url: str = "https://example.com/mcp",
+    token: str = "transport-secret",
+) -> None:
+    monkeypatch.setenv(
+        "MCP_SERVER_BEARER_TOKEN_REFS", json.dumps({url: "TEST_MCP_BEARER_TOKEN"})
+    )
+    monkeypatch.setenv("TEST_MCP_BEARER_TOKEN", token)
 
 
 @pytest.fixture
@@ -322,6 +334,86 @@ async def test_real_sdk_streamable_http_success_round_trip(
     assert result.isError is False
     assert result.content[0].type == "text"
     assert result.content[0].text == "hello"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_configured_bearer_is_applied_and_redirects_are_disabled(
+    monkeypatch: pytest.MonkeyPatch, fake_session: None
+) -> None:
+    attempts: list[str] = []
+    observed_client_options: dict[str, Any] = {}
+    real_async_client = httpx.AsyncClient
+
+    def create_client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        observed_client_options.update(kwargs)
+        kwargs["transport"] = httpx.MockTransport(
+            lambda request: httpx.Response(500, request=request)
+        )
+        return real_async_client(*args, **kwargs)
+
+    configure_bearer_ref(monkeypatch)
+    monkeypatch.setattr(mcp_transport.httpx, "AsyncClient", create_client)
+    monkeypatch.setattr(
+        mcp_transport,
+        "streamable_http_client",
+        transport_factory(attempts, "streamable_http"),
+    )
+    monkeypatch.setattr(mcp_transport, "sse_client", transport_factory(attempts, "sse"))
+
+    async with mcp_transport.initialized_mcp_session(
+        "https://example.com/mcp", MCPTransport.AUTO
+    ) as (_, selected):
+        assert selected is MCPTransport.STREAMABLE_HTTP
+
+    assert attempts == ["streamable_http"]
+    assert observed_client_options["headers"] == {
+        "Authorization": "Bearer transport-secret"
+    }
+    assert observed_client_options["follow_redirects"] is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_configured_bearer_never_falls_back_to_sse(
+    monkeypatch: pytest.MonkeyPatch, fake_session: None
+) -> None:
+    attempts: list[str] = []
+    configure_bearer_ref(monkeypatch)
+    monkeypatch.setattr(
+        mcp_transport,
+        "streamable_http_client",
+        transport_factory(
+            attempts, "streamable_http", initialize_error=http_status_error(405)
+        ),
+    )
+    monkeypatch.setattr(mcp_transport, "sse_client", transport_factory(attempts, "sse"))
+
+    with pytest.raises(mcp_transport.MCPTransportError) as exc_info:
+        async with mcp_transport.initialized_mcp_session(
+            "https://example.com/mcp", MCPTransport.AUTO
+        ):
+            pytest.fail("the session should not initialize")
+
+    assert exc_info.value.transport is MCPTransport.STREAMABLE_HTTP
+    assert attempts == ["streamable_http"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_configured_bearer_rejects_explicit_sse_without_leaking_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_bearer_ref(monkeypatch)
+
+    with pytest.raises(mcp_transport.MCPTransportError) as exc_info:
+        async with mcp_transport.initialized_mcp_session(
+            "https://example.com/mcp", MCPTransport.SSE
+        ):
+            pytest.fail("the session should not initialize")
+
+    assert exc_info.value.phase == "authentication configuration"
+    assert "transport-secret" not in str(exc_info.value)
 
 
 @pytest.mark.unit
