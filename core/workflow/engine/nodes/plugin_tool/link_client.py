@@ -3,6 +3,8 @@ import time
 from base64 import b64encode
 from typing import Any, Dict, List, Set, Tuple
 
+import aiohttp
+
 from workflow.exception.e import CustomException
 from workflow.exception.errors.code_convert import CodeConvert
 from workflow.exception.errors.err_code import CodeEnum
@@ -262,13 +264,9 @@ class Tool:
 
             # Execute HTTP request to Link system
 
-            import requests  # type: ignore
-
             try:
-                from aiohttp import ClientSession
-
                 # Make asynchronous HTTP request to Link system
-                async with ClientSession() as session:
+                async with aiohttp.ClientSession() as session:
                     start_time = time.time() * 1000
                     async with session.post(
                         self.run_url, json=run_link_payload
@@ -287,8 +285,8 @@ class Tool:
                                 )
                             }
                         )
-            except requests.ConnectionError as e:
-                # Handle connection errors
+            except aiohttp.ClientConnectionError as e:
+                # Handle transport failures raised by the aiohttp client
                 raise CustomException(
                     CodeEnum.SPARK_LINK_CONNECTION_ERROR,
                     err_msg="Tool request failed, connection error",
