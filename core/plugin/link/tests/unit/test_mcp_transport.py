@@ -427,3 +427,25 @@ async def test_operation_failure_after_initialization_does_not_retry(
             raise RuntimeError("tool failed")
 
     assert attempts == ["streamable_http"]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_streamable_http_client_does_not_follow_redirects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def create_client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        captured.update(kwargs)
+        raise RuntimeError("captured-client-kwargs")
+
+    monkeypatch.setattr(mcp_transport.httpx, "AsyncClient", create_client)
+
+    with pytest.raises(mcp_transport.MCPTransportError):
+        async with mcp_transport.initialized_mcp_session(
+            "https://example.com/mcp", MCPTransport.STREAMABLE_HTTP
+        ):
+            pytest.fail("the session should not initialize")
+
+    assert captured.get("follow_redirects") is False
