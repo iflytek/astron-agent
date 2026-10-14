@@ -1,6 +1,6 @@
 # 代码质量检测文档
 
-本目录包含各语言的代码质量检测工具说明，与Makefile工具链集成。
+本目录包含各语言的代码质量检测工具说明，与 Makefile 工具链集成。
 
 ## 支持的语言
 
@@ -38,5 +38,5 @@ make fmt-typescript && make check-typescript  # TypeScript
 ## 相关文档
 
 - [分支与提交规范](./branch-commit-standards-zh.md) - 分支管理和提交消息规范
-- [Makefile使用指南](../docs/Makefile-readme.md) - 完整的Makefile命令说明
-- [本地开发配置](../docs/Makefile-readme.md#local-development-configuration) - 使用`.localci.toml`进行模块化开发
+- [Makefile使用指南](../../docs/zh/Makefile-readme.md) - 完整的Makefile命令说明
+- [本地开发配置](../../docs/zh/Makefile-readme.md#本地开发配置) - 使用`.localci.toml`进行模块化开发
