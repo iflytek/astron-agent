@@ -121,7 +121,7 @@ spec:
       {{- end }}
       containers:
       - name: {{ kebabcase $serviceName }}
-        image: "{{ $.Values.global.imageRegistry }}/{{ $serviceConfig.image }}:{{ $.Values.global.astronAgentVersion }}"
+        image: "{{ $.Values.global.imageRegistry }}/{{ $serviceConfig.image }}:{{ include "astron-agent.imageTag" $ }}"
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
         env:
         {{- range $key, $value := $serviceConfig.env }}

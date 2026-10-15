@@ -33,6 +33,7 @@ docker compose -f docker-compose-with-auth.yaml pull
 - 升级前建议备份重要数据
 - 如果您使用的是不带认证的版本，请将 `docker-compose-with-auth.yaml` 替换为 `docker-compose.yaml`
 - 升级后请检查配置文件是否需要更新
+- 如果锁定了版本（`ASTRON_AGENT_VERSION=vX.Y.Z`），请用 `git fetch --tags && git checkout <新版本>` 代替 `git pull`，并同步修改 `.env` 中的 `ASTRON_AGENT_VERSION`；跨版本前先阅读对应 Release 说明
 - 确保所有环境变量配置正确后再启动服务
 
 ---
@@ -43,7 +44,7 @@ docker compose -f docker-compose-with-auth.yaml pull
 
 1. 执行 `docker compose -f docker-compose-with-auth.yaml down -v` 清理容器和数据卷，该步骤会删除所有数据。
 2. 运行 `git restore docker` 清理 `docker` 目录下的改动，恢复为仓库版本。
-3. 将 `ASTRON_AGENT_VERSION` 环境变量设置为稳定版 `v1.0.0-rc.x`。
+3. 将 `ASTRON_AGENT_VERSION` 设置为 [Releases](https://github.com/iflytek/astron-agent/releases) 中最新的稳定版（如 `v1.1.2`），并用 `git checkout` 切换到同名标签，保证编排文件与镜像版本一致。
 4. 按照部署文档重新配置其余环境变量，确保取值正确。
 5. 执行 `docker compose -f docker-compose-with-auth.yaml up -d` 重新启动所有服务。
 6. 清理浏览器缓存，或直接使用无痕模式访问页面。

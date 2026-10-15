@@ -14,7 +14,12 @@
 # 克隆仓库
 git clone https://github.com/iflytek/astron-agent.git
 cd astron-agent/helm/astron-agent
+
+# 生产环境建议切换到发布版本，使 Chart 与镜像版本一致
+git checkout vX.Y.Z
 ```
+
+`global.astronAgentVersion` 留空时，镜像标签默认取 Chart 的 `appVersion`（即对应的发布版本）。v1.1.2 及更早版本的 Chart 中 `appVersion` 仍为 `latest`，切换到这些版本时请显式指定镜像版本，例如 `--set-string global.astronAgentVersion=v1.1.2`。
 
 ### 2. 修改配置
 
@@ -23,8 +28,9 @@ cd astron-agent/helm/astron-agent
 ```yaml
 # 全局配置 - 主机访问地址
 global:
-  # 镜像版本
-  astronAgentVersion: latest
+  # 镜像版本：留空使用 Chart appVersion（如 v1.1.2）；
+  # 设为 latest 跟随 main 分支滚动构建；也可用 1.1 / 1 跟随版本线
+  astronAgentVersion: ""
   
   # 主机地址，用于 MinIO、Casdoor 等服务的外部访问
   # 例如: http://your-domain.com
