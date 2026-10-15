@@ -64,6 +64,17 @@ console-hub , astron-agent-core-tenant )。
 - 确认请求 URL 中的 Host 和 Port 是否正确（指向 console-hub  或网关端口）。
 3. 参数替换：如果是从示例代码复制，确保 xxx  等占位符已替换为实际值。
 
+## 发布到智能体广场的智能体，其他账号使用时提示「模型不存在」？
+
+在 `v1.1.2` 及更早版本中，已发布的智能体会按**调用者**的身份查找所引用的模型，而在「模型管理」中添加的模型属于发布者本人，因此除发布者以外的账号都会提示模型不存在。
+
+该问题已在 [#1681](https://github.com/iflytek/astron-agent/pull/1681) 中修复（晚于 `v1.1.2` 合入）：改为按发布者身份解析智能体所引用的模型，同时保留对调用者的鉴权检查。升级方法：
+
+1. 重新拉取 `console-hub` 与 `console-frontend` 的 `latest` 镜像：`docker compose pull console-hub console-frontend`。
+2. 重建这两个容器：`docker compose up -d console-hub console-frontend`。
+
+以上命令在 `docker/astronAgent` 目录下执行；如果部署时使用了其他 compose 文件（如 `docker-compose-with-auth.yaml`），请加上对应的 `-f` 参数。只重建容器不会拉取新镜像，问题会依旧存在，详见 [setup.md](setup.md) 中「为什么用了 `latest` 镜像却不是最新的？」。
+
 ## 私有化部署中 AITools 服务连接 MinIO/OSS 报错 403 Forbidden？
 
 这通常是域名转发配置问题。请检查 Nginx 等代理服务的域名和路径转发规则，确保正确配置了 MinIO/OSS 的访问路径，并正确传递了鉴权头。
