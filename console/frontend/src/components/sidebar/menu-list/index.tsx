@@ -4,19 +4,15 @@ import { Popover, Modal, message } from 'antd';
 import { menuList } from '@/constants';
 import useUserStore from '@/store/user-store';
 import eventBus from '@/utils/event-bus';
-import { jumpToLogin } from '@/utils/http';
-import { checkUserInfo } from '@/services/spark-common';
 import useChat from '@/hooks/use-chat';
 import { useEnterprise } from '@/hooks/use-enterprise';
 import useSpaceStore from '@/store/space-store';
 import { useTranslation } from 'react-i18next';
-import { getCookie } from '@/utils';
-import classNames from 'classnames';
 import { PersonSpace } from '@/components/space/person-space';
 import SpaceModal from '@/components/space/space-modal';
 import { useSpaceType } from '@/hooks/use-space-type';
 import useEnterpriseStore from '@/store/enterprise-store';
-import { MEMBER_ROLE, OWNER_ROLE } from '@/pages/space/config';
+import { OWNER_ROLE } from '@/pages/space/config';
 
 // Assets
 import spaceMore from '@/assets/imgs/space/space-more.svg';
@@ -58,10 +54,6 @@ const EnterpriseSpaceEmptyMenu: FC<EnterpriseSpaceEmptyMenuProps> = ({
 
   const isOwner = useMemo(() => {
     return curEnterprise && curEnterprise?.role == Number(OWNER_ROLE);
-  }, [curEnterprise]);
-
-  const isMember = useMemo(() => {
-    return curEnterprise && curEnterprise?.role == Number(MEMBER_ROLE);
   }, [curEnterprise]);
 
   const isShowJoinMenu = useMemo(() => {
@@ -106,7 +98,7 @@ const EnterpriseSpaceEmptyMenu: FC<EnterpriseSpaceEmptyMenuProps> = ({
         icon: enterpriseShareCreate,
         desc: t('space.createTeamSharedSpace'),
         btnText: t('space.createNewSpace'),
-        onClick: () => {
+        onClick: (): void => {
           setShowCreateModal(true);
         },
       },
@@ -117,7 +109,7 @@ const EnterpriseSpaceEmptyMenu: FC<EnterpriseSpaceEmptyMenuProps> = ({
               icon: enterpriseSpaceJoin,
               desc: t('space.joinTeamSpace'),
               btnText: t('space.enterSpaceManagement'),
-              onClick: () => {
+              onClick: (): void => {
                 navigate(`/enterprise/${enterpriseId}/space`);
               },
             },
@@ -304,7 +296,7 @@ const useMenuListHelpers = (
   onRefreshData?: () => void
 ) => {
   // 动态设置 Popover 的最大高度
-  const updatePopoverMaxHeight = () => {
+  const updatePopoverMaxHeight = (): void => {
     if (spaceButtonRef.current) {
       const rect = spaceButtonRef.current.getBoundingClientRect();
       const topPosition = rect.top;
@@ -315,23 +307,23 @@ const useMenuListHelpers = (
     }
   };
 
-  const handleShowSpacePopover = () => {
+  const handleShowSpacePopover = (): void => {
     updatePopoverMaxHeight(); // 更新 CSS 变量
     setIsShowSpacePopover((prev: boolean) => !prev);
   };
 
   // Chat and favorites management
-  const handleNavigateToChat = (item: any) => {
+  const handleNavigateToChat = (item: any): void => {
     handleToChat(item?.botId);
   };
 
-  const handleDeleteChat = (item: any, e: any) => {
+  const handleDeleteChat = (item: any, e: any): void => {
     e.stopPropagation();
     setChatListId(item?.id);
     setDeleteOpen(true);
   };
 
-  const handleDeleteChatConfirm = () => {
+  const handleDeleteChatConfirm = (): void => {
     deleteChatList({
       chatListId: Number(chatListId),
     })
@@ -351,7 +343,7 @@ const useMenuListHelpers = (
   };
 
   // Get messages/notifications
-  const getMessages = async (queryMessageType: string) => {
+  const getMessages = async (queryMessageType: string): Promise<void> => {
     const queryParam = {
       typeId: queryMessageType || 0,
       page: 1,
@@ -361,7 +353,7 @@ const useMenuListHelpers = (
   };
 
   // Check login
-  const checkLogin = () => {
+  const checkLogin = (): void => {
     // checkUserInfo().then((res: any) => {
     //   checkNeedCreateTeamFn();
     //   setMobile(res?.mobile);
@@ -372,7 +364,7 @@ const useMenuListHelpers = (
   };
 
   // Effects handlers
-  const initializeActiveMenu = (location: any) => {
+  const initializeActiveMenu = (location: any): void => {
     const path = window.location.pathname.replace(
       '/application-development',
       ''
@@ -386,7 +378,7 @@ const useMenuListHelpers = (
     });
   };
 
-  const initializeApp = () => {
+  const initializeApp = (): void => {
     checkLogin();
     getMessages('0');
   };

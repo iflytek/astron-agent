@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { Select, message, Modal } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useSpaceI18n } from '@/pages/space/hooks/use-space-i18n';
 import SpaceTable, {
@@ -76,15 +75,11 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
       };
     } catch (error: any) {
       message.error(error?.msg || error?.desc);
-      return {
-        data: [],
-        total: 0,
-        success: false,
-      };
+      return { data: [], total: 0, success: false };
     }
   };
 
-  const handleDeleteMember = (uid: number, username: string) => {
+  const handleDeleteMember = (uid: number, username: string): void => {
     Modal.confirm({
       title: t('space.confirmDelete'),
       content: t('space.confirmDeleteMember', { username }),
@@ -103,7 +98,10 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
     });
   };
 
-  const handleRoleChange = async (uid: number, newRole: string) => {
+  const handleRoleChange = async (
+    uid: number,
+    newRole: string
+  ): Promise<void> => {
     try {
       await updateUserRole({ uid: uid, role: Number(newRole) });
       message.success(t('space.roleUpdateSuccess'));
@@ -147,7 +145,7 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
         permission: {
           module: ModuleType.SPACE,
           operation: OperationType.ADD_MEMBERS,
-          customCheck: () => {
+          customCheck: (): boolean => {
             return !!(
               member.role != OWNER_ROLE &&
               permissionInfo?.checks.canRemoveMembers(ModuleType.SPACE) &&
@@ -181,7 +179,7 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
       title: t('space.role'),
       dataIndex: 'role',
       key: 'role',
-      render: (role: string, record: Member) => {
+      render: (role: string, record: Member): React.ReactElement => {
         const showText =
           role == OWNER_ROLE ||
           !permissionInfo?.checks.hasModulePermission(

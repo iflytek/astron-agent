@@ -5,7 +5,7 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
-import { message, Modal, Tag } from 'antd';
+import { message, Modal } from 'antd';
 import SpaceTable, {
   SpaceColumnConfig,
   ActionColumnConfig,
@@ -95,7 +95,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
     );
 
     useImperativeHandle(ref, () => ({
-      reload: () => {
+      reload: (): void => {
         tableRef.current?.reload();
       },
     }));
@@ -183,7 +183,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
       () => ({
         title: t('space.operation'),
         width: 100,
-        getActionButtons: (record: InvitationData) => {
+        getActionButtons: (record: InvitationData): ButtonConfig[] => {
           if (record.status !== Number(PENDING_STATUS)) {
             return [];
           }
@@ -193,7 +193,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
               key: 'cancel',
               text: t('space.revoke'),
               type: 'link',
-              onClick: () => {
+              onClick: (): void => {
                 Modal.confirm({
                   title: t('space.confirmRevoke'),
                   content: t('space.confirmRevokeInvitation', {

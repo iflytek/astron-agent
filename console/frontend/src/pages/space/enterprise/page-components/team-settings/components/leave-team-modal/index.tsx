@@ -38,7 +38,7 @@ const LeaveTeamModal: React.FC<LeaveTeamModalProps> = ({
     };
   }, [orderType]);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (): Promise<void> => {
     try {
       // 执行离开团队操作
       const leaveRes: any = await quitEnterprise();

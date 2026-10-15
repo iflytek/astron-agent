@@ -48,7 +48,6 @@ const MessageList = (props: {
     botNameColor,
     handleSendMessage,
     chatType,
-    vmsInteractionCmpRef,
   } = props;
   const { t } = useTranslation();
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
@@ -70,7 +69,7 @@ const MessageList = (props: {
   } | null>(null);
 
   // 处理节点选项点击
-  const handleNodeClick = (option: Option, messageId: number) => {
+  const handleNodeClick = (option: Option, messageId: number): void => {
     setSelectedOptionId({ id: messageId, option });
     handleSendMessage({
       item: JSON.stringify(option),

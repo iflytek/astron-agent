@@ -44,7 +44,7 @@ const MessageList = (props: {
     bindTagClickEvent();
     scrollAnchorRef.current?.scrollIntoView();
   }, [messageList.length]);
-  const handleSendMessage = (text?: string) => {
+  const handleSendMessage = (text?: string): void => {
     if (!text) return;
     eventBus.emit('promptTry.inputExample', text);
   };

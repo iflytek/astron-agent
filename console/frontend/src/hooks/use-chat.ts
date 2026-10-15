@@ -263,7 +263,7 @@ const useChat = () => {
     workflowOperation?: string;
     version?: string;
     onSendCallback?: () => void;
-  }) => {
+  }): Promise<void> => {
     setIsWorkflowOption(false);
     setWorkflowOption({ option: [], content: '' });
     setWorkflowOperation([]);
@@ -280,7 +280,9 @@ const useChat = () => {
   };
 
   //重新回答
-  const handleReAnswer = async (params: { requestId: number }) => {
+  const handleReAnswer = async (params: {
+    requestId: number;
+  }): Promise<void> => {
     const { requestId } = params;
     const esURL = `${baseURL}/chat-message/re-answer`;
     const form = new FormData();
@@ -290,11 +292,11 @@ const useChat = () => {
   };
 
   //去对话页面
-  const handleToChat = (botId: number) => {
+  const handleToChat = (botId: number): void => {
     navigate(`/chat/${botId}`);
   };
 
-  const handleFlowToChat = (item: any) => {
+  const handleFlowToChat = (item: any): void => {
     let url = `${window.location.origin}/chat/${item?.botId}`;
     if (item?.version) {
       url += `?version=${item?.version}`;

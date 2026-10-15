@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getBotInfo } from '@/services/spark-common';
 import BotAnalysis from '@/components/config-page-component/bot-analysis';
@@ -15,7 +15,7 @@ const ConfigOverview = ({
   currentRobot: any;
   currentTab: any;
   setCurrentTab: any;
-}) => {
+}): ReactElement => {
   const [searchParams] = useSearchParams();
   const botId = searchParams.get('botId');
   const [detailInfo, setDetailInfo] = useState<BotInfoType>();

@@ -3,7 +3,7 @@ import { Table as AntdTable } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/utils';
 
-export const Table = ({ ...reset }) => {
+export const Table = ({ ...reset }): React.ReactElement => {
   const { t } = useTranslation();
 
   return (

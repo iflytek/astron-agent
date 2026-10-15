@@ -3,13 +3,9 @@ import teamIcon from '@/assets/imgs/sidebar/team-avatar.svg';
 import personalIcon from '@/assets/imgs/sidebar/person-avatar.svg';
 import switchArrow from '@/assets/imgs/sidebar/switch.svg';
 import personalCenterIcon from '@/assets/imgs/sidebar/person-center.svg';
-import orderIcon from '@/assets/imgs/trace/orderIcon.svg';
-import feedbackIcon from '@/assets/imgs/sidebar/feedback.svg';
 import logoutIcon from '@/assets/imgs/sidebar/logout.svg';
-// import HeaderFeedbackModal from '@/components/header-feedback-modal';
-import spaceChooseIcon from '@/assets/imgs/sidebar/space-choosed.png';
 // import config from '@/config/index';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import classNames from 'classnames';
 import { Popover, Tooltip } from 'antd';
@@ -18,7 +14,6 @@ import useEnterpriseStore from '@/store/enterprise-store';
 import { useSpaceType } from '@/hooks/use-space-type';
 import { useEnterprise } from '@/hooks/use-enterprise';
 import { useTranslation } from 'react-i18next';
-import { visitSpace } from '@/services/space';
 import { handleLogout } from '@/utils/auth';
 import LanguageSwitcher from '@/components/language-switcher';
 
@@ -36,12 +31,11 @@ const ControlModal = ({
   onClose?: () => void;
   isPersonCenterOpen: boolean;
   setIsPersonCenterOpen: (visible: boolean) => void;
-}) => {
+}): ReactElement => {
   const { joinedEnterpriseList, info, setEnterpriseInfo } =
     useEnterpriseStore();
-  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
   const [showSpacePopover, setShowSpacePopover] = useState(false);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { spaceType, spaceId, enterpriseId, setSpaceType, setEnterpriseId } =
     useSpaceStore();
@@ -73,7 +67,7 @@ const ControlModal = ({
   }, [spaceType, spaceId, enterpriseId, info?.serviceType, t]);
 
   // 统一的空间点击处理函数
-  const handleSpaceClick = (item: any) => {
+  const handleSpaceClick = (item: any): void => {
     setSpaceType('team');
     handleTeamSwitch(item.id);
     onClose?.();
@@ -84,7 +78,7 @@ const ControlModal = ({
     });
     setShowSpacePopover(false);
   };
-  const handleTeamChoose = async () => {
+  const handleTeamChoose = async (): Promise<void> => {
     setEnterpriseInfo({
       id: '',
       logoUrl: '',
@@ -193,21 +187,8 @@ const ControlModal = ({
     </div>
   );
   //个人中心点击
-  const handlePersonalCenter = () => {
+  const handlePersonalCenter = (): void => {
     setIsPersonCenterOpen(true);
-    onClose?.();
-  };
-
-  //订单点击
-  const handleOrder = () => {
-    // navigate('/OrderManagement');
-    navigate('/orderRights');
-    onClose?.();
-  };
-
-  //意见反馈点击
-  const handleFeedback = () => {
-    setFeedbackModalVisible(true);
     onClose?.();
   };
 

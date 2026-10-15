@@ -7,7 +7,6 @@ import PersonalCenter from './personal-center';
 import MenuList from './menu-list';
 import IconEntry from './icon-entry';
 import NoticeModal from './notice-modal';
-import useUserStore from '@/store/user-store';
 import { postChatList } from '@/services/chat';
 import { getFavoriteList } from '@/services/agent-square';
 import { PostChatItem, FavoriteEntry } from '@/types/chat';
@@ -33,24 +32,14 @@ const Sidebar = (): ReactElement => {
   // Shared chat data state
   const [mixedChatList, setMixedChatList] = useState<PostChatItem[]>([]);
   const [favoriteBotList, setFavoriteBotList] = useState<FavoriteEntry[]>([]);
-  const getIsLogin = useUserStore.getState().getIsLogin;
 
   // 获取消息数量
-  const getMessageCount = async () => {
+  const getMessageCount = async (): Promise<void> => {
     const res = await getMessageCountApi();
     setUnreadCount(res);
   };
 
-  // Page info for favorites
-  const PAGE_SIZE = 45;
-  const pageInfo = {
-    searchValue: '',
-    pageIndex: 1,
-    pageSize: PAGE_SIZE,
-    botType: '',
-  };
-
-  const getChatList = async () => {
+  const getChatList = async (): Promise<void> => {
     try {
       const res = await postChatList();
       setMixedChatList(res);
@@ -59,7 +48,7 @@ const Sidebar = (): ReactElement => {
     }
   };
 
-  const getFavoriteBotListLocal = async () => {
+  const getFavoriteBotListLocal = async (): Promise<void> => {
     try {
       const res = await getFavoriteList(DEFAULT_PAGE_INFO);
       setFavoriteBotList(res.pageList);
@@ -68,7 +57,7 @@ const Sidebar = (): ReactElement => {
     }
   };
 
-  const createBot = () => {
+  const createBot = (): void => {
     setApplicationModalVisible(true);
   };
 
@@ -81,7 +70,7 @@ const Sidebar = (): ReactElement => {
     eventBus.on('favoriteChange', getFavoriteBotListLocal);
     eventBus.on('createBot', createBot);
 
-    return () => {
+    return (): void => {
       eventBus.off('createBot', createBot);
       eventBus.off('chatListChange', getChatList);
       eventBus.off('favoriteChange', getFavoriteBotListLocal);

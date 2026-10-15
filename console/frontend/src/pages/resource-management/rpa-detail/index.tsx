@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 import { ModalDetail } from '@/components/workflow/modal/modal-detail';
 import { ModalRpaRun } from '@/components/workflow/modal/modal-rpa-run';
 
-export const RpaDetail = () => {
+export const RpaDetail = (): React.ReactElement => {
   const { t } = useTranslation();
   const { rpaDetail, loading } = useRpaDetail();
   const modalDetailRef = useRef<{ showModal: (values?: RpaRobot) => void }>(
@@ -26,7 +26,7 @@ export const RpaDetail = () => {
       dataIndex: 'name',
       width: 200,
       ellipsis: true,
-      render: (_, record) => {
+      render: (_, record): React.ReactElement => {
         return (
           <div className="flex items-center">
             <img
@@ -49,7 +49,7 @@ export const RpaDetail = () => {
       title: t('rpa.parameters'),
       dataIndex: 'parameters',
       width: 80,
-      render: (_, record) => {
+      render: (_, record): React.ReactElement => {
         return (
           <div
             className="text-[#6356EA] cursor-pointer"
@@ -64,7 +64,7 @@ export const RpaDetail = () => {
       title: t('rpa.operation'),
       dataIndex: 'operation',
       width: 80,
-      render: (_, record) => {
+      render: (_, record): React.ReactElement => {
         return (
           <div
             className="text-[#275EFF] cursor-pointer"

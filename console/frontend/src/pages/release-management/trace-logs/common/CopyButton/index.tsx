@@ -1,5 +1,4 @@
 import React from 'react';
-import { message } from 'antd';
 import { ReactSVG } from 'react-svg';
 import copyIcon from '@/assets/imgs/trace/copy.svg';
 import { copyText } from '@/utils/spark-utils';
@@ -28,7 +27,7 @@ const CopyButton: React.FC<CopyButtonProps> = ({
   onClick,
 }) => {
   // 处理复制
-  const handleCopy = () => {
+  const handleCopy = (): void => {
     // 如果有自定义点击事件，优先执行
     if (onClick) {
       onClick();

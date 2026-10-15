@@ -1,11 +1,10 @@
 import React, { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Tooltip } from 'antd';
+import { Tooltip } from 'antd';
 import {
   ShareAltOutlined,
   UserAddOutlined,
   EditOutlined,
-  ArrowLeftOutlined,
 } from '@ant-design/icons';
 import ButtonGroup, {
   SpaceButton,
@@ -82,7 +81,7 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
       icon: <ShareAltOutlined />,
       type: 'default',
       permission: {
-        customCheck: () => {
+        customCheck: (): false => {
           // return spaceInfo.userRole === 1 || spaceInfo.userRole === 2;
           return false;
         },

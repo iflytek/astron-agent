@@ -33,23 +33,23 @@ function useToggle<D, R>(
     /**
      * 用于在默认值和反转值之间切换状态
      */
-    const toggle = () =>
+    const toggle = (): void =>
       setState(s => (s === defaultValue ? reverseValueOrigin : defaultValue));
 
     /**
      * 用于设置状态为指定值，但是限制在D | R两个值之间
      */
-    const set = (value: D | R) => setState(value);
+    const set = (value: D | R): void => setState(value);
 
     /**
      * 用于设置状态为默认值
      */
-    const setLeft = () => setState(defaultValue);
+    const setLeft = (): void => setState(defaultValue);
 
     /**
      * 用于设置状态为反转值
      */
-    const setRight = () => setState(reverseValueOrigin);
+    const setRight = (): void => setState(reverseValueOrigin);
 
     return {
       toggle,

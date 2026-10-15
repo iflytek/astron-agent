@@ -93,7 +93,7 @@ const ApprovalList: React.FC = () => {
   const openReviewModal = (
     approval: PublishApproval,
     action: 'approve' | 'reject'
-  ) => {
+  ): void => {
     let reviewComment = '';
     Modal.confirm({
       title:
@@ -127,7 +127,7 @@ const ApprovalList: React.FC = () => {
     });
   };
 
-  const cancelApproval = (approval: PublishApproval) => {
+  const cancelApproval = (approval: PublishApproval): void => {
     Modal.confirm({
       title: t('releaseManagement.cancelApproval'),
       okText: t('releaseManagement.confirm'),
@@ -161,7 +161,7 @@ const ApprovalList: React.FC = () => {
       dataIndex: 'approvalStatus',
       title: t('releaseManagement.status'),
       width: 140,
-      render: (value: string) => (
+      render: (value: string): React.ReactElement => (
         <Tag color={STATUS_COLORS[value] || 'default'}>
           {t(`releaseManagement.approvalStatus.${value}`)}
         </Tag>
@@ -176,7 +176,7 @@ const ApprovalList: React.FC = () => {
       dataIndex: 'reviewerUid',
       title: t('releaseManagement.reviewer'),
       ellipsis: true,
-      render: (value?: string) => value || '-',
+      render: (value?: string): string => value || '-',
     },
     {
       dataIndex: 'createdTime',
@@ -188,7 +188,7 @@ const ApprovalList: React.FC = () => {
       dataIndex: 'operation',
       title: t('releaseManagement.operation'),
       width: 220,
-      render: (_: unknown, record: PublishApproval) => (
+      render: (_: unknown, record: PublishApproval): React.ReactElement => (
         <span className={styles.actions}>
           <span onClick={() => setDetail(record)}>
             {t('releaseManagement.detail')}

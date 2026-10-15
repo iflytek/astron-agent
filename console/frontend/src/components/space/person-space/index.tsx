@@ -1,7 +1,6 @@
 import { Input, message, Tooltip } from 'antd';
 import styles from './index.module.scss';
-import { useEffect, useState, useCallback } from 'react';
-import SpaceModal from '@/components/space/space-modal';
+import { useEffect, useState, useCallback, type ReactElement } from 'react';
 import useSpaceStore from '@/store/space-store';
 import { useNavigate } from 'react-router-dom';
 import { debounce } from 'lodash';
@@ -18,7 +17,6 @@ import {
   getJoinedCorporateList,
 } from '@/services/space';
 import { useTranslation } from 'react-i18next';
-import eventBus from '@/utils/event-bus';
 //空间角色
 const spaceRole = {
   '1': 'owner',
@@ -30,7 +28,7 @@ export const PersonSpace = ({
   setIsShowAddSpace,
 }: {
   setIsShowAddSpace: (isShow: boolean) => void;
-}) => {
+}): ReactElement => {
   const [searchValue, setSearchValue] = useState(''); // 搜索关键词状态
   const {
     spaceType,
@@ -50,13 +48,13 @@ export const PersonSpace = ({
   ]);
 
   //添加空间
-  const handleAddSpace = () => {
+  const handleAddSpace = (): void => {
     setIsShowSpacePopover(false);
     setIsShowAddSpace(true);
   };
 
   //空间管理
-  const handleSpaceManage = () => {
+  const handleSpaceManage = (): void => {
     setIsShowSpacePopover(false);
 
     const spaceManageUrl =
@@ -65,7 +63,7 @@ export const PersonSpace = ({
   };
 
   //空间选择
-  const handleSpaceSelect = async (item: any) => {
+  const handleSpaceSelect = async (item: any): Promise<void> => {
     try {
       await visitSpace(item.id);
       setSpaceName(item.name);
@@ -84,7 +82,7 @@ export const PersonSpace = ({
   };
 
   //获取全部空间
-  const getSpaceList = (searchValue?: string) => {
+  const getSpaceList = (searchValue?: string): void => {
     const isTeamSpace = spaceType === 'team';
     const params: any = isTeamSpace ? { name: searchValue } : searchValue;
 
@@ -125,7 +123,7 @@ export const PersonSpace = ({
   );
 
   //搜索空间
-  const handleSearchSpace = (e: any) => {
+  const handleSearchSpace = (e: any): void => {
     const value = e.target.value;
     if (value) {
       setRecentList([]);
@@ -137,7 +135,7 @@ export const PersonSpace = ({
   };
 
   //获取最近访问列表
-  const getRecentVisitList = () => {
+  const getRecentVisitList = (): void => {
     getRecentVisit()
       .then((res: any) => {
         setRecentList(res?.slice(0, 5));

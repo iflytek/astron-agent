@@ -6,12 +6,12 @@ export default function useScreenWidth(): number {
   );
 
   useEffect(() => {
-    const handleResize = () => {
+    const handleResize = (): void => {
       setScreenWidth(window.innerWidth);
     };
 
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return (): void => window.removeEventListener('resize', handleResize);
   }, []);
 
   return screenWidth;

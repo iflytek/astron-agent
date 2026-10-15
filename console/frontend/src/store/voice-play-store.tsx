@@ -13,8 +13,8 @@ const useVoicePlayStore = create<{
   activeVcn: {
     vcn_cn: '',
   },
-  setCurrentPlayingId: id => set({ currentPlayingId: id }),
-  setActiveVcn: activeVcn => set({ activeVcn }),
+  setCurrentPlayingId: (id): void => set({ currentPlayingId: id }),
+  setActiveVcn: (activeVcn): void => set({ activeVcn }),
 }));
 
 export default useVoicePlayStore;

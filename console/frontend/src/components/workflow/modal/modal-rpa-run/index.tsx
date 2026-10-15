@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from 'antd';
 import { RpaParameter, RpaRobot } from '@/types/rpa';
-import { ColumnsType, TableProps } from 'antd/es/table';
+import { TableProps } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import JsonMonacoEditor from '@/components/monaco-editor/json-monaco-editor';
@@ -41,7 +41,7 @@ export const ModalRpaRun = forwardRef<{
   const [result, setResult] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   useImperativeHandle(ref, () => ({
-    showModal: values => {
+    showModal: (values): void => {
       setCurrentRobot(values || null);
       showModal();
     },
@@ -59,7 +59,7 @@ export const ModalRpaRun = forwardRef<{
       title: t('rpa.parameterName'),
       dataIndex: 'varName',
       width: 160,
-      render: (text: string, record: RpaParameter) => {
+      render: (text: string, record: RpaParameter): React.ReactElement => {
         return (
           <div className="text-base font-medium text=[#333] flex items-center">
             {text}
@@ -111,7 +111,7 @@ export const ModalRpaRun = forwardRef<{
     }
   );
 
-  const handleRun = async () => {
+  const handleRun = async (): Promise<void> => {
     const values = await form.validateFields();
     const defaultValues = (currentRobot?.parameters || [])
       .filter(item => item.varDirection === 0)

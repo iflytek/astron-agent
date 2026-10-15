@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { Table, message } from 'antd';
 import useToggle from '@/hooks/use-toggle';
@@ -20,14 +20,14 @@ import { useTranslation } from 'react-i18next';
 
 import styles from './index.module.scss';
 
-const DetailOverview = () => {
+const DetailOverview = (): ReactElement => {
   const [botMultiFileParam, setBotMultiFileParam] = useState<any>(false);
   // 接收父组件传递的context
-  const { record: botRecord, botId } = useOutletContext<{
+  const { record: botRecord } = useOutletContext<{
     record: any;
     botId: string;
   }>();
-  const [editV2Visible, { setLeft: hide, setRight: show }] = useToggle();
+  const [, { setRight: show }] = useToggle();
   const navigate = useNavigate();
 
   const [pageInfo, setPageInfo] = useState({
@@ -38,7 +38,7 @@ const DetailOverview = () => {
   const [versionList, setVersionList] = useState([]);
   const [fabuFlag, setFabuFlag]: any = useState(false);
   const [openWxmol, setOpenWxmol] = useState(false);
-  const [isOpenapi, setIsOpenapi]: any = useState(false);
+  const [, setIsOpenapi]: any = useState(false);
 
   const setBotInfo = useBotStateStore(state => state.setBotDetailInfo);
   const { t } = useTranslation();
@@ -100,7 +100,7 @@ const DetailOverview = () => {
       dataIndex: 'publishChannel',
       title: t('releaseDetail.DetailOverviewPage.releasedChannel'),
       align: 'left',
-      render: (text: number) => {
+      render: (text: number): ReactElement | null => {
         return renderPlatformLogo(text);
       },
     },
@@ -117,7 +117,7 @@ const DetailOverview = () => {
     {
       dataIndex: 'action',
       title: t('releaseDetail.DetailOverviewPage.operation'),
-      render: (_: any, record: { publishResult: any }) => {
+      render: (_: any, record: { publishResult: any }): ReactElement => {
         return (
           <div className={styles.actionBtnBox}>
             <span
@@ -164,11 +164,11 @@ const DetailOverview = () => {
   ];
 
   /** ## 编辑智能体 */
-  const updateAgent = (bot: any) => {
+  const updateAgent = (bot: any): void => {
     navigate(`/work_flow/${bot?.flowId}/arrange`);
   };
 
-  const renderPlatformLogo = (type: number) => {
+  const renderPlatformLogo = (type: number): ReactElement | null => {
     switch (type) {
       case 1:
         return (
@@ -203,7 +203,7 @@ const DetailOverview = () => {
   };
 
   // 获取助手基本信息
-  const getBotBaseInfo = (newBotId?: any) => {
+  const getBotBaseInfo = (newBotId?: any): void => {
     const botId = newBotId;
     getBotInfo({ botId })
       .then((data: any) => {
@@ -218,7 +218,7 @@ const DetailOverview = () => {
   };
 
   /** ## 获取发布版本列表 */
-  const getVersionListData = (botId: string | undefined) => {
+  const getVersionListData = (botId: string | undefined): void => {
     setLoading(true);
     const params = {
       botId,

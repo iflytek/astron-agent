@@ -105,7 +105,7 @@ const ChatHeader = (props: {
   }`;
 
   // 渲染左侧区域内容
-  const renderLeftContent = () => {
+  const renderLeftContent = (): ReactElement => {
     if (isDataLoading) {
       return (
         <div className="flex items-center">
@@ -156,7 +156,7 @@ const ChatHeader = (props: {
   };
 
   // 渲染右侧按钮
-  const renderRightContent = () => {
+  const renderRightContent = (): ReactElement => {
     if (isDataLoading) {
       return (
         <div className="flex items-center gap-3">
