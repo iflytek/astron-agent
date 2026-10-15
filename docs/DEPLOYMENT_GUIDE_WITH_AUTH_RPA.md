@@ -242,10 +242,14 @@ CONSOLE_CASDOOR_APP=your-casdoor-app-name
 CONSOLE_CASDOOR_ORG=your-casdoor-org-name
 ```
 
-7. Restart the AstronAgent service to apply the new configuration:
+7. Recreate the affected containers to apply the new configuration:
 ```bash
-docker compose restart console-frontend console-hub
+docker compose up -d console-frontend console-hub
 ```
+
+> `docker compose restart` only restarts the existing containers and does not re-read `.env`, so the new Casdoor values would not take effect. After editing `.env`, use `docker compose up -d` to recreate the containers.
+>
+> Do not comment these four variables out: they become empty and the frontend does not fall back to another organization. To switch organizations, set them to the values of the new application.
 
 ## 📊 Service Access URLs
 
