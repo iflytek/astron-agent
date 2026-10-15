@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 520" width="840" height="520" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif">
+<rect width="840" height="520" fill="#ffffff"/>
+<text x="420" y="30" text-anchor="middle" font-size="20" font-weight="600" fill="#24292f">Star History — iflytek/astron-agent</text>
+<text x="420" y="51" text-anchor="middle" font-size="11" fill="#57606a">Stored monthly snapshots of GitHub stargazers_count; started 2026-08-28.</text>
+<line x1="74" y1="460.0" x2="690" y2="460.0" stroke="#eaeef2"/>
+<text x="64" y="464.0" text-anchor="end" font-size="12" fill="#57606a">0</text>
+<line x1="74" y1="384.4" x2="690" y2="384.4" stroke="#eaeef2"/>
+<text x="64" y="388.4" text-anchor="end" font-size="12" fill="#57606a">2,000</text>
+<line x1="74" y1="308.8" x2="690" y2="308.8" stroke="#eaeef2"/>
+<text x="64" y="312.8" text-anchor="end" font-size="12" fill="#57606a">4,000</text>
+<line x1="74" y1="233.2" x2="690" y2="233.2" stroke="#eaeef2"/>
+<text x="64" y="237.2" text-anchor="end" font-size="12" fill="#57606a">6,000</text>
+<line x1="74" y1="157.6" x2="690" y2="157.6" stroke="#eaeef2"/>
+<text x="64" y="161.6" text-anchor="end" font-size="12" fill="#57606a">8,000</text>
+<line x1="74" y1="82.0" x2="690" y2="82.0" stroke="#eaeef2"/>
+<text x="64" y="86.0" text-anchor="end" font-size="12" fill="#57606a">10,000</text>
+<line x1="74.0" y1="460" x2="74.0" y2="465" stroke="#8c959f"/>
+<text x="74.0" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-08</text>
+<line x1="176.7" y1="460" x2="176.7" y2="465" stroke="#8c959f"/>
+<text x="176.7" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-08</text>
+<line x1="279.3" y1="460" x2="279.3" y2="465" stroke="#8c959f"/>
+<text x="279.3" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-08</text>
+<line x1="382.0" y1="460" x2="382.0" y2="465" stroke="#8c959f"/>
+<text x="382.0" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-08</text>
+<line x1="484.7" y1="460" x2="484.7" y2="465" stroke="#8c959f"/>
+<text x="484.7" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-09</text>
+<line x1="587.3" y1="460" x2="587.3" y2="465" stroke="#8c959f"/>
+<text x="587.3" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-09</text>
+<line x1="690.0" y1="460" x2="690.0" y2="465" stroke="#8c959f"/>
+<text x="690.0" y="482" text-anchor="middle" font-size="12" fill="#57606a">2026-09</text>
+<line x1="74" y1="82" x2="74" y2="460" stroke="#d0d7de" stroke-width="1.5"/>
+<line x1="74" y1="460" x2="690" y2="460" stroke="#d0d7de" stroke-width="1.5"/>
+<text transform="translate(22,271) rotate(-90)" text-anchor="middle" font-size="13" fill="#57606a">GitHub Stars</text>
+<path d="M382.0,123.5" fill="none" stroke="#2f7ed8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="382.0" cy="123.5" r="4" fill="#2f7ed8"/>
+<rect x="706" y="88" width="12" height="12" rx="2" fill="#2f7ed8"/>
+<text x="722" y="99" font-size="12" fill="#24292f">astron-agent</text>
+<text x="722" y="115" font-size="12" font-weight="600" fill="#2f7ed8">8,902 ★</text>
+</svg>

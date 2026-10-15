@@ -123,8 +123,10 @@ We welcome contributions of all kinds! Please see our [Contributing Guide](/CONT
 ## 🌟 Star History
 
 <div align="center">
-  <img src="https://api.star-history.com/svg?repos=iflytek/astron-agent&type=Date" alt="Star History Chart" width="600">
+  <img src="./star-history.svg" alt="Star History Chart" width="600">
 </div>
+
+> This self-hosted chart is regenerated from stored monthly snapshots of GitHub's `stargazers_count`. Past points are kept in `star-history.json` and are not recomputed when users later unstar or restar the repository.
 
 ## 📞 Support
 
