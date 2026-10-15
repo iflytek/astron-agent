@@ -31,12 +31,15 @@ class MockSpanContext:
         self.errors: List[Any] = []
 
     def add_info_event(self, event: Any) -> None:
+        """Record an info event."""
         self.events.append(event)
 
     def add_error_event(self, error: Any) -> None:
+        """Record an error event."""
         self.errors.append(error)
 
     def record_exception(self, exc: Any) -> None:
+        """Record an exception as an error."""
         self.errors.append(str(exc))
 
 
@@ -47,9 +50,8 @@ async def test_reject_schema_qualified_select() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -65,9 +67,8 @@ async def test_reject_schema_qualified_update() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -82,9 +83,8 @@ async def test_reject_schema_qualified_delete() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -99,9 +99,8 @@ async def test_reject_information_schema_access() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -117,9 +116,8 @@ async def test_reject_pg_catalog_access() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -134,9 +132,8 @@ async def test_reject_qualified_information_schema() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -157,9 +154,8 @@ async def test_allow_normal_select() -> None:
     db.execute = AsyncMock(return_value=mock_result)
 
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    _, error = await _dml_split(dml, db, schema, uid, span_context)
+    _, error = await _dml_split(dml, db, schema, span_context)
 
     # Should pass validation (may fail on table existence check in real env)
     # The key is that it doesn't fail on schema qualifier check
@@ -181,9 +177,8 @@ async def test_allow_normal_update() -> None:
     db.execute = AsyncMock(return_value=mock_result)
 
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    _, error = await _dml_split(dml, db, schema, uid, span_context)
+    _, error = await _dml_split(dml, db, schema, span_context)
 
     # Should pass schema qualifier validation
     if error:
@@ -205,9 +200,8 @@ async def test_case_insensitive_forbidden_schema() -> None:
         span_context = MockSpanContext()
         db = AsyncMock(spec=AsyncSession)
         schema = "test_current_schema"
-        uid = "test_uid"
 
-        result, error = await _dml_split(dml, db, schema, uid, span_context)
+        result, error = await _dml_split(dml, db, schema, span_context)
 
         assert result is None, f"Should reject: {dml}"
         assert error is not None, f"Should have error for: {dml}"
@@ -228,9 +222,8 @@ async def test_reject_complex_query_with_schema_qualifier() -> None:
     span_context = MockSpanContext()
     db = AsyncMock(spec=AsyncSession)
     schema = "test_current_schema"
-    uid = "test_uid"
 
-    result, error = await _dml_split(dml, db, schema, uid, span_context)
+    result, error = await _dml_split(dml, db, schema, span_context)
 
     assert result is None
     assert error is not None
@@ -256,7 +249,7 @@ async def test_reject_complex_query_with_schema_qualifier() -> None:
 async def test_reject_string_sql_execution_functions(dml: str) -> None:
     """Functions that run SQL from strings or dump schemas must be rejected."""
     span_context = MockSpanContext()
-    error = await _validate_dml_legality(dml, "test_uid", span_context)
+    error = await _validate_dml_legality(dml, span_context)
 
     assert error is not None, f"Should reject: {dml}"
     error_data = extract_response_data(error)
