@@ -95,6 +95,88 @@ test('nested parameter defaults use the nested schema instead of an absent root 
   );
 });
 
+test('regenerating fallback output preserves all primitive array values', () => {
+  for (const [type, values] of [
+    ['array-string', ['', 'second']],
+    ['array-integer', [0, 2]],
+    ['array-number', [0, 2.5]],
+    ['array-boolean', [false, true]],
+  ]) {
+    const original = { before: values };
+    const updated = utilities.generateOrUpdateObject(
+      [{ name: 'after', schema: { type } }],
+      original
+    );
+    assert.deepEqual(updated, { after: values });
+    assert.deepEqual(original, { before: values });
+    assert.notEqual(updated.after, values);
+  }
+});
+
+test('regenerating fallback output updates every object array item recursively', () => {
+  const schema = [
+    {
+      name: 'results',
+      schema: {
+        type: 'array-object',
+        properties: [
+          { name: 'label', type: 'string' },
+          { name: 'scores', type: 'array-number' },
+          {
+            name: 'children',
+            type: 'array-object',
+            properties: [{ name: 'enabled', type: 'boolean' }],
+          },
+          { name: 'count', type: 'integer' },
+        ],
+      },
+    },
+  ];
+  const original = {
+    results: [
+      {
+        name: 'first',
+        scores: [0, 1],
+        children: [{ active: false }, { active: true }],
+      },
+      { name: 'second', scores: [2, 3], children: [] },
+    ],
+  };
+  const snapshot = structuredClone(original);
+  assert.deepEqual(utilities.generateOrUpdateObject(schema, original), {
+    results: [
+      {
+        label: 'first',
+        scores: [0, 1],
+        children: [{ enabled: false }, { enabled: true }],
+        count: 0,
+      },
+      { label: 'second', scores: [2, 3], children: [], count: 0 },
+    ],
+  });
+  assert.deepEqual(original, snapshot);
+});
+
+test('fallback output distinguishes existing empty arrays from missing values', () => {
+  const schema = [
+    {
+      name: 'results',
+      schema: {
+        type: 'array-object',
+        properties: [{ name: 'name', type: 'string' }],
+      },
+    },
+  ];
+  assert.deepEqual(utilities.generateOrUpdateObject(schema, { results: [] }), {
+    results: [],
+  });
+  for (const original of [undefined, {}, { results: 'not an array' }]) {
+    assert.deepEqual(utilities.generateOrUpdateObject(schema, original), {
+      results: [{ name: '' }],
+    });
+  }
+});
+
 test('removing a nested field keeps the source object and sibling fields intact', () => {
   const original = { results: [{ name: 'kept', secret: 'removed' }] };
   const updated = utilities.deleteFieldByPath(original, ['results', 'secret']);
