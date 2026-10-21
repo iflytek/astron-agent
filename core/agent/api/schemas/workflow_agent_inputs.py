@@ -70,4 +70,4 @@ class CustomCompletionInputs(BaseInputs):
     plugin: CustomCompletionPluginInputs = Field(
         default_factory=CustomCompletionPluginInputs
     )
-    max_loop_count: int
+    max_loop_count: int = Field(ge=1)
