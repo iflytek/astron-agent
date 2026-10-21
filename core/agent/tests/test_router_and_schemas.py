@@ -6,7 +6,7 @@ import pytest
 from fastapi import APIRouter
 
 from agent.api import router as api_router
-from agent.api.schemas.agent_response import AgentResponse, CotStep
+from agent.api.schemas.agent_response import AgentResponse, ToolExecution
 from agent.api.schemas.completion_chunk import (
     ReasonChatCompletionChunk,
     ReasonChoice,
@@ -14,7 +14,7 @@ from agent.api.schemas.completion_chunk import (
     ReasonChoiceDeltaToolCall,
     ReasonChoiceDeltaToolCallFunction,
 )
-from agent.api.schemas.llm_message import LLMMessage, LLMMessages
+from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.node_trace_patch import NodeTracePatch
 
 
@@ -38,17 +38,15 @@ class TestRouterModule:
         assert "/xingchen-db/v1" not in docstring
 
 
-class TestAgentResponseAndCotStep:
-    """Test AgentResponse and CotStep data structures"""
+class TestAgentResponseAndToolExecution:
+    """Test AgentResponse and ToolExecution data structures"""
 
-    def test_cot_step_defaults(self) -> None:
-        step = CotStep()
+    def test_tool_result_defaults(self) -> None:
+        step = ToolExecution()
         assert step.thought == ""
         assert step.action == ""
         assert step.action_input == {}
         assert step.action_output == {}
-        assert step.finished_cot is False
-        assert step.empty is False
         assert step.plugin is None
 
     def test_agent_response_created_timestamp(
@@ -67,27 +65,13 @@ class TestAgentResponseAndCotStep:
         assert resp.usage is None
 
 
-class TestLLMMessages:
-    """Test LLMMessage / LLMMessages"""
+class TestLLMMessage:
+    """Test LLMMessage"""
 
     def test_llm_message_basic(self) -> None:
         msg = LLMMessage(role="user", content="hi")
         assert msg.role == "user"
         assert msg.content == "hi"
-
-    def test_llm_messages_list(self) -> None:
-        msgs = LLMMessages(
-            messages=[
-                LLMMessage(role="user", content="q"),
-                LLMMessage(role="assistant", content="a"),
-            ]
-        )
-
-        as_list = msgs.list()
-        assert as_list == [
-            {"role": "user", "content": "q"},
-            {"role": "assistant", "content": "a"},
-        ]
 
 
 class TestCompletionChunkModels:

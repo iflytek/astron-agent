@@ -128,45 +128,32 @@ class TestWorkflowAgentRunnerBuilder:
         """Test building WorkflowAgentRunner"""
         mock_model = MagicMock()
         mock_plugins: list[BasePlugin] = []
-        from agent.engine.nodes.chat.chat_runner import ChatRunner
-        from agent.engine.nodes.cot.cot_runner import CotRunner
+        from langchain_core.language_models.fake_chat_models import (
+            FakeMessagesListChatModel,
+        )
+        from langchain_core.messages import AIMessage
 
-        mock_chat_runner = MagicMock(spec=ChatRunner)
-        mock_process_runner = MagicMock()
-        mock_cot_runner = MagicMock(spec=CotRunner)
+        from agent.domain.models.providers import ModelHandle
+        from agent.engine.deepagents_runner import DeepAgentsRunner
 
-        # Patching Pydantic BaseModel instance triggers __setattr__/__delattr__ restrictions, change to patch class method
+        mock_model = ModelHandle(
+            FakeMessagesListChatModel(responses=[AIMessage(content="ok")]),
+            "test",
+            "test",
+        )
         with patch.object(
             WorkflowAgentRunnerBuilder, "create_model", return_value=mock_model
+        ), patch.object(
+            WorkflowAgentRunnerBuilder, "build_plugins", return_value=mock_plugins
+        ), patch.object(
+            WorkflowAgentRunnerBuilder,
+            "query_knowledge_by_workflow",
+            return_value=([], ""),
         ):
-            with patch.object(
-                WorkflowAgentRunnerBuilder, "build_plugins", return_value=mock_plugins
-            ):
-                with patch.object(
-                    WorkflowAgentRunnerBuilder,
-                    "query_knowledge_by_workflow",
-                    return_value=([], ""),
-                ):
-                    with patch.object(
-                        WorkflowAgentRunnerBuilder,
-                        "build_chat_runner",
-                        return_value=mock_chat_runner,
-                    ):
-                        with patch.object(
-                            WorkflowAgentRunnerBuilder,
-                            "build_process_runner",
-                            return_value=mock_process_runner,
-                        ):
-                            with patch.object(
-                                WorkflowAgentRunnerBuilder,
-                                "build_cot_runner",
-                                return_value=mock_cot_runner,
-                            ):
-                                runner = await builder.build()
-
-                                assert isinstance(runner, WorkflowAgentRunner)
-                                assert runner.chat_runner == mock_chat_runner
-                                assert runner.cot_runner == mock_cot_runner
+            runner = await builder.build()
+        assert isinstance(runner, WorkflowAgentRunner)
+        assert isinstance(runner.engine, DeepAgentsRunner)
+        assert runner.engine.model_handle == mock_model
 
     @pytest.mark.asyncio
     async def test_build_passes_skills_to_plugin_builder(
@@ -184,42 +171,30 @@ class TestWorkflowAgentRunnerBuilder:
 
         mock_model = MagicMock()
         mock_plugins: list[BasePlugin] = []
-        from agent.engine.nodes.chat.chat_runner import ChatRunner
-        from agent.engine.nodes.cot.cot_runner import CotRunner
+        from langchain_core.language_models.fake_chat_models import (
+            FakeMessagesListChatModel,
+        )
+        from langchain_core.messages import AIMessage
 
-        mock_chat_runner = MagicMock(spec=ChatRunner)
-        mock_process_runner = MagicMock()
-        mock_cot_runner = MagicMock(spec=CotRunner)
+        from agent.domain.models.providers import ModelHandle
 
+        mock_model = ModelHandle(
+            FakeMessagesListChatModel(responses=[AIMessage(content="ok")]),
+            "test",
+            "test",
+        )
         with patch.object(
             WorkflowAgentRunnerBuilder, "create_model", return_value=mock_model
+        ), patch.object(
+            WorkflowAgentRunnerBuilder,
+            "build_plugins",
+            AsyncMock(return_value=mock_plugins),
+        ) as mock_build_plugins, patch.object(
+            WorkflowAgentRunnerBuilder,
+            "query_knowledge_by_workflow",
+            return_value=([], ""),
         ):
-            with patch.object(
-                WorkflowAgentRunnerBuilder,
-                "build_plugins",
-                AsyncMock(return_value=mock_plugins),
-            ) as mock_build_plugins:
-                with patch.object(
-                    WorkflowAgentRunnerBuilder,
-                    "query_knowledge_by_workflow",
-                    return_value=([], ""),
-                ):
-                    with patch.object(
-                        WorkflowAgentRunnerBuilder,
-                        "build_chat_runner",
-                        return_value=mock_chat_runner,
-                    ):
-                        with patch.object(
-                            WorkflowAgentRunnerBuilder,
-                            "build_process_runner",
-                            return_value=mock_process_runner,
-                        ):
-                            with patch.object(
-                                WorkflowAgentRunnerBuilder,
-                                "build_cot_runner",
-                                return_value=mock_cot_runner,
-                            ):
-                                await builder.build()
+            await builder.build()
 
         assert mock_build_plugins.await_count == 1
         build_plugins_args = mock_build_plugins.await_args

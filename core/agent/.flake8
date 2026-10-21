@@ -1,0 +1,5 @@
+[flake8]
+exclude = .git,__pycache__,.venv,.mypy_cache,.pytest_cache,build,dist
+max-line-length = 88
+# Black controls wrapping; retain long prompts, URLs and JSON schema literals.
+extend-ignore = E203,W503,E501

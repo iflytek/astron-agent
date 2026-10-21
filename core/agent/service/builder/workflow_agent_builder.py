@@ -9,11 +9,8 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionInputs,
     CustomCompletionPluginKnowledgeInputs,
 )
-from agent.service.builder.base_builder import (
-    BaseApiBuilder,
-    CotRunnerParams,
-    RunnerParams,
-)
+from agent.engine.deepagents_runner import DeepAgentsRunner
+from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.knowledge import KnowledgePluginFactory
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
@@ -44,53 +41,36 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 api_key=self.inputs.model_config_inputs.api_key,
             )
 
-            skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
-            self._inject_skill_runtime_context(skills)
-            plugins = await self.build_plugins(
-                tool_ids=self.inputs.plugin.tools,
-                mcp_server_ids=self.inputs.plugin.mcp_server_ids,
-                mcp_server_urls=self.inputs.plugin.mcp_server_urls,
-                workflow_ids=self.inputs.plugin.workflow_ids,
-                skills=skills,
-            )
-            metadata_list, knowledge = await self.query_knowledge_by_workflow(
-                self.inputs.plugin.knowledge, sp
-            )
-
-            chat_params = RunnerParams(
-                model=model,
-                chat_history=self.inputs.get_chat_history(),
-                instruct=self.inputs.instruction.answer,
-                knowledge=knowledge,
-                question=self.inputs.get_last_message_content(),
-            )
-            chat_runner = await self.build_chat_runner(chat_params)
-            process_params = RunnerParams(
-                model=model,
-                chat_history=self.inputs.get_chat_history(),
-                instruct=self.inputs.instruction.answer,
-                knowledge=knowledge,
-                question=self.inputs.get_last_message_content(),
-            )
-            process_runner = await self.build_process_runner(process_params)
-            cot_params = CotRunnerParams(
-                model=model,
-                plugins=plugins,
-                chat_history=self.inputs.get_chat_history(),
-                instruct=self.inputs.instruction.reasoning,
-                knowledge=knowledge,
-                question=self.inputs.get_last_message_content(),
-                process_runner=process_runner,
-                max_loop=self.inputs.max_loop_count,
-            )
-            cot_runner = await self.build_cot_runner(cot_params)
-
-            return WorkflowAgentRunner(
-                chat_runner=chat_runner,
-                cot_runner=cot_runner,
-                plugins=plugins,
-                knowledge_metadata_list=metadata_list,
-            )
+            try:
+                skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
+                self._inject_skill_runtime_context(skills)
+                plugins = await self.build_plugins(
+                    tool_ids=self.inputs.plugin.tools,
+                    mcp_server_ids=self.inputs.plugin.mcp_server_ids,
+                    mcp_server_urls=self.inputs.plugin.mcp_server_urls,
+                    workflow_ids=self.inputs.plugin.workflow_ids,
+                    skills=skills,
+                )
+                metadata_list, knowledge = await self.query_knowledge_by_workflow(
+                    self.inputs.plugin.knowledge, sp
+                )
+                engine = DeepAgentsRunner(
+                    model_handle=model,
+                    plugins=plugins,
+                    chat_history=self.inputs.get_chat_history(),
+                    reasoning_instruction=self.inputs.instruction.reasoning,
+                    answer_instruction=self.inputs.instruction.answer,
+                    knowledge=knowledge,
+                    question=self.inputs.get_last_message_content(),
+                    max_loop=self.inputs.max_loop_count,
+                )
+                return WorkflowAgentRunner(
+                    engine=engine,
+                    knowledge_metadata_list=metadata_list,
+                )
+            except BaseException:
+                await model.aclose()
+                raise
 
     def _inject_skill_runtime_context(self, skills: list[dict[str, Any]]) -> None:
         for skill in skills:
