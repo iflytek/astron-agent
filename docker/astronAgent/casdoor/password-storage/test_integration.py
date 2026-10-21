@@ -5,7 +5,6 @@ import http.cookiejar
 import json
 import os
 import pathlib
-import socket
 import subprocess
 import tempfile
 import unittest
@@ -149,12 +148,12 @@ class CasdoorIntegration(unittest.TestCase):
         orgs, users = self.snapshot()
         with self.assertRaises(MigrationError):
             verify_storage(orgs, users)
-        # Casdoor initializes its built-in organization as plaintext before
-        # init_data.json; the gateway must remain unpublished in this state.
+        # Deployment does not run the optional password migration or verifier.
+        # The regular gateway can start without a locally built helper image.
         result = self.compose("up", "-d", "casdoor-gateway", check=False)
-        self.assertNotEqual(result.returncode, 0)
-        with self.assertRaises(OSError):
-            socket.create_connection(("127.0.0.1", 18008), timeout=2)
+        self.assertEqual(result.returncode, 0)
+        wait_for_casdoor("http://127.0.0.1:18008/")
+        self.assertEqual(self.snapshot(), (orgs, users))
 
         admin = urllib.request.build_opener(
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
@@ -244,9 +243,7 @@ class CasdoorIntegration(unittest.TestCase):
             ],
             "ok",
         )
-        self.compose(
-            "up", "-d", "--force-recreate", "casdoor-password-check", "casdoor-gateway"
-        )
+        self.compose("up", "-d", "--force-recreate", "casdoor-gateway")
         wait_for_casdoor("http://127.0.0.1:18008/")
         # Verify the gateway forwards to the real identity service (not merely a
         # listening nginx returning 502), without imposing its default 1 MiB cap.

@@ -1,71 +1,65 @@
-# Casdoor 密码存储与升级
+# Casdoor 密码存储与按需维护
 
-Docker Compose 认证部署使用 Argon2id 存储本地密码。Casdoor 2.67 会先创建内置组织，
-再读取初始化模板，因此仅修改模板无法更新内置组织或已有数据库。**新安装和升级都必须执行迁移。**
+普通 Docker Compose 部署不再使用 `astron-agent-casdoor-passwords:local`，无需构建辅助镜像，
+CI 也不构建或发布该镜像。`casdoor-gateway` 直接依赖 Casdoor 启动，保留现有代理和端口。
+默认部署不执行密码存储检查或数据库迁移，也不会因历史密码格式阻止认证网关启动。
 
-Casdoor 本身仅在 Compose 内部网络监听。对外端口由 `casdoor-gateway` 提供；它仅在
-只读密码存储检查通过后启动。检查失败不会修改账户，也不会开放对外认证端口。
-内部网络仍须保持可信；启动检查不是持续监控。
+Casdoor 原生登录与组织模板中的密码策略保持不变。Casdoor 2.67 先创建内置组织再读取
+初始化模板，因此模板策略不能保证已有组织和历史账户都已使用哈希存储；移除启动检查
+不会自动解决这些历史数据问题。需要检查或转换已有数据时，可按需使用保留的 Python 脚本。
 
-## 新安装
+## 普通部署
 
-在 `docker/astronAgent` 配置 `.env` 后执行：
+在 `docker/astronAgent` 配置 `.env` 后，按部署指南执行：
 
 ```bash
-# 私有初始化，不启动对外网关
-docker compose -f docker-compose-with-auth.yaml up -d casdoor
-# 等待初始化完成后预览；只显示计数，不输出密码或哈希
-docker compose -f docker-compose-with-auth.yaml run --rm casdoor-passwords
-# 应用迁移前必须停止所有 Casdoor 实例
-docker compose -f docker-compose-with-auth.yaml stop casdoor
-docker compose -f docker-compose-with-auth.yaml run --rm casdoor-passwords --apply
-# 启动应用及通过检查的认证网关
+docker compose -f docker-compose-with-auth.yaml pull
 docker compose -f docker-compose-with-auth.yaml up -d
 ```
 
-数据库尚未初始化时，工具会退出且不修改数据；等待初始化完成后重新预览。
-首次迁移也会转换 Casdoor 自动创建的管理员账户。开放访问前须修改示例管理员密码、
-删除不用的示例账户；哈希存储不能使公开示例密码变成秘密。
+独立认证与 RPA 联合部署分别使用 `docker-compose-auth.yml` 和
+`docker-compose-with-auth-rpa.yaml`。不需要额外的密码检查服务或本地镜像构建步骤。
 
-RPA 联合部署和独立认证部署分别将上述每条命令的文件名换为
-`docker-compose-with-auth-rpa.yaml` 和 `docker-compose-auth.yml`。
+## 可选的历史密码检查与迁移
 
-## 已有部署
+`casdoor/password-storage/passwords.py` 仅供管理员显式运行，不属于启动依赖。
+在能访问 Casdoor MySQL 的受信任运维环境中准备 Python 3.12 和脚本依赖：
 
-1. 备份 **Casdoor MySQL 数据库**并验证可恢复性，安排认证维护窗口。
-   历史备份可能含明文密码，应按敏感数据保管。
-2. 停止公开认证和应用访问，停止共享此数据库的所有 Casdoor 实例，包括其他项目中的副本；
-   保持 MySQL 运行。旧会话可能仍然有效。
-3. 先运行预览并处理拒绝迁移的状态。数据库密码不同时，在 `.env` 中设置已有 `casdoor`
-   数据库用户的 `CASDOOR_MYSQL_PASSWORD`；修改环境变量不会自动修改持久化数据库中的密码。
-4. 执行 `casdoor-passwords --apply`，再运行不带 `--apply` 的预览，确认账户和策略变更计数均为零。
-5. 重启并重新执行检查：
+```bash
+# 从 docker/astronAgent 运行；不创建 Docker 镜像。
+python3 -m venv .venv-casdoor
+.venv-casdoor/bin/python -m pip install -r casdoor/password-storage/requirements.txt
+```
 
-   ```bash
-   docker compose -f docker-compose-with-auth.yaml up -d casdoor
-   docker compose -f docker-compose-with-auth.yaml up -d --force-recreate casdoor-password-check casdoor-gateway
-   ```
+通过部署的凭据管理方式设置 `CASDOOR_MIGRATION_DB_PASSWORD`；可通过
+`CASDOOR_MIGRATION_DB_HOST`、`CASDOOR_MIGRATION_DB_PORT`、`CASDOOR_MIGRATION_DB_USER`、
+`CASDOOR_MIGRATION_DB_NAME` 指定实际数据库。脚本默认的主机名 `casdoor-mysql` 只在对应
+Compose 网络可解析；应在运维环境配置实际可达地址，无需为普通部署新增公开数据库端口。
 
-6. 用测试账户验证正确及错误密码后再恢复访问。保留管理员恢复途径；必要时恢复备份。
-   Argon2id 哈希不能反向恢复为明文。
+```bash
+# 只读检查：不修改账户或策略。
+.venv-casdoor/bin/python casdoor/password-storage/passwords.py --check
+# 默认仅预览变更计数，不输出密码或哈希。
+.venv-casdoor/bin/python casdoor/password-storage/passwords.py
+```
 
-迁移保留账户 ID 和原登录密码，为每个明文密码生成独立随机盐，保留已有合法 bcrypt/
-Argon2id 哈希，并在修改组织策略前固定继承的 bcrypt 元数据。Casdoor 可在成功登录后将
-bcrypt 更新为 Argon2id。重复迁移不会再次哈希已有哈希；全部密码和组织策略修改在单个事务中提交。
+需要应用迁移时，先备份 Casdoor 数据库并验证可恢复，安排维护窗口，停止公开认证访问，
+再停止共享此数据库的所有 Casdoor 实例。保持 MySQL 运行后执行：
 
-工具会拒绝不支持或格式错误的哈希、元数据不明的疑似哈希、存在本地密码的 LDAP 账户，
-以及组织级主密码/默认密码设置。请通过 Casdoor 管理界面核实并处理后重试，不要将旧摘要
-误当明文，也不要通过删除账户绕过检查。无本地密码的外部身份账户保持无密码状态。
-工具只针对 Casdoor **v2.67.0** 默认表名的 MySQL 数据库；自定义表前缀、其他数据库和
-外部身份系统须单独验证迁移。
+```bash
+docker compose -f docker-compose-with-auth.yaml stop casdoor-gateway casdoor
+.venv-casdoor/bin/python casdoor/password-storage/passwords.py --apply
+.venv-casdoor/bin/python casdoor/password-storage/passwords.py --check
+docker compose -f docker-compose-with-auth.yaml up -d casdoor casdoor-gateway
+```
 
-保留 `initDataNewOnly = true`。改为 false 可能在重启时从示例模板重建组织和账户。
-模板用户的 `passwordType: plain` 表示输入格式，Casdoor 的 `AddUser` 会按组织的
-Argon2id 策略哈希后再存储。
+第二次预览应显示账户与策略变更计数均为零。恢复访问前，用测试账户验证正确和错误密码，
+并保留管理员恢复途径。迁移不由日常部署自动执行；哈希无法反向恢复为明文。
 
-自动对外端口检查适用于 Docker Compose。Helm 仍标记为开发中，开放其 Casdoor 服务前，
-必须完成等效的私有初始化、迁移和检查。本次代码修改不会部署或修改生产数据库。
+工具针对 Casdoor v2.67.0 默认表名的 MySQL 数据库，事务性地将明文转换为 Argon2id，
+保留账户 ID、原登录密码及已有合法 bcrypt/Argon2id 哈希。它会拒绝无效哈希、元数据不明、
+含本地密码的 LDAP 账户、组织级主密码或默认密码等需要人工核实的状态。
+`initDataNewOnly = true` 应保持不变，避免重启覆盖组织与账户。
 
-测试命令、上游实现链接和完整说明见 [英文文档](../CASDOOR_PASSWORD_STORAGE.md)。
-CI 使用真实 Casdoor 2.67 与 MySQL 临时容器验证新用户存储、已有账户迁移、登录、事务回滚、
-重复迁移、重启及对外网关阻断行为。
+单测与真实 Casdoor/MySQL 集成测试仍验证按需迁移、登录、回滚、重复迁移和重启。
+CI 使用官方服务镜像和测试运行器中的 Python，不构建自定义密码辅助镜像。

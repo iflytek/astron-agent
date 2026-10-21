@@ -84,8 +84,7 @@ vim .env
 环境变量配置请参考文档：[DEPLOYMENT_GUIDE_WITH_AUTH.md](https://github.com/iflytek/astron-agent/blob/main/docs/zh/DEPLOYMENT_GUIDE_WITH_AUTH.md#%E7%AC%AC%E4%BA%8C%E6%AD%A5%E9%85%8D%E7%BD%AE-astronagent-%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F)
 
 ```bash
-# 先完成必要的私有初始化及密码迁移：docs/zh/CASDOOR_PASSWORD_STORAGE.md
-# 再启动所有服务；认证网关仅在密码存储检查通过后开放。
+# 启动所有服务，无需构建额外的密码检查镜像。
 docker compose -f docker-compose-with-auth.yaml up -d
 ```
 
