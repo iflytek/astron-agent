@@ -28,6 +28,7 @@ import {
 } from '@/services/sandbox';
 import type { SkillSandboxConfig } from '@/types/sandbox';
 import type { RuleObject } from 'rc-field-form/es/interface';
+import styles from './index.module.scss';
 
 const DEFAULT_CONFIG: SkillSandboxConfig = {
   provider: 'e2b',
@@ -194,9 +195,28 @@ function SandboxConfigModal({
         <Form.Item name="provider" hidden>
           <Input />
         </Form.Item>
-        <Form.Item name="enabled" valuePropName="checked">
-          <Switch checkedChildren="启用" unCheckedChildren="停用" />
-        </Form.Item>
+        <div className={styles.enableSection}>
+          <div>
+            <div id="e2b-enabled-label" className={styles.enableLabel}>
+              启用 E2B 沙箱
+            </div>
+            <p
+              id="e2b-enabled-description"
+              className={styles.enableDescription}
+            >
+              保存配置或测试配置时应用更改。
+            </p>
+          </div>
+          <Form.Item name="enabled" valuePropName="checked" noStyle>
+            <Switch
+              className={styles.enableSwitch}
+              aria-labelledby="e2b-enabled-label"
+              aria-describedby="e2b-enabled-description"
+              checkedChildren="已启用"
+              unCheckedChildren="已停用"
+            />
+          </Form.Item>
+        </div>
         <Form.Item
           label="API Key"
           name="apiKey"

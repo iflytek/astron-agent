@@ -1,0 +1,49 @@
+.enableSection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #dcd8fb;
+  border-radius: 8px;
+  background: #f7f6ff;
+}
+
+.enableLabel {
+  color: #222529;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.enableDescription {
+  margin: 4px 0 0;
+  color: #676773;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.enableSection .enableSwitch {
+  flex-shrink: 0;
+  min-width: 80px;
+  background: #676773;
+
+  &:hover:not(:disabled) {
+    background: #52525e;
+  }
+
+  &[aria-checked='true'] {
+    background: #6356ea;
+
+    &:hover:not(:disabled) {
+      background: #5143d4;
+    }
+  }
+
+  &:focus-visible {
+    outline: 3px solid #6356ea;
+    outline-offset: 3px;
+  }
+}
