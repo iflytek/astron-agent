@@ -39,6 +39,9 @@ def md5(cipher_text: str) -> str:
     """
     try:
         data = cipher_text.encode("utf-8")
+        # The upstream Spark API mandates MD5(appid + timestamp) as the HMAC-SHA1 message.
+        # The application ID is public protocol metadata, not a password or stored secret.
+        # codeql[py/weak-sensitive-data-hashing]
         md = hashlib.md5()
         md.update(data)
         return md.hexdigest()

@@ -58,6 +58,8 @@ class HMACAuth:
         signature_origin = "host: {}\ndate: {}\n{} {} HTTP/1.1".format(
             url_result.hostname, date, method, url_result.path
         )
+        # SHA-256 is the digest algorithm for HMAC request authentication, not password hashing.
+        # codeql[py/weak-sensitive-data-hashing]
         signature_sha = hmac.new(
             api_secret.encode("utf-8"),
             signature_origin.encode("utf-8"),
@@ -103,6 +105,8 @@ class HMACAuth:
         signatureStr += method + " " + path + " " + "HTTP/1.1" + "\n"
         signatureStr += "digest: " + digest
 
+        # SHA-256 is the digest algorithm for HMAC request authentication, not password hashing.
+        # codeql[py/weak-sensitive-data-hashing]
         signature = hmac.new(
             bytes(api_secret, encoding="UTF-8"),
             bytes(signatureStr, encoding="UTF-8"),
