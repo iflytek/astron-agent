@@ -1,23 +1,10 @@
-x-casdoor-password-tool: &casdoor-password-tool
-  build: ./casdoor/password-storage
-  image: astron-agent-casdoor-passwords:local
-  environment:
-    CASDOOR_MIGRATION_DB_HOST: casdoor-mysql
-    CASDOOR_MIGRATION_DB_USER: casdoor
-    CASDOOR_MIGRATION_DB_PASSWORD: "${CASDOOR_MYSQL_PASSWORD:-casdoor123}"
-  networks:
-    - astron-agent-network
-  depends_on:
-    casdoor-mysql:
-      condition: service_healthy
-
 services:
   casdoor:
     image: casbin/casdoor:v2.67.0
     container_name: astron-agent-casdoor
     restart: always
     user: root
-    # Public access is provided only by the verified gateway below.
+    # Public access is provided by the reverse proxy below.
     environment:
       - GIN_MODE=release
       - CONSOLE_DOMAIN=${CONSOLE_DOMAIN:-http://localhost}
@@ -34,17 +21,6 @@ services:
       - casdoor-mysql
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
 
-  # Read-only verification never converts passwords automatically. On a fresh
-  # database it blocks publication until the explicit migration has been run.
-  casdoor-password-check:
-    <<: *casdoor-password-tool
-    command: ["--check", "--wait-url", "http://casdoor:8000/"]
-    depends_on:
-      casdoor:
-        condition: service_started
-      casdoor-mysql:
-        condition: service_healthy
-
   casdoor-gateway:
     image: nginx:stable-alpine
     restart: always
@@ -55,13 +31,8 @@ services:
     networks:
       - astron-agent-network
     depends_on:
-      casdoor-password-check:
-        condition: service_completed_successfully
-
-  # Explicit operator action only: docker compose ... run --rm casdoor-passwords
-  casdoor-passwords:
-    <<: *casdoor-password-tool
-    profiles: [maintenance]
+      casdoor:
+        condition: service_started
 
   casdoor-mysql:
     image: mysql:8.4.6

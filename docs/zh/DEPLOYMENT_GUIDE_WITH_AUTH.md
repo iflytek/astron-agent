@@ -177,7 +177,7 @@ cd docker/astronAgent
 # 变更服务前，先校验完整渲染后的凭据共享与健康检查契约
 python3 scripts/verify_security_contract.py --compose-file docker-compose-with-auth.yaml
 
-# 新旧数据库均须先完成 docs/zh/CASDOOR_PASSWORD_STORAGE.md 的私有初始化与迁移。
+# 不自动检查或迁移历史密码；按需运维工具见 docs/zh/CASDOOR_PASSWORD_STORAGE.md。
 # 启动所有服务，并等待已配置的健康检查收敛。
 docker compose -f docker-compose-with-auth.yaml up -d --wait --wait-timeout 900
 ```
