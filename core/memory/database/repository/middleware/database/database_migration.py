@@ -54,9 +54,8 @@ def run_database_migration() -> None:
                 try:
                     command.stamp(config, "f2a4ce6e3198")
                     command.upgrade(config, "head")
-                except (
-                    Exception
-                ) as stamp_error:  # pylint: disable=broad-exception-caught
+                # pylint: disable-next=broad-exception-caught
+                except Exception as stamp_error:
                     logging.error(
                         "Failed to stamp and upgrade legacy database: %s",
                         stamp_error,

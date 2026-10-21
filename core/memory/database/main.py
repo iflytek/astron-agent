@@ -17,12 +17,13 @@ from typing import Any, AsyncGenerator
 import uvicorn
 from common.initialize.initialize import initialize_services
 
-_extensions_initialized = False
+# Mutable idempotency flag, not a constant.
+_extensions_initialized = False  # pylint: disable=invalid-name
 
 
 def initialize_extensions() -> None:
     """Initialize required extensions and services for the application."""
-    global _extensions_initialized  # noqa: PLW0603
+    global _extensions_initialized  # noqa: PLW0603  # pylint: disable=global-statement
     if _extensions_initialized:
         return
 
@@ -46,6 +47,7 @@ initialize_extensions()
 
 # Business imports — DB_TYPE is now in the environment, model __table_args__
 # will resolve correctly for the configured database type.
+# pylint: disable=wrong-import-position
 from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.responses import JSONResponse  # noqa: E402
@@ -54,10 +56,14 @@ from memory.database.api import router  # noqa: E402
 from memory.database.domain.entity.views.http_resp import format_response  # noqa: E402
 from memory.database.exceptions.e import CustomException  # noqa: E402
 from memory.database.exceptions.error_code import CodeEnum  # noqa: E402
+
+# pylint: disable-next=line-too-long
 from memory.database.repository.middleware.database.database_migration import (  # noqa: E402
     run_database_migration,
 )
 from starlette.middleware.cors import CORSMiddleware  # noqa: E402
+
+# pylint: enable=wrong-import-position
 
 
 async def rep_initialize_extensions() -> None:

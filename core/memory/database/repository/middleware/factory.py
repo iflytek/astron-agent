@@ -20,7 +20,7 @@ class ServiceFactory:  # pylint: disable=too-few-public-methods
         """
         self.service_class = service_class
 
-    def create(self, *args: Any, **kwargs: Any) -> Any:
+    async def create(self, *args: Any, **kwargs: Any) -> Any:
         """Create an instance of the service.
 
         Args:
