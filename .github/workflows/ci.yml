@@ -208,7 +208,7 @@ jobs:
               ;;
             python)
               echo "🛠️ Installing Python quality tools..."
-              python3 -m pip install black==24.4.2 isort==5.13.2 flake8==7.0.0 mypy==1.18.2 pylint==3.1.0 types-requests>=2.32.4.20250913
+              python3 -m pip install black==24.4.2 isort==5.13.2 flake8==7.0.0 mypy==1.18.2 pylint==3.1.0 'types-requests>=2.32.4.20250913'
               echo "🔍 Running Python quality checks..."
               echo "1. Running flake8 code style check..."
               python3 -m flake8 --max-line-length 88 --ignore=E203,W503,E501 --max-complexity 10 .
