@@ -22,7 +22,7 @@ const ContentDisplay: React.FC<ContentDisplayProps> = ({
 }) => {
   const { t } = useTranslation();
   // 获取要复制的文本内容
-  const getTextContent = () => {
+  const getTextContent = (): string => {
     if (typeof content === 'string') {
       return content;
     } else if (content && React.isValidElement(content)) {

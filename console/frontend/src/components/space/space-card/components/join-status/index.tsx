@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { Tag } from 'antd';
 import styles from './index.module.scss';
 
 import joinedIcon from '@/assets/imgs/space/spaceJoined.png';

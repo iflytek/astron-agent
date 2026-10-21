@@ -179,14 +179,14 @@ const useChatStore = create<ChatState & ChatActions>((set, get) => ({
     option: Option[];
     content?: string;
   }): void => set({ workflowOption }),
-  setVmsInteractiveRef: vmsInteractiveRef => set({ vmsInteractiveRef }),
-  setVmsInteractiveRefPlayer: vmsInteractiveRefPlayer =>
+  setVmsInteractiveRef: (vmsInteractiveRef): void => set({ vmsInteractiveRef }),
+  setVmsInteractiveRefPlayer: (vmsInteractiveRefPlayer): void =>
     set({ vmsInteractiveRefPlayer }),
-  setVmsInteractiveRefStatus: vmsInteractiveRefStatus =>
+  setVmsInteractiveRefStatus: (vmsInteractiveRefStatus): void =>
     set({ vmsInteractiveRefStatus }),
   getVmsInteractiveRefPlayer: () => get().vmsInteractiveRefPlayer,
-  getVmsInteractiveRefStatus: () => get().vmsInteractiveRefStatus,
-  setChatType: chatType => set({ chatType }),
-  getChatType: () => get().chatType,
+  getVmsInteractiveRefStatus: (): string => get().vmsInteractiveRefStatus,
+  setChatType: (chatType): void => set({ chatType }),
+  getChatType: (): string => get().chatType,
 }));
 export default useChatStore;

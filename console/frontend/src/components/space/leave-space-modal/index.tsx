@@ -24,11 +24,11 @@ const LeaveSpaceModal: React.FC<LeaveSpaceModalProps> = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { deleteSpaceCb } = useSpaceType(navigate);
-  const handleClose = () => {
+  const handleClose = (): void => {
     onClose();
   };
 
-  const handleLeaveSpace = () => {
+  const handleLeaveSpace = (): void => {
     leaveSpace()
       .then(() => {
         message.success(t('space.leaveSpaceSuccess'));

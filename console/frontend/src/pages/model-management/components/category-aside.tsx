@@ -15,7 +15,6 @@ import {
   CategoryAsideProps,
   CategorySource,
 } from '@/types/model';
-import { getVendorOptions } from '../utils/provider-group';
 
 interface RenderNodeParams {
   node: CategoryNode;

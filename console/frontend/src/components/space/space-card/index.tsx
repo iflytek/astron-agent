@@ -37,7 +37,7 @@ const SpaceCard: React.FC<SpaceCardProps> = ({
     spaceType === SpaceType.ENTERPRISE && space.applyStatus !== null;
 
   // 根据文本内容计算合适的宽度，使展示区域保持4:3比例
-  const calculateTooltipWidth = (text: string) => {
+  const calculateTooltipWidth = (text: string): number => {
     if (!text) return 440;
 
     // 基础配置

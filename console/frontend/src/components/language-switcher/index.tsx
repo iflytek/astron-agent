@@ -16,7 +16,7 @@ const LanguageSwitcher: React.FC<LanguageSwitcherProps> = ({
   const { i18n } = useTranslation();
   const currentLanguage = i18n.language;
 
-  const toggleLanguage = () => {
+  const toggleLanguage = (): void => {
     // 使用简单的语言代码格式: zh 和 en
     const newLang = currentLanguage.startsWith('zh') ? 'en' : 'zh';
     i18n.changeLanguage(newLang);

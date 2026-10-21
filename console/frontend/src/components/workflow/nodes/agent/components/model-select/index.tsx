@@ -4,7 +4,6 @@ import { Tooltip } from 'antd';
 import { FlowSelect } from '@/components/workflow/ui';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useUserStore from '@/store/user-store';
-import { useTranslation } from 'react-i18next';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 
 function index({ id, data }: NodeComponentProps): React.ReactElement {
@@ -12,7 +11,6 @@ function index({ id, data }: NodeComponentProps): React.ReactElement {
     id,
     data,
   });
-  const { t } = useTranslation();
   const user = useUserStore(state => state.user);
   const getCurrentStore = useFlowsManager(state => state.getCurrentStore);
   const currentStore = getCurrentStore();

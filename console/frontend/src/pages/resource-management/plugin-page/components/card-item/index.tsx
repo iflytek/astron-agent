@@ -31,7 +31,7 @@ const CardItem: React.FC<CardItemProps> = ({
       key: 'parameter',
       text: t('common.edit'),
       icon: <img src={editIcon} alt="edit" />,
-      onClick: (key: string, e: React.MouseEvent) => {
+      onClick: (key: string, e: React.MouseEvent): void => {
         e.stopPropagation();
         handleCardClick();
       },
@@ -41,18 +41,18 @@ const CardItem: React.FC<CardItemProps> = ({
       text: t('common.delete'),
       icon: <img src={deleteIcon} alt="delete" />,
       danger: true,
-      onClick: (key: string, e: React.MouseEvent) => {
+      onClick: (key: string, e: React.MouseEvent): void => {
         e.stopPropagation();
         handleDeleteClick(e);
       },
     },
   ];
 
-  const handleCardClick = () => {
+  const handleCardClick = (): void => {
     onCardClick(tool);
   };
 
-  const handleDeleteClick = (e: React.MouseEvent) => {
+  const handleDeleteClick = (e: React.MouseEvent): void => {
     e.stopPropagation();
     onDeleteClick(tool);
   };

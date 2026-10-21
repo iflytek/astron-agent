@@ -19,7 +19,7 @@ const CardItem: React.FC<CardItemProps> = ({ database, onClick, onDelete }) => {
   const { t } = useTranslation();
 
   // 点击卡片
-  const handleClick = () => {
+  const handleClick = (): void => {
     onClick(database);
   };
 
@@ -29,7 +29,7 @@ const CardItem: React.FC<CardItemProps> = ({ database, onClick, onDelete }) => {
       key: 'edit',
       text: t('database.goToEdit'),
       icon: <img src={editIcon} alt="edit" />,
-      onClick: (key: string, event: React.MouseEvent) => {
+      onClick: (key: string, event: React.MouseEvent): void => {
         event.stopPropagation();
         handleClick();
       },
@@ -38,7 +38,7 @@ const CardItem: React.FC<CardItemProps> = ({ database, onClick, onDelete }) => {
       key: 'delete',
       text: t('database.delete'),
       icon: <img src={deleteIcon} alt="delete" />,
-      onClick: (key: string, event: React.MouseEvent) => {
+      onClick: (key: string, event: React.MouseEvent): void => {
         event.stopPropagation();
         onDelete(database, event);
       },

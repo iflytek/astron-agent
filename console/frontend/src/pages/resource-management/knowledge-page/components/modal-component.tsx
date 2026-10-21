@@ -1,6 +1,6 @@
 import React, { useState, useRef, FC } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Form, Input, message } from 'antd';
+import { Button, Form, Input } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { createKnowledgeAPI, deleteKnowledgeAPI } from '@/services/knowledge';
 

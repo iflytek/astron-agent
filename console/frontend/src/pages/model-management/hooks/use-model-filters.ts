@@ -1,10 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { useModelContext } from '../context/model-context';
 import { ModelInfo, CategoryNode, ShelfStatus } from '@/types/model';
-import {
-  getModelProviderFromInfo,
-  getModelVendorIdentifier,
-} from '../utils/provider';
+import { getModelProviderFromInfo } from '../utils/provider';
 
 export const useModelFilters = (): {
   filteredModels: ModelInfo[];

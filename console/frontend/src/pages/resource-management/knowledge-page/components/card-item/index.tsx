@@ -21,7 +21,7 @@ const CardItem: React.FC<CardItemProps> = ({ knowledge, onDelete }) => {
   const navigate = useNavigate();
 
   // 导航到详情页的通用方法
-  const navigateToDetail = () => {
+  const navigateToDetail = (): void => {
     navigate(
       `/resource/knowledge/detail/${knowledge.id}/document?tag=${knowledge.tag}`,
       {
@@ -54,7 +54,7 @@ const CardItem: React.FC<CardItemProps> = ({ knowledge, onDelete }) => {
       key: 'edit',
       text: t('common.edit'),
       icon: <img src={editIcon} alt="edit" />,
-      onClick: (key, event) => {
+      onClick: (key, event): void => {
         event.stopPropagation();
         navigateToDetail();
       },
@@ -63,7 +63,7 @@ const CardItem: React.FC<CardItemProps> = ({ knowledge, onDelete }) => {
       key: 'delete',
       text: t('common.delete'),
       icon: <img src={deleteIcon} alt="delete" />,
-      onClick: (key, event) => {
+      onClick: (key, event): void => {
         event.stopPropagation();
         onDelete(knowledge);
       },

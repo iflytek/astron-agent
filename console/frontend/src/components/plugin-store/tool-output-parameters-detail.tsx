@@ -10,7 +10,7 @@ function ToolOutputParameters({
   outputParamsData,
 }: {
   outputParamsData: DebugInput[];
-}) {
+}): React.ReactElement {
   const { t } = useTranslation();
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
 

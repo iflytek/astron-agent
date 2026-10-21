@@ -1,4 +1,5 @@
 import type { Edge } from 'reactflow';
+import type { TextNodeConfig } from '@/components/workflow/types/domain';
 import type {
   WorkflowNode,
   WorkflowNodeCategory,
@@ -251,7 +252,7 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
 export const removeTextNodeConfig = async (
   id: string,
   get: FlowsManagerGetter
-) => {
+): Promise<TextNodeConfig[]> => {
   await textNodeConfigClearAPI(id);
   const textNodeConfigList = await textNodeConfigListAPI();
   get().setTextNodeConfigList(textNodeConfigList);

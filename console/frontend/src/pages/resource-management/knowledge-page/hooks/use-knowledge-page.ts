@@ -152,14 +152,14 @@ export const useKnowledgePage = (): {
 
   // 监听Header组件的搜索和新建事件
   useEffect(() => {
-    const handleHeaderSearch = (event: CustomEvent) => {
+    const handleHeaderSearch = (event: CustomEvent): void => {
       const { value, type } = event.detail;
       if (type === 'knowledge') {
         handleSearch(value);
       }
     };
 
-    const handleHeaderCreateKnowledge = (event: CustomEvent) => {
+    const handleHeaderCreateKnowledge = (event: CustomEvent): void => {
       const { type } = event.detail;
       if (type === 'knowledge') {
         handleCreateKnowledge();
@@ -175,7 +175,7 @@ export const useKnowledgePage = (): {
       handleHeaderCreateKnowledge as EventListener
     );
 
-    return () => {
+    return (): void => {
       window.removeEventListener(
         'headerSearch',
         handleHeaderSearch as EventListener

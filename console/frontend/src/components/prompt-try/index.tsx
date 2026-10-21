@@ -125,13 +125,13 @@ const PromptTry = forwardRef<
 
     useEffect(() => {
       // 监听清除所有消息的事件
-      const handleRemoveAll = () => {
+      const handleRemoveAll = (): void => {
         removeAll();
       };
 
       eventBus.on('eventRemoveAll', handleRemoveAll);
 
-      return () => {
+      return (): void => {
         eventBus.off('eventRemoveAll', handleRemoveAll);
         // 组件卸载时清理loading状态
         eventBus.emit('promptTry.loadingChange', {
@@ -173,7 +173,7 @@ const PromptTry = forwardRef<
     }, [isLoading]);
 
     // 点击发送按钮
-    const handleSendBtnClick = (text?: string) => {
+    const handleSendBtnClick = (text?: string): void => {
       if (isLoading) {
         message.warning(t('configBase.promptTry.answerPleaseTryAgainLater'));
         return;
@@ -188,7 +188,7 @@ const PromptTry = forwardRef<
     };
 
     //清除聊天记录
-    const removeAll = () => {
+    const removeAll = (): void => {
       if (isLoading || !isCompleted) {
         message.warning(t('configBase.promptTry.answerPleaseTryAgainLater'));
         return;
@@ -197,7 +197,7 @@ const PromptTry = forwardRef<
     };
 
     // 获取答案
-    const getAnswer = (question: string) => {
+    const getAnswer = (question: string): void => {
       if (hasInvalidMcpServerUrls(mcpServerUrls)) {
         message.warning('请先修正 MCP Server URL');
         return;
@@ -262,7 +262,7 @@ const PromptTry = forwardRef<
 
       handleFetchSSE(esURL, form);
     };
-    const handleFetchSSE = (esURL: string, form: FormData) => {
+    const handleFetchSSE = (esURL: string, form: FormData): void => {
       let ans: string = '';
       let reasoning: string = ''; //思考链内容
       let toolsName: string = ''; //工具名称
@@ -382,7 +382,7 @@ const PromptTry = forwardRef<
     };
 
     // 停止回答
-    const stopAnswer = () => {
+    const stopAnswer = (): void => {
       controllerRef?.current.abort();
       setMessageList(prev => {
         const updated = [...prev];

@@ -1,4 +1,4 @@
-import React, { useState, ReactElement } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Input } from 'antd';
 
@@ -15,14 +15,14 @@ function index({
   value: propValue,
   restrictFirstChar = false, // 新增prop控制是否限制首字符
   ...restProps
-}: SearchInputProps) {
+}: SearchInputProps): React.ReactElement {
   const { t } = useTranslation();
   const [expand, setExpand] = useState(true);
   const [internalValue, setInternalValue] = useState('');
   // 使用受控或非受控逻辑
   const isControlled = propValue !== undefined;
   const value = isControlled ? propValue : internalValue;
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const inputValue = e.target.value;
     // 启用了首字符限制
     if (restrictFirstChar) {

@@ -1,6 +1,5 @@
 import React, { FC } from 'react';
 import { RepoItem } from '../../../../types/resource';
-import RetractableInput from '@/components/ui/global/retract-table-input';
 import ResourceEmpty from '../../resource-empty';
 import CardItem from './card-item';
 import { useTranslation } from 'react-i18next';

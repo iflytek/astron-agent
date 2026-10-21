@@ -17,7 +17,6 @@ import {
   ModelInfo,
   CategoryNode,
   LLMSource,
-  ShelfStatus,
   LocalModelStatus,
   ModelCreateType,
 } from '@/types/model';
@@ -124,42 +123,6 @@ function collectNames(nodes: CategoryNode[] = []): string[] {
   }
   dfs(nodes);
   return res;
-}
-
-// 检查模型状态
-function checkLocalModelStatus(model: ModelInfo): boolean {
-  return [LocalModelStatus.FAILED, LocalModelStatus.PENDING].includes(
-    model.status
-  );
-}
-
-// 获取发布状态样式和文本
-function getPublishStatusInfo(status: LocalModelStatus): {
-  text: string;
-  className: string;
-} {
-  switch (status) {
-    case LocalModelStatus.RUNNING:
-      return {
-        text: i18next.t('model.publishRunning'),
-        className: 'bg-[#dfffce] text-[#3DC253]',
-      };
-    case LocalModelStatus.PENDING:
-      return {
-        text: i18next.t('model.publishPending'),
-        className: 'bg-[#FFF4E5] text-[#EBA300]',
-      };
-    case LocalModelStatus.FAILED:
-      return {
-        text: i18next.t('model.publishFailed'),
-        className: 'bg-[#FEEDEC] text-[#F74E43]',
-      };
-    default:
-      return {
-        text: '',
-        className: '',
-      };
-  }
 }
 
 // 模型卡片头部组件
