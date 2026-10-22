@@ -184,6 +184,7 @@ docker compose -f docker-compose-with-auth.yaml up -d --wait --wait-timeout 900
 
 **说明：**
 - Casdoor默认的登录账户名：`admin`，密码：`123`
+- 认证网关使用官方 Debian 版 `nginx:1.30.6-trixie` 镜像。新版 Alpine 镜像在部分旧宿主机上无法写入 PID 文件，参见[上游兼容问题](https://github.com/nginx/docker-nginx/issues/1059)。无需本地构建镜像。
 - 升级时必须让检出的 Compose 清单与应用镜像同步更新。`docker compose pull` 只更新镜像，不会更新 `docker-compose.yaml`；停止现有服务前应运行仓库提供的部署契约预检，并保留 `.env` 与命名卷。常规升级禁止使用 `down -v`。
 
 ### 第四步：配置平台账号管理（可选，按需配置业务能力）
