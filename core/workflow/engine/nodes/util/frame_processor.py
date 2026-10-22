@@ -67,7 +67,10 @@ def extract_tool_calls_content(tool_calls: List[Dict[str, Any]]) -> str:
         function = cast(Dict[str, Any], tool.get("function") or {})
         response_json_str = function.get("response") or "{}"
         response_json = json.loads(response_json_str)
-        if type_value == ToolType.TOOL.value:
+        # Native Skill and workflow tools return their result directly. Only
+        # unwrap recognized legacy envelopes; otherwise preserve the result.
+        response_dict = response_json
+        if type_value == ToolType.TOOL.value and isinstance(response_json, dict):
             if response_json.get("header"):
                 # Handle tool type response
                 code = response_json.get("header", {}).get("code")
@@ -81,10 +84,11 @@ def extract_tool_calls_content(tool_calls: List[Dict[str, Any]]) -> str:
                 response_dict = json.loads(response) if response else {}
             else:
                 # Handle MCP (Model Context Protocol) type response
-                response_dict = response_json.get("data", {}).get("content", [])
-        elif type_value == ToolType.KNOWLEDGE.value:
+                data = response_json.get("data")
+                if isinstance(data, dict) and "content" in data:
+                    response_dict = data["content"]
+        elif type_value == ToolType.KNOWLEDGE.value and isinstance(response_json, dict):
             response_dict = response_json.get("metadata_list", [])
-        # response = function.get("response")
         function_name = str(function.get("name") or "")
         function_arguments = str(function.get("arguments") or "")
         final_content.append(
