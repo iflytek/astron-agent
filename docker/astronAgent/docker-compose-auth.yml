@@ -22,7 +22,8 @@ services:
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
 
   casdoor-gateway:
-    image: nginx:stable-alpine
+    # Debian avoids Alpine musl's pwritev2 incompatibility on older hosts.
+    image: nginx:1.30.6-trixie
     restart: always
     ports:
       - "${CASDOOR_BIND_ADDRESS:-0.0.0.0}:${CASDOOR_PORT:-8000}:8000"
