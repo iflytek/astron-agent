@@ -3,7 +3,15 @@
 import asyncio
 import time
 from contextlib import aclosing
-from typing import Any, AsyncGenerator, AsyncIterator, NotRequired, cast
+from typing import (
+    Any,
+    AsyncGenerator,
+    AsyncIterator,
+    Iterator,
+    Mapping,
+    NotRequired,
+    cast,
+)
 
 from common.exceptions.base import BaseExc
 from common.otlp.log_trace.base import Usage
@@ -378,65 +386,81 @@ class DeepAgentsRunner(BaseModel):
                     elif isinstance(value, dict) and "astron_phase" in value:
                         phase = value["astron_phase"]
                 elif mode == "messages":
-                    message, metadata = value
-                    if metadata.get("lc_source") == "summarization":
-                        continue
-                    if not isinstance(message, (AIMessage, AIMessageChunk)):
-                        continue
-                    for block in message.content_blocks:
-                        text = block.get("text")
-                        reasoning = block.get("reasoning")
-                        if (
-                            block.get("type") == "text"
-                            and isinstance(text, str)
-                            and text
-                        ):
-                            yield AgentResponse(
-                                typ=(
-                                    "content"
-                                    if phase == "answer"
-                                    else "reasoning_content"
-                                ),
-                                content=text,
-                                model=handle.name,
-                            )
-                        elif (
-                            block.get("type") == "reasoning"
-                            and isinstance(reasoning, str)
-                            and reasoning
-                        ):
-                            yield AgentResponse(
-                                typ="reasoning_content",
-                                content=reasoning,
-                                model=handle.name,
-                            )
+                    for response in self._message_responses(value, phase):
+                        yield response
                 elif mode == "updates":
-                    for update in value.values():
-                        if not isinstance(update, dict):
-                            continue
-                        for message in update.get("messages", []):
-                            if isinstance(message, AIMessage):
-                                for call in message.tool_calls:
-                                    call_id = call.get("id")
-                                    if call_id:
-                                        tool_arguments[call_id] = call["args"]
-                            if (
-                                isinstance(message, ToolMessage)
-                                and message.tool_call_id not in emitted
-                            ):
-                                emitted.add(message.tool_call_id)
-                                execution = message.artifact
-                                if not isinstance(execution, ToolExecution):
-                                    execution = ToolExecution(
-                                        action=message.name or "",
-                                        action_input=tool_arguments.get(
-                                            message.tool_call_id, {}
-                                        ),
-                                        action_output={"result": message.content},
-                                        tool_type="tool",
-                                    )
-                                yield AgentResponse(
-                                    typ="tool_result",
-                                    content=execution,
-                                    model=handle.name,
-                                )
+                    for response in self._update_responses(
+                        value, emitted, tool_arguments
+                    ):
+                        yield response
+
+    def _message_responses(self, value: Any, phase: str) -> Iterator[AgentResponse]:
+        message, metadata = value
+        if metadata.get("lc_source") == "summarization":
+            return
+        if not isinstance(message, (AIMessage, AIMessageChunk)):
+            return
+        for block in message.content_blocks:
+            response = self._content_response(block, phase)
+            if response is not None:
+                yield response
+
+    def _content_response(
+        self, block: Mapping[str, Any], phase: str
+    ) -> AgentResponse | None:
+        text = block.get("text")
+        reasoning = block.get("reasoning")
+        if block.get("type") == "text" and isinstance(text, str) and text:
+            return AgentResponse(
+                typ="content" if phase == "answer" else "reasoning_content",
+                content=text,
+                model=self.model_handle.name,
+            )
+        if (
+            block.get("type") == "reasoning"
+            and isinstance(reasoning, str)
+            and reasoning
+        ):
+            return AgentResponse(
+                typ="reasoning_content",
+                content=reasoning,
+                model=self.model_handle.name,
+            )
+        return None
+
+    def _update_responses(
+        self,
+        value: Any,
+        emitted: set[str],
+        tool_arguments: dict[str, dict[str, Any]],
+    ) -> Iterator[AgentResponse]:
+        for update in value.values():
+            if not isinstance(update, dict):
+                continue
+            for message in update.get("messages", []):
+                if isinstance(message, AIMessage):
+                    for call in message.tool_calls:
+                        call_id = call.get("id")
+                        if call_id:
+                            tool_arguments[call_id] = call["args"]
+                if (
+                    isinstance(message, ToolMessage)
+                    and message.tool_call_id not in emitted
+                ):
+                    emitted.add(message.tool_call_id)
+                    yield self._tool_response(message, tool_arguments)
+
+    def _tool_response(
+        self, message: ToolMessage, tool_arguments: dict[str, dict[str, Any]]
+    ) -> AgentResponse:
+        execution = message.artifact
+        if not isinstance(execution, ToolExecution):
+            execution = ToolExecution(
+                action=message.name or "",
+                action_input=tool_arguments.get(message.tool_call_id, {}),
+                action_output={"result": message.content},
+                tool_type="tool",
+            )
+        return AgentResponse(
+            typ="tool_result", content=execution, model=self.model_handle.name
+        )
