@@ -29,6 +29,8 @@ PYTHONPATH=core core/agent/.venv/bin/python -m pytest core/agent/tests
 PYTHONPATH=core core/agent/.venv/bin/python -m mypy --disallow-untyped-defs --disallow-incomplete-defs --check-untyped-defs --no-implicit-optional --ignore-missing-imports --explicit-package-bases core/agent
 ```
 
-在 `core/agent` 运行 `uv lock --check`、`.venv/bin/python -m black --check .`、`.venv/bin/python -m isort --check-only --profile black .`、`.venv/bin/python -m flake8 .`。
+在 `core/agent` 运行 `uv lock --check`、`.venv/bin/python -m black --check .`、`.venv/bin/python -m isort --check-only --profile black .`、`.venv/bin/python -m flake8 --max-line-length 88 --ignore=E203,W503,E501 --max-complexity 10 .`。
+
+仓库 `make check-python` 和 GitHub CI 的 Agent 类型检查通过 uv 从原锁文件建立临时依赖环境，再由固定版本 mypy 使用其官方 `--python-executable` 选项解析 SDK 类型。临时环境位于仓库之外并在检查结束后删除，避免递归扫描第三方源码；这只影响开发检查，不增加服务部署步骤。
 
 `tests/test_deepagents_harness.py` 使用真实 Deep Agents 图与可控 LangChain 模型，覆盖工具执行、独立回答阶段、预算、协议、错误、取消和隔离。离线结果不代表真实供应商工具能力或生产环境验收；发布前须验证所选模型、工作流调用和 Skill 沙箱。
