@@ -106,16 +106,7 @@ def _build_tool(
                             response = frame
                             if frame.code:
                                 break
-                            if isinstance(frame.result, dict):
-                                for key, parts in content_parts.items():
-                                    value = frame.result.get(key)
-                                    if isinstance(value, str) and value:
-                                        parts.append(value)
-                                        writer(
-                                            AgentResponse(
-                                                typ=key, content=value, model=""
-                                            )
-                                        )
+                            _emit_plugin_frame(frame, content_parts, writer)
                     if response is not None and not response.code:
                         response = response.model_copy(
                             update={
@@ -128,27 +119,7 @@ def _build_tool(
                     response = await result
                 if response is None:
                     raise ValueError("Plugin returned no result")
-                ended = int(time.time() * 1000)
-                response.start_time = response.start_time or started
-                response.end_time = response.end_time or ended
-                # Each invocation gets its own snapshot: concurrent calls of the
-                # same plugin must not overwrite the NodeLog's result/timing.
-                snapshot = plugin.model_copy(update={"run_result": response})
-                output = {"code": response.code, "data": response.result}
-                public_output = (
-                    response.result
-                    if isinstance(response.result, dict)
-                    else {"result": response.result}
-                )
-                if response.code:
-                    public_output = {**public_output, "code": response.code}
-                step = ToolExecution(
-                    action=plugin.name,
-                    action_input=arguments,
-                    action_output=public_output,
-                    tool_type="workflow" if workflow else "tool",
-                    plugin=snapshot,
-                )
+                step = _tool_execution(plugin, response, arguments, started)
                 if response.code:
                     observed.set_status(Status(StatusCode.ERROR))
                     observed.set_attributes(
@@ -160,6 +131,7 @@ def _build_tool(
                             ),
                         }
                     )
+                output = {"code": response.code, "data": response.result}
                 return json.dumps(output, ensure_ascii=False), step
             finally:
                 observed.set_attributes(
@@ -181,4 +153,44 @@ def _build_tool(
         ),
         args_schema=schema,
         response_format="content_and_artifact",
+    )
+
+
+def _emit_plugin_frame(
+    frame: PluginResponse, content_parts: dict[str, list[str]], writer: Any
+) -> None:
+    if not isinstance(frame.result, dict):
+        return
+    for key, parts in content_parts.items():
+        value = frame.result.get(key)
+        if isinstance(value, str) and value:
+            parts.append(value)
+            writer(AgentResponse(typ=key, content=value, model=""))
+
+
+def _tool_execution(
+    plugin: BasePlugin,
+    response: PluginResponse,
+    arguments: dict[str, Any],
+    started: int,
+) -> ToolExecution:
+    ended = int(time.time() * 1000)
+    response.start_time = response.start_time or started
+    response.end_time = response.end_time or ended
+    # Each invocation gets its own snapshot: concurrent calls of the same
+    # plugin must not overwrite the NodeLog's result/timing.
+    snapshot = plugin.model_copy(update={"run_result": response})
+    public_output = (
+        response.result
+        if isinstance(response.result, dict)
+        else {"result": response.result}
+    )
+    if response.code:
+        public_output = {**public_output, "code": response.code}
+    return ToolExecution(
+        action=plugin.name,
+        action_input=arguments,
+        action_output=public_output,
+        tool_type="workflow" if plugin.typ == "workflow" else "tool",
+        plugin=snapshot,
     )
