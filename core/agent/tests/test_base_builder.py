@@ -8,19 +8,13 @@ from urllib.parse import urlparse
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.trace.span import Span
+from langchain_anthropic import ChatAnthropic
+from langchain_google_genai import ChatGoogleGenerativeAI
 
-from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
-from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
-from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
+from agent.domain.models.providers import ModelHandle
 from agent.infra.app_auth import MaasAuth
-from agent.service.builder.base_builder import (
-    BaseApiBuilder,
-    CotRunnerParams,
-    RunnerParams,
-)
+from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.base import BasePlugin
-from agent.service.plugin.base import BasePlugin as RealBasePlugin
 from agent.service.plugin.skill_resource_security import (
     SKILL_RESOURCE_TRUSTED_BUCKET_ENV,
     SKILL_RESOURCE_TRUSTED_ORIGIN_ENV,
@@ -180,76 +174,6 @@ class TestBaseApiBuilder:
             assert "  " not in mcp_urls
 
     @pytest.mark.asyncio
-    async def test_build_chat_runner(self, builder: BaseApiBuilder) -> None:
-        """Test building ChatRunner"""
-        mock_model = BaseLLMModel.model_construct(name="m", llm=MagicMock())
-        params = RunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-        )
-
-        runner = await builder.build_chat_runner(params)
-
-        assert isinstance(runner, ChatRunner)
-        assert runner.model == mock_model
-        assert runner.instruct == "instruction"
-        assert runner.knowledge == "knowledge"
-        assert runner.question == "question"
-
-    @pytest.mark.asyncio
-    async def test_build_cot_runner(self, builder: BaseApiBuilder) -> None:
-        """Test building CotRunner"""
-        mock_model = BaseLLMModel.model_construct(name="m", llm=MagicMock())
-
-        mock_plugin = RealBasePlugin(
-            name="p",
-            description="d",
-            schema_template="st",
-            typ="tool",
-            run=AsyncMock(),
-        )
-        mock_plugins = [mock_plugin]
-        mock_process_runner = MagicMock(spec=CotProcessRunner)
-
-        params = CotRunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-            plugins=mock_plugins,
-            process_runner=mock_process_runner,
-            max_loop=10,
-        )
-
-        runner = await builder.build_cot_runner(params)
-
-        assert isinstance(runner, CotRunner)
-        assert runner.model == mock_model
-        assert runner.plugins == mock_plugins
-        assert runner.max_loop == 10
-
-    @pytest.mark.asyncio
-    async def test_build_process_runner(self, builder: BaseApiBuilder) -> None:
-        """Test building CotProcessRunner"""
-        mock_model = BaseLLMModel.model_construct(name="m", llm=MagicMock())
-        params = RunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-        )
-
-        runner = await builder.build_process_runner(params)
-
-        assert isinstance(runner, CotProcessRunner)
-        assert runner.model == mock_model
-
-    @pytest.mark.asyncio
     async def test_query_maas_sk(self, builder: BaseApiBuilder) -> None:
         """Test querying MaaS SK"""
         mock_sk = "test_key:test_secret"
@@ -269,10 +193,11 @@ class TestBaseApiBuilder:
             api_key="provided_key",
         )
 
-        assert isinstance(model, BaseLLMModel)
+        assert isinstance(model, ModelHandle)
         assert model.name == "test_model"
         # Verify provided API key is used
-        assert model.llm.api_key == "provided_key"
+        assert model.model.openai_api_key.get_secret_value() == "provided_key"
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_model_does_not_record_api_credentials(
@@ -281,7 +206,7 @@ class TestBaseApiBuilder:
         credential = "tenant-key:tenant-secret-must-not-reach-telemetry"
 
         with patch.object(builder.span, "add_info_events") as add_info_events:
-            await builder.create_model(
+            model = await builder.create_model(
                 app_id="test_app",
                 model_name="test_model",
                 base_url="https://api.test.com",
@@ -291,6 +216,7 @@ class TestBaseApiBuilder:
         recorded_events = repr(add_info_events.call_args_list)
         assert credential not in recorded_events
         assert "model_auth_configured" in recorded_events
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_anthropic_model(self, builder: BaseApiBuilder) -> None:
@@ -302,8 +228,9 @@ class TestBaseApiBuilder:
             api_key="provided_key",
         )
 
-        assert isinstance(model, AnthropicLLMModel)
-        assert model.build_request_url() == "https://api.anthropic.com/v1/messages"
+        assert isinstance(model.model, ChatAnthropic)
+        assert model.model.anthropic_api_url == "https://api.anthropic.com"
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_google_model(self, builder: BaseApiBuilder) -> None:
@@ -315,11 +242,9 @@ class TestBaseApiBuilder:
             api_key="provided_key",
         )
 
-        assert isinstance(model, GoogleLLMModel)
-        assert (
-            model.build_request_url()
-            == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse"
-        )
+        assert isinstance(model.model, ChatGoogleGenerativeAI)
+        assert model.model.base_url == "https://generativelanguage.googleapis.com"
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_model_without_api_key(self, builder: BaseApiBuilder) -> None:
@@ -335,7 +260,8 @@ class TestBaseApiBuilder:
                 api_key="",
             )
 
-            assert isinstance(model, BaseLLMModel)
+            assert isinstance(model, ModelHandle)
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_model_normalize_base_url_chat_completions(
@@ -350,10 +276,11 @@ class TestBaseApiBuilder:
         )
 
         # Verify base_url is normalized by AsyncOpenAI (removes /chat/completions)
-        assert "/chat/completions" not in str(model.llm.base_url)
+        assert "/chat/completions" not in str(model.model.openai_api_base)
         # Verify URL hostname using proper URL parsing to avoid security issues
-        parsed_url = urlparse(str(model.llm.base_url))
+        parsed_url = urlparse(str(model.model.openai_api_base))
         assert parsed_url.netloc == "api.test.com"
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_model_normalize_base_url_completions(
@@ -368,10 +295,11 @@ class TestBaseApiBuilder:
         )
 
         # Verify base_url is normalized by AsyncOpenAI (removes /completions)
-        assert "/completions" not in str(model.llm.base_url)
+        assert "/completions" not in str(model.model.openai_api_base)
         # Verify URL hostname using proper URL parsing to avoid security issues
-        parsed_url = urlparse(str(model.llm.base_url))
+        parsed_url = urlparse(str(model.model.openai_api_base))
         assert parsed_url.netloc == "api.test.com"
+        await model.aclose()
 
     @pytest.mark.asyncio
     async def test_create_model_ssl_verify_enabled(
@@ -386,8 +314,9 @@ class TestBaseApiBuilder:
                 api_key="test_key",
             )
 
-            assert isinstance(model, BaseLLMModel)
-            # Verify HTTP client is configured with SSL verification
+            assert isinstance(model, ModelHandle)
+        await model.aclose()
+        # Verify HTTP client is configured with SSL verification
 
     @pytest.mark.asyncio
     async def test_create_model_ssl_verify_disabled(
@@ -402,52 +331,6 @@ class TestBaseApiBuilder:
                 api_key="test_key",
             )
 
-            assert isinstance(model, BaseLLMModel)
-            # Verify HTTP client has SSL verification disabled
-
-
-class TestRunnerParams:
-    """Test RunnerParams dataclass"""
-
-    def test_runner_params_creation(self) -> None:
-        """Test creating RunnerParams"""
-        mock_model = MagicMock(spec=BaseLLMModel)
-        params = RunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-        )
-
-        assert params.model == mock_model
-        assert params.chat_history == []
-        assert params.instruct == "instruction"
-        assert params.knowledge == "knowledge"
-        assert params.question == "question"
-
-
-class TestCotRunnerParams:
-    """Test CotRunnerParams dataclass"""
-
-    def test_cot_runner_params_creation(self) -> None:
-        """Test creating CotRunnerParams"""
-        mock_model = MagicMock(spec=BaseLLMModel)
-        mock_plugins = [MagicMock(spec=BasePlugin)]
-        mock_process_runner = MagicMock(spec=CotProcessRunner)
-
-        params = CotRunnerParams(
-            model=mock_model,
-            chat_history=[],
-            instruct="instruction",
-            knowledge="knowledge",
-            question="question",
-            plugins=mock_plugins,
-            process_runner=mock_process_runner,
-            max_loop=15,
-        )
-
-        assert params.plugins == mock_plugins
-        assert params.process_runner == mock_process_runner
-        assert params.max_loop == 15
-        assert params.max_loop == 15  # Default value test
+            assert isinstance(model, ModelHandle)
+        await model.aclose()
+        # Verify HTTP client has SSL verification disabled

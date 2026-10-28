@@ -177,13 +177,14 @@ cd docker/astronAgent
 # Validate the fully rendered credential-sharing and health contract before changing the stack
 python3 scripts/verify_security_contract.py --compose-file docker-compose-with-auth.yaml
 
-# First complete docs/CASDOOR_PASSWORD_STORAGE.md for new or existing databases.
+# Optional password maintenance is documented in docs/CASDOOR_PASSWORD_STORAGE.md.
 # Start all services and wait for configured health checks to converge.
 docker compose -f docker-compose-with-auth.yaml up -d --wait --wait-timeout 900
 ```
 
 **Note:**
 - Default Casdoor login credentials: username: `admin`, password: `123`
+- The authentication gateway uses the official Debian-based `nginx:1.30.6-trixie` image. Newer Alpine images can fail to write the PID file on older hosts; see the [upstream compatibility issue](https://github.com/nginx/docker-nginx/issues/1059). No local image build is required.
 - When upgrading, update the checked-out Compose files together with the application images. `docker compose pull` updates images only; it does not update `docker-compose.yaml`. Run the repository's deployment-contract preflight before stopping the current stack, preserve `.env` and named volumes, and never use `down -v` during a routine upgrade.
 
 ### Step 4: Configure Platform Account Management (Optional, configure business capabilities as needed)

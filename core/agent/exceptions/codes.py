@@ -81,7 +81,6 @@ c_40004 = (40004, "failed to request flow")
 c_40005 = (40005, "failed to request link")
 c_40006 = (40006, "invalid client message format for api")
 
-c_40022 = (40022, "Model returned reasoning content format is incorrect")
 c_40023 = (40023, "Failed to get link tool protocol")
 c_40024 = (40024, "Failed to execute link tool")
 c_40025 = (40025, "Failed to query knowledge base")

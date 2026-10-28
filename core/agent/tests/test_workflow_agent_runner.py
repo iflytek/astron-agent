@@ -2,16 +2,15 @@
 
 from dataclasses import dataclass
 from typing import AsyncIterator
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from common.otlp import sid as sid_module
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
 
-from agent.api.schemas.agent_response import AgentResponse, CotStep
-from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
+from agent.api.schemas.agent_response import AgentResponse, ToolExecution
+from agent.engine.deepagents_runner import DeepAgentsRunner
 from agent.service.plugin.base import BasePlugin
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
@@ -41,37 +40,21 @@ class TestWorkflowAgentRunner:
     """Test WorkflowAgentRunner class"""
 
     @pytest.fixture
-    def mock_chat_runner(self) -> ChatRunner:
-        """Create mock ChatRunner"""
-        runner = MagicMock(spec=ChatRunner)
+    def mock_engine(self) -> DeepAgentsRunner:
+        """Create mock DeepAgentsRunner"""
+        runner = MagicMock(spec=DeepAgentsRunner)
+        runner.question = "test question"
+        runner.model_handle = MagicMock(aclose=AsyncMock())
         return runner
-
-    @pytest.fixture
-    def mock_cot_runner(self) -> CotRunner:
-        """Create mock CotRunner"""
-        runner = MagicMock(spec=CotRunner)
-        return runner
-
-    @pytest.fixture
-    def mock_plugins(self) -> list[BasePlugin]:
-        """Create mock plugin list"""
-        plugin = MagicMock(spec=BasePlugin)
-        plugin.name = "test_plugin"
-        plugin.typ = "tool"
-        return [plugin]
 
     @pytest.fixture
     def runner(
         self,
-        mock_chat_runner: ChatRunner,
-        mock_cot_runner: CotRunner,
-        mock_plugins: list[BasePlugin],
+        mock_engine: DeepAgentsRunner,
     ) -> WorkflowAgentRunner:
         """Create WorkflowAgentRunner instance for testing"""
         return WorkflowAgentRunner(
-            chat_runner=mock_chat_runner,
-            cot_runner=mock_cot_runner,
-            plugins=mock_plugins,
+            engine=mock_engine,
             knowledge_metadata_list=[],
         )
 
@@ -109,8 +92,7 @@ class TestWorkflowAgentRunner:
         ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
             yield mock_response
 
-        runner.plugins = []
-        runner.chat_runner.run = mock_run
+        runner.engine.run = mock_run
 
         results = []
         async for result in runner.run(span, node_trace):
@@ -119,11 +101,10 @@ class TestWorkflowAgentRunner:
         assert len(results) > 0
 
     @pytest.mark.asyncio
-    async def test_run_runner_without_plugins(
+    async def test_run_uses_deepagents_engine(
         self, runner: WorkflowAgentRunner, span: Span, node_trace: NodeTraceLog
     ) -> None:
-        """Test using ChatRunner when no plugins"""
-        runner.plugins = []
+        """Test the unique engine execution path"""
 
         mock_response = AgentResponse(typ="content", content="test", model="test_model")
 
@@ -132,32 +113,10 @@ class TestWorkflowAgentRunner:
         ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
             yield mock_response
 
-        runner.chat_runner.run = mock_chat_run
+        runner.engine.run = mock_chat_run
 
         results = []
-        async for result in runner.run_runner(span, node_trace):
-            results.append(result)
-
-        assert len(results) > 0
-
-    @pytest.mark.asyncio
-    async def test_run_runner_with_plugins(
-        self, runner: WorkflowAgentRunner, span: Span, node_trace: NodeTraceLog
-    ) -> None:
-        """Test using CotRunner when plugins exist"""
-        mock_response = AgentResponse(
-            typ="cot_step", content=CotStep(empty=True), model="test_model"
-        )
-
-        async def mock_cot_run(
-            span: Span, node_trace: NodeTraceLog
-        ) -> AsyncIterator[AgentResponse]:  # noqa: ARG001
-            yield mock_response
-
-        runner.cot_runner.run = mock_cot_run
-
-        results = []
-        async for result in runner.run_runner(span, node_trace):
+        async for result in runner.run(span, node_trace):
             results.append(result)
 
         assert len(results) > 0
@@ -185,17 +144,19 @@ class TestWorkflowAgentRunner:
         assert chunk.choices[0].delta.content == "answer"
 
     @pytest.mark.asyncio
-    async def test_convert_message_cot_step(
+    async def test_convert_message_tool_result(
         self, runner: WorkflowAgentRunner, span: Span, node_trace: NodeTraceLog
     ) -> None:
         """Test converting CoT step message"""
-        cot_step = CotStep(
+        tool_result = ToolExecution(
             thought="think",
             action="test_action",
             action_input={"param": "value"},
             action_output={"result": "data"},
         )
-        message = AgentResponse(typ="cot_step", content=cot_step, model="test_model")
+        message = AgentResponse(
+            typ="tool_result", content=tool_result, model="test_model"
+        )
 
         chunk = await runner.convert_message(message, span, node_trace)
         assert chunk.choices[0].delta.tool_calls is not None
@@ -241,7 +202,7 @@ class TestWorkflowAgentRunner:
         mock_plugin.typ = "tool"
         mock_plugin.tool_id = "tool_123"
 
-        cot_step = CotStep(
+        tool_result = ToolExecution(
             thought="think",
             action="test_action",
             action_input={"param": "value"},
@@ -249,7 +210,9 @@ class TestWorkflowAgentRunner:
             plugin=mock_plugin,
         )
 
-        message = AgentResponse(typ="cot_step", content=cot_step, model="test_model")
+        message = AgentResponse(
+            typ="tool_result", content=tool_result, model="test_model"
+        )
         await runner.convert_message(message, span, node_trace)
 
         # Verify node trace is added

@@ -1,6 +1,6 @@
 import json
 from contextlib import aclosing
-from typing import Any, AsyncGenerator, Sequence
+from typing import Any, AsyncGenerator
 
 # Use unified common package import module
 from common.otlp.log_trace.node_log import Data, NodeLog
@@ -8,7 +8,7 @@ from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.trace.span import Span
 from pydantic import BaseModel, ConfigDict, Field
 
-from agent.api.schemas.agent_response import AgentResponse, CotStep
+from agent.api.schemas.agent_response import AgentResponse, ToolExecution
 from agent.api.schemas.completion_chunk import (
     ReasonChatCompletionChunk,
     ReasonChoice,
@@ -16,18 +16,13 @@ from agent.api.schemas.completion_chunk import (
     ReasonChoiceDeltaToolCall,
     ReasonChoiceDeltaToolCallFunction,
 )
-from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
-from agent.service.plugin.base import BasePlugin
+from agent.engine.deepagents_runner import DeepAgentsRunner
 
 
 class WorkflowAgentRunner(BaseModel):
     """Workflow Agent runner"""
 
-    chat_runner: ChatRunner
-    cot_runner: CotRunner
-
-    plugins: Sequence[BasePlugin]
+    engine: DeepAgentsRunner
 
     knowledge_metadata_list: list[Any] = Field(default_factory=list)
 
@@ -38,35 +33,26 @@ class WorkflowAgentRunner(BaseModel):
     ) -> AsyncGenerator[ReasonChatCompletionChunk, None]:
         """Execute workflow agent runners"""
 
-        if self.knowledge_metadata_list:
-            yield await self.convert_message(
-                AgentResponse(
-                    typ="knowledge_metadata",
-                    content=self.knowledge_metadata_list,
-                    model="",
-                ),
-                span=span,
-                node_trace_log=node_trace_log,
-            )
-
-        response_stream = self.run_runner(span, node_trace_log)
-        async with aclosing(response_stream):
-            async for message in response_stream:
+        try:
+            if self.knowledge_metadata_list:
                 yield await self.convert_message(
-                    message, span=span, node_trace_log=node_trace_log
+                    AgentResponse(
+                        typ="knowledge_metadata",
+                        content=self.knowledge_metadata_list,
+                        model="",
+                    ),
+                    span=span,
+                    node_trace_log=node_trace_log,
                 )
 
-    async def run_runner(
-        self, span: Span, node_trace_log: NodeTraceLog
-    ) -> AsyncGenerator[AgentResponse, None]:
-        response_stream = (
-            self.cot_runner.run(span, node_trace_log)
-            if self.plugins
-            else self.chat_runner.run(span, node_trace_log)
-        )
-        async with aclosing(response_stream):
-            async for message in response_stream:
-                yield message
+            response_stream = self.engine.run(span, node_trace_log)
+            async with aclosing(response_stream):
+                async for message in response_stream:
+                    yield await self.convert_message(
+                        message, span=span, node_trace_log=node_trace_log
+                    )
+        finally:
+            await self.engine.model_handle.aclose()
 
     async def convert_message(
         self, message: AgentResponse, span: Span, node_trace_log: NodeTraceLog
@@ -86,8 +72,8 @@ class WorkflowAgentRunner(BaseModel):
             self._handle_reasoning_content(chunk, message)
         elif message.typ == "content":
             self._handle_content(chunk, message)
-        elif message.typ == "cot_step":
-            self._handle_cot_step(chunk, message, span, node_trace_log)
+        elif message.typ == "tool_result":
+            self._handle_tool_result(chunk, message, span, node_trace_log)
         elif message.typ == "log":
             self._handle_log(chunk, message)
         elif message.typ == "knowledge_metadata":
@@ -109,7 +95,7 @@ class WorkflowAgentRunner(BaseModel):
         if isinstance(message.content, str):
             chunk.choices[0].delta.content = message.content
 
-    def _handle_cot_step(
+    def _handle_tool_result(
         self,
         chunk: ReasonChatCompletionChunk,
         message: AgentResponse,
@@ -117,7 +103,7 @@ class WorkflowAgentRunner(BaseModel):
         node_trace_log: NodeTraceLog,
     ) -> None:
         """Handle CoT steps"""
-        if not isinstance(message.content, CotStep):
+        if not isinstance(message.content, ToolExecution):
             return
 
         content = message.content
@@ -146,7 +132,7 @@ class WorkflowAgentRunner(BaseModel):
 
     def _handle_plugin_trace(
         self,
-        content: CotStep,
+        content: ToolExecution,
         span: Span,
         node_trace_log: NodeTraceLog,
     ) -> None:
@@ -230,7 +216,7 @@ class WorkflowAgentRunner(BaseModel):
                 function=ReasonChoiceDeltaToolCallFunction(
                     name="knowledge",
                     arguments=json.dumps(
-                        {"query": getattr(self.chat_runner, "question", "")},
+                        {"query": self.engine.question},
                         ensure_ascii=False,
                     ),
                     response=json.dumps(

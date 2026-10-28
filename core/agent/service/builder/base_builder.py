@@ -1,61 +1,23 @@
 import json
 import os
 import ssl
-from dataclasses import dataclass
-from typing import ClassVar, Sequence, Union, cast
+from typing import Union, cast
 
 import httpx
 from common.otlp.trace.langfuse import serialize_langfuse_value
 from common.otlp.trace.span import Span
-from openai import AsyncOpenAI
 from pydantic import BaseModel, Field
 
-from agent.domain.models.base import AnthropicLLMModel, BaseLLMModel, GoogleLLMModel
-from agent.engine.nodes.chat.chat_runner import ChatRunner
-from agent.engine.nodes.cot.cot_runner import CotRunner
-from agent.engine.nodes.cot_process.cot_process_runner import CotProcessRunner
+from agent.domain.models.providers import ModelHandle, create_provider_model
 from agent.infra.app_auth import MaasAuth
-from agent.service.plugin.base import BasePlugin
 from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
 from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from agent.service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
 
 
-@dataclass
-class RunnerParams:
-    """Common parameters for Runner construction"""
-
-    model: BaseLLMModel
-    chat_history: list
-    instruct: str
-    knowledge: str
-    question: str
-
-
-@dataclass
-class CotRunnerParams(RunnerParams):
-    """Parameters for CoT Runner construction"""
-
-    plugins: Sequence[BasePlugin]
-    process_runner: CotProcessRunner
-    max_loop: int = 30
-
-
 class BaseApiBuilder(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
-    OPENAI_COMPATIBLE_PROVIDERS: ClassVar[set[str]] = {
-        "",
-        "openai",
-        "chatgpt",
-        "deepseek",
-        "doubao",
-        "minimax",
-        "moonshot",
-        "qwen",
-        "zhipu",
-    }
-
     app_id: str
     uid: str = Field(default="")
     span: Span
@@ -157,109 +119,6 @@ class BaseApiBuilder(BaseModel):
 
             return plugins
 
-    async def build_chat_runner(
-        self,
-        params: RunnerParams,
-    ) -> ChatRunner:
-        with self.span.start("BuildChatRunner") as sp:
-            sp.add_info_events(
-                {
-                    "model": params.model.name,
-                    "chat-history": json.dumps(
-                        [history.model_dump() for history in params.chat_history],
-                        ensure_ascii=False,
-                    ),
-                    "instruct": params.instruct,
-                    "knowledge": params.knowledge,
-                    "question": params.question,
-                }
-            )
-
-            chat_runner = ChatRunner(
-                model=params.model,
-                chat_history=params.chat_history,
-                instruct=params.instruct,
-                knowledge=params.knowledge,
-                question=params.question,
-            )
-            return chat_runner
-
-    async def build_cot_runner(
-        self,
-        params: CotRunnerParams,
-    ) -> CotRunner:
-        with self.span.start("BuildCotRunner") as sp:
-            sp.add_info_events(
-                {
-                    "model": params.model.name,
-                    "plugins": json.dumps(
-                        [
-                            f"{plugin.typ}\n{plugin.schema_template}"
-                            for plugin in params.plugins
-                        ],
-                        ensure_ascii=False,
-                    ),
-                    "chat-history": json.dumps(
-                        [history.model_dump() for history in params.chat_history],
-                        ensure_ascii=False,
-                    ),
-                    "instruct": params.instruct,
-                    "knowledge": params.knowledge,
-                    "question": params.question,
-                }
-            )
-
-            plugins_list = cast(
-                list[
-                    Union[
-                        BasePlugin,
-                        McpPlugin,
-                        LinkPlugin,
-                        WorkflowPlugin,
-                        SkillPlugin,
-                    ]
-                ],
-                list(params.plugins),
-            )
-            cot_runner = CotRunner(
-                model=params.model,
-                plugins=plugins_list,
-                chat_history=params.chat_history,
-                instruct=params.instruct,
-                knowledge=params.knowledge,
-                question=params.question,
-                process_runner=params.process_runner,
-                max_loop=params.max_loop,
-            )
-            return cot_runner
-
-    async def build_process_runner(
-        self,
-        params: RunnerParams,
-    ) -> CotProcessRunner:
-        with self.span.start("BuildProcessRunner") as sp:
-            sp.add_info_events(
-                {
-                    "model": params.model.name,
-                    "chat-history": json.dumps(
-                        [history.model_dump() for history in params.chat_history],
-                        ensure_ascii=False,
-                    ),
-                    "instruct": params.instruct,
-                    "knowledge": params.knowledge,
-                    "question": params.question,
-                }
-            )
-
-            cot_runner = CotProcessRunner(
-                model=params.model,
-                chat_history=params.chat_history,
-                instruct=params.instruct,
-                knowledge=params.knowledge,
-                question=params.question,
-            )
-            return cot_runner
-
     async def query_maas_sk(self, app_id: str, model_name: str) -> str:
 
         with self.span.start("BuildSk") as sp:
@@ -279,67 +138,20 @@ class BaseApiBuilder(BaseModel):
         base_url: str,
         provider: str = "",
         api_key: str = "",
-    ) -> BaseLLMModel:
-
+    ) -> ModelHandle:
         with self.span.start("BuildModel") as sp:
-            if api_key:
-                sk = api_key
-            else:
-                sk = await self.query_maas_sk(app_id, model_name)
-
-            normalized_provider = (provider or "").strip().lower()
-            normalized_base_url = base_url
-            if (
-                normalized_provider in self.OPENAI_COMPATIBLE_PROVIDERS
-                and base_url.endswith("/chat/completions")
-            ):
-                normalized_base_url = base_url.rsplit("/chat/completions", 1)[0]
-                sp.add_info_event(
-                    f"Normalized base_url: {base_url} -> {normalized_base_url}"
-                )
-            elif (
-                normalized_provider in self.OPENAI_COMPATIBLE_PROVIDERS
-                and base_url.endswith("/completions")
-            ):
-                normalized_base_url = base_url.rsplit("/completions", 1)[0]
-                sp.add_info_event(
-                    f"Normalized base_url: {base_url} -> {normalized_base_url}"
-                )
-
+            sk = api_key or await self.query_maas_sk(app_id, model_name)
             sp.add_info_events(
                 {
                     "model": model_name,
-                    "base_url": normalized_base_url,
-                    "provider": normalized_provider or "openai",
+                    "provider": provider or "openai",
                     "model_auth_configured": bool(sk),
-                    "app_id": app_id,
                 }
             )
-            http_client = self._create_http_client(sp)
-
-            if normalized_provider == "anthropic":
-                return AnthropicLLMModel(
-                    name=model_name,
-                    model_url=normalized_base_url,
-                    api_key=sk,
-                    http_client=http_client,
-                )
-
-            if normalized_provider == "google":
-                return GoogleLLMModel(
-                    name=model_name,
-                    model_url=normalized_base_url,
-                    api_key=sk,
-                    http_client=http_client,
-                )
-
-            return BaseLLMModel(
-                name=model_name,
-                llm=AsyncOpenAI(
-                    api_key=sk,
-                    base_url=normalized_base_url,
-                    http_client=http_client,
-                    timeout=300.0,
-                    max_retries=2,
-                ),
+            return await create_provider_model(
+                model_name=model_name,
+                base_url=base_url,
+                provider=provider,
+                api_key=sk,
+                http_client=self._create_http_client(sp),
             )
