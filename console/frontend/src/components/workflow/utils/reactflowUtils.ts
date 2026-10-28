@@ -1298,7 +1298,9 @@ function mergeByStructure(newObj: unknown, oldObj: unknown): unknown {
   }
 
   if (Array.isArray(newObj)) {
-    return mergeArraysByStructure(newObj, Array.isArray(oldObj) ? oldObj : []);
+    return Array.isArray(oldObj)
+      ? mergeArraysByStructure(newObj, oldObj)
+      : newObj;
   }
 
   return oldObj !== undefined ? oldObj : newObj;
@@ -1329,10 +1331,7 @@ function mergeArraysByStructure(
   newObj: unknown[],
   oldObj: unknown[]
 ): unknown[] {
-  if (Array.isArray(oldObj) && oldObj.length > 0) {
-    return [mergeByStructure(newObj[0], oldObj[0])];
-  }
-  return newObj;
+  return oldObj.map(item => mergeByStructure(newObj[0], item));
 }
 
 function getDefaultValueForType(
