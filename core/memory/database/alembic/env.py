@@ -1,3 +1,5 @@
+"""Alembic migration environment for the memory database service."""
+
 import os
 import sys
 from pathlib import Path
@@ -20,8 +22,11 @@ sys.path.append(str(project_root))
 
 try:
     # Import all models for SQLModel metadata registration
+    # pylint: disable=unused-import
     from memory.database.domain.models.database_meta import DatabaseMeta  # noqa: F401
     from memory.database.domain.models.schema_meta import SchemaMeta  # noqa: F401
+
+    # pylint: enable=unused-import
 
     print("SQLModel and models load success!")
 except ImportError as e:
@@ -35,12 +40,15 @@ config = context.config
 
 def _get_adapter():  # type: ignore[no-untyped-def]
     """Get the database adapter based on DB_TYPE."""
+    # Imported lazily so the adapter reads DB_TYPE only when migrations run.
+    # pylint: disable-next=import-outside-toplevel
     from memory.database.repository.middleware.adapters import get_adapter
 
     return get_adapter()
 
 
 def get_database_url() -> str:
+    """Build the synchronous URL Alembic connects with."""
     adapter = _get_adapter()
     prefix = adapter.get_env_prefix()
     user = os.getenv(f"{prefix}_USER", "")
@@ -56,10 +64,12 @@ config.set_main_option("sqlalchemy.url", get_database_url())
 
 
 def get_metadata():  # type: ignore[no-untyped-def]
+    """Return the SQLModel metadata that autogenerate compares against."""
     return SQLModel.metadata
 
 
-def include_object(
+# The signature, including the `object` name, is Alembic's include_object hook.
+def include_object(  # pylint: disable=redefined-builtin,unused-argument
     object: SchemaItem,
     name: str | None,
     type_: Literal[
@@ -145,7 +155,13 @@ def run_migrations_online() -> None:
     # this callback is used to prevent an auto-migration from being generated
     # when there are no changes to the schema
     # reference: http://alembic.zzzcomputing.com/en/latest/cookbook.html
-    def process_revision_directives(context: object, revision: object, directives: list) -> None:  # type: ignore[no-untyped-def]
+    # Signature defined by Alembic's process_revision_directives hook.
+    def process_revision_directives(  # type: ignore[no-untyped-def]
+        context: object,  # pylint: disable=redefined-outer-name,unused-argument
+        revision: object,  # pylint: disable=unused-argument
+        directives: list,
+    ) -> None:
+        """Skip writing a revision when autogenerate finds no changes."""
         if getattr(config.cmd_opts, "autogenerate", False):
             script = directives[0]
             if script.upgrade_ops.is_empty():

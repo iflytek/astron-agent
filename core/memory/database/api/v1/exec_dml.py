@@ -314,7 +314,10 @@ def _convert_value_if_boolean(
     literal_column_map: Dict[int, str],
     column_types: Dict[str, str],
 ) -> Union[str, bool]:
-    """Convert 'true'/'false' string to bool for boolean columns (MySQL compatibility)."""
+    """Convert 'true'/'false' strings to bool for boolean columns.
+
+    Needed for MySQL compatibility.
+    """
     col_key = literal_column_map.get(node_id)
     if not col_key or not _is_boolean_type(column_types.get(col_key, "")):
         return value
@@ -409,7 +412,7 @@ def rewrite_dml_with_uid_and_limit(
             parsed.set("limit", exp.Limit(expression=exp.Literal.number(limit_num)))
 
     if isinstance(parsed, exp.Insert):
-        _dml_insert_add_params(parsed, insert_ids, app_id, uid, space_id)
+        _dml_insert_add_params(parsed, insert_ids, app_id, uid)
 
     # Build mapping from Literal nodes to column names (only when needed)
     literal_column_map: Dict[int, str] = {}
@@ -497,7 +500,6 @@ def _dml_insert_add_params(
     insert_ids: List[int],
     app_id: str,
     uid: str,
-    space_id: Optional[str] = None,
 ) -> None:
     """Add parameters to INSERT statements.
 
@@ -665,24 +667,17 @@ def _collect_columns_and_keys(parsed: Any) -> tuple[list, list, list]:
     return functions_to_validate, columns_to_validate, keys_to_validate
 
 
-def _validate_comparison_nodes(parsed: Any, uid: str, span_context: Any) -> Any:
+def _validate_comparison_nodes(parsed: Any, span_context: Any) -> Any:
     """Validate comparison operation nodes."""
     for node in parsed.walk():
         # Check keys in WHERE conditions
-        if (
-            isinstance(node, exp.EQ)
-            or isinstance(node, exp.NEQ)
-            or isinstance(node, exp.GT)
-            or isinstance(node, exp.LT)
-            or isinstance(node, exp.GTE)
-            or isinstance(node, exp.LTE)
-        ):
+        if isinstance(node, (exp.EQ, exp.NEQ, exp.GT, exp.LT, exp.GTE, exp.LTE)):
             # Get left side (usually column name)
             left = node.left
             if isinstance(left, Column):
                 # These column names will be collected in _collect_columns_and_keys
                 continue
-            elif not isinstance(left, (Column, Literal)):
+            if not isinstance(left, (Column, Literal)):
                 span_context.add_error_event(
                     f"DML statement contains illegal expression: {node}"
                 )
@@ -756,13 +751,13 @@ def _validate_name_pattern(names: list, name_type: str, span_context: Any) -> An
     return None
 
 
-async def _validate_dml_legality(dml: str, uid: str, span_context: Any) -> Any:
+async def _validate_dml_legality(dml: str, span_context: Any) -> Any:
     try:
         dialect = get_adapter().get_sqlglot_dialect()
         parsed = sqlglot.parse_one(dml, dialect=dialect)
 
         # Validate comparison operation nodes
-        error_result = _validate_comparison_nodes(parsed, uid, span_context)
+        error_result = _validate_comparison_nodes(parsed, span_context)
         if error_result:
             return error_result
 
@@ -913,7 +908,7 @@ async def _process_dml_statements(
     sql_params = sql_params or {}
     rewrite_dmls = []
     for statement in dmls:
-        error_legality = await _validate_dml_legality(statement, uid, span_context)
+        error_legality = await _validate_dml_legality(statement, span_context)
         if error_legality:
             return None, error_legality
 
@@ -950,12 +945,12 @@ async def _process_dml_statements(
         duplicate_params = set(params) & set(sql_params)
         if duplicate_params:
             duplicate_names = ", ".join(sorted(duplicate_params))
-            span_context.add_error_event(
-                f"DML parameter names conflict with generated parameters: {duplicate_names}"
+            conflict_msg = (
+                "DML parameter names conflict with generated parameters: "
+                f"{duplicate_names}"
             )
-            logger.error(
-                f"DML parameter names conflict with generated parameters: {duplicate_names}"
-            )
+            span_context.add_error_event(conflict_msg)
+            logger.error(conflict_msg)
             return None, format_response(
                 code=CodeEnum.DMLNotAllowed.code,
                 message="DML parameter names conflict with generated parameters",
@@ -1016,12 +1011,12 @@ async def exec_dml(
             )
 
             schema, error_search = await _set_search_path(
-                db, schema_list, env, uid, span_context
+                db, schema_list, env, span_context
             )
             if error_search:
                 return error_search  # type: ignore[no-any-return]
 
-            dmls, error_split = await _dml_split(dml, db, schema, uid, span_context)
+            dmls, error_split = await _dml_split(dml, db, schema, span_context)
             if error_split:
                 return error_split  # type: ignore[no-any-return]
 
@@ -1032,7 +1027,7 @@ async def exec_dml(
                 return error_legality  # type: ignore[no-any-return]
 
             final_exec_success_res, exec_time, error_exec = await _exec_dml_sql(
-                db, rewrite_dmls, uid, span_context
+                db, rewrite_dmls, span_context
             )
             if error_exec:
                 return error_exec  # type: ignore[no-any-return]
@@ -1067,9 +1062,7 @@ async def exec_dml(
             )
 
 
-async def _exec_dml_sql(
-    db: Any, rewrite_dmls: List[Any], uid: str, span_context: Any
-) -> Any:
+async def _exec_dml_sql(db: Any, rewrite_dmls: List[Any], span_context: Any) -> Any:
     """Execute rewritten DML SQL statements."""
     final_exec_success_res = []
     start_time = time.time()
@@ -1090,7 +1083,8 @@ async def _exec_dml_sql(
                 exec_result = result.mappings().all()
                 exec_result_dicts = [dict(row) for row in exec_result]
                 exec_result_dicts = to_jsonable(exec_result_dicts)
-            except Exception as mapping_error:
+            # Statements without a row result (e.g. INSERT) return no rows.
+            except Exception as mapping_error:  # pylint: disable=broad-exception-caught
                 span_context.add_info_event(f"{str(mapping_error)}")
                 logger.info(f"{str(mapping_error)}")
                 exec_result_dicts = []
@@ -1123,7 +1117,7 @@ async def _exec_dml_sql(
 
 
 async def _set_search_path(
-    db: Any, schema_list: List[Any], env: str, uid: str, span_context: Any
+    db: Any, schema_list: List[Any], env: str, span_context: Any
 ) -> Any:
     """Set search path for database operations."""
     schema = next((one[0] for one in schema_list if env in one[0]), "")
@@ -1170,9 +1164,7 @@ def _find_forbidden_table_reference(parsed: Any, dialect: str) -> Optional[str]:
     return None
 
 
-async def _dml_split(
-    dml: str, db: Any, schema: str, uid: str, span_context: Any
-) -> Any:
+async def _dml_split(dml: str, db: Any, schema: str, span_context: Any) -> Any:
     """Split and validate DML statements."""
     dml = dml.strip()
     dmls = sqlparse.split(dml)
