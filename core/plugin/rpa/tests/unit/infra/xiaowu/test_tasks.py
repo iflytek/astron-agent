@@ -4,6 +4,9 @@ This module contains comprehensive tests for task creation and status querying
 functionality including HTTP client interactions and error handling.
 """
 
+# Expected values are restated on purpose rather than imported.
+# pylint: disable=duplicate-code
+
 from typing import Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
