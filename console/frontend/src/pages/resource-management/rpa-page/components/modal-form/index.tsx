@@ -17,13 +17,15 @@ export const ModalForm = forwardRef<
   const [type, setType] = useState<'create' | 'edit'>('create');
   const { showModal, commonAntModalProps, open, closeModal } = useAntModal();
   const { data: rpaSourceList } = useRequest(
-    open ? getRpaSourceList : () => [] as unknown as Promise<RpaInfo[]>,
+    open
+      ? getRpaSourceList
+      : (): Promise<RpaInfo[]> => [] as unknown as Promise<RpaInfo[]>,
     {
       refreshDeps: [open],
     }
   );
   useImperativeHandle(ref, () => ({
-    showModal: values => {
+    showModal: (values): void => {
       if (values) {
         setType('edit');
         form.setFieldsValue(values);
@@ -33,11 +35,11 @@ export const ModalForm = forwardRef<
       showModal();
     },
   }));
-  const handleReset = () => {
+  const handleReset = (): void => {
     closeModal();
     form.resetFields();
   };
-  const handleSave = async () => {
+  const handleSave = async (): Promise<void> => {
     const { platformId, assistantName, icon, id, remarks, ...values } =
       await form.validateFields();
 

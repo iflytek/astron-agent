@@ -18,7 +18,7 @@ export interface BatchImportResult {
 }
 
 // 根据链接下载excel文件
-const downloadExcelByUrl = (url: string, filename?: string) => {
+const downloadExcelByUrl = (url: string, filename?: string): void => {
   const link = document.createElement('a');
   link.href = url;
   link.download = filename || 'download.xlsx';
@@ -34,7 +34,7 @@ export function downloadMemberTemplate(): void {
 }
 
 // excel校验
-export const validExcel = (file: File) => {
+export const validExcel = (file: File): boolean => {
   return (
     file.type ===
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
@@ -70,6 +70,6 @@ export async function batchImportMembers(
   }
 }
 
-export const downloadResult = (url: string, filename?: string) => {
+export const downloadResult = (url: string, filename?: string): void => {
   downloadExcelByUrl(url, filename);
 };

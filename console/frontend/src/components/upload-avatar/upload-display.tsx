@@ -31,7 +31,7 @@ const UploadDisplay: React.FC<UploadDisplayProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
 
   // 触发上传
-  const triggerFileSelectPopup = () => {
+  const triggerFileSelectPopup = (): void => {
     if (inputRef.current) {
       inputRef.current.value = '';
       inputRef.current.click();
@@ -42,19 +42,19 @@ const UploadDisplay: React.FC<UploadDisplayProps> = ({
     imageFile: File,
     quality: number,
     convertSize: number
-  ) => {
+  ): Promise<File> => {
     return new Promise<File>((resolve, reject) => {
       new Compressor(imageFile, {
         quality,
         convertSize,
-        success(result: Blob) {
+        success(result: Blob): void {
           const newFile = new File([result], imageFile.name, {
             type: result.type,
             lastModified: imageFile.lastModified,
           });
           resolve(newFile);
         },
-        error(err) {
+        error(err): void {
           console.log(err.message);
           reject(err);
         },
@@ -63,7 +63,9 @@ const UploadDisplay: React.FC<UploadDisplayProps> = ({
   };
 
   // 上传图片
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
     const files = e.currentTarget.files;
     if (!files || files.length === 0) return;
 
@@ -87,7 +89,7 @@ const UploadDisplay: React.FC<UploadDisplayProps> = ({
   };
 
   // ai生成图片
-  const aiGenerateCoverFn = async () => {
+  const aiGenerateCoverFn = async (): Promise<void> => {
     if (!botDesc || !name) {
       message.error(t('configBase.aiGenerateDesc'));
       return;
@@ -119,7 +121,7 @@ const UploadDisplay: React.FC<UploadDisplayProps> = ({
           coverUrl && styles.noBorder,
           flag && styles.flag
         )}
-        onClick={loading ? () => null : triggerFileSelectPopup}
+        onClick={loading ? (): null => null : triggerFileSelectPopup}
       >
         {loading && <PulseLoader color="#425CFF" size={14} />}
         {!loading &&
@@ -149,7 +151,7 @@ const UploadDisplay: React.FC<UploadDisplayProps> = ({
       </div>
       {!flag && (
         <div
-          onClick={loading ? () => null : aiGenerateCoverFn}
+          onClick={loading ? (): null => null : aiGenerateCoverFn}
           className={classNames(styles.generate_btn, loading && styles.loading)}
         >
           <img

@@ -1,17 +1,17 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import classNames from 'classnames';
 import { Tooltip } from 'antd';
-import { enterpriseMenuItems, PAGE_TITLES } from '../config';
+import { enterpriseMenuItems } from '../config';
 import styles from './index.module.scss';
 import useEnterpriseStore from '@/store/enterprise-store';
 
-export default function EnterpriseSpaceLayout() {
+export default function EnterpriseSpaceLayout(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeKey, setActiveKey] = useState('');
   const {
-    info: { avatarUrl, name, officerName, roleTypeText, serviceType },
+    info: { avatarUrl, name, roleTypeText },
   } = useEnterpriseStore();
   const [avatar, setAvatar] = useState(avatarUrl);
 
@@ -32,7 +32,7 @@ export default function EnterpriseSpaceLayout() {
   }, [avatarUrl]);
 
   // 处理菜单点击
-  const handleMenuClick = (item: (typeof enterpriseMenuItems)[0]) => {
+  const handleMenuClick = (item: (typeof enterpriseMenuItems)[0]): void => {
     setActiveKey(item.key);
     navigate(item.path);
   };

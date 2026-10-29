@@ -138,7 +138,7 @@ export async function getWorkflowTraceExecutionDetail(
   flowId: string,
   sid: string,
   params: { appId?: string } = {}
-) {
+): Promise<WorkflowTraceExecutionDetail> {
   try {
     const data: any = await http.get(
       `/publish/workflows/${flowId}/trace/executions/${sid}`,

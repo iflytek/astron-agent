@@ -4,10 +4,7 @@ import styles from './index.module.scss';
 // 导入图标
 import nodeStartIcon from '@/assets/imgs/trace/node-start.svg';
 import nodeContentIcon from '@/assets/imgs/trace/node-content.svg';
-import robotContentIcon from '@/assets/imgs/trace/robot-content.svg';
 import linkContentIcon from '@/assets/imgs/trace/link-content.svg';
-import bookContentIcon from '@/assets/imgs/trace/book-content.svg';
-import fileContentIcon from '@/assets/imgs/trace/file-content.svg';
 import clockIcon from '@/assets/imgs/trace/clock.svg';
 
 // 添加超时阈值常量

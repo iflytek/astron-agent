@@ -8,7 +8,6 @@ import {
 } from '@/services/spark-common';
 import { useTranslation } from 'react-i18next';
 import { useLocaleStore } from '@/store/spark-store/locale-store';
-import language from 'react-syntax-highlighter/dist/esm/languages/hljs/1c';
 
 interface VoiceTrainingProps {
   showVoiceTraining: boolean;
@@ -43,7 +42,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     }); //current training text
   const { locale: localeNow } = useLocaleStore();
   const { t } = useTranslation();
-  const switchrecordStatus = () => {
+  const switchrecordStatus = (): void => {
     if (recordStatus === 3) {
       message.info(t('audioUploading'));
       return;
@@ -59,7 +58,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     }
   };
 
-  const recOpen = (success?: any) => {
+  const recOpen = (success?: any): void => {
     recObj.open(
       function () {
         recObj.start();
@@ -71,7 +70,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     );
   };
 
-  function recStop(callback?: () => void) {
+  function recStop(callback?: () => void): void {
     recObj.stop(
       function (blob: Blob) {
         callback && callback();
@@ -105,7 +104,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     );
   }
   //get training text
-  const getTrainingText = () => {
+  const getTrainingText = (): void => {
     getVCNTrainingText()
       .then(res => {
         setTrainingText(res.textSegs);
@@ -140,7 +139,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     }
   }, [showVoiceTraining]);
 
-  const completeSexSelect = () => {
+  const completeSexSelect = (): void => {
     // 根据当前语言筛选对应的训练文本
     const targetLang = localeNow === 'en' ? 'en_us' : 'zh_cn';
     const filteredTexts = trainingText.filter(
@@ -154,7 +153,7 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
   };
 
   //关闭弹窗
-  const closeModal = () => {
+  const closeModal = (): void => {
     recObj?.close();
     setCreateStep(1);
     changeTrainModal();

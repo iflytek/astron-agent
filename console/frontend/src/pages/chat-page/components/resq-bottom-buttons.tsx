@@ -59,7 +59,7 @@ const ResqBottomButtons = ({
     return 'x4_lingbosong';
   };
   // 播放按钮点击
-  const handlePlayAudio = () => {
+  const handlePlayAudio = (): void => {
     const answerInfo = message;
     if (chatType === 'vms') {
       vmsInteractiveRef?.on(SDKEvents.frame_stop, () => {

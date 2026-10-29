@@ -41,7 +41,7 @@ export const compressImageFile = (
     new Compressor(imageFile, {
       quality,
       convertSize,
-      success(result: any) {
+      success(result: any): void {
         const newFile: any = new File(
           [result],
           result.name || 'compressed-image.jpeg',
@@ -52,7 +52,7 @@ export const compressImageFile = (
         );
         resolve(newFile);
       },
-      error(err: any) {
+      error(err: any): void {
         reject(err);
       },
     });
@@ -67,7 +67,7 @@ export const createCroppedCanvas = (
 ): void => {
   const image = new window.Image();
   image.src = imageSrc;
-  image.onload = () => {
+  image.onload = (): void => {
     const canvas = document.createElement('canvas');
     canvas.width = croppedAreaPixels.width;
     canvas.height = croppedAreaPixels.height;
@@ -118,7 +118,7 @@ export const logPerformance = (
 export const readFileAsDataURL = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = (): void => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });

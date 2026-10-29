@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import styles from './index.module.scss';
 import { useTranslation } from 'react-i18next';
 
-export default function Index() {
+export default function Index(): ReactElement {
   const navigate = useNavigate();
   const location = useLocation();
   //tab选中
-  const [activeKey, setActiveKey] = useState('0');
+  const [, setActiveKey] = useState('0');
 
   const { t } = useTranslation();
   const isAgentListPage =
@@ -31,12 +31,6 @@ export default function Index() {
   const isAPIPage =
     location.pathname === '/management/release/apikey' ||
     location.pathname === '/management/release/apikey/';
-
-  const handleTabClick = (key: string) => {
-    setActiveKey(key);
-    if (key === '1') navigate('/management/release');
-    else if (key === '2') navigate('/management/release/apikey');
-  };
 
   useEffect(() => {
     if (isAgentListPage) setActiveKey('1');

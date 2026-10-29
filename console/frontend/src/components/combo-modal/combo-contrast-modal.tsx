@@ -1,7 +1,6 @@
 import React, { ReactNode, useEffect } from 'react';
 import { Modal } from 'antd';
-import { useRecoilValue } from 'recoil';
-import { COMBOCONFIG, MODELRESOURCE, MODELRESOURCE_EN } from './combo-config';
+import { MODELRESOURCE, MODELRESOURCE_EN } from './combo-config';
 import useOrderStore from '@/store/spark-store/order-store';
 import useOrderData from '@/hooks/use-order-data';
 import { TableBody } from './table-body';

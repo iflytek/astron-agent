@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect } from 'react';
+import { Suspense, useCallback, useEffect, type ReactElement } from 'react';
 import {
   Routes,
   Route,
@@ -27,12 +27,12 @@ import { defaultEnterpriseAvatar, roleToRoleType } from '@/pages/space/config';
 import { useSpaceI18n } from '@/pages/space/hooks/use-space-i18n';
 import { RoleType, SpaceType, EnterpriseServiceType } from '@/types/permission';
 
-export default function Index() {
+export default function Index(): ReactElement {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { enterpriseId } = useParams();
   const { setUserRole, user } = useUserStore();
-  const { setEnterpriseId, setSpaceStore } = useSpaceStore();
+  const { setSpaceStore } = useSpaceStore();
   const { certificationType, setEnterpriseInfo, clearEnterpriseData } =
     useEnterpriseStore();
   const { switchToPersonal, isTeamSpace, handleTeamSwitch } =

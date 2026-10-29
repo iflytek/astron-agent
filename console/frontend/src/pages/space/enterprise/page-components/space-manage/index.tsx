@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Input, message } from 'antd';
-import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import classNames from 'classnames';
+import { message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { useDebounceFn } from 'ahooks';
 import SpaceButton from '@/components/button-group/space-button';
 
@@ -20,7 +18,6 @@ import { useEnterprise } from '@/hooks/use-enterprise';
 import { SpaceItem } from '@/types/space';
 
 const SpaceManage: React.FC = () => {
-  const navigate = useNavigate();
   const activeTabRef = useRef<string>('all');
   const [searchValue, setSearchValue] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -57,7 +54,7 @@ const SpaceManage: React.FC = () => {
     }
   }, []);
 
-  const handleTabChange = (key: string) => {
+  const handleTabChange = (key: string): void => {
     activeTabRef.current = key;
     setSearchValue('');
     querySpaceList();
@@ -91,11 +88,11 @@ const SpaceManage: React.FC = () => {
     [debouncedSearch]
   );
 
-  const handleCreateSpace = () => {
+  const handleCreateSpace = (): void => {
     setShowCreateModal(true);
   };
 
-  const handleCreateModalClose = () => {
+  const handleCreateModalClose = (): void => {
     setShowCreateModal(false);
   };
 

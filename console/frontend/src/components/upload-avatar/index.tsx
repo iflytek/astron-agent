@@ -14,16 +14,16 @@ const ImageCropUpload = ({
   coverUrl: string;
   setCoverUrl?: (url: string) => void;
   flag?: boolean;
-}) => {
+}): React.ReactElement => {
   const [visible, setVisible] = useState(false);
   const [uploadedSrc, setUploadedSrc] = useState('');
 
-  const handleImageSelected = (imageUrl: string) => {
+  const handleImageSelected = (imageUrl: string): void => {
     setUploadedSrc(imageUrl);
     setVisible(true);
   };
 
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     setVisible(false);
     setUploadedSrc('');
   };

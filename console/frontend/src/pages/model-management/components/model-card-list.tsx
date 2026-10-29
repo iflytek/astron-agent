@@ -27,9 +27,8 @@ function ModelCardList({
   showShelfOnly,
 }: Props): JSX.Element {
   const { t } = useTranslation();
-  const [isHovered, setIsHovered] = useState<boolean | null>(null);
   const [createModal, setCreateModal] = useState(false);
-  const [modelId, setModelId] = useState<number | undefined>();
+  const [modelId] = useState<number | undefined>();
   const [categoryTree, setCategoryTree] = useState<CategoryNode[]>([]); // 个人模型新建时，需要展示的分类标签
 
   useEffect(() => {

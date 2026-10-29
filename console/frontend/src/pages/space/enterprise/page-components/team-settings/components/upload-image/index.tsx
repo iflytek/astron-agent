@@ -1,12 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, message, Modal } from 'antd';
-import styles from './index.module.scss';
-import TeamSetCardBgImg from '@/assets/imgs/space/TeamSettingCardBg.png';
-import { uploadBotImg } from '@/services/spark-common';
+import { message, Modal } from 'antd';
 import Cropper from 'react-easy-crop';
 import { compressImage } from '@/utils';
-import { updateLogo } from '@/services/enterprise-auth-api';
-import useEnterpriseStore from '@/store/enterprise-store';
 import { uploadFile } from '@/utils/utils';
 // 定义认证状态枚举
 export enum CertificationStatus {
@@ -34,7 +29,7 @@ const UploadImage: React.FC<UploadImageProps> = ({
   const [formData, setFormData] = useState<FormData>(); // blob 二进制文件流
 
   // 触发上传
-  const triggerFileSelectPopup = () => {
+  const triggerFileSelectPopup = (): void => {
     inputRef.current.value = '';
     inputRef && inputRef?.current?.click();
   };
@@ -45,14 +40,16 @@ const UploadImage: React.FC<UploadImageProps> = ({
     }
   }, [onAction]);
 
-  const onCancel = () => {
+  const onCancel = (): void => {
     setVisible(false);
     setUploadedSrc('');
     onClose();
     setZoom(1);
   };
   // 上传图片
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       if (!file) return;
@@ -73,10 +70,10 @@ const UploadImage: React.FC<UploadImageProps> = ({
       }
     }
   };
-  const onCropComplete = (_croppedArea: any, croppedAreaPixels: any) => {
+  const onCropComplete = (_croppedArea: any, croppedAreaPixels: any): void => {
     const image = new window.Image();
     image.src = uploadedSrc || '';
-    image.onload = () => {
+    image.onload = (): void => {
       // 确保图像已经加载
       const canvas = document.createElement('canvas');
       canvas.width = croppedAreaPixels.width;
@@ -113,7 +110,7 @@ const UploadImage: React.FC<UploadImageProps> = ({
     return fileEntry || null;
   };
 
-  const handleOk = async () => {
+  const handleOk = async (): Promise<void> => {
     if (!formData) {
       message.info('图片处理未完成，请稍候...');
       return;

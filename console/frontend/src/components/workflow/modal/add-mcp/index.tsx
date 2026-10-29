@@ -125,7 +125,7 @@ const McpList = ({
       title: t('workflow.nodes.toolNode.tool'),
       dataIndex: 'name',
       key: 'name',
-      render: (_, item) => {
+      render: (_, item): React.ReactElement => {
         return (
           <div className="w-full flex items-center gap-[12px] overflow-hidden">
             <img
@@ -157,7 +157,7 @@ const McpList = ({
       title: t('workflow.nodes.toolNode.parameters'),
       dataIndex: 'params',
       key: 'params',
-      render: (_, item) => {
+      render: (_, item): React.ReactElement => {
         return (
           <div
             style={{
@@ -180,7 +180,7 @@ const McpList = ({
       title: t('workflow.nodes.toolNode.operation'),
       dataIndex: 'operation',
       key: 'operation',
-      render: (_, record) => {
+      render: (_, record): React.ReactElement => {
         const isOpen = expandedKeys.includes(record.key);
         return (
           <div className="flex items-center justify-between">
@@ -212,7 +212,7 @@ const McpList = ({
       title: t('workflow.nodes.toolNode.tool'),
       dataIndex: 'name',
       key: 'name',
-      render: (_, item) => {
+      render: (_, item): React.ReactElement => {
         return (
           <div className="w-full flex items-center gap-[12px] overflow-hidden pl-2">
             <div className="w-[40px] h-[40px] pr-2"></div>
@@ -240,7 +240,7 @@ const McpList = ({
       title: t('workflow.nodes.toolNode.parameters'),
       dataIndex: 'params',
       key: 'params',
-      render: (_, item) => {
+      render: (_, item): React.ReactElement => {
         return (
           <div>
             {item?.args?.length > 0 ? (
@@ -265,7 +265,7 @@ const McpList = ({
       title: t('workflow.nodes.toolNode.operation'),
       dataIndex: 'operation',
       key: 'operation',
-      render: (_, record) => {
+      render: (_, record): React.ReactElement => {
         return (
           <div className="flex items-center gap-2">
             <SecondaryBtn
@@ -353,7 +353,7 @@ const McpList = ({
           rowKey={(record: McpServerRow) => record.key}
           onRow={(record: McpServerRow) => {
             return {
-              onClick: () => {
+              onClick: (): void => {
                 setCurrentMcpInfo({
                   ...record,
                 });
@@ -486,7 +486,7 @@ const useAddMcp = () => {
     handleClearMCPData();
   };
 
-  const closeMCPModal = () => {
+  const closeMCPModal = (): void => {
     setMcpModalInfo({ open: false });
     resetBeforeAndWillNode();
   };
