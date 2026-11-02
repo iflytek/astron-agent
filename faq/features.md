@@ -482,9 +482,15 @@ http {
 
 ## Agent 怎么调用 RPA？
 
-1. 确认 `.env` 中的 `HOST_BASE_ADDRESS` 配置正确（远程部署时应为公网 IP / 域名，而非 `localhost`）。
-2. 使用 `docker compose -f docker-compose-with-auth-rpa.yaml up -d` 启动，该 compose 文件会同时拉起 Agent 与 RPA 后端服务，无需额外配置。
-3. 前往 [astron-rpa](https://github.com/iflytek/astron-rpa) 下载客户端，修改安装目录下 `resources` 中的配置文件指向你的 RPA 服务端地址，然后即可在客户端编排并执行机器人。
+**部署 Agent 后，还需要部署 RPA 吗？**
+
+需要有可用的 **RPA 服务端和执行任务的桌面客户端**。Agent 支持调用 RPA，并不意味着普通 Agent 部署已包含它们；是否需要另起一套服务端，取决于所选部署文件：
+
+- 使用普通 Agent 部署文件时，另行部署 [Astron RPA](https://github.com/iflytek/astron-rpa)，并按实际服务地址完成接入。
+- 使用 [带认证和 RPA 的组合部署](../docs/zh/DEPLOYMENT_GUIDE_WITH_AUTH_RPA.md) 时，`docker/astronAgent/docker-compose-with-auth-rpa.yaml` 会同时包含 Agent、认证和 RPA **后端**，不必重复部署同一套 RPA 后端。仍需按指南完成环境变量、地址与认证配置，不能把“组合启动”理解为无需配置。
+- 两种方式都需要在实际执行桌面自动化的机器上安装匹配的 Astron RPA 客户端，将客户端连接到对应的 RPA 服务端，再编排并执行机器人。Agent 容器不会代替桌面客户端执行本机操作。
+
+已有 RPA 服务可继续复用。连接失败时，先检查 Agent 服务端与桌面客户端是否都能访问所配置的 RPA 地址，参见 [RPA 连接排查](https://github.com/iflytek/astron-rpa/blob/main/FAQ.zh.md)。
 
 ## Agent 有几种接入 RAG（知识库）的方式？
 
