@@ -9,7 +9,7 @@ from workflow.engine.entities.variable_pool import RefNodeInfo, VariablePool
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.const import RespFormatEnum
+from workflow.infra.providers.llm.const import RespFormatEnum
 
 
 def process_array(name: str) -> str:

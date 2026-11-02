@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
+from workflow.engine.entities.workflow_dsl import WorkflowDSL
 from workflow.engine.nodes.entities.node_run_result import WorkflowNodeExecutionStatus
 from workflow.service import flow_service
 from workflow.utils.trace_sanitization import serialize_trace_payload
@@ -94,10 +95,9 @@ async def test_flow_service_records_sanitized_node_debug_dsl(
             }
         ]
     }
-    workflow_dsl = SimpleNamespace(
-        dict=lambda: payload,
-        nodes=[SimpleNamespace(id="node-1")],
-    )
+    payload["nodes"][0]["id"] = "code::node1"
+    payload["nodes"][0]["data"]["nodeMeta"] = {"nodeType": "code", "aliasName": "Code"}
+    workflow_dsl = WorkflowDSL.model_validate({**payload, "edges": []})
     recorded_events: list[str] = []
 
     class FakeSpan:
@@ -154,7 +154,4 @@ async def test_flow_service_records_sanitized_node_debug_dsl(
     assert snake_case_token not in event
     sanitized = json.loads(event.removeprefix("node debug dsl: "))
     sandbox = sanitized["nodes"][0]["data"]["nodeParam"]["sandbox"]
-    assert sandbox == {
-        "nested": {},
-        "workflowId": "flow-1",
-    }
+    assert sandbox == {"workflowId": "flow-1"}

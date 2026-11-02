@@ -77,6 +77,7 @@ async def chat_open(
                     True,
                     app_audit_policy,
                     span_context,
+                    model_flow_id=str(db_flow.group_id),
                 ),
                 StreamingResponse if chat_vo.stream else JSONResponse,
             )

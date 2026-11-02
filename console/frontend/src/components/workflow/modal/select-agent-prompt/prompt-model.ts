@@ -7,7 +7,6 @@ type PromptModel = Partial<
     | 'llmId'
     | 'domain'
     | 'serviceId'
-    | 'patchId'
     | 'url'
     | 'isThink'
     | 'provider'
@@ -33,7 +32,6 @@ export function parsePromptModel(serialized: string): PromptModel | undefined {
   for (const key of [
     'domain',
     'serviceId',
-    'patchId',
     'url',
     'provider',
     'icon',

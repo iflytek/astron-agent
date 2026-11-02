@@ -1,10 +1,20 @@
 # Agent
 
-Agent 服务使用 **Deep Agents 0.7.29** 作为唯一执行内核。旧的 Chat / 文本 CoT / CoT Process 循环、正则协议解析和手写 provider SSE 解析已删除，没有旧引擎回退开关。
+Agent 服务的智能体执行使用 **Deep Agents 0.7.29**。普通模型推理由独立接口直接调用官方模型集成，不进入智能体内核。旧的 Chat / 文本 CoT / CoT Process 循环、正则协议解析和手写 provider SSE 解析已删除，没有旧引擎回退开关。
 
 调用链：Console → Workflow AgentNode → `/agent/v1/custom/chat/completions` → `WorkflowAgentRunnerBuilder` → `DeepAgentsRunner` → 官方 LangChain provider / 现有平台插件。外部请求、鉴权、SSE chunk、stop / `[DONE]` 和节点追踪仍由平台 API 层处理。
 
-## 模型兼容
+## 纯模型推理
+
+`POST /agent/v1/llm/chat/completions` 接收 `model_config`（`provider / domain / api / api_key`）、`messages`、`parameters`、`timeout`、`meta_data`、`uid` 和 `stream: true`。协议选择为 `openai`、`anthropic` 或 `google`；品牌不决定协议。地址使用 HTTP(S)，凭据由调用方从授权模型配置提供，不自动查询 MaaS。请求需要 `X-Workflow-Internal-Key` 和应用身份 `x-consumer-username`。
+
+该接口支持 system 消息、一般历史顺序及官方集成支持的多模态内容块，不添加提示词、工具、历史摘要或最终回答阶段。`parameters` 仅接受相应协议的生成参数；不允许覆盖客户端配置或启用工具。`timeout` 是包含生成在内的总预算，最大 1800 秒；模型 SDK 不自动重试，由 Workflow 控制节点重试。
+
+响应使用 SSE 增量 `content / reasoning_content`，完整读取供应商 usage 尾帧后发送带实际 `finish_reason` 与可用 usage 的终止块，再发送 `[DONE]`。usage 未提供时省略，空流或缺少完成信号的流返回非零错误码。异常信息脱敏，断开或取消会结束模型流并清理客户端。Workflow 节点与这里唯一的 generation 通过可信追踪上下文关联。
+
+纯推理的 Anthropic 分支使用官方 `AsyncAnthropic.messages.stream()` 和 `get_final_message()`，由 SDK 解析流并累计最终 usage。已核查的 LangChain Anthropic 1.5–1.7.7 会忽略起始帧输入 token，末帧只有输出 token 时漏计；因此此路径直接使用官方 SDK，未修改智能体的 LangChain 集成，也不自行解析 HTTP/SSE。普通文本、图片、带签名 thinking 历史按 SDK 内容块传递，工具调用被拒绝；客户端在结束、异常或取消时关闭。
+
+## 智能体模型兼容
 
 模型必须支持原生 tool calling，配置仍使用 `model_config.domain / api / provider / api_key`。未提供 api_key 时继续查询平台 MaaS 凭据。OpenAI 兼容模型使用官方 `ChatOpenAI`，明确关闭 Responses API；Anthropic、Google 使用官方 `ChatAnthropic`、`ChatGoogleGenerativeAI`。不支持原生工具调用的模型会失败，不解析 `Thought/Action` 文本作为替代。
 

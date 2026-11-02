@@ -2,7 +2,7 @@
 
 Sandbox runtime credentials are deployment-owned.  Older workflow protocols may still
 contain copies of those credentials, so protocol boundaries must remove them without
-removing model-provider ``apiKey`` fields that are valid elsewhere in the DSL.
+removing unrelated database or plugin authentication fields in the DSL.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ _DISCLOSED_BOOTSTRAP_VALUES = {
 # These fields were previously copied from deployment configuration into persisted
 # workflow JSON.  Match their camelCase, snake_case, kebab-case, and case variants by
 # comparing normalized keys.  Deliberately do not include apiKey/api_key: those names
-# are valid model-provider credentials outside a sandbox object.
+# are valid model-provider credentials outside a model node or sandbox object.
 _LEGACY_DEPLOYMENT_FIELDS = {
     "artifactuploadtoken",
     "artifactuploadurl",
@@ -96,6 +96,47 @@ def _sanitize_json_string(value: str, *, fail_closed: bool = False) -> Any:
     return json.dumps(sanitized, ensure_ascii=False, separators=(",", ":"))
 
 
+_MODEL_NODE_TYPES = {
+    "spark-llm",
+    "decision-making",
+    "extractor-parameter",
+    "agent",
+    "question-answer",
+    "knowledge-base",
+}
+_MODEL_CREDENTIAL_KEYS = {"apikey", "apisecret"}
+
+
+def _without_model_credentials(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    sanitized = {
+        key: item
+        for key, item in value.items()
+        if _normalized_key(key) not in _MODEL_CREDENTIAL_KEYS
+    }
+    # Model settings may be nested for Agent nodes; plugin configuration and
+    # prompts are separate and must retain their own service authentication.
+    for key, item in sanitized.items():
+        if _normalized_key(key) == "modelconfig":
+            sanitized[key] = _without_model_credentials(item)
+    return sanitized
+
+
+def _sanitize_model_node(value: dict[Any, Any]) -> None:
+    data = value.get("data")
+    if not isinstance(data, dict):
+        return
+    node_type = str(value.get("id", "")).split("::", 1)[0]
+    meta = data.get("nodeMeta", {})
+    if node_type not in _MODEL_NODE_TYPES and (
+        not isinstance(meta, dict) or meta.get("nodeType") not in _MODEL_NODE_TYPES
+    ):
+        return
+    if "nodeParam" in data:
+        data["nodeParam"] = _without_model_credentials(data["nodeParam"])
+
+
 def _sanitize_value(value: Any) -> Any:
     if isinstance(value, dict):
         sanitized: dict[Any, Any] = {}
@@ -107,6 +148,7 @@ def _sanitize_value(value: Any) -> Any:
                 sanitized[copy.deepcopy(key)] = _sanitize_sandbox(item)
                 continue
             sanitized[copy.deepcopy(key)] = _sanitize_value(item)
+        _sanitize_model_node(sanitized)
         return sanitized
     if isinstance(value, list):
         return [_sanitize_value(item) for item in value]

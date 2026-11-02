@@ -31,7 +31,8 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.schemas import StreamOutputMsg
+from workflow.infra.providers.llm.runtime_config import resolve_model_config
+from workflow.infra.providers.llm.schemas import StreamOutputMsg
 from workflow.utils.credentials import credential_from_env_or_file
 from workflow.utils.trace_sanitization import serialize_trace_payload
 
@@ -254,14 +255,15 @@ class AgentNode(BaseNode):
     :param stream: Whether to use streaming mode (default: True)
     :param maxTokens: Maximum token limit (default: 10240)
     :param enableChatHistoryV2: Chat history configuration
-    :param source: Model provider source (default: XINGHUO)
+    :param source: Model provider source (default: OPENAI)
     """
 
     _private_config = PrivateConfig()
 
     appId: str = Field(...)
-    apiKey: str = Field(...)
-    apiSecret: str = Field(...)
+    modelId: str | int = Field(default="")
+    apiKey: str = Field(default="", exclude=True, repr=False)
+    apiSecret: str = Field(default="", exclude=True, repr=False)
     uid: str = Field(default="")
     modelConfig: AgentModelConfig
     instruction: Instruction
@@ -273,7 +275,7 @@ class AgentNode(BaseNode):
     enableChatHistoryV2: EnableChatHistoryV2 = Field(
         default_factory=EnableChatHistoryV2
     )
-    source: str = Field(default=ModelProviderEnum.XINGHUO.value)
+    source: str = Field(default=ModelProviderEnum.OPENAI.value)
 
     def _build_agent_request_headers(self) -> dict[str, str]:
         """Build an authenticated request for the deployment-internal Agent API."""
@@ -336,7 +338,7 @@ class AgentNode(BaseNode):
         # Construct request headers
         headers = self._build_agent_request_headers()
 
-        req_body = self._generate_agent_request(
+        req_body = await self._generate_agent_request(
             reasoning_instruction, answer_instruction, messages, variable_pool, span
         )
         logged_headers = _redact_agent_request_headers(headers)
@@ -514,7 +516,7 @@ class AgentNode(BaseNode):
                 break
         return content_list, reasoning_content_list, token_usage
 
-    def _generate_agent_request(
+    async def _generate_agent_request(
         self,
         reasoning_instruction: str,
         answer_instruction: str,
@@ -530,15 +532,16 @@ class AgentNode(BaseNode):
         :param span: Tracing span for monitoring
         :return: Request body dictionary
         """
+        model = await resolve_model_config(
+            str(variable_pool.system_params.get(ParamKey.ModelFlowId, default="")),
+            str(self.modelId),
+        )
         return {
             "model_config": {
-                "domain": self.modelConfig.domain,
-                "api": self.modelConfig.api,
-                "api_key": (
-                    f"{self.apiKey}:{self.apiSecret}"
-                    if self.source == ModelProviderEnum.XINGHUO.value
-                    else self.apiKey
-                ),
+                "domain": model["domain"],
+                "api": model["api"],
+                "api_key": model["apiKey"],
+                "provider": model["provider"],
             },
             "instruction": {
                 "reasoning": reasoning_instruction,

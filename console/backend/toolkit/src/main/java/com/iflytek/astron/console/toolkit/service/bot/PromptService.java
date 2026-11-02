@@ -12,7 +12,6 @@ import com.iflytek.astron.console.toolkit.entity.table.bot.SparkBot;
 import com.iflytek.astron.console.toolkit.mapper.ConfigInfoMapper;
 import com.iflytek.astron.console.toolkit.mapper.bot.SparkBotMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
-import com.iflytek.astron.console.toolkit.tool.spark.SparkApiTool;
 import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -28,9 +27,6 @@ import java.util.Arrays;
  */
 @Service
 public class PromptService {
-
-    @Resource
-    SparkApiTool sparkApiTool;
 
     @Resource
     ConfigInfoMapper configInfoMapper;

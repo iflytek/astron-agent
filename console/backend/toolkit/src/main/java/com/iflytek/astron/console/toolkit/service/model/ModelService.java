@@ -147,7 +147,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         }
 
         // 2) Construct/validate URL + request body/headers
-        final String provider = normalizeProvider(request.getProvider(), true);
+        final String provider = normalizeModelProtocol(request.getProvider());
         final String url = buildModelApiUrlNew(request.getEndpoint(), provider, request.getDomain());
         final Map<String, Object> requestBody =
                 buildValidationPayload(request.getDomain(), provider);
@@ -496,7 +496,7 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         model.setStatus(ModelStatusEnum.RUNNING.getCode());
         model.setApiKey(request.getApiKey());
         model.setColor(request.getColor());
-        model.setProvider(normalizeProvider(request.getProvider(), true));
+        model.setProvider(normalizeModelProtocol(request.getProvider()));
         model.setConfig(
                 Optional.ofNullable(request.getConfig()).map(JSON::toJSONString).orElse(null));
         model.setUpdateTime(new Date());
@@ -510,6 +510,17 @@ public class ModelService extends ServiceImpl<ModelMapper, Model> {
         if (request.getMultiMode() != null) {
             model.setMultiMode(request.getMultiMode());
         }
+    }
+
+    /** The configured transport is independent of the model name or vendor. */
+    public static String normalizeModelProtocol(String provider) {
+        String protocol = StringUtils.isBlank(provider)
+                ? PROVIDER_OPENAI
+                : provider.trim().toLowerCase(Locale.ROOT);
+        if (!StringUtils.equalsAny(protocol, PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GOOGLE)) {
+            throw new BusinessException(ResponseEnum.PARAM_ERROR);
+        }
+        return protocol;
     }
 
     private static String normalizeProvider(String provider, boolean fallbackOpenAi) {

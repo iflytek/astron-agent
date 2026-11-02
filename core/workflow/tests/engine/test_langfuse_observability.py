@@ -75,8 +75,8 @@ class _FakeChatAI:
 class _ObservableLLMNode(BaseLLMNode):
     fake_chat_ai: ClassVar[_FakeChatAI] = _FakeChatAI()
 
-    def _get_chat_ai(self, uid: str = "") -> Any:
-        del uid
+    async def _get_runtime_chat_ai(self, variable_pool: VariablePool) -> Any:
+        del variable_pool
         return self.fake_chat_ai
 
     async def async_execute(
@@ -359,4 +359,43 @@ def test_node_error_exports_stable_status_without_exception_content(
     assert "synthetic-must-not-export" not in serialized
     assert attributes["langfuse.observation.status_message"].startswith(
         "CustomException (code="
+    )
+
+
+@pytest.mark.asyncio
+async def test_remote_model_call_does_not_duplicate_generation_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote_model = _FakeChatAI()
+    monkeypatch.setattr(remote_model, "remote", True, raising=False)
+    monkeypatch.setattr(_ObservableLLMNode, "fake_chat_ai", remote_model)
+    span, exporter, _provider = _span_with_exporter()
+    node = _ObservableLLMNode(
+        input_identifier=[], output_identifier=[], domain="remote-model", appId="app"
+    )
+    variable_pool = MagicMock()
+    variable_pool.system_params.get.return_value = "user"
+
+    with span.start("workflow.node"):
+        usage, answer, _, _ = await node._chat_with_llm(
+            flow_id="flow",
+            variable_pool=variable_pool,
+            span=span,
+            prompt_template="question",
+        )
+
+    assert usage["total_tokens"] == 11
+    assert answer == "synthetic answer"
+    request_span = next(
+        item
+        for item in exporter.get_finished_spans()
+        if item.name == "llm.request:remote-model"
+    )
+    attributes = _span_attributes(request_span)
+    assert attributes["langfuse.observation.type"] == "span"
+    assert "gen_ai.usage.input_tokens" not in attributes
+    assert "gen_ai.usage.output_tokens" not in attributes
+    assert not any(
+        _span_attributes(item).get("langfuse.observation.type") == "generation"
+        for item in exporter.get_finished_spans()
     )

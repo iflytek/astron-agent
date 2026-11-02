@@ -1,7 +1,6 @@
 import copy
 import json
 import re
-import time
 from typing import Any, cast
 
 from common.utils.json_schema.json_schema_validator import JsonSchemaValidator
@@ -9,7 +8,7 @@ from pydantic import Field
 
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
-from workflow.engine.entities.variable_pool import ParamKey, VariablePool
+from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.entities.workflow_dsl import OutputItem
 from workflow.engine.nodes.base_node import BaseLLMNode
 from workflow.engine.nodes.entities.node_run_result import (
@@ -21,8 +20,6 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.schemas import Function
-from workflow.infra.providers.llm.iflytek_spark.spark_fc_llm import SparkFunctionCallAi
 
 
 class ParamsExtractorNode(BaseLLMNode):
@@ -30,20 +27,13 @@ class ParamsExtractorNode(BaseLLMNode):
     Parameter Extractor Node for extracting structured parameters from user input.
 
     This node uses LLM capabilities to extract structured parameters from natural language
-    input based on predefined schemas. It supports both function calling and prompt-based
-    extraction methods.
+    input based on predefined schemas using provider-independent prompts.
     """
 
     # Configuration parameters for the parameter extractor
-    question_type: str = Field(
-        default="not_knowledge"
-    )  # Type of question for LLM processing
     extractor_params: list[OutputItem] = Field(
         default_factory=list
     )  # List of parameters to extract
-    reasonMode: int = Field(
-        default=0
-    )  # Mode for reasoning (0: function calling, 1: prompt-based)
     instruction: str = Field(
         default=""
     )  # Additional instructions for parameter extraction
@@ -190,126 +180,14 @@ class ParamsExtractorNode(BaseLLMNode):
         event_log_node_trace: NodeLog | None = None,
         **kwargs: Any,
     ) -> NodeRunResult:
-        """
-        Execute parameter extraction using the configured method.
-
-        This method determines whether to use function calling or prompt-based
-        extraction based on the reasonMode configuration.
-
-        :param variable_pool: Pool of variables for the workflow
-        :param span: Tracing span for monitoring
-        :param event_log_node_trace: Optional node trace logging
-        :param kwargs: Additional keyword arguments including callbacks
-        :return: Node execution result with extracted parameters
-        """
-        if self.reasonMode == 1:
-            callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
-            return await self.async_execute_prompt(
-                variable_pool=variable_pool,
-                span=span,
-                event_log_node_trace=event_log_node_trace,
-                flow_id=callbacks.flow_id if callbacks else "",
-            )
-        try:
-            schema_content = self.assemble_schema_info()
-            functions = [Function(parameters=schema_content)]
-            for function in functions:
-                await span.add_info_events_async(
-                    {"fc_schema": json.dumps(function.dict(), ensure_ascii=False)}
-                )
-            fc_ai = SparkFunctionCallAi(
-                model_url=self.url,
-                model_name=self.domain,
-                spark_version="",
-                temperature=self.temperature,
-                app_id=self.appId,
-                api_key=self.apiKey,
-                api_secret=self.apiSecret,
-                max_tokens=self.maxTokens,
-                top_k=self.topK,
-                patch_id=self.patch_id,
-                uid=variable_pool.system_params.get(ParamKey.Uid, default="")
-                or str(time.time()),
-                question_type=self.question_type,
-            )
-            usr_input = variable_pool.get_variable(
-                node_id=self.node_id,
-                key_name=self.input_identifier[0],
-                span=span,
-            )
-            if not isinstance(usr_input, str):
-                usr_input = str(usr_input)
-            _, token_usage, res = await fc_ai.async_call_spark_fc(
-                user_input=usr_input,
-                event_log_node_trace=event_log_node_trace,
-                function=functions,
-                span=span,
-            )
-            extra_params = json.loads(res)
-            res_dict = {}
-            for output in self.output_identifier:
-                if output not in extra_params:
-                    res_dict.update(
-                        {
-                            output: variable_pool.get_variable(
-                                node_id=self.node_id,
-                                key_name=output,
-                                span=span,
-                            )
-                        }
-                    )
-                else:
-                    res_dict.update({output: extra_params.get(output)})
-            order_outputs = {}
-            for output in self.output_identifier:
-                update_item = (
-                    res_dict.get(output)
-                    if output in res_dict
-                    else variable_pool.get_variable(
-                        node_id=self.node_id,
-                        key_name=output,
-                        span=span,
-                    )
-                )
-                order_outputs.update({output: update_item})
-            order_outputs = self.schema_fixed_data(order_outputs, variable_pool)
-            return NodeRunResult(
-                status=WorkflowNodeExecutionStatus.SUCCEEDED,
-                inputs={self.input_identifier[0]: usr_input},
-                outputs=order_outputs,
-                # outputs=res_dict,
-                raw_output=res,
-                node_id=self.node_id,
-                alias_name=self.alias_name,
-                node_type=self.node_type,
-                token_cost=GenerateUsage(
-                    completion_tokens=token_usage.get("completion_tokens", 0),
-                    prompt_tokens=token_usage.get("prompt_tokens", 0),
-                    total_tokens=token_usage.get("total_tokens", 0),
-                ),
-            )
-        except CustomException as err:
-            span.add_error_event(f"{err}")
-            span.record_exception(err)
-            return NodeRunResult(
-                node_id=self.node_id,
-                alias_name=self.alias_name,
-                node_type=self.node_type,
-                status=WorkflowNodeExecutionStatus.FAILED,
-                error=err,
-            )
-        except Exception as err:
-            span.add_error_event(f"{err}")
-            return NodeRunResult(
-                node_id=self.node_id,
-                alias_name=self.alias_name,
-                node_type=self.node_type,
-                status=WorkflowNodeExecutionStatus.FAILED,
-                error=CustomException(
-                    CodeEnum.EXTRACT_EXECUTION_ERROR,
-                    cause_error=err,
-                ),
-            )
+        """Extract structured parameters through the configured chat model."""
+        callbacks: ChatCallBacks = cast(ChatCallBacks, kwargs.get("callbacks"))
+        return await self.async_execute_prompt(
+            variable_pool=variable_pool,
+            span=span,
+            event_log_node_trace=event_log_node_trace,
+            flow_id=callbacks.flow_id if callbacks else "",
+        )
 
     def schema_fixed_data(self, res_dict: dict, variable_pool: VariablePool) -> dict:
         """

@@ -26,6 +26,8 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.infra.providers.llm.chat_ai import ChatAI
+from workflow.infra.providers.llm.chat_ai_factory import ChatAIFactory
 
 
 class SearchMode(str, Enum):
@@ -94,6 +96,23 @@ class KnowledgeNode(BaseLLMNode):
     appId: str = Field(default="")
     source: str = Field(default=ModelProviderEnum.OPENAI.value)
 
+    async def _get_runtime_chat_ai(self, variable_pool: VariablePool) -> ChatAI:
+        """Use the deployment's helper model without copying secrets into the node."""
+        config = workflow_config.knowledge_node_llm_config
+        return ChatAIFactory.get_chat_ai(
+            model_source=ModelProviderEnum.OPENAI.value,
+            model_url=config.base_url,
+            model_name=config.model,
+            api_key=config.api_key,
+            api_secret="",
+            app_id=self.appId,
+            uid=variable_pool.system_params.get(ParamKey.Uid, default=""),
+            temperature=config.temperature,
+            max_tokens=config.max_tokens,
+            top_k=config.top_k,
+            stream_node_first_token=self.stream_node_first_token,
+        )
+
     @property
     def run_s(self) -> WorkflowNodeExecutionStatus:
         """
@@ -160,25 +179,6 @@ class KnowledgeNode(BaseLLMNode):
             span.record_exception(e)
             # Return default behavior (use knowledge) with empty token usage
             return True, {}
-
-    def _load_llm_config(self) -> None:
-        """
-        Load LLM configuration from workflow config.
-
-        Sets the following attributes from workflow_config.llm_config:
-        - url: Base URL for LLM API
-        - domain: Model name/domain
-        - apiKey: API key for authentication
-        - temperature: Sampling temperature
-        - maxTokens: Maximum tokens in response
-        - topK: Top-K sampling parameter
-        """
-        self.url = workflow_config.knowledge_node_llm_config.base_url
-        self.domain = workflow_config.knowledge_node_llm_config.model
-        self.apiKey = workflow_config.knowledge_node_llm_config.api_key
-        self.temperature = workflow_config.knowledge_node_llm_config.temperature
-        self.maxTokens = workflow_config.knowledge_node_llm_config.max_tokens
-        self.topK = workflow_config.knowledge_node_llm_config.top_k
 
     def _create_node_result(
         self,
@@ -272,9 +272,6 @@ class KnowledgeNode(BaseLLMNode):
         try:
             # Initialize token usage (will be updated in adaptive mode)
             token_usage: dict[str, int] = {}
-
-            # Load LLM configuration
-            self._load_llm_config()
 
             event_log_node_trace = kwargs.get("event_log_node_trace")
 

@@ -56,86 +56,8 @@ class CodeEnum(Enum):
     FLOW_NOT_PUBLISH_ERROR = (20204, "Workflow not published")
     FLOW_PUBLISH_ERROR = (20206, "Workflow publish failed")
 
-    # Spark model errors
-    SPARK_FUNCTION_NOT_CHOICE_ERROR = (20301, "Model did not select valid function")
-    SPARK_QUICK_REPAIR_ERROR = (20302, "Model hit specific issue")
-    SPARK_REQUEST_ERROR = (20303, "Model request failed")
-    # Spark service error code mapping 20350-20376
-    SPARK_WS_ERROR = (20350, "Model request upgrade to WebSocket error")
-    SPARK_WS_READ_ERROR = (20351, "Model request WebSocket read user message error")
-    SPARK_WS_SEND_ERROR = (20352, "Model request WebSocket send message to user error")
-    SPARK_MESSAGE_FORMAT_ERROR = (20353, "Model request user message format error")
-    SPARK_SCHEMA_ERROR = (20354, "Model request user data schema error")
-    SPARK_PARAM_ERROR = (20355, "Model request user parameter value error")
-    SPARK_CONCURRENCY_ERROR = (
-        20356,
-        "Model service user concurrency error: current user is connected, "
-        "same user cannot connect from multiple locations",
-    )
-    SPARK_TRAFFIC_LIMIT_ERROR = (
-        20357,
-        "Model service user traffic limit: service is processing user's current "
-        "question, wait for completion before sending new request",
-    )
-    SPARK_CAPACITY_ERROR = (20358, "Model service capacity insufficient, contact staff")
-    SPARK_ENGINE_CONNECTION_ERROR = (
-        20359,
-        "Model and engine connection establishment failed",
-    )
-    SPARK_ENGINE_RECEIVE_ERROR = (20360, "Model receiving engine data error")
-    SPARK_ENGINE_SEND_ERROR = (20361, "Model service sending data to engine error")
-    SPARK_ENGINE_INTERNAL_ERROR = (20362, "Model engine internal error")
-    SPARK_CONTENT_AUDIT_ERROR = (
-        20363,
-        "Model input content audit failed, suspected violation, "
-        "please adjust input content",
-    )
-    SPARK_OUTPUT_AUDIT_ERROR = (
-        20364,
-        "Model output content involves sensitive information, "
-        "audit failed, results cannot be displayed to user",
-    )
-    SPARK_APP_ID_BLACKLIST_ERROR = (20365, "Appid is in model service blacklist")
-    SPARK_APP_ID_AUTH_ERROR = (
-        20366,
-        "Model service appid authorization error: feature not enabled, "
-        "version not enabled, insufficient tokens, concurrency exceeds authorization",
-    )
-    SPARK_CLEAR_HISTORY_ERROR = (20367, "Model clear history failed")
-    SPARK_VIOLATION_ERROR = (
-        20368,
-        "Model service indicates session content has violation tendency; "
-        "suggest showing violation warning to user",
-    )
-    SPARK_BUSY_ERROR = (20369, "Model service busy, please try again later")
-    SPARK_ENGINE_PARAMS_ERROR = (
-        20370,
-        "Model service request engine parameter error, engine schema check failed",
-    )
-    SPARK_ENGINE_NETWORK_ERROR = (20371, "Model service engine network error")
-    SPARK_TOKEN_LIMIT_ERROR = (
-        20372,
-        "Model request token count exceeds limit, "
-        "conversation history + question text too long, "
-        "need to simplify input",
-    )
-    SPARK_AUTH_ERROR = (
-        20373,
-        "Model authorization error: appId has no feature authorization "
-        "or business volume exceeds limit",
-    )
-    SPARK_DAILY_LIMIT_ERROR = (
-        20374,
-        "Model authorization error: daily rate limit exceeded",
-    )
-    SPARK_SECOND_LIMIT_ERROR = (
-        20375,
-        "Model authorization error: second-level rate limit exceeded",
-    )
-    SPARK_CONCURRENCY_LIMIT_ERROR = (
-        20376,
-        "Model authorization error: concurrency limit exceeded",
-    )
+    # Model errors
+    LLM_REQUEST_ERROR = (20303, "Model request failed")
 
     OPEN_AI_REQUEST_ERROR = (20380, "External large model request failed")
 

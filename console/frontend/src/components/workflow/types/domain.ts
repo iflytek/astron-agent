@@ -168,7 +168,6 @@ export interface WorkflowNodeParameters extends AgentNodeParam {
   serviceId?: string | number;
   llmIdErrMsg?: string;
   setAnswerContentErrMsg?: string;
-  reasonMode?: number;
   needReply?: boolean;
   timeout?: number | null;
   handlingEdge?: string;
@@ -191,7 +190,6 @@ export interface WorkflowNodeParameters extends AgentNodeParam {
   modelEnabled?: boolean;
   modelId?: number;
   url?: string;
-  patchId?: string;
   toolDescription?: string;
   rpaDescription?: string;
   LoopStartNodeId?: string;

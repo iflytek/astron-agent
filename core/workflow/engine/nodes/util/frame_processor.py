@@ -145,28 +145,6 @@ class FrameProcessor(ABC):
         pass
 
 
-class AIPaaSFrameProcessor(FrameProcessor):
-    """
-    Frame processor for AI Platform as a Service (AIPaaS) responses.
-
-    This processor handles responses from the AIPaaS platform,
-    extracting code, status, and text content from the response structure.
-    """
-
-    def process_frame(self, llm_response: Dict[str, Any]) -> UnionFrame:
-        """
-        Process AIPaaS response frame.
-
-        :param llm_response: AIPaaS response dictionary
-        :return: Unified frame with extracted response data
-        """
-        code = llm_response["header"]["code"]
-        status = llm_response["header"]["status"]
-        resp_payload = llm_response["payload"]
-        text = resp_payload["choices"]["text"][0]
-        return UnionFrame(code, status, text)
-
-
 class AgentFrameProcessor(FrameProcessor):
     """
     Frame processor for Agent node responses.
@@ -349,7 +327,6 @@ class FrameProcessorEnum(Enum):
     available for handling various LLM response formats.
     """
 
-    XINGHUO = ModelProviderEnum.XINGHUO.value
     OPENAI = ModelProviderEnum.OPENAI.value
     ANTHROPIC = ModelProviderEnum.ANTHROPIC.value
     GOOGLE = ModelProviderEnum.GOOGLE.value
@@ -367,7 +344,6 @@ class FrameProcessorFactory:
     """
 
     _processors: Dict[str, Type[FrameProcessor]] = {
-        FrameProcessorEnum.XINGHUO.value: AIPaaSFrameProcessor,
         FrameProcessorEnum.AGENT.value: AgentFrameProcessor,
         FrameProcessorEnum.OPENAI.value: OpenAIFrameProcessor,
         FrameProcessorEnum.ANTHROPIC.value: AnthropicFrameProcessor,

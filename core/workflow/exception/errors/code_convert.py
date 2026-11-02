@@ -10,7 +10,7 @@ handled uniformly regardless of their source.
 
 Key Features:
 - Standardized error code mapping from external services to internal codes
-- Support for multiple third-party service types (Spark, image generation, tools)
+- Support for multiple third-party service types (image generation, tools)
 - Fallback handling for unknown or unrecognized error codes
 - Consistent error categorization across different service providers
 - Integration with the workflow system's error handling framework
@@ -37,7 +37,6 @@ class CodeConvert:
     Supported services:
     - Image generation services
     - SparkLink tool services
-    - Spark model services
     """
 
     @staticmethod
@@ -93,89 +92,3 @@ class CodeConvert:
                 return CodeEnum.SPARK_LINK_OPERATION_ID_NOT_EXIST_ERROR
             case _:
                 return CodeEnum.SPARK_LINK_ERROR
-
-    @staticmethod
-    def sparkCode(code: int) -> CodeEnum:
-        """
-        Convert Spark model service error codes to internal error codes.
-
-        Maps Spark model service errors to standardized internal error codes.
-        This method handles the most comprehensive range of errors in the system,
-        covering all aspects of AI model service interactions.
-
-        The method provides extensive error mapping for:
-        - WebSocket connection and communication errors
-        - Message format and schema validation failures
-        - User concurrency and traffic limit violations
-        - Service capacity and availability issues
-        - Engine connection and communication problems
-        - Content audit and compliance failures
-        - Authentication and authorization errors
-        - Rate limiting and quota management issues
-        - Token limit and input size violations
-        - Network and infrastructure problems
-
-        This comprehensive mapping ensures that all Spark model service errors
-        are properly categorized and handled according to the workflow system's
-        error management standards.
-
-        :param code: Third-party Spark model service error code (integer)
-        :return: Corresponding internal error code enum for consistent handling
-        """
-        match code:
-            case ThirdApiCodeEnum.SPARK_WS_ERROR.code:
-                return CodeEnum.SPARK_WS_ERROR
-            case ThirdApiCodeEnum.SPARK_WS_READ_ERROR.code:
-                return CodeEnum.SPARK_WS_READ_ERROR
-            case ThirdApiCodeEnum.SPARK_WS_SEND_ERROR.code:
-                return CodeEnum.SPARK_WS_SEND_ERROR
-            case ThirdApiCodeEnum.SPARK_MESSAGE_FORMAT_ERROR.code:
-                return CodeEnum.SPARK_MESSAGE_FORMAT_ERROR
-            case ThirdApiCodeEnum.SPARK_SCHEMA_ERROR.code:
-                return CodeEnum.SPARK_SCHEMA_ERROR
-            case ThirdApiCodeEnum.SPARK_PARAM_ERROR.code:
-                return CodeEnum.SPARK_PARAM_ERROR
-            case ThirdApiCodeEnum.SPARK_CONCURRENCY_ERROR.code:
-                return CodeEnum.SPARK_CONCURRENCY_ERROR
-            case ThirdApiCodeEnum.SPARK_TRAFFIC_LIMIT_ERROR.code:
-                return CodeEnum.SPARK_TRAFFIC_LIMIT_ERROR
-            case ThirdApiCodeEnum.SPARK_CAPACITY_ERROR.code:
-                return CodeEnum.SPARK_CAPACITY_ERROR
-            case ThirdApiCodeEnum.SPARK_ENGINE_CONNECTION_ERROR.code:
-                return CodeEnum.SPARK_ENGINE_CONNECTION_ERROR
-            case ThirdApiCodeEnum.SPARK_ENGINE_RECEIVE_ERROR.code:
-                return CodeEnum.SPARK_ENGINE_RECEIVE_ERROR
-            case ThirdApiCodeEnum.SPARK_ENGINE_SEND_ERROR.code:
-                return CodeEnum.SPARK_ENGINE_SEND_ERROR
-            case ThirdApiCodeEnum.SPARK_ENGINE_INTERNAL_ERROR.code:
-                return CodeEnum.SPARK_ENGINE_INTERNAL_ERROR
-            case ThirdApiCodeEnum.SPARK_CONTENT_AUDIT_ERROR.code:
-                return CodeEnum.SPARK_CONTENT_AUDIT_ERROR
-            case ThirdApiCodeEnum.SPARK_OUTPUT_AUDIT_ERROR.code:
-                return CodeEnum.SPARK_OUTPUT_AUDIT_ERROR
-            case ThirdApiCodeEnum.SPARK_APP_ID_BLACKLIST_ERROR.code:
-                return CodeEnum.SPARK_APP_ID_BLACKLIST_ERROR
-            case ThirdApiCodeEnum.SPARK_APP_ID_AUTH_ERROR.code:
-                return CodeEnum.SPARK_APP_ID_AUTH_ERROR
-            case ThirdApiCodeEnum.SPARK_CLEAR_HISTORY_ERROR.code:
-                return CodeEnum.SPARK_CLEAR_HISTORY_ERROR
-            case ThirdApiCodeEnum.SPARK_VIOLATION_ERROR.code:
-                return CodeEnum.SPARK_VIOLATION_ERROR
-            case ThirdApiCodeEnum.SPARK_BUSY_ERROR.code:
-                return CodeEnum.SPARK_BUSY_ERROR
-            case ThirdApiCodeEnum.SPARK_ENGINE_PARAMS_ERROR.code:
-                return CodeEnum.SPARK_ENGINE_PARAMS_ERROR
-            case ThirdApiCodeEnum.SPARK_ENGINE_NETWORK_ERROR.code:
-                return CodeEnum.SPARK_ENGINE_NETWORK_ERROR
-            case ThirdApiCodeEnum.SPARK_TOKEN_LIMIT_ERROR.code:
-                return CodeEnum.SPARK_TOKEN_LIMIT_ERROR
-            case ThirdApiCodeEnum.SPARK_AUTH_ERROR.code:
-                return CodeEnum.SPARK_AUTH_ERROR
-            case ThirdApiCodeEnum.SPARK_DAILY_LIMIT_ERROR.code:
-                return CodeEnum.SPARK_DAILY_LIMIT_ERROR
-            case ThirdApiCodeEnum.SPARK_SECOND_LIMIT_ERROR.code:
-                return CodeEnum.SPARK_SECOND_LIMIT_ERROR
-            case ThirdApiCodeEnum.SPARK_CONCURRENCY_LIMIT_ERROR.code:
-                return CodeEnum.SPARK_CONCURRENCY_LIMIT_ERROR
-            case _:
-                return CodeEnum.SPARK_REQUEST_ERROR

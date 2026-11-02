@@ -161,7 +161,6 @@ export interface ModelConfig {
   llmSource: string;
   serviceId: string;
   domain: string;
-  patchId: string;
   url: string;
 }
 

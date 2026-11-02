@@ -10,7 +10,6 @@ import com.iflytek.astron.console.toolkit.entity.table.bot.SparkBot;
 import com.iflytek.astron.console.toolkit.mapper.ConfigInfoMapper;
 import com.iflytek.astron.console.toolkit.mapper.bot.SparkBotMapper;
 import com.iflytek.astron.console.toolkit.mapper.workflow.WorkflowMapper;
-import com.iflytek.astron.console.toolkit.tool.spark.SparkApiTool;
 import static org.assertj.core.api.InstanceOfAssertFactories.list;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -32,8 +31,6 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PromptServiceTest {
 
-    @Mock
-    private SparkApiTool sparkApiTool;
     @Mock
     private ConfigInfoMapper configInfoMapper;
     @Mock

@@ -1,7 +1,6 @@
 import copy
 import json
 import re
-import time
 from typing import Any, Dict, cast
 
 from jsonschema import ValidationError, validate  # type: ignore
@@ -11,7 +10,7 @@ from pydantic import BaseModel, Field
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
 from workflow.engine.entities.history import History
-from workflow.engine.entities.variable_pool import ParamKey, VariablePool
+from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.nodes.base_node import BaseLLMNode
 from workflow.engine.nodes.decision.prompt_v1_0 import (
     prompt_template,
@@ -21,12 +20,8 @@ from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
     WorkflowNodeExecutionStatus,
 )
-from workflow.engine.nodes.util.prompt import PromptUtils, process_prompt
-from workflow.exception.e import CustomException
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.schemas import Function
-from workflow.infra.providers.llm.iflytek_spark.spark_fc_llm import SparkFunctionCallAi
 
 
 def _replace_new_line(match: re.Match[str]) -> str:
@@ -88,176 +83,16 @@ class DecisionNode(BaseLLMNode):
     """
     Decision node for workflow routing based on user input and intent classification.
 
-    This node supports multiple execution modes including function call, prompt-based,
-    and normal classification to determine the next workflow path based on user intent.
+    This node supports prompt-based and normal classification to determine the next workflow path based on user intent.
     """
 
     promptPrefix: str = Field(default="")  # Custom prompt prefix for decision making
     reasonMode: int = Field(
         default=0
     )  # Mode for reasoning (0: normal, 1: prompt-based)
-    fs_params: object = {
-        "type": "object",
-        "properties": {
-            "next_inputs": {"type": "string", "description": "User input content"}
-        },
-        "required": ["next_inputs"],
-    }  # Function call parameters schema
-    useFunctionCall: bool = Field(default=True)  # Whether to use function call mode
-    question_type: str = Field(
-        default="not_knowledge"
-    )  # Type of question for LLM processing
     intentChains: list[IntentChain] = Field(
         default_factory=list
     )  # List of intent chain configurations
-
-    async def async_execute_fc(
-        self,
-        variable_pool: VariablePool,
-        span: Span,
-        event_log_node_trace: NodeLog | None = None,
-    ) -> NodeRunResult:
-        """
-        Execute decision node using function call mode for intent classification.
-
-        This method uses Spark Function Call AI to classify user input and determine
-        the appropriate intent chain based on predefined function schemas.
-
-        :param variable_pool: Pool of variables available to the node
-        :param span: Tracing span for monitoring
-        :param event_log_node_trace: Optional event logging for node execution
-        :return: NodeRunResult containing the selected intent and execution details
-        """
-        # Initialize function call instances and mapping
-        fs_instances = []
-        id_map = {}
-        default_id = ""
-
-        # Build function call schemas from intent chains
-        for intent_chain in self.intentChains:
-            # Create function schema for each intent chain
-            fs_instance = Function(
-                name=intent_chain.name,
-                description=intent_chain.description,
-                parameters=copy.deepcopy(self.fs_params),
-            )
-            # Map intent names to their IDs for routing
-            id_map.update({intent_chain.name: intent_chain.id})
-            # Set default ID for fallback intent (intentType == 1)
-            default_id = (
-                intent_chain.id if intent_chain.intent_type == 1 else default_id
-            )
-            fs_instances.append(fs_instance)
-        # Log function call schemas for debugging
-        await span.add_info_events_async({"fs_schema": str(fs_instances)})
-
-        # Get user input from variable pool
-        usr_input = variable_pool.get_variable(
-            node_id=self.node_id,
-            key_name=self.input_identifier[0],
-            span=span,
-        )
-        # Initialize Spark Function Call AI client
-        fc_ai = SparkFunctionCallAi(
-            model_url=self.url,
-            model_name=self.domain,
-            spark_version="",
-            temperature=self.temperature,
-            app_id=self.appId,
-            api_key=self.apiKey,
-            api_secret=self.apiSecret,
-            max_tokens=self.maxTokens,
-            top_k=self.topK,
-            patch_id=self.patch_id,
-            uid=variable_pool.system_params.get(ParamKey.Uid, default="")
-            or str(time.time()),
-            question_type=self.question_type,
-            function_choice="",
-        )
-        # Process prompt prefix and variable replacements
-        prompt_prefix = copy.deepcopy(self.promptPrefix)
-        await span.add_info_events_async({"user_input_prompt_prefix": prompt_prefix})
-
-        # Find variables that need to be replaced in the prompt
-        available_placeholders = PromptUtils.get_available_placeholders(
-            self.node_id, prompt_prefix, variable_pool, span
-        )
-        replacements = {}
-        # Replace variables in prompt with actual values
-        try:
-            for var_name in available_placeholders:
-                var_name_list = re.split(r"[\[.\]]", var_name)
-                # Only process variables that are in input identifiers
-                if var_name_list[0].strip() in self.input_identifier:
-                    replacements.update(
-                        {
-                            var_name: process_prompt(
-                                node_id=self.node_id,
-                                key_name=var_name,
-                                variable_pool=variable_pool,
-                                span=span,
-                            )
-                        }
-                    )
-        except CustomException as err:
-            # Handle variable processing errors
-            span.record_exception(err)
-            run_result = NodeRunResult(
-                node_id=self.node_id,
-                alias_name=self.alias_name,
-                node_type=self.node_type,
-                status=WorkflowNodeExecutionStatus.FAILED,
-                error=err,
-            )
-            return run_result
-        # Ensure user input is string and apply variable replacements
-        if not isinstance(usr_input, str):
-            usr_input = str(usr_input)
-        replacements_str = {
-            k: (lambda v: (str(v) or " "))(v) for k, v in replacements.items()
-        }
-        prompt_prefix = PromptUtils.replace_variables(prompt_prefix, replacements_str)
-        await span.add_info_events_async({"finally_prompt_prefix": prompt_prefix})
-        # Execute function call with Spark AI
-        try:
-            name, token_usage, _ = await fc_ai.async_call_spark_fc(
-                user_input=prompt_prefix,
-                event_log_node_trace=event_log_node_trace,
-                function=fs_instances,
-                span=span,
-            )
-            # Return successful result with selected intent
-            return NodeRunResult(
-                node_id=self.node_id,
-                alias_name=self.alias_name,
-                node_type=self.node_type,
-                status=WorkflowNodeExecutionStatus.SUCCEEDED,
-                process_data={"query": usr_input},
-                inputs={self.input_identifier[0]: usr_input},
-                raw_output=str(name),
-                outputs={self.output_identifier[0]: str(name)},
-                edge_source_handle=id_map.get(name, default_id),
-                token_cost=GenerateUsage(
-                    completion_tokens=token_usage.get("completion_tokens", 0),
-                    prompt_tokens=token_usage.get("prompt_tokens", 0),
-                    total_tokens=token_usage.get("total_tokens", 0),
-                ),
-            )
-        except Exception as err:
-            # Handle execution errors by falling back to default intent
-            span.add_error_event(f"{err}")
-            return NodeRunResult(
-                node_id=self.node_id,
-                alias_name=self.alias_name,
-                node_type=self.node_type,
-                status=WorkflowNodeExecutionStatus.SUCCEEDED,
-                process_data={"query": usr_input},
-                inputs={self.input_identifier[0]: usr_input},
-                raw_output="DEFAULT",
-                outputs={self.output_identifier[0]: "DEFAULT"},
-                edge_source_handle=default_id,
-                token_cost=GenerateUsage(),
-            )
 
     async def async_execute_prompt(
         self,
@@ -614,9 +449,8 @@ class DecisionNode(BaseLLMNode):
         """
         Orchestrate decision node execution by selecting the appropriate mode.
 
-        When reasonMode equals 1, the prompt-based path is used. If function-call
-        mode is enabled, the function-call path is selected. Otherwise, normal
-        mode is executed.
+        When reasonMode equals 1, the structured prompt path is used. Otherwise,
+        normal classification is executed.
 
         :param variable_pool: Pool of variables available to the node
         :param span: Tracing span for monitoring
@@ -634,12 +468,6 @@ class DecisionNode(BaseLLMNode):
                 event_log_node_trace=event_log_node_trace,
             )
 
-        if self.useFunctionCall:
-            return await self.async_execute_fc(
-                variable_pool=variable_pool,
-                span=span,
-                event_log_node_trace=event_log_node_trace,
-            )
         return await self.async_execute_normal(
             variable_pool=variable_pool,
             span=span,

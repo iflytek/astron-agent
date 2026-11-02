@@ -18,7 +18,6 @@ export interface AgentPromptItem {
     llmId: string;
     domain: string;
     serviceId: string;
-    patchId: string;
     url: string;
     id: string;
     isThink: boolean;

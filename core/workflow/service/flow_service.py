@@ -336,6 +336,9 @@ async def node_debug(
     :return: Node debug response containing execution results and metrics
     :raises CustomExceptionCM: If node execution fails
     """
+    workflow_dsl = WorkflowDSL.model_validate(
+        sanitize_protocol(workflow_dsl.model_dump())
+    )
     # Record start time for performance measurement
     time_start = time.time() * 1000
     await span.add_info_event_async(
@@ -353,6 +356,7 @@ async def node_debug(
     node_instance.retry_config.should_retry = False
 
     variable_pool.system_params.set(ParamKey.FlowId, flow_id).set(ParamKey.Uid, uid)
+    variable_pool.system_params.set(ParamKey.ModelFlowId, flow_id)
 
     if node_instance.node_id.startswith(NodeType.FLOW.value):
         await set_flow_node_output_mode(

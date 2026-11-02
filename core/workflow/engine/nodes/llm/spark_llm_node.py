@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from typing import Any, cast
 
@@ -12,13 +11,13 @@ from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
     WorkflowNodeExecutionStatus,
 )
-from workflow.engine.nodes.llm.prompt_ai_personal import system_template
 from workflow.engine.nodes.util.prompt import PromptUtils, process_prompt
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.const import RespFormatEnum
+from workflow.infra.providers.llm.agent_chat_llm import AgentChatAI
+from workflow.infra.providers.llm.const import RespFormatEnum
 
 
 def _replace_new_line(match: re.Match[str]) -> str:
@@ -63,12 +62,23 @@ def _custom_parser(multiline_string: str) -> str:
 
 
 class SparkLLMNode(BaseLLMNode):
-    """
-    Spark LLM node implementation for workflow execution.
+    """Model node: Workflow owns prompts/output; Agent owns inference."""
 
-    This class handles the execution of Spark LLM (Xinghuo) model nodes,
-    including prompt processing, history management, and response formatting.
-    """
+    def _get_chat_ai(self, uid: str = "") -> AgentChatAI:
+        return AgentChatAI(
+            provider=self.source,
+            model_url=self.url,
+            model_name=self.domain,
+            temperature=self.temperature,
+            app_id=self.appId,
+            api_key=self.apiKey,
+            api_secret="",
+            max_tokens=self.maxTokens,
+            top_k=self.topK,
+            uid=uid or self.uid,
+            node_id=self.node_id,
+            stream_node_first_token=self.stream_node_first_token,
+        )
 
     def resp_format_text_parser(self, res: Any, think_contents: str) -> dict:
         """
@@ -164,23 +174,6 @@ class SparkLLMNode(BaseLLMNode):
                 system_prompt_template = self.get_full_prompt(
                     system_prompt_template, span, variable_pool
                 )
-            else:
-                if self.domain == "xaipersonality":
-                    system_prompt_template = system_template
-                    if self.enableChatHistory:
-                        history_chat = variable_pool.get_aipensonal_history(
-                            self.node_id
-                        )
-
-            image_url = ""
-            # Image understanding models configuration
-            image_models = os.getenv("SPARK_IMAGE_MODEL_DOMAIN", "image,imagev3").split(
-                ","
-            )
-            if self.domain in image_models:
-                history_chat = None
-                image_url = inputs.get("SYSTEM_IMAGE", "")
-
             # End-to-end history management
             if self.enableChatHistoryV2.is_enabled:
                 # Disable old history mechanism
@@ -237,7 +230,6 @@ class SparkLLMNode(BaseLLMNode):
                     prompt_template=prompt_template,
                     system_prompt_template=system_prompt_template,
                     event_log_node_trace=event_log_node_trace,
-                    image_url=image_url,
                     stream=True,
                     msg_or_end_node_deps=msg_or_end_node_deps,
                     multimodal_inputs=multimodal_inputs,  # Pass multimodal inputs

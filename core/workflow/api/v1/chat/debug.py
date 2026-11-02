@@ -69,8 +69,8 @@ async def chat_debug(
                     RuntimeEnv.Dev.value,
                     RuntimeEnv.Test.value,
                 ]:
-                    # Replace app_id, api_key, api_secret in protocol
-                    db_flow.data = chat_service.change_dsl_triplets(
+                    # Bind platform identity without replacing model credentials
+                    db_flow.data = chat_service.bind_runtime_app_context(
                         spark_dsl,
                         app_id=app_id,
                         api_key=app_info.api_key,
@@ -100,6 +100,7 @@ async def chat_debug(
                     False,
                     app_audit_policy,
                     span_context,
+                    model_flow_id=str(db_flow.group_id),
                 ),
                 StreamingResponse if chat_vo.stream else JSONResponse,
             )

@@ -67,9 +67,7 @@ export function readModelSettings(
             ? 'maxTokens'
             : value.key === 'top_k'
               ? 'topK'
-              : value.key === 'search_disable'
-                ? 'searchDisable'
-                : value.key;
+              : value.key;
       return [
         {
           key,

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 
 from workflow.domain.entities.chat import HistoryItem
-from workflow.infra.providers.llm.iflytek_spark.schemas import SparkAiMessage
+from workflow.infra.providers.llm.schemas import ChatMessage
 
 
 class History(BaseModel):
@@ -57,19 +57,19 @@ class History(BaseModel):
         return images
 
     @staticmethod
-    def process_history_to_spark_message(
+    def process_history_to_messages(
         array: list[HistoryItem],
-    ) -> list[SparkAiMessage]:
+    ) -> list[ChatMessage]:
         """
-        Convert history items to Spark AI messages.
+        Convert history items to chat messages.
 
         :param array: List of history items to convert
-        :return: List of Spark AI messages
+        :return: List of chat messages
         """
         history = []
         for item in array:
             history.append(
-                SparkAiMessage(
+                ChatMessage(
                     content=item.content,
                     role=item.role,
                     content_type=(

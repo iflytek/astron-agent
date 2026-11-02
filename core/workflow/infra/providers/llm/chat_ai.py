@@ -18,6 +18,7 @@ class ChatAI(abc.ABC, BaseModel):
     construction, message decoding, and asynchronous chat functionality.
     """
 
+    remote: bool = False
     model_url: str  # URL endpoint for the LLM model API
     model_name: str  # Name identifier of the LLM model
     temperature: float  # Sampling temperature for response generation (0.0 to 1.0)
