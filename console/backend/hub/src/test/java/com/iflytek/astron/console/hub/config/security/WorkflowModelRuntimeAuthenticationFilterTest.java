@@ -32,7 +32,8 @@ class WorkflowModelRuntimeAuthenticationFilterTest {
         verify(chain).doFilter(any(), any());
         verifyNoInteractions(entryPoint);
         assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
-                .extracting(Object::toString).containsExactly("ROLE_WORKFLOW_MODEL_RUNTIME_READER");
+                .extracting(Object::toString)
+                .containsExactly("ROLE_WORKFLOW_MODEL_RUNTIME_READER");
     }
 
     @Test

@@ -77,7 +77,8 @@ class WorkflowModelProtocolTest {
         assertThat(data.getNodeParam()).doesNotContainKey("apiSecret");
         assertThat(data.getNodeParam().getString("source")).isEqualTo("anthropic");
         JSONObject config = nodeType.equals("agent")
-                ? data.getNodeParam().getJSONObject("modelConfig") : data.getNodeParam();
+                ? data.getNodeParam().getJSONObject("modelConfig")
+                : data.getNodeParam();
         assertThat(config.getString(nodeType.equals("agent") ? "api" : "url"))
                 .isEqualTo(model.getUrl());
         assertThat(config.getString("domain")).isEqualTo("configured-model");
