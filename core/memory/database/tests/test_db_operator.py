@@ -1,5 +1,9 @@
 """Unit tests for database operator functionality."""
 
+# Tests restate request payloads and mocks on purpose rather than
+# sharing helpers across modules.
+# pylint: disable=duplicate-code
+
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -489,7 +493,7 @@ def test_safe_create_schema_sql_postgresql() -> None:
 
 
 def test_safe_create_schema_sql_mysql() -> None:
-    """safe_create_schema_sql with MySQL adapter -> CREATE DATABASE IF NOT EXISTS + utf8mb4."""
+    """MySQL safe_create_schema_sql -> CREATE DATABASE IF NOT EXISTS + utf8mb4."""
     reset_adapter()
     with patch.dict(os.environ, {"DB_TYPE": "mysql"}):
         result = safe_create_schema_sql("test_schema")
@@ -500,7 +504,7 @@ def test_safe_create_schema_sql_mysql() -> None:
 
 
 def test_safe_drop_schema_sql_postgresql() -> None:
-    """safe_drop_schema_sql with PostgreSQL adapter -> DROP SCHEMA IF EXISTS ... CASCADE."""
+    """PostgreSQL safe_drop_schema_sql -> DROP SCHEMA IF EXISTS ... CASCADE."""
     reset_adapter()
     with patch.dict(os.environ, {"DB_TYPE": "postgresql"}):
         result = safe_drop_schema_sql("test_schema")

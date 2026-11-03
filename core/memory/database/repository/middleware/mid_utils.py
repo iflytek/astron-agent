@@ -23,8 +23,9 @@ def get_factories_and_deps() -> List[Tuple[Any, List[str]]]:
     Returns:
         list: List of tuples containing (factory, dependencies) pairs
     """
+    # pylint: disable-next=import-outside-toplevel
     from memory.database.repository.middleware.database import (
-        db_factory as database_factory,  # pylint: disable=import-outside-toplevel
+        db_factory as database_factory,
     )
 
     return [

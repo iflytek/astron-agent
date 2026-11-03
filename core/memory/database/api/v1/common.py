@@ -87,7 +87,8 @@ async def check_database_exists_by_did(
             )
         return res, None
 
-    except Exception as db_error:
+    # Any database failure is reported to the caller as an error response.
+    except Exception as db_error:  # pylint: disable=broad-exception-caught
         span_context.record_exception(db_error)
         return None, format_response(
             code=CodeEnum.DatabaseExecutionError.code,

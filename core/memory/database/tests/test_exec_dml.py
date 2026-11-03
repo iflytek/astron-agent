@@ -1,5 +1,9 @@
 """Unit tests for DML execution functionality."""
 
+# Tests restate request payloads and mocks on purpose rather than
+# sharing helpers across modules.
+# pylint: disable=duplicate-code
+
 import datetime
 import decimal
 import json
@@ -40,8 +44,9 @@ from memory.database.api.v1.exec_dml import (
     rewrite_dml_with_uid_and_limit,
     to_jsonable,
 )
+from memory.database.domain.entity.views.http_resp import format_response
 from memory.database.exceptions.error_code import CodeEnum
-from sqlglot import parse_one
+from sqlglot import exp, parse_one
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -141,7 +146,6 @@ async def test_set_search_path_success() -> None:
             db=mock_db,
             schema_list=[["prod_u1_1001"], ["test_u1_1001"]],
             env="prod",
-            uid="u1",
             span_context=mock_span_context,
         )
 
@@ -168,7 +172,6 @@ async def test_dml_split_success() -> None:
             dml="SELECT * FROM users;",
             db=mock_db,
             schema="prod_u1_1001",
-            uid="u1",
             span_context=mock_span_context,
         )
 
@@ -200,7 +203,6 @@ async def test_dml_split_rejects_multi_statement_injection() -> None:
             "DELETE FROM users WHERE id = 1;",
             db=mock_db,
             schema="prod_u1_1001",
-            uid="u1",
             span_context=mock_span_context,
         )
 
@@ -228,7 +230,6 @@ async def test_dml_split_allows_semicolon_inside_string_literal() -> None:
             dml="SELECT * FROM users WHERE note = 'hello; still data';",
             db=mock_db,
             schema="prod_u1_1001",
-            uid="u1",
             span_context=mock_span_context,
         )
 
@@ -261,7 +262,6 @@ async def test_exec_dml_sql_success() -> None:
         result, exec_time, error = await _exec_dml_sql(
             db=mock_db,
             rewrite_dmls=rewrite_dmls,
-            uid="u1",
             span_context=mock_span_context,
         )
 
@@ -298,7 +298,6 @@ async def test_exec_dml_sql_with_params() -> None:
         result, exec_time, error = await _exec_dml_sql(
             db=mock_db,
             rewrite_dmls=rewrite_dmls,
-            uid="u1",
             span_context=mock_span_context,
         )
 
@@ -457,7 +456,8 @@ async def test_exec_dml_success() -> None:
 
                                         # Mock span service and instance
                                         mock_span_instance = MagicMock()
-                                        mock_span_instance.start.return_value.__enter__.return_value = (  # noqa: E501
+                                        span_cm = mock_span_instance.start.return_value
+                                        span_cm.__enter__.return_value = (
                                             fake_span_context
                                         )
                                         mock_span_service = MagicMock()
@@ -550,9 +550,8 @@ def test_validate_comparison_nodes_valid() -> None:
     parsed = parse_one(dml)
     span_context = MagicMock()
     span_context.sid = "test-sid"
-    uid = "u1"
 
-    result = _validate_comparison_nodes(parsed, uid, span_context)
+    result = _validate_comparison_nodes(parsed, span_context)
     assert result is None
 
 
@@ -566,9 +565,8 @@ def test_validate_comparison_nodes_invalid() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = _validate_comparison_nodes(parsed, uid, span_context)
+    result = _validate_comparison_nodes(parsed, span_context)
     # Should return None for valid comparison nodes
     assert result is None
 
@@ -625,9 +623,8 @@ async def test_validate_dml_legality_valid() -> None:
     dml = "SELECT name, age FROM users WHERE id = 1"
     span_context = MagicMock()
     span_context.sid = "test-sid"
-    uid = "u1"
 
-    result = await _validate_dml_legality(dml, uid, span_context)
+    result = await _validate_dml_legality(dml, span_context)
     assert result is None
 
 
@@ -640,9 +637,8 @@ async def test_validate_dml_legality_invalid_name() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_dml_legality(dml, uid, span_context)
+    result = await _validate_dml_legality(dml, span_context)
     assert result is not None
     # Parse JSONResponse body to get code
     body = json.loads(result.body)
@@ -657,9 +653,8 @@ async def test_validate_dml_legality_reserved_function() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_dml_legality(dml, uid, span_context)
+    result = await _validate_dml_legality(dml, span_context)
     assert result is not None
     body = json.loads(result.body)
     assert body["code"] == CodeEnum.DMLNotAllowed.code
@@ -676,9 +671,8 @@ async def test_validate_dml_legality_reserved_keyword_in_insert() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.add_error_event = MagicMock()
-    uid = "u1"
 
-    result = await _validate_dml_legality(dml, uid, span_context)
+    result = await _validate_dml_legality(dml, span_context)
     assert result is not None
     body = json.loads(result.body)
     # Reserved keyword may be rejected by parser (SQLParseError) or
@@ -696,9 +690,8 @@ async def test_validate_dml_legality_invalid_sql() -> None:
     span_context = MagicMock()
     span_context.sid = "test-sid"
     span_context.record_exception = MagicMock()
-    uid = "u1"
 
-    result = await _validate_dml_legality(dml, uid, span_context)
+    result = await _validate_dml_legality(dml, span_context)
     assert result is not None
     # Parse JSONResponse body to get code
     body = json.loads(result.body)
@@ -907,8 +900,6 @@ async def test_process_dml_statements_rejects_param_name_collision() -> None:
 @pytest.mark.asyncio
 async def test_process_dml_statements_validation_error() -> None:
     """Test DML statement processing with validation error."""
-    from memory.database.domain.entity.views.http_resp import format_response
-
     dmls = ["SELECT * FROM users"]
     app_id = "app123"
     uid = "u1"
@@ -941,8 +932,6 @@ async def test_process_dml_statements_validation_error() -> None:
 
 def test_extract_table_ref() -> None:
     """Test table reference extraction from various types."""
-    from sqlglot import exp
-
     # Test with Table object (use parsed SQL to get proper Table object)
     parsed = parse_one("SELECT * FROM users u")
     tables = list(parsed.find_all(exp.Table))
@@ -959,7 +948,7 @@ def test_extract_table_ref() -> None:
     assert _extract_table_ref(None) is None
 
     # Test with object that has 'this' attribute
-    class MockObj:
+    class MockObj:  # pylint: disable=too-few-public-methods
         """Mock object for testing table reference extraction."""
 
         def __init__(self) -> None:
@@ -968,7 +957,7 @@ def test_extract_table_ref() -> None:
     assert _extract_table_ref(MockObj()) == "test_table"
 
     # Test with object that has 'name' attribute
-    class MockObj2:
+    class MockObj2:  # pylint: disable=too-few-public-methods
         """Mock object for testing table reference extraction."""
 
         def __init__(self) -> None:
@@ -1097,8 +1086,6 @@ def test_rewrite_dml_update_with_table_alias() -> None:
 
 def test_process_comparison_node() -> None:
     """Test comparison node processing."""
-    from sqlglot import exp
-
     literal_column_map: Dict[int, str] = {}
     parsed = parse_one("SELECT * FROM users WHERE name = 'John'")
     where_expr = parsed.args.get("where")

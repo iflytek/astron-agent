@@ -17,13 +17,15 @@ def get_adapter() -> DatabaseAdapter:
     Raises:
         ValueError: If DB_TYPE is not a supported database type.
     """
-    global _adapter_instance  # noqa: PLW0603
+    global _adapter_instance  # noqa: PLW0603  # pylint: disable=global-statement
 
     if _adapter_instance is not None:
         return _adapter_instance
 
     db_type = os.getenv("DB_TYPE", "postgresql").lower()
 
+    # Import only the configured adapter so the other driver need not be installed.
+    # pylint: disable=import-outside-toplevel
     if db_type == "postgresql":
         from memory.database.repository.middleware.adapters.postgresql_adapter import (
             PostgreSQLAdapter,
@@ -46,5 +48,5 @@ def get_adapter() -> DatabaseAdapter:
 
 def reset_adapter() -> None:
     """Reset the cached adapter instance. Useful for testing."""
-    global _adapter_instance  # noqa: PLW0603
+    global _adapter_instance  # noqa: PLW0603  # pylint: disable=global-statement
     _adapter_instance = None

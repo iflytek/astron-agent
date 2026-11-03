@@ -23,7 +23,10 @@ class DatabaseServiceFactory(ServiceFactory):  # pylint: disable=too-few-public-
         """Initialize the factory with DatabaseService as the target service class."""
         super().__init__(DatabaseService)
 
-    async def create(self, database_url: Optional[str] = None) -> DatabaseService:
+    # Concrete factories accept only the options they support.
+    async def create(  # pylint: disable=arguments-differ
+        self, database_url: Optional[str] = None
+    ) -> DatabaseService:
         """Create a new DatabaseService instance.
 
         Args:
