@@ -471,6 +471,31 @@ http {
 
 ![编排页的 Trace 日志入口](assets/trace_log_view.png)
 
+## workflow 服务的日志在哪里看？容器日志里为什么什么都没有？
+
+默认 `LOG_STDOUT_ENABLE=0`，workflow 服务的日志写入文件而不是容器标准输出，所以 `docker logs` 往往看不到业务日志。按默认部署配置：
+
+- 服务 / 容器：`core-workflow` / `astron-agent-core-workflow`
+- 容器内日志：`/opt/core/logs/app_*.log`
+- 宿主机日志：`<部署目录>/config/workflow/logs/app_*.log`
+
+排查 Trace 丢失、上报失败时，重点搜索以下关键字：
+
+| 日志关键字 | 含义 |
+| --- | --- |
+| `Failed to produce message` | Trace 序列化、对象存储上传或 Kafka 发送过程中发生异常 |
+| `23604: File storage failed` | 对象存储上传失败，括号内为具体原因 |
+| `Kafka message send failed` | Kafka 发送调用抛出异常 |
+| `Message delivery failed` | Kafka 投递回调报告失败 |
+
+注意日志时间为 UTC，换算北京时间需要加 8 小时。
+
+## 智能体回复下方出现几个空白按钮，点击后发送的是空内容？
+
+这些是「下一步问答建议」。建议内容由系统内置的 AI 能力生成，需要先在「平台账号管理」中完成 **AI Ability Chat**（OpenAI 兼容对话服务）的配置，建议按钮才会显示内容。
+
+![在平台账号管理中配置 AI Ability Chat](assets/platform_account_ai_ability_chat.png)
+
 ## 标准 HTTP 插件只支持 JSON Object，但接口要求顶层是 JSON Array 怎么办？
 
 工作流中的标准 HTTP 插件节点默认请求体为 JSON Object（键值对）。如果外部接口强制要求顶层为数组（例如 `[{"skuId": ...}]`），建议改用**代码节点**：用一小段 Python 直接构建所需的数组结构并发起请求，从而绕过插件的结构限制。
