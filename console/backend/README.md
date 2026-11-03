@@ -79,4 +79,6 @@ Compose 使用主 `docker/astronAgent/docker-compose.yaml`。RPA 资源管理使
 
 内部模型配置使用 `WORKFLOW_INTERNAL_API_KEY`，沙箱配置使用 `SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN`，产物上传使用 `SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN`，均支持 `_FILE`，并继续匹配调用方现有 header。这些凭据不是浏览器登录凭据，不能写入 Agent/工作流定义。`uv run python manage.py init_resource_storage` 仅创建缺失的 Console 和产物桶，保留现有对象和桶策略。容器在启用迁移且配置 OSS_ENDPOINT 时执行该初始化；多副本关闭迁移时应在部署任务中显式执行一次。新产物使用 `SKILL_SANDBOX_ARTIFACT_BUCKET` 私有桶；历史 bucket_name 为空的产物仍指向原 Console 桶。
 
+Compose 的 `internal-credentials-init` 在 Console 启动前初始化两个沙箱凭据卷。空卷使用已配置的环境变量或生成独立凭据；旧卷保留文件内容，仅将目录设为 `root:10001 / 0750`、文件设为 `root:10001 / 0440`。Console 以 `10001:10001` 运行，Console、core-agent、core-workflow 通过共享只读组及只读卷读取；应用不创建或修改凭据。已有文件与显式环境变量冲突时初始化失败，不自动轮换；升级须使用 Compose 正常启动依赖，不能跳过初始化任务。Helm 沿用已有 Secret 或受管 Secret 的 `lookup` 复用，通过 `secretKeyRef` 注入，不依赖这些文件权限。运行 `python3 docker/astronAgent/scripts/verify_security_contract.py --exercise-credential-lifecycle` 可在独立临时 Compose 项目验证空卷、旧卷内容保留和非 root 读取，需要可用 Docker daemon。
+
 平台账号管理仅向管理员开放：沿用 `ADMIN_UID` 指定的原 UID，也接受 Django 超级用户；不会将首个注册用户自动设为管理员。平台账号保留 `config_info` 内原 JSON 配置以及 core 服务的读取契约；更新时定向失效共享文本缓存。Python 不依赖 Java 序列化缓存。空间配额可通过 `SPACE_LIMIT_{FREE|PRO|TEAM|ENTERPRISE}_{SPACE_COUNT|USER_COUNT}` 覆盖，默认值与旧 Console 相同。

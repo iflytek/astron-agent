@@ -108,12 +108,14 @@ CREDENTIALS = (
         "target": "/app/secrets/artifact",
         "file_env": "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE",
         "file_path": "/app/secrets/artifact/artifact-upload-token",
+        "init_target": "/secrets/artifact",
     },
     {
         "volume": "sandbox_runtime_credential_secrets",
         "target": "/app/secrets/runtime",
         "file_env": "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE",
         "file_path": "/app/secrets/runtime/sandbox-runtime-credential-token",
+        "init_target": "/secrets/runtime",
     },
 )
 
@@ -285,9 +287,7 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
             )
 
     command = init_service.get("command")
-    command_text = (
-        "\n".join(command) if isinstance(command, list) else str(command or "")
-    )
+    command_text = "\n".join(command) if isinstance(command, list) else str(command or "")
     for required_fragment in (
         "umask 077",
         "/dev/urandom",
@@ -338,8 +338,7 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
             for env_name, expected_path in expected_environment.items():
                 if environment.get(env_name) != expected_path:
                     errors.append(
-                        f"services.{service_name}.environment.{env_name}: "
-                        "missing or unexpected"
+                        f"services.{service_name}.environment.{env_name}: missing or unexpected"
                     )
 
     for service_name in INTERNAL_CREDENTIAL_CONSUMERS:
@@ -369,13 +368,27 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
     for service_name in SERVICES:
         service = _mapping(services.get(service_name))
         environment = _mapping(service.get("environment"))
+        if "10001" not in [str(group) for group in service.get("group_add", [])]:
+            errors.append(f"services.{service_name}.group_add: missing credential read group")
 
         for credential in CREDENTIALS:
+            init_mounts = _mounts(init_service, credential["init_target"])
+            if (
+                len(init_mounts) != 1
+                or init_mounts[0].get("source") != credential["volume"]
+                or init_mounts[0].get("read_only", False)
+            ):
+                errors.append(
+                    f"services.{INTERNAL_CREDENTIAL_INIT}.volumes[{credential['init_target']}]: expected rw credential volume"
+                )
             env_name = credential["file_env"]
+            if env_name.removesuffix("_FILE") in environment:
+                errors.append(
+                    f"services.{service_name}.environment.{env_name}: expected file-only credential"
+                )
             if environment.get(env_name) != credential["file_path"]:
                 errors.append(
-                    f"services.{service_name}.environment.{env_name}: "
-                    "missing or unexpected"
+                    f"services.{service_name}.environment.{env_name}: missing or unexpected"
                 )
 
             target = credential["target"]
@@ -386,13 +399,10 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
                 continue
 
             mount = matching_mounts[0]
-            if (
-                mount.get("type") != "volume"
-                or mount.get("source") != credential["volume"]
-            ):
+            if mount.get("type") != "volume" or mount.get("source") != credential["volume"]:
                 errors.append(f"{mount_field}.source/type: unexpected named volume")
 
-            expected_read_only = service_name in CONSUMERS
+            expected_read_only = True
             actual_read_only = mount.get("read_only", False) is True
             if actual_read_only != expected_read_only:
                 expected_mode = "ro" if expected_read_only else "rw"
@@ -404,8 +414,7 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
         for env_name, expected_url in INTERNAL_URLS.items():
             if environment.get(env_name) != expected_url:
                 errors.append(
-                    f"services.{service_name}.environment.{env_name}: "
-                    "missing or unexpected"
+                    f"services.{service_name}.environment.{env_name}: missing or unexpected"
                 )
 
         hub_dependency = _mapping(
@@ -413,13 +422,11 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
         )
         if hub_dependency.get("condition") != "service_healthy":
             errors.append(
-                f"services.{service_name}.depends_on.console-hub: "
-                "expected service_healthy"
+                f"services.{service_name}.depends_on.console-hub: expected service_healthy"
             )
         if hub_dependency.get("required") is False:
             errors.append(
-                f"services.{service_name}.depends_on.console-hub.required: "
-                "must not be false"
+                f"services.{service_name}.depends_on.console-hub.required: must not be false"
             )
 
     hub = _mapping(services.get("console-hub"))
@@ -455,9 +462,7 @@ def _set_mount_mode(
     raise GateError("negative self-test fixture is incomplete")
 
 
-def _negative_cases() -> (
-    Sequence[Tuple[str, Callable[[MutableMapping[str, Any], str], None], str]]
-):
+def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any], str], None], str]]:
     def wrong_token_path(config: MutableMapping[str, Any], marker: str) -> None:
         config["services"]["core-agent"]["environment"][
             "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE"
@@ -471,8 +476,11 @@ def _negative_cases() -> (
     def writable_consumer(config: MutableMapping[str, Any], _marker: str) -> None:
         _set_mount_mode(config, "core-workflow", "/app/secrets/artifact", False)
 
-    def readonly_producer(config: MutableMapping[str, Any], _marker: str) -> None:
-        _set_mount_mode(config, "console-hub", "/app/secrets/runtime", True)
+    def writable_console(config: MutableMapping[str, Any], _marker: str) -> None:
+        _set_mount_mode(config, "console-hub", "/app/secrets/runtime", False)
+
+    def missing_read_group(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"].pop("group_add", None)
 
     def wrong_internal_url(config: MutableMapping[str, Any], marker: str) -> None:
         config["services"]["core-agent"]["environment"][
@@ -515,23 +523,15 @@ def _negative_cases() -> (
     ) -> None:
         config["services"]["core-agent"]["environment"]["APP_AUTH_SECRET"] = marker
 
-    def missing_credential_init_dependency(
-        config: MutableMapping[str, Any], _marker: str
-    ) -> None:
-        config["services"]["core-tenant"]["depends_on"].pop(
-            INTERNAL_CREDENTIAL_INIT, None
+    def missing_credential_init_dependency(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["core-tenant"]["depends_on"].pop(INTERNAL_CREDENTIAL_INIT, None)
+
+    def wrong_credential_init_dependency(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["depends_on"][INTERNAL_CREDENTIAL_INIT]["condition"] = (
+            "service_started"
         )
 
-    def wrong_credential_init_dependency(
-        config: MutableMapping[str, Any], _marker: str
-    ) -> None:
-        config["services"]["console-hub"]["depends_on"][INTERNAL_CREDENTIAL_INIT][
-            "condition"
-        ] = "service_started"
-
-    def merged_generated_volumes(
-        config: MutableMapping[str, Any], _marker: str
-    ) -> None:
+    def merged_generated_volumes(config: MutableMapping[str, Any], _marker: str) -> None:
         workflow_name = config["volumes"]["workflow_internal_secrets"].get(
             "name", "workflow_internal_secrets"
         )
@@ -585,10 +585,11 @@ def _negative_cases() -> (
             "services.core-workflow.volumes[/app/secrets/artifact].mode",
         ),
         (
-            "readonly-producer-volume",
-            readonly_producer,
+            "writable-console-volume",
+            writable_console,
             "services.console-hub.volumes[/app/secrets/runtime].mode",
         ),
+        ("missing-credential-read-group", missing_read_group, "services.console-hub.group_add"),
         (
             "wrong-internal-url",
             wrong_internal_url,
@@ -698,20 +699,26 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
 
     service = _mapping(_mapping(config.get("services")).get(INTERNAL_CREDENTIAL_INIT))
     command = service.get("command")
-    if (
-        not isinstance(command, list)
-        or len(command) < 3
-        or not isinstance(command[2], str)
-    ):
+    if not isinstance(command, list) or len(command) < 3 or not isinstance(command[2], str):
         raise GateError("credential lifecycle shell command is incomplete")
 
     with tempfile.TemporaryDirectory(prefix="astron-credential-") as temporary:
         root = Path(temporary)
         workflow_directory = root / "workflow"
         tenant_directory = root / "tenant"
+        sandbox_files = (
+            root / "artifact" / "artifact-upload-token",
+            root / "runtime" / "sandbox-runtime-credential-token",
+        )
         script = command[2].replace("$$", "$")
         script = script.replace("/secrets/workflow", str(workflow_directory))
         script = script.replace("/secrets/tenant", str(tenant_directory))
+        script = script.replace("/secrets/artifact", str(root / "artifact"))
+        script = script.replace("/secrets/runtime", str(root / "runtime"))
+        # Unprivileged host tests cover bytes/modes, not kernel ownership. The
+        # Docker lifecycle below executes the unmodified chown as root and reads
+        # the volume from UID/GID 10001; it is required in the Linux CI gate.
+        script = 'chown() { [ "$1" = "0:10001" ]; }\n' + script
 
         def run_initializer(
             environment: Mapping[str, str], should_succeed: bool
@@ -719,7 +726,12 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
             completed = subprocess.run(
                 ["/bin/sh", "-ec", script],
                 cwd=temporary,
-                env={**os.environ, **environment},
+                env={
+                    **os.environ,
+                    "CONFIGURED_ARTIFACT_TOKEN": "",
+                    "CONFIGURED_RUNTIME_TOKEN": "",
+                    **environment,
+                },
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
@@ -824,6 +836,33 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
         if snapshot() != initial_snapshot:
             raise GateError("credential shell lifecycle did not reuse generated values")
 
+        def sandbox_snapshot() -> Tuple[bytes, ...]:
+            for path in sandbox_files:
+                if (
+                    path.stat().st_mode & 0o777 != 0o440
+                    or path.parent.stat().st_mode & 0o777 != 0o750
+                ):
+                    raise GateError("sandbox credential permissions are incorrect")
+            return tuple(path.read_bytes() for path in sandbox_files)
+
+        generated_sandbox = sandbox_snapshot()
+        if len(set(generated_sandbox)) != 2 or any(
+            len(value.strip()) < 32 for value in generated_sandbox
+        ):
+            raise GateError("sandbox generated credentials are missing or not independent")
+        # Simulate the exact old Java modes and retain bytes including newline.
+        retained_sandbox = (b"A" * 64 + b"\n", b"R" * 64 + b"\n")
+        for path, value in zip(sandbox_files, retained_sandbox):
+            path.chmod(0o600)
+            path.write_bytes(value)
+            path.parent.chmod(0o700)
+        run_initializer(empty_environment, True)
+        if sandbox_snapshot() != retained_sandbox:
+            raise GateError("sandbox migration changed retained credential bytes")
+        run_initializer({**empty_environment, "CONFIGURED_ARTIFACT_TOKEN": "X" * 64}, False)
+        if sandbox_snapshot() != retained_sandbox:
+            raise GateError("conflicting sandbox override changed retained credentials")
+
         legacy_files = (
             (workflow_directory / "workflow-internal-api-key", WORKFLOW_PLACEHOLDER),
             (tenant_directory / "tenant-key", LEGACY_TENANT_KEY),
@@ -906,6 +945,8 @@ def _credential_environment(
         "WORKFLOW_INTERNAL_API_KEY": workflow_key,
         "TENANT_KEY": tenant_key,
         "TENANT_SECRET": tenant_secret,
+        "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN": "",
+        "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN": "",
     }
 
 
@@ -994,13 +1035,15 @@ def exercise_credential_lifecycle(compose_file: Path) -> None:
                 f"credential lifecycle initializer did not {expectation} as expected"
             )
 
-    def run_volume_script(script: str) -> subprocess.CompletedProcess[str]:
+    def run_volume_script(script: str, user: str = "0:0") -> subprocess.CompletedProcess[str]:
         return _run_quiet(
             prefix
             + [
                 "run",
                 "--rm",
                 "--no-deps",
+                "--user",
+                user,
                 "--entrypoint",
                 "/bin/sh",
                 INTERNAL_CREDENTIAL_INIT,
@@ -1027,10 +1070,59 @@ def exercise_credential_lifecycle(compose_file: Path) -> None:
     empty_environment = _credential_environment()
     try:
         run_initializer(empty_environment, True)
+        sandbox_read = r"""
+for directory in /secrets/artifact /secrets/runtime; do
+  [ "$(stat -c '%u:%g:%a' "$directory")" = '0:10001:750' ] || exit 50
+done
+for file in /secrets/artifact/artifact-upload-token /secrets/runtime/sandbox-runtime-credential-token; do
+  [ "$(stat -c '%u:%g:%a' "$file")" = '0:10001:440' ] || exit 51
+  [ -r "$file" ] && [ ! -w "$file" ] || exit 52
+  [ "$(wc -c < "$file")" -ge 32 ] || exit 53
+  sha256sum "$file" | cut -d ' ' -f 1
+done
+"""
+
+        def sandbox_snapshot() -> str:
+            # Actual kernel access checks for Console and a different consumer UID.
+            console = run_volume_script(sandbox_read, "10001:10001")
+            consumer = run_volume_script(sandbox_read, "20002:10001")
+            if console.returncode or consumer.returncode or console.stdout != consumer.stdout:
+                raise GateError("sandbox credentials are not readable by non-root consumers")
+            hashes = console.stdout.splitlines()
+            if len(hashes) != 2 or hashes[0] == hashes[1]:
+                raise GateError("sandbox credentials are not independent")
+            return console.stdout
+
+        first_sandbox = sandbox_snapshot()
         first_snapshot = snapshot()
         run_initializer(empty_environment, True)
         if snapshot() != first_snapshot:
             raise GateError("generated credentials were not reused on restart")
+        if sandbox_snapshot() != first_sandbox:
+            raise GateError("sandbox generated credentials changed on restart")
+
+        # Reproduce the old Java root-owned 0700/0600 volume state exactly.
+        seeded = run_volume_script("""
+chmod 0600 /secrets/artifact/artifact-upload-token /secrets/runtime/sandbox-runtime-credential-token
+printf '%s\\n' 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' > /secrets/artifact/artifact-upload-token
+printf '%s\\n' 'RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR' > /secrets/runtime/sandbox-runtime-credential-token
+chown -R 0:0 /secrets/artifact /secrets/runtime
+chmod 0700 /secrets/artifact /secrets/runtime
+""")
+        if seeded.returncode:
+            raise GateError("old sandbox volume fixture setup failed")
+        run_initializer(empty_environment, True)
+        expected_sandbox = (
+            "\n".join(hashlib.sha256(value * 64 + b"\n").hexdigest() for value in (b"A", b"R"))
+            + "\n"
+        )
+        if sandbox_snapshot() != expected_sandbox:
+            raise GateError("sandbox migration changed old token bytes")
+        run_initializer(
+            {**empty_environment, "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN": "X" * 64}, False
+        )
+        if sandbox_snapshot() != expected_sandbox:
+            raise GateError("sandbox conflict changed old token bytes")
 
         seed_legacy = f"""
 umask 077

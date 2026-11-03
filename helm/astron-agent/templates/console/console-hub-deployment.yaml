@@ -89,6 +89,10 @@ spec:
           echo "Object-storage credential policy check passed."
       containers:
       - name: console-hub
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          runAsGroup: 10001
         image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleHub.image }}:{{ .Values.global.astronAgentVersion }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         env:
