@@ -1,5 +1,7 @@
 ﻿# 部署常见问题 FAQ
 
+> 当前 Python Console 分阶段迁移只交付账号功能。升级前按 [运维说明](../../console/backend/README.md) 保留数据并导入旧用户；旧用户保留 UID，由管理员发放重设密码链接。
+
 本文档收集了 Astron Agent 部署过程中的常见问题和解决方案。
 
 ---
@@ -14,15 +16,15 @@
 # 进入 astronAgent 目录
 cd docker/astronAgent
 
-# 停止所有服务（包含 Casdoor）
-docker compose -f docker-compose-with-auth.yaml down
+# 停止服务
+docker compose -f docker-compose.yaml down
 
 # 拉取新代码
 git fetch
 git pull
 
 # 拉取新镜像
-docker compose -f docker-compose-with-auth.yaml pull
+docker compose -f docker-compose.yaml pull
 
 # 重新按照部署文档配置启动
 # 请参考 DEPLOYMENT_GUIDE_WITH_AUTH.md（docs/zh/） 进行配置和启动
@@ -31,22 +33,16 @@ docker compose -f docker-compose-with-auth.yaml pull
 ### 注意事项
 
 - 升级前建议备份重要数据
-- 如果您使用的是不带认证的版本，请将 `docker-compose-with-auth.yaml` 替换为 `docker-compose.yaml`
 - 升级后请检查配置文件是否需要更新
 - 确保所有环境变量配置正确后再启动服务
 
 ---
 
-## 2. 部署完成后打不开页面怎么办？
+## 2. 部署后页面无法访问怎么办？
 
-请按照以下步骤逐一排查（操作前请务必备份重要数据）
+先检查应用入口、Console 健康状态和日志，确认当前前后端镜像均由迁移分支构建，并核对数据库、Redis、域名与 Cookie 设置。当前阶段只支持账号页面；未迁移业务返回错误并不代表用户数据丢失。
 
-1. 执行 `docker compose -f docker-compose-with-auth.yaml down -v` 清理容器和数据卷，该步骤会删除所有数据。
-2. 运行 `git restore docker` 清理 `docker` 目录下的改动，恢复为仓库版本。
-3. 将 `ASTRON_AGENT_VERSION` 环境变量设置为稳定版 `v1.0.0-rc.x`。
-4. 按照部署文档重新配置其余环境变量，确保取值正确。
-5. 执行 `docker compose -f docker-compose-with-auth.yaml up -d` 重新启动所有服务。
-6. 清理浏览器缓存，或直接使用无痕模式访问页面。
+保留数据库与数据卷，不执行清空数据的重装步骤。已有用户的导入与重设流程见 [Python Console 运维说明](../../console/backend/README.md)。
 
 ---
 

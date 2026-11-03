@@ -21,6 +21,20 @@ env:
   PYTHON: python3
 
 jobs:
+  console-accounts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - working-directory: console/backend
+        run: |
+          uv sync --locked
+          uv run ruff check astron_console manage.py
+          uv run ruff format --check astron_console manage.py
+          uv run python manage.py makemigrations --check --dry-run --settings=astron_console.settings_test
+          uv run coverage run --source=astron_console manage.py test --settings=astron_console.settings_test
+          uv run coverage report
+
   # ============================================================================
   # Stage 1: Project Detection & Setup
   # ============================================================================
@@ -46,14 +60,6 @@ jobs:
           # Generate project matrix
           matrix="{\"include\":["
           first=true
-
-          # Java projects
-          if [[ -f "console/backend/pom.xml" ]]; then
-            [[ "$first" == "false" ]] && matrix+=","
-            matrix+="{\"name\":\"console-backend\",\"path\":\"console/backend\",\"type\":\"java\",\"setup\":\"java\",\"cache\":\"maven\"}"
-            first=false
-            echo "✅ Java: console/backend"
-          fi
 
           # TypeScript projects
           if [[ -f "console/frontend/package.json" && -f "console/frontend/tsconfig.json" ]]; then
@@ -117,14 +123,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        if: matrix.setup == 'java'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-
       - name: Setup Node.js
         if: matrix.setup == 'node'
         uses: actions/setup-node@v4
@@ -157,18 +155,6 @@ jobs:
         run: |
           echo "🔍 Running quality check for ${{ matrix.name }} (${{ matrix.type }})"
           case "${{ matrix.type }}" in
-            java)
-              echo "📦 Compiling Java project..."
-              mvn clean compile
-              echo "✨ Running Spotless format check..."
-              mvn spotless:check
-              echo "🔍 Running Checkstyle..."
-              mvn checkstyle:check
-              echo "🐛 Running SpotBugs..."
-              mvn clean compile spotbugs:check
-              echo "📊 Running PMD..."
-              mvn clean compile pmd:check
-              ;;
             typescript)
               echo "📦 Installing dependencies..."
               npm ci --legacy-peer-deps
@@ -240,14 +226,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
-        if: matrix.setup == 'java'
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-
       - name: Setup Node.js
         if: matrix.setup == 'node'
         uses: actions/setup-node@v4
@@ -280,11 +258,6 @@ jobs:
         run: |
           echo "🧪 Running tests with coverage for ${{ matrix.name }} (${{ matrix.type }})"
           case "${{ matrix.type }}" in
-            java)
-              echo "🧪 Running Java tests with JaCoCo coverage..."
-              mvn org.jacoco:jacoco-maven-plugin:0.8.12:prepare-agent test org.jacoco:jacoco-maven-plugin:0.8.12:report
-              echo "📊 Coverage report generated at target/site/jacoco/index.html"
-              ;;
             typescript)
               echo "📦 Installing dependencies..."
               npm ci --legacy-peer-deps
@@ -358,24 +331,6 @@ jobs:
         run: |
           echo "📊 Coverage Summary for ${{ matrix.name }}"
           case "${{ matrix.type }}" in
-            java)
-              echo "✅ Java Coverage Report:"
-              echo "================================================"
-              # Find all jacoco.csv files in submodules
-              CSV_FILES=$(find . -name "jacoco.csv" -path "*/site/jacoco/jacoco.csv" 2>/dev/null)
-
-              if [ -n "$CSV_FILES" ]; then
-                # Aggregate coverage from all modules
-                python3 "$GITHUB_WORKSPACE/makefiles/jacoco_summary.py" .
-                echo "================================================"
-                echo "📄 Module reports:"
-                find . -name "index.html" -path "*/site/jacoco/index.html" | while read report; do
-                  echo "  - ${report#./}"
-                done
-              else
-                echo "⚠️ No coverage reports found"
-              fi
-              ;;
             typescript)
               echo "✅ TypeScript Coverage Report:"
               echo "================================================"
@@ -448,7 +403,7 @@ jobs:
   summary:
     name: 📊 Summary
     runs-on: ubuntu-latest
-    needs: [detect-projects, check, test, comment-check]
+    needs: [console-accounts, detect-projects, check, test, comment-check]
     if: always() && needs.detect-projects.outputs.has-projects == 'true'
     timeout-minutes: 2
     steps:
@@ -456,6 +411,7 @@ jobs:
         run: |
           echo "=== 🚀 CI Pipeline Summary ==="
           echo ""
+          echo "🔐 Console Accounts: ${{ needs.console-accounts.result }}"
           echo "🔍 Project Detection: ${{ needs.detect-projects.result }}"
           echo "🔍 Quality Checks: ${{ needs.check.result }}"
           echo "🧪 Tests: ${{ needs.test.result }}"
@@ -463,7 +419,8 @@ jobs:
           echo ""
 
           # Check overall success (comment-check is temporarily disabled, so we accept 'skipped')
-          if [[ "${{ needs.detect-projects.result }}" == "success" && \
+          if [[ "${{ needs.console-accounts.result }}" == "success" && \
+                "${{ needs.detect-projects.result }}" == "success" && \
                 "${{ needs.check.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \
                 ("${{ needs.comment-check.result }}" == "success" || "${{ needs.comment-check.result }}" == "skipped") ]]; then

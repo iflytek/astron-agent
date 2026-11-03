@@ -1,5 +1,7 @@
 # Deployment FAQ
 
+> The current Python Console migration delivers accounts only. Follow the [operating instructions](../console/backend/README.md) to preserve data and import existing users. UIDs remain unchanged; an operator issues password-reset links.
+
 This document collects common deployment questions and practical troubleshooting paths for Astron Agent.
 
 ---
@@ -14,15 +16,15 @@ If you already have Astron Agent running and want to upgrade to the latest versi
 # Enter the astronAgent directory
 cd docker/astronAgent
 
-# Stop all services, including Casdoor
-docker compose -f docker-compose-with-auth.yaml down
+# Stop the services
+docker compose -f docker-compose.yaml down
 
 # Fetch the latest code
 git fetch
 git pull
 
 # Pull the latest images
-docker compose -f docker-compose-with-auth.yaml pull
+docker compose -f docker-compose.yaml pull
 
 # Reconfigure and start again based on the deployment docs
 # Refer to DEPLOYMENT_GUIDE_WITH_AUTH for the latest setup steps
@@ -31,7 +33,6 @@ docker compose -f docker-compose-with-auth.yaml pull
 ### Notes
 
 - Back up important data before upgrading
-- If you use the deployment without authentication, replace `docker-compose-with-auth.yaml` with `docker-compose.yaml`
 - Review whether configuration files need updates after the upgrade
 - Start the services only after confirming all environment variables are correct
 
@@ -39,14 +40,9 @@ docker compose -f docker-compose-with-auth.yaml pull
 
 ## 2. What If The Web Page Does Not Open After Deployment
 
-Use the following checklist step by step. Back up important data before performing destructive operations.
+Check the application entry point, Console health and logs. Ensure both frontend and backend images are built from the migration branch, and verify database, Redis, host and cookie settings. This stage provides account pages only; failures in unmigrated business features do not mean user data was lost.
 
-1. Run `docker compose -f docker-compose-with-auth.yaml down -v` to clear containers and volumes. This removes all persisted data.
-2. Run `git restore docker` to discard local changes under the `docker` directory and return to the repository version.
-3. Set the `ASTRON_AGENT_VERSION` environment variable to a stable release such as `v1.0.0-rc.x`.
-4. Reconfigure the remaining environment variables according to the deployment guide and verify the values carefully.
-5. Run `docker compose -f docker-compose-with-auth.yaml up -d` to start all services again.
-6. Clear the browser cache or open the page in an incognito window.
+Preserve databases and volumes rather than reinstalling with a data wipe. See the [Python Console operating instructions](../console/backend/README.md) for importing existing users and issuing password-reset links.
 
 ---
 
@@ -66,5 +62,5 @@ Use the following checklist step by step. Back up important data before performi
 
 ## Related Documentation
 
-- [Deployment Guide With Auth](/DEPLOYMENT_GUIDE_WITH_AUTH)
-- [Deployment Guide Without Auth](/DEPLOYMENT_GUIDE)
+- [Account Migration Guide](/DEPLOYMENT_GUIDE_WITH_AUTH)
+- [Deployment Guide](/DEPLOYMENT_GUIDE)

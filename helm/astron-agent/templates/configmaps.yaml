@@ -1,17 +1,3 @@
-{{- if .Values.casdoor.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "astron-agent.fullname" . }}-casdoor-conf
-  labels:
-    {{- include "astron-agent.labels" . | nindent 4 }}
-data:
-  app.conf: {{ .Files.Get "files/casdoor/conf/app.conf" | quote }}
-  init_data.json: {{ .Files.Get "files/casdoor/conf/init_data.json" | quote }}
-  init_data.json.template: {{ .Files.Get "files/casdoor/conf/init_data.json.template" | quote }}
-  entrypoint.sh: {{ .Files.Get "files/casdoor/entrypoint.sh" | quote }}
----
-{{- end }}
 {{- if .Values.postgresql.enabled }}
 apiVersion: v1
 kind: ConfigMap

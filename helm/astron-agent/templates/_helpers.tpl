@@ -93,17 +93,6 @@ Redis host
 {{- end }}
 
 {{/*
-Casdoor host
-*/}}
-{{- define "astron-agent.casdoor.host" -}}
-{{- if .Values.casdoor.enabled }}
-{{- printf "%s-casdoor" (include "astron-agent.fullname" .) }}
-{{- else }}
-{{- .Values.casdoor.external.host }}
-{{- end }}
-{{- end }}
-
-{{/*
 Core service URLs - 用于生成完整的服务 URL（包括协议和端口）
 */}}
 {{- define "astron-agent.coreTenant.url" -}}

@@ -50,7 +50,7 @@ import {
 } from '@/components/workflow/types';
 import { Icons } from '@/components/workflow/icons';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 import type { KnowledgeItem } from '@/components/workflow/types/modal/add-knowledge';
 import { toggleKnowledgeSelection } from '../knowledge-selection';
 
@@ -633,7 +633,7 @@ const useKnowledgeDetail = ({
         {
           signal: controllerRef?.current?.signal,
           headers: {
-            Authorization: getAuthorization(),
+            'X-CSRFToken': getCsrfToken(),
           },
           async onopen(response) {
             if (response.ok) {

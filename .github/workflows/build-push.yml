@@ -88,31 +88,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-          cache-dependency-path: console/backend/pom.xml
-
-      - name: Build Hub test dependencies
-        run: >-
-          mvn -f console/backend/pom.xml -pl hub -am
-          -DskipTests install
-
-      - name: Verify sandbox deployment configuration binding
-        run: >-
-          mvn -f console/backend/pom.xml -pl hub
-          -Dtest=SkillSandboxDeploymentConfigurationTest test
-
-      - name: Verify MinIO bucket policy compatibility
-        timeout-minutes: 10
-        run: >-
-          mvn -f console/backend/pom.xml -pl commons
-          -Dtest=S3ClientUtilMinioPolicyCompatibilityIT test
+      - uses: astral-sh/setup-uv@v6
+      - name: Verify Python Console accounts
+        working-directory: console/backend
+        run: |
+          uv sync --locked
+          uv run python manage.py test --settings=astron_console.settings_test
 
       - name: Verify rendered sandbox credential contract
+        env:
+          CONSOLE_SECRET_KEY: test-only-compose-validation-key-not-for-deployment-123456789
         run: python3 docker/astronAgent/scripts/verify_security_contract.py
 
       - name: Verify Helm internal credential contract
@@ -572,7 +557,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./console/backend/hub/Dockerfile
+          file: ./console/backend/Dockerfile
           platforms: ${{ needs.detect-and-prepare.outputs.platforms }}
           push: ${{ needs.detect-and-prepare.outputs.should-push }}
           tags: ${{ steps.meta.outputs.tags }}

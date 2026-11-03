@@ -26,15 +26,6 @@ spec:
       - name: console-frontend
         image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleFrontend.image }}:{{ .Values.global.astronAgentVersion }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
-        env:
-        - name: CONSOLE_CASDOOR_URL
-          value: {{ printf "%s:%d" .Values.global.hostBaseAddress (.Values.casdoor.service.nodePort | int) | quote }}
-        - name: CONSOLE_CASDOOR_ID
-          value: {{ .Values.consoleFrontend.env.casdoorId | quote }}
-        - name: CONSOLE_CASDOOR_APP
-          value: {{ .Values.consoleFrontend.env.casdoorApp | quote }}
-        - name: CONSOLE_CASDOOR_ORG
-          value: {{ .Values.consoleFrontend.env.casdoorOrg | quote }}
         ports:
         - name: http
           containerPort: {{ .Values.consoleFrontend.service.port }}

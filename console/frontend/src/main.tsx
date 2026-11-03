@@ -21,11 +21,6 @@ import './styles/ui.scss';
 import 'reactflow/dist/style.css';
 import 'katex/dist/katex.min.css';
 
-console.log(
-  '[main] before bootstrap, window.__APP_CONFIG__ = ',
-  (window as any).__APP_CONFIG__
-);
-
 const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(

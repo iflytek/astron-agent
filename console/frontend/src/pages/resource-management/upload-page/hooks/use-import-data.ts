@@ -1,3 +1,4 @@
+import { getCsrfToken } from '@/utils/session';
 import React from 'react';
 import { message } from 'antd';
 import { UploadFile } from '@/types/resource';
@@ -172,8 +173,7 @@ export const useImportData = ({
         xhr.setRequestHeader('enterprise-id', enterpriseId);
       }
     }
-    const currentAccessToken = localStorage.getItem('accessToken');
-    xhr.setRequestHeader('Authorization', `Bearer ${currentAccessToken}`);
+    xhr.setRequestHeader('X-CSRFToken', getCsrfToken());
     xhr.onload = (event: ProgressEvent): void => {
       uploadComplete(event, id);
     }; //请求完成

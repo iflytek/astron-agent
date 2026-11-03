@@ -1,0 +1,101 @@
+.page {
+  min-height: 100vh;
+  padding: 48px 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background: #f6f7fb;
+  color: #202336;
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  padding: 36px;
+  background: white;
+  border: 1px solid #e8eaf1;
+  border-radius: 20px;
+  box-shadow: 0 12px 40px #22275008;
+
+  h1 {
+    font-size: 25px;
+    margin: 28px 0;
+    font-weight: 600;
+  }
+  h2 {
+    font-size: 18px;
+    margin: 30px 0 18px;
+  }
+  label {
+    display: block;
+    margin: 18px 0;
+    font-size: 14px;
+  }
+  input {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px;
+    border: 1px solid #cbd0df;
+    border-radius: 8px;
+    &:focus {
+      outline: 2px solid #b9acf7;
+      border-color: #7152d9;
+    }
+  }
+  button {
+    padding: 12px 18px;
+    border-radius: 8px;
+    color: white;
+    background: #6350c7;
+    cursor: pointer;
+    &:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+  }
+  form > button {
+    width: 100%;
+  }
+  a {
+    color: #6350c7;
+  }
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 18px;
+}
+.hint {
+  color: #666b7e;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.error,
+.notice {
+  padding: 12px;
+  border-radius: 8px;
+  line-height: 1.7;
+}
+.error {
+  color: #9f263a;
+  background: #fff0f2;
+}
+.notice {
+  color: #226544;
+  background: #edf8f0;
+}
+.links {
+  margin-top: 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  span {
+    display: block;
+    margin-top: 18px;
+    color: #666b7e;
+    font-size: 13px;
+  }
+  button {
+    float: right;
+  }
+}

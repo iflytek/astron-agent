@@ -1,12 +1,14 @@
 # astronAgent 项目完整部署指南
 
+> 当前分支正在分阶段迁移 Python Console，目前只交付账号功能；空间、资源、Agent、工作流与发布功能尚未全部恢复。
+
 本指南将帮助您按照正确的顺序启动 astronAgent 项目的所有组件，包括身份认证、知识库和核心服务。
 
 ## 📋 项目架构概述
 
 astronAgent 项目包含以下三个主要组件：
 
-1. **Casdoor** - 身份认证和单点登录服务(必要部署组件,提供单点登录功能)
+1. **Python Console** - 内部账号与会话认证
 2. **RagFlow** - 知识库和文档检索服务(非必要部署组件,根据需要部署)
 3. **astronAgent** - 核心业务服务集群(必要部署组件)
 
@@ -24,24 +26,9 @@ astronAgent 项目包含以下三个主要组件：
 - RAM >= 16 GB
 - Disk >= 50 GB
 
-### 第一步：启动 Casdoor 身份认证服务
+### 第一步：准备内部账号服务
 
-Casdoor 是一个开源的身份和访问管理平台，提供OAuth 2.0、OIDC、SAML等多种认证协议支持。
-
-启动 Casdoor 服务请运行我们的 [docker-compose-with-auth.yaml](/docker/astronAgent/docker-compose-with-auth.yaml) 文件。在运行安装命令之前，请确保您的机器上安装了 Docker 和 Docker Compose。
-
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 启动 Casdoor 服务
-docker compose -f docker-compose-auth.yml up -d
-```
-
-**服务信息：**
-- 访问地址：http://localhost:8000
-- 容器名称：casdoor
-- 默认配置：生产模式 (GIN_MODE=release)
+先阅读 [Python Console 运维说明](../../console/backend/README.md)，配置持久密钥、数据库、Redis 与公开访问地址。旧用户必须导入并重设密码；保留所有业务表与数据卷。
 
 ### 第二步：启动 RagFlow 知识库服务（可选）
 
@@ -57,7 +44,7 @@ cd docker/ragflow
 chmod +x *.sh
 
 # 启动 RagFlow 服务（包含所有依赖）
-docker compose up -d
+docker compose up -d --build
 ```
 
 **访问地址：**
@@ -72,9 +59,9 @@ docker compose up -d
 - 默认使用 Elasticsearch，如需使用 opensearch、infinity，请修改 .env 中的 DOC_ENGINE 配置
 - 支持GPU加速，使用 `docker-compose-gpu.yml` 启动
 
-### 第三步：集成配置 Casdoor 和基础环境变量（根据需要配置相关信息）
+### 第三步：配置内部账号和基础环境变量
 
-在启动 astronAgent 服务之前，配置 Casdoor、访问地址和其他基础设施连接信息。
+在启动 astronAgent 服务之前，配置内部账号、访问地址和其他基础设施连接信息。
 
 ```bash
 # 进入 astronAgent 目录
@@ -107,49 +94,9 @@ HOST_BASE_ADDRESS=http://localhost
 - 仅向用户公开 Astron Agent 的应用入口（Nginx/Ingress）
 - 内置 MinIO API 与管理控制台必须保持安全默认值：Docker Compose 仅绑定宿主机回环地址，Helm 使用 `ClusterIP`。只有存在明确运维需求，并配置独立认证、TLS 与网络策略/防火墙限制时，才可显式开放相应端点；禁止将 MinIO 直接发布到互联网
 
-#### 3.2 配置 Casdoor 认证集成（必须配置）
+#### 3.2 内部账号配置
 
-编辑 docker/astronAgent/.env 文件，配置 Casdoor 连接信息：
-
-**关键配置项：**
-
-```env
-# Casdoor配置
-CONSOLE_CASDOOR_URL=http://your-casdoor-server:8000
-CONSOLE_CASDOOR_ID=your-casdoor-client-id
-CONSOLE_CASDOOR_APP=your-casdoor-app-name
-CONSOLE_CASDOOR_ORG=your-casdoor-org-name
-```
-
-**获取 Casdoor 配置信息：**
-1. 访问 Casdoor 管理控制台： [http://localhost:8000](http://localhost:8000)
-2. 使用默认管理员账号登录：`admin / 123`
-3. **创建组织**
-   进入 [http://localhost:8000/organizations](http://localhost:8000/organizations) 页面，点击"添加"，填写组织名称后保存并退出。
-4. **创建应用并绑定组织**
-   进入 [http://localhost:8000/applications](http://localhost:8000/applications) 页面，点击"添加"。
-
-   创建应用时填写以下信息：
-   - **Name**：自定义应用名称，例如 `agent`
-   - **Redirect URL**：设置为项目的回调地址。如果 Nginx 暴露的端口号是 `80`，使用 `http://your-local-ip/callback`；如果是其他端口（例如 `888`），使用 `http://your-local-ip:888/callback`
-   - **Organization**：选择刚创建的组织名称
-5. 保存应用后，记录以下信息并与项目配置项一一对应：
-
-| Casdoor 信息项 | 示例值 | `.env` 中对应配置项 |
-|----------------|--------|----------------------|
-| Casdoor 服务地址（URL） | `http://localhost:8000` | `CONSOLE_CASDOOR_URL=http://localhost:8000` |
-| 客户端 ID（Client ID） | `your-casdoor-client-id` | `CONSOLE_CASDOOR_ID=your-casdoor-client-id` |
-| 应用名称（Name） | `your-casdoor-app-name` | `CONSOLE_CASDOOR_APP=your-casdoor-app-name` |
-| 组织名称（Organization） | `your-casdoor-org-name` | `CONSOLE_CASDOOR_ORG=your-casdoor-org-name` |
-
-6. 将以上配置信息填写到项目的环境变量文件中：
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 编辑环境变量配置
-vim .env
-```
+配置项与导入流程统一维护在 [Python Console 运维说明](../../console/backend/README.md)。启用同源 `/console-api/` 代理，公开 HTTPS 部署保持安全 Cookie 开启。新用户访问 `/register`，已有用户联系管理员重设密码；没有默认 `admin` 密码。
 
 ### 第四步：启动 astronAgent 核心服务（必要部署步骤）
 
@@ -162,7 +109,7 @@ vim .env
 cd docker/astronAgent
 
 # 启动所有服务
-docker compose up -d
+docker compose up -d --build
 ```
 
 #### 4.2 配置平台账号管理（可选，按需配置业务能力）
@@ -247,9 +194,6 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 
 启动完成后，您可以通过以下地址访问各项服务：
 
-### 认证服务
-- **Casdoor 管理界面**：http://localhost:8000
-
 ### 知识库服务
 - **RagFlow Web界面**：http://localhost:18080
 
@@ -259,7 +203,6 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 ## 📚 更多资源
 
 - [AstronAgent 官方文档](https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html)
-- [Casdoor 官方文档](https://casdoor.org/docs/overview)
 - [RagFlow 官方文档](https://ragflow.io/docs)
 - [Docker Compose 官方文档](https://docs.docker.com/compose/)
 

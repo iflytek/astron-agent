@@ -12,7 +12,7 @@ import MonacoEditor from '@/components/monaco-editor';
 import { useMemoizedFn } from 'ahooks';
 import JsonMonacoEditor from '@/components/monaco-editor/JsonMonacoEditor';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 // 类型导入
 import {
@@ -250,7 +250,7 @@ const useAICodeInputBox = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: getAuthorization(),
+          'X-CSRFToken': getCsrfToken(),
         },
         body: JSON.stringify(params),
         signal: controllerRef.current.signal,

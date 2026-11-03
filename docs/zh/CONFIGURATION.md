@@ -10,9 +10,7 @@
 
 **关键配置项概览**：
 
-- **Casdoor 认证配置**（需要部署 Casdoor 服务）:
-  - `CONSOLE_CASDOOR_URL`、`CONSOLE_CASDOOR_ID`
-  - `CONSOLE_CASDOOR_APP`、`CONSOLE_CASDOOR_ORG`
+- **Python Console 内部账号**：参见 [配置与迁移说明](../../console/backend/README.md).
 
 - **主机地址配置**:
   - `HOST_BASE_ADDRESS` - 设置为您的服务器地址或域名
@@ -162,14 +160,9 @@
 
 ---
 
-## 4. 认证配置模块 (Casdoor)
+## 4. Python Console 内部账号
 
-| 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
-|--------|----------|------|----------|--------|
-| CONSOLE_CASDOOR_URL | 用户必填 | url | Casdoor 认证服务器地址 | http://your-casdoor-server:8000 |
-| CONSOLE_CASDOOR_ID | 用户必填 | string | Casdoor OAuth2 客户端 ID | astron-agent-client |
-| CONSOLE_CASDOOR_APP | 用户必填 | string | Casdoor 应用名称 | astron-agent-app |
-| CONSOLE_CASDOOR_ORG | 用户必填 | string | Casdoor 组织名称 | built-in |
+持久密钥、公开访问地址、允许主机、安全 Cookie、数据库与 Redis 配置统一维护在 [Python Console 运维说明](../../console/backend/README.md)。新用户使用用户名和密码注册；旧用户保留 UID，由管理员核实身份后发放重设密码链接。
 
 ---
 
@@ -295,9 +288,6 @@
 | OSS_BUCKET_CONSOLE | 必填 | string | Console 使用的对象存储桶名称 | console-oss |
 | OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE | 必填 | int | Console 预签名 URL 过期时间(秒) | 600 |
 | REDIS_DATABASE_CONSOLE | 必填 | int | Console 使用的 Redis 数据库索引 | 1 |
-| OAUTH2_ISSUER_URI | 必填 | url | OAuth2 颁发者 URI(默认从 CONSOLE_CASDOOR_URL 获取) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000} |
-| OAUTH2_JWK_SET_URI | 必填 | url | OAuth2 JWK 密钥集 URI(默认从 CONSOLE_CASDOOR_URL 获取) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000}/.well-known/jwks |
-| OAUTH2_AUDIENCE | 必填 | string | OAuth2 受众标识(默认从 CONSOLE_CASDOOR_ID 获取) | ${CONSOLE_CASDOOR_ID:-your-oauth2-client-id} |
 | WECHAT_COMPONENT_APPID | 可选 | string | 微信第三方平台 AppID | your-wechat-component-appid |
 | WECHAT_COMPONENT_SECRET | 可选 | string | 微信第三方平台 Secret | your-wechat-secret |
 | WECHAT_TOKEN | 可选 | string | 微信消息校验 Token | your-wechat-token |

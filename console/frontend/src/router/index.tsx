@@ -4,7 +4,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from '@/layouts/index';
 import ConfigPage from '@/pages/config-page';
 
-const CallbackPage = lazy(() => import('@/pages/callback'));
+const AccountAccess = lazy(() => import('@/pages/account-access'));
 const HomePage = lazy(() => import('@/pages/home-page'));
 const StorePlugin = lazy(() => import('@/pages/plugin-store'));
 const ToolSquareDetail = lazy(() => import('@/pages/plugin-store/detail'));
@@ -169,14 +169,16 @@ const routes = [
       },
     ],
   },
-  {
-    path: '/callback',
-    element: (
-      <Suspense fallback={<Loading />}>
-        <CallbackPage />
-      </Suspense>
-    ),
-  },
+  ...(['login', 'register', 'reset-password', 'account'] as const).map(
+    path => ({
+      path: `/${path}`,
+      element: (
+        <Suspense fallback={<Loading />}>
+          <AccountAccess mode={path === 'reset-password' ? 'reset' : path} />
+        </Suspense>
+      ),
+    })
+  ),
   {
     path: '/team/create/:type',
     element: (

@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { getUserInfoMe } from '@/services/login';
 import { SpaceType, RoleType, EnterpriseServiceType } from '@/types/permission';
-import { tokenStorage } from '@/hooks/use-login';
 
 export interface User {
   id: number;
@@ -24,7 +23,6 @@ export interface User {
 
 export interface UserState {
   user: User;
-  isLogin: boolean;
   getUserInfo: () => void;
   setUserRole: (
     _spaceType: SpaceType,
@@ -37,7 +35,6 @@ export interface UserState {
     spaceId?: string | undefined;
     userId?: string | undefined;
   } | null;
-  logOut: () => void;
   setMobile: (_mobile: string) => void;
   getIsLogin: () => boolean;
 }
@@ -45,11 +42,9 @@ export interface UserState {
 const useUserStore = create<UserState>((set, get) => ({
   // 初始状态
   user: {} as User,
-  isLogin: !!get()?.user?.uid,
   getIsLogin: () => {
-    const hasValidToken = !!tokenStorage.getAccessToken();
     const hasUser = !!get()?.user?.uid;
-    return hasValidToken && hasUser;
+    return hasUser;
   },
   // 操作方法
   getUserInfo: async (): Promise<void> => {
@@ -91,11 +86,6 @@ const useUserStore = create<UserState>((set, get) => ({
       spaceId: user.spaceId,
       userId: user.uid,
     };
-  },
-  logOut: (): void => {
-    // 删除accessToken，refreshToken
-    tokenStorage.clearTokens();
-    set({ user: {} as User });
   },
   setMobile: (_mobile: string): void => {
     set({ user: { ...get().user, mobile: _mobile } });

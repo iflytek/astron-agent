@@ -18,7 +18,7 @@ compose up -d atlas  或手动执行 SQL 补全字段。
 ## 接口报错 "auth name: Authorization, auth value: None"？
 
 1. Token 丢失: 请求头未携带有效的 Authorization Token。
-2. 配置错误: 检查 Casdoor Client ID/Secret 是否与 .env  一致。
+2. 区分调用路径：Console 浏览器登录使用同源会话 Cookie 和 CSRF，不使用 Bearer Token；第三方/服务接口按其各自鉴权契约配置。
 
 ## 调用第三方工具报错 SSL 错误？
 

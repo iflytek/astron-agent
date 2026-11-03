@@ -1,10 +1,14 @@
 # Quick Start
 
+> Python Console migration: configure internal accounts using the [deployment guide](/DEPLOYMENT_GUIDE) before startup. New users register at `/register`; existing users retain their UID and receive an operator-issued password-reset link. This intermediate branch does not yet provide the full business flow.
+
+> Python Console migration: configure internal accounts using the [deployment guide](/DEPLOYMENT_GUIDE) before startup. New users register at `/register`; existing users retain their UID and receive an operator-issued password-reset link. This intermediate branch does not yet provide the full business flow.
+
 This page keeps the shortest path for first-time evaluation. Start with a local environment, then move to the full deployment and configuration references when needed.
 
 ## Who Should Start Here
 
-- Developers who want to try the full flow locally first
+- Developers who want to verify internal accounts locally first
 - Teams that need a sign-in capable demo environment quickly
 - Users who plan to move from Docker Compose to Helm or production settings later
 
@@ -23,13 +27,12 @@ After copying the file, fill in model, database, object storage, and authenticat
 ### 2. Start The Services
 
 ```bash
-docker compose -f docker-compose-with-auth.yaml up -d
+docker compose -f docker-compose.yaml up -d --build
 ```
 
 Once the stack is ready, the default entry points are:
 
 - Astron Agent frontend: `http://localhost/`
-- Casdoor admin console: `http://localhost:8000`
 
 ## Recommended Reading Order
 

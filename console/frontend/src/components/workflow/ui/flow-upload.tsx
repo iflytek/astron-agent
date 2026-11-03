@@ -2,7 +2,7 @@ import React from 'react';
 import { Upload, message, type UploadProps } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { v4 as uuid } from 'uuid';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 const { Dragger } = Upload;
 import uploadAct from '@/assets/imgs/knowledge/icon_zhishi_upload_act.png';
@@ -52,7 +52,7 @@ const FlowUpload: React.FC<FlowUploadProps> = ({
     form.append('flowId', currentFlow?.flowId || '');
     const xhr = new XMLHttpRequest();
     xhr.open('post', url);
-    xhr.setRequestHeader('Authorization', getAuthorization());
+    xhr.setRequestHeader('X-CSRFToken', getCsrfToken());
     xhr.onload = (event: ProgressEvent<EventTarget>): void => {
       uploadComplete(event, fileId);
     };

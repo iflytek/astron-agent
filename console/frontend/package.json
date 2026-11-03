@@ -35,7 +35,6 @@
     "ajv": "^8.17.1",
     "antd": "5.19.1",
     "axios": "1.6.2",
-    "casdoor-js-sdk": "^0.16.0",
     "classnames": "^2.5.1",
     "clsx": "2.1.1",
     "compressorjs": "^1.2.1",

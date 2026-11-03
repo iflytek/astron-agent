@@ -167,12 +167,7 @@ const useDocumentSearch = ({
       }
       controllerRef.current = new AbortController();
 
-      // 获取访问令牌
-      const accessToken = localStorage.getItem('accessToken');
       const headers: Record<string, string> = {};
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
 
       await fetchEventSource(
         `${getFixedUrl('/file/search-file')}?fileName=${encodeURIComponent(

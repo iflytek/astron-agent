@@ -56,14 +56,6 @@ spring:
           min-idle: 1        # Minimum number of idle connections
           max-wait: 3000ms   # Maximum wait time when pool is exhausted
       password: ${REDIS_PASSWORD:}
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${OAUTH2_ISSUER_URI:http://auth-server:8000}
-          jwk-set-uri: ${OAUTH2_JWK_SET_URI:http://auth-server:8000/.well-known/jwks}
-          audiences:
-            - ${OAUTH2_AUDIENCE:your-oauth2-client-id}
   servlet:
     multipart:
       max-file-size: 100MB

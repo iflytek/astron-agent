@@ -1,10 +1,12 @@
 # 快速开始
 
+> 当前分支正在分阶段迁移 Python Console。启动前按 [部署指南](/zh/DEPLOYMENT_GUIDE) 配置内部账号服务。新用户访问 `/register`；旧用户保留 UID，由管理员发放重设密码链接。业务功能尚未全部恢复。
+
 本页用于承接首页的「开始阅读」入口，保留快速上手所需的最短路径；更完整的细节可以继续查看仓库内的中文部署文档。
 
 ## 适合谁先看
 
-- 想先在本地快速体验完整链路的开发者
+- 想先在本地验证内部账号功能的开发者
 - 希望先拉起一套可登录、可访问的示例环境的团队
 - 计划后续再切换到 Helm 或生产配置的使用者
 
@@ -23,13 +25,12 @@ cp .env.example .env
 ### 2. 启动服务
 
 ```bash
-docker compose -f docker-compose-with-auth.yaml up -d
+docker compose -f docker-compose.yaml up -d --build
 ```
 
 启动完成后，默认可以访问以下地址：
 
 - Astron Agent 前端：`http://localhost/`
-- Casdoor 管理界面：`http://localhost:8000`
 
 ## 推荐阅读顺序
 

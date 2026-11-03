@@ -26,7 +26,7 @@ global:
   # 镜像版本
   astronAgentVersion: latest
   
-  # 主机地址，用于 MinIO、Casdoor 等服务的外部访问
+  # 主机地址，用于 MinIO 等服务的外部访问
   # 例如: http://your-domain.com
   hostBaseAddress: "http://your-domain.com"
   
@@ -85,3 +85,7 @@ server {
 - [Kubernetes 官方文档](https://kubernetes.io/docs/)
 - [Helm 官方文档](https://helm.sh/docs/)
 - [Astron Agent GitHub](https://github.com/iflytek/astron-agent)
+
+## Python Console 账号
+
+Console 使用内部用户名和密码注册登录。部署前创建 `consoleHub.auth.existingSecret` 指定的持久 Secret（默认 `astron-console-auth`），其中 `secret-key` 为至少 50 字符的随机值。配置 `consoleHub.auth.allowedHosts`、`publicOrigin`、`csrfTrustedOrigins` 和 HTTPS Cookie。旧用户保留 UID，使用运维命令重设密码，见 [Console 操作说明](../console/backend/README.md)。多副本启动前由单个迁移任务完成数据库迁移和旧账号导入，然后设 `consoleHub.runMigrations=false`。
