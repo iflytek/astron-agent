@@ -20,6 +20,18 @@ cp .env.example .env
 
 完成复制后，按需补充模型、数据库、对象存储和鉴权相关配置。
 
+### 可选：锁定稳定版本
+
+默认的 `ASTRON_AGENT_VERSION=latest` 对应 `main` 分支的滚动构建，可能包含尚未发布的改动。用于长期运行、CI 或下游集成时，建议从 [Releases](https://github.com/iflytek/astron-agent/releases) 选一个 `vX.Y.Z`，让代码和镜像保持同一版本（在复制 `.env.example` 之前切换）：
+
+```bash
+git checkout vX.Y.Z
+cp .env.example .env
+# 然后在 .env 中设置 ASTRON_AGENT_VERSION=vX.Y.Z
+```
+
+镜像同时发布 `X.Y` 和 `X` 浮动标签，可用于自动跟进同一版本线的补丁或小版本。
+
 ### 2. 启动服务
 
 ```bash

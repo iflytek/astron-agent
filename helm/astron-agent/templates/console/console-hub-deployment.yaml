@@ -89,7 +89,7 @@ spec:
           echo "Object-storage credential policy check passed."
       containers:
       - name: console-hub
-        image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleHub.image }}:{{ .Values.global.astronAgentVersion }}"
+        image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleHub.image }}:{{ include "astron-agent.imageTag" . }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         env:
         {{- range $key, $value := .Values.consoleHub.env }}

@@ -14,30 +14,12 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Check for new commits since last statistic
-        run: |
-          last_tag=$(git describe --tags --abbrev=0 --match "statistic-*" || echo "")
-
-          if [ -z "$last_tag" ]; then
-            echo "No previous statistic tags found."
-            echo "NEW_COMMITS=true" >> $GITHUB_ENV
-          else
-            new_commits=$(git log $last_tag..HEAD --oneline)
-            if [ -z "$new_commits" ]; then
-              echo "No new commits since last statistic tag."
-              echo "NEW_COMMITS=false" >> $GITHUB_ENV
-            else
-              echo "New commits found."
-              echo "NEW_COMMITS=true" >> $GITHUB_ENV
-            fi
-          fi
+      # count-reward.ts exits early when no reward tags were created last month
       - uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
-        if: env.NEW_COMMITS == 'true'
         with:
           deno-version: v2.x
 
       - name: Statistic rewards
-        if: env.NEW_COMMITS == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: deno --allow-run --allow-sys --allow-env --allow-read --allow-net=api.github.com .github/scripts/count-reward.ts

@@ -41,6 +41,13 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Image tag for Astron Agent services, defaulting to the chart appVersion
+*/}}
+{{- define "astron-agent.imageTag" -}}
+{{- .Values.global.astronAgentVersion | default .Chart.AppVersion }}
+{{- end }}
+
+{{/*
 Selector labels
 */}}
 {{- define "astron-agent.selectorLabels" -}}
