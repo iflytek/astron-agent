@@ -137,3 +137,50 @@ def test_runtime_document_sanitizer_accepts_only_double_encoded_object_root() ->
         "sandbox": {"enabled": True},
     }
     assert sanitize_protocol_document_for_use(json.dumps(json.dumps([protocol]))) == {}
+
+
+def test_model_node_secrets_removed_without_affecting_database_or_plugin_auth() -> None:
+    nodes: list[dict[str, Any]] = [
+        {
+            "id": f"{kind}::1",
+            "data": {
+                "nodeParam": {
+                    "modelId": "42",
+                    "apiKey": "model-secret",
+                    "api_secret": "old-secret",
+                    "modelConfig": {"apiKey": "nested-secret", "domain": "chat"},
+                }
+            },
+        }
+        for kind in (
+            "spark-llm",
+            "decision-making",
+            "extractor-parameter",
+            "agent",
+            "question-answer",
+            "knowledge-base",
+            "database",
+            "plugin",
+        )
+    ]
+    original = {"data": {"nodes": nodes}}
+    sanitized = sanitize_protocol_document_for_use(original)
+    for node in sanitized["data"]["nodes"][:6]:
+        assert node["data"]["nodeParam"] == {
+            "modelId": "42",
+            "modelConfig": {"domain": "chat"},
+        }
+    for node in sanitized["data"]["nodes"][6:]:
+        assert node["data"]["nodeParam"]["apiKey"] == "model-secret"
+    assert original["data"]["nodes"][0]["data"]["nodeParam"]["apiKey"] == "model-secret"
+    agent_plugin = {
+        "id": "agent::1",
+        "data": {
+            "nodeParam": {"apiKey": "model-key", "plugin": {"apiKey": "tool-key"}}
+        },
+    }
+    assert sanitize_protocol(agent_plugin)["data"]["nodeParam"] == {
+        "plugin": {"apiKey": "tool-key"}
+    }
+    embedded = sanitize_protocol({"snapshot": json.dumps(original)})
+    assert json.loads(embedded["snapshot"]) == sanitized

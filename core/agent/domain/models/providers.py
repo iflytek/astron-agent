@@ -44,6 +44,9 @@ async def create_provider_model(
     provider: str,
     api_key: str,
     http_client: httpx.AsyncClient,
+    parameters: dict[str, Any] | None = None,
+    timeout: float | None = None,
+    max_retries: int = 2,
 ) -> ModelHandle:
     """Configure SDK adapters rather than normalizing provider HTTP/SSE by hand."""
     from langchain_anthropic import ChatAnthropic
@@ -52,18 +55,22 @@ async def create_provider_model(
 
     try:
         normalized = provider.strip().lower() or "openai"
-        timeout = int(os.getenv("DEFAULT_LLM_TIMEOUT", "90"))
+        timeout = timeout or int(os.getenv("DEFAULT_LLM_TIMEOUT", "90"))
         max_tokens = os.getenv("DEFAULT_LLM_MAX_TOKEN")
         options: dict[str, Any] = {
             "model": model_name,
             "api_key": api_key,
             "timeout": timeout,
-            "max_retries": 2,
+            "max_retries": max_retries,
         }
         if max_tokens:
             options["max_tokens"] = int(max_tokens)
+        options.update(parameters or {})
         endpoint = base_url.rstrip("/")
         if normalized == "anthropic":
+            if "stop" in options:
+                stop = options.pop("stop")
+                options["stop_sequences"] = [stop] if isinstance(stop, str) else stop
             endpoint = re.sub(r"/v1/messages$", "", endpoint)
             if endpoint:
                 options["base_url"] = endpoint
@@ -73,6 +80,8 @@ async def create_provider_model(
             await http_client.aclose()
             return ModelHandle(anthropic_model, model_name, normalized)
         elif normalized == "google":
+            stop = options.get("stop")
+            options["stop"] = [stop] if isinstance(stop, str) else stop
             version_match = re.search(r"/(v1(?:beta)?)(?:/|$)", endpoint)
             endpoint = re.sub(
                 r"/v1(?:beta)?(?:/models/[^/?]+)?(?::(?:stream)?[Gg]enerateContent)?(?:\?.*)?$",
@@ -96,16 +105,11 @@ async def create_provider_model(
                 async_close=google_model.client.aio.aclose,
                 sync_close=google_model.client.close,
             )
-        elif normalized in {
-            "openai",
-            "chatgpt",
-            "deepseek",
-            "doubao",
-            "minimax",
-            "moonshot",
-            "qwen",
-            "zhipu",
-        }:
+        elif normalized == "openai":
+            if "response_format" in options:
+                options["model_kwargs"] = {
+                    "response_format": options.pop("response_format")
+                }
             endpoint = re.sub(r"/(?:chat/)?completions$", "", endpoint)
             model = ChatOpenAI(
                 **options,

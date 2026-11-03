@@ -417,8 +417,8 @@ class TestRetryableErrorHandler:
             (
                 NodeType.LLM.value,
                 {
-                    "header": {"code": -1, "status": 2},
-                    "payload": {"choices": {"text": [{}]}},
+                    "code": -1,
+                    "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
                 },
             ),
             ("unknown", {"code": -1}),
@@ -433,7 +433,7 @@ class TestRetryableErrorHandler:
         :param expected_content: Expected content structure for the node type
         :return: None
         """
-        self.mock_node.node_instance.source = ModelProviderEnum.XINGHUO.value
+        self.mock_node.node_instance.source = ModelProviderEnum.OPENAI.value
 
         with patch("workflow.consts.engine.chat_status.ChatStatus") as mock_chat_status:
             mock_chat_status.FINISH_REASON.value = "finish"
@@ -653,7 +653,7 @@ class TestRetryableErrorHandlerAdvanced:
         mock_node = Mock(spec=SparkFlowEngineNode)
         mock_node.node_instance = Mock()
         mock_node.node_instance.domain = ""
-        mock_node.node_instance.source = ModelProviderEnum.XINGHUO.value
+        mock_node.node_instance.source = ModelProviderEnum.OPENAI.value
 
         with patch(
             "workflow.consts.engine.chat_status.SparkLLMStatus"
@@ -663,7 +663,7 @@ class TestRetryableErrorHandlerAdvanced:
             result = self.handler._get_error_llm_content(NodeType.LLM.value, mock_node)
 
             expected = {
-                "header": {"code": -1, "status": 2},
-                "payload": {"choices": {"text": [{}]}},
+                "code": -1,
+                "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
             }
             assert result == expected

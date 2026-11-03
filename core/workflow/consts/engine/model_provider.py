@@ -15,7 +15,6 @@ class ModelProviderEnum(Enum):
     Defines the available model providers for large language model operations.
     """
 
-    XINGHUO = "xinghuo"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     GOOGLE = "google"

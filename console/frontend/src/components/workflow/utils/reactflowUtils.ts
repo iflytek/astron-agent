@@ -1072,14 +1072,6 @@ export function isOldVersionFlow(inputTime: string): boolean {
   return inputDate < fixedTime;
 }
 
-export function hasDecisionMakingNode(nodes: WorkflowNode[]): boolean {
-  return nodes?.some(
-    node =>
-      node?.id?.startsWith('decision-making') &&
-      node?.data?.nodeParam?.reasonMode !== 1
-  );
-}
-
 export const handleReplaceNodeId = <T>(
   childNodes: T[],
   replacements: Record<string, string>

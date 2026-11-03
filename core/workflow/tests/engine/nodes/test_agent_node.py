@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 
 from workflow.consts.engine.model_provider import ModelProviderEnum
@@ -60,18 +62,34 @@ def build_agent_node() -> AgentNode:
             ],
         },
         maxLoopCount=3,
-        source=ModelProviderEnum.XINGHUO.value,
+        source=ModelProviderEnum.OPENAI.value,
     )
 
 
-def test_generate_agent_request_includes_runtime_metadata() -> None:
+@pytest.mark.asyncio
+async def test_generate_agent_request_includes_runtime_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     variable_pool = VariablePool([])
     variable_pool.system_params.set(ParamKey.FlowId, "flow-123")
     span = Span(uid="user-1")
     node = build_agent_node()
     node.metaData.callerSid = "run-456"
 
-    request = node._generate_agent_request(
+    variable_pool.system_params.set(ParamKey.ModelFlowId, "group-123")
+    node.modelId = "42"
+    resolve = AsyncMock(
+        return_value={
+            "domain": "current-model",
+            "api": "http://current",
+            "provider": "openai",
+            "apiKey": "current-key",
+        }
+    )
+    monkeypatch.setattr(
+        "workflow.engine.nodes.agent.agent_node.resolve_model_config", resolve
+    )
+    request = await node._generate_agent_request(
         "reasoning",
         "answer",
         [{"role": "user", "content": "hello"}],
@@ -79,6 +97,9 @@ def test_generate_agent_request_includes_runtime_metadata() -> None:
         span,
     )
 
+    resolve.assert_awaited_once_with("group-123", "42")
+    assert node.apiKey == "api-key"
+    assert request["model_config"]["domain"] == "current-model"
     assert request["meta_data"] == {
         "caller": "workflow-agent-node",
         "caller_sid": "run-456",
@@ -86,6 +107,8 @@ def test_generate_agent_request_includes_runtime_metadata() -> None:
         "run_id": "run-456",
         "node_id": "agent-node-1",
     }
+    assert request["model_config"]["provider"] == "openai"
+    assert request["model_config"]["api_key"] == "current-key"
     sandbox = request["plugin"]["skills"][0]["sandbox"]
     assert sandbox["enabled"] is True
     assert "provider" not in sandbox

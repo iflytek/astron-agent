@@ -1,14 +1,12 @@
 import asyncio
-import base64
 import json
-import os
 import time
 from abc import abstractmethod
 from asyncio import Event
-from contextlib import nullcontext
+from contextlib import aclosing, nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, List, Literal, Optional, Tuple, cast
 
 from common.otlp.trace.langfuse import langfuse_enabled, langfuse_observation_attributes
 from pydantic import BaseModel, Field, PrivateAttr
@@ -33,9 +31,9 @@ from workflow.engine.nodes.entities.node_run_result import (
     WorkflowNodeExecutionStatus,
 )
 from workflow.engine.nodes.util.frame_processor import (
-    AIPaaSFrameProcessor,
     FrameProcessor,
     FrameProcessorFactory,
+    OpenAIFrameProcessor,
     UnionFrame,
 )
 from workflow.engine.nodes.util.prompt import (
@@ -49,11 +47,9 @@ from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
 from workflow.infra.providers.llm.chat_ai import ChatAI
 from workflow.infra.providers.llm.chat_ai_factory import ChatAIFactory
-from workflow.infra.providers.llm.iflytek_spark.const import RespFormatEnum
-from workflow.infra.providers.llm.iflytek_spark.schemas import (
-    SparkAiMessage,
-    StreamOutputMsg,
-)
+from workflow.infra.providers.llm.const import RespFormatEnum
+from workflow.infra.providers.llm.runtime_config import resolve_model_config
+from workflow.infra.providers.llm.schemas import ChatMessage, StreamOutputMsg
 from workflow.infra.providers.llm.types import SystemUserMsg
 
 
@@ -596,12 +592,8 @@ class BaseOutputNode(BaseNode):
             # Get frame processor for specialized node types
             frame_processor = FrameProcessorFactory.get_processor(dep_node_id_prefix)
         else:
-            # LLM Node - get processor based on model source
-            dep_node_protocol = variable_pool.get_node_protocol(dep_node_id)
-            model_source = dep_node_protocol.nodeParam.get(
-                "source", ModelProviderEnum.XINGHUO.value
-            )
-            frame_processor = FrameProcessorFactory.get_processor(model_source)
+            # Model adapters expose one provider-independent delta contract.
+            frame_processor = OpenAIFrameProcessor()
 
         async for data in self._deal_llm_output_stream_msg(
             template_unit=template_unit,
@@ -862,7 +854,7 @@ class BaseOutputNode(BaseNode):
         llm_reasoning_content: Dict[str, List[OutputNodeFrameData]] = {},
         template_type: TemplateType = TemplateType.NORMAL,
         llm_output_status: Dict[str, bool] = {},
-        frame_processor: FrameProcessor = AIPaaSFrameProcessor(),
+        frame_processor: FrameProcessor = OpenAIFrameProcessor(),
         is_reasoning: bool = False,
     ) -> AsyncIterator[OutputNodeFrameData]:
         """
@@ -958,7 +950,7 @@ class BaseOutputNode(BaseNode):
         llm_reasoning_content: Dict[str, List[OutputNodeFrameData]] = {},
         template_type: TemplateType = TemplateType.NORMAL,
         llm_output_status: Dict[str, bool] = {},
-        frame_processor: FrameProcessor = AIPaaSFrameProcessor(),
+        frame_processor: FrameProcessor = OpenAIFrameProcessor(),
     ) -> AsyncIterator[OutputNodeFrameData]:
         """
         Handle streaming output from LLM nodes.
@@ -1037,7 +1029,6 @@ class BaseLLMNode(BaseNode):
     :param template: Prompt template
     :param systemTemplate: System prompt template
     :param topK: Top-K sampling parameter
-    :param patch_id: List of patch IDs
     :param respFormat: Response format (0=text, 1=json)
     :param enableChatHistory: Whether to enable chat history
     :param enableChatHistoryV2: Chat history v2 configuration
@@ -1052,8 +1043,9 @@ class BaseLLMNode(BaseNode):
 
     domain: str = Field(...)
     appId: str = Field(...)
-    apiKey: str = Field(default="")
-    apiSecret: str = Field(default="")
+    modelId: str | int = Field(default="")
+    apiKey: str = Field(default="", exclude=True, repr=False)
+    apiSecret: str = Field(default="", exclude=True, repr=False)
 
     url: str = Field(default="")
     temperature: float = Field(ge=0, le=1, default=1.0)
@@ -1062,14 +1054,13 @@ class BaseLLMNode(BaseNode):
     template: str = Field(default="")
     systemTemplate: str = Field(default="")
     topK: int = Field(default=3)
-    patch_id: list = Field(default_factory=list)
     respFormat: Literal[0, 1, 2] = 0
     enableChatHistory: bool = Field(default=False)
     enableChatHistoryV2: EnableChatHistoryV2 = Field(
         default_factory=EnableChatHistoryV2
     )
     re_match_pattern: str = Field(default=r"```(json)?(.*)```")
-    source: str = Field(default=ModelProviderEnum.XINGHUO.value)
+    source: str = Field(default=ModelProviderEnum.OPENAI.value)
     searchDisable: bool = Field(default=True)
     extraParams: dict = Field(default_factory=dict)
     input_to_filetype_map: dict = Field(default_factory=dict)
@@ -1085,30 +1076,43 @@ class BaseLLMNode(BaseNode):
         """
 
         return ChatAIFactory.get_chat_ai(
-            model_source=(
-                ModelProviderEnum.XINGHUO.value
-                if not hasattr(self, "source")
-                else self.source
-            ),
+            model_source=self.source,
             model_url=self.url,
             model_name=self.domain,
-            spark_version="",
             temperature=self.temperature if hasattr(self, "temperature") else None,
             app_id=self.appId,
             api_key=self.apiKey,
             api_secret=self.apiSecret,
             max_tokens=self.maxTokens if hasattr(self, "maxTokens") else None,
             top_k=self.topK if hasattr(self, "topK") else None,
-            patch_id=self.patch_id,
             uid=uid or str(time.time()),
             stream_node_first_token=self.stream_node_first_token,
+        )
+
+    async def _get_runtime_chat_ai(self, variable_pool: VariablePool) -> ChatAI:
+        config = await resolve_model_config(
+            str(variable_pool.system_params.get(ParamKey.ModelFlowId, default="")),
+            str(self.modelId),
+        )
+        # Credentials live only on this request's provider client, never the engine.
+        runtime_node = self.model_copy(
+            update={
+                "apiKey": config["apiKey"],
+                "apiSecret": "",
+                "source": config["provider"],
+                "url": config["api"],
+                "domain": config["domain"],
+            }
+        )
+        return runtime_node._get_chat_ai(
+            uid=variable_pool.system_params.get(ParamKey.Uid, default="")
         )
 
     async def _process_history(
         self,
         user_input: str,
         span_context: Span,
-        history: list[SparkAiMessage] | None = [],
+        history: list[ChatMessage] | None = [],
         history_v2: History | None = None,
         system_input: str = "",
     ) -> SystemUserMsg:
@@ -1159,70 +1163,21 @@ class BaseLLMNode(BaseNode):
         span_context: Span,
         system_user_msg: SystemUserMsg,
         history_v2: History | None = None,
-        image_url: str = "",
     ) -> list:
-        """
-        Assemble the messages data for the request.
-
-        This method combines system messages, chat history, user messages,
-        and image content into a properly formatted message list.
-
-        :param span_context: Tracing span for logging
-        :param system_user_msg: System and user message data
-        :param history_v2: Chat history with token management
-        :param image_url: URL of image to include in the message
-        :return: List of formatted messages for LLM request
-        """
-        user_message: list = []
-        processed_history = system_user_msg.processed_history
-        user_msg = system_user_msg.user_msg
-        system_msg = system_user_msg.system_msg
-        image_msg = None
-        payload_comp_history: list[HistoryItem] = []
-        if history_v2:
-            payload_comp_history = processed_history.copy()
-            # Handle images in history
-            if payload_comp_history and payload_comp_history[0].content_type == "image":
-                if self.source == ModelProviderEnum.OPENAI.value:
-                    payload_comp_history.pop(0)
-                if self.source == ModelProviderEnum.XINGHUO.value:
-                    image_models = os.getenv(
-                        "SPARK_IMAGE_MODEL_DOMAIN", "image,imagev3"
-                    ).split(",")
-                    if self.domain in image_models:
-                        if not image_url:
-                            image_url = payload_comp_history[0].content
-                        payload_comp_history.pop(0)
-        # If it's an image understanding model, reserve the first position in array for image
-        if image_url:
-            import requests  # type: ignore
-
-            image_response = requests.get(image_url)
-            if image_response.status_code != 200:
-                raise Exception(f"Failed to download image from {image_url}")
-            image_msg = {
-                "role": "user",
-                "content": str(
-                    base64.b64encode(image_response.content).decode("utf-8")
-                ),
-                "content_type": "image",
-            }
-            await span_context.add_info_events_async({"image": str(image_url)})
-        # Don't upload base64
-        if image_msg:
-            await span_context.add_info_events_async(
-                {"user_message": json.dumps(user_message[1:], ensure_ascii=False)}
-            )
-        else:
-            await span_context.add_info_events_async(
-                {"user_message": json.dumps(user_message, ensure_ascii=False)}
-            )
-        history = [
-            item if isinstance(item, dict) else item.__dict__
-            for item in payload_comp_history
-        ]
-        user_message.extend(filter(None, [image_msg, system_msg, *history, user_msg]))
-        return user_message
+        """Preserve selected history and media without provider-specific rewriting."""
+        messages = []
+        if system_user_msg.system_msg:
+            messages.append(system_user_msg.system_msg)
+        for item in system_user_msg.processed_history:
+            message = dict(item) if isinstance(item, dict) else item.model_dump()
+            # Text messages use the standard role/content shape. Media history
+            # remains explicit for the provider adapter to map to its SDK format.
+            if message.get("content_type", "text") == "text":
+                message.pop("content_type", None)
+            messages.append(message)
+        if system_user_msg.user_msg:
+            messages.append(system_user_msg.user_msg)
+        return messages
 
     def _build_input_to_filetype_map(
         self, node_protocol: Optional[list] = None
@@ -1277,7 +1232,7 @@ class BaseLLMNode(BaseNode):
         completion_started = False
         started_at = time.monotonic()
 
-        async for llm_response in request.chat_ai.achat(
+        response_stream = request.chat_ai.achat(
             user_message=request.user_message,
             event_log_node_trace=request.event_log_node_trace,
             span=request.span,
@@ -1290,49 +1245,51 @@ class BaseLLMNode(BaseNode):
             ),
             search_disable=self.searchDisable,
             multimodal_inputs=request.multimodal_inputs,
-        ):
-            msg = llm_response.msg
-            status, content, reasoning_content, token_usage = (
-                request.chat_ai.decode_message(msg)
-            )
-            if not completion_started and (content or reasoning_content):
-                if langfuse_enabled():
-                    request.span.set_attributes(
-                        {
-                            "astron.llm.time_to_first_token_ms": round(
-                                (time.monotonic() - started_at) * 1000, 3
-                            ),
-                            "langfuse.observation.completion_start_time": (
-                                datetime.now(timezone.utc).isoformat()
-                            ),
-                        }
-                    )
-                completion_started = True
-            if not self.stream_node_first_token.is_set():
-                self.stream_node_first_token.set()
-            if reasoning_content:
-                reasoning_contents.append(reasoning_content)
-            if request.stream and self.respFormat != RespFormatEnum.JSON.value:
-                await self.put_llm_content(
-                    node_id=self.node_id,
-                    model_name=self.domain,
-                    variable_pool=request.variable_pool,
-                    msg_or_end_node_deps=request.msg_or_end_node_deps,
-                    llm_content=msg,
+        )
+        async with aclosing(cast(Any, response_stream)):
+            async for llm_response in response_stream:
+                msg = llm_response.msg
+                status, content, reasoning_content, token_usage = (
+                    request.chat_ai.decode_message(msg)
                 )
-            texts.append(content or "")
-            if status in {
-                SparkLLMStatus.END.value,
-                ChatStatus.FINISH_REASON.value,
-            }:
-                break
-            if self._is_unexpected_finish_status(status):
-                raise CustomException(err_code=CodeEnum.OPEN_AI_REQUEST_ERROR)
+                if not completion_started and (content or reasoning_content):
+                    if langfuse_enabled():
+                        request.span.set_attributes(
+                            {
+                                "astron.llm.time_to_first_token_ms": round(
+                                    (time.monotonic() - started_at) * 1000, 3
+                                ),
+                                "langfuse.observation.completion_start_time": (
+                                    datetime.now(timezone.utc).isoformat()
+                                ),
+                            }
+                        )
+                    completion_started = True
+                if not self.stream_node_first_token.is_set():
+                    self.stream_node_first_token.set()
+                if reasoning_content:
+                    reasoning_contents.append(reasoning_content)
+                if request.stream and self.respFormat != RespFormatEnum.JSON.value:
+                    await self.put_llm_content(
+                        node_id=self.node_id,
+                        model_name=getattr(request.chat_ai, "model_name", self.domain),
+                        variable_pool=request.variable_pool,
+                        msg_or_end_node_deps=request.msg_or_end_node_deps,
+                        llm_content=msg,
+                    )
+                texts.append(content or "")
+                if status in {
+                    SparkLLMStatus.END.value,
+                    ChatStatus.FINISH_REASON.value,
+                }:
+                    break
+                if self._is_unexpected_finish_status(status):
+                    raise CustomException(err_code=CodeEnum.OPEN_AI_REQUEST_ERROR)
 
         if not texts:
             request.span.add_error_event("result is null")
             raise CustomException(
-                err_code=CodeEnum.SPARK_REQUEST_ERROR,
+                err_code=CodeEnum.LLM_REQUEST_ERROR,
                 err_msg="LLM returned empty result",
                 cause_error="LLM returned empty result",
             )
@@ -1345,14 +1302,16 @@ class BaseLLMNode(BaseNode):
         reasoning: str,
         token_usage: dict,
         status: Any,
+        remote: bool = False,
+        model_name: str | None = None,
     ) -> None:
-        await span.add_info_events_async({"spark_llm_chat_result": answer})
-        await span.add_info_events_async({"spark_llm_reasoning_content": reasoning})
+        await span.add_info_events_async({"llm_chat_result": answer})
+        await span.add_info_events_async({"llm_reasoning_content": reasoning})
         result_attributes = langfuse_observation_attributes(
-            "generation",
+            "span" if remote else "generation",
             output_value=answer,
-            model=self.domain,
-            usage_details=token_usage,
+            model=model_name or self.domain,
+            usage_details=None if remote else token_usage,
         )
         if not result_attributes:
             return
@@ -1367,11 +1326,10 @@ class BaseLLMNode(BaseNode):
         variable_pool: VariablePool,
         span: Span,
         msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo] | None = None,
-        history_chat: list[SparkAiMessage] | None = None,
+        history_chat: list[ChatMessage] | None = None,
         history_v2: History | None = None,
         prompt_template: str = "",
         system_prompt_template: str = "",
-        image_url: str = "",
         stream: bool = False,
         event_log_node_trace: NodeLog | None = None,
         multimodal_inputs: list = [],
@@ -1390,14 +1348,12 @@ class BaseLLMNode(BaseNode):
         :param history_v2: New chat history with token management
         :param prompt_template: Template for user prompt
         :param system_prompt_template: Template for system prompt
-        :param image_url: URL of image to include
         :param stream: Whether to enable streaming mode
         :param event_log_node_trace: Node trace logging
         :return: Tuple containing (token_usage, response_text, reasoning_content, processed_history)
         """
-        chat_ai = self._get_chat_ai(
-            uid=variable_pool.system_params.get(ParamKey.Uid, default="")
-        )
+        chat_ai = await self._get_runtime_chat_ai(variable_pool)
+        effective_model = getattr(chat_ai, "model_name", self.domain)
         system_user_msg = await self._process_history(
             user_input=prompt_template,
             history=history_chat,
@@ -1408,18 +1364,18 @@ class BaseLLMNode(BaseNode):
         user_message = await self._assemble_messages(
             system_user_msg=system_user_msg,
             history_v2=history_v2,
-            image_url=image_url,
             span_context=span,
         )
         model_parameters = {
-            "temperature": self.temperature,
-            "max_tokens": self.maxTokens,
-            "top_k": self.topK,
+            "temperature": getattr(chat_ai, "temperature", self.temperature),
+            "max_tokens": getattr(chat_ai, "max_tokens", self.maxTokens),
+            "top_k": getattr(chat_ai, "top_k", self.topK),
         }
+        remote = bool(getattr(chat_ai, "remote", False))
         generation_attributes = langfuse_observation_attributes(
-            "generation",
+            "span" if remote else "generation",
             input_value=user_message,
-            model=self.domain,
+            model=effective_model,
             model_parameters=model_parameters,
             metadata={"provider": self.source, "flow_id": flow_id},
         )
@@ -1437,7 +1393,14 @@ class BaseLLMNode(BaseNode):
             )
 
         generation_context = (
-            span.start(f"llm.generate:{self.domain}", attributes=generation_attributes)
+            span.start(
+                (
+                    f"llm.request:{effective_model}"
+                    if remote
+                    else f"llm.generate:{effective_model}"
+                ),
+                attributes=generation_attributes,
+            )
             if langfuse_enabled()
             else nullcontext(span)
         )
@@ -1456,7 +1419,13 @@ class BaseLLMNode(BaseNode):
                 )
             )
             await self._finish_generation_span(
-                generation_span, answer, reasoning, token_usage, status
+                generation_span,
+                answer,
+                reasoning,
+                token_usage,
+                status,
+                remote=remote,
+                model_name=effective_model,
             )
             return (
                 token_usage,

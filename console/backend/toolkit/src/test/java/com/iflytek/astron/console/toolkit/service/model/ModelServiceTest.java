@@ -344,7 +344,7 @@ class ModelServiceTest {
     }
 
     @Test
-    void testGetList_publicModel_resolvesDeepSeekProvider() {
+    void testGetList_publicModel_doesNotInferProtocolFromBrand() {
         ModelCommon deepSeek = new ModelCommon();
         deepSeek.setId(21L);
         deepSeek.setName("DeepSeek-V3");
@@ -366,7 +366,7 @@ class ModelServiceTest {
         llmService.getDataFromModelShelfList(publicModels, Collections.emptyList(), "u1", null);
 
         assertEquals(1, publicModels.size());
-        assertEquals("deepseek", publicModels.get(0).getProvider());
+        assertEquals("openai", publicModels.get(0).getProvider());
     }
 
     @Test

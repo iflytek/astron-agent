@@ -195,17 +195,10 @@ const useSelectPrompt = () => {
         data.nodeParam.llmId = value.llmId;
         data.nodeParam.domain = value.domain;
         data.nodeParam.serviceId = value.serviceId;
-        data.nodeParam.patchId = value.patchId;
         data.nodeParam.url = value.url;
         data.nodeParam.modelId = value.id;
         data.nodeParam.isThink = value.isThink;
-        if (value.provider) {
-          data.nodeParam.source = value.provider;
-        } else if (value.llmSource === 0) {
-          data.nodeParam.source = 'openai';
-        } else {
-          delete data.nodeParam.source;
-        }
+        data.nodeParam.source = value.provider || 'openai';
       }
       return {
         ...cloneDeep(old),

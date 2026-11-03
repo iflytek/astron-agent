@@ -16,7 +16,7 @@ from workflow.engine.nodes.entities.node_run_result import NodeRunResult
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.schemas import SparkAiMessage
+from workflow.infra.providers.llm.schemas import ChatMessage
 
 
 class RefNodeInfo:
@@ -174,6 +174,7 @@ class ParamKey(str, Enum):
     """
 
     FlowId = "flow_id"
+    ModelFlowId = "model_flow_id"
     FlowOutputMode = "flow_output_mode"
     IsRelease = "is_release"
     ChatId = "chat_id"
@@ -430,51 +431,22 @@ class VariablePool:
         self.history_v2 = History()
         self.history_v2.init_history(history=copy.deepcopy(history_lists))
 
-    def get_history(self, node_id: str) -> list[SparkAiMessage]:
+    def get_history(self, node_id: str) -> list[ChatMessage]:
         """
         Get chat history for a specific node.
 
         :param node_id: ID of the node to get history for
-        :return: List of SparkAiMessage objects representing the chat history
+        :return: List of ChatMessage objects representing the chat history
         """
-        history: list[SparkAiMessage] = []
+        history: list[ChatMessage] = []
         if node_id not in self.history_mapping:
             return history
 
         for chat_history in self.history_mapping[node_id]:
             history.append(
-                SparkAiMessage(
+                ChatMessage(
                     content=chat_history.get("content"), role=chat_history.get("role")
                 )
-            )
-        return history
-
-    def get_aipensonal_history(self, node_id: str) -> list[SparkAiMessage]:
-        """
-        Get AI personal history for a specific node with special Bot tag processing.
-
-        :param node_id: ID of the node to get AI personal history for
-        :return: List of SparkAiMessage objects with processed Bot tags
-        """
-        history: list[SparkAiMessage] = []
-        if node_id not in self.history_mapping:
-            return history
-
-        assistant_content = ""
-        content = ""
-        for chat_history in self.history_mapping[node_id]:
-            if (
-                "<Bot>" in chat_history.get("content")
-                and chat_history.get("role") == "user"
-            ):
-                context = str.split(chat_history.get("content"), "<Bot>")
-                content = context[0]
-                assistant_content = "<Bot> " + context[1]
-            elif chat_history.get("role") == "assistant":
-                content = assistant_content + chat_history.get("content") + "<end>"
-
-            history.append(
-                SparkAiMessage(content=content, role=chat_history.get("role"))
             )
         return history
 

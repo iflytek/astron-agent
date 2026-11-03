@@ -6,7 +6,6 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.util.ReUtil;
-import cn.hutool.core.util.StrUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
@@ -69,7 +68,6 @@ import com.iflytek.astron.console.toolkit.entity.table.eval.EvalSet;
 import com.iflytek.astron.console.toolkit.entity.table.eval.EvalSetVer;
 import com.iflytek.astron.console.toolkit.entity.table.eval.EvalSetVerData;
 import com.iflytek.astron.console.toolkit.entity.table.group.GroupVisibility;
-import com.iflytek.astron.console.toolkit.entity.table.model.Model;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowDbRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowRepoRel;
 import com.iflytek.astron.console.toolkit.entity.table.relation.FlowToolRel;
@@ -1532,15 +1530,6 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                         && CommonConst.FIXED_APPID_ENV.contains(env)) {
                     buidKeyInfo(bizNodeData);
                 }
-                String source = bizNodeData.getNodeParam().getString("source");
-                if (requiresCustomModelCredentialInjection(source)) {
-                    Long modelId = bizNodeData.getNodeParam().getLong("modelId");
-                    if (modelId != null) {
-                        Model model = modelService.getById(modelId);
-                        bizNodeData.getNodeParam().put("apiKey", model.getApiKey());
-                        bizNodeData.getNodeParam().put("apiSecret", StringUtils.EMPTY);
-                    }
-                }
             }
             if (SpaceInfoUtil.getSpaceId() != null && "database".equals(prefix)) {
                 bizNodeData.getNodeParam().put("uid", Objects.requireNonNull(UserInfoManagerHandler.getUserId()).toString());
@@ -1557,6 +1546,8 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 throw exception;
             }
         }
+        injectModelRuntimeConfig(bizNodeData, prefix,
+                UserInfoManagerHandler.getUserId(), SpaceInfoUtil.getSpaceId());
         return node;
     }
 
@@ -3177,17 +3168,6 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                     }
 
                 }
-                String source = bizNodeData.getNodeParam().getString("source");
-                if (requiresCustomModelCredentialInjection(source)) {
-                    Long modelId = bizNodeData.getNodeParam().getLong("modelId");
-                    if (modelId != null) {
-                        Model model = modelService.getById(modelId);
-                        if (!configs.contains(prefix)) {
-                            bizNodeData.getNodeParam().put("apiKey", model.getApiKey());
-                            bizNodeData.getNodeParam().put("apiSecret", StringUtils.EMPTY);
-                        }
-                    }
-                }
                 // Agent node changes
                 checkAndEditData(
                         bizNodeData,
@@ -3219,6 +3199,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
                 buidKeyInfo(bizNodeData);
                 // }
             }
+            injectModelRuntimeConfig(bizNodeData, prefix, executionUid, executionSpaceId);
         }
     }
 
@@ -3435,18 +3416,44 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         }
     }
 
-    private boolean requiresCustomModelCredentialInjection(String source) {
-        return StringUtils.equalsAny(source,
-                "openai",
-                "deepseek",
-                "anthropic",
-                "google",
-                "minimax",
-                "zhipu",
-                "qwen",
-                "moonshot",
-                "chatgpt",
-                "doubao");
+    private boolean isModelNode(String prefix) {
+        return StringUtils.equalsAny(prefix,
+                WorkflowConst.NodeType.SPARK_LLM,
+                WorkflowConst.NodeType.AGENT,
+                WorkflowConst.NodeType.DECISION_MAKING,
+                WorkflowConst.NodeType.EXTRACTOR_PARAMETER,
+                WorkflowConst.NodeType.QUESTION_ANSWER,
+                WorkflowConst.NodeType.KNOWLEDGE);
+    }
+
+    /** Validate the model reference and bind non-secret metadata; credentials resolve at execution. */
+    private void injectModelRuntimeConfig(BizNodeData nodeData, String prefix,
+            String executionUid, Long executionSpaceId) {
+        if (!isModelNode(prefix)) {
+            return;
+        }
+        JSONObject params = nodeData.getNodeParam();
+        com.iflytek.astron.console.commons.util.WorkflowProtocolSanitizer.removeModelCredentials(params);
+        Long modelId = params.getLong("modelId");
+        if (modelId == null) {
+            return;
+        }
+        LLMInfoVo model = modelService.getRuntimeModelDetail(modelId, executionUid, executionSpaceId);
+        String protocol = ModelService.normalizeModelProtocol(model.getProvider());
+        params.put("source", protocol);
+        if (WorkflowConst.NodeType.AGENT.equals(prefix)) {
+            JSONObject modelConfig = params.getJSONObject("modelConfig");
+            if (modelConfig == null) {
+                modelConfig = new JSONObject();
+                params.put("modelConfig", modelConfig);
+            }
+            modelConfig.put("provider", protocol);
+            modelConfig.put("domain", model.getDomain());
+            modelConfig.put("api", model.getUrl());
+        } else {
+            params.put("domain", model.getDomain());
+            params.put("url", model.getUrl());
+        }
     }
 
     /** Knowledge: fill docIds for each knowledge.match section */
@@ -4098,20 +4105,6 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         Integer topN = nodeParam.getInteger("topN");
         if (topN != null) {
             nodeParam.put("topN", topN.toString());
-        }
-        // Convert patchId
-        String patchId = nodeParam.getString("patchId");
-        if (StringUtils.isNotEmpty(patchId)) {
-            String domain = nodeParam.getString("domain");
-            // Some models patch id = 0 fallback
-            ConfigInfo patchId0Cfg = configInfoMapper.getByCategoryAndCode("PATCH_ID", "0");
-            List<String> pathId0 = StrUtil.split(patchId0Cfg.getValue(), ",");
-            if (!pathId0.contains(domain) && "0".equals(patchId)) {
-                nodeParam.put("patch_id", new ArrayList<>());
-            } else {
-                nodeParam.put("patch_id", Collections.singletonList(patchId));
-            }
-            nodeParam.remove("patchId");
         }
         // Database dbId string to long
         String dbId = nodeParam.getString("dbId");
@@ -5472,40 +5465,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     }
 
     private String normalizeWorkflowModelSource(LLMInfoVo llmInfoVo) {
-        String provider = StringUtils.trimToEmpty(llmInfoVo.getProvider()).toLowerCase(Locale.ROOT);
-        if (StringUtils.equalsAny(provider, "spark", "xinghuo", "xfyun", "iflytek")) {
-            return "xinghuo";
-        }
-        if (StringUtils.isNotBlank(provider)) {
-            return provider;
-        }
-
-        String domain = StringUtils.trimToEmpty(llmInfoVo.getDomain()).toLowerCase(Locale.ROOT);
-        if (StringUtils.containsAny(domain, "generalv", "max-", "4.0ultra", "x1")) {
-            return "xinghuo";
-        }
-        if (domain.contains("deepseek")) {
-            return "deepseek";
-        }
-        if (domain.contains("glm") || domain.contains("zhipu")) {
-            return "zhipu";
-        }
-        if (domain.contains("claude")) {
-            return "anthropic";
-        }
-        if (domain.contains("gemini")) {
-            return "google";
-        }
-        if (domain.contains("qwen")) {
-            return "qwen";
-        }
-        if (domain.contains("moonshot") || domain.contains("kimi")) {
-            return "moonshot";
-        }
-        if (domain.contains("doubao")) {
-            return "doubao";
-        }
-        return StringUtils.isBlank(llmInfoVo.getUrl()) ? "xinghuo" : "openai";
+        return ModelService.normalizeModelProtocol(llmInfoVo.getProvider());
     }
 
     public String saveComparisons(List<WorkflowComparisonSaveReq> workflowComparisonReqList) {

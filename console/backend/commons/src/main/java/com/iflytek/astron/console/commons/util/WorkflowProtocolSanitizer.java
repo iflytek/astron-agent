@@ -13,11 +13,15 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Removes server-derived sandbox configuration and legacy sandbox credentials from workflow JSON.
+ * Removes model credentials and server-derived sandbox configuration from workflow JSON.
  */
 public final class WorkflowProtocolSanitizer {
 
     private static final int MAX_EMBEDDED_JSON_DEPTH = 8;
+
+    private static final Set<String> MODEL_NODE_TYPES = Set.of(
+            "spark-llm", "agent", "decision-making", "extractor-parameter",
+            "question-answer", "knowledge-base");
 
     private static final Set<String> SYSTEM_SANDBOX_FIELDS = Set.of(
             "enabled", "uid", "spaceid", "workflowid", "runid", "nodeid");
@@ -118,6 +122,7 @@ public final class WorkflowProtocolSanitizer {
                 continue;
             }
             if (value instanceof Map<?, ?> map) {
+                changed |= removeModelNodeCredentials(map);
                 Iterator<? extends Map.Entry<?, ?>> fields = map.entrySet().iterator();
                 while (fields.hasNext()) {
                     Map.Entry<?, ?> field = fields.next();
@@ -201,6 +206,35 @@ public final class WorkflowProtocolSanitizer {
             if (!SYSTEM_SANDBOX_FIELDS.contains(normalizedName) || !isScalar(value)) {
                 fields.remove();
                 changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /** Model credentials are runtime-only; other nodes may have unrelated platform credentials. */
+    private static boolean removeModelNodeCredentials(Map<?, ?> node) {
+        Object id = node.get("id");
+        if (!(id instanceof String nodeId)
+                || !MODEL_NODE_TYPES.contains(nodeId.split("::", 2)[0])
+                || !(node.get("data") instanceof Map<?, ?> data)
+                || !(data.get("nodeParam") instanceof Map<?, ?> params)) {
+            return false;
+        }
+        return removeModelCredentials(params);
+    }
+
+    /** Shared with Console's protocol builder, so runtime secrets never enter a transport DSL. */
+    public static boolean removeModelCredentials(Map<?, ?> params) {
+        boolean changed = false;
+        Iterator<? extends Map.Entry<?, ?>> fields = params.entrySet().iterator();
+        while (fields.hasNext()) {
+            Map.Entry<?, ?> field = fields.next();
+            String name = normalizeFieldName(field.getKey());
+            if ("apikey".equals(name) || "apisecret".equals(name)) {
+                fields.remove();
+                changed = true;
+            } else if ("modelconfig".equals(name) && field.getValue() instanceof Map<?, ?> modelConfig) {
+                changed |= removeModelCredentials(modelConfig);
             }
         }
         return changed;

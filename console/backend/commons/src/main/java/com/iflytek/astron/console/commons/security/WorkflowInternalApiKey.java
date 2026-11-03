@@ -1,6 +1,8 @@
 package com.iflytek.astron.console.commons.security;
 
 import org.apache.commons.lang3.StringUtils;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 /** Shared validation and header naming for trusted calls to the core workflow service. */
 public final class WorkflowInternalApiKey {
@@ -23,5 +25,16 @@ public final class WorkflowInternalApiKey {
                     "WORKFLOW_INTERNAL_API_KEY must contain a non-default value of at least 32 characters");
         }
         return apiKey;
+    }
+
+    /** Match service credentials without accepting an absent or default deployment secret. */
+    public static boolean matches(String configuredValue, String candidate) {
+        try {
+            String expected = requireConfigured(configuredValue);
+            return candidate != null && MessageDigest.isEqual(
+                    expected.getBytes(StandardCharsets.UTF_8), candidate.getBytes(StandardCharsets.UTF_8));
+        } catch (IllegalStateException exception) {
+            return false;
+        }
     }
 }

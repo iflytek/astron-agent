@@ -15,9 +15,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pydantic import BaseModel, Field
 
-from workflow.consts.engine.chat_status import ChatStatus, SparkLLMStatus
+from workflow.consts.engine.chat_status import ChatStatus
 from workflow.consts.engine.error_handler import ErrorHandler
-from workflow.consts.engine.model_provider import ModelProviderEnum
 from workflow.consts.engine.value_type import ValueType
 from workflow.domain.entities.chat import HistoryItem
 from workflow.engine.callbacks.callback_handler import ChatCallBacks
@@ -43,7 +42,7 @@ from workflow.exception.e import CustomException, CustomExceptionInterrupt
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.workflow_log import WorkflowLog
 from workflow.extensions.otlp.trace.span import Span
-from workflow.infra.providers.llm.iflytek_spark.schemas import StreamOutputMsg
+from workflow.infra.providers.llm.schemas import StreamOutputMsg
 
 
 class WorkflowEngineCtx(BaseModel):
@@ -513,29 +512,10 @@ class RetryableErrorHandler(ExceptionHandlerBase):
                 "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
             }
         elif node_type == NodeType.LLM.value:
-            model_source = (
-                node.node_instance.source
-                if hasattr(node.node_instance, "source")
-                else ModelProviderEnum.XINGHUO.value
-            )
-
-            if model_source == ModelProviderEnum.XINGHUO.value:
-                return {
-                    "header": {
-                        "code": -1,
-                        "status": SparkLLMStatus.END.value,
-                    },
-                    "payload": {"choices": {"text": [{}]}},
-                }
-            elif model_source in {
-                ModelProviderEnum.OPENAI.value,
-                ModelProviderEnum.ANTHROPIC.value,
-                ModelProviderEnum.GOOGLE.value,
-            }:
-                return {
-                    "code": -1,
-                    "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
-                }
+            return {
+                "code": -1,
+                "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
+            }
 
         return {"code": -1}
 
@@ -1612,31 +1592,10 @@ class WorkflowEngine(BaseModel):
                     "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
                 }
             case NodeType.LLM.value:
-                model_source = (
-                    node.node_instance.source
-                    if hasattr(node.node_instance, "source")
-                    else ModelProviderEnum.XINGHUO.value
-                )
-                match model_source:
-                    case ModelProviderEnum.XINGHUO.value:
-                        return {
-                            "header": {
-                                "code": -1,
-                                "status": SparkLLMStatus.END.value,
-                            },
-                            "payload": {"choices": {"text": [{}]}},
-                        }
-                    case (
-                        ModelProviderEnum.OPENAI.value
-                        | ModelProviderEnum.ANTHROPIC.value
-                        | ModelProviderEnum.GOOGLE.value
-                    ):
-                        return {
-                            "code": -1,
-                            "choices": [
-                                {"finish_reason": ChatStatus.FINISH_REASON.value}
-                            ],
-                        }
+                return {
+                    "code": -1,
+                    "choices": [{"finish_reason": ChatStatus.FINISH_REASON.value}],
+                }
             case _:
                 return {"code": -1}
         return {"code": -1}

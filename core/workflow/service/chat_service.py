@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import json
 import os
 import time
@@ -28,7 +27,6 @@ except ImportError:
 from workflow.cache.event_registry import Event, EventRegistry
 from workflow.consts.app_audit import AppAuditPolicy
 from workflow.consts.engine.chat_status import ChatStatus
-from workflow.consts.engine.model_provider import ModelProviderEnum
 from workflow.consts.engine.timeout import QueueTimeout
 from workflow.domain.entities.chat import ChatVo
 from workflow.domain.entities.response import Streaming
@@ -62,6 +60,7 @@ from workflow.service import app_service, audit_service, flow_service
 from workflow.service.flow_service import set_flow_node_output_mode
 from workflow.service.history_service import get_history
 from workflow.service.ops_service import kafka_report
+from workflow.utils.protocol_sanitization import sanitize_protocol_document_for_use
 from workflow.utils.trace_sanitization import serialize_trace_payload
 
 
@@ -74,6 +73,7 @@ async def event_stream(
     is_release: bool,
     app_audit_policy: AppAuditPolicy,
     span: Span,
+    model_flow_id: str = "",
 ) -> AsyncIterator[str]:
     """
     Event stream processing function for handling chat requests and generating
@@ -105,6 +105,7 @@ async def event_stream(
             app_audit_policy,
             response_queue,
             span,
+            model_flow_id=model_flow_id,
         )
     )
 
@@ -447,6 +448,7 @@ async def _run(
     app_audit_policy: AppAuditPolicy,
     response_queue: Queue,
     span: Span,
+    model_flow_id: str = "",
 ) -> None:
     """
     Process chat request and execute workflow.
@@ -550,6 +552,8 @@ async def _run(
                 ParamKey.FlowId, chat_vo.flow_id
             ).set(ParamKey.ChatId, chat_vo.chat_id).set(ParamKey.Uid, chat_vo.uid).set(
                 ParamKey.AppId, app_alias_id
+            ).set(
+                ParamKey.ModelFlowId, model_flow_id
             ).set(
                 ParamKey.Ext, {"phone_number": chat_vo.ext.get("phone_number", "")}
             )
@@ -676,44 +680,28 @@ async def _init_stream_q(
                 ] = asyncio.Queue()
 
 
-def change_dsl_triplets(
-    spark_dsl: dict, app_id: str, api_key: str, api_secret: str
+def bind_runtime_app_context(
+    workflow_dsl: dict, app_id: str, api_key: str, api_secret: str
 ) -> dict:
-    """
-    Replace model provider triplets (app_id, api_key, api_secret) in workflow DSL.
-
-    This function replaces the model provider credentials in the workflow DSL
-    for open API usage scenarios.
-
-    :param spark_dsl: Original workflow DSL dictionary
-    :param app_id: Application ID for model provider
-    :param api_key: API key for model provider
-    :param api_secret: API secret for model provider
-    :return: Modified DSL dictionary with updated credentials
-    """
-    dsl = copy.deepcopy(spark_dsl)
-    nodes = dsl["data"]["nodes"]
-    for index, node in enumerate(nodes):
-        node_id = node["id"]
-        if node_id.split(":")[0] in [
-            NodeType.LLM.value,
-            NodeType.DECISION_MAKING.value,
-            NodeType.PARAMETER_EXTRACTOR.value,
-            NodeType.AGENT.value,
-            NodeType.DATABASE.value,
-        ]:
-            model_source = (
-                node["data"]
-                .get("nodeParam", {})
-                .get("source", ModelProviderEnum.XINGHUO.value)
-            )
-            if model_source == ModelProviderEnum.XINGHUO.value:
-                dsl["data"]["nodes"][index]["data"]["nodeParam"]["appId"] = app_id
-                dsl["data"]["nodes"][index]["data"]["nodeParam"]["apiKey"] = api_key
-                dsl["data"]["nodes"][index]["data"]["nodeParam"][
-                    "apiSecret"
-                ] = api_secret
-
+    """Bind platform identity while keeping model credentials out of the DSL."""
+    dsl = sanitize_protocol_document_for_use(workflow_dsl)
+    model_nodes = {
+        NodeType.LLM.value,
+        NodeType.DECISION_MAKING.value,
+        NodeType.PARAMETER_EXTRACTOR.value,
+        NodeType.AGENT.value,
+        NodeType.QUESTION_ANSWER.value,
+        NodeType.KNOWLEDGE_BASE.value,
+    }
+    for node in dsl["data"]["nodes"]:
+        node_type = node["id"].split(":")[0]
+        if node_type in model_nodes or node_type == NodeType.DATABASE.value:
+            params = node["data"].setdefault("nodeParam", {})
+            params["appId"] = app_id
+            if node_type == NodeType.DATABASE.value:
+                # Database nodes authenticate a platform service, not a model.
+                params["apiKey"] = api_key
+                params["apiSecret"] = api_secret
     return dsl
 
 
@@ -1393,8 +1381,8 @@ async def get_and_validate_published_flow(
         RuntimeEnv.Dev.value,
         RuntimeEnv.Test.value,
     ]:
-        # Replace app_id, api_key, api_secret in protocol
-        db_flow.release_data = change_dsl_triplets(
+        # Bind platform identity without replacing model credentials
+        db_flow.release_data = bind_runtime_app_context(
             spark_dsl,
             app_id=app_id,
             api_key=app_info.api_key,

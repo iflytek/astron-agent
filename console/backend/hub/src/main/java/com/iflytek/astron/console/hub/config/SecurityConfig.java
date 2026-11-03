@@ -5,6 +5,7 @@ import com.iflytek.astron.console.hub.config.security.ArtifactUploadTokenAuthent
 import com.iflytek.astron.console.hub.config.security.RestfulAccessDeniedHandler;
 import com.iflytek.astron.console.hub.config.security.RestfulAuthenticationEntryPoint;
 import com.iflytek.astron.console.hub.config.security.SandboxRuntimeCredentialAuthenticationFilter;
+import com.iflytek.astron.console.hub.config.security.WorkflowModelRuntimeAuthenticationFilter;
 import com.iflytek.astron.console.toolkit.config.properties.SandboxRuntimeCredentialProperties;
 import com.iflytek.astron.console.toolkit.config.properties.SkillSandboxArtifactProperties;
 import com.iflytek.astron.console.toolkit.security.ArtifactUploadTokenProvider;
@@ -13,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.annotation.Bean;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -116,6 +118,28 @@ public class SecurityConfig {
 
     @Bean
     @Order(4)
+    public SecurityFilterChain workflowModelRuntimeFilterChain(HttpSecurity http,
+            @Value("${workflow.internal-api-key:}") String workflowInternalApiKey) throws Exception {
+        WorkflowModelRuntimeAuthenticationFilter tokenFilter =
+                new WorkflowModelRuntimeAuthenticationFilter(
+                        workflowInternalApiKey, restfulAuthenticationEntryPoint);
+        http
+                .securityMatcher("/model/internal-runtime-config")
+                .authorizeHttpRequests(authorize -> authorize.anyRequest()
+                        .hasRole("WORKFLOW_MODEL_RUNTIME_READER"))
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/model/internal-runtime-config"))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(restfulAuthenticationEntryPoint)
+                        .accessDeniedHandler(restfulAccessDeniedHandler))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .addFilterBefore(tokenFilter, AnonymousAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(5)
     public SecurityFilterChain resourceServerFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(authorize -> authorize

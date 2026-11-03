@@ -213,9 +213,6 @@ const useModelSelect = (id: string, models: WorkflowModel[]) => {
               if (item.key === 'top_k') {
                 item.key = 'topK';
               }
-              if (item.key === 'search_disable') {
-                item.key = 'searchDisable';
-              }
               writeModelSetting(old.data.nodeParam, item.key, item.default);
             });
             return {
@@ -311,7 +308,6 @@ const useModelSelect = (id: string, models: WorkflowModel[]) => {
       data.nodeParam.llmId = value.llmId;
       data.nodeParam.domain = value.domain;
       data.nodeParam.serviceId = value.serviceId;
-      data.nodeParam.patchId = value.patchId;
       data.nodeParam.url = value.url;
       data.nodeParam.modelId = value.id;
       data.nodeParam.isThink = value.isThink;
@@ -320,14 +316,7 @@ const useModelSelect = (id: string, models: WorkflowModel[]) => {
       data.nodeParam.modelEnabled = true;
       data.nodeParam.llmIdErrMsg = '';
 
-      if (value.provider) {
-        data.nodeParam.source = value.provider;
-      } else if (value.llmSource === 0) {
-        data.nodeParam.source = 'openai';
-      } else {
-        Reflect.deleteProperty(data.nodeParam, 'source');
-        Reflect.deleteProperty(data.nodeParam, 'extraParams');
-      }
+      data.nodeParam.source = value.provider || 'openai';
     }
   );
 

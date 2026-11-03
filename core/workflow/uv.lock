@@ -1081,6 +1081,15 @@ wheels = [
 ]
 
 [[package]]
+name = "httpx-sse"
+version = "0.4.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/4c/751061ffa58615a32c31b2d82e8482be8dd4a89154f003147acee90f2be9/httpx_sse-0.4.3.tar.gz", hash = "sha256:9b1ed0127459a66014aec3c56bebd93da3c1bc8bb6618c8082039a44889a755d", size = 15943, upload-time = "2025-10-10T21:48:22.271Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d2/fd/6668e5aec43ab844de6fc74927e155a3b37bf40d7c3790e49fc0406b6578/httpx_sse-0.4.3-py3-none-any.whl", hash = "sha256:0ac1c9fe3c0afad2e0ebb25a934a59f4c7823b60792691f779fad2c5568830fc", size = 8960, upload-time = "2025-10-10T21:48:21.158Z" },
+]
+
+[[package]]
 name = "hyperframe"
 version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2341,7 +2350,7 @@ name = "sqlalchemy"
 version = "2.0.31"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "greenlet", marker = "(python_full_version < '3.13' and platform_machine == 'AMD64') or (python_full_version < '3.13' and platform_machine == 'WIN32') or (python_full_version < '3.13' and platform_machine == 'aarch64') or (python_full_version < '3.13' and platform_machine == 'amd64') or (python_full_version < '3.13' and platform_machine == 'ppc64le') or (python_full_version < '3.13' and platform_machine == 'win32') or (python_full_version < '3.13' and platform_machine == 'x86_64')" },
+    { name = "greenlet", marker = "(python_full_version < '3.13' and platform_machine == 'AMD64') or (python_full_version >= '4' and platform_machine == 'AMD64') or (python_full_version < '3.13' and platform_machine == 'WIN32') or (python_full_version >= '4' and platform_machine == 'WIN32') or (python_full_version < '3.13' and platform_machine == 'aarch64') or (python_full_version >= '4' and platform_machine == 'aarch64') or (python_full_version < '3.13' and platform_machine == 'amd64') or (python_full_version >= '4' and platform_machine == 'amd64') or (python_full_version < '3.13' and platform_machine == 'ppc64le') or (python_full_version >= '4' and platform_machine == 'ppc64le') or (python_full_version < '3.13' and platform_machine == 'win32') or (python_full_version >= '4' and platform_machine == 'win32') or (python_full_version < '3.13' and platform_machine == 'x86_64') or (python_full_version >= '4' and platform_machine == 'x86_64')" },
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ba/7d/e3312ae374fe7a4af7e1494735125a714a0907317c829ab8d8a31d89ded4/SQLAlchemy-2.0.31.tar.gz", hash = "sha256:b607489dd4a54de56984a0c7656247504bd5523d9d0ba799aef59d4add009484", size = 9524110, upload-time = "2024-06-18T21:38:37.304Z" }
@@ -2792,6 +2801,7 @@ dependencies = [
     { name = "httpcore", marker = "python_full_version < '4'" },
     { name = "httptools", marker = "python_full_version < '4'" },
     { name = "httpx", marker = "python_full_version < '4'" },
+    { name = "httpx-sse" },
     { name = "idna", marker = "python_full_version < '4'" },
     { name = "importlib-metadata", marker = "python_full_version < '4'" },
     { name = "iniconfig", marker = "python_full_version < '4'" },
@@ -2854,7 +2864,6 @@ dependencies = [
     { name = "uvloop", marker = "python_full_version < '4' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
     { name = "versioned-fastapi", marker = "python_full_version < '4'" },
     { name = "watchfiles", marker = "python_full_version < '4'" },
-    { name = "websockets", marker = "python_full_version < '4'" },
     { name = "win32-setctime", marker = "python_full_version < '4' and sys_platform == 'win32'" },
     { name = "wrapt", marker = "python_full_version < '4'" },
     { name = "yarl", marker = "python_full_version < '4'" },
@@ -2898,6 +2907,7 @@ requires-dist = [
     { name = "httpcore", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.0.5" },
     { name = "httptools", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.6.1" },
     { name = "httpx", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.27.0" },
+    { name = "httpx-sse", specifier = "==0.4.3" },
     { name = "idna", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==3.7" },
     { name = "importlib-metadata", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==7.1.0" },
     { name = "iniconfig", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==2.0.0" },
@@ -2960,7 +2970,6 @@ requires-dist = [
     { name = "uvloop", marker = "python_full_version >= '3.11' and python_full_version < '4' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'", specifier = "==0.19.0" },
     { name = "versioned-fastapi", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.0.2" },
     { name = "watchfiles", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==0.22.0" },
-    { name = "websockets", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = ">=12.0" },
     { name = "win32-setctime", marker = "python_full_version >= '3.11' and python_full_version < '4' and sys_platform == 'win32'", specifier = "==1.1.0" },
     { name = "wrapt", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.16.0" },
     { name = "yarl", marker = "python_full_version >= '3.11' and python_full_version < '4'", specifier = "==1.16.0" },

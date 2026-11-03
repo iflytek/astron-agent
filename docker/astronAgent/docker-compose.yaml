@@ -737,6 +737,7 @@ services:
       WORKFLOW_BASE_URL: "${WORKFLOW_BASE_URL:-http://core-workflow:${CORE_WORKFLOW_PORT}}"
       APP_MANAGE_PLAT_BASE_URL: "${APP_MANAGE_PLAT_BASE_URL:-http://core-tenant:${CORE_TENANT_PORT}}"
       AGENT_BASE_URL: "${AGENT_BASE_URL:-http://core-agent:${CORE_AGENT_PORT}}"
+      MODEL_RUNTIME_CONFIG_URL: "http://console-hub:8080/model/internal-runtime-config"
       PGSQL_BASE_URL: "${PGSQL_BASE_URL:-http://core-database:${CORE_DATABASE_PORT}}"
       RPA_BASE_URL: "${RPA_BASE_URL:-http://core-rpa:${CORE_RPA_PORT}}"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN: "${SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN:-}"

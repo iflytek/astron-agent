@@ -61,13 +61,6 @@ public class LLMService {
     private static final String PROVIDER_OPENAI = "openai";
     private static final String PROVIDER_ANTHROPIC = "anthropic";
     private static final String PROVIDER_GOOGLE = "google";
-    private static final String PROVIDER_DEEPSEEK = "deepseek";
-    private static final String PROVIDER_MINIMAX = "minimax";
-    private static final String PROVIDER_ZHIPU = "zhipu";
-    private static final String PROVIDER_QWEN = "qwen";
-    private static final String PROVIDER_MOONSHOT = "moonshot";
-    private static final String PROVIDER_CHATGPT = "chatgpt";
-    private static final String PROVIDER_DOUBAO = "doubao";
 
     @Resource
     ConfigInfoMapper configInfoMapper;
@@ -407,25 +400,8 @@ public class LLMService {
         if (modelCommon == null) {
             return null;
         }
-
-        String provider = resolveProviderFromCategoryTree(modelCommon.getCategoryTree());
-        if (StrUtil.isNotBlank(provider)) {
-            return provider;
-        }
-
-        String[] candidates = {
-                modelCommon.getDomain(),
-                modelCommon.getServiceId(),
-                modelCommon.getName(),
-                modelCommon.getUrl()
-        };
-        for (String candidate : candidates) {
-            String inferred = inferProvider(candidate);
-            if (StrUtil.isNotBlank(inferred)) {
-                return inferred;
-            }
-        }
-        return null;
+        String protocol = resolveProviderFromCategoryTree(modelCommon.getCategoryTree());
+        return protocol == null ? PROVIDER_OPENAI : protocol;
     }
 
     private String resolveProviderFromCategoryTree(List<CategoryTreeVO> categoryTree) {
@@ -437,55 +413,14 @@ public class LLMService {
                 continue;
             }
             if (Objects.equals(node.getKey(), "modelProvider")) {
-                String provider = inferProvider(node.getName());
-                if (StrUtil.isNotBlank(provider)) {
-                    return provider;
+                String protocol = Objects.toString(node.getName(), "").trim().toLowerCase(Locale.ROOT);
+                if (Set.of(PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GOOGLE).contains(protocol)) {
+                    return protocol;
                 }
             }
-            String childProvider = resolveProviderFromCategoryTree(node.getChildren());
-            if (StrUtil.isNotBlank(childProvider)) {
-                return childProvider;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Provider keyword-to-constant mapping for inference. Each entry: keyword -> provider constant.
-     * Order matters (more specific keywords first).
-     */
-    private static final List<Map.Entry<String, String>> PROVIDER_KEYWORD_MAP = List.of(
-            Map.entry("deepseek", PROVIDER_DEEPSEEK),
-            Map.entry("深度求索", PROVIDER_DEEPSEEK),
-            Map.entry("anthropic", PROVIDER_ANTHROPIC),
-            Map.entry("claude", PROVIDER_ANTHROPIC),
-            Map.entry("google", PROVIDER_GOOGLE),
-            Map.entry("谷歌", PROVIDER_GOOGLE),
-            Map.entry("gemini", PROVIDER_GOOGLE),
-            Map.entry("minimax", PROVIDER_MINIMAX),
-            Map.entry("zhipu", PROVIDER_ZHIPU),
-            Map.entry("智谱", PROVIDER_ZHIPU),
-            Map.entry("glm", PROVIDER_ZHIPU),
-            Map.entry("qwen", PROVIDER_QWEN),
-            Map.entry("千问", PROVIDER_QWEN),
-            Map.entry("moonshot", PROVIDER_MOONSHOT),
-            Map.entry("月之暗面", PROVIDER_MOONSHOT),
-            Map.entry("kimi", PROVIDER_MOONSHOT),
-            Map.entry("doubao", PROVIDER_DOUBAO),
-            Map.entry("豆包", PROVIDER_DOUBAO),
-            Map.entry("volcengine", PROVIDER_DOUBAO),
-            Map.entry("chatgpt", PROVIDER_CHATGPT),
-            Map.entry("openai", PROVIDER_OPENAI),
-            Map.entry("gpt-", PROVIDER_OPENAI));
-
-    private String inferProvider(String rawValue) {
-        if (StrUtil.isBlank(rawValue)) {
-            return null;
-        }
-        String value = rawValue.trim().toLowerCase(Locale.ROOT);
-        for (Map.Entry<String, String> entry : PROVIDER_KEYWORD_MAP) {
-            if (value.contains(entry.getKey().toLowerCase(Locale.ROOT))) {
-                return entry.getValue();
+            String childProtocol = resolveProviderFromCategoryTree(node.getChildren());
+            if (childProtocol != null) {
+                return childProtocol;
             }
         }
         return null;
@@ -525,14 +460,9 @@ public class LLMService {
                 }
                 domainSet.add(domain);
                 String serviceId = n.getData().getNodeParam().getString("serviceId");
-                String patchId = n.getData().getNodeParam().getString("patchId");
-                if ("0".equals(patchId)) {
-                    patchId = null;
-                }
                 array.add(new JSONObject()
                         .fluentPut("domain", domain)
-                        .fluentPut("channel", serviceId)
-                        .fluentPut("patchId", patchId));
+                        .fluentPut("channel", serviceId));
             }
         });
 

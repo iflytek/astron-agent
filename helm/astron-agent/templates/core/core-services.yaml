@@ -225,6 +225,10 @@ spec:
         {{- end }}
         {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
         {{- if $.Values.consoleHub.enabled }}
+        {{- if eq $serviceName "coreWorkflow" }}
+        - name: MODEL_RUNTIME_CONFIG_URL
+          value: {{ printf "http://%s-console-hub:%d/model/internal-runtime-config" (include "astron-agent.fullname" $) ($.Values.consoleHub.service.port | int) | quote }}
+        {{- end }}
         - name: SKILL_SANDBOX_ARTIFACT_UPLOAD_URL
           value: {{ printf "http://%s-console-hub:%d/workflow/artifacts/internal-upload" (include "astron-agent.fullname" $) ($.Values.consoleHub.service.port | int) | quote }}
         - name: SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN
