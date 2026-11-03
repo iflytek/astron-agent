@@ -76,7 +76,12 @@ build/
 dist/
 out/
 tmp/
-loop/
+loop/*
+!loop/project-development/
+loop/project-development/*
+!loop/project-development/astron-agent-docs/
+loop/project-development/astron-agent-docs/*
+!loop/project-development/astron-agent-docs/python-console/
 
 # =============================================================================
 # Development Tools & IDEs
@@ -251,3 +256,6 @@ docker-compose.override.yml
 .codex/
 openspec/
 docs/superpowers/
+
+# Local Python Console development databases
+console/backend/*.sqlite3

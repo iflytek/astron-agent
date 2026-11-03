@@ -1,8 +1,7 @@
-import React, { ReactElement, useState, useEffect } from 'react';
+import React, { ReactElement, useState } from 'react';
 import loginAvatar from '@/assets/imgs/sidebar/avator.png';
 import navDropDown from '@/assets/imgs/sidebar/icon_nav_dropdown.png';
 import useUserStore from '@/store/user-store';
-import { parseCurrentUserFromToken } from '@/config/casdoor';
 import { handleLoginRedirect } from '@/utils/auth';
 import ControlModal from '../control-modal';
 import OrderTypeDisplay from '../order-type-display';
@@ -95,13 +94,11 @@ const LoginButton: React.FC<LoginButtonProps> = ({
 
 // Helper functions to reduce complexity
 const getUserDisplayName = (user?: User): string => {
-  const tokenUser = parseCurrentUserFromToken();
-  return user?.nickname || user?.login || tokenUser?.nickname || '';
+  return user?.nickname || user?.login || '';
 };
 
 const getUserAvatar = (user?: User): string => {
-  const tokenUser = parseCurrentUserFromToken();
-  return user?.avatar || tokenUser?.avatar || loginAvatar;
+  return user?.avatar || loginAvatar;
 };
 
 const BottomLogin = ({
@@ -110,46 +107,9 @@ const BottomLogin = ({
   setIsPersonCenterOpen,
 }: BottomLoginProps): ReactElement => {
   const [internalShowModal, setInternalShowModal] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { user } = useUserStore();
 
-  // 检查认证状态
-  useEffect(() => {
-    const checkAuth = (): void => {
-      const token = localStorage.getItem('accessToken');
-      setIsAuthenticated(Boolean(token));
-    };
-
-    checkAuth();
-
-    // 监听storage变化来实时更新认证状态
-    const handleStorageChange = (): void => {
-      checkAuth();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-
-    // 也可以设置定时器定期检查
-    const interval = window.setInterval(checkAuth, 5000);
-
-    return (): void => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.clearInterval(interval);
-    };
-  }, []);
-
-  // 优先使用实际认证状态，fallback到传入的props
-  const isLogin = isAuthenticated;
-
-  // 登出处理函数
-  const handleLogout = async (): Promise<void> => {
-    try {
-      setIsAuthenticated(false);
-      setInternalShowModal(false);
-    } finally {
-      handleLogout();
-    }
-  };
+  const isLogin = Boolean(user.uid);
 
   const handleBottomLogin = (e: React.MouseEvent): void => {
     e.stopPropagation();

@@ -1,12 +1,14 @@
 # astronAgent Complete Deployment Guide
 
+> This branch is migrating the Console in stages. The current delivery covers accounts; spaces, resources, Agents, workflows and publishing are not yet all available.
+
 This guide will help you start all components of the astronAgent project in the correct order, including authentication, knowledge base, and core services.
 
 ## 📋 Project Architecture Overview
 
 The astronAgent project consists of the following three main components:
 
-1. **Casdoor** - Identity authentication and single sign-on service (required component, provides SSO functionality)
+1. **Python Console** - Internal accounts and session authentication
 2. **RagFlow** - Knowledge base and document retrieval service (optional component, deploy as needed)
 3. **astronAgent** - Core business service cluster (required component)
 
@@ -24,24 +26,9 @@ The astronAgent project consists of the following three main components:
 - RAM >= 16 GB
 - Disk >= 50 GB
 
-### Step 1: Start Casdoor Identity Authentication Service
+### Step 1: Prepare internal account service
 
-Casdoor is an open-source identity and access management platform that provides support for multiple authentication protocols including OAuth 2.0, OIDC, and SAML.
-
-To start the Casdoor service, run our [docker-compose-with-auth.yaml](/docker/astronAgent/docker-compose-with-auth.yaml) file. Before running the installation commands, please ensure that Docker and Docker Compose are installed on your machine.
-
-```bash
-# Navigate to astronAgent directory
-cd docker/astronAgent
-
-# Start Casdoor service
-docker compose -f docker-compose-auth.yml up -d
-```
-
-**Service Information:**
-- Access Address: http://localhost:8000
-- Container Name: casdoor
-- Default Configuration: Production mode (GIN_MODE=release)
+Read the [Python Console operating instructions](../console/backend/README.md) first. Configure a persistent secret, database, Redis and public origin. Import existing users and issue password-reset links, preserving business tables and data volumes.
 
 ### Step 2: Start RagFlow Knowledge Base Service (Optional)
 
@@ -57,7 +44,7 @@ cd docker/ragflow
 chmod +x *.sh
 
 # Start RagFlow service (including all dependencies)
-docker compose up -d
+docker compose up -d --build
 ```
 
 **Access Address:**
@@ -72,9 +59,9 @@ docker compose up -d
 - Elasticsearch is used by default. To use opensearch or infinity, modify the DOC_ENGINE configuration in .env
 - GPU acceleration is supported, start with `docker-compose-gpu.yml`
 
-### Step 3: Integrate Casdoor and Basic Environment Configuration (Configure as needed)
+### Step 3: Configure Internal Accounts and Infrastructure
 
-Before starting astronAgent services, configure Casdoor, access addresses, and other infrastructure connection information.
+Before starting astronAgent services, configure internal accounts, access addresses, and other infrastructure connection information.
 
 ```bash
 # Navigate to astronAgent directory
@@ -107,49 +94,9 @@ HOST_BASE_ADDRESS=http://localhost
 - Expose only the Astron Agent application entry point (Nginx/Ingress) to users
 - Keep the bundled MinIO API and administrative console on their secure defaults: host loopback only with Docker Compose and `ClusterIP` with Helm. Expose either endpoint only for an explicit operational requirement and only behind independent authentication, TLS, and network-policy/firewall restrictions; never publish MinIO directly to the Internet
 
-#### 3.2 Configure Casdoor Authentication Integration (Required)
+#### 3.2 Internal account configuration
 
-Edit the docker/astronAgent/.env file to configure Casdoor connection information:
-
-**Key Configuration Items:**
-
-```env
-# Casdoor Configuration
-CONSOLE_CASDOOR_URL=http://your-casdoor-server:8000
-CONSOLE_CASDOOR_ID=your-casdoor-client-id
-CONSOLE_CASDOOR_APP=your-casdoor-app-name
-CONSOLE_CASDOOR_ORG=your-casdoor-org-name
-```
-
-**Obtaining Casdoor Configuration Information:**
-1. Visit the Casdoor management console: [http://localhost:8000](http://localhost:8000)
-2. Log in with the default administrator account: `admin / 123`
-3. **Create Organization**
-   Go to the [http://localhost:8000/organizations](http://localhost:8000/organizations) page, click "Add", fill in the organization name, save and exit.
-4. **Create Application and Bind Organization**
-   Go to the [http://localhost:8000/applications](http://localhost:8000/applications) page, click "Add".
-
-   When creating the application, fill in the following information:
-   - **Name**: Custom application name, e.g., `agent`
-   - **Redirect URL**: Set to the project's callback address. If the Nginx exposed port is `80`, use `http://your-local-ip/callback`; if it's another port (e.g., `888`), use `http://your-local-ip:888/callback`
-   - **Organization**: Select the organization name you just created
-5. After saving the application, record the following information and map it to the project configuration items:
-
-| Casdoor Information Item | Example Value | Corresponding `.env` Configuration Item |
-|--------------------------|---------------|------------------------------------------|
-| Casdoor Service Address (URL) | `http://localhost:8000` | `CONSOLE_CASDOOR_URL=http://localhost:8000` |
-| Client ID | `your-casdoor-client-id` | `CONSOLE_CASDOOR_ID=your-casdoor-client-id` |
-| Application Name (Name) | `your-casdoor-app-name` | `CONSOLE_CASDOOR_APP=your-casdoor-app-name` |
-| Organization Name (Organization) | `your-casdoor-org-name` | `CONSOLE_CASDOOR_ORG=your-casdoor-org-name` |
-
-6. Fill in the above configuration information into the project's environment variable file:
-```bash
-# Navigate to astronAgent directory
-cd docker/astronAgent
-
-# Edit environment variable configuration
-vim .env
-```
+Configuration and import procedures are maintained in the [Python Console operating instructions](../console/backend/README.md). Use a same-origin `/console-api/` proxy and secure cookies for public HTTPS deployments. New users visit `/register`; existing users contact an operator for password reset. No default `admin` password is provisioned.
 
 ### Step 4: Start astronAgent Core Services (Required Deployment Step)
 
@@ -162,7 +109,7 @@ To start astronAgent services, run our [docker-compose.yaml](/docker/astronAgent
 cd docker/astronAgent
 
 # Start all services
-docker compose up -d
+docker compose up -d --build
 ```
 
 #### 4.2 Configure Platform Account Management (Optional, configure business capabilities as needed)
@@ -246,9 +193,6 @@ After obtaining the dataset ID, fill it in as `XINGHUO_DATASET_ID` under **Platf
 
 After startup, you can access the services at the following addresses:
 
-### Authentication Service
-- **Casdoor Admin Interface**: http://localhost:8000
-
 ### Knowledge Base Service
 - **RagFlow Web Interface**: http://localhost:18080
 
@@ -258,7 +202,6 @@ After startup, you can access the services at the following addresses:
 ## 📚 Additional Resources
 
 - [AstronAgent Official Documentation](https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html)
-- [Casdoor Official Documentation](https://casdoor.org/docs/overview)
 - [RagFlow Official Documentation](https://ragflow.io/docs)
 - [Docker Compose Official Documentation](https://docs.docker.com/compose/)
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { isJSON } from '@/utils';
 import { Button, Spin, Input } from 'antd';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 import reTry from '@/assets/imgs/knowledge/bnt_zhishi_restart.png';
 
@@ -46,7 +46,7 @@ function OpeningRemarksModal({
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        Authorization: getAuthorization(),
+        'X-CSRFToken': getCsrfToken(),
       },
       signal: controllerRef.current.signal,
       body: JSON.stringify({

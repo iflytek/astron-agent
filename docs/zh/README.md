@@ -67,6 +67,8 @@
 
 ### 方式一：Docker Compose（推荐快速体验）
 
+> 当前分支正在分阶段迁移 Python Console，仅交付内部账号。启动前阅读 [账号配置与旧用户迁移](../../console/backend/README.md)。新用户访问 `/register`；旧用户保留原 UID，由管理员发放重设密码链接。没有默认管理员密码。未迁移业务与 RPA 联合集成暂不可用。
+
 ```bash
 # 克隆项目
 git clone https://github.com/iflytek/astron-agent.git
@@ -81,25 +83,20 @@ cp .env.example .env
 vim .env
 ```
 
-环境变量配置请参考文档：[DEPLOYMENT_GUIDE_WITH_AUTH.md](https://github.com/iflytek/astron-agent/blob/main/docs/zh/DEPLOYMENT_GUIDE_WITH_AUTH.md#%E7%AC%AC%E4%BA%8C%E6%AD%A5%E9%85%8D%E7%BD%AE-astronagent-%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F)
+环境变量配置请参考文档：[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
 
 ```bash
-# 启动所有服务，无需构建额外的密码检查镜像。
-docker compose -f docker-compose-with-auth.yaml up -d
+# 构建并启动当前分支服务。
+docker compose -f docker-compose.yaml up -d --build
 ```
 
 #### 📊 服务访问地址
 
 启动完成后，您可以通过以下地址访问各项服务：
 
-**认证服务**
-- **Casdoor 管理界面**：http://localhost:8000
 
 **AstronAgent**
 - **应用前端(nginx代理)**：http://localhost/
-
-**说明**
-- Casdoor默认的登录账户名：`admin`，密码：`123`
 
 ### 方式二：Helm（适用于 Kubernetes 环境）
 

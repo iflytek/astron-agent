@@ -48,6 +48,8 @@ We offer two deployment methods to meet different scenarios:
 
 ### Option 1: Docker Compose (Recommended for Quick Start)
 
+> Python Console migration: this branch currently delivers internal accounts. Follow [account setup and legacy-user migration](../console/backend/README.md) before startup. New users register at `/register`; existing users retain their UID and reset their password through an operator. No default administrator password is provided. Unmigrated business features and combined RPA integration are temporarily unavailable.
+
 ```bash
 # Clone the repository
 git clone https://github.com/iflytek/astron-agent.git
@@ -62,25 +64,19 @@ cp .env.example .env
 vim .env
 ```
 
-For environment variable configuration, please refer to the documentation: [DEPLOYMENT_GUIDE_WITH_AUTH.md](/DEPLOYMENT_GUIDE_WITH_AUTH#step-2-configure-astronagent-environment-variables)
+For environment variable configuration, please refer to the documentation: [DEPLOYMENT_GUIDE.md](/DEPLOYMENT_GUIDE_WITH_AUTH#step-2-configure-astronagent-environment-variables)
 
 ```bash
-# Start all services (including Casdoor)
-docker compose -f docker-compose-with-auth.yaml up -d
+docker compose -f docker-compose.yaml up -d --build
 ```
 
 #### 📊 Service Access Addresses
 
 After startup, you can access the services at the following addresses:
 
-**Authentication Service**
-- **Casdoor Admin Interface**: http://localhost:8000
 
 **AstronAgent**
 - **Application Frontend (nginx proxy)**: http://localhost/
-
-**Note**
-- Default Casdoor login credentials: username: `admin`, password: `123`
 
 ### Option 2: Helm (For Kubernetes Environments)
 

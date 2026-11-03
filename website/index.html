@@ -146,8 +146,8 @@ cp .env.example .env</code></pre>
           </article>
           <article class="code-card">
             <h3>2. 启动服务</h3>
-            <pre><code>docker compose -f docker-compose-with-auth.yaml up -d</code></pre>
-            <p>默认可访问 `http://localhost/`，Casdoor 管理界面位于 `http://localhost:8000`。</p>
+            <pre><code>docker compose -f docker-compose.yaml up -d --build</code></pre>
+            <p>当前分支为 Python Console 分阶段迁移版本。启动前请按部署指南配置内部账号服务；新用户访问 `/register`，旧用户保留 UID 并由管理员发放重设密码链接。业务功能尚未全部恢复。</p>
           </article>
         </div>
       </div>

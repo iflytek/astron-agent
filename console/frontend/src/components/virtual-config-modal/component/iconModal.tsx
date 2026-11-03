@@ -4,7 +4,7 @@ import type { UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload/interface';
 import type { AvatarType } from '@/types/resource';
 import { avatarImageGenerate } from '@/services/common';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 import { avatarGenerationMethods } from '@/constants';
 import uploadAct from '@/assets/imgs/knowledge/icon_zhishi_upload_act.png';
@@ -481,7 +481,7 @@ function EditIconModal(props: EditIconModalProps): React.ReactElement {
     name: 'file',
     action: getFixedUrl('/image/upload'),
     headers: {
-      Authorization: getAuthorization(),
+      'X-CSRFToken': getCsrfToken(),
     },
     showUploadList: false,
     accept: '.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff',

@@ -1,5 +1,7 @@
 # クイックスタート
 
+> Python Console への段階的移行中です。起動前に [導入ガイド](/DEPLOYMENT_GUIDE) でアカウント設定を確認してください。新規ユーザーは `/register` で登録し、既存ユーザーは UID を維持して管理者発行のリンクからパスワードを再設定します。業務機能はまだすべて利用できる状態ではありません。
+
 このページでは、初めて評価する方に向けた最短ルートをまとめています。まずはローカル環境で始め、必要に応じて完全なデプロイ・設定リファレンスへ進んでください。
 
 ## こんな方におすすめ
@@ -23,13 +25,12 @@ cp .env.example .env
 ### 2. サービスを起動
 
 ```bash
-docker compose -f docker-compose-with-auth.yaml up -d
+docker compose -f docker-compose.yaml up -d --build
 ```
 
 起動が完了すると、デフォルトのアクセス先は次のとおりです：
 
 - Astron Agent フロントエンド：`http://localhost/`
-- Casdoor 管理コンソール：`http://localhost:8000`
 
 ## 推奨の読み進め方
 

@@ -64,23 +64,6 @@ Namespace: {{ .Release.Namespace }}
    Secret values are intentionally never printed by Helm.
 {{- end }}
 
-{{- if .Values.casdoor.enabled }}
-
-4. Casdoor (Authentication):
-   {{- if eq .Values.casdoor.service.type "NodePort" }}
-   Casdoor is exposed via NodePort:
-   - Port: {{ .Values.casdoor.service.nodePort }}
-   {{- if .Values.global.hostBaseAddress }}
-   - Casdoor URL: {{ .Values.global.hostBaseAddress }}:{{ .Values.casdoor.service.nodePort }}
-   {{- end }}
-   {{- else }}
-   Access Casdoor using port-forward:
-
-   kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-casdoor {{ .Values.casdoor.service.port }}:8000
-   echo "Casdoor URL: http://localhost:{{ .Values.casdoor.service.port }}"
-   {{- end }}
-{{- end }}
-
 ============================================================
 🔍 Check Deployment Status
 ============================================================
@@ -119,12 +102,9 @@ Check specific components:
    - Update secrets: kubectl edit secret -n {{ .Release.Namespace }}
 
 5. Authentication:
-   {{- if .Values.casdoor.enabled }}
-   - Casdoor is enabled for authentication
-   - Configure Casdoor at first login
-   {{- else }}
-   - Casdoor is disabled
-   {{- end }}
+   - Console uses internal username/password registration and database sessions.
+   - Configure consoleHub.auth and its persistent Secret before startup.
+   - Existing users retain their IDs and require an operator-issued password reset.
 
 ============================================================
 📚 Useful Commands

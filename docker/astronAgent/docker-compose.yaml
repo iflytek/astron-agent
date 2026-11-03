@@ -522,7 +522,6 @@ services:
       MYSQL_USER: "${MYSQL_USER:-root}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
       CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
-      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -652,7 +651,6 @@ services:
       MYSQL_USER: "${MYSQL_USER:-root}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
       CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
-      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -808,11 +806,9 @@ services:
   console-frontend:
     image: ghcr.io/iflytek/astron-agent/console-frontend:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-console-frontend
-    environment:
-      CONSOLE_CASDOOR_URL: "${CONSOLE_CASDOOR_URL:-}"
-      CONSOLE_CASDOOR_ID: "${CONSOLE_CASDOOR_ID:-}"
-      CONSOLE_CASDOOR_APP: "${CONSOLE_CASDOOR_APP:-}"
-      CONSOLE_CASDOOR_ORG: "${CONSOLE_CASDOOR_ORG:-}"
+    build:
+      context: ../..
+      dockerfile: console/frontend/Dockerfile
     expose:
       - "1881"
     networks:
@@ -823,16 +819,23 @@ services:
   console-hub:
     image: ghcr.io/iflytek/astron-agent/console-hub:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-console-hub
+    build:
+      context: ../..
+      dockerfile: console/backend/Dockerfile
     # Map container's localhost to host machine, to access MinIO and other services from both inside and outside the container
     extra_hosts:
       - "localhost:host-gateway"
     environment:
-      CONSOLE_CASDOOR_URL: "${CONSOLE_CASDOOR_URL:-}"
-      CONSOLE_CASDOOR_ID: "${CONSOLE_CASDOOR_ID:-}"
-      CONSOLE_CASDOOR_APP: "${CONSOLE_CASDOOR_APP:-}"
-      CONSOLE_CASDOOR_ORG: "${CONSOLE_CASDOOR_ORG:-}"
-      CONSOLE_DOMAIN: "${CONSOLE_DOMAIN:-https://your.deployment.domain}"
-      MYSQL_URL: "${MYSQL_URL:-jdbc:mysql://mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true}"
+      CONSOLE_RUN_MIGRATIONS: "${CONSOLE_RUN_MIGRATIONS:-true}"
+      CONSOLE_SECRET_KEY: "${CONSOLE_SECRET_KEY:?Set a persistent random Console key of at least 50 characters}"
+      CONSOLE_ALLOWED_HOSTS: "${CONSOLE_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      CONSOLE_PUBLIC_ORIGIN: "${CONSOLE_PUBLIC_ORIGIN:-https://your.deployment.domain}"
+      CONSOLE_CSRF_TRUSTED_ORIGINS: "${CONSOLE_CSRF_TRUSTED_ORIGINS:-}"
+      CONSOLE_COOKIE_SECURE: "${CONSOLE_COOKIE_SECURE:-true}"
+      CONSOLE_TRUSTED_PROXIES: "${CONSOLE_TRUSTED_PROXIES:-}"
+      MYSQL_HOST: "${MYSQL_HOST:-mysql}"
+      MYSQL_PORT: "${MYSQL_PORT:-3306}"
+      CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
       MYSQL_USER: "${MYSQL_USER:-root}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
       REDIS_HOST: "${REDIS_HOST:-redis}"
@@ -845,9 +848,6 @@ services:
       OSS_ACCESS_KEY_SECRET: "${OSS_ACCESS_KEY_SECRET:-${MINIO_ROOT_PASSWORD:-minioadmin123}}"
       OSS_BUCKET_CONSOLE: "${OSS_BUCKET_CONSOLE:-console-oss}"
       OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE: "${OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE:-600}"
-      OAUTH2_ISSUER_URI: "${OAUTH2_ISSUER_URI:-http://auth-server:8000}"
-      OAUTH2_JWK_SET_URI: "${OAUTH2_JWK_SET_URI:-http://auth-server:8000/.well-known/jwks}"
-      OAUTH2_AUDIENCE: "${OAUTH2_AUDIENCE:-your-oauth2-client-id}"
       WECHAT_COMPONENT_APPID: "${WECHAT_COMPONENT_APPID:-your-wechat-component-appid}"
       WECHAT_COMPONENT_SECRET: "${WECHAT_COMPONENT_SECRET:-your-wechat-component-secret}"
       WECHAT_TOKEN: "${WECHAT_TOKEN:-your-wechat-token}"

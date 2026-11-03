@@ -14,6 +14,7 @@ globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
   hidden: false,
+  cookie: 'astron_csrf=current-csrf-token',
 };
 globalThis.window = {
   clearTimeout: globalThis.clearTimeout,
@@ -74,7 +75,6 @@ const captureRequest = async (path, getContext) => {
 test('all chat SSE requests use the latest team-space context', async () => {
   let currentContext = {
     languageCode: 'zh-CN',
-    accessToken: 'old-token',
     spaceId: '',
     spaceType: 'personal',
     enterpriseId: '',
@@ -83,7 +83,6 @@ test('all chat SSE requests use the latest team-space context', async () => {
 
   currentContext = {
     languageCode: 'en-US',
-    accessToken: 'latest-token',
     spaceId: '42',
     spaceType: 'team',
     enterpriseId: '7',
@@ -95,7 +94,8 @@ test('all chat SSE requests use the latest team-space context', async () => {
     assert.equal(request.input, path);
     assert.equal(request.headers.get('accept'), 'text/event-stream');
     assert.equal(request.headers.get('accept-language'), 'en-US');
-    assert.equal(request.headers.get('authorization'), 'Bearer latest-token');
+    assert.equal(request.headers.get('authorization'), null);
+    assert.equal(request.headers.get('x-csrftoken'), 'current-csrf-token');
     assert.equal(request.headers.get('space-id'), '42');
     assert.equal(request.headers.get('enterprise-id'), '7');
   }
@@ -104,7 +104,6 @@ test('all chat SSE requests use the latest team-space context', async () => {
 test('non-team SSE requests omit stale enterprise context', async () => {
   const request = await captureRequest('/chat-message/chat', () => ({
     languageCode: 'zh-CN',
-    accessToken: 'test-token',
     spaceId: '42',
     spaceType: 'personal',
     enterpriseId: 'stale-enterprise',
@@ -117,7 +116,6 @@ test('non-team SSE requests omit stale enterprise context', async () => {
     '/chat-message/re-answer',
     () => ({
       languageCode: 'zh-CN',
-      accessToken: 'test-token',
       spaceId: '',
       spaceType: 'personal',
       enterpriseId: '',

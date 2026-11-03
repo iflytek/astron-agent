@@ -25,7 +25,7 @@ This page summarizes the most important configuration domains so you can quickly
 
 ### Authentication And Security
 
-- Casdoor and identity integration
+- Internal username/password accounts and session configuration
 - Environment variable management
 - Secret injection and permission boundaries in production
 

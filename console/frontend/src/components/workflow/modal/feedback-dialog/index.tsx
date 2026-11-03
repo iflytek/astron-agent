@@ -18,7 +18,7 @@ import classNames from 'classnames';
 import { createFeedback } from '@/services/common';
 import styles from './index.module.scss';
 import i18next from 'i18next';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 const { TextArea } = Input;
 
@@ -217,7 +217,7 @@ const FeedbackDialog: React.FC<FeedbackModalProps> = props => {
     name: 'file',
     action: getFixedUrl('/image/upload'),
     headers: {
-      Authorization: getAuthorization(),
+      'X-CSRFToken': getCsrfToken(),
     },
     accept: '.png,.jpg,.jpeg',
     multiple: true,

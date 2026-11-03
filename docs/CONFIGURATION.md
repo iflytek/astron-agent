@@ -13,9 +13,7 @@ Before deploying with Docker Compose, the following environment variables **must
 
 **Key Configuration Items Overview**:
 
-- **Casdoor Authentication Configuration** (requires Casdoor service deployment):
-  - `CONSOLE_CASDOOR_URL`, `CONSOLE_CASDOOR_ID`
-  - `CONSOLE_CASDOOR_APP`, `CONSOLE_CASDOOR_ORG`
+- **Python Console accounts**: see [configuration and migration](../console/backend/README.md).
 
 - **Host Address Configuration**:
   - `HOST_BASE_ADDRESS` - Set to your server address or domain name
@@ -167,14 +165,9 @@ See the [Langfuse observability guide](/guide/observability) for privacy behavio
 
 ---
 
-## 4. Authentication Configuration Module (Casdoor)
+## 4. Python Console accounts
 
-| Variable Name | Configuration Type | Type | Description | Example Value |
-|---------------|-------------------|------|-------------|---------------|
-| CONSOLE_CASDOOR_URL | User Required | url | Casdoor authentication server address | http://your-casdoor-server:8000 |
-| CONSOLE_CASDOOR_ID | User Required | string | Casdoor OAuth2 client ID | astron-agent-client |
-| CONSOLE_CASDOOR_APP | User Required | string | Casdoor application name | astron-agent-app |
-| CONSOLE_CASDOOR_ORG | User Required | string | Casdoor organization name | built-in |
+See [Python Console configuration](../console/backend/README.md) for the required persistent secret, public origin, allowed hosts, secure cookies, database and Redis settings. Registration uses username/password. Existing users retain their UID and require an operator-issued password reset.
 
 ---
 
@@ -301,9 +294,6 @@ no manual configuration change is required. To explicitly disable Code nodes, se
 | OSS_BUCKET_CONSOLE | Required | string | Object storage bucket name used by Console | console-oss |
 | OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE | Required | int | Console presigned URL expiration time (seconds) | 600 |
 | REDIS_DATABASE_CONSOLE | Required | int | Redis database index used by Console | 1 |
-| OAUTH2_ISSUER_URI | Required | url | OAuth2 issuer URI (defaults from CONSOLE_CASDOOR_URL) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000} |
-| OAUTH2_JWK_SET_URI | Required | url | OAuth2 JWK key set URI (defaults from CONSOLE_CASDOOR_URL) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000}/.well-known/jwks |
-| OAUTH2_AUDIENCE | Required | string | OAuth2 audience identifier (defaults from CONSOLE_CASDOOR_ID) | ${CONSOLE_CASDOOR_ID:-your-oauth2-client-id} |
 | WECHAT_COMPONENT_APPID | Optional | string | WeChat third-party platform AppID | your-wechat-component-appid |
 | WECHAT_COMPONENT_SECRET | Optional | string | WeChat third-party platform Secret | your-wechat-secret |
 | WECHAT_TOKEN | Optional | string | WeChat message verification Token | your-wechat-token |

@@ -12,7 +12,7 @@
 
 ## 启动时提示端口被占用 (Port occupied)？
 
-1. 检查端口: 默认使用8000（Casdoor），80（Nginx），18998（MINIO) 等端口。
+1. 检查端口: 默认使用80（Nginx），18998（MINIO) 等端口。
 2. 修改配置: 在 .env  文件中修改冲突服务的端口映射。
 3. Docker冲突: 确保没有旧的容器在运行。尝试 docker compose down 清理后再启动。
 
@@ -42,22 +42,15 @@ docker compose down -v 清空数据重新初始化（慎用，会删除所有数
 
 建议使用 Docker Desktop 4.x 及以上版本，最好使用最新的稳定版，以避免 API 版本不匹配等兼容性问题。
 
-## 启动时遇到 request returned 500 Internal Server Error  报错？
+## 启动时遇到 500 Internal Server Error？
 
-这通常是环境状态不一致导致的，请尝试以下步骤：
-1. 备份重要数据。
-2. 执行 docker compose -f docker-compose-with-auth.yaml down -v 清理容器和
-数据卷（注意：此步骤会删除数据）。
-3. 运行 git restore docker 恢复 docker 目录下的文件修改。
-4. 检查环境变量 ASTRON_AGENT_VERSION 是否设置为稳定版（如 v1.0.0-rc.x ）。
-5. 重新执行 docker compose -f docker-compose-with-auth.yaml up -d  启动服务。
-6. 清理浏览器缓存或使用无痕模式访问。
+先查看 Console 日志与健康状态，检查数据库、Redis、密钥和公开 origin 配置。当前前后端必须由同一迁移分支构建；旧账号导入有冲突时按错误信息提供显式用户名映射。不要清空数据卷或重新初始化业务表。详见 [Python Console 运维说明](../console/backend/README.md)。
 
 ## 如何正确修改默认端口（80）？
 
 在 `.env` 文件中修改 `EXPOSE_NGINX_PORT` 等相关端口配置，然后重建容器生效（`docker compose down` 后 `docker compose up -d`）。
 
-注意：如果同时启用了认证，修改端口后还要同步更新 Casdoor 应用的回调地址，否则登录会因为 `redirect_uri` 不匹配而失败，详见[配置与认证 FAQ](config.md)。
+修改访问端口后，同步更新内部账号的公开 origin、允许主机与代理配置，详见[配置与认证 FAQ](config.md)。
 
 ## 为什么用了 `latest` 镜像却不是最新的？如何切换镜像版本？
 
@@ -74,17 +67,11 @@ Docker 的 `latest` 标签只在本地没有该镜像时才会真正去拉取，
 
 ## 项目重启后用户数据丢失？
 
-本项目的身份认证系统采用开源框架 Casdoor。如果重启后出现用户数据丢失，请检查 Casdoor 的配置文件 `docker/astronAgent/casdoor/conf/app.conf` 中的 `initDataNewOnly`：
-
-- 该值必须为 `true`。
-- 如果为 `false`，Casdoor 每次重启都会重新初始化，用户 ID 会发生变化，从而导致关联的用户数据丢失。
+检查 Console 数据库连接是否指向原实例，数据卷是否持久化，以及所有副本是否使用同一持久密钥。旧用户导入保持 UID，不重新初始化业务表；不要删除数据卷或运行旧 Flyway 初始化。参考 [Python Console 运维说明](../console/backend/README.md)。
 
 ## 打开 RPA 客户端卡在加载界面？
 
-1. 先检查 RPA 服务端各组件是否正常启动、有无异常退出。
-2. 再检查 RPA 客户端安装目录下 `resources` 目录中的 conf 配置文件，确认 `remote_addr` 指向的 RPA 服务端 nginx 地址和端口填写正确（端口默认为 `32742`），并确保该地址端口可以正常访问。
-
-![RPA 客户端 conf 配置示例](assets/rpa_client_loading_conf.png)
+当前 Console 身份迁移不包含外部 RPA 身份系统；Agent 与 RPA 联合集成暂不可用，将在发布与渠道阶段恢复。
 
 ## Astron RPA 客户端支持国产信创或麒麟系统吗？
 

@@ -52,6 +52,8 @@ Astron Agent は、**エンタープライズグレードで商用利用可能**
 
 ### 方法1: Docker Compose（クイックスタートに推奨）
 
+> このブランチは Python Console への段階的な移行中で、現在はアカウント機能を提供します。起動前に [設定と既存ユーザーの移行](../../console/backend/README.md) を確認してください。新規ユーザーは `/register` で登録し、既存ユーザーは UID を維持して管理者発行のリンクからパスワードを再設定します。既定の管理者パスワードはありません。未移行の業務機能と RPA 統合は一時的に利用できません。
+
 ```bash
 # リポジトリをクローン
 git clone https://github.com/iflytek/astron-agent.git
@@ -66,25 +68,19 @@ cp .env.example .env
 vim .env
 ```
 
-環境変数の設定については、ドキュメントを参照してください：[DEPLOYMENT_GUIDE_WITH_AUTH.md](https://github.com/iflytek/astron-agent/blob/main/docs/DEPLOYMENT_GUIDE_WITH_AUTH.md#step-2-configure-astronagent-environment-variables)
+環境変数の設定については、ドキュメントを参照してください：[DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md)
 
 ```bash
-# すべてのサービスを起動（Casdoor を含む）
-docker compose -f docker-compose-with-auth.yaml up -d
+docker compose -f docker-compose.yaml up -d --build
 ```
 
 #### 📊 サービスアクセスアドレス
 
 起動後、以下のアドレスでサービスにアクセスできます：
 
-**認証サービス**
-- **Casdoor 管理画面**: http://localhost:8000
 
 **AstronAgent**
 - **アプリケーションフロントエンド（nginx プロキシ）**: http://localhost/
-
-**注意**
-- Casdoor デフォルトログイン情報: ユーザー名: `admin`、パスワード: `123`
 
 ### 方法2: Helm（Kubernetes 環境向け）
 

@@ -46,7 +46,11 @@ export default function App(): ReactElement {
 
   useEffect(() => {
     const pathname = window.location.pathname.replace(/\/+$/, '');
-    if (pathname === '/callback') return; // 避免在回调页时发起鉴权相关请求
+    if (
+      ['/login', '/register', '/reset-password', '/account'].includes(pathname)
+    ) {
+      return;
+    }
     getUserInfo();
     initSpaceInfo();
     getEnterpriseSpaceCount();

@@ -1095,7 +1095,7 @@ printf '%s\\n' '{LEGACY_TENANT_SECRET}' > /secrets/tenant/tenant-secret
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     default_compose_file = (
-        Path(__file__).resolve().parent.parent / "docker-compose-with-auth.yaml"
+        Path(__file__).resolve().parent.parent / "docker-compose.yaml"
     )
     parser = argparse.ArgumentParser(
         description="Verify sandbox credential and health contracts in rendered Compose JSON."
@@ -1104,7 +1104,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "--compose-file",
         type=Path,
         default=default_compose_file,
-        help="Compose entrypoint (default: docker-compose-with-auth.yaml next to scripts/)",
+        help="Compose entrypoint (default: docker-compose.yaml next to scripts/)",
     )
     parser.add_argument(
         "--exercise-credential-lifecycle",

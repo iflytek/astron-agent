@@ -16,7 +16,7 @@ import { ColumnsType, TableProps } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import JsonMonacoEditor from '@/components/monaco-editor/json-monaco-editor';
-import { getAuthorization, getFixedUrl } from '../../utils';
+import { getCsrfToken, getFixedUrl } from '../../utils';
 import { isJSON } from '@/utils';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 
@@ -132,7 +132,7 @@ export const ModalRpaRun = forwardRef<{
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
         'X-RPA-Token': currentRobot?.apiKey || '',
-        Authorization: getAuthorization(),
+        'X-CSRFToken': getCsrfToken(),
       },
       signal: controller.signal,
       body: JSON.stringify({

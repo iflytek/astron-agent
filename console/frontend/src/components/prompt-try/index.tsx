@@ -296,7 +296,6 @@ const PromptTry = forwardRef<
           const { spaceId, spaceType, enterpriseId } = useSpaceStore.getState();
           return {
             languageCode: getLanguageCode(),
-            accessToken: localStorage.getItem('accessToken'),
             spaceId,
             spaceType,
             enterpriseId,

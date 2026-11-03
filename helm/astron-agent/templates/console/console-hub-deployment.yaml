@@ -92,12 +92,32 @@ spec:
         image: "{{ .Values.global.imageRegistry }}/{{ .Values.consoleHub.image }}:{{ .Values.global.astronAgentVersion }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         env:
+        - name: CONSOLE_RUN_MIGRATIONS
+          value: {{ .Values.consoleHub.runMigrations | quote }}
+        - name: CONSOLE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "consoleHub.auth.existingSecret is required" .Values.consoleHub.auth.existingSecret | quote }}
+              key: {{ .Values.consoleHub.auth.secretKey | quote }}
+        - name: CONSOLE_ALLOWED_HOSTS
+          value: {{ .Values.consoleHub.auth.allowedHosts | quote }}
+        - name: CONSOLE_PUBLIC_ORIGIN
+          value: {{ .Values.consoleHub.auth.publicOrigin | quote }}
+        - name: CONSOLE_CSRF_TRUSTED_ORIGINS
+          value: {{ .Values.consoleHub.auth.csrfTrustedOrigins | quote }}
+        - name: CONSOLE_COOKIE_SECURE
+          value: {{ .Values.consoleHub.auth.cookieSecure | quote }}
+        - name: CONSOLE_TRUSTED_PROXIES
+          value: {{ .Values.consoleHub.auth.trustedProxies | quote }}
         {{- range $key, $value := .Values.consoleHub.env }}
-        {{- if or (eq $key "consoleCasdoorUrl") (eq $key "oauth2IssuerUri") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ printf "%s:%d" $.Values.global.hostBaseAddress ($.Values.casdoor.service.nodePort | int) | quote }}
+        {{- if eq $key "mysqlHost" }}
+        - name: MYSQL_HOST
+          value: {{ default (printf "%s-mysql" (include "astron-agent.fullname" $)) $value | quote }}
+        {{- else if eq $key "redisHost" }}
+        - name: REDIS_HOST
+          value: {{ printf "%s-redis" (include "astron-agent.fullname" $) | quote }}
         {{- else if eq $key "consoleDomain" }}
-        - name: {{ upper (snakecase $key) }}
+        - name: CONSOLE_DOMAIN
           value: {{ $.Values.global.hostBaseAddress | quote }}
         {{- else if eq $key "ossEndpoint" }}
         - name: {{ upper (snakecase $key) }}

@@ -1,0 +1,28 @@
+[project]
+name = "astron-console"
+version = "0.1.0"
+description = "Astron Agent Python control plane"
+requires-python = ">=3.11"
+dependencies = [
+  "Django>=5.2.18,<5.3",
+  "argon2-cffi>=25.1,<26",
+  "redis>=5,<7",
+  "uvicorn>=0.34,<1",
+]
+
+[project.optional-dependencies]
+mysql = ["mysqlclient>=2.2.7,<3"]
+
+[dependency-groups]
+dev = ["ruff>=0.11,<1", "coverage>=7.6,<8"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+include = ["astron_console/**/*.py", "manage.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/migrations/*.py" = ["E501"]

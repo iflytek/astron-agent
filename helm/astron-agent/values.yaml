@@ -190,34 +190,6 @@ minio:
     timeout: 10
     retries: 60
 
-# Authentication Services
-casdoor:
-  enabled: true
-  image: casbin/casdoor:v2.67.0
-  replicaCount: 1
-  resources:
-    requests:
-      memory: "256Mi"
-      cpu: "250m"
-    limits:
-      memory: "1Gi"
-      cpu: "1000m"
-  service:
-    type: NodePort
-    port: 8000
-    nodePort: 30800
-  env:
-    ginMode: release
-  mysql:
-    database: casdoor
-    username: casdoor
-    password: casdoor123
-    rootPassword: casdoor_root123
-  persistence:
-    logs:
-      enabled: true
-      size: 5Gi
-
 # Core Services
 coreTenant:
   enabled: true
@@ -358,7 +330,9 @@ coreAitools:
     mysqlUser: "root"
     mysqlPassword: ""
     consoleMysqlDb: "astron_console"
-    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true"
+    mysqlHost: ""
+    mysqlPort: 3306
+    consoleMysqlDb: astron_console
 
 coreAgent:
   enabled: true
@@ -513,13 +487,19 @@ consoleFrontend:
   service:
     type: ClusterIP
     port: 1881
-  env:
-    casdoorId: "astron-agent-client"
-    casdoorApp: "astron-agent-app"
-    casdoorOrg: "built-in"
+  env: {}
 
 consoleHub:
   enabled: true
+  runMigrations: true
+  auth:
+    existingSecret: astron-console-auth
+    secretKey: secret-key
+    allowedHosts: localhost,127.0.0.1
+    publicOrigin: https://your.deployment.domain
+    csrfTrustedOrigins: ""
+    cookieSecure: true
+    trustedProxies: ""
   image: console-hub
   replicaCount: 1
   # Internal service credentials. Leave token and existingSecret empty to let
@@ -552,14 +532,11 @@ consoleHub:
     type: ClusterIP
     port: 8080
   env:
-    # Casdoor Configuration
-    consoleCasdoorUrl: ""
-    consoleCasdoorId: "astron-agent-client"
-    consoleCasdoorApp: "astron-agent-app"
-    consoleCasdoorOrg: "built-in"
     consoleDomain: ""
     # MySQL Configuration
-    mysqlUrl: "jdbc:mysql://astron-agent-mysql:3306/astron_console?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&createDatabaseIfNotExist=true"
+    mysqlHost: ""
+    mysqlPort: 3306
+    consoleMysqlDb: astron_console
     mysqlUser: root
     mysqlPassword: ""
     # Redis Configuration
@@ -582,9 +559,6 @@ consoleHub:
     skillSandboxArtifactMaxActiveFilesPerWorkflow: 1000
     skillSandboxArtifactMaxActiveTotalSizePerWorkflow: 1GB
     skillSandboxArtifactAllowedExtensions: "txt,md,csv,json,pdf,png,jpg,jpeg,gif,webp,doc,docx,xls,xlsx,ppt,pptx,zip"
-    oauth2IssuerUri: ""
-    oauth2JwkSetUri: "http://astron-agent-casdoor:8000/.well-known/jwks"
-    oauth2Audience: astron-agent-client
     # Tenant Configuration (Important!)
     tenantId: "680ab54f"
     tenantKey: ""
