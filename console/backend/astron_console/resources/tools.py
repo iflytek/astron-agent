@@ -15,6 +15,7 @@ from astron_console.spaces.permissions import require_resource_access, scope_que
 
 from . import clients
 from .common import (
+    UpstreamError,
     http_url,
     number,
     owned,
@@ -248,7 +249,6 @@ def save(request, pk=None):
     info = {
         "name": row.name,
         "description": row.description,
-        "version": version,
         "schema_type": 0,
         "openapi_schema": base64.b64encode(
             json.dumps(schema, ensure_ascii=False).encode()
@@ -256,6 +256,7 @@ def save(request, pk=None):
     }
     if row.tool_id:
         info["id"] = row.tool_id
+        info["version"] = version
     result = clients.call(
         "RESOURCE_TOOL_URL",
         "PUT" if row.tool_id else "POST",
@@ -265,13 +266,26 @@ def save(request, pk=None):
             "payload": {"tools": [info]},
         },
     )
-    if not isinstance(result, dict) or not result.get("tools") or not result["tools"][0].get("id"):
-        raise ValidationError("工具服务未返回工具ID")
     if row.tool_id:
-        # A new core version gets a new local row; previous workflow references stay valid.
+        # Core PUT acknowledges the requested version with data.result, not tools[].
+        # Keep the remote identity and add a local row so old workflow references survive.
         row.pk = None
         row.create_time = timezone.now()
-    row.tool_id = result["tools"][0]["id"]
+    else:
+        created = result.get("tools") if isinstance(result, dict) else None
+        if (
+            not isinstance(created, list)
+            or len(created) != 1
+            or not isinstance(created[0], dict)
+            or any(
+                not isinstance(created[0].get(key), str) or not created[0][key].strip()
+                for key in ("id", "version")
+            )
+        ):
+            raise UpstreamError("工具服务未返回工具ID和版本")
+        row.tool_id = created[0]["id"]
+        # CreateInfo has no version field; the creation response is authoritative.
+        version = created[0]["version"]
     row.version = version
     row.schema = json.dumps(schema, ensure_ascii=False)
     row.auth_info = json.dumps(credentials[0] if credentials else {})
@@ -283,7 +297,7 @@ def save(request, pk=None):
     row.status = 1
     row.update_time = timezone.now()
     row.save()
-    logger.info("Tool synchronized id=%s remote=%s", row.id, row.tool_id)
+    logger.info("Tool synchronized id=%s remote=%s version=%s", row.id, row.tool_id, row.version)
     return data(row)
 
 

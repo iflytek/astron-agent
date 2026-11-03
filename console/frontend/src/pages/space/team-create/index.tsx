@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useMemo } from 'react';
 import { Button, Input, message } from 'antd';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -78,7 +79,10 @@ const TeamCreate: React.FC = () => {
       await getJoinedEnterpriseList();
       handleTeamSwitch(res);
     } catch (error: any) {
-      message.error(error?.message || error?.msg || textConfig.createFailedTip);
+      shouldShowRequestError(error) &&
+        message.error(
+          error?.message || error?.msg || textConfig.createFailedTip
+        );
     } finally {
       setLoading(false);
     }

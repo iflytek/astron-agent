@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React from 'react';
 import { Modal, message } from 'antd';
 import ButtonGroup from '@/components/button-group/button-group';
@@ -33,7 +34,7 @@ const DeleteSpaceModal: React.FC<DeleteSpaceModalProps> = ({
       deleteSpaceCb();
       onSubmit();
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
     }
   };
 

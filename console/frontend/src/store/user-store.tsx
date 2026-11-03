@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getUserInfoMe } from '@/services/login';
+import useSpaceStore from './space-store';
 import { SpaceType, RoleType, EnterpriseServiceType } from '@/types/permission';
 
 export interface User {
@@ -17,17 +18,21 @@ export interface User {
   spaceType?: SpaceType;
   roleType?: RoleType;
   spaceId?: string;
+  enterpriseId?: string;
   enterpriseServiceType?: EnterpriseServiceType;
   [key: string]: unknown;
 }
 
 export interface UserState {
   user: User;
-  getUserInfo: () => void;
+  getUserInfo: () => Promise<void>;
+  resetUser: () => void;
+  clearUserRole: () => void;
   setUserRole: (
     _spaceType: SpaceType,
     _roleType: RoleType,
-    _spaceId?: string
+    _spaceId?: string,
+    _enterpriseId?: string
   ) => void;
   getUserRole: () => {
     spaceType: SpaceType;
@@ -39,6 +44,8 @@ export interface UserState {
   getIsLogin: () => boolean;
 }
 
+let profileRequest = 0;
+
 const useUserStore = create<UserState>((set, get) => ({
   // 初始状态
   user: {} as User,
@@ -48,24 +55,57 @@ const useUserStore = create<UserState>((set, get) => ({
   },
   // 操作方法
   getUserInfo: async (): Promise<void> => {
+    const request = ++profileRequest;
     try {
       const userData = await getUserInfoMe();
-      set({ user: userData });
+      if (request !== profileRequest) return;
+      set(state => ({
+        user: {
+          ...userData,
+          // A profile refresh must not erase the role loaded for this account.
+          ...(state.user.uid === userData.uid
+            ? {
+                spaceType: state.user.spaceType,
+                roleType: state.user.roleType,
+                spaceId: state.user.spaceId,
+                enterpriseId: state.user.enterpriseId,
+              }
+            : {}),
+        },
+      }));
     } catch (error) {
       console.error('获取用户信息失败', error);
     }
   },
+  resetUser: (): void => {
+    profileRequest += 1;
+    set({ user: {} as User });
+  },
+  clearUserRole: (): void => {
+    set(state => ({
+      user: {
+        ...state.user,
+        spaceType: undefined,
+        roleType: undefined,
+        spaceId: undefined,
+        enterpriseId: undefined,
+      },
+    }));
+  },
   setUserRole: (
     _spaceType: SpaceType,
     _roleType: RoleType,
-    _spaceId?: string
+    _spaceId?: string,
+    _enterpriseId?: string
   ): void => {
+    if (!get().user.uid) return;
     set((state: UserState) => ({
       user: {
         ...state.user,
         spaceType: _spaceType,
         roleType: _roleType,
         spaceId: _spaceId,
+        enterpriseId: _enterpriseId,
       },
     }));
   },
@@ -77,7 +117,14 @@ const useUserStore = create<UserState>((set, get) => ({
     userId?: string | undefined;
   } | null => {
     const { user } = get();
-    if (!user.spaceType || !user.roleType) {
+    const selected = useSpaceStore.getState();
+    if (
+      !user.uid ||
+      !user.spaceType ||
+      !user.roleType ||
+      (user.spaceId || '') !== selected.spaceId ||
+      (user.enterpriseId || '') !== selected.enterpriseId
+    ) {
       return null;
     }
     return {

@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useState,
   forwardRef,
@@ -191,7 +192,7 @@ const TestTable = forwardRef<
         updateSelectRows([String(row.id || '')]);
       })
       .catch((error: ResponseBusinessError) => {
-        message.error(error.message);
+        shouldShowRequestError(error) && message.error(error.message);
       });
   };
 

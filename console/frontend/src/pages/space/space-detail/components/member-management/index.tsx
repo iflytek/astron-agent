@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { shouldShowRequestError } from '@/utils/http-error';
+import React, { useCallback, useRef } from 'react';
 import { Select, message, Modal } from 'antd';
-import { UserOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useSpaceI18n } from '@/pages/space/hooks/use-space-i18n';
 import SpaceTable, {
@@ -36,7 +36,7 @@ interface Member {
   role: string;
   createTime: string;
   avatar?: string;
-  uid: number;
+  uid: string;
 }
 
 interface MemberManagementProps {
@@ -75,7 +75,7 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
         success: true,
       };
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
       return {
         data: [],
         total: 0,
@@ -84,7 +84,7 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
     }
   };
 
-  const handleDeleteMember = (uid: number, username: string) => {
+  const handleDeleteMember = (uid: string, username: string) => {
     Modal.confirm({
       title: t('space.confirmDelete'),
       content: t('space.confirmDeleteMember', { username }),
@@ -92,31 +92,31 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
       cancelText: t('space.cancel'),
       onOk: async () => {
         try {
-          // 模拟API调用
           await deleteUser({ uid: uid });
           tableRef.current?.reload();
           message.success(t('space.deleteSuccess'));
         } catch (error: any) {
-          message.error(error?.msg || error?.desc);
+          shouldShowRequestError(error) &&
+            message.error(error?.msg || error?.desc);
         }
       },
     });
   };
 
-  const handleRoleChange = async (uid: number, newRole: string) => {
+  const handleRoleChange = async (uid: string, newRole: string) => {
     try {
       await updateUserRole({ uid: uid, role: Number(newRole) });
       message.success(t('space.roleUpdateSuccess'));
 
       // 判断如果是操作自己，则刷新页面
-      if (Number(uid) === Number(user?.uid)) {
+      if (String(uid) === String(user?.uid)) {
         window.location.reload();
       } else {
         // 刷新表格数据
         tableRef.current?.reload();
       }
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
     }
   };
 
@@ -146,15 +146,13 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
         // danger: true,
         permission: {
           module: ModuleType.SPACE,
-          operation: OperationType.ADD_MEMBERS,
+          operation: OperationType.REMOVE_MEMBERS,
           customCheck: () => {
             return !!(
-              member.role != OWNER_ROLE &&
-              permissionInfo?.checks.canRemoveMembers(ModuleType.SPACE) &&
-              !permissionInfo?.checks.canDeleteResource(
-                ModuleType.SPACE,
-                `${member.uid}`
-              )
+              String(member.uid) !== user.uid &&
+              Number(roleTypeToRole(permissionInfo?.userRole.roleType)) <
+                Number(member.role) &&
+              permissionInfo?.checks.canRemoveMembers(ModuleType.SPACE)
             );
           },
         },
@@ -184,6 +182,9 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
       render: (role: string, record: Member) => {
         const showText =
           role == OWNER_ROLE ||
+          String(record.uid) === user.uid ||
+          Number(roleTypeToRole(permissionInfo?.userRole.roleType)) >=
+            Number(role) ||
           !permissionInfo?.checks.hasModulePermission(
             ModuleType.SPACE,
             OperationType.MODIFY_MEMBER_PERMISSIONS

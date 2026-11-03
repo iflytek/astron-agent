@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useState,
   useEffect,
@@ -99,7 +100,8 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
           }));
           setUserList(users);
         } catch (error: any) {
-          message.error(error?.msg || error?.desc);
+          shouldShowRequestError(error) &&
+            message.error(error?.msg || error?.desc);
           setUserList([]);
         } finally {
           setLoading(false);

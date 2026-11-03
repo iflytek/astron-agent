@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useMemo } from 'react';
 import { Modal, Button, message } from 'antd';
 import styles from './index.module.scss';
@@ -54,7 +55,7 @@ const LeaveTeamModal: React.FC<LeaveTeamModalProps> = ({
         }
       });
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
     }
   };
 

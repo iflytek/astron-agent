@@ -373,13 +373,19 @@ axios.interceptors.response.use(
     }
     return result.data;
   },
-  (err: AxiosError) => {
-    removePendingRequest(err.config || {}); // 从pendingRequest对象中移除请求
-    if (axios.isCancel(err)) {
-      // eslint-disable-next-line no-console
-      console.warn(`已取消的重复请求：${err.message}`);
+  (reason: unknown) => {
+    if (axios.isCancel(reason)) {
+      return Promise.reject(reason);
     }
-    return Promise.reject(initServerError(err)); //处理服务器错误如400，401，404等
+    const err = reason as AxiosError;
+    removePendingRequest(err.config); // 从pendingRequest对象中移除请求
+    const error = initServerError(err);
+    // HTTP failures follow the same global feedback path as business errors.
+    // Authentication failures are handled by the login redirect above.
+    if (err.response && err.response.status !== 401) {
+      message.error(error.message);
+    }
+    return Promise.reject(error);
   }
 );
 

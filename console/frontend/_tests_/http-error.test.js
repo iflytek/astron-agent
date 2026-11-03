@@ -16,14 +16,19 @@ test('publish business failures are displayed only by the HTTP interceptor', () 
   );
 });
 
-test('network, authentication and local failures still need a caller toast', () => {
+test('network and local failures still need a caller toast', () => {
   for (const error of [
     { code: 100, message: '网络错误' },
-    { code: 101, message: '尚未登录' },
     new Error('发布失败'),
     { message: '发布失败' },
     null,
   ]) {
     assert.equal(shouldShowRequestError(error), true);
+  }
+});
+
+test('HTTP failures and authentication redirects need no second caller toast', () => {
+  for (const code of [400, 403, 502, 101]) {
+    assert.equal(shouldShowRequestError({ code, message: '请求失败' }), false);
   }
 });

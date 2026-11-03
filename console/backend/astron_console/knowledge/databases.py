@@ -5,6 +5,7 @@ import json
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from itertools import count
 
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
@@ -20,6 +21,8 @@ from sqlalchemy import (
     MetaData,
     String,
     Table,
+    bindparam,
+    cast,
     delete,
     func,
     insert,
@@ -29,7 +32,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects import mysql, postgresql
 from sqlalchemy.engine import BindTyping
 from sqlalchemy.schema import CreateTable, DropTable
-from sqlalchemy.sql.elements import quoted_name
+from sqlalchemy.sql import visitors
+from sqlalchemy.sql.elements import BindParameter, quoted_name
 
 from astron_console.http import api_endpoint
 from astron_console.spaces.permissions import resolve_scope, scope_queryset
@@ -90,17 +94,40 @@ def ddl(request, db, statement):
     return clients.database("exec_ddl", {**core_payload(db, request), "ddl": sql.rstrip(";\n ")})
 
 
-def dml(request, db, statement, env):
-    env = number(env, 1)
-    if env not in (1, 2):
-        raise ValidationError("请选择测试或生产环境")
+def compile_dml(statement):
+    # Core adds param_N binds for UID isolation. Rename every Console bind,
+    # including pagination and column-derived names, before SQL compilation.
+    sequence = count()
+
+    def replace_bind(element):
+        if isinstance(element, BindParameter):
+            is_time = isinstance(element.type, DateTime)
+            parameter = bindparam(
+                f"console_value_{next(sequence)}",
+                value=element.value,
+                type_=String() if is_time else element.type,
+                callable_=element.callable,
+                required=element.required,
+                expanding=element.expanding,
+            )
+            # JSON transports timestamps as strings. Core executes untyped text(),
+            # so PostgreSQL must bind text before converting it to a timestamp.
+            return cast(cast(parameter, String()), element.type) if is_time else parameter
+        return None
+
+    statement = visitors.replacement_traverse(statement, {}, replace_bind)
     transport_dialect = dialect()
     # Core receives textual SQL and binds params itself; driver-specific ::TYPE casts
     # obscure the named placeholders when Core parses that text a second time.
     transport_dialect.bind_typing = BindTyping.NONE
-    compiled = statement.compile(
-        dialect=transport_dialect, compile_kwargs={"render_postcompile": True}
-    )
+    return statement.compile(dialect=transport_dialect, compile_kwargs={"render_postcompile": True})
+
+
+def dml(request, db, statement, env):
+    env = number(env, 1)
+    if env not in (1, 2):
+        raise ValidationError("请选择测试或生产环境")
+    compiled = compile_dml(statement)
     data = clients.database(
         "exec_dml",
         {
@@ -351,11 +378,17 @@ def operate_rows(request, row, db, operations, env):
                 for name, field in fields.items():
                     if name not in data:
                         data[name] = convert(None, field)
-                statement = insert(schema).values(**data)
-            else:
-                if not data:
-                    raise ValidationError("没有需要修改的数据")
-                statement = update(schema).where(schema.c.id == row_id).values(**data)
+            elif not data:
+                raise ValidationError("没有需要修改的数据")
+            # Implicit VALUES binds gain their column types only during compile;
+            # make types explicit so the transport visitor can handle Time values.
+            data = {
+                name: bindparam(None, value, type_=schema.c[name].type)
+                for name, value in data.items()
+            }
+            statement = (
+                insert(schema) if kind == 1 else update(schema).where(schema.c.id == row_id)
+            ).values(**data)
         else:
             raise ValidationError("不支持的数据操作")
         prepared.append(statement)

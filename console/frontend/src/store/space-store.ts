@@ -12,6 +12,7 @@ export interface SpaceStore {
 }
 
 interface SpaceActions {
+  resetSpace: () => void;
   setIsShowSpacePopover: (isShowSpacePopover: boolean) => void;
   setSpaceName: (spaceName: string) => void;
   setSpaceId: (spaceId: string) => void;
@@ -22,16 +23,21 @@ interface SpaceActions {
   setSpaceAvatar: (spaceAvatar: string) => void;
 }
 
+const initialSpace: SpaceStore = {
+  isShowSpacePopover: false,
+  spaceName: '',
+  spaceId: '',
+  enterpriseId: '',
+  enterpriseName: '',
+  spaceType: 'personal',
+  spaceAvatar: '',
+};
+
 const useSpaceStore = create<SpaceStore & SpaceActions>()(
   persist(
     set => ({
-      isShowSpacePopover: false,
-      spaceName: '',
-      spaceId: '',
-      enterpriseId: '',
-      enterpriseName: '',
-      spaceType: 'personal',
-      spaceAvatar: '',
+      ...initialSpace,
+      resetSpace: (): void => set(initialSpace),
       setIsShowSpacePopover: (isShowSpacePopover: boolean): void => {
         set({ isShowSpacePopover });
       },

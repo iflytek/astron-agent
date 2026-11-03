@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { Input, message, Tooltip } from 'antd';
 import styles from './index.module.scss';
 import { useEffect, useState, useCallback } from 'react';
@@ -79,7 +80,8 @@ export const PersonSpace = ({
         navigate('/resource/knowledge');
       }
     } catch (err: any) {
-      message.error(err.msg || t('space.accessSpaceFailed'));
+      shouldShowRequestError(err) &&
+        message.error(err.msg || t('space.accessSpaceFailed'));
     }
   };
 
@@ -94,7 +96,8 @@ export const PersonSpace = ({
           setAllList(res);
         })
         .catch((err: any) => {
-          message.error(err.msg || t('space.getSpaceListFailed'));
+          shouldShowRequestError(err) &&
+            message.error(err.msg || t('space.getSpaceListFailed'));
         });
     } else {
       getAllSpace(params)
@@ -111,7 +114,8 @@ export const PersonSpace = ({
           }
         })
         .catch((err: any) => {
-          message.error(err.msg || t('space.getSpaceListFailed'));
+          shouldShowRequestError(err) &&
+            message.error(err.msg || t('space.getSpaceListFailed'));
         });
     }
   };
@@ -143,7 +147,8 @@ export const PersonSpace = ({
         setRecentList(res?.slice(0, 5));
       })
       .catch((err: any) => {
-        message.error(err.msg || t('space.getRecentVisitFailed'));
+        shouldShowRequestError(err) &&
+          message.error(err.msg || t('space.getRecentVisitFailed'));
       });
   };
 

@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useState, useMemo, useCallback, JSX, Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -90,7 +91,7 @@ const republishModel = async (
       error instanceof Error
         ? error.message
         : i18next.t('model.republishFailed');
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
   }
 };
 
@@ -251,7 +252,7 @@ function ModelCardHeader({
               })
               .catch((error: ResponseBusinessError) => {
                 setEnabled(model.enabled);
-                message.error(error.message);
+                shouldShowRequestError(error) && message.error(error.message);
               });
           }}
         />

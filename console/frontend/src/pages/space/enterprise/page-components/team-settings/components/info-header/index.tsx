@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, message, Tooltip } from 'antd';
 import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
@@ -61,7 +62,7 @@ const InfoHeader = () => {
       setIsEditing(false);
       getJoinedEnterpriseList();
     } catch (err: any) {
-      message.error(err?.msg || err?.desc);
+      shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
     }
   };
 
@@ -210,7 +211,8 @@ const InfoHeader = () => {
               getJoinedEnterpriseList();
             })
             .catch(e => {
-              message.error(e?.msg || '上传失败或套餐已过期');
+              shouldShowRequestError(e) &&
+                message.error(e?.msg || '上传失败或套餐已过期');
             });
         }}
         onClose={() => {

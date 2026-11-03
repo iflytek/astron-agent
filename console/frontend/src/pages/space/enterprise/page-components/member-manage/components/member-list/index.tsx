@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { message, Modal, Select } from 'antd';
 import SpaceTable, {
@@ -66,7 +67,8 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
           tableRef.current?.reload();
         }
       } catch (error: any) {
-        message.error(error?.msg || error?.desc);
+        shouldShowRequestError(error) &&
+          message.error(error?.msg || error?.desc);
       }
     },
     [t]
@@ -109,7 +111,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
           success: true,
         };
       } catch (err: any) {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
         return {
           data: [],
           total: 0,
@@ -131,7 +133,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         message.success(t('common.userDeleted', { username: record.nickname }));
         tableRef.current?.reload();
       } catch (err: any) {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
       }
     },
     [t]

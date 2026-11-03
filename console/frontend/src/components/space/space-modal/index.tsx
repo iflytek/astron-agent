@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Button, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
@@ -134,7 +135,8 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
         setSpaceName(name);
       }
     } catch (error: any) {
-      message.error(error?.msg || error?.message || t('space.createFailed'));
+      shouldShowRequestError(error) &&
+        message.error(error?.msg || error?.message || t('space.createFailed'));
       console.error('表单验证失败:', error);
     }
   };

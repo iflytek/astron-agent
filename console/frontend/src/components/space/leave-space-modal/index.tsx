@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React from 'react';
 import { message, Modal } from 'antd';
 import ButtonGroup from '@/components/button-group/button-group';
@@ -36,7 +37,7 @@ const LeaveSpaceModal: React.FC<LeaveSpaceModalProps> = ({
         onClose();
       })
       .catch((err: any) => {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
       });
   };
 

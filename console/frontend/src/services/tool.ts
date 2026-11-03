@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 /*
  * @Author: snoopyYang
  * @Date: 2025-09-23 10:08:13
@@ -50,7 +51,10 @@ export async function getToolDetail(
     });
     return response as unknown as ToolDetail;
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '获取插件详情失败');
+    shouldShowRequestError(error) &&
+      message.error(
+        error instanceof Error ? error.message : '获取插件详情失败'
+      );
     throw error;
   }
 }

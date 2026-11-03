@@ -111,12 +111,12 @@ export const getSpaceSearchUsername = (params: any) => {
 };
 
 //修改空间用户角色
-export const updateUserRole = (params: { uid: number; role: number }) => {
+export const updateUserRole = (params: { uid: string; role: number }) => {
   return http.post('/space-user/update-role', null, { params });
 };
 
 //删除空间用户角色
-export const deleteUser = (params: { uid: number }) => {
+export const deleteUser = (params: { uid: string }) => {
   return http.delete(`/space-user/remove${objectToQueryString(params)}`);
 };
 

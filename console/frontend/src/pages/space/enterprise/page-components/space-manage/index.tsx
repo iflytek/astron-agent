@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Input, message } from 'antd';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
@@ -51,7 +52,8 @@ const SpaceManage: React.FC = () => {
       setSpaceList(res || []);
     } catch (err: any) {
       console.log(err, '========== getSpaceList error ==========');
-      message.error(err?.msg || err?.desc || '查询失败');
+      shouldShowRequestError(err) &&
+        message.error(err?.msg || err?.desc || '查询失败');
     } finally {
       setLoading(false);
     }

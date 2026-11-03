@@ -18,11 +18,21 @@ import { RoleType, SpaceType } from '@/types/permission';
 
 export default function Index() {
   const { enterpriseId } = useParams();
+  const uid = useUserStore(state => state.user.uid);
+  const identity = JSON.stringify([uid, enterpriseId]);
   const [loadedId, setLoadedId] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
     let ignore = false;
     setError('');
+    useUserStore.getState().clearUserRole();
+    useEnterpriseStore.getState().clearEnterpriseData();
+    if (!uid || !enterpriseId) return;
+    const isCurrent = (): boolean =>
+      !ignore &&
+      useUserStore.getState().user.uid === uid &&
+      useSpaceStore.getState().enterpriseId === enterpriseId &&
+      useSpaceStore.getState().spaceId === '';
     useSpaceStore.getState().setSpaceStore({
       enterpriseId: enterpriseId || '',
       spaceId: '',
@@ -31,13 +41,15 @@ export default function Index() {
     });
     getEnterpriseDetail()
       .then(result => {
-        if (ignore) return;
+        if (!isCurrent()) return;
         const detail = result as unknown as EnterpriseInfo;
         useUserStore
           .getState()
           .setUserRole(
             SpaceType.ENTERPRISE,
-            roleToRoleType(detail.role, true) as RoleType
+            roleToRoleType(detail.role, true) as RoleType,
+            '',
+            enterpriseId
           );
         useEnterpriseStore.getState().setEnterpriseInfo({
           ...detail,
@@ -49,17 +61,20 @@ export default function Index() {
                 ? '管理员'
                 : '成员',
         });
-        setLoadedId(enterpriseId || '');
+        setLoadedId(identity);
       })
       .catch(() => {
-        if (!ignore) setError('无法读取此团队，或您已没有访问权限。');
+        if (isCurrent()) {
+          setLoadedId(identity);
+          setError('无法读取此团队，或您已没有访问权限。');
+        }
       });
     return () => {
       ignore = true;
     };
-  }, [enterpriseId]);
+  }, [uid, enterpriseId, identity]);
+  if (!uid || loadedId !== identity) return <Spin />;
   if (error) return <p role="alert">{error}</p>;
-  if (loadedId !== enterpriseId) return <Spin />;
   return (
     <div
       className={classNames('h-full overflow-hidden', styles.enterpriseSpace)}

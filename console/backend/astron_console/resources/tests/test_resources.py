@@ -261,7 +261,8 @@ class ResourceTests(TransactionTestCase):
 
     def test_tool_registration_and_secret_mask(self):
         with patch(
-            "astron_console.resources.clients.call", return_value={"tools": [{"id": "remote-id"}]}
+            "astron_console.resources.clients.call",
+            return_value={"tools": [{"id": "remote-id", "version": "V1.0"}]},
         ) as call:
             result = self.write(
                 "post",
@@ -351,7 +352,7 @@ class ResourceTests(TransactionTestCase):
                 schema["components"]["securitySchemes"]["apiKey"]["x-value"] = supplied
             with patch(
                 "astron_console.resources.clients.call",
-                return_value={"tools": [{"id": "remote-id"}]},
+                return_value={"result": "Success"},
             ):
                 result = self.write(
                     "put",

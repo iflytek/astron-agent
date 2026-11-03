@@ -1,19 +1,18 @@
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo } from 'react';
 import {
   SpaceType,
   RoleType,
   ModuleType,
   OperationType,
-  RolePermissionConfig,
 } from '@/types/permission';
 import {
   getRoleConfig,
   hasModulePermission,
-  getModulePermissions,
   getAccessibleModules,
   checkResourceRestrictions,
 } from '@/permissions/utils';
 import useUserStore from '@/store/user-store';
+import useSpaceStore from '@/store/space-store';
 
 // ==================== 类型定义 ====================
 
@@ -66,9 +65,6 @@ export interface UserPermissionInfo {
 
   // 权限检查方法
   checks: PermissionChecks;
-
-  // 设置当前用户ID
-  setCurrentUserId: (userId: string) => void;
 }
 
 /**
@@ -77,8 +73,8 @@ export interface UserPermissionInfo {
  */
 export function usePermissions(): UserPermissionInfo | null {
   const { getUserRole } = useUserStore();
+  useSpaceStore();
   const userRole = getUserRole();
-  const currentUserIdRef = useRef<string | undefined>(userRole?.userId);
 
   // 获取角色配置
   const roleConfig = useMemo(() => {
@@ -138,7 +134,7 @@ export function usePermissions(): UserPermissionInfo | null {
           userRole,
           module,
           resourceOwnerId,
-          currentUserIdRef.current
+          userRole.userId
         );
       },
       canDeleteResource: (module: ModuleType, resourceOwnerId?: string) => {
@@ -146,7 +142,7 @@ export function usePermissions(): UserPermissionInfo | null {
           userRole,
           module,
           resourceOwnerId,
-          currentUserIdRef.current
+          userRole.userId
         );
       },
 
@@ -197,11 +193,6 @@ export function usePermissions(): UserPermissionInfo | null {
     };
   }, [userRole, roleConfig]);
 
-  // 设置当前用户ID（用于资源权限检查）
-  const setCurrentUserId = useCallback((userId: string) => {
-    currentUserIdRef.current = userId;
-  }, []);
-
   // 如果用户角色或权限信息为空，返回null
   if (!userRole || !permissionInfo) {
     return null;
@@ -210,6 +201,5 @@ export function usePermissions(): UserPermissionInfo | null {
   return {
     ...permissionInfo,
     checks,
-    setCurrentUserId,
   };
 }
