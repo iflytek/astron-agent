@@ -2,11 +2,14 @@
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator, AsyncIterator
+from typing import Any, Literal, Protocol
 from unittest.mock import Mock
 
 import httpx
 import pytest
 
+from workflow.engine.nodes.entities.llm_response import LLMResponse
 from workflow.engine.nodes.llm.spark_llm_node import SparkLLMNode
 from workflow.exception.e import CustomException
 from workflow.infra.providers.llm.agent_chat_llm import AgentChatAI
@@ -18,7 +21,7 @@ class BytesStream(httpx.AsyncByteStream):
         self.block = block
         self.closed = False
 
-    async def __aiter__(self):
+    async def __aiter__(self) -> AsyncIterator[bytes]:
         # Split across UTF-8 characters, JSON tokens and SSE frame boundaries.
         for offset in range(0, len(self.data), 7):
             yield self.data[offset : offset + 7]
@@ -44,7 +47,9 @@ def frame(content: str = "", finish: str | None = None, **extra: object) -> str:
     )
 
 
-def adapter(provider: str = "openai") -> AgentChatAI:
+def adapter(
+    provider: Literal["openai", "anthropic", "google"] = "openai",
+) -> AgentChatAI:
     return AgentChatAI(
         provider=provider,
         model_url="https://model.example/v1/chat/completions",
@@ -60,19 +65,32 @@ def adapter(provider: str = "openai") -> AgentChatAI:
     )
 
 
+class ConfigureTransport(Protocol):
+    """Configure a response body with optional HTTP status and blocking."""
+
+    def __call__(
+        self, data: str, status: int = 200, block: bool = False
+    ) -> BytesStream:
+        """Install and return the controlled response stream."""
+        ...
+
+
+TransportFixture = tuple[ConfigureTransport, list[httpx.Request], list[BytesStream]]
+
+
 @pytest.fixture
-def transport(monkeypatch):
+def transport(monkeypatch: pytest.MonkeyPatch) -> TransportFixture:
     monkeypatch.setenv("WORKFLOW_INTERNAL_API_KEY", "i" * 48)
     monkeypatch.delenv("WORKFLOW_INTERNAL_API_KEY_FILE", raising=False)
     monkeypatch.setenv("AGENT_BASE_URL", "http://agent.example")
-    requests = []
-    streams = []
+    requests: list[httpx.Request] = []
+    streams: list[BytesStream] = []
 
-    def configure(data: str, status: int = 200, block: bool = False):
+    def configure(data: str, status: int = 200, block: bool = False) -> BytesStream:
         stream = BytesStream(data.encode(), block=block)
         streams.append(stream)
 
-        async def handler(request):
+        async def handler(request: httpx.Request) -> httpx.Response:
             requests.append(request)
             return httpx.Response(
                 status, headers={"content-type": "text/event-stream"}, stream=stream
@@ -92,7 +110,7 @@ def transport(monkeypatch):
     return configure, requests, streams
 
 
-def responses(client: AgentChatAI, **kwargs):
+def responses(client: AgentChatAI, **kwargs: Any) -> AsyncGenerator[LLMResponse, None]:
     return client.achat(
         "flow-1",
         [
@@ -106,8 +124,8 @@ def responses(client: AgentChatAI, **kwargs):
 
 @pytest.mark.asyncio
 async def test_complete_stream_preserves_parameters_usage_and_closes_before_terminal(
-    transport,
-):
+    transport: TransportFixture,
+) -> None:
     configure, requests, _ = transport
     usage = {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}
     stream = configure(
@@ -155,7 +173,9 @@ async def test_complete_stream_preserves_parameters_usage_and_closes_before_term
         + "data: [DONE]\n\n",
     ],
 )
-async def test_failed_or_incomplete_stream_never_yields_success(transport, data):
+async def test_failed_or_incomplete_stream_never_yields_success(
+    transport: TransportFixture, data: str
+) -> None:
     configure, requests, _ = transport
     stream = configure(data)
     output = []
@@ -169,7 +189,9 @@ async def test_failed_or_incomplete_stream_never_yields_success(transport, data)
 
 
 @pytest.mark.asyncio
-async def test_http_failure_does_not_expose_body_or_retry(transport):
+async def test_http_failure_does_not_expose_body_or_retry(
+    transport: TransportFixture,
+) -> None:
     configure, requests, _ = transport
     stream = configure("model-secret", status=401)
     with pytest.raises(CustomException, match="HTTP 401"):
@@ -179,7 +201,7 @@ async def test_http_failure_does_not_expose_body_or_retry(transport):
 
 
 @pytest.mark.asyncio
-async def test_cancel_closes_active_connection(transport):
+async def test_cancel_closes_active_connection(transport: TransportFixture) -> None:
     configure, _, _ = transport
     stream = configure(frame("partial"), block=True)
     iterator = responses(adapter())
@@ -194,7 +216,7 @@ async def test_cancel_closes_active_connection(transport):
 
 
 @pytest.mark.asyncio
-async def test_consumer_close_releases_connection(transport):
+async def test_consumer_close_releases_connection(transport: TransportFixture) -> None:
     configure, _, _ = transport
     stream = configure(frame("partial"), block=True)
     iterator = responses(adapter())
@@ -204,7 +226,9 @@ async def test_consumer_close_releases_connection(transport):
 
 
 @pytest.mark.asyncio
-async def test_missing_internal_key_stops_before_network(transport, monkeypatch):
+async def test_missing_internal_key_stops_before_network(
+    transport: TransportFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     _, requests, _ = transport
     monkeypatch.delenv("WORKFLOW_INTERNAL_API_KEY")
     with pytest.raises(CustomException, match="authentication"):
@@ -212,7 +236,7 @@ async def test_missing_internal_key_stops_before_network(transport, monkeypatch)
     assert not requests
 
 
-def test_media_history_and_current_inputs_preserve_order_without_mutation():
+def test_media_history_and_current_inputs_preserve_order_without_mutation() -> None:
     messages = [
         {"role": "user", "content": "https://example/image", "content_type": "image"},
         {"role": "user", "content": "describe"},
@@ -236,7 +260,7 @@ def test_media_history_and_current_inputs_preserve_order_without_mutation():
     assert body["parameters"]["top_k"] == 4
 
 
-def test_model_node_always_uses_agent_transport():
+def test_model_node_always_uses_agent_transport() -> None:
     node = SparkLLMNode(
         input_identifier=[],
         output_identifier=["answer"],
