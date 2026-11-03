@@ -55,7 +55,11 @@ GENERATED_CREDENTIALS = (
                     "/app/secrets/workflow/workflow-internal-api-key"
                 ),
             },
-            "console-hub": {},
+            "console-hub": {
+                "WORKFLOW_INTERNAL_API_KEY_FILE": (
+                    "/app/secrets/workflow/workflow-internal-api-key"
+                ),
+            },
         },
     },
     {
@@ -481,6 +485,11 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
             "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE", None
         )
 
+    def missing_console_workflow_key(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"].pop(
+            "WORKFLOW_INTERNAL_API_KEY_FILE", None
+        )
+
     def writable_consumer(config: MutableMapping[str, Any], _marker: str) -> None:
         _set_mount_mode(config, "core-workflow", "/app/secrets/artifact", False)
 
@@ -580,6 +589,11 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
         ]
 
     return (
+        (
+            "missing-console-workflow-key-file",
+            missing_console_workflow_key,
+            "services.console-hub.environment.WORKFLOW_INTERNAL_API_KEY_FILE",
+        ),
         ("missing-internal-console-host", missing_internal_host, "services.console-hub.environment.CONSOLE_ALLOWED_HOSTS"),
         (
             "wrong-token-file-path",

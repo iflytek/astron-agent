@@ -276,6 +276,7 @@ def _verify_workflow_internal_auth_bindings(
         if (
             entry.get("secret_name") != secret_name
             or entry.get("secret_key") != secret_key
+            or "WORKFLOW_INTERNAL_API_KEY_FILE" in environment
         ):
             raise VerificationError(
                 f"workflow internal Secret binding mismatch: {deployment_name}"

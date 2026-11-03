@@ -938,6 +938,7 @@ services:
       TENANT_CREATE_APP: "${TENANT_CREATE_APP:-}"
       TENANT_GET_APP_DETAIL: "${TENANT_GET_APP_DETAIL:-}"
       TENANT_VERIFY_APP_AUTH: "${TENANT_VERIFY_APP_AUTH:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/key/verify}"
+      WORKFLOW_INTERNAL_API_KEY_FILE: "/app/secrets/workflow/workflow-internal-api-key"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE: "/app/secrets/artifact/artifact-upload-token"
       SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE: "/app/secrets/runtime/sandbox-runtime-credential-token"
       SKILL_SANDBOX_ARTIFACT_BUCKET: "${SKILL_SANDBOX_ARTIFACT_BUCKET:-workflow-artifacts}"
