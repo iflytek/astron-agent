@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import http from '@/utils/http';
 import { message } from 'antd';
 import {
@@ -265,7 +266,7 @@ export async function downloadKnowledgeByViolation(
     return response.data as Blob;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : '操作失败';
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }
@@ -279,7 +280,7 @@ export async function deleteChunkAPI(
     return response as unknown as KnowledgeOperationResponse;
   } catch (error: unknown) {
     const errorMessage = (error as Error)?.message;
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }

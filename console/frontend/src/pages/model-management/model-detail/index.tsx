@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { memo, useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -96,7 +97,7 @@ function index(): React.JSX.Element {
         }
       })
       .catch((error: ResponseBusinessError) => {
-        message.error(error.message);
+        shouldShowRequestError(error) && message.error(error.message);
       });
   }, []);
 

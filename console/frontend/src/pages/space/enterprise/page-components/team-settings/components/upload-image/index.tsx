@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, message, Modal } from 'antd';
 import styles from './index.module.scss';
@@ -131,7 +132,8 @@ const UploadImage: React.FC<UploadImageProps> = ({
         onSuccess(result?.url);
       }
     } catch (error: any) {
-      message.error(error?.message || '上传失败');
+      shouldShowRequestError(error) &&
+        message.error(error?.message || '上传失败');
     }
 
     setVisible(false);

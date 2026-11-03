@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useCallback,
   useMemo,
@@ -140,7 +141,10 @@ const SpaceList: React.FC<SpaceListProps> = ({
             console.log('未知操作:', action, space.id);
         }
       } catch (error: any) {
-        message.error(error.msg || error.desc || t('space.accessSpaceFailed'));
+        shouldShowRequestError(error) &&
+          message.error(
+            error.msg || error.desc || t('space.accessSpaceFailed')
+          );
       }
     },
     [navigate, setSpaceId, setSpaceName, spaceApply, setSpaceAvatar, t]

@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import {
   useEffect,
   useState,
@@ -167,7 +168,8 @@ const AddTableRowModal = (props: AddTableRowModalProps): JSX.Element => {
       }
     } catch (error) {
       // 记录错误信息
-      message.error(i18n.t('database.getFieldListFailed'));
+      shouldShowRequestError(error) &&
+        message.error(i18n.t('database.getFieldListFailed'));
     } finally {
       setFieldListLoading(false);
     }
@@ -231,7 +233,8 @@ const AddTableRowModal = (props: AddTableRowModalProps): JSX.Element => {
         message.success(i18n.t('database.addRowSuccess'));
       } catch (error) {
         setLoading(false);
-        message.error(i18n.t('database.addRowFailed'));
+        shouldShowRequestError(error) &&
+          message.error(i18n.t('database.addRowFailed'));
       }
     },
     [info.id, dataType, setOpen, handleUpdateTable]

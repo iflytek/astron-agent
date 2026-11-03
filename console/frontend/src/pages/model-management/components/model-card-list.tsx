@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useState, useEffect, useMemo, JSX } from 'react';
 import { useTranslation } from 'react-i18next';
 import { message } from 'antd';
@@ -43,7 +44,7 @@ function ModelCardList({
           error instanceof Error
             ? error.message
             : t('model.getCategoryTreeFailed');
-        message.error(errorMessage);
+        shouldShowRequestError(error) && message.error(errorMessage);
       });
   }, []);
 

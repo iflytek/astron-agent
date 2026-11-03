@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useCallback,
   useMemo,
@@ -82,7 +83,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
             '------------- getEnterpriseInviteList -------------'
           );
 
-          message.error(err?.msg || err?.desc);
+          shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
 
           return {
             data: [],
@@ -158,7 +159,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
 
           message.success(t('space.revokeSuccess'));
         } catch (err: any) {
-          message.error(err?.msg || err?.desc);
+          shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
         } finally {
           tableRef.current?.reload();
         }

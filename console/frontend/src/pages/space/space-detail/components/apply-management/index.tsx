@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Tag, message, Modal } from 'antd';
 import SpaceTable, {
@@ -91,7 +92,7 @@ const useApplyData = (): UseApplyDataReturn => {
     } catch (err: unknown) {
       const error = err as { msg?: string; desc?: string };
       console.log(error, '------------- getApplyRecord ------------');
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(err) && message.error(error?.msg || error?.desc);
       return {
         data: [],
         total: 0,
@@ -138,7 +139,8 @@ const useApplyActions = (
           message.success(t('common.rejectSuccess'));
           tableRef?.current?.reload();
         } catch (error) {
-          message.error(t('common.rejectFailed'));
+          shouldShowRequestError(error) &&
+            message.error(t('common.rejectFailed'));
         }
       },
     });
@@ -161,7 +163,8 @@ const useApplyActions = (
           message.success(t('common.approveSuccess'));
           tableRef?.current?.reload();
         } catch (error) {
-          message.error(t('common.approveFailed'));
+          shouldShowRequestError(error) &&
+            message.error(t('common.approveFailed'));
         }
       },
     });

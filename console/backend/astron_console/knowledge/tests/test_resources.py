@@ -458,9 +458,12 @@ class ResourceTests(TestCase):
                 self.assertEqual(response.status_code, 200, response.content[:100])
                 request = upstream.call_args.kwargs["json"]
                 self.assertNotIn("POSTCOMPILE", request["dml"])
-                self.assertIn("IN (:id_1_1, :id_1_2)", request["dml"])
-                self.assertEqual(request["params"]["id_1_1"], identifier)
-                self.assertEqual(request["params"]["id_1_2"], 2)
+                self.assertRegex(request["dml"], r"IN \(:(console_value_\d+)_1, :\1_2\)")
+                self.assertIn(identifier, request["params"].values())
+                self.assertIn(2, request["params"].values())
+                self.assertTrue(
+                    all(name.startswith("console_value_") for name in request["params"])
+                )
                 self.assertNotIn(str(identifier), request["dml"])
                 # Core reparses the statement with text(); every transmitted bind must survive.
                 parsed = sql_text(request["dml"]).bindparams(**request["params"]).compile()

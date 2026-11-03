@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import {
   enableFlieAPI,
   getRepoUseStatus,
@@ -214,9 +215,10 @@ const useDocumentSearch = ({
         );
       } catch (error) {
         if (isCurrent()) {
-          message.error(
-            error instanceof Error ? error.message : '文档搜索失败'
-          );
+          shouldShowRequestError(error) &&
+            message.error(
+              error instanceof Error ? error.message : '文档搜索失败'
+            );
         }
       } finally {
         if (controllerRef.current === controller) {

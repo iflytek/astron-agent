@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
@@ -48,7 +49,7 @@ const SpaceManage: React.FC = () => {
         }
       })
       .catch((err: any) => {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
       });
   };
 

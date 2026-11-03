@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useState,
   useEffect,
@@ -95,7 +96,7 @@ const InvitationManagement = forwardRef<
           success: true,
         };
       } catch (err: any) {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
         return {
           data: [],
           total: 0,
@@ -121,7 +122,8 @@ const InvitationManagement = forwardRef<
 
             message.success(t('space.revokeSuccess'));
           } catch (error: any) {
-            message.error(error?.msg || error?.desc);
+            shouldShowRequestError(error) &&
+              message.error(error?.msg || error?.desc);
           } finally {
             tableRef?.current?.reload();
           }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Form, Input, message } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { createKnowledgeAPI, deleteKnowledgeAPI } from '@/services/knowledge';
+import { shouldShowRequestError } from '@/utils/http-error';
 
 import dialogDel from '@/assets/imgs/main/icon_dialog_del.png';
 import knowledgeVersionChecked from '@/assets/imgs/knowledge/knowledge_version_checked.svg';
@@ -122,6 +123,11 @@ export const CreateModal: FC<{ setCreateModal: (value: boolean) => void }> = ({
         navigate(
           `/resource/knowledge/upload?parentId=-1&repoId=${data.id}&tag=${version}`
         );
+      })
+      .catch(error => {
+        if (shouldShowRequestError(error)) {
+          message.error(error?.message || '创建知识库失败');
+        }
       })
       .finally(() => {
         setLoading(false);

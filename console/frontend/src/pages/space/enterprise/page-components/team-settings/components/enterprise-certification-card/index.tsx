@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, message, Modal } from 'antd';
 import styles from './index.module.scss';
@@ -132,7 +133,8 @@ const EnterpriseCertificationCard: React.FC<
               setEnterpriseInfo({ logoUrl: res });
             })
             .catch(e => {
-              message.error(e?.msg || '上传失败或套餐已过期');
+              shouldShowRequestError(e) &&
+                message.error(e?.msg || '上传失败或套餐已过期');
             });
         }}
         onClose={() => {

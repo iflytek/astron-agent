@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useState, useMemo, useCallback, JSX } from 'react';
 import { Modal, Button, Upload, message, Space, UploadFile } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -123,7 +124,8 @@ const useFileUpload = (
         onImport?.();
       }
     } catch (error) {
-      message.error(t('database.importFailed'));
+      shouldShowRequestError(error) &&
+        message.error(t('database.importFailed'));
     } finally {
       setUploading(false);
     }
@@ -181,7 +183,8 @@ const useTemplateDownload = (
         link.remove();
       }
     } catch (error) {
-      message.error(t('database.downloadTemplateFailed'));
+      shouldShowRequestError(error) &&
+        message.error(t('database.downloadTemplateFailed'));
     }
   }, [type, info?.id, t]);
 

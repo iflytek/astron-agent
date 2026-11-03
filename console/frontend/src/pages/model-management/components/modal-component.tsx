@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useState,
   useEffect,
@@ -352,7 +353,7 @@ const handleLocalModelSubmit = (params: {
       if (getModels) getModels();
     })
     .catch((error: ResponseBusinessError) => {
-      message.error(error.message);
+      shouldShowRequestError(error) && message.error(error.message);
     })
     .finally(() => {
       setLoading(false);
@@ -440,7 +441,7 @@ const handleSubmitForm = async (params: {
       error instanceof Error
         ? error.message
         : i18next.t('model.modelCreateFailed');
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
   } finally {
     setLoading(false);
   }
@@ -492,7 +493,8 @@ const SelectLocalModel = ({
       }));
       setLocalModelOptions(options);
     } catch (error) {
-      message.error(t('model.localModelLoadFailed'));
+      shouldShowRequestError(error) &&
+        message.error(t('model.localModelLoadFailed'));
       setLocalModelOptions([]);
     } finally {
       setLoading(false);
@@ -1503,7 +1505,7 @@ const useCreateModal = (
           }
         })
         .catch((error: ResponseBusinessError) => {
-          message.error(error.message);
+          shouldShowRequestError(error) && message.error(error.message);
         });
     }
   }, [modelId]);
@@ -1804,7 +1806,7 @@ export function DeleteModal({
       .catch(error => {
         const errorMessage =
           error instanceof Error ? error.message : t('model.modelDeleteFailed');
-        message.error(errorMessage);
+        shouldShowRequestError(error) && message.error(errorMessage);
       })
       .finally(() => {
         setLoading(false);

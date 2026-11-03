@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import {
   getEnterpriseSearchUsername,
   getEnterpriseUserLimit,
@@ -32,7 +33,7 @@ export const searchInviteUsers = async (
 
     return [];
   } catch (err: any) {
-    message.error(err?.msg || err?.desc);
+    shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
     return [];
   }
 };

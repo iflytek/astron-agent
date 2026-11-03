@@ -1,10 +1,5 @@
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-} from 'react';
+import { shouldShowRequestError } from '@/utils/http-error';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { Select, message } from 'antd';
 import { useParams } from 'react-router-dom';
 import { useDebounceFn } from 'ahooks';
@@ -22,28 +17,12 @@ import AddMemberModal from '@/components/space/add-member-modal';
 import SpaceModal from '@/components/space/space-modal';
 import { useSpaceI18n } from '@/pages/space/hooks/use-space-i18n';
 import { useTranslation } from 'react-i18next';
-import useUserStore from '@/store/user-store';
-import useSpaceStore from '@/store/space-store';
-import { SpaceType, RoleType } from '@/types/permission';
-import { roleToRoleType } from '@/pages/space/config';
 import styles from './index.module.scss';
 import { TAB_KEYS, DEBOUNCE_DELAY, DEFAULT_VALUES } from '@/pages/space/config';
-import { getSpaceDetail, spaceInvite, visitSpace } from '@/services/space';
+import { spaceInvite } from '@/services/space';
+import { useSpaceInfo, type SpaceInfo } from './use-space-info';
 
 const { Option } = Select;
-
-interface SpaceInfo {
-  id: string;
-  name: string;
-  description: string;
-  avatarUrl?: string;
-  role: 'owner' | 'admin' | 'member';
-  memberCount: number;
-  totalMembers: number;
-  ownerName: string;
-  userRole: number;
-  enterpriseId?: string;
-}
 
 // 定义筛选状态接口
 interface FilterState {
@@ -273,11 +252,6 @@ const useSearchHandlers = (params: SearchHandlersParams): SearchHandlers => {
 };
 
 // 空间信息Hook返回类型
-interface UseSpaceInfoReturn {
-  spaceInfo: SpaceInfo | null;
-  loading: boolean;
-  loadSpaceInfo: () => Promise<void>;
-}
 
 // 弹窗状态Hook返回类型
 interface UseModalStatesReturn {
@@ -300,57 +274,6 @@ interface TabContentParams {
   invitationManagementRef: React.RefObject<InvitationManagementRef>;
   loadSpaceInfo: () => Promise<void>;
 }
-
-// 空间信息管理Hook
-const useSpaceInfo = (spaceId: string | undefined): UseSpaceInfoReturn => {
-  const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const sequence = useRef(0);
-  const loadSpaceInfo = useCallback(async (): Promise<void> => {
-    const current = ++sequence.current;
-    if (!spaceId) {
-      setSpaceInfo(null);
-      setLoading(false);
-      return;
-    }
-    useSpaceStore.getState().setSpaceStore({ spaceId, enterpriseId: '' });
-    setLoading(true);
-    try {
-      const result = (await getSpaceDetail()) as unknown as SpaceInfo;
-      if (current !== sequence.current) return;
-      const team = Boolean(result.enterpriseId);
-      useSpaceStore.getState().setSpaceStore({
-        spaceId: String(result.id),
-        spaceName: result.name,
-        enterpriseId: result.enterpriseId ? String(result.enterpriseId) : '',
-        spaceType: team ? 'team' : 'personal',
-        spaceAvatar: result.avatarUrl || '',
-      });
-      useUserStore
-        .getState()
-        .setUserRole(
-          team ? SpaceType.ENTERPRISE : SpaceType.PERSONAL,
-          roleToRoleType(result.userRole, team) as RoleType
-        );
-      setSpaceInfo(result);
-      await visitSpace(spaceId);
-    } catch {
-      if (current === sequence.current) {
-        setSpaceInfo(null);
-        message.error('无法读取此空间，或您已没有访问权限。');
-      }
-    } finally {
-      if (current === sequence.current) setLoading(false);
-    }
-  }, [spaceId]);
-  useEffect(() => {
-    void loadSpaceInfo();
-    return () => {
-      sequence.current += 1;
-    };
-  }, [loadSpaceInfo]);
-  return { spaceInfo, loading, loadSpaceInfo };
-};
 
 // 弹窗状态管理Hook
 const useModalStates = (): UseModalStatesReturn => {
@@ -686,7 +609,8 @@ const SpaceDetail: React.FC = () => {
         invitationManagementRef.current?.reload();
       } catch (error: unknown) {
         const err = error as { msg?: string };
-        message.error(err?.msg || messages.ERROR.MEMBER_ADD);
+        shouldShowRequestError(error) &&
+          message.error(err?.msg || messages.ERROR.MEMBER_ADD);
       }
     },
     [t, handleAddMemberModalClose, messages]

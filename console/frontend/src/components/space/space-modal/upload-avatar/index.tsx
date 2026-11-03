@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState } from 'react';
 import { aiGenerateCover } from '@/services/spark-common';
 import { uploadFile } from '@/utils/utils';
@@ -67,7 +68,8 @@ const ImageCropUpload: React.FC<ImageCropUploadProps> = ({
 
       return result.url;
     } catch (error: any) {
-      message.error(error?.message || 'Upload failed');
+      shouldShowRequestError(error) &&
+        message.error(error?.message || 'Upload failed');
       throw error;
     } finally {
       setIsUploading(false);

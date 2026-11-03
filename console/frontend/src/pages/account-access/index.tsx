@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
 import { accountRequest, AccountRequestError } from '@/utils/session';
+import { resetAccountState } from '@/utils/account-state';
 import type { User } from '@/store/user-store';
 import styles from './index.module.scss';
 
@@ -44,6 +45,7 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
       .catch((reason: unknown) => {
         if (ignore) return;
         if (reason instanceof AccountRequestError && reason.status === 401) {
+          resetAccountState();
           window.location.replace('/login');
         } else {
           setError(
@@ -86,6 +88,7 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
         setNotice('密码已设置，请使用用户名和新密码登录。');
       } else {
         await accountRequest(`/auth/${mode}`, data);
+        resetAccountState();
         window.location.replace(loginDestination());
       }
     });
@@ -273,6 +276,7 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
                 onClick={() =>
                   void run(async () => {
                     await accountRequest('/auth/logout', {});
+                    resetAccountState();
                     window.location.replace('/login');
                   })
                 }

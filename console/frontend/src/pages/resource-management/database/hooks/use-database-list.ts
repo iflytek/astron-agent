@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import {
   useState,
   useCallback,
@@ -89,7 +90,7 @@ export const useDatabaseList = (): UseDatabaseListReturn => {
         loadingRef.current = false;
       })
       .catch((e: ResponseBusinessError) => {
-        message.error(e?.message);
+        shouldShowRequestError(e) && message.error(e?.message);
       });
   }, [pagination, searchValue, loadingRef]);
 
@@ -101,7 +102,7 @@ export const useDatabaseList = (): UseDatabaseListReturn => {
           getList();
         })
         .catch((error: ResponseBusinessError) => {
-          message.error(error?.message);
+          shouldShowRequestError(error) && message.error(error?.message);
         });
     },
     [getList]

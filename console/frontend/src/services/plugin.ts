@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import type { ToolImportData } from '@/types/tool-import';
 export type { ToolImportData } from '@/types/tool-import';
 import type { McpServerTool } from '@/types/workflow-api';
@@ -13,7 +14,7 @@ export async function createTool(params: ToolItem): Promise<unknown> {
     return response as unknown as ToolItem;
   } catch (error: unknown) {
     const errorMessage = (error as Error)?.message;
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }
@@ -25,7 +26,7 @@ export async function temporaryTool(params: ToolItem): Promise<ToolItem> {
     return response as unknown as ToolItem;
   } catch (error: unknown) {
     const errorMessage = (error as Error)?.message;
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }
@@ -37,7 +38,7 @@ export async function updateTool(params: ToolItem): Promise<unknown> {
     return response as unknown;
   } catch (error: unknown) {
     const errorMessage = (error as Error)?.message;
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }
@@ -136,7 +137,7 @@ export async function toolFeedback(params: {
     return response as unknown;
   } catch (error: unknown) {
     const errorMessage = (error as Error)?.message;
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }

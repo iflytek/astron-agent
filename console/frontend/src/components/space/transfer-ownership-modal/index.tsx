@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, Input, Button, Select, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
@@ -65,7 +66,7 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
       });
       setMemberList(members);
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
     } finally {
       setLoading(false);
     }
@@ -88,7 +89,7 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
       onSuccess?.();
       handleClose();
     } catch (err: any) {
-      message.error(err?.msg || err?.desc);
+      shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
     }
   };
 

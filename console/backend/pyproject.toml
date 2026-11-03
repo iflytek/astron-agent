@@ -24,7 +24,11 @@ dependencies = [
 mysql = ["mysqlclient>=2.2.7,<3"]
 
 [dependency-groups]
-dev = ["ruff>=0.11,<1", "coverage>=7.6,<8"]
+dev = [
+    "ruff>=0.11,<1",
+    "coverage>=7.6,<8",
+    "sqlglot==26.29.0",
+]
 
 [tool.ruff]
 target-version = "py311"
