@@ -104,7 +104,7 @@ spec:
               name: {{ required "consoleHub.auth.existingSecret is required" .Values.consoleHub.auth.existingSecret | quote }}
               key: {{ .Values.consoleHub.auth.secretKey | quote }}
         - name: CONSOLE_ALLOWED_HOSTS
-          value: {{ .Values.consoleHub.auth.allowedHosts | quote }}
+          value: {{ printf "%s,%s-console-hub" .Values.consoleHub.auth.allowedHosts (include "astron-agent.fullname" .) | quote }}
         - name: CONSOLE_PUBLIC_ORIGIN
           value: {{ .Values.consoleHub.auth.publicOrigin | quote }}
         - name: CONSOLE_CSRF_TRUSTED_ORIGINS

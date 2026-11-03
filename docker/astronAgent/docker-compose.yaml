@@ -880,7 +880,7 @@ services:
     environment:
       CONSOLE_RUN_MIGRATIONS: "${CONSOLE_RUN_MIGRATIONS:-true}"
       CONSOLE_SECRET_KEY: "${CONSOLE_SECRET_KEY:?Set a persistent random Console key of at least 50 characters}"
-      CONSOLE_ALLOWED_HOSTS: "${CONSOLE_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+      CONSOLE_ALLOWED_HOSTS: "${CONSOLE_ALLOWED_HOSTS:-localhost,127.0.0.1},console-hub"
       CONSOLE_PUBLIC_ORIGIN: "${CONSOLE_PUBLIC_ORIGIN:-https://your.deployment.domain}"
       CONSOLE_CSRF_TRUSTED_ORIGINS: "${CONSOLE_CSRF_TRUSTED_ORIGINS:-}"
       CONSOLE_COOKIE_SECURE: "${CONSOLE_COOKIE_SECURE:-true}"

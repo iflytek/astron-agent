@@ -13,6 +13,7 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import (
     Any,
     Callable,
@@ -169,11 +170,12 @@ def _select_compose_command(compose_file: Path) -> Sequence[str]:
     )
 
 
-def _render_compose(compose_file: Path) -> Mapping[str, Any]:
+def _render_compose(compose_file: Path, environment: Optional[Mapping[str, str]] = None) -> Mapping[str, Any]:
     base_command = _select_compose_command(compose_file)
     completed = subprocess.run(
         list(base_command) + ["-f", compose_file.name, "config", "--format", "json"],
         cwd=str(compose_file.parent),
+        env={**os.environ, **(environment or {})},
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
@@ -430,6 +432,12 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
             )
 
     hub = _mapping(services.get("console-hub"))
+    allowed_hosts = str(_mapping(hub.get("environment")).get("CONSOLE_ALLOWED_HOSTS", "")).split(",")
+    for service_name in CONSUMERS:
+        environment = _mapping(_mapping(services.get(service_name)).get("environment"))
+        for name in (*INTERNAL_URLS, "MODEL_RUNTIME_CONFIG_URL"):
+            if name in environment and urlsplit(environment[name]).hostname not in allowed_hosts:
+                errors.append("services.console-hub.environment.CONSOLE_ALLOWED_HOSTS: missing internal caller host")
     healthcheck = hub.get("healthcheck")
     healthcheck_field = "services.console-hub.healthcheck"
     if not isinstance(healthcheck, dict):
@@ -481,6 +489,9 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
 
     def missing_read_group(config: MutableMapping[str, Any], _marker: str) -> None:
         config["services"]["console-hub"].pop("group_add", None)
+
+    def missing_internal_host(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] = "public.example.org"
 
     def wrong_internal_url(config: MutableMapping[str, Any], marker: str) -> None:
         config["services"]["core-agent"]["environment"][
@@ -569,6 +580,7 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
         ]
 
     return (
+        ("missing-internal-console-host", missing_internal_host, "services.console-hub.environment.CONSOLE_ALLOWED_HOSTS"),
         (
             "wrong-token-file-path",
             wrong_token_path,
@@ -1224,6 +1236,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 print(f"security contract gate: FAIL: {error}", file=sys.stderr)
             return 1
         run_negative_self_tests(config)
+        public_hosts = "public.example.org,198.51.100.8"
+        public_config = _render_compose(compose_file, {"CONSOLE_ALLOWED_HOSTS": public_hosts})
+        if public_config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] != public_hosts + ",console-hub":
+            raise GateError("configured public hosts were not preserved with the internal service host")
         exercise_shell_credential_lifecycle(config)
         if args.exercise_credential_lifecycle:
             exercise_credential_lifecycle(compose_file)
