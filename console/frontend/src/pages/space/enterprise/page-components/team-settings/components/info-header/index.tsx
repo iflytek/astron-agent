@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, message, Tooltip } from 'antd';
-import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { EditOutlined } from '@ant-design/icons';
 import SpaceButton from '@/components/button-group/space-button';
 import { ModuleType, OperationType } from '@/types/permission';
 import styles from './index.module.scss';
@@ -18,9 +18,9 @@ import {
 } from '@/services/enterprise';
 import UploadImage from '../upload-image';
 
-const InfoHeader = () => {
+const InfoHeader = (): React.ReactElement => {
   const {
-    info: { name, officerName, roleTypeText, serviceType, avatarUrl },
+    info: { name, officerName, roleTypeText, avatarUrl },
     setEnterpriseInfo,
   } = useEnterpriseStore();
   const { getJoinedEnterpriseList } = useEnterprise();
@@ -34,19 +34,19 @@ const InfoHeader = () => {
   const infoContentRef = useRef<HTMLDivElement>(null);
 
   // 触发上传
-  const triggerFileSelectPopup = (callback: () => void) => {
+  const triggerFileSelectPopup = (callback: () => void): void => {
     setTriggerChild(false);
     callback();
   };
 
   // 处理编辑模式切换
-  const handleEdit = () => {
+  const handleEdit = (): void => {
     setIsEditing(true);
     setEditValue(name);
   };
 
   // 处理确认编辑
-  const handleConfirm = async () => {
+  const handleConfirm = async (): Promise<void> => {
     const newName = editValue.trim();
 
     if (newName === '') {
@@ -66,13 +66,13 @@ const InfoHeader = () => {
   };
 
   // 处理取消编辑
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     setEditValue(name);
     setIsEditing(false);
   };
 
   // 处理输入框回车
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter') {
       handleConfirm();
     } else if (e.key === 'Escape') {

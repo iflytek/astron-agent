@@ -58,19 +58,19 @@ const useEnterpriseStore = create<EnterpriseStore>((set, get) => ({
     total: 0,
     joined: 0,
   },
-  setEnterpriseInfo: (enterprise: Partial<EnterpriseInfo>) => {
+  setEnterpriseInfo: (enterprise: Partial<EnterpriseInfo>): void => {
     set({ info: { ...get().info, ...enterprise } });
   },
-  setJoinedEnterpriseList: (list: EnterpriseInfo[]) => {
+  setJoinedEnterpriseList: (list: EnterpriseInfo[]): void => {
     set({ joinedEnterpriseList: list });
   },
-  setSpaceStatistics: (statistics: SpaceStatistics) => {
+  setSpaceStatistics: (statistics: SpaceStatistics): void => {
     set({ spaceStatistics: statistics });
   },
-  setCertificationType: (type: boolean) => {
+  setCertificationType: (type: boolean): void => {
     set({ certificationType: type });
   },
-  clearEnterpriseData: () => {
+  clearEnterpriseData: (): void => {
     set({
       info: getDefaultEnterpriseInfo(),
       certificationType: null,

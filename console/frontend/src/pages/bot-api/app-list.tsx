@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, message, Input, Modal, Button, Form, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { getApiList, createApp } from '@/services/spark-common';
@@ -23,7 +23,7 @@ const AppListPage: React.FC<AppListProps> = () => {
       title: t('appManage.appId'),
       dataIndex: 'appId',
       key: 'appId',
-      render: (text: string) => {
+      render: (text: string): React.ReactElement => {
         return <div title={text || '--'}>{text || '--'}</div>;
       },
     },
@@ -31,7 +31,7 @@ const AppListPage: React.FC<AppListProps> = () => {
       title: t('appManage.appName'),
       dataIndex: 'appName',
       key: 'appName',
-      render: (text: string) => {
+      render: (text: string): React.ReactElement => {
         return <div title={text || '--'}>{text || '--'}</div>;
       },
     },
@@ -39,7 +39,7 @@ const AppListPage: React.FC<AppListProps> = () => {
       title: t('appManage.appDescribe'),
       dataIndex: 'appDescribe',
       key: 'appDescribe',
-      render: (text: string) => {
+      render: (text: string): React.ReactElement => {
         return <div title={text || '--'}>{text || '--'}</div>;
       },
     },
@@ -47,7 +47,7 @@ const AppListPage: React.FC<AppListProps> = () => {
       title: t('appManage.apiKey'),
       dataIndex: 'appKey',
       key: 'appKey',
-      render: (text: string) => {
+      render: (text: string): React.ReactElement => {
         return (
           <div
             title={
@@ -81,7 +81,7 @@ const AppListPage: React.FC<AppListProps> = () => {
       title: t('appManage.apiSecret'),
       dataIndex: 'appSecret',
       key: 'appSecret',
-      render: (text: string) => {
+      render: (text: string): React.ReactElement => {
         return (
           <div
             title={
@@ -115,7 +115,7 @@ const AppListPage: React.FC<AppListProps> = () => {
       title: t('appManage.createTime'),
       dataIndex: 'createTime',
       key: 'createTime',
-      render: (text: string) => {
+      render: (text: string): React.ReactElement => {
         return (
           <div title={text ? dayjs(text)?.format('YYYY-MM-DD HH:mm:ss') : '--'}>
             {text ? dayjs(text)?.format('YYYY-MM-DD HH:mm:ss') : '--'}
@@ -125,7 +125,7 @@ const AppListPage: React.FC<AppListProps> = () => {
     },
   ];
 
-  const loadAppList = async () => {
+  const loadAppList = async (): Promise<void> => {
     setLoading(true);
     getApiList()
       .then(data => {
@@ -138,7 +138,7 @@ const AppListPage: React.FC<AppListProps> = () => {
         setLoading(false);
       });
   };
-  const handleSubmitCreateApp = () => {
+  const handleSubmitCreateApp = (): void => {
     createAppForm.validateFields().then(values => {
       createApp(values)
         .then(() => {

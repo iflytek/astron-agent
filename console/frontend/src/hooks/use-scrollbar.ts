@@ -13,7 +13,7 @@ export function useScrollbar<T extends HTMLElement>(
   const [hasScrollbar, setHasScrollbar] = useState(false);
 
   useEffect(() => {
-    const checkScrollbar = () => {
+    const checkScrollbar = (): void => {
       if (ref.current) {
         const hasScroll = ref.current.scrollHeight > ref.current.clientHeight;
         setHasScrollbar(hasScroll);
@@ -29,7 +29,7 @@ export function useScrollbar<T extends HTMLElement>(
       observer.observe(ref.current);
     }
 
-    return () => {
+    return (): void => {
       observer.disconnect();
     };
   }, [ref, ...deps]);

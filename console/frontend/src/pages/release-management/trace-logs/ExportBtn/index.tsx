@@ -3,7 +3,6 @@ import { Button, Modal, message } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { getTraceCount, traceDownload } from '@/services/trace';
-import { useTranslation } from 'react-i18next';
 import styles from './index.module.scss';
 
 interface ExportBtnProps {
@@ -13,7 +12,6 @@ interface ExportBtnProps {
 }
 
 const ExportBtn: React.FC<ExportBtnProps> = ({ timeRange, record, botId }) => {
-  const { t } = useTranslation();
   const maxDownloadCount = 100000;
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,7 +30,7 @@ const ExportBtn: React.FC<ExportBtnProps> = ({ timeRange, record, botId }) => {
     useState<AbortController | null>(null);
 
   // 处理导出按钮点击
-  const handleExportClick = async () => {
+  const handleExportClick = async (): Promise<void> => {
     if (!timeRange || !timeRange[0] || !timeRange[1]) {
       message.warning('请先选择时间范围');
       return;
@@ -65,7 +63,7 @@ const ExportBtn: React.FC<ExportBtnProps> = ({ timeRange, record, botId }) => {
   };
 
   // 处理确认导出
-  const handleConfirmExport = async () => {
+  const handleConfirmExport = async (): Promise<void> => {
     if (!botId || !timeRange) {
       message.error('参数不完整');
       return;
@@ -128,7 +126,7 @@ const ExportBtn: React.FC<ExportBtnProps> = ({ timeRange, record, botId }) => {
   };
 
   // 处理取消
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     // 若存在进行中的下载，取消之
     if (downloadController) {
       downloadController.abort();
@@ -137,7 +135,7 @@ const ExportBtn: React.FC<ExportBtnProps> = ({ timeRange, record, botId }) => {
   };
 
   // 格式化时间显示
-  const formatTimeRange = () => {
+  const formatTimeRange = (): string => {
     if (!timeRange || !timeRange[0] || !timeRange[1]) {
       return '';
     }

@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Button, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
 import { useDebounceFn } from 'ahooks';
 import eventBus from '@/utils/event-bus';
 import SpaceSearch from '@/components/space/space-search';
@@ -25,17 +24,16 @@ interface SpaceItem {
 }
 
 const SpaceManage: React.FC = () => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>('all');
-  const [searchValue, setSearchValue] = useState<string>('');
+  const [, setSearchValue] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [spaceList, setSpaceList] = useState<SpaceItem[]>([]); //show space list
   const [mySpaceList, setMySpaceList] = useState<SpaceItem[]>([]); //my created space list
   const [allSpaceList, setAllSpaceList] = useState<SpaceItem[]>([]); //all space list
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading] = useState<boolean>(false);
   const { t } = useTranslation();
   //get all space list
-  const getSpaceList = (name?: string) => {
+  const getSpaceList = (name?: string): void => {
     getAllSpace(name)
       .then((res: any) => {
         setAllSpaceList(res);
@@ -55,12 +53,12 @@ const SpaceManage: React.FC = () => {
   useEffect(() => {
     getSpaceList();
     eventBus.on('spaceList', getSpaceList);
-    return () => {
+    return (): void => {
       eventBus.off('spaceList', getSpaceList);
     };
   }, []);
 
-  const handleTabChange = (key: string) => {
+  const handleTabChange = (key: string): void => {
     setActiveTab(key);
     if (key === 'all') {
       setSpaceList(allSpaceList);
@@ -95,11 +93,11 @@ const SpaceManage: React.FC = () => {
     [debouncedSearch]
   );
 
-  const handleCreateSpace = () => {
+  const handleCreateSpace = (): void => {
     setShowCreateModal(true);
   };
 
-  const handleCreateModalClose = () => {
+  const handleCreateModalClose = (): void => {
     setShowCreateModal(false);
   };
 

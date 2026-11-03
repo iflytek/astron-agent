@@ -259,7 +259,7 @@ class Experience {
     if (!this.websocket) return;
     const voiceValue = type === 'CLONE' ? 'x5_clone' : this.voiceName;
 
-    this.websocket.onopen = () => {
+    this.websocket.onopen = (): void => {
       if (this.playState === 'unTTS') {
         this.resetAudio();
         return;
@@ -321,7 +321,7 @@ class Experience {
       }, 1500) as NodeJS.Timeout;
     };
 
-    this.websocket.onmessage = (e: MessageEvent) => {
+    this.websocket.onmessage = (e: MessageEvent): void => {
       const jsonData: WebSocketResponse = JSON.parse(e.data);
       const audioData = jsonData?.payload?.audio?.audio;
       if (audioData) {
@@ -336,7 +336,7 @@ class Experience {
           if (this.firstBufferWaitStartMs == null) {
             this.firstBufferWaitStartMs = Date.now();
           }
-          const tryStart = () => {
+          const tryStart = (): void => {
             // 计算当前可用的帧数
             let frames = 0;
             for (
@@ -370,12 +370,12 @@ class Experience {
       }
     };
 
-    this.websocket.onerror = (e: Event) => {
+    this.websocket.onerror = (e: Event): void => {
       console.log(e);
       this.close?.();
     };
 
-    this.websocket.onclose = (e: CloseEvent) => {
+    this.websocket.onclose = (e: CloseEvent): void => {
       console.log(e);
     };
   }
@@ -526,7 +526,7 @@ class Experience {
     if (this.flag) return;
 
     source.start();
-    source.onended = () => {
+    source.onended = (): void => {
       if (this.playState !== 'play') {
         this.close?.();
         return;

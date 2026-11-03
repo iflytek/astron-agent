@@ -24,7 +24,7 @@ export default function ComboModal({
   width,
   footer = null,
   fullScreen = true,
-}: ComboModalProps) {
+}: ComboModalProps): React.ReactElement {
   const [contrastModalVisible, setContrastModalVisible] = useState(false); // 权益套餐弹窗显隐
   const [showQrCode, setShowQrCode] = useState(false); // 二维码显示状态
   const { fetchUserMeta } = useOrderData();
@@ -32,13 +32,13 @@ export default function ComboModal({
 
   const { t, i18n } = useTranslation();
   const isEnglish = i18n.language === 'en';
-  const jumpPicePage = (url: string | null) => {
+  const jumpPicePage = (url: string | null): void => {
     if (url) {
       window.open(url, '_blank');
     }
   };
 
-  const handleVisibilityChange = () => {
+  const handleVisibilityChange = (): void => {
     if (document.visibilityState === 'visible') {
       checkNeedCreateTeamFn();
     }
@@ -52,19 +52,19 @@ export default function ComboModal({
     }
 
     // 弹窗关闭或组件卸载时，移除监听
-    return () => {
+    return (): void => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [visible]);
 
   // 点击外部关闭二维码
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (): void => {
       setShowQrCode(false);
     };
 
     document.addEventListener('click', handleClickOutside);
-    return () => {
+    return (): void => {
       document.removeEventListener('click', handleClickOutside);
     };
   }, []);

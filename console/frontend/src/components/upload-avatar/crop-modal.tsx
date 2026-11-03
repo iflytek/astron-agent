@@ -24,17 +24,17 @@ const CropModal: React.FC<CropModalProps> = ({
   const [zoom, setZoom] = useState(1);
   const [formData, setFormData] = useState<FormData>();
 
-  const handleCancel = () => {
+  const handleCancel = (): void => {
     onCancel();
     setZoom(1);
     setCrop({ x: 0, y: 0 });
   };
 
-  const onCropComplete = (_croppedArea: any, croppedAreaPixels: any) => {
+  const onCropComplete = (_croppedArea: any, croppedAreaPixels: any): void => {
     if (typeof window === 'undefined') return;
     const image = new window.Image();
     image.src = uploadedSrc || '';
-    image.onload = () => {
+    image.onload = (): void => {
       const canvas = document.createElement('canvas');
       canvas.width = croppedAreaPixels.width;
       canvas.height = croppedAreaPixels.height;
@@ -75,7 +75,7 @@ const CropModal: React.FC<CropModalProps> = ({
     return fileEntry || null;
   };
 
-  const handleOk = async () => {
+  const handleOk = async (): Promise<void> => {
     if (!formData) {
       message.info('图片处理未完成，请稍候...');
       return;

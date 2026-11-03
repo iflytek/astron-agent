@@ -1,5 +1,5 @@
 import api from '@/utils/http';
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
 import qs from 'qs';
 
 // Define interfaces for getAgentList
@@ -43,17 +43,17 @@ export interface GetAgentListResponse {
   totalPages: number;
 }
 
-export async function enableBotFavorite(params: any) {
+export async function enableBotFavorite(params: any): Promise<AxiosResponse> {
   const response = await api.get('/sparkbot/favorite', { params });
   return response;
 }
 
-export async function applySpark(params: any) {
+export async function applySpark(params: any): Promise<AxiosResponse> {
   const response = await api.post(`/auth/apply`, params);
   return response;
 }
 
-export async function getRobotsAPI(params: any) {
+export async function getRobotsAPI(params: any): Promise<AxiosResponse> {
   const response = await api.get('/sparkbot/listBots', { params });
   return response;
 }
@@ -68,19 +68,21 @@ export async function editBotAPI(params: any): Promise<any> {
   return response;
 }
 
-export async function deleteBotAPI(id: number) {
+export async function deleteBotAPI(id: number): Promise<AxiosResponse> {
   const response = await api.delete(`/sparkbot/deleteBot?id=${id}`);
   return response;
 }
 
-export async function getAvailableAppIdList(params: any) {
+export async function getAvailableAppIdList(
+  params: any
+): Promise<AxiosResponse> {
   const response = await api.get(`/sparkbot/getAvailableAppIdList`, {
     params,
   });
   return response;
 }
 
-export async function getFloatRobotAPI() {
+export async function getFloatRobotAPI(): Promise<AxiosResponse> {
   const response = await api.get(`/sparkbot/getFloatedBot`);
   return response;
 }
@@ -95,7 +97,9 @@ export async function getFilterUser(params: any) {
   return response.data.data;
 }
 
-export async function avatarImageGenerate(content: any) {
+export async function avatarImageGenerate(
+  content: any
+): Promise<AxiosResponse> {
   const response = await api.get(`/image/gen?content=${content}`);
   return response;
 }
@@ -114,17 +118,20 @@ export async function getAutoAuthStatus(appId: string): Promise<unknown> {
   return response;
 }
 
-export async function autoAuth(appId: any) {
+export async function autoAuth(appId: any): Promise<AxiosResponse> {
   const response = await api.get(`/auth/auto-auth?appId=${appId}`);
   return response;
 }
 
-export async function getAppDetailAPI(appId: any) {
+export async function getAppDetailAPI(appId: any): Promise<AxiosResponse> {
   const response = await api.get(`/common/app-detail?appId=${appId}`);
   return response;
 }
 
-export async function getModelConfigDetail(id: any, llmSource: any) {
+export async function getModelConfigDetail(
+  id: any,
+  llmSource: any
+): Promise<AxiosResponse> {
   const response = await api.get(`/llm/inter1?id=${id}&llmSource=${llmSource}`);
   return response;
 }
@@ -144,7 +151,7 @@ export const getAgentList = async (
 };
 
 /** 复制bot */
-export const copyBot = async (params: any) => {
+export const copyBot = async (params: any): Promise<AxiosResponse> => {
   const response = await api.post(`/workflow/copy-bot`, qs.stringify(params), {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',

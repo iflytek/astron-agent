@@ -256,7 +256,7 @@ const CharacterVoice: React.FC<CharacterVoiceProps> = ({
   };
 
   // 渲染发音人显示
-  const renderBotVcn = () => {
+  const renderBotVcn = (): React.ReactElement => {
     const vcnObj =
       vcnList.find((item: VcnItem) => item.voiceType === botCreateActiveV.cn) ||
       mySpeaker.find((item: MyVCNItem) => item.assetId === botCreateActiveV.cn);

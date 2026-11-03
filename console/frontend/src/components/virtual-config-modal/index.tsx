@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useMemo,
-  useCallback,
-} from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Modal,
   Form,
@@ -141,7 +135,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
   });
 
   /** 正在播放的音色 ID（保证单声源） */
-  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [, setPlayingVoiceId] = useState<string | null>(null);
   /** 性别筛选：'male' | 'female' | 'all' */
   const [genderFilter, setGenderFilter] = useState<'male' | 'female' | 'all'>(
     'all'
@@ -160,11 +154,9 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     | 'historical'
     | 'all'
   >('all');
-  const [vocName, setVocName] = useState<string>('');
-  const [vocLanguage, setVocLanguage] = useState<string>('cn');
-  const [vocPreviewText, setVocPreviewText] = useState<string>('');
-  const [isAudioPlaying, setIsAudioPlaying] = useState<boolean>(false);
-  const genId = () => {
+  const [, setVocName] = useState<string>('');
+  const [, setIsAudioPlaying] = useState<boolean>(false);
+  const genId = (): string => {
     const uuid = UUID.genV4();
     return uuid.toString().replace(/-/g, '').substring(0, 6);
   };
@@ -312,7 +304,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
   }, []);
 
   /** 音色列表（来源后端） */
-  const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([]);
+  const [voiceOptions] = useState<VoiceOption[]>([]);
 
   /**
    * 提交表单
@@ -323,7 +315,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     botType?: number | string;
     avatar?: string;
     botDesc?: string;
-  }) => {
+  }): Promise<void> => {
     const name = (values?.name ?? '').trim();
     const botDesc = (values?.botDesc ?? '').trim();
 
@@ -410,13 +402,13 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       });
   };
   //获取类型列表
-  const getBotTypeList = async () => {
+  const getBotTypeList = async (): Promise<void> => {
     let res: any = await getBotType();
     res = res.filter((item: any) => item.key !== 25);
     setBotTypeList(res);
   };
   //获取形象列表
-  const getAvatarList = async () => {
+  const getAvatarList = async (): Promise<void> => {
     try {
       const res = await getSceneList();
       const list: SceneItem[] = Array.isArray(res) ? (res as SceneItem[]) : [];
@@ -468,7 +460,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       const typeOk =
         typeFilter === 'all'
           ? true
-          : (() => {
+          : ((): boolean => {
               const expected = typeMap[typeFilter as keyof typeof typeMap];
               const raw = a.type as unknown;
               if (Array.isArray(raw)) {
@@ -513,7 +505,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     }
   }, []);
 
-  const setBotCreateVcn = (vcn: any) => {
+  const setBotCreateVcn = (vcn: any): void => {
     setBotCreateActiveV(vcn);
     setSelectedVoice(vcn.cn);
   };

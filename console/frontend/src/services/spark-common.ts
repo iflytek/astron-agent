@@ -1,4 +1,5 @@
 import http from '../utils/http';
+import type { AxiosResponse } from 'axios';
 import qs from 'qs';
 import { Base64 } from 'js-base64';
 import { VCNTrainingText } from '@/components/speaker-modal/voice-training';
@@ -75,7 +76,7 @@ export const uploadBotImg = (formData: FormData): Promise<any> => {
 };
 
 // 检查用户信息
-export const checkUserInfo = () => {
+export const checkUserInfo = (): Promise<AxiosResponse> => {
   let referOrigin = '';
   try {
     referOrigin = Base64.encode(window.location.href);
@@ -94,21 +95,24 @@ export const checkUserInfo = () => {
   );
 };
 
-export const getCaptcha = () => {
+export const getCaptcha = (): Promise<AxiosResponse> => {
   return http.get(`/chat/gee-captcha`);
 };
 
 // 清除助手对话历史
-export const clearBotChatHistory = (chatId: any, botId: any) => {
+export const clearBotChatHistory = (
+  chatId: any,
+  botId: any
+): Promise<AxiosResponse> => {
   return http.get(`/u/bot/v2/restart?botId=${botId}&chatId=${chatId}`);
 };
 
 // bot
-export const getBotDetailInfo = (params: any) => {
+export const getBotDetailInfo = (params: any): Promise<AxiosResponse> => {
   return http.get(`/bot/getBotInfo?chatId=${params.chatId}`);
 };
 
-export const clearParameter = (params: any) => {
+export const clearParameter = (params: any): Promise<AxiosResponse> => {
   return http.request({
     url: '/u/bot/v2/clear-parameter',
     method: 'post',
@@ -117,16 +121,16 @@ export const clearParameter = (params: any) => {
 };
 
 /** 点赞智能体 */
-export const likeAgent = (botId: any) => {
+export const likeAgent = (botId: any): Promise<AxiosResponse> => {
   return http.post(`/bot/like/create?botId=${botId}`);
 };
 
 /** 取消点赞智能体 */
-export const cancelLikeAgent = (botId: any) => {
+export const cancelLikeAgent = (botId: any): Promise<AxiosResponse> => {
   return http.post(`/bot/like/cancel?botId=${botId}`);
 };
 
-export const errorFeedback = (params: any) => {
+export const errorFeedback = (params: any): Promise<AxiosResponse> => {
   return http.request({
     url: '/u/bot/v2/errorFeedback',
     method: 'post',
@@ -140,7 +144,7 @@ export const getStoryKey = (params: any): Promise<any> => {
 };
 
 //创作中心申请历史
-export const getMyApplyHistory = (params: any) => {
+export const getMyApplyHistory = (params: any): Promise<AxiosResponse> => {
   return http.request({
     url: '/bot/check-list',
     method: 'POST',
@@ -149,7 +153,7 @@ export const getMyApplyHistory = (params: any) => {
 };
 
 //助手创作中心获取我创建的助手
-export const getMyCreateBotList = (params: any) => {
+export const getMyCreateBotList = (params: any): Promise<AxiosResponse> => {
   return http.request({
     url: '/bot/created-list',
     method: 'POST',
@@ -158,7 +162,7 @@ export const getMyCreateBotList = (params: any) => {
 };
 
 //删除申请上架记录
-export const removeBotApplyRecord = (params: any) => {
+export const removeBotApplyRecord = (params: any): Promise<AxiosResponse> => {
   return http.post(`/bot/remove-bot`, params);
 };
 
@@ -172,12 +176,12 @@ export const sendApplyBot = (params: any): Promise<{ botId: number }> => {
 };
 
 //获取bot详情
-export const getBotInfo = (params: any) => {
+export const getBotInfo = (params: any): Promise<AxiosResponse> => {
   return http.post(`/my-bot/bot-detail?botId=${params.botId}`);
 };
 
 //创作中心申请历史
-export const releasedBotWithChannel = (params: any) => {
+export const releasedBotWithChannel = (params: any): Promise<AxiosResponse> => {
   return http.request({
     url: '/bot/releasedBotWithChannel',
     method: 'POST',
@@ -186,7 +190,7 @@ export const releasedBotWithChannel = (params: any) => {
 };
 
 // 获取bot类型
-export const getBotType = () => {
+export const getBotType = (): Promise<AxiosResponse> => {
   return http.post(`/bot/type-list`);
 };
 
@@ -196,12 +200,12 @@ export const submitBotBaseInfo = (params: any): Promise<any> => {
   return http.post(`/workflow/base-save`, params);
 };
 
-export const cancelBindWx = (params: any) => {
+export const cancelBindWx = (params: any): Promise<AxiosResponse> => {
   return http.post('/bot/offiaccount/unbind', params);
 };
 
 // 从星辰来的发布
-export const publish = (params: any) => {
+export const publish = (params: any): Promise<AxiosResponse> => {
   return http.post(`/u/bot/v2/publish`, params);
 };
 
@@ -215,24 +219,24 @@ export const getWechatAuthUrl = (
   botId: any,
   appid: string,
   redirectUrl: string
-) => {
+): Promise<AxiosResponse> => {
   return http.get(
     `/bot/offiaccount/auth-url/get?botId=${botId}&appid=${appid}&redirectUrl=${redirectUrl}`
   );
 };
 
 // 点击调试前
-export const getInputsType = (params: any) => {
+export const getInputsType = (params: any): Promise<AxiosResponse> => {
   return http.post(`/xingchen-api/u/bot/v2/getInputsType`, params);
 };
 
 // mcp发布
-export const publishMCP = (params: any) => {
+export const publishMCP = (params: any): Promise<AxiosResponse> => {
   return http.post(`/publishMCP`, params);
 };
 
 // mcp概览
-export const getMcpContent = (params: any) => {
+export const getMcpContent = (params: any): Promise<AxiosResponse> => {
   return http.post(`/getMcpContent`, params);
 };
 
@@ -253,22 +257,25 @@ export const getOrderList = (): Promise<any[]> => {
 };
 
 // api详情
-export const getApiInfo = (botId: string) => {
+export const getApiInfo = (botId: string): Promise<AxiosResponse> => {
   return http.get(`/publish-api/get-bot-api-info?botId=${botId}`);
 };
 
 // 获取api 实时用量
-export const getApiUsage = (botId: any) => {
+export const getApiUsage = (botId: any): Promise<AxiosResponse> => {
   return http.post(`/publish-api/usage-real-time?botId=${botId}`);
 };
 
 // 创建助手api
-export const createApi = (params: { botId: string; appId: string }) => {
+export const createApi = (params: {
+  botId: string;
+  appId: string;
+}): Promise<AxiosResponse> => {
   return http.post(`/publish-api/create-bot-api`, params);
 };
 
 // create app of user
-export const createApp = (params: any) => {
+export const createApp = (params: any): Promise<AxiosResponse> => {
   return http.post(`/publish-api/create-user-app`, params);
 };
 
@@ -286,12 +293,15 @@ export const getWebAppInfo = (
 };
 
 // swicth app
-export const switchWebApp = (botId: any, status: number) => {
+export const switchWebApp = (
+  botId: any,
+  status: number
+): Promise<AxiosResponse> => {
   return http.post(`/bot/web/switch?botId=${botId}&status=${status}`);
 };
 
 // 用量监控
-export const getWebAppUsage = (botId: any) => {
+export const getWebAppUsage = (botId: any): Promise<AxiosResponse> => {
   return http.get(`/bot/web/usage?botId=${botId}&type=1`);
 };
 
@@ -305,12 +315,12 @@ export const getWebAppUsageChart = (
 };
 
 // 用量监控
-export const aiGenPrologue = (name: any) => {
+export const aiGenPrologue = (name: any): Promise<AxiosResponse> => {
   return http.post(`/bot/ai-prologue-gen`, name);
 };
 
 // 一句话创建助手
-export const quickCreateBot = (str: string) => {
+export const quickCreateBot = (str: string): Promise<AxiosResponse> => {
   const formData = new FormData();
   formData.append('sentence', str);
   return http({
@@ -324,7 +334,7 @@ export const quickCreateBot = (str: string) => {
 };
 
 // 模板创建
-export const createFromTemplate = (params: any) => {
+export const createFromTemplate = (params: any): Promise<AxiosResponse> => {
   return http.post(`/workflow/bot/createFromTemplate`, params);
 };
 
@@ -363,12 +373,12 @@ export const getStarTemplateGroup = (): Promise<any> => {
 };
 
 // 获取知识库信息源
-export const getDataSource = () => {
+export const getDataSource = (): Promise<AxiosResponse> => {
   return http.get('/dataset/getDataset');
 };
 
 // 生成输入示例
-export const generateInputExample = (params: any) => {
+export const generateInputExample = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/bot/generate-input-example`,
     method: 'POST',
@@ -380,39 +390,42 @@ export const generateInputExample = (params: any) => {
 };
 
 // 新增bot
-export const insertBot = (params: any) => {
+export const insertBot = (params: any): Promise<AxiosResponse> => {
   return http.post(`/bot/create`, params);
 };
 
 // 编辑bot
-export const updateBot = (params: any) => {
+export const updateBot = (params: any): Promise<AxiosResponse> => {
   return http.post(`/bot/update`, params);
 };
 
 // 知识库
-export const listRepos = () => {
+export const listRepos = (): Promise<AxiosResponse> => {
   return http.get(
     `/repo/list?pageNo=1&pageSize=999&content=&orderBy=create_time`
   );
 };
 
 // 获取模版数据
-export const getBotTemplate = (botId?: any) => {
+export const getBotTemplate = (botId?: any): Promise<AxiosResponse> => {
   return http.get(`/bot/template${botId ? `?botId=${botId}` : ''}`);
 };
 
 // 生成开场白
-export const generatePrologue = (params: { name: string; botDesc: string }) => {
+export const generatePrologue = (params: {
+  name: string;
+  botDesc: string;
+}): Promise<AxiosResponse> => {
   return http.post(`/bot/ai-prologue-gen`, params);
 };
 
 // 编辑已上架bot
-export const updateDoneBot = (params: any) => {
+export const updateDoneBot = (params: any): Promise<AxiosResponse> => {
   return http.post(`/bot/update-market-bot`, params);
 };
 
 // promptL列表
-export const promptList = (params: any) => {
+export const promptList = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/prompt/manage/list`,
     method: 'POST',
@@ -424,7 +437,7 @@ export const promptList = (params: any) => {
 };
 
 // 创建默认prompt
-export const createPrompt = (params: any) => {
+export const createPrompt = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/prompt/manage/create`,
     method: 'POST',
@@ -436,7 +449,7 @@ export const createPrompt = (params: any) => {
 };
 
 // 删除prompt
-export const deletePrompt = (params: any) => {
+export const deletePrompt = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/prompt/manage/delete`,
     method: 'POST',
@@ -451,26 +464,26 @@ export const deletePrompt = (params: any) => {
 //   return http.post(`/llm/inter1?id=${params.id}&llmSource=${params.llmSource}`);
 // };
 //获取分析页数据 -- unused
-export const getAnalysisData = (params: any) => {
+export const getAnalysisData = (params: any): Promise<AxiosResponse> => {
   return http.get(
     `/dashboard/details?botId=${params.botId}&overviewDays=${params.overviewDays}&channelDays=${params.channelDays}`
   );
 };
 
 /** 获取分析页数据01  */
-export const getAnalysisData01 = (params: any) => {
+export const getAnalysisData01 = (params: any): Promise<AxiosResponse> => {
   return http.get(
     `/publish/bots/${params.botId}/timeseries?days=${params.overviewDays}`
   );
 };
 
 /** 获取分析页数据02  */
-export const getAnalysisData02 = (params: any) => {
+export const getAnalysisData02 = (params: any): Promise<AxiosResponse> => {
   return http.get(`/publish/bots/${params.botId}/summary`);
 };
 
 // prompt详情
-export const promptDetail = (params: any) => {
+export const promptDetail = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/prompt/manage/detail`,
     method: 'POST',
@@ -482,17 +495,17 @@ export const promptDetail = (params: any) => {
 };
 
 // prompt保存
-export const promptSave = (params: any) => {
+export const promptSave = (params: any): Promise<AxiosResponse> => {
   return http.post(`/prompt/manage/save`, params);
 };
 
 // prompt发布
-export const promptCommit = (params: any) => {
+export const promptCommit = (params: any): Promise<AxiosResponse> => {
   return http.post(`/prompt/manage/commit`, params);
 };
 
 // prompt历史列表
-export const listVersion = (params: any) => {
+export const listVersion = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/prompt/manage/listVersion`,
     method: 'POST',
@@ -504,7 +517,7 @@ export const listVersion = (params: any) => {
 };
 
 // 还原prompt为此版本
-export const promptBack = (params: any) => {
+export const promptBack = (params: any): Promise<AxiosResponse> => {
   return http({
     url: `/prompt/manage/revert`,
     method: 'POST',
@@ -516,40 +529,40 @@ export const promptBack = (params: any) => {
 };
 
 /** ## 工作流发布版本列表 */
-export const getVersionList = (params: any) => {
+export const getVersionList = (params: any): Promise<AxiosResponse> => {
   return http.get(
     `/publish/bots/${params.botId}/versions?size=${params.size}&page=${params.current}`
   );
 };
 
 ///是否有权限在api页面进行修改
-export const getHasEditor = () => {
+export const getHasEditor = (): Promise<AxiosResponse> => {
   return http.get(`/bot/api/hasEditor`);
 };
 
-export const getSceneList = () => {
+export const getSceneList = (): Promise<AxiosResponse> => {
   return http.post(`/talkAgent/getSceneList`);
 };
 
-export const getSignedUrl = () => {
+export const getSignedUrl = (): Promise<AxiosResponse> => {
   return http.get(`/talkAgent/signature`);
 };
 
 //
-export const getVCNList = () => {
+export const getVCNList = (): Promise<AxiosResponse> => {
   return http.post(`/talkAgent/getVCNList`);
 };
 //
-export const createTalkAgent = (params: any) => {
+export const createTalkAgent = (params: any): Promise<AxiosResponse> => {
   return http.post(`/talkAgent/create`, params);
 };
 
 //
-export const updateTalkAgent = (params: any) => {
+export const updateTalkAgent = (params: any): Promise<AxiosResponse> => {
   return http.post(`/talkAgent/updateConfig`, params);
 };
 //
-export const upgradeWorkflow = (params: any) => {
+export const upgradeWorkflow = (params: any): Promise<AxiosResponse> => {
   return http.post(`/talkAgent/upgradeWorkflow`, params);
 };
 

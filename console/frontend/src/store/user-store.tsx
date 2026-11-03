@@ -46,7 +46,7 @@ const useUserStore = create<UserState>((set, get) => ({
   // 初始状态
   user: {} as User,
   isLogin: !!get()?.user?.uid,
-  getIsLogin: () => {
+  getIsLogin: (): boolean => {
     const hasValidToken = !!tokenStorage.getAccessToken();
     const hasUser = !!get()?.user?.uid;
     return hasValidToken && hasUser;

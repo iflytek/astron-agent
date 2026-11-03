@@ -74,7 +74,7 @@ const SpaceList: React.FC<SpaceListProps> = ({
     const el = containerRef.current;
     if (!el) return;
 
-    const update = () => {
+    const update = (): void => {
       const width = el.clientWidth || window.innerWidth;
       setColSpan(computeColSpan(width));
     };
@@ -84,7 +84,7 @@ const SpaceList: React.FC<SpaceListProps> = ({
     const ro = new ResizeObserver(() => update());
     ro.observe(el);
 
-    return () => {
+    return (): void => {
       ro.disconnect();
     };
   }, [computeColSpan, minCardWidth]);
@@ -107,7 +107,7 @@ const SpaceList: React.FC<SpaceListProps> = ({
   const handleButtonClick = useCallback(
     async (action: string, space: SpaceItem) => {
       try {
-        const enterSpace = async () => {
+        const enterSpace = async (): Promise<void> => {
           await visitSpace(space.id);
           setSpaceId(space.id);
           setSpaceName(space.name);

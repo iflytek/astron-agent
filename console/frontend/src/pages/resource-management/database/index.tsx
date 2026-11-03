@@ -24,7 +24,6 @@ const DataBase = (): JSX.Element => {
   const {
     dataSource,
     hasMore,
-    searchValue,
     pagination,
     getList,
     createDatabaseOk,
@@ -94,7 +93,7 @@ const DataBase = (): JSX.Element => {
 
   // 监听Header组件的搜索和新建事件
   useEffect(() => {
-    const handleHeaderCreateDatabase = (event: CustomEvent) => {
+    const handleHeaderCreateDatabase = (event: CustomEvent): void => {
       const { type } = event.detail;
       if (type === 'database') {
         handleCreateDatabaseClick();
@@ -110,7 +109,7 @@ const DataBase = (): JSX.Element => {
       handleHeaderCreateDatabase as EventListener
     );
 
-    return () => {
+    return (): void => {
       window.removeEventListener(
         'headerSearch',
         handleSearchChange as EventListener

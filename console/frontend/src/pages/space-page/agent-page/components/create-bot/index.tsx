@@ -1,31 +1,11 @@
 import { readModelAuthStatus, type ModelVersion } from './model-auth';
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useContext,
-  useCallback,
-} from 'react';
-import {
-  Checkbox,
-  Input,
-  Button,
-  Form,
-  Select,
-  message,
-  InputNumber,
-  DatePicker,
-  Spin,
-} from 'antd';
-import Lottie from 'lottie-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Input, Button, Form } from 'antd';
 import dayjs from 'dayjs';
-import { debounce } from 'lodash';
 import { useNavigate } from 'react-router-dom';
 import {
   getAutoAuthStatus,
-  applySpark,
   createBotAPI,
-  autoAuth,
   getAvailableAppIdList,
   modelAuthStatus,
 } from '@/services/agent';
@@ -33,8 +13,6 @@ import { appType, robotType } from '@/types/types-services';
 import MoreIcons from '@/components/modal/more-icons/index';
 import globalStore from '@/store/global-store';
 import { useTranslation } from 'react-i18next';
-
-import formSelect from '@/assets/imgs/main/icon_nav_dropdown.svg';
 
 const { TextArea } = Input;
 
@@ -56,26 +34,22 @@ function index({ setCreateModal }: CreateBotProps): React.ReactElement {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
-  const [disabledSave, setDisabledSave] = useState(false);
-  const [userAppId, setUserAppId] = useState<appType[]>([]);
-  const [isApplyed, setIsApplyed] = useState(false);
+  const [, setDisabledSave] = useState(false);
+  const [, setUserAppId] = useState<appType[]>([]);
+  const [, setIsApplyed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [botIcon, setBotIcon] = useState<any>({});
   const [botColor, setBotColor] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [versionList, setVersionList] = useState<ModelVersion[]>([]);
-  const [serviceId, setServiceId] = useState('');
-  const [modelType, setModelType] = useState(1);
-  const [loadingUser, setLoadingUser] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [content, setContent] = useState('');
-  const [current, setCurrent] = useState(1);
+  const [, setVersionList] = useState<ModelVersion[]>([]);
+  const [, setServiceId] = useState('');
+  const [, setModelType] = useState(1);
+  const [, setLoadingUser] = useState(false);
+  const [, setHasMore] = useState(true);
+  const [content] = useState('');
+  const [, setCurrent] = useState(1);
   const [appId, setAppId] = useState('');
-  const [autoAuthStatus, setAutoAuthStatus] = useState(3);
-
-  function changeAppId(value: string) {
-    getVersionList(value);
-  }
+  const [, setAutoAuthStatus] = useState(3);
 
   useEffect(() => {
     getUserAppId();
@@ -115,53 +89,7 @@ function index({ setCreateModal }: CreateBotProps): React.ReactElement {
       });
   }
 
-  const getUserAppIdDebounce = useCallback(
-    debounce((value: string) => {
-      setContent(value);
-      getUserAppId(value);
-    }, 500),
-    [content]
-  );
-
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
-    if (
-      target.scrollTop + target.offsetHeight >= target.scrollHeight - 10 &&
-      !loadingRef.current &&
-      hasMore
-    ) {
-      moreUserAppId();
-    }
-  };
-
-  function moreUserAppId() {
-    loadingRef.current = true;
-    setLoadingUser(true);
-
-    const params = {
-      current,
-      pageSize: 10,
-      content: content?.trim(),
-    };
-
-    getAvailableAppIdList(params)
-      .then((data: any) => {
-        if (userAppId.length + 10 < data?.pagination?.totalCount) {
-          setHasMore(true);
-        } else {
-          setHasMore(false);
-        }
-        setCurrent(current => current + 1);
-        const list: appType[] = Array.isArray(data?.list) ? data.list : [];
-        setUserAppId([...userAppId, ...list]);
-      })
-      .finally(() => {
-        setLoadingUser(false);
-        loadingRef.current = false;
-      });
-  }
-
-  function getVersionList(appId: string) {
+  function getVersionList(appId: string): void {
     if (!appId) return;
     setLoading(true);
     modelAuthStatus(appId).then(data => {
@@ -183,7 +111,7 @@ function index({ setCreateModal }: CreateBotProps): React.ReactElement {
     });
   }
 
-  function handleSetForm(currentModelVersion?: ModelVersion) {
+  function handleSetForm(currentModelVersion?: ModelVersion): void {
     if (
       currentModelVersion &&
       (currentModelVersion.status === 1 || currentModelVersion.status === 0)
@@ -215,19 +143,12 @@ function index({ setCreateModal }: CreateBotProps): React.ReactElement {
     setModelType(currentModelVersion?.modelType ?? 1);
   }
 
-  function changeModelVersion(value: string) {
-    const currentModelVersion = versionList.find(
-      (item: ModelVersion) => item.value === value
-    );
-    handleSetForm(currentModelVersion);
-  }
-
   useEffect(() => {
     setBotIcon(avatarIcon[0]);
     setBotColor(avatarColor[0]?.name ?? '');
   }, [avatarIcon, avatarColor]);
 
-  function createNewBot() {
+  function createNewBot(): void {
     setLoading(true);
     const params = {
       appId,
@@ -246,95 +167,6 @@ function index({ setCreateModal }: CreateBotProps): React.ReactElement {
       .finally(() => {
         setLoading(false);
       });
-  }
-
-  function CommonCreateBot() {
-    setLoading(true);
-    const params = {
-      commonUser: true,
-      name,
-      desc,
-      avatarColor: botColor,
-      avatarIcon: botIcon?.value ?? '',
-      floated: false,
-    };
-    createBotAPI(params)
-      .then((data: robotType) => {
-        setCreateModal(false);
-        navigate('/space/config/' + data.id + '/base');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
-
-  function applyAuth() {
-    const values = form.getFieldsValue();
-    const params = {
-      appId,
-      patchId: '',
-      llmServiceId: serviceId,
-      modelType: modelType,
-      ...values,
-      expireTs: values?.expireTs?.format('YYYY-MM-DD'),
-    };
-    applySpark(params);
-  }
-
-  function handleFormChange() {
-    let flag = false;
-    const values = form.getFieldsValue();
-    delete values.modelType;
-    delete values.zhanwei;
-    for (const key in values) {
-      if (!values[key]) {
-        flag = true;
-      }
-    }
-
-    setDisabledSave(flag);
-  }
-
-  function disabledDate(current: dayjs.Dayjs) {
-    return current && current < dayjs().startOf('day');
-  }
-
-  function createBotByAuto() {
-    setLoading(true);
-    const domainFromForm = form.getFieldValue('domain') as string | undefined;
-    const firstVersion = versionList[0];
-    const resolvedDomain =
-      domainFromForm ?? (firstVersion ? firstVersion.domain : '');
-    if (!resolvedDomain) {
-      setLoading(false);
-      message.error(t('agentPage.createBot.noAvailableModel'));
-      return;
-    }
-    const params = {
-      appId,
-      domain: resolvedDomain,
-      name,
-      desc,
-      avatarColor: botColor,
-      avatarIcon: botIcon.value,
-      floated: false,
-    };
-    if (autoAuthStatus === 2) {
-      createBotAPI(params)
-        .then(botData => {
-          setCreateModal(false);
-          navigate('/space/config/' + botData.id + '/base');
-        })
-        .finally(() => setLoading(false));
-    } else {
-      Promise.all([createBotAPI(params), autoAuth(appId)])
-        .then(([botData]: [robotType, unknown]) => {
-          message.success(t('agentPage.createBot.successMessage'));
-          setCreateModal(false);
-          navigate('/space/config/' + botData.id + '/base');
-        })
-        .finally(() => setLoading(false));
-    }
   }
 
   return (

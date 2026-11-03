@@ -1,5 +1,4 @@
 import http from '../utils/http';
-import qs from 'qs';
 
 /** ## 获取用户权益 -- NOTE: 提供给免费用户权益*/
 export const getUserAuth = (): Promise<any> => {

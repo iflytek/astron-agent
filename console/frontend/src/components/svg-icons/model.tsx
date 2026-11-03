@@ -1,7 +1,8 @@
+import type { ReactElement } from 'react';
 import Icon from '@ant-design/icons';
 import type { CustomIconComponentProps } from '@ant-design/icons/lib/components/Icon';
 
-const EllipsisSvg = () => (
+const EllipsisSvg = (): ReactElement => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
     fill="none"
@@ -53,8 +54,8 @@ const EllipsisSvg = () => (
   </svg>
 );
 
-const EllipsisIcon = (props: Partial<CustomIconComponentProps>) => (
-  <Icon component={EllipsisSvg} {...props} />
-);
+const EllipsisIcon = (
+  props: Partial<CustomIconComponentProps>
+): ReactElement => <Icon component={EllipsisSvg} {...props} />;
 
 export { EllipsisIcon };

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Button, Form, message, Modal, Input } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import {
   getApiList,
   getApiInfo,
-  getApiUsage,
   createApi,
   createApp,
 } from '@/services/spark-common';
@@ -15,7 +14,7 @@ import { Select } from 'antd';
 import backIcon from '@/assets/svgs/back-create-bot.svg';
 import styles from './api.module.scss';
 
-const Divider = () => {
+const Divider = (): ReactElement => {
   return (
     <div className={styles.divider}>
       {[1, 2, 3, 4, 5, 6].map((_item, index) => {
@@ -29,7 +28,7 @@ export default function BotApi({
   _isOpenapi = false,
 }: {
   _isOpenapi?: boolean;
-}) {
+}): ReactElement {
   const { t } = useTranslation();
   const [createAppForm] = Form.useForm(); //创建应用表单
   const navigate = useNavigate();
@@ -40,14 +39,16 @@ export default function BotApi({
   const [appList, setAppList] = useState<any[]>([]);
   const [appId, setAppId] = useState<any>(''); //appId
   const [apiInfo, setApiInfo] = useState<any>(null);
-  const [apiUsage, setApiUsage] = useState<any>({});
   const [freshCount, setFreshCount] = useState<number>(0); // 刷新页面数据
   const [loading, setLoading] = useState(false);
   const [isShowCreateAppModal, setIsShowCreateAppModal] =
     useState<boolean>(false); // 是否显示创建应用弹框
   const [docUrl, setDocUrl] = useState<string>(); // 文档地址
 
-  const createApiFn = async (publishBindId?: any, appIdParam?: any) => {
+  const createApiFn = async (
+    publishBindId?: any,
+    appIdParam?: any
+  ): Promise<void> => {
     try {
       const result = await createApi({ botId, appId: appIdParam || appId });
       if (isPublishApprovalDecision(result)) {
@@ -63,7 +64,7 @@ export default function BotApi({
     }
   };
   //更新 or 绑定
-  const handleBindApi = () => {
+  const handleBindApi = (): void => {
     if (!appId) {
       message.warning('请先绑定您的应用');
       return;
@@ -76,24 +77,16 @@ export default function BotApi({
    * @param botId botId
    * @param appId appId
    */
-  const updateApiInfo = async (botId: any, appId: any) => {
+  const updateApiInfo = async (botId: any, appId: any): Promise<void> => {
     setAppId(appId);
     setBotId(botId);
     createApiFn(null, appId);
-  };
-  /**
-   * load api usage data
-   * @param id botId
-   */
-  const loadApiUsageData = async (id: any) => {
-    const res = await getApiUsage(id);
-    setApiUsage(res);
   };
 
   /**
    * load list of app
    */
-  const loadAppList = async () => {
+  const loadAppList = async (): Promise<void> => {
     const res = await getApiList();
     const data = res.map((item: any) => {
       return {
@@ -108,12 +101,12 @@ export default function BotApi({
    * load api info
    * @param id botId
    */
-  const loadAPiInfo = async (id: string) => {
+  const loadAPiInfo = async (id: string): Promise<void> => {
     const res = await getApiInfo(id);
     setApiInfo(res);
   };
 
-  const handleSubmitCreateApp = () => {
+  const handleSubmitCreateApp = (): void => {
     createAppForm.validateFields().then(values => {
       createApp(values)
         .then(() => {

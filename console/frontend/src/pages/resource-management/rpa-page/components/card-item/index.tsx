@@ -1,7 +1,7 @@
 import { FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Dropdown, message, Modal } from 'antd';
+import { Dropdown, Modal } from 'antd';
 import { EllipsisIcon } from '@/components/svg-icons/model';
 
 import { RpaInfo, RpaDetailFormInfo } from '@/types/rpa';
@@ -30,7 +30,7 @@ export const CardItem: FC<CardItemProps> = ({
   const actions = new Map([
     [
       'edit',
-      async (record: RpaInfo) => {
+      async (record: RpaInfo): Promise<void> => {
         const result = await getRpaDetail(record.id);
         const formData = {
           id: result.id,
@@ -44,7 +44,7 @@ export const CardItem: FC<CardItemProps> = ({
     ],
     [
       'delete',
-      (record: RpaInfo) => {
+      (record: RpaInfo): void => {
         Modal.confirm({
           title: t('rpa.deleteRpa'),
           content: t('rpa.deleteRpaConfirm'),

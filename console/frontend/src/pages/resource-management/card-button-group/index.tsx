@@ -65,7 +65,7 @@ const CardButtonGroup: React.FC<CardButtonGroupProps> = ({
   const handleClick = (
     btn: ButtonItemConfig,
     event: React.MouseEvent<HTMLDivElement>
-  ) => {
+  ): void => {
     if (btn.disabled) {
       return;
     }

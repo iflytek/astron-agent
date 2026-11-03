@@ -11,7 +11,6 @@ import React, {
   useRef,
   memo,
   ReactElement,
-  JSX,
   useCallback,
   useMemo,
 } from 'react';

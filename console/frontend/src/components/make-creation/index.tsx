@@ -54,7 +54,9 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
     return starModelList.filter(item => item.bot_id !== AI_RECORD_BOT_ID);
   }, [isDefaultPersonalSpace, starModelList]);
 
-  const getStarTemplateList = async (groupId?: number | null) => {
+  const getStarTemplateList = async (
+    groupId?: number | null
+  ): Promise<void> => {
     const params: { pageIndex: number; pageSize: number; groupId?: number } = {
       ...starTemplatePageInfo,
     };
@@ -65,7 +67,7 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
     setStarModelList(Array.isArray(res) ? res : []);
   };
 
-  const getTemplateTypeList = async () => {
+  const getTemplateTypeList = async (): Promise<void> => {
     const res = await getStarTemplateGroup();
     const nextModalList = Array.isArray(res) ? [...res] : [];
     nextModalList.unshift({
@@ -76,7 +78,10 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
     setModalList(nextModalList);
   };
 
-  const addAgentTemplate = async (useTemplate: boolean, item?: any) => {
+  const addAgentTemplate = async (
+    useTemplate: boolean,
+    item?: any
+  ): Promise<void> => {
     setAddAgentTemplateLoading(true);
     const req: any = {
       name: t('createAgent1.commonCustom') + Date.now(),
@@ -110,7 +115,9 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
     }
   };
 
-  const deleteTemplateCard = async (templateId: number | string) => {
+  const deleteTemplateCard = async (
+    templateId: number | string
+  ): Promise<void> => {
     try {
       await deleteWorkflowTemplate(templateId);
       message.success(t('createAgent1.templateDeleteSuccess'));
@@ -121,7 +128,7 @@ const MakeCreateModal: React.FC<MakeCreateModalProps> = ({
     }
   };
 
-  const handleTabChange = (id: number | null) => {
+  const handleTabChange = (id: number | null): void => {
     if (id === activeTab) return;
     setActiveTab(id);
     getStarTemplateList(id);

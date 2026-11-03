@@ -474,7 +474,7 @@ export function ChatDebuggerContent({
     });
   const interactType = Number(talkAgentConfig?.interactType);
   const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;
-  const [callStatus, setCallStatus] = useState('hangup');
+  const [, setCallStatus] = useState('hangup');
   const [loadingVms, setLoadingVms] = useState<boolean>(false);
   const vmsInteractionCmpRef = useRef<VirtualAvatarHandle>(null);
   const vmsInteractiveRefStatus = useChatStores(
@@ -584,7 +584,7 @@ export function ChatDebuggerContent({
     vmsInteractiveRefStatus
   );
 
-  const closeFunction = () => {
+  const closeFunction = (): void => {
     clearData(setOpen);
     vmsInteractionCmpRef?.current?.instance &&
       vmsInteractionCmpRef?.current?.dispose();

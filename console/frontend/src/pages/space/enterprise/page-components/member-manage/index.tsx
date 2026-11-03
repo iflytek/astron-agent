@@ -3,9 +3,7 @@ import { Select, message } from 'antd';
 import { useDebounceFn } from 'ahooks';
 import SpaceTab, { TabOption } from '@/components/space/space-tab';
 import SpaceSearch from '@/components/space/space-search';
-import SpaceButton, {
-  SpaceButtonProps,
-} from '@/components/button-group/space-button';
+import SpaceButton from '@/components/button-group/space-button';
 import MemberList from './components/member-list';
 import InvitationList, {
   InvitationListRef,
@@ -18,7 +16,6 @@ import styles from './index.module.scss';
 import { ModuleType, OperationType } from '@/types/permission';
 import { enterpriseInvite } from '@/services/enterprise';
 import { DEFAULT_VALUES } from '@/pages/space/config';
-import { useTranslation } from 'react-i18next';
 
 const { Option } = Select;
 
@@ -38,7 +35,6 @@ interface FilterState {
 }
 
 const MemberManage: React.FC = () => {
-  const { t } = useTranslation();
   const invitationListRef = useRef<InvitationListRef>(null);
   const [activeTab, setActiveTab] = useState<string>(TAB_KEYS.MEMBERS);
 
@@ -187,14 +183,6 @@ const MemberManage: React.FC = () => {
     [messages]
   );
 
-  // 批量导入成功处理函数
-  const handleBatchImportSuccess = useCallback((data: any) => {
-    console.log('批量导入成功:', data);
-    message.success(`批量导入成功：${data.successCount || 0}个成员`);
-    // 刷新邀请列表
-    invitationListRef.current?.reload();
-  }, []);
-
   // 添加成员按钮配置
   const addMemberButtonConfig = useMemo(
     () => ({
@@ -206,7 +194,8 @@ const MemberManage: React.FC = () => {
         module: ModuleType.SPACE,
         operation: OperationType.ADD_MEMBERS,
       },
-      onClick: (key: string, event: React.MouseEvent) => handleAddMember(),
+      onClick: (key: string, event: React.MouseEvent): void =>
+        handleAddMember(),
     }),
     [handleAddMember]
   );

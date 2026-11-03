@@ -144,7 +144,11 @@ export const convertToTree = (
     ) as TraceNode | undefined;
   };
 
-  const buildNodeKey = (parentKey: string, nodeId?: string, suffix?: string) =>
+  const buildNodeKey = (
+    parentKey: string,
+    nodeId?: string,
+    suffix?: string
+  ): string =>
     [parentKey, nodeId || 'unknown', suffix].filter(Boolean).join('_');
 
   const buildTree = (
@@ -213,7 +217,7 @@ export const convertToTree = (
     return [];
   }
 
-  const attachIterationGroups = (currentNode: TraceNode) => {
+  const attachIterationGroups = (currentNode: TraceNode): void => {
     currentNode.children?.forEach(child => attachIterationGroups(child));
 
     if (!currentNode.func_id?.startsWith('iteration::')) {
@@ -311,7 +315,10 @@ export const searchValueFormat = (
  * @param SEPERATOR 分隔符
  * @returns dayjs日期范围数组或null
  */
-export const convertSearchValueToRange = (value: string, SEPERATOR: string) => {
+export const convertSearchValueToRange = (
+  value: string,
+  SEPERATOR: string
+): dayjs.Dayjs[] | null => {
   if (!value) return null;
 
   const [startStr, endStr] = value.split(SEPERATOR);
@@ -332,7 +339,7 @@ export const createDateRangeValidator = (
   rangeValue: any,
   SEPERATOR: string
 ) => {
-  return (current: dayjs.Dayjs) => {
+  return (current: dayjs.Dayjs): boolean => {
     if (!rangeValue) return false;
 
     // 获取当前选择的时间范围
@@ -381,7 +388,6 @@ export const generateListParams = (
 
     // 根据format确定期望的格式长度和结构
     const formatParts = format.split(' ');
-    const datePart = formatParts[0] || 'YYYY-MM-DD'; // 日期部分格式
     const timePart = formatParts[1] || 'HH:mm:ss'; // 时间部分格式
 
     // 检查当前时间字符串的格式
@@ -486,7 +492,7 @@ export const generateListParams = (
 export const checkTimeRangeInPackagePermission = (
   value: string,
   availableOptionsOptions: TimeOption[]
-) => {
+): boolean => {
   const isInPackagePermission = availableOptionsOptions.some(
     option => option.value === value
   );

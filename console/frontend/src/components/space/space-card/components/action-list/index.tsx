@@ -1,13 +1,7 @@
 import React from 'react';
 import { Button } from 'antd';
-import {
-  UserOutlined,
-  ClockCircleOutlined,
-  LockOutlined,
-} from '@ant-design/icons';
+import { LockOutlined } from '@ant-design/icons';
 import styles from './index.module.scss';
-import { SpaceType } from '@/types/permission';
-import { useUserStoreHook } from '@/hooks/use-user-store';
 import { useTranslation } from 'react-i18next';
 
 // 按钮配置接口
@@ -40,7 +34,6 @@ const ActionList: React.FC<ActionListProps> = ({
   onButtonClick,
   buttonConfigs,
 }) => {
-  const { isSuperAdmin, isAdmin, isMember, isOwner } = useUserStoreHook();
   const { t } = useTranslation();
   // 默认按钮配置列表
   const defaultButtonConfigs: ButtonConfig[] = [
@@ -107,7 +100,7 @@ const ActionList: React.FC<ActionListProps> = ({
       })
       .map(config => ({
         ...config,
-        onClick: () => onButtonClick(config.key, space),
+        onClick: (): void => onButtonClick(config.key, space),
       }));
   };
 

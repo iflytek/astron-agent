@@ -422,7 +422,7 @@ const MessageActions = ({
   useEffect(() => {
     // 绑定 visibilitychange 事件
     document.addEventListener('visibilitychange', handleWindowTabChange);
-    return () =>
+    return (): void =>
       document.removeEventListener('visibilitychange', handleWindowTabChange);
   }, []);
   return (

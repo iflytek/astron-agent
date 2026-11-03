@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import newPublishTag from '@/assets/svgs/new-publish-tag.svg';
 import offlineTag from '@/assets/svgs/offline-tag.svg';
 import styles from './index.module.scss';
@@ -12,7 +12,11 @@ interface StatusMap {
   };
 }
 
-const StatusTag = ({ status }: { status: number }) => {
+const StatusTag = ({
+  status,
+}: {
+  status: number;
+}): ReactElement | undefined => {
   const statusMap: StatusMap = {
     1: {
       text: i18next.t('model.toBeOffShelf'),

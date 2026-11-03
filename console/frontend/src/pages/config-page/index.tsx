@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import BaseConfig from '@/components/config-page-component/config-base';
 
 import styles from './index.module.scss';
 
-const index = () => {
+const index = (): ReactElement => {
   const [currentRobot, setCurrentRobot] = useState<any>({});
   const [currentTab, setCurrentTab] = useState('base');
   const location = useLocation();

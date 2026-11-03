@@ -252,15 +252,12 @@ const BaseConfig: React.FC<ChatProps> = ({
   const setInputExampleTip = useSparkCommonStore(
     state => state.setInputExampleTip
   );
-  const inputExampleModel = useSparkCommonStore(
-    state => state.inputExampleModel
-  );
   const setInputExampleModel = useSparkCommonStore(
     state => state.setInputExampleModel
   );
   const setBotInfo = useBotStateStore(state => state.setBotDetailInfo); // 助手详细信息
 
-  const [fabuFlag, setFabuFlag] = useState<boolean>(false);
+  const [fabuFlag] = useState<boolean>(false);
   const [openWxmol, setOpenWxmol] = useState<boolean>(false);
   const { t } = useTranslation();
   const memoryProviderOptions = useMemo(
@@ -361,17 +358,17 @@ const BaseConfig: React.FC<ChatProps> = ({
   );
   const [supportSystemFlag, setSupportSystemFlag] = useState(false);
   const [supportContextFlag, setSupportContextFlag] = useState(true);
-  const [promptNow, setPromptNow] = useState();
+  const [promptNow] = useState();
   const [coverUrl, setCoverUrl] = useState<string>(''); // 助手封面图
   const isMounted = useRef(false);
   const [isChanged, setIsChanged] = useState(false);
-  const [promptData, setPromptData] = useState('');
-  const [suggest, setSuggest] = useState(false);
-  const [resource, setResource] = useState(false);
-  const [conversationStarter, setConversationStarter] = useState('');
+  const [promptData] = useState('');
+  const [suggest] = useState(false);
+  const [resource] = useState(false);
+  const [conversationStarter] = useState('');
   const [conversation, setConversation] = useState(false);
-  const [presetQuestion, setPresetQuestion] = useState(['']);
-  const [feedback, setFeedback] = useState(false);
+  const [presetQuestion] = useState(['']);
+  const [feedback] = useState(false);
   const [activeWorkbenchView, setActiveWorkbenchView] =
     useState<WorkbenchView>('chat');
   const [debugSessions, setDebugSessions] = useState<AgentDebugSession[]>([]);
@@ -413,7 +410,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     () => [
       { required: true, message: '' },
       {
-        validator: (_: unknown, value: unknown) =>
+        validator: (_: unknown, value: unknown): Promise<void> =>
           getEffectiveBotType(value)
             ? Promise.resolve()
             : Promise.reject(new Error('')),
@@ -449,14 +446,14 @@ const BaseConfig: React.FC<ChatProps> = ({
   );
 
   const [files, setFiles] = useState<any[]>([]);
-  const [repoConfig, setRepoConfig] = useState({
+  const [repoConfig] = useState({
     topK: 5,
     scoreThreshold: 0.94,
   });
-  const [flows, setFlows] = useState<any[]>([]);
+  const [flows] = useState<any[]>([]);
   const [loadingPrompt, setLoadingPrompt] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [config, setConfig] = useState({});
+  const [loading] = useState(false);
+  const [, setConfig] = useState({});
   const [tools, setTools] = useState<any[]>([]);
   const [workflows, setWorkflows] = useState<AgentWorkflow[]>([]);
   const [tree, setTree] = useState<any>([]);
@@ -468,7 +465,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     },
   ]);
   const [isSending, setIsSending] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [, setVisible] = useState(false);
   const [resetChatSwitch, setResetChatSwitch] = useState(false);
   const [growOrShrinkConfig, setGrowOrShrinkConfig] = useState<{
     [key: string]: boolean;
@@ -484,7 +481,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     chatStrong: true,
     flows: true,
   });
-  const [publishModalShow, setPublishModalShow] = useState(false);
+  const [, setPublishModalShow] = useState(false);
   const [vcnList, setVcnList] = useState<VcnItem[]>([]);
   const [form] = Form.useForm();
   const [model, setModel] = useState('星火大模型 Spark X1');
@@ -683,7 +680,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   };
 
   // 验证人设信息
-  const validatePersonality = () => {
+  const validatePersonality = (): boolean => {
     if (personalityData.enablePersonality) {
       // 验证人设信息必填
       if (!personalityData.personalityConfig?.personality?.trim()) {
@@ -826,7 +823,7 @@ const BaseConfig: React.FC<ChatProps> = ({
 
   useEffect(() => {
     eventBus.on('releaseFn', releaseFn);
-    return () => {
+    return (): void => {
       eventBus.off('releaseFn', releaseFn);
     };
   }, [coverUrl, baseinfo, selectSource, form.getFieldsValue()]);
@@ -1163,7 +1160,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     flows,
   ]);
 
-  function changeConfig() {
+  function changeConfig(): void {
     const params = {
       prePrompt: promptData,
       userInputForm: [],
@@ -1522,7 +1519,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   );
 
   useEffect(() => {
-    return () => {
+    return (): void => {
       persistDebugMessages.cancel();
     };
   }, [persistDebugMessages]);
@@ -1547,7 +1544,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   );
 
   useEffect(() => {
-    return () => setIsChanged(false);
+    return (): void => setIsChanged(false);
   }, []);
 
   const multiModelDebugging = useMemo(() => {
@@ -1567,14 +1564,14 @@ const BaseConfig: React.FC<ChatProps> = ({
 
   useEffect(() => {
     document.body.addEventListener('click', clickOutside);
-    return () => document.body.removeEventListener('click', clickOutside);
+    return (): void => document.body.removeEventListener('click', clickOutside);
   }, []);
 
-  function clickOutside(event: MouseEvent) {
+  function clickOutside(event: MouseEvent): void {
     setPublishModalShow(false);
   }
 
-  function closeModal() {
+  function closeModal(): void {
     setVisible(false);
     setChatModelList(chatModelList =>
       chatModelList.map(item => ({
@@ -1643,7 +1640,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     const handleLoadingChange = (data: {
       instanceId: string;
       loading: boolean;
-    }) => {
+    }): void => {
       const { instanceId, loading } = data;
       if (loading) {
         loadingInstances.current.add(instanceId);
@@ -1656,7 +1653,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     eventBus.on('promptTry.inputExample', handleInputBoxSend);
     eventBus.on('promptTry.loadingChange', handleLoadingChange);
 
-    return () => {
+    return (): void => {
       eventBus.off('eventSavebot', savebot);
       eventBus.off('promptTry.inputExample', handleInputBoxSend);
       eventBus.off('promptTry.loadingChange', handleLoadingChange);
@@ -1682,7 +1679,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   ]);
 
   /** 提示词对比 */
-  const handleShowTipPk = (type: string) => {
+  const handleShowTipPk = (type: string): void => {
     setShowModelPk(0); // 提示词对比时隐藏模型对比
     if (type === 'show') {
       return setShowTipPk(true);
@@ -1701,7 +1698,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   }, 300);
 
   /** 添加模型 */
-  const addModelPk = () => {
+  const addModelPk = (): void => {
     if (modelList.length >= 4) {
       message.info(t('configBase.modelComparisonDesc'));
       return;
@@ -1724,7 +1721,7 @@ const BaseConfig: React.FC<ChatProps> = ({
   };
 
   /** 处理InputBox清除消息 */
-  const handleInputBoxClear = () => {
+  const handleInputBoxClear = (): void => {
     // 直接调用PromptTry实例的clear方法
     if (showTipPk) {
       tipPromptTryRefs.current.forEach(ref => {
@@ -1835,7 +1832,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     memory: '记忆',
   };
 
-  const renderWorkbenchActions = () => (
+  const renderWorkbenchActions = (): React.ReactElement => (
     <div className={styles.workbenchActions}>
       {!createBotton && !showTipPk && (
         <Button
@@ -1886,7 +1883,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
-  const renderPromptTryContent = () => {
+  const renderPromptTryContent = (): React.ReactElement => {
     if (showModelPk > 0 && !showTipPk) {
       return (
         <div className={styles.workbenchCompareGrid}>
@@ -2052,7 +2049,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     );
   };
 
-  const renderChatModelSelector = () => (
+  const renderChatModelSelector = (): React.ReactElement => (
     <Select
       value={model}
       onChange={handleModelChange}
@@ -2085,7 +2082,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     </Select>
   );
 
-  const renderChatWorkspace = () => (
+  const renderChatWorkspace = (): React.ReactElement => (
     <div className={styles.workbenchChatWorkspace}>
       <div className={styles.workbenchChatPanel}>
         {renderPromptTryContent()}
@@ -2103,7 +2100,7 @@ const BaseConfig: React.FC<ChatProps> = ({
 
   const renderCapabilityDevelopment = (
     viewMode: 'full' | 'personalization' | 'knowledge' | 'capability' = 'full'
-  ) => (
+  ): React.ReactElement => (
     <CapabilityDevelopment
       viewMode={viewMode}
       botCreateActiveV={botCreateActiveV}
@@ -2144,7 +2141,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     />
   );
 
-  const renderBasicInfoWorkspace = () => (
+  const renderBasicInfoWorkspace = (): React.ReactElement => (
     <div className={styles.workbenchBasicWorkspace}>
       <Form
         form={form}
@@ -2222,7 +2219,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
-  const renderPromptWorkspace = () => (
+  const renderPromptWorkspace = (): React.ReactElement => (
     <div className={styles.workbenchFormSection}>
       <div className={styles.workbenchSectionTitle}>
         <span>{personalizationTitle}</span>
@@ -2243,13 +2240,13 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
-  const renderCapabilityWorkspace = () => (
+  const renderCapabilityWorkspace = (): React.ReactElement => (
     <div className={styles.workbenchCapabilityShell}>
       {renderCapabilityDevelopment('capability')}
     </div>
   );
 
-  const renderMemoryWorkspace = () => {
+  const renderMemoryWorkspace = (): React.ReactElement => {
     if (!currentBotId) {
       return (
         <div className={styles.workbenchFormSection}>
@@ -2528,7 +2525,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     );
   };
 
-  const renderSearchWorkspace = () => (
+  const renderSearchWorkspace = (): React.ReactElement => (
     <div className={styles.workbenchFormSection}>
       <Input
         prefix={<SearchOutlined />}
@@ -2573,7 +2570,7 @@ const BaseConfig: React.FC<ChatProps> = ({
     </div>
   );
 
-  const renderConfigWorkspace = () => {
+  const renderConfigWorkspace = (): React.ReactElement => {
     if (activeWorkbenchView === 'search') return renderSearchWorkspace();
     if (activeWorkbenchView === 'basic') return renderBasicInfoWorkspace();
     if (activeWorkbenchView === 'prompt') return renderPromptWorkspace();

@@ -40,7 +40,6 @@ import {
 } from '@/services/automation';
 import type {
   AutomationRunStatus,
-  PageData,
   WorkflowAutomationRun,
   WorkflowAutomationTask,
   WorkflowAutomationTaskPayload,
@@ -269,7 +268,7 @@ const AutomationPage: FC = () => {
 
     window.addEventListener('headerSearch', handleHeaderSearch);
     window.addEventListener('headerCreateAutomation', handleHeaderCreate);
-    return () => {
+    return (): void => {
       window.removeEventListener('headerSearch', handleHeaderSearch);
       window.removeEventListener('headerCreateAutomation', handleHeaderCreate);
     };

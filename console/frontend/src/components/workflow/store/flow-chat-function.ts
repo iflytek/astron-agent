@@ -126,7 +126,7 @@ const getWorkflowSseContext = () => {
   };
 };
 
-export const handleChatTypeChange = (type: string, set: ChatSetter) => {
+export const handleChatTypeChange = (type: string, set: ChatSetter): void => {
   set({
     chatType: type,
   });

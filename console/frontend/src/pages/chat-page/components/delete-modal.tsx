@@ -21,7 +21,7 @@ const DeleteModal = (props: {
   const botInfo = useBotInfoStore(state => state.botInfo); //  机器人信息
 
   //清除对话历史确认
-  const handleClearChatList = () => {
+  const handleClearChatList = (): void => {
     clearChatList(currentChatId, botInfo.botId)
       .then(res => {
         setCurrentChatId(res.id);

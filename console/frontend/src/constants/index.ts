@@ -4,8 +4,6 @@ import pluginSquare from '@/assets/svgs/aside-plugin.svg';
 import pluginSquareAct from '@/assets/svgs/aside-plugin-act.svg';
 import myProjects from '@/assets/svgs/aside-projects.svg';
 import myProjectsAct from '@/assets/svgs/aside-projects-act.svg';
-import effectEvaluation from '@/assets/svgs/aside-evaluation.svg';
-import effectEvaluationAct from '@/assets/svgs/aside-evaluation-act.svg';
 import releaseManagement from '@/assets/svgs/aside-release.svg';
 import releaseManagementAct from '@/assets/svgs/aside-release-act.svg';
 import modelManagement from '@/assets/svgs/aside-model.svg';
@@ -17,11 +15,8 @@ import resourceManagementAct from '@/assets/svgs/aside-resource-act.svg';
 import appManagement from '@/assets/svgs/aside-app-manage.svg';
 import appManagementAct from '@/assets//svgs/aside-app-manage-act.svg';
 
-import promptTab from '@/assets/imgs/sidebar/prompt.svg';
-import promptTabActive from '@/assets/imgs/sidebar/prompt-active.svg';
 import galleryActive from '@/assets/imgs/common/gallery-active.png';
 import uploadActive from '@/assets/imgs/common/upload-active.png';
-import chatActive from '@/assets/imgs/common/chat-active.png';
 import docx from '@/assets/imgs/knowledge/icon_zhishi_doc.png';
 import pdf from '@/assets/imgs/knowledge/icon_zhishi_pdf.png';
 import md from '@/assets/imgs/knowledge/icon_zhishi_md.png';
@@ -37,7 +32,6 @@ import audio from '@/assets/imgs/common/file-audio-icon.svg';
 import i18n from '@/locales/i18n/index';
 import gallery from '@/assets/imgs/main/icon_tabs_pic_normal.png';
 import upload from '@/assets/imgs/main/icon_tabs_pc_normal.png';
-import chat from '@/assets/imgs/common/icon_tabs_botcreat_normal.png';
 import video from '@/assets/imgs/common/file-video-icon.svg';
 import subtitle from '@/assets/imgs/common/file-srt-icon.svg';
 

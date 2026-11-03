@@ -11,7 +11,7 @@ function ToolInputParameters({
   inputParamsData,
 }: {
   inputParamsData: DebugInput[];
-}) {
+}): React.ReactElement {
   const { t } = useTranslation();
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
 

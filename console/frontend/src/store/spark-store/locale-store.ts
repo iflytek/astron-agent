@@ -37,7 +37,7 @@ export const useLocaleStore = create<LocaleStore>()(
         i18n.changeLanguage(simpleLocale);
         set({ locale: simpleLocale });
       },
-      toggleLocale: () =>
+      toggleLocale: (): void =>
         set(state => {
           // 切换时使用简单格式
           const newLocale = state.locale === 'zh' ? 'en' : 'zh';

@@ -16,9 +16,7 @@ import {
   generatePrologue,
 } from '@/services/spark-common';
 import { placeholderText } from '@/components/bot-center/edit-bot/placeholder';
-import { localeConfig } from '@/locales/localeConfig';
 import { useSparkCommonStore } from '@/store/spark-store/spark-common';
-import { useLocaleStore } from '@/store/spark-store/locale-store';
 import SpeakerModal, { MyVCNItem, VcnItem } from '@/components/speaker-modal';
 import UploadBackgroundModal from '@/components/upload-background';
 import Personality from './personality-component';
@@ -134,13 +132,11 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
     setGrowOrShrinkConfig,
     personalityData,
     setPersonalityData,
-    model,
     vcnList,
   } = props;
 
   const backgroundImg = useSparkCommonStore(state => state.backgroundImg);
   const backgroundImgApp = useSparkCommonStore(state => state.backgroundImgApp);
-  const { locale: localeNow } = useLocaleStore();
 
   const [uploadBackgroundModalVisible, setUploadBackgroundModalVisible] =
     useState(false);
@@ -151,22 +147,13 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   const [showSpeakerModal, setShowSpeakerModal] = useState(false);
   const [inputExampFlag, setInputExampFlag] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [openingRemarksModal, setOpeningRemarksModal] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const [, setOpeningRemarksModal] = useState(false);
   const [visible, setVisible] = useState(false);
   const [dataSource, setDataSource] = useState<any>([]);
   const [isFresh, setIsFresh] = useState(false);
   const [inputExampleLoading, setInputExampleLoading] =
     useState<boolean>(false);
   const botTypeValue = 10;
-  const promptNameList = [
-    (localeConfig as any)?.[localeNow]?.roleSetting,
-    (localeConfig as any)?.[localeNow]?.targetTasks,
-    (localeConfig as any)?.[localeNow]?.needDescription,
-  ];
-  const [promptStructList, setPromptStructList] = useState<
-    { promptKey: string; promptValue: string; id: number }[]
-  >([]);
   const requestDescribe = t(
     'configBase.CapabilityDevelopment.requireCreativeNovelty'
   );
@@ -182,19 +169,19 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   /**
    * 设置助手发音人
    */
-  const setBotCreateVcn = (vcn: { cn: string }) => {
+  const setBotCreateVcn = (vcn: { cn: string }): void => {
     setBotCreateActiveV({
       cn: vcn.cn,
     });
   };
-  const onChecked = (e: CheckboxChangeEvent) => {
+  const onChecked = (e: CheckboxChangeEvent): void => {
     setXieyi(e.target.checked);
   };
 
   /**
    * 渲染助手发音人
    */
-  const renderBotVcn = () => {
+  const renderBotVcn = (): React.ReactElement => {
     const vcnObj =
       vcnList.find((item: VcnItem) => item.voiceType === botCreateActiveV.cn) ||
       mySpeaker.find((item: MyVCNItem) => item.assetId === botCreateActiveV.cn);
@@ -237,7 +224,7 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   /**
    * AI生成输入示例
    */
-  const getInputExamples = () => {
+  const getInputExamples = (): void => {
     if (!botDesc || !name || !setRole || !targetTask || !requestDescribe) {
       message.error(
         t(
@@ -246,21 +233,6 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
       );
       return;
     }
-    const botCommand = [
-      {
-        promptKey: promptNameList[0],
-        promptValue: setRole,
-      },
-      {
-        promptKey: promptNameList[1],
-        promptValue: targetTask,
-      },
-      {
-        promptKey: promptNameList[2],
-        promptValue: requestDescribe,
-      },
-      ...promptStructList,
-    ];
 
     setInputExampleLoading(true);
     generateInputExample({
@@ -282,16 +254,16 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
       });
   };
 
-  function deleteTool(toolId: string) {
+  function deleteTool(toolId: string): void {
     const newTools = tools.filter((item: any) => item.toolId !== toolId);
     setTools(newTools);
   }
 
-  function deleteWorkflow(flowId: string) {
+  function deleteWorkflow(flowId: string): void {
     setWorkflows(workflows.filter(item => item.flowId !== flowId));
   }
 
-  function deleteFile(record: any) {
+  function deleteFile(record: any): void {
     if (record.nodeType !== 0) {
       const newTree = deleteNodeById(tree, record.id);
       setTree(JSON.parse(JSON.stringify(newTree)));
@@ -372,17 +344,17 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
     isValidMcpServerUrl(url.trim())
   ).length;
 
-  const updateMcpServerUrl = (index: number, value: string) => {
+  const updateMcpServerUrl = (index: number, value: string): void => {
     const nextUrls = [...displayedMcpServerUrls];
     nextUrls[index] = value;
     setMcpServerUrls(nextUrls);
   };
 
-  const addMcpServerUrl = () => {
+  const addMcpServerUrl = (): void => {
     setMcpServerUrls([...displayedMcpServerUrls, '']);
   };
 
-  const removeMcpServerUrl = (index: number) => {
+  const removeMcpServerUrl = (index: number): void => {
     const nextUrls = displayedMcpServerUrls.filter((_, itemIndex) => {
       return itemIndex !== index;
     });
@@ -390,7 +362,7 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
   };
 
   const [skillModalOpen, setSkillModalOpen] = useState(false);
-  const removeSkill = (skillId: number) => {
+  const removeSkill = (skillId: number): void => {
     setSkills(skills.filter(skill => skill.skillId !== skillId));
   };
 
@@ -1346,7 +1318,9 @@ const CapabilityDevelopment: React.FC<CapabilityDevelopmentProps> = props => {
                     {inputExampFlag && (
                       <div
                         onClick={
-                          inputExampleLoading ? () => null : getInputExamples
+                          inputExampleLoading
+                            ? (): null => null
+                            : getInputExamples
                         }
                         className={cls(
                           styles.autoInputExampleBtn,

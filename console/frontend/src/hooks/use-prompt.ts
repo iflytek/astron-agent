@@ -36,7 +36,7 @@ interface PromptProps {
   hasUnsavedChanges: boolean;
 }
 
-function Prompt({ onLocationChange, hasUnsavedChanges }: PromptProps) {
+function Prompt({ onLocationChange, hasUnsavedChanges }: PromptProps): void {
   const blocker = useBlocker(
     hasUnsavedChanges ? onLocationChange : false
   ) as Blocker;

@@ -97,7 +97,8 @@ export const columnsMap = {
     dataIndex: 'duration',
     key: 'duration',
     ellipsis: true,
-    render: (duration: number) => utils.durationToSeconds(duration, true),
+    render: (duration: number): string =>
+      utils.durationToSeconds(duration, true),
     width: 100,
   },
   StartTime: {
@@ -180,7 +181,9 @@ export const searchValueFormat = (value: string): string => {
 };
 
 /** ## 将searchValue转换为RangePicker需要的dayjs格式 */
-export const convertSearchValueToRange = (value: string) => {
+export const convertSearchValueToRange = (
+  value: string
+): dayjs.Dayjs[] | null => {
   return utils.convertSearchValueToRange(value, SEPERATOR);
 };
 
@@ -188,7 +191,7 @@ export const convertSearchValueToRange = (value: string) => {
 export const createDateRangeValidator = (
   searchValue: string,
   rangeValue: any
-) => {
+): ((current: dayjs.Dayjs) => boolean) => {
   return utils.createDateRangeValidator(searchValue, rangeValue, SEPERATOR);
 };
 
@@ -212,7 +215,7 @@ export const generateListParams = (
 export const checkTimeRangeInPackagePermission = (
   value: string,
   availableOptionsOptions: TimeOption[]
-) => {
+): boolean => {
   return utils.checkTimeRangeInPackagePermission(
     value,
     availableOptionsOptions

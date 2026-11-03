@@ -1,5 +1,5 @@
 import { FC, useState } from 'react';
-import { Button, message } from 'antd';
+import { Button } from 'antd';
 import { deleteTool } from '@/services/plugin';
 
 import dialogDel from '@/assets/imgs/main/icon_dialog_del.png';

@@ -75,7 +75,7 @@ export const useEnterprise = (navigate?: any) => {
     }
   }, [setSpaceStatistics, spaceType]);
 
-  const handleTeamChoose = async () => {
+  const handleTeamChoose = async (): Promise<void> => {
     setEnterpriseInfo({
       id: '',
       logoUrl: '',
@@ -100,7 +100,7 @@ export const useEnterprise = (navigate?: any) => {
 
   const visitEnterprise = useCallback(async (enterpriseId: string) => {
     try {
-      const res: any = await visitEnterpriseApi(enterpriseId);
+      await visitEnterpriseApi(enterpriseId);
     } catch (err: any) {
       if (err?.code === 62002 || err?.code === 67002) {
         handleTeamChoose();

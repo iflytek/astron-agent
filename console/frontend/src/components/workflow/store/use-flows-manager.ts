@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { TextNodeConfig } from '@/components/workflow/types/domain';
 
 import { FlowsManagerStoreType } from '@/components/workflow/types/zustand/flowsManager';
 import {
@@ -89,7 +90,8 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     });
   },
   addTextNodeConfig: (params): Promise<void> => addTextNodeConfig(params, get),
-  removeTextNodeConfig: id => removeTextNodeConfig(id, get),
+  removeTextNodeConfig: (id): Promise<TextNodeConfig[]> =>
+    removeTextNodeConfig(id, get),
   setModels: (appId): void => setModels(appId, set),
   setErrNodes: (errNodes): void => {
     set({

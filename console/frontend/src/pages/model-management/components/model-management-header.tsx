@@ -34,7 +34,7 @@ const ModelManagementHeader: React.FC<ModelManagementHeaderProps> = ({
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialActiveTab);
   const { pathname } = useLocation();
-  const { state, actions } = useModelContext();
+  const { actions } = useModelContext();
 
   useEffect(() => {
     setActiveTab(initialActiveTab);

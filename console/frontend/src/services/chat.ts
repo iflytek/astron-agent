@@ -107,7 +107,9 @@ export async function postCreateChat(
  * @param chatListId 聊天列表Id
  * @returns
  */
-export const deleteChatList = (params: { chatListId: number }) => {
+export const deleteChatList = (params: {
+  chatListId: number;
+}): Promise<AxiosResponse> => {
   return http.post(`/chat-list/v1/del-chat-list`, params);
 };
 
@@ -179,7 +181,7 @@ export const uploadFileToS3 = async (
     };
 
     if (onProgress) {
-      config.onUploadProgress = (progressEvent: any) => {
+      config.onUploadProgress = (progressEvent: any): void => {
         if (progressEvent.lengthComputable) {
           const progress = Math.round(
             (progressEvent.loaded / progressEvent.total) * 100

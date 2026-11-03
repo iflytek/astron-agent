@@ -1,7 +1,6 @@
 import React, { memo, FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeleteModal } from './components/modal-component';
-import { useNavigate } from 'react-router-dom';
 import { usePluginPage } from './hooks/use-plugin-page';
 import CardItem from './components/card-item';
 import ResourceEmpty from '../resource-empty';
@@ -9,18 +8,12 @@ import SiderContainer from '@/components/sider-container';
 
 const PluginPage: FC = () => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const {
-    user,
     tools,
     getTools,
-    getToolsDebounce,
-    isHovered,
-    setIsHovered,
     deleteModal,
     setDeleteModal,
     currentTool,
-    setCurrentTool,
     searchValue,
     setSearchValue,
     handleCreatePlugin,

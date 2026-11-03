@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Modal, Input, Button, Select, message } from 'antd';
+import { Modal, Select, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
 import ButtonGroup from '@/components/button-group/button-group';
 import type { ButtonConfig } from '@/components/button-group/types';
@@ -54,7 +54,7 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
     }
   }, [open]);
 
-  const loadMembers = async () => {
+  const loadMembers = async (): Promise<void> => {
     setLoading(true);
     try {
       const res: any = await getEnterpriseSpaceMemberList();
@@ -71,11 +71,11 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
     }
   };
 
-  const handleMemberChange = (value: string) => {
+  const handleMemberChange = (value: string): void => {
     setSelectedMemberId(value);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (): Promise<void> => {
     if (!selectedMemberId) {
       message.warning(t('space.transferOwnershipSelectMember'));
       return;
@@ -92,7 +92,7 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
     }
   };
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     setSelectedMemberId('');
     onClose();
   };

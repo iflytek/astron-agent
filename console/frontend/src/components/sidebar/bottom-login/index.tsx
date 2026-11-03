@@ -2,107 +2,17 @@ import React, { ReactElement, useState, useEffect } from 'react';
 import loginAvatar from '@/assets/imgs/sidebar/avator.png';
 import navDropDown from '@/assets/imgs/sidebar/icon_nav_dropdown.png';
 import useUserStore from '@/store/user-store';
-import { parseCurrentUserFromToken } from '@/config/casdoor';
 import { handleLoginRedirect } from '@/utils/auth';
 import ControlModal from '../control-modal';
 import OrderTypeDisplay from '../order-type-display';
 import { Popover } from 'antd';
 import styles from './index.module.scss';
 
-interface User {
-  nickname?: string;
-  login?: string;
-  avatar?: string;
-  uid?: string;
-}
-
 interface BottomLoginProps {
   isCollapsed: boolean;
   isPersonCenterOpen: boolean;
   setIsPersonCenterOpen: (visible: boolean) => void;
 }
-
-// Extracted components to reduce complexity
-interface UserSectionProps {
-  user?: User;
-  isCollapsed: boolean;
-  internalShowModal: boolean;
-  handleAvatarClick: (e: React.MouseEvent) => void;
-  OrderTypeComponent?: ReactElement;
-}
-
-const UserSection: React.FC<UserSectionProps> = ({
-  user,
-  isCollapsed,
-  internalShowModal,
-  handleAvatarClick,
-  OrderTypeComponent,
-}) => {
-  return (
-    <>
-      <img
-        src={getUserAvatar(user)}
-        className="w-7 h-7 cursor-pointer rounded-full"
-        alt=""
-        onClick={handleAvatarClick}
-      />
-
-      {!isCollapsed && (
-        <>
-          <div className="ml-2.5 cursor-pointer flex items-center relative flex-1 min-w-0">
-            <span
-              className="text-ellipsis overflow-hidden text-sm text-[#333333]"
-              title={getUserDisplayName(user)}
-            >
-              {getUserDisplayName(user)}
-            </span>
-
-            <div className="relative">
-              <img
-                src={navDropDown}
-                className={`
-                  w-4 h-4 ml-2 transition-transform duration-300
-                  ${internalShowModal ? 'rotate-180' : ''}
-                `}
-                alt=""
-              />
-            </div>
-          </div>
-
-          {OrderTypeComponent}
-        </>
-      )}
-    </>
-  );
-};
-
-interface LoginButtonProps {
-  loginText: string;
-  onLoginClick?: () => void;
-}
-
-const LoginButton: React.FC<LoginButtonProps> = ({
-  loginText,
-  onLoginClick,
-}) => (
-  <div
-    className="flex-1 text-center ml-[-10px] cursor-pointer hover:opacity-70 transition-opacity"
-    onClick={onLoginClick}
-  >
-    {loginText}
-  </div>
-);
-
-// Helper functions to reduce complexity
-const getUserDisplayName = (user?: User): string => {
-  const tokenUser = parseCurrentUserFromToken();
-  return user?.nickname || user?.login || tokenUser?.nickname || '';
-};
-
-const getUserAvatar = (user?: User): string => {
-  const tokenUser = parseCurrentUserFromToken();
-  return user?.avatar || tokenUser?.avatar || loginAvatar;
-};
 
 const BottomLogin = ({
   isCollapsed,
@@ -141,16 +51,6 @@ const BottomLogin = ({
   // 优先使用实际认证状态，fallback到传入的props
   const isLogin = isAuthenticated;
 
-  // 登出处理函数
-  const handleLogout = async (): Promise<void> => {
-    try {
-      setIsAuthenticated(false);
-      setInternalShowModal(false);
-    } finally {
-      handleLogout();
-    }
-  };
-
   const handleBottomLogin = (e: React.MouseEvent): void => {
     e.stopPropagation();
 
@@ -162,13 +62,6 @@ const BottomLogin = ({
     // Toggle modal for authenticated users
     const newShowState = !internalShowModal;
     setInternalShowModal(newShowState);
-  };
-
-  const handleAvatarClick = (e: React.MouseEvent): void => {
-    e.stopPropagation();
-    if (!isLogin) {
-      handleLoginRedirect();
-    }
   };
 
   return (

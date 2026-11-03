@@ -4,12 +4,10 @@ import {
   RoleType,
   ModuleType,
   OperationType,
-  RolePermissionConfig,
 } from '@/types/permission';
 import {
   getRoleConfig,
   hasModulePermission,
-  getModulePermissions,
   getAccessibleModules,
   checkResourceRestrictions,
 } from '@/permissions/utils';
@@ -90,7 +88,7 @@ export function usePermissions(): UserPermissionInfo | null {
   const checks = useMemo((): PermissionChecks => {
     if (!userRole) {
       // 返回所有权限都为false的检查方法
-      const noPermission = () => false;
+      const noPermission = (): boolean => false;
       return {
         canView: noPermission,
         canCreate: noPermission,
@@ -131,7 +129,10 @@ export function usePermissions(): UserPermissionInfo | null {
         hasModulePermission(userRole, module, operation),
 
       // 资源权限检查
-      canEditResource: (module: ModuleType, resourceOwnerId?: string) => {
+      canEditResource: (
+        module: ModuleType,
+        resourceOwnerId?: string
+      ): boolean => {
         if (!hasModulePermission(userRole, module, OperationType.EDIT))
           return false;
         return checkResourceRestrictions(
@@ -141,7 +142,10 @@ export function usePermissions(): UserPermissionInfo | null {
           currentUserIdRef.current
         );
       },
-      canDeleteResource: (module: ModuleType, resourceOwnerId?: string) => {
+      canDeleteResource: (
+        module: ModuleType,
+        resourceOwnerId?: string
+      ): boolean => {
         return checkResourceRestrictions(
           userRole,
           module,
@@ -153,7 +157,7 @@ export function usePermissions(): UserPermissionInfo | null {
       // 批量权限检查
       checkMultiplePermissions: (
         checks: Array<{ module: ModuleType; operation: OperationType }>
-      ) => {
+      ): Record<string, boolean> => {
         const result: Record<string, boolean> = {};
         checks.forEach(({ module, operation }) => {
           const key = `${module}_${operation}`;

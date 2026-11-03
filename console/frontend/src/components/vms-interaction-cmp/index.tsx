@@ -135,7 +135,7 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
     sdkInitAppInfo?: any;
     sdkAvatarInfo?: any;
     sdkTTSInfo?: any;
-  }) => {
+  }): Promise<boolean | undefined> => {
     //如果不存在此虚拟人实例，开始初始化
     if (!vmsInteractiveRef.current) {
       loadingStatusChange?.(true);
@@ -218,7 +218,7 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
     return undefined;
   };
 
-  const disposeVmsInteractiveRef = () => {
+  const disposeVmsInteractiveRef = (): void => {
     vmsInteractiveRef.current?.interrupt();
     vmsInteractiveRef.current?.stop();
     vmsInteractiveRef.current?.destroy();
@@ -236,17 +236,17 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
     instance: vmsInteractiveRef.current,
     player: vmsInteractiveRefPlayer,
     dispose: disposeVmsInteractiveRef,
-    interrupt: () => {
+    interrupt: (): void => {
       vmsInteractiveRef.current?.interrupt();
       setVmsInteractiveRefStatus('interrupt');
     },
-    stop: () => {
+    stop: (): void => {
       vmsInteractiveRef.current?.stop();
       setVmsInteractiveRefStatus('stop');
     },
   }));
 
-  const handleWindowTabChange = () => {
+  const handleWindowTabChange = (): void => {
     // 判断页面是否从“可见”变为“不可见”（即切换到其他标签页）
     if (document.visibilityState === 'hidden') {
       console.log('用户已切换到其他标签页');
@@ -277,7 +277,7 @@ const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
       document.removeEventListener('visibilitychange', handleWindowTabChange);
     });
 
-    return () => {
+    return (): void => {
       document.body.removeEventListener('click', () => {
         vmsInteractiveRefPlayer?.resume();
         playerResumeCallback?.();

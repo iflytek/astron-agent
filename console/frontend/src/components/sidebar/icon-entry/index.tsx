@@ -1,10 +1,8 @@
 import React from 'react';
-import { Tooltip, Popover } from 'antd';
+import { Tooltip } from 'antd';
 import { useTranslation } from 'react-i18next';
 import documentationCenter from '@/assets/imgs/sidebar/documentation_center.svg';
 import messageCenter from '@/assets/imgs/sidebar/message_center.svg';
-import weChatShare from '@/assets/imgs/sidebar/we_chat_share.svg';
-import joinChatGroup from '@/assets/imgs/sidebar/join-chat-group.png';
 import styles from './index.module.scss';
 import useUserStore from '@/store/user-store';
 
@@ -22,13 +20,13 @@ const IconEntry: React.FC<IconEntryProps> = ({
   const { t } = useTranslation();
   const isLogin = useUserStore(state => state.getIsLogin());
 
-  const handleDocumentClick = () => {
+  const handleDocumentClick = (): void => {
     window.open(
       'https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html'
     );
   };
 
-  const handleMessageClick = () => {
+  const handleMessageClick = (): void => {
     if (isLogin) {
       onMessageClick?.();
     }

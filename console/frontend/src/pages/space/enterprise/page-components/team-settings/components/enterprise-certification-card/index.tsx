@@ -1,10 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, message, Modal } from 'antd';
+import React, { useState } from 'react';
+import { Button, message } from 'antd';
 import styles from './index.module.scss';
 import TeamSetCardBgImg from '@/assets/imgs/space/teamSettingCardBg.png';
-import { uploadBotImg } from '@/services/spark-common';
-import Cropper from 'react-easy-crop';
-import { compressImage } from '@/utils';
 import { updateLogo } from '@/services/enterprise-auth-api';
 import useEnterpriseStore from '@/store/enterprise-store';
 import UploadImage from '../upload-image';
@@ -26,7 +23,7 @@ const EnterpriseCertificationCard: React.FC<
   const { setEnterpriseInfo } = useEnterpriseStore();
   const [triggerChild, setTriggerChild] = useState(false);
   // 触发上传
-  const triggerFileSelectPopup = (callback: () => void) => {
+  const triggerFileSelectPopup = (callback: () => void): void => {
     setTriggerChild(false);
     callback();
   };
@@ -54,7 +51,7 @@ const EnterpriseCertificationCard: React.FC<
             {
               text: '导入Logo徽章为企业LOGO',
               buttonText: '替换',
-              onClick: () => {
+              onClick: (): void => {
                 // todo
                 // triggerFileSelectPopup()
                 setTriggerChild(true);
@@ -72,7 +69,7 @@ const EnterpriseCertificationCard: React.FC<
 
   const config = getCardConfig();
 
-  const handleUpgradeClick = (buttonText: string) => {
+  const handleUpgradeClick = (buttonText: string): void => {
     if (buttonText === '去升级') {
       // onUpgrade?.();
       window.open('https://console.xfyun.cn/user/authentication/company');

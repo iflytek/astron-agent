@@ -10,7 +10,6 @@ import { Button, Input, Select, Space, Spin } from 'antd';
 import { getRpaDetail, getRpaList } from '@/services/rpa';
 import { useMemoizedFn, useRequest } from 'ahooks';
 import { throttle } from 'lodash';
-import dayjs from 'dayjs';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useTranslation } from 'react-i18next';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';

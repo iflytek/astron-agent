@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { Modal, Upload, Button, message, Spin, Space } from 'antd';
-import { UploadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { UploadOutlined } from '@ant-design/icons';
 import SpaceButton from '@/components/button-group/space-button';
 import AddMemberModal from '@/components/space/add-member-modal';
 import { useTranslation } from 'react-i18next';
@@ -170,7 +170,7 @@ const BatchImport: React.FC<BatchImportProps> = ({
   );
 
   // 渲染导入前步骤
-  const renderBeforeImportStep = () => (
+  const renderBeforeImportStep = (): React.ReactElement => (
     <div className={styles.beforeImport}>
       <div className={styles.templateSection}>
         <span className={styles.templateHint}>
@@ -203,7 +203,7 @@ const BatchImport: React.FC<BatchImportProps> = ({
   );
 
   // 渲染上传中步骤
-  const renderUploadingStep = () => (
+  const renderUploadingStep = (): React.ReactElement => (
     <div className={styles.uploading}>
       <div className={styles.progressSection}>
         <Spin />
@@ -226,7 +226,7 @@ const BatchImport: React.FC<BatchImportProps> = ({
   );
 
   // 渲染导入结果步骤
-  const renderImportResultStep = () => (
+  const renderImportResultStep = (): React.ReactElement => (
     <div className={styles.importResult}>
       <div className={styles.resultSummary}>
         <div className={styles.resultTitle}>
@@ -266,7 +266,7 @@ const BatchImport: React.FC<BatchImportProps> = ({
     downloadResult(importResult.data.resultUrl);
   }, [importResult]);
 
-  const TitleRender = () => {
+  const TitleRender = (): React.ReactElement => {
     return (
       <div className={styles.AddMemberTitle}>
         <span>{t('spaceManagement.addNewMember')}</span>

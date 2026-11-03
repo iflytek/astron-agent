@@ -331,7 +331,7 @@ const PersonalCenter: FC<PersonalCenterProps> = ({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [itemIdToDelete, setItemIdToDelete] = useState<number | null>(null);
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
 
   const handleToChat = useCallback((item: any) => {
     navigate(`/chat/${item.botId}`);

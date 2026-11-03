@@ -79,7 +79,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   const setBotDetailInfo = useBotStateStore(state => state.setBotDetailInfo);
   const [botMultiFileParam, setBotMultiFileParam] = useState<boolean>(false);
   const [moreParams, setMoreParams] = useState(false);
-  const [editV2Visible, { setLeft: hide, setRight: show }] = useToggle();
+  const [, { setRight: show }] = useToggle();
   const [searchParams] = useSearchParams();
   const [setIsOpenapi] = useState<boolean>(false);
   const [fabuFlag, setFabuFlag] = useState<boolean>(false);
@@ -266,7 +266,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
   };
 
   /** ## 显示调试未通过提示 */
-  const showDebugNotPassedWarning = (bot: any) => {
+  const showDebugNotPassedWarning = (bot: any): void => {
     const warningMessage = message.error({
       content: (
         <span>
@@ -310,7 +310,7 @@ const AgentList: React.FC<AgentListProps> = ({ AgentType }) => {
         title: t('releaseManagement.agentId'),
         align: 'left',
         width: 120,
-        render: (text: string) => {
+        render: (text: string): React.ReactElement => {
           return <div style={{ marginLeft: '8px' }}>{text}</div>;
         },
       },
