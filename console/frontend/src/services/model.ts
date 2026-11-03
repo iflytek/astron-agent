@@ -7,17 +7,12 @@ import type {
   ModelCreateParams,
   ModelDetailParams,
   ModelToggleOption,
-  RsaPublicKeyResponse,
   LocalModelFile,
   LocalModelParams,
 } from '@/types/model';
 
 export async function modelCreate(params: ModelCreateParams): Promise<void> {
   return await http.post('/api/model', params);
-}
-
-export async function modelRsaPublicKey(): Promise<RsaPublicKeyResponse> {
-  return await http.get('/api/model/rsa/public-key');
 }
 
 export async function getModelList(
@@ -34,7 +29,7 @@ export async function getModelDetail(
 
 // 自定义模型删除
 export async function deleteModelAPI(modelId: string | number): Promise<void> {
-  return await http.get(`/api/model/delete?modelId=${modelId}`);
+  return await http.delete(`/api/model/delete?modelId=${modelId}`);
 }
 
 export async function getCategoryTree(): Promise<CategoryNode[]> {
@@ -47,7 +42,7 @@ export async function enabledModelAPI(
   llmSource: string | number,
   option: ModelToggleOption
 ): Promise<void> {
-  return await http.get(
+  return await http.put(
     `/api/model/${option}?modelId=${modelId}&llmSource=${llmSource}`
   );
 }

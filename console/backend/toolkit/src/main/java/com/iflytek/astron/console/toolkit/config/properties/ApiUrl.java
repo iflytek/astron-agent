@@ -19,7 +19,6 @@ public class ApiUrl {
     String streamChatUrl;
     String toolUrl;
     String agentUrl;
-    String toolRpaUrl;
     String appUrl;
     String apiKey;
     String apiSecret;
@@ -28,24 +27,15 @@ public class ApiUrl {
     String tenantId;
     String tenantKey;
     String tenantSecret;
-    /**
-     * Teacher Zhang's MCP server address
-     */
-    String mcpToolServer;
 
     String mcpAuthServer;
-    String mcpUrlServer;
-    String sparkDB;
-    String sparkDBType;
 
     // Get fine-tuning model authentication parameters
     String modelAk;
     String modelSk;
-    String localModel;
     String datasetUrl;
     String datasetFileUrl;
     String xinghuoDatasetFileUrl;
     String deleteXinghuoDatasetFileUrl;
     String deleteXinghuoDatasetUrl;
-    String rpaUrl;
 }

@@ -32,6 +32,9 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "astron_console.accounts",
+    "astron_console.spaces",
+    "astron_console.resources",
+    "astron_console.knowledge",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -117,4 +120,79 @@ LOGGING = {
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "loggers": {"astron_console": {"handlers": ["console"], "level": "INFO"}},
+}
+
+# Resource services keep their established deployment variables and ownership data.
+# Empty optional endpoints are reported by the operation that requires them.
+KNOWLEDGE_URL = os.environ.get("KNOWLEDGE_URL") or "http://127.0.0.1:30007/knowledge"
+SPARK_DB_URL = os.environ.get("SPARK_DB_URL") or "http://127.0.0.1:7990"
+SPARK_DB_TYPE = os.environ.get("SPARK_DB_TYPE", "postgresql")
+TENANT_ID = os.environ.get("TENANT_ID", "")
+MAAS_APP_ID = os.environ.get("MAAS_APP_ID") or TENANT_ID
+RESOURCE_APP_ID = MAAS_APP_ID
+RESOURCE_ADMIN_UID = os.environ.get("ADMIN_UID", "9999")
+RESOURCE_TOOL_URL = os.environ.get("TOOL_URL") or "http://127.0.0.1:18888"
+RESOURCE_LOCAL_MODEL_URL = os.environ.get("LOCAL_MODEL_URL") or "http://127.0.0.1:33778"
+RESOURCE_RPA_URL = os.environ.get("RPA_URL") or "https://newapi.iflyrpa.com"
+RESOURCE_RPA_EXEC_URL = os.environ.get("TOOL_RPA_URL") or "http://127.0.0.1:17198"
+RESOURCE_MCP_CATALOG_URL = os.environ.get("RESOURCE_MCP_CATALOG_URL", "")
+RESOURCE_MCP_AUTH_URL = os.environ.get("RESOURCE_MCP_AUTH_URL", "")
+RESOURCE_MCP_SHORT_URL = os.environ.get("RESOURCE_MCP_SHORT_URL", "")
+RESOURCE_REDIS_URL = CACHES["default"]["LOCATION"]
+WORKFLOW_INTERNAL_API_KEY = secret("WORKFLOW_INTERNAL_API_KEY")
+SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN = secret("SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN")
+SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN = secret("SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN")
+OSS_ENDPOINT = os.environ.get("OSS_ENDPOINT", "")
+OSS_REMOTE_ENDPOINT = os.environ.get("OSS_REMOTE_ENDPOINT") or OSS_ENDPOINT
+OSS_ACCESS_KEY_ID = secret("OSS_ACCESS_KEY_ID")
+OSS_ACCESS_KEY_SECRET = secret("OSS_ACCESS_KEY_SECRET")
+OSS_BUCKET_CONSOLE = os.environ.get("OSS_BUCKET_CONSOLE", "console-oss")
+OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE = int(
+    os.environ.get("OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE", "600")
+)
+SKILL_SANDBOX_ARTIFACT_BUCKET = os.environ.get(
+    "SKILL_SANDBOX_ARTIFACT_BUCKET", "workflow-artifacts"
+)
+SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_FILES_PER_WORKFLOW = int(
+    os.environ.get("SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_FILES_PER_WORKFLOW", "1000")
+)
+SKILL_SANDBOX_ARTIFACT_DOWNLOAD_EXPIRY_SECONDS = int(
+    os.environ.get("SKILL_SANDBOX_ARTIFACT_DOWNLOAD_EXPIRY_SECONDS", "300")
+)
+SKILL_SANDBOX_ARTIFACT_ALLOWED_EXTENSIONS = [
+    item.strip().lower()
+    for item in os.environ.get(
+        "SKILL_SANDBOX_ARTIFACT_ALLOWED_EXTENSIONS",
+        "txt,md,csv,json,pdf,png,jpg,jpeg,gif,webp,doc,docx,xls,xlsx,ppt,pptx,zip",
+    ).split(",")
+    if item.strip()
+]
+
+
+def byte_limit(name, default):
+    value = os.environ.get(name, default).strip().upper()
+    for suffix, multiplier in (("GB", 1024**3), ("MB", 1024**2), ("KB", 1024), ("B", 1)):
+        if value.endswith(suffix):
+            return int(value[: -len(suffix)]) * multiplier
+    return int(value)
+
+
+SKILL_SANDBOX_ARTIFACT_MAX_FILE_SIZE = byte_limit("SKILL_SANDBOX_ARTIFACT_MAX_FILE_SIZE", "20MB")
+SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_TOTAL_SIZE_PER_WORKFLOW = byte_limit(
+    "SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_TOTAL_SIZE_PER_WORKFLOW", "1GB"
+)
+# File bodies are streamed to temporary files by Django's official upload handlers.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
+CONSOLE_SPACE_LIMITS = {
+    tier: {
+        "space_count": int(os.environ.get(f"SPACE_LIMIT_{tier.upper()}_SPACE_COUNT", str(spaces))),
+        "user_count": int(os.environ.get(f"SPACE_LIMIT_{tier.upper()}_USER_COUNT", str(users))),
+    }
+    for tier, spaces, users in (
+        ("free", 1, 50),
+        ("pro", 10, 100),
+        ("team", 10000, 100),
+        ("enterprise", 10000, 500),
+    )
 }

@@ -5,9 +5,9 @@ import Layout from '@/layouts/index';
 import ConfigPage from '@/pages/config-page';
 
 const AccountAccess = lazy(() => import('@/pages/account-access'));
-const HomePage = lazy(() => import('@/pages/home-page'));
-const StorePlugin = lazy(() => import('@/pages/plugin-store'));
-const ToolSquareDetail = lazy(() => import('@/pages/plugin-store/detail'));
+const ResourceTools = lazy(
+  () => import('@/pages/resource-management/resource-tools')
+);
 const OfficialModel = lazy(
   () => import('@/pages/model-management/official-model/official-model-home')
 );
@@ -24,6 +24,7 @@ const WorkFlowFiles = lazy(() => import('@/pages/workflow/workflow-files'));
 
 const ChatPage = lazy(() => import('@/pages/chat-page'));
 const PersonalSpace = lazy(() => import('@/pages/space/personal'));
+const SpaceInvitations = lazy(() => import('@/pages/space/invitations'));
 const SpaceDetail = lazy(() => import('@/pages/space/space-detail'));
 const EnterpriseSpace = lazy(() => import('@/pages/space/enterprise'));
 const SpacePage = lazy(() => import('@/pages/space-page'));
@@ -48,13 +49,13 @@ const routes = [
     children: [
       {
         index: true,
-        element: <Navigate to="/home" />,
+        element: <Navigate to="/resource/knowledge" replace />,
       },
       {
         path: '/home',
         element: (
           <Suspense fallback={<Loading />}>
-            <HomePage />
+            <Navigate to="/resource/knowledge" replace />
           </Suspense>
         ),
       },
@@ -104,6 +105,14 @@ const routes = [
         element: (
           <Suspense fallback={<Loading />}>
             <ResourceManagement />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/space/invitations',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <SpaceInvitations />
           </Suspense>
         ),
       },
@@ -199,7 +208,7 @@ const routes = [
         path: '/store/plugin',
         element: (
           <Suspense fallback={<Loading />}>
-            <StorePlugin />
+            <ResourceTools market />
           </Suspense>
         ),
       },
@@ -207,7 +216,7 @@ const routes = [
         path: '/store/plugin/:id',
         element: (
           <Suspense fallback={<Loading />}>
-            <ToolSquareDetail />
+            <Navigate to="/store/plugin" replace />
           </Suspense>
         ),
       },

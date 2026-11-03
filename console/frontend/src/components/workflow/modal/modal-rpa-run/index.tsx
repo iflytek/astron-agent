@@ -1,4 +1,5 @@
 import useAntModal from '@/hooks/use-ant-modal';
+import useSpaceStore from '@/store/space-store';
 import React, { forwardRef, useImperativeHandle, useState } from 'react';
 
 import {
@@ -131,11 +132,13 @@ export const ModalRpaRun = forwardRef<{
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        'X-RPA-Token': currentRobot?.apiKey || '',
+        'space-id': useSpaceStore.getState().spaceId || '',
+        'enterprise-id': useSpaceStore.getState().enterpriseId || '',
         'X-CSRFToken': getCsrfToken(),
       },
       signal: controller.signal,
       body: JSON.stringify({
+        assistantId: currentRobot?.assistantId,
         projectId: currentRobot?.project_id,
         execPosition: 'EXECUTOR',
         params: { ...defaultValues, ...filterUndefined(values) },

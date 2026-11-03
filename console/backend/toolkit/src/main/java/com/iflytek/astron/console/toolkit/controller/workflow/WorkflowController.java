@@ -357,23 +357,9 @@ public class WorkflowController {
 
     // ---------------------- MCP Tools/Strategy ----------------------
 
-    @GetMapping("/get-mcp-server-list")
-    public Object getMcpServerList(
-            @RequestParam(required = false) String categoryId,
-            @RequestParam(required = false, defaultValue = "1") Integer pageNo,
-            @RequestParam(required = false, defaultValue = "1000") Integer pageSize,
-            HttpServletRequest request) {
-        return workflowService.getMcpServerList(categoryId, pageNo, pageSize, request);
-    }
 
-    @GetMapping("/get-mcp-server-list-locally")
-    public ApiResult<List<McpServerTool>> getMcpServerListLocally(@RequestParam(required = false) String categoryId,
-            @RequestParam(required = false, defaultValue = "1") Integer pageNo,
-            @RequestParam(required = false, defaultValue = "1000") Integer pageSize,
-            @RequestParam(required = false) Boolean authorized,
-            HttpServletRequest request) {
-        return ApiResult.success(workflowService.getMcpServerListLocally(categoryId, pageNo, pageSize, authorized, request));
-    }
+
+
 
     @GetMapping("/get-agent-strategy")
     public Object getAgentStrategy() {
@@ -385,30 +371,15 @@ public class WorkflowController {
         return workflowService.getKnowledgeProStrategy();
     }
 
-    @PostMapping("/debug-server-tool")
-    public Object debugServerTool(@RequestBody @Validated McpToolReq req) {
-        return workflowService.debugServerTool(req);
-    }
 
-    @GetMapping("/get-server-tool-detail")
-    public Object getServerToolDetail(@RequestParam @NotBlank String serverId) {
-        return workflowService.getServerToolDetail(serverId);
-    }
 
-    @GetMapping("/get-server-tool-detail-locally")
-    public ApiResult<McpServerToolDetailVO> getServerToolDetailLocally(@RequestParam String serverId) {
-        return ApiResult.success(workflowService.getServerToolDetailLocally(serverId));
-    }
 
-    @GetMapping("/get-env-key")
-    public Object andEnvKey(@RequestParam @NotBlank String serverId, HttpServletRequest request) {
-        return workflowService.andEnvKey(serverId, request);
-    }
 
-    @PostMapping("/push-env-key")
-    public Object pushEnvKey(@RequestBody @NotNull McpPushDto req, HttpServletRequest request) {
-        return workflowService.pushEnvKey(req, request);
-    }
+
+
+
+
+
 
     @GetMapping("/replace-appId")
     public Object replaceAppId(@RequestParam @NotBlank String appId, @RequestParam @NotBlank String flowId) {

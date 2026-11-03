@@ -2,12 +2,11 @@ import React, { FC, useCallback } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import CrashErrorComponent from '@/components/crash-error-component';
-import Sidebar from '@/components/sidebar';
+import ResourceNavigation from '@/components/resource-navigation';
 import Header from '@/components/header';
 
 const hasHeaderList = [
   'knowledge',
-  'plugin',
   'database',
   'rpa',
   'skill',
@@ -107,7 +106,7 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
       FallbackComponent={CrashErrorComponent}
     >
       <div className="flex h-full w-full overflow-hidden global-background">
-        <Sidebar />
+        <ResourceNavigation />
 
         <div className="flex-1 flex flex-col overflow-hidden page-container-UI">
           {shouldShowHeader && (

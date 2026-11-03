@@ -575,6 +575,9 @@ consoleHub:
     workflowUrl: "http://astron-agent-core-workflow:7880"
     sparkDbUrl: "http://astron-agent-core-database:7990"
     localModelUrl: "http://127.0.0.1:33778"
+    resourceMcpCatalogUrl: ""
+    resourceMcpAuthUrl: ""
+    resourceMcpShortUrl: ""
     rpaUrl: "https://newapi.iflyrpa.com"
     # Workflow Service APIs
     workflowChatUrl: "http://astron-agent-core-workflow:7880/workflow/v1/chat/completions"

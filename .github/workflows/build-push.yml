@@ -89,7 +89,7 @@ jobs:
         uses: actions/checkout@v4
 
       - uses: astral-sh/setup-uv@v6
-      - name: Verify Python Console accounts
+      - name: Verify Python Console accounts and resources
         working-directory: console/backend
         run: |
           uv sync --locked

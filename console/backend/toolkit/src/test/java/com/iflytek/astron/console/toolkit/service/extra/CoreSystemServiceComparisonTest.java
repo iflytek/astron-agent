@@ -6,10 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import com.alibaba.fastjson2.JSONObject;
 import com.iflytek.astron.console.commons.exception.BusinessException;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
-import com.iflytek.astron.console.toolkit.config.properties.CommonConfig;
 import com.iflytek.astron.console.toolkit.entity.core.workflow.FlowProtocol;
-import com.iflytek.astron.console.toolkit.entity.enumVo.DBOperateEnum;
-import com.iflytek.astron.console.toolkit.entity.enumVo.DBTableEnvEnum;
 import com.iflytek.astron.console.toolkit.util.OkHttpUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,12 +34,8 @@ class CoreSystemServiceComparisonTest {
         coreSystemService = new CoreSystemService();
         ApiUrl apiUrl = new ApiUrl();
         apiUrl.setWorkflow("http://core");
-        apiUrl.setSparkDB("http://spark-db");
         apiUrl.setTenantId("tenant");
         ReflectionTestUtils.setField(coreSystemService, "apiUrl", apiUrl);
-        CommonConfig commonConfig = new CommonConfig();
-        commonConfig.setAppId("console-app");
-        ReflectionTestUtils.setField(coreSystemService, "commonConfig", commonConfig);
         ReflectionTestUtils.setField(
                 coreSystemService, "workflowInternalApiKey", INTERNAL_KEY);
     }
@@ -113,32 +106,16 @@ class CoreSystemServiceComparisonTest {
     }
 
     @Test
-    void databaseAndComparisonLogsDoNotExposeRequestOrResponsePayloads() {
-        String sentinel = "database-secret-and-signed-url-must-not-leak";
+    void deleteComparisonLogsDoNotExposeResponsePayloads() {
+        String sentinel = "comparison-secret-and-signed-url-must-not-leak";
         Logger logger = (Logger) LoggerFactory.getLogger(CoreSystemService.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<>();
         appender.start();
         logger.addAppender(appender);
         try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
-            okHttp.when(() -> OkHttpUtil.post(anyString(), anyMap(), anyString()))
-                    .thenAnswer(invocation -> invocation.getArgument(0, String.class).contains("create_database")
-                            ? "{\"code\":0,\"message\":\"" + sentinel
-                                    + "\",\"data\":{\"database_id\":7000000000}}"
-                            : "{\"code\":0,\"message\":\"" + sentinel + "\",\"data\":{}}");
             okHttp.when(() -> OkHttpUtil.delete(anyString(), anyMap(), anyString()))
                     .thenReturn("{\"code\":0,\"message\":\"" + sentinel + "\",\"data\":{}}");
 
-            assertThat(coreSystemService.createDatabase(sentinel, "uid", 3L, sentinel))
-                    .isEqualTo(7_000_000_000L);
-            coreSystemService.execDDL("CREATE TABLE " + sentinel, "uid", 3L, 7L);
-            assertThat(coreSystemService.execDML(
-                    "INSERT " + sentinel,
-                    "uid",
-                    3L,
-                    7L,
-                    DBOperateEnum.INSERT.getCode(),
-                    DBTableEnvEnum.TEST.getCode()))
-                    .isNull();
             coreSystemService.deleteComparisons("flow-1", "cmp-1");
         } finally {
             logger.detachAppender(appender);
@@ -148,26 +125,8 @@ class CoreSystemServiceComparisonTest {
         assertThat(appender.list)
                 .extracting(ILoggingEvent::getFormattedMessage)
                 .anySatisfy(message -> assertThat(message)
-                        .contains("create database", "bodyBytes = "))
-                .anySatisfy(message -> assertThat(message)
-                        .contains("exec ddl", "databaseId = 7", "bodyBytes = "))
-                .anySatisfy(message -> assertThat(message)
-                        .contains("exec dml", "databaseId = 7", "bodyBytes = "))
+                        .contains("workflow delete comparisons", "bodyBytes = "))
                 .noneSatisfy(message -> assertThat(message).contains(sentinel));
     }
 
-    @Test
-    void upstreamDatabaseFailureDoesNotEscapeResponseMessageOrBody() {
-        String sentinel = "https://storage.example/file?X-Amz-Signature=must-not-leak";
-        try (MockedStatic<OkHttpUtil> okHttp = mockStatic(OkHttpUtil.class)) {
-            okHttp.when(() -> OkHttpUtil.post(anyString(), anyMap(), anyString()))
-                    .thenReturn("{\"code\":500,\"message\":\"" + sentinel + "\"}");
-
-            assertThatThrownBy(() -> coreSystemService.execDDL(sentinel, "uid", null, 7L))
-                    .isInstanceOf(BusinessException.class)
-                    .hasMessageNotContaining(sentinel)
-                    .hasMessageNotContaining("storage.example")
-                    .hasMessageNotContaining("X-Amz-Signature");
-        }
-    }
 }

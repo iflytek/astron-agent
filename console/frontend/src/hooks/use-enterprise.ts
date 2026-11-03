@@ -95,7 +95,7 @@ export const useEnterprise = (navigate?: any) => {
     setEnterpriseId('');
     setSpaceType('personal');
     sessionStorage.removeItem('space-storage');
-    window.location.href = '/home';
+    window.location.href = '/space';
   };
 
   const visitEnterprise = useCallback(async (enterpriseId: string) => {

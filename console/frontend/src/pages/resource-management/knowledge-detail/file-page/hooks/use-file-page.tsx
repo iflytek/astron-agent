@@ -14,6 +14,7 @@ import {
   ListKnowledgeParams,
 } from '@/types/resource';
 import { getRouteId, modifyChunks } from '@/utils/utils';
+import { commitChunkChange } from '@/utils/knowledge-state';
 import { Modal } from 'antd';
 import { debounce } from 'lodash';
 import React, {
@@ -229,25 +230,22 @@ const useFileChunks = (
     [fetchData]
   );
 
-  const enableChunk = useCallback(
-    (record: Chunk, checked: boolean): void => {
-      const findChunk =
-        chunks.find(item => item.id === record.id) || ({} as Chunk);
-      findChunk.enabled = checked;
-      setChunks([...chunks]);
-      const params = {
-        id: record.id,
-        enabled: checked ? 1 : 0,
-      };
-      enableKnowledgeAPI(params).then(data => {
-        if (checked) {
-          findChunk.id = data;
-          setChunks([...chunks]);
-        }
-      });
-    },
-    [chunks]
-  );
+  const enableChunk = useCallback((record: Chunk, checked: boolean): void => {
+    void commitChunkChange(
+      record.id,
+      async () => {
+        const data = await enableKnowledgeAPI({
+          id: record.id,
+          enabled: checked ? 1 : 0,
+        });
+        const [updated] = modifyChunks([data]);
+        if (!updated) throw new Error('Knowledge chunk response is empty');
+        return updated;
+      },
+      setChunks,
+      setCurrentChunk
+    ).catch(() => undefined);
+  }, []);
 
   const resetKnowledge = useCallback((): void => {
     fetchData();

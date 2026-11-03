@@ -56,7 +56,6 @@
     "immer": "^10.1.1",
     "jquery": "^3.7.1",
     "js-base64": "^3.7.7",
-    "jsencrypt": "^3.3.2",
     "katex": "^0.16.22",
     "localforage": "^1.10.0",
     "lodash": "4.17.21",

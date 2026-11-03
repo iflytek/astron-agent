@@ -18,6 +18,7 @@ import {
   listFileDirectoryTree,
 } from '@/services/knowledge';
 import { modifyChunks } from '@/utils';
+import { commitChunkChange } from '@/utils/knowledge-state';
 import { debounce } from 'lodash';
 import { fileType, generateType } from '@/utils';
 import { useTranslation } from 'react-i18next';
@@ -836,11 +837,7 @@ function EditChunk({
   fileInfo,
 }: EditChunkProps): React.ReactElement {
   const { t } = useTranslation();
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    setChecked(currentChunk.enabled ? true : false);
-  }, []);
+  const checked = Boolean(currentChunk.enabled);
 
   return (
     <div
@@ -912,7 +909,6 @@ function EditChunk({
               size="small"
               checked={checked}
               onChange={checked => {
-                setChecked(checked);
                 enableChunk(currentChunk, checked);
               }}
               className="list-switch ml-4"
@@ -1280,6 +1276,7 @@ const useFileDetail = ({
   loadingRef,
   setLoadingData,
   setChunks,
+  setCurrentChunk,
   chunkRef,
   searchValue,
   setPageNumber,
@@ -1299,6 +1296,7 @@ const useFileDetail = ({
   | 'loadingRef'
   | 'setLoadingData'
   | 'setChunks'
+  | 'setCurrentChunk'
   | 'chunkRef'
   | 'searchValue'
   | 'setPageNumber'
@@ -1420,21 +1418,20 @@ const useFileDetail = ({
   }
 
   function enableChunk(record: ChunkItem, checked: boolean): void {
-    const findChunk = chunks.find(item => item.id === record.id);
-    if (findChunk) {
-      findChunk.enabled = checked;
-    }
-    setChunks([...chunks]);
-    const params = {
-      id: record.id,
-      enabled: checked ? 1 : 0,
-    };
-    enableKnowledgeAPI(params).then(data => {
-      if (checked && findChunk) {
-        findChunk.id = data;
-        setChunks([...chunks]);
-      }
-    });
+    void commitChunkChange(
+      String(record.id),
+      async () => {
+        const data = await enableKnowledgeAPI({
+          id: record.id,
+          enabled: checked ? 1 : 0,
+        });
+        const [updated] = modifyChunks([data]);
+        if (!updated) throw new Error('Knowledge chunk response is empty');
+        return updated;
+      },
+      setChunks,
+      setCurrentChunk
+    ).catch(() => undefined);
   }
   return {
     getFiles,
@@ -1491,6 +1488,7 @@ function FileDetail({
     loadingRef,
     setLoadingData,
     setChunks,
+    setCurrentChunk,
     chunkRef,
     searchValue,
     setPageNumber,

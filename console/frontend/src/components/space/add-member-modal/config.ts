@@ -5,11 +5,6 @@ import {
 import { getSpaceSearchUsername, getSpaceUserLimit } from '@/services/space';
 import { message } from 'antd';
 
-const DEFAULT_LIMIT = {
-  enterprise: 1000,
-  space: 48,
-};
-
 const methodMap = {
   enterprise: {
     search: getEnterpriseSearchUsername,
@@ -47,12 +42,11 @@ export const getUserLimit = async (
   inviteType: string = 'enterprise'
 ): Promise<number> => {
   try {
-    const res = await methodMap[inviteType as keyof typeof methodMap].limit();
-    return (
-      res.data?.remain ??
-      DEFAULT_LIMIT[inviteType as keyof typeof DEFAULT_LIMIT]
-    );
+    const res = (await methodMap[
+      inviteType as keyof typeof methodMap
+    ].limit()) as unknown as { remain: number };
+    return res.remain;
   } catch (err) {
-    return DEFAULT_LIMIT[inviteType as keyof typeof DEFAULT_LIMIT];
+    return 0;
   }
 };

@@ -16,7 +16,6 @@ api:
     apiSecret: ${APP_API_SECRET:apiSecret}
     defaultAddRepo: sparkbot_repo_01
     knowledgeUrl: ${KNOWLEDGE_URL:http://127.0.0.1:30007/knowledge}
-    mcpToolServer: http://127.0.0.1:port/api/v1
     mcpAuthServer: http://127.0.0.1:port
     openPlatform: https://127.0.0.1:8080
     tenantId: ${TENANT_ID:tenantId}
@@ -24,19 +23,15 @@ api:
     tenantSecret: ${TENANT_SECRET:tenantSecret}
     toolUrl: ${TOOL_URL:http://127.0.0.1:18888}
     agentUrl: ${AGENT_URL:http://127.0.0.1:8700}
-    toolRpaUrl: ${TOOL_RPA_URL:http://127.0.0.1:17198}
     workflow: ${WORKFLOW_URL:http://127.0.0.1:7880}
     sparkDB: ${SPARK_DB_URL:http://127.0.0.1:7990}
     sparkDBType: ${SPARK_DB_TYPE:postgresql}
     sparkDocUrl: https://chatdoc.xfyun.cn
-    mcpUrlServer: http://127.0.0.1:port
-    localModel: ${LOCAL_MODEL_URL:http://127.0.0.1:33778}
     datasetUrl: http://127.0.0.1:8080/dataset/getDataset
     datasetFileUrl: http://127.0.0.1:8080/dataset/getDatasetFiles
     xinghuoDatasetFileUrl: http://127.0.0.1:8080/dataset/addXinghuoDatasetFile
     deleteXinghuoDatasetFileUrl: http://127.0.0.1:8080/dataset/deleteXinghuoDatasetFile
     deleteXinghuoDatasetUrl: http://127.0.0.1:8080/dataset/deleteXinghuoDataset
-    rpaUrl: ${RPA_URL:https://newapi.iflyrpa.com}
     appAuthVerifyUrl: ${TENANT_VERIFY_APP_AUTH:http://127.0.0.1:5052/v2/app/key/verify}
 
 # Business-specific configuration
@@ -61,10 +56,6 @@ xfyun:
   api:
     auth:
       secret: ${API_AUTH_SECRET:api-auth-secret}
-
-# MCP server configuration
-mcp-server:
-  file-path: classpath:mcp-server
 
 # Task scheduling and async executor configuration
 task:

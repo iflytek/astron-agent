@@ -15,7 +15,7 @@ export const getAllSpace = (name?: string) => {
 
 //访问空间
 export const visitSpace = (params: any) => {
-  return http.get(`/space/visit-space?spaceId=${params}`);
+  return http.post('/space/visit-space', { spaceId: params || null });
 };
 
 //最近访问列表
@@ -40,20 +40,9 @@ export const updatePersonalSpace = (params: any) => {
 };
 
 //个人空间删除
-export const deletePersonalSpace = (params: {
-  spaceId: string;
-  mobile: string;
-  verifyCode: string;
-}) => {
+export const deletePersonalSpace = (params: { spaceId: string }) => {
   return http.delete(
     `/space/delete-personal-space${objectToQueryString(params)}`
-  );
-};
-
-//删除空间发送验证码
-export const deleteSpaceSendCode = ({ spaceId }: { spaceId: string }) => {
-  return http.get(
-    `/space/send-message-code${objectToQueryString({ spaceId })}`
   );
 };
 
@@ -101,11 +90,7 @@ export const updateCorporateSpace = (params: any) => {
 };
 
 // 删除企业空间
-export const deleteCorporateSpace = (params: {
-  spaceId: string;
-  mobile: string;
-  verifyCode: string;
-}) => {
+export const deleteCorporateSpace = (params: { spaceId: string }) => {
   return http.delete(
     `/space/delete-corporate-space${objectToQueryString(params)}`
   );
@@ -142,7 +127,7 @@ export const leaveSpace = () => {
 
 // 邀请进入空间 /inviteRecord/spaceInvite
 export const spaceInvite = (params: any) => {
-  return http.post('/invite-record/space-invite', params);
+  return http.post('/invite-record/space-invite', { members: params });
 };
 
 // 撤回邀请进入空间 /inviteRecord/revokeSpaceInvite

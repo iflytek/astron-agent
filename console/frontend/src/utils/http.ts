@@ -158,10 +158,18 @@ export const initServerError = (
       message: '尚未登录，请重新登录',
     };
   }
+  const payload = response?.data as
+    | { code?: number; message?: string }
+    | undefined;
   return {
-    code: 100,
+    code:
+      typeof payload?.code === 'number'
+        ? payload.code
+        : response?.status || 100,
     message:
-      localeConfig?.[currentLang]?.serverWrong || '服务器开小差了~稍后再试',
+      typeof payload?.message === 'string' && payload.message
+        ? payload.message
+        : localeConfig?.[currentLang]?.serverWrong || '服务器开小差了~稍后再试',
   };
 };
 /**

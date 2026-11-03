@@ -118,8 +118,6 @@ import {
   getAgentMemoryConfig,
   saveAgentMemoryConfig,
 } from '@/services/agent-memory';
-import { modelRsaPublicKey } from '@/services/model';
-import { encryptApiKey } from '@/pages/model-management/utils/encrypt-api-key';
 
 const { Option } = Select;
 
@@ -1337,16 +1335,11 @@ const BaseConfig: React.FC<ChatProps> = ({
 
     setMemorySaving(true);
     try {
-      let apiKeyCiphertext: string | undefined;
-      if (apiKey) {
-        const publicKey = await modelRsaPublicKey();
-        apiKeyCiphertext = encryptApiKey(publicKey, apiKey);
-      }
       const saved = await saveAgentMemoryConfig({
         botId: currentBotId,
         provider: config.provider,
         enabled: config.enabled,
-        apiKeyCiphertext,
+        apiKey: apiKey || undefined,
         autoSearch: config.autoSearch,
         searchTopK: config.searchTopK,
         minScore: config.minScore,

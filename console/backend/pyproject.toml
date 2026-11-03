@@ -8,6 +8,16 @@ dependencies = [
   "argon2-cffi>=25.1,<26",
   "redis>=5,<7",
   "uvicorn>=0.34,<1",
+  "httpx>=0.28,<1",
+  "sqlalchemy>=2,<3",
+  "alembic>=1.16,<2",
+  "minio>=7.2,<8",
+  "openpyxl>=3.1,<4",
+  "xlrd>=2.0,<3",
+  "e2b>=2.14,<3",
+  "openai>=2,<3",
+  "anthropic>=0.75,<1",
+  "google-genai>=1,<2",
 ]
 
 [project.optional-dependencies]

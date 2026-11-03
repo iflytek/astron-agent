@@ -7,15 +7,11 @@ import com.iflytek.astron.console.commons.response.ApiResult;
 import com.iflytek.astron.console.commons.security.WorkflowInternalApiKey;
 import com.iflytek.astron.console.toolkit.common.constant.CommonConst;
 import com.iflytek.astron.console.toolkit.config.properties.ApiUrl;
-import com.iflytek.astron.console.toolkit.config.properties.CommonConfig;
 import com.iflytek.astron.console.toolkit.entity.core.workflow.FlowProtocol;
-import com.iflytek.astron.console.toolkit.entity.enumVo.DBOperateEnum;
-import com.iflytek.astron.console.toolkit.entity.enumVo.DBTableEnvEnum;
 import com.iflytek.astron.console.toolkit.util.OkHttpUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,8 +28,8 @@ import java.util.*;
 
 
 /**
- * Core system service for handling workflow operations, file uploads, and database management
- * Provides integration with external workflow and database services
+ * Core system service for retained workflow operations and file uploads.
+ * Resource and database management is provided by the Python Console.
  */
 @Service
 @Slf4j
@@ -49,13 +45,6 @@ public class CoreSystemService {
     public static final String ADD_COMPARISONS_PATH = "/workflow/v1/protocol/compare/save";
     public static final String GET_COMPARISON_PATH = "/workflow/v1/protocol/compare/get";
     public static final String DELETE_COMPARISONS_PATH = "/workflow/v1/protocol/compare/delete";
-    public static final String CREATE_DATABASE_PATH = "/xingchen-db/v1/create_database";
-    public static final String EXEC_DDL_PATH = "/xingchen-db/v1/exec_ddl";
-    public static final String EXEC_DML_PATH = "/xingchen-db/v1/exec_dml";
-    public static final String UPLOAD_DATA_PATH = "/xingchen-db/v1/upload_data";
-    public static final String CLONE_DATABASE_PATH = "/xingchen-db/v1/clone_database";
-    public static final String DROP_DATABASE_PATH = "/xingchen-db/v1/drop_database";
-    public static final String MODIFY_DATABASE_PATH = "/xingchen-db/v1/modify_db_description";
 
 
 
@@ -67,11 +56,6 @@ public class CoreSystemService {
 
     @Value("${workflow.internal-api-key:}")
     String workflowInternalApiKey;
-
-    @Autowired
-    AppService appService;
-    @Autowired
-    private CommonConfig commonConfig;
 
     /**
      * Publish workflow with specified configuration
@@ -473,298 +457,6 @@ public class CoreSystemService {
                 WorkflowInternalApiKey.requireConfigured(workflowInternalApiKey));
     }
 
-
-    /**
-     * Creates a new database in the SparkDB system
-     *
-     * @param databaseName The name of the database to create
-     * @param uid User identifier for ownership
-     * @param spaceId Optional space ID for database organization (can be null)
-     * @param description Optional description of the database
-     * @return The unique database ID of the created database
-     * @throws BusinessException if database creation fails
-     */
-    public Long createDatabase(String databaseName, String uid, Long spaceId, String description) {
-        Map<String, String> requestHeader = new HashMap<>();
-        String url = apiUrl.getSparkDB().concat(CREATE_DATABASE_PATH);
-        JSONObject params = new JSONObject()
-                .fluentPut("database_name", databaseName)
-                .fluentPut("uid", uid)
-                .fluentPut("description", description);
-        if (spaceId != null) {
-            params.fluentPut("space_id", spaceId.toString());
-        }
-        String body = params.toString();
-        requestHeader.put(X_CONSUMER_USERNAME, apiUrl.getTenantId());
-        log.info(
-                "create database, url = {}, spaceId = {}, bodyBytes = {}",
-                url,
-                spaceId,
-                body.getBytes(StandardCharsets.UTF_8).length);
-        String response = OkHttpUtil.post(url, requestHeader, body);
-        ApiResult<?> result = parseApiResult(response, "create database", url);
-        log.info(
-                "create database response, url = {}, spaceId = {}, statusCode = {}",
-                url,
-                spaceId,
-                result == null ? null : result.code());
-        if (result == null || result.code() != 0) {
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-        return ((Map<String, Long>) result.data()).get("database_id");
-    }
-
-    /**
-     * Executes Data Definition Language (DDL) statements on the specified database Used for creating,
-     * altering, or dropping database schema objects
-     *
-     * @param ddl The DDL statement to execute (CREATE, ALTER, DROP, etc.)
-     * @param uid User identifier for authorization
-     * @param spaceId Optional space ID for context (can be null)
-     * @param databaseId The target database ID
-     * @throws BusinessException if DDL execution fails
-     */
-    public void execDDL(String ddl, String uid, Long spaceId, Long databaseId) {
-        Map<String, String> requestHeader = new HashMap<>();
-        String url = apiUrl.getSparkDB().concat(EXEC_DDL_PATH);
-        JSONObject params = new JSONObject()
-                .fluentPut("database_id", databaseId)
-                .fluentPut("uid", uid)
-                .fluentPut("ddl", ddl);
-        if (spaceId != null) {
-            params.fluentPut("space_id", spaceId.toString());
-        }
-        String body = params.toString();
-        requestHeader.put(X_CONSUMER_USERNAME, apiUrl.getTenantId());
-        log.info(
-                "exec ddl, url = {}, databaseId = {}, spaceId = {}, bodyBytes = {}",
-                url,
-                databaseId,
-                spaceId,
-                body.getBytes(StandardCharsets.UTF_8).length);
-        String response = OkHttpUtil.post(url, requestHeader, body);
-        ApiResult<?> result = parseApiResult(response, "exec ddl", url);
-        log.info(
-                "exec ddl response, url = {}, databaseId = {}, statusCode = {}",
-                url,
-                databaseId,
-                result == null ? null : result.code());
-        if (result == null || result.code() != 0) {
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-    }
-
-    /**
-     * Executes Data Manipulation Language (DML) statements on the specified database Supports SELECT,
-     * INSERT, UPDATE, DELETE operations with different return types
-     *
-     * @param dml The DML statement to execute
-     * @param uid User identifier for authorization
-     * @param spaceId Optional space ID for context (can be null)
-     * @param databaseId The target database ID
-     * @param operateType The type of operation (SELECT, INSERT, UPDATE, DELETE)
-     * @param execEnv Execution environment (development, testing, production)
-     * @return For SELECT operations: List of JSONObject results; For SELECT_TOTAL_COUNT: Long count;
-     *         For others: null
-     * @throws BusinessException if DML execution fails or result parsing errors occur
-     */
-    public Object execDML(String dml, String uid, Long spaceId, Long databaseId, Integer operateType, Integer execEnv) {
-        Map<String, String> requestHeader = new HashMap<>();
-        String url = apiUrl.getSparkDB().concat(EXEC_DML_PATH);
-        JSONObject params = new JSONObject()
-                .fluentPut("app_id", commonConfig.getAppId())
-                .fluentPut("database_id", databaseId)
-                .fluentPut("uid", uid)
-                .fluentPut("dml", dml)
-                .fluentPut("env", DBTableEnvEnum.getByCode(execEnv));
-        if (spaceId != null) {
-            params.fluentPut("space_id", spaceId.toString());
-        }
-        String body = params.toString();
-        requestHeader.put(X_CONSUMER_USERNAME, apiUrl.getTenantId());
-        log.info(
-                "exec dml, url = {}, databaseId = {}, operateType = {}, execEnv = {}, bodyBytes = {}",
-                url,
-                databaseId,
-                operateType,
-                execEnv,
-                body.getBytes(StandardCharsets.UTF_8).length);
-        String response = OkHttpUtil.post(url, requestHeader, body);
-        ApiResult<?> result = parseApiResult(response, "exec dml", url);
-        log.info(
-                "exec dml response, url = {}, databaseId = {}, operateType = {}, statusCode = {}",
-                url,
-                databaseId,
-                operateType,
-                result == null ? null : result.code());
-        if (result == null || result.code() != 0) {
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-        try {
-            if (DBOperateEnum.SELECT.getCode().equals(operateType)) {
-                // Get data object
-                Map<String, Object> data = (Map<String, Object>) result.data();
-                JSONArray dataList = JSONArray.parseArray(data.get("exec_success").toString());
-                List<JSONObject> searchData = new LinkedList<>();
-                dataList.forEach(item -> {
-                    JSONObject jsonObject = (JSONObject) item;
-                    String[] split = jsonObject.get("uid").toString().split(":");
-                    jsonObject.put("uid", split[split.length - 1]);
-                    jsonObject.put("id", jsonObject.get("id").toString());
-                    searchData.add(jsonObject);
-                });
-                return searchData;
-            } else if (DBOperateEnum.SELECT_TOTAL_COUNT.getCode().equals(operateType)) {
-                Map<String, Object> data = (Map<String, Object>) result.data();
-                JSONArray dataList = JSONArray.parseArray(data.get("exec_success").toString());
-                JSONObject countResult = (JSONObject) dataList.get(0);
-                // Support both "count" (with AS count) and "COUNT(*)" (MySQL default column name)
-                Object countVal = countResult.get("count");
-                if (countVal == null) {
-                    countVal = countResult.get("COUNT(*)");
-                }
-                return Long.valueOf(countVal != null ? countVal.toString() : "0");
-            } else {
-                return null;
-            }
-        } catch (Exception ex) {
-            log.warn(
-                    "exec dml response parsing failed, databaseId = {}, operateType = {}, errorType = {}",
-                    databaseId,
-                    operateType,
-                    ex.getClass().getSimpleName());
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-    }
-
-    /**
-     * Creates a copy of an existing database with a new name Clones all schema and data from the source
-     * database
-     *
-     * @param dbId The source database ID to clone from
-     * @param dbName The name for the new cloned database
-     * @param uid User identifier for ownership of the new database
-     * @return The unique database ID of the cloned database
-     * @throws BusinessException if cloning operation fails
-     */
-    public Long cloneDataBase(Long dbId, String dbName, String uid) {
-        Map<String, String> requestHeader = new HashMap<>();
-        String cloneUrl = apiUrl.getSparkDB().concat(CLONE_DATABASE_PATH);
-        String body = new JSONObject()
-                .fluentPut("database_id", dbId)
-                .fluentPut("uid", uid)
-                .fluentPut("new_database_name", dbName)
-                .toString();
-        try {
-            requestHeader.put(X_CONSUMER_USERNAME, apiUrl.getTenantId());
-            log.info(
-                    "clone database, url = {}, databaseId = {}, bodyBytes = {}",
-                    cloneUrl,
-                    dbId,
-                    body.getBytes(StandardCharsets.UTF_8).length);
-            String response = OkHttpUtil.post(cloneUrl, requestHeader, body);
-            ApiResult<?> result = parseApiResult(response, "clone database", cloneUrl);
-            log.info(
-                    "clone database response, url = {}, databaseId = {}, statusCode = {}",
-                    cloneUrl,
-                    dbId,
-                    result == null ? null : result.code());
-            if (result == null || result.code() != 0) {
-                throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-            }
-            return ((Map<String, Long>) result.data()).get("database_id");
-        } catch (Exception ex) {
-            log.error(
-                    "clone database failed, databaseId = {}, errorType = {}",
-                    dbId,
-                    ex.getClass().getSimpleName());
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-    }
-
-    /**
-     * Permanently deletes a database and all its data This operation is irreversible and will remove
-     * all tables and data
-     *
-     * @param dbId The database ID to delete
-     * @param uid User identifier for authorization
-     * @throws BusinessException if drop operation fails
-     */
-    public void dropDataBase(Long dbId, String uid) {
-        Map<String, String> requestHeader = new HashMap<>();
-        String dropUrl = apiUrl.getSparkDB().concat(DROP_DATABASE_PATH);
-        String body = new JSONObject()
-                .fluentPut("database_id", dbId)
-                .fluentPut("uid", uid)
-                .toString();
-        try {
-            requestHeader.put(X_CONSUMER_USERNAME, apiUrl.getTenantId());
-            log.info(
-                    "drop database, url = {}, databaseId = {}, bodyBytes = {}",
-                    dropUrl,
-                    dbId,
-                    body.getBytes(StandardCharsets.UTF_8).length);
-            String response = OkHttpUtil.post(dropUrl, requestHeader, body);
-            ApiResult<?> result = parseApiResult(response, "drop database", dropUrl);
-            log.info(
-                    "drop database response, url = {}, databaseId = {}, statusCode = {}",
-                    dropUrl,
-                    dbId,
-                    result == null ? null : result.code());
-            if (result == null || result.code() != 0) {
-                throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-            }
-        } catch (Exception ex) {
-            log.error(
-                    "drop database failed, databaseId = {}, errorType = {}",
-                    dbId,
-                    ex.getClass().getSimpleName());
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-    }
-
-    /**
-     * Modifies the description of an existing database Updates metadata without affecting database
-     * structure or data
-     *
-     * @param dbId The database ID to modify
-     * @param uid User identifier for authorization
-     * @param description The new description for the database
-     * @throws BusinessException if modification operation fails
-     */
-    public void modifyDataBase(Long dbId, String uid, String description) {
-        Map<String, String> requestHeader = new HashMap<>();
-        String modifyUrl = apiUrl.getSparkDB().concat(MODIFY_DATABASE_PATH);
-        String body = new JSONObject()
-                .fluentPut("database_id", dbId)
-                .fluentPut("uid", uid)
-                .fluentPut("description", description)
-                .toString();
-        try {
-            requestHeader.put(X_CONSUMER_USERNAME, apiUrl.getTenantId());
-            log.info(
-                    "modify database, url = {}, databaseId = {}, bodyBytes = {}",
-                    modifyUrl,
-                    dbId,
-                    body.getBytes(StandardCharsets.UTF_8).length);
-            String response = OkHttpUtil.post(modifyUrl, requestHeader, body);
-            ApiResult<?> result = parseApiResult(response, "modify database", modifyUrl);
-            log.info(
-                    "modify database response, url = {}, databaseId = {}, statusCode = {}",
-                    modifyUrl,
-                    dbId,
-                    result == null ? null : result.code());
-            if (result == null || result.code() != 0) {
-                throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-            }
-        } catch (Exception ex) {
-            log.error(
-                    "modify database failed, databaseId = {}, errorType = {}",
-                    dbId,
-                    ex.getClass().getSimpleName());
-            throw new BusinessException(ResponseEnum.RESPONSE_FAILED);
-        }
-    }
 
     private ApiResult<?> parseApiResult(String response, String operation, String url) {
         try {
