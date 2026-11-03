@@ -6,7 +6,6 @@ including various URL formats and edge cases.
 
 from typing import Any
 
-import pytest
 from plugin.rpa.utils.urls.url_util import is_valid_url
 
 
@@ -102,8 +101,14 @@ class TestIsValidUrl:
         """Test is_valid_url with complex URL structures."""
         # Complex but valid URLs
         complex_valid_urls = [
-            "https://user:password@example.com:8080/path/to/resource?param1=value1&param2=value2#section",
-            "http://subdomain.example.co.uk/api/v2/users?filter[status]=active&sort=name",
+            (
+                "https://user:password@example.com:8080/path/to/resource"
+                "?param1=value1&param2=value2#section"
+            ),
+            (
+                "http://subdomain.example.co.uk/api/v2/users"
+                "?filter[status]=active&sort=name"
+            ),
             "https://api.example.com/v1/users/123/profile?include=avatar,settings",
             "ftp://user@files.example.com:21/directory/file.txt",
             "https://example.com/path%20with%20spaces",

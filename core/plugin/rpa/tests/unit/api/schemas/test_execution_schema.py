@@ -4,8 +4,6 @@ This module contains comprehensive tests for the RPAExecutionRequest and
 RPAExecutionResponse Pydantic models including validation and serialization.
 """
 
-from typing import Any, Dict
-
 import pytest
 from plugin.rpa.api.schemas.execution_schema import (
     RPAExecutionRequest,
@@ -95,8 +93,12 @@ class TestRPAExecutionRequest:
 
         # Assert
         assert request.params == complex_params
+        assert request.params is not None
+        # pylint cannot narrow the Optional pydantic field after the assert.
+        # pylint: disable=unsubscriptable-object
         assert isinstance(request.params["nested_dict"], dict)
         assert isinstance(request.params["list_data"], list)
+        # pylint: enable=unsubscriptable-object
 
     def test_rpa_execution_request_serialization(self) -> None:
         """Test RPAExecutionRequest model serialization."""
@@ -200,7 +202,9 @@ class TestRPAExecutionResponse:
         assert isinstance(response.code, int)
 
         # Test with string that can be converted to int
-        response2 = RPAExecutionResponse(code="500", message="Server Error")  # type: ignore[arg-type]
+        response2 = RPAExecutionResponse(
+            code="500", message="Server Error"  # type: ignore[arg-type]
+        )
         assert response2.code == 500
         assert isinstance(response2.code, int)
 
@@ -227,8 +231,12 @@ class TestRPAExecutionResponse:
 
         # Assert
         assert response.data == complex_data
+        assert response.data is not None
+        # pylint cannot narrow the Optional pydantic field after the assert.
+        # pylint: disable=unsubscriptable-object
         assert response.data["execution_details"]["duration"] == 300
         assert len(response.data["results"]) == 2
+        # pylint: enable=unsubscriptable-object
 
     def test_rpa_execution_response_serialization(self) -> None:
         """Test RPAExecutionResponse model serialization."""

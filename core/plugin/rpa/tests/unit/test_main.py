@@ -4,15 +4,10 @@ This module contains comprehensive tests for all functions in the main.py module
 including path setup, environment loading, and service startup functionality.
 """
 
-import os
 import subprocess
-import sys
-from pathlib import Path
-from typing import Any, Dict
 from unittest.mock import MagicMock, mock_open, patch
 
-import pytest
-from plugin.rpa.main import load_env_file, main, setup_python_path, start_service
+from plugin.rpa.main import load_env_file, main, start_service
 
 
 class TestLoadEnvFile:
@@ -47,7 +42,7 @@ class TestLoadEnvFile:
     def test_load_env_file_success(
         self,
         mock_exists: MagicMock,
-        mock_file: MagicMock,
+        _mock_file: MagicMock,
         mock_env_get: MagicMock,
         mock_print: MagicMock,
     ) -> None:
@@ -77,7 +72,7 @@ class TestLoadEnvFile:
     def test_load_env_file_existing_env_var(
         self,
         mock_exists: MagicMock,
-        mock_file: MagicMock,
+        _mock_file: MagicMock,
         mock_env_get: MagicMock,
         mock_print: MagicMock,
     ) -> None:
@@ -135,10 +130,10 @@ class TestStartService:
     @patch("builtins.print")
     def test_start_service_file_not_found(
         self,
-        mock_print: MagicMock,
+        _mock_print: MagicMock,
         mock_exit: MagicMock,
         mock_path: MagicMock,
-        mock_run: MagicMock,
+        _mock_run: MagicMock,
     ) -> None:
         """Test service startup when app.py is not found."""
         # Arrange
@@ -166,7 +161,7 @@ class TestStartService:
     @patch("builtins.print")
     def test_start_service_subprocess_error(
         self,
-        mock_print: MagicMock,
+        _mock_print: MagicMock,
         mock_exit: MagicMock,
         mock_path: MagicMock,
         mock_run: MagicMock,
@@ -199,7 +194,7 @@ class TestStartService:
     @patch("builtins.print")
     def test_start_service_keyboard_interrupt(
         self,
-        mock_print: MagicMock,
+        _mock_print: MagicMock,
         mock_exit: MagicMock,
         mock_path: MagicMock,
         mock_run: MagicMock,
@@ -227,7 +222,7 @@ class TestStartService:
         mock_exit.assert_called_with(0)
 
 
-class TestMain:
+class TestMain:  # pylint: disable=too-few-public-methods
     """Test class for main function."""
 
     @patch("plugin.rpa.main.print")

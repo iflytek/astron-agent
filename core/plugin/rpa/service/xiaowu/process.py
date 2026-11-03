@@ -215,6 +215,10 @@ def setup_logging_and_metrics(span_context: Span, req: str, product_id: str) -> 
 def otlp_handle(
     meter: Meter, node_trace: NodeTraceLog, code: int, message: str
 ) -> None:
+    """Record the task result in metrics and publish the node trace to Kafka.
+
+    Does nothing unless OTLP reporting is enabled.
+    """
     if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "0":
         return
 
