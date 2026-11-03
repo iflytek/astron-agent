@@ -326,6 +326,91 @@ class AccountTests(TestCase):
 
 
 class DeploymentConfigurationTests(SimpleTestCase):
+    def test_internal_credentials_load_from_compose_files_and_helm_environment(self):
+        credentials = {
+            "WORKFLOW_INTERNAL_API_KEY": "workflow-fixture-" + "w" * 32,
+            "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN": "runtime-fixture-" + "r" * 32,
+            "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN": "artifact-fixture-" + "a" * 32,
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            files = {name: Path(directory) / name.lower() for name in credentials}
+            for name, path in files.items():
+                path.write_text(credentials[name] + "\n")
+            for source in ("file", "environment"):
+                with self.subTest(source=source):
+                    env = dict(os.environ)
+                    for name in credentials:
+                        env.pop(name, None)
+                        env.pop(name + "_FILE", None)
+                    env.update(
+                        {
+                            "DJANGO_SETTINGS_MODULE": "astron_console.settings",
+                            "CONSOLE_DATABASE_ENGINE": "sqlite",
+                            "CONSOLE_SQLITE_PATH": ":memory:",
+                            "CONSOLE_ALLOWED_HOSTS": "console-hub",
+                            "EXPECTED_CREDENTIALS": json.dumps(credentials),
+                        }
+                    )
+                    env.update(
+                        {name + "_FILE": str(path) for name, path in files.items()}
+                        if source == "file"
+                        else credentials
+                    )
+                    result = subprocess.run(
+                        [
+                            sys.executable,
+                            "-c",
+                            """
+import django, json, os
+django.setup()
+from django.conf import settings
+from django.db import connection
+from django.test import Client
+from astron_console.resources.models import Model, WorkflowScope
+credentials = json.loads(os.environ['EXPECTED_CREDENTIALS'])
+assert all(getattr(settings, name) == value for name, value in credentials.items())
+with connection.schema_editor() as editor:
+    editor.create_model(Model)
+    editor.create_model(WorkflowScope)
+WorkflowScope.objects.create(id=7, flow_id='retained-flow', uid='retained-uid')
+model = Model.objects.create(uid='retained-uid', provider='openai',
+                            url='https://model.example.org/v1', domain='fixture-model',
+                            api_key='fixture-model-key')
+client = Client(HTTP_HOST='console-hub:8080')
+contracts = [
+    (client.get, '/model/internal-runtime-config',
+     {'flowId': 'retained-flow', 'modelId': model.pk},
+     'HTTP_X_WORKFLOW_INTERNAL_KEY', 'WORKFLOW_INTERNAL_API_KEY'),
+    (client.get, '/skill-sandbox/internal-runtime-config', {},
+     'HTTP_X_SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN', 'SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN'),
+    (client.post, '/workflow/artifacts/internal-upload', {},
+     'HTTP_X_SKILL_SANDBOX_ARTIFACT_TOKEN', 'SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN'),
+]
+statuses = []
+for call, url, data, header, name in contracts:
+    rejected = call(url, data, **{header: 'incorrect-token'})
+    accepted = call(url, data, **{header: credentials[name]})
+    statuses.append([rejected.status_code, accepted.status_code])
+    if name == 'WORKFLOW_INTERNAL_API_KEY':
+        assert accepted.json()['data']['apiKey'] == 'fixture-model-key'
+        assert accepted['Cache-Control'] == 'no-store'
+print(json.dumps(statuses))
+""",
+                        ],
+                        cwd=settings.BASE_DIR,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    # Runtime and upload reach payload validation without UID/file.
+                    self.assertEqual(
+                        json.loads(result.stdout), [[403, 200], [403, 400], [403, 400]]
+                    )
+                    for name, path in files.items():
+                        self.assertEqual(path.read_bytes(), (credentials[name] + "\n").encode())
+
     def test_public_and_internal_hosts_reach_business_auth_without_allowing_other_hosts(self):
         # These are the Compose and custom-name Helm forms. Their assembly from
         # user values and caller URLs is checked by the deployment render gates.
