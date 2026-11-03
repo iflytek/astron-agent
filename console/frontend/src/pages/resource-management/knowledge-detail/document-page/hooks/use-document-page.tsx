@@ -17,9 +17,11 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { fetchSseWithContext } from '@/utils/sse-request';
+import { getLanguageCode } from '@/utils/http';
+import useSpaceStore from '@/store/space-store';
 import { debounce } from 'lodash';
-import { Modal } from 'antd';
+import { Modal, message } from 'antd';
 import { getFixedUrl } from '@/components/workflow/utils';
 
 // 文档数据管理 Hook
@@ -153,6 +155,7 @@ const useDocumentSearch = ({
   handleInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   requestSearchFilesRun: (value: string) => void;
 } => {
+  const { spaceId, spaceType, enterpriseId } = useSpaceStore();
   const [searchValue, setSearchValue] = useState('');
   const [searchData, setSearchData] = useState<FileItem[]>([]);
   const controllerRef = useRef<AbortController | null>(null);
@@ -165,61 +168,69 @@ const useDocumentSearch = ({
         controllerRef.current?.abort();
         controllerRef.current = null;
       }
-      controllerRef.current = new AbortController();
-
-      const headers: Record<string, string> = {};
-
-      await fetchEventSource(
-        `${getFixedUrl('/file/search-file')}?fileName=${encodeURIComponent(
-          searchValue
-        )}&repoId=${repoId}&pid=${parentId}&tag=${tag}`,
-        {
-          signal: controllerRef?.current?.signal,
-          headers,
-          async onopen(response) {
-            if (response.ok) {
-              setLoading(false);
-            } else {
-              throw new Error(`Failed to establish SSE connection`);
-            }
-          },
-          onmessage(event) {
-            if (event.data === 'bye') {
-              controllerRef.current?.abort();
-              controllerRef.current = null;
-              return;
-            }
-            const item = JSON.parse(event.data);
-            item.type = fileType(item);
-            const regexPattern = new RegExp(searchValue, 'gi');
-            item.name = item.name.replaceAll(
-              regexPattern,
-              '<span style="color:#6356EA;font-weight:600;display:inline-block;padding:4px 0px;background:#dee2f9">$&</span>'
-            );
-
-            setSearchData(resultList => [...resultList, item]);
-          },
-          onerror(error) {
-            setLoading(false);
-            controllerRef.current?.abort();
-            controllerRef.current = null;
-          },
-          openWhenHidden: true,
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      const isCurrent = (): boolean =>
+        controllerRef.current === controller && !controller.signal.aborted;
+      try {
+        await fetchSseWithContext(
+          `${getFixedUrl('/file/search-file')}?fileName=${encodeURIComponent(searchValue)}&repoId=${repoId}&pid=${parentId}&tag=${encodeURIComponent(tag)}`,
+          {
+            signal: controller.signal,
+            credentials: 'same-origin',
+            cache: 'no-store',
+            getContext: () => ({
+              languageCode: getLanguageCode(),
+              spaceId,
+              spaceType,
+              enterpriseId,
+            }),
+            async onopen(response) {
+              if (
+                !response.ok ||
+                !response.headers
+                  .get('content-type')
+                  ?.includes('text/event-stream')
+              ) {
+                throw new Error(`文档搜索失败（${response.status}）`);
+              }
+            },
+            onmessage(event) {
+              if (!isCurrent() || !event.data) return;
+              if (event.data === 'bye') {
+                controller.abort();
+                return;
+              }
+              const item = JSON.parse(event.data);
+              item.type = fileType(item);
+              setSearchData(resultList => [...resultList, item]);
+            },
+            onerror(error) {
+              // Stop the library's automatic retry on authorization or protocol failure.
+              throw error;
+            },
+            openWhenHidden: true,
+          }
+        );
+      } catch (error) {
+        if (isCurrent()) {
+          message.error(
+            error instanceof Error ? error.message : '文档搜索失败'
+          );
         }
-      );
+      } finally {
+        if (controllerRef.current === controller) {
+          controllerRef.current = null;
+          setLoading(false);
+        }
+      }
     },
-    [tag, repoId, parentId, setLoading]
+    [tag, repoId, parentId, setLoading, spaceId, spaceType, enterpriseId]
   );
 
   const { run: requestSearchFilesRun, cancel: searchRunCancel } = useRequest(
     connectToSSE,
-    {
-      manual: true,
-      pollingInterval: 15000,
-      pollingWhenHidden: false,
-      pollingErrorRetryCount: 3,
-      refreshOnWindowFocus: false,
-    }
+    { manual: true }
   );
 
   const searchFileDebounce = useCallback(
@@ -242,8 +253,17 @@ const useDocumentSearch = ({
     ]
   );
 
+  useEffect(
+    () => () => {
+      searchFileDebounce.cancel();
+      controllerRef.current?.abort();
+    },
+    [searchFileDebounce, spaceId, enterpriseId]
+  );
+
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
+      controllerRef.current?.abort();
       const value = event.target.value;
       setSearchValue(value);
       searchFileDebounce(value);

@@ -1,0 +1,906 @@
+[
+  {
+    "category": "MODEL_DEFAULT_CONFIGS",
+    "code": "spark",
+    "name": "spark模型默认配置",
+    "value": "[{\"key\":\"temperature\",\"nmae\":\"随机性\",\"min\":0,\"max\":2,\"default\":1,\"enabled\":true},{\"key\":\"max_tokens\",\"nmae\":\"单次回复限制\",\"min\":10,\"max\":1000,\"default\":256,\"enabled\":true}]",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_10@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_11@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_12@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_13@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_14@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_15@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_16@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_17@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_18@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_19@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_1@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_20@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_21@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_22@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_23@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_24@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_25@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_26@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_27@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_28@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_29@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_2@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_30@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_31@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_32@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_33@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_34@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_35@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_36@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_37@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_38@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_39@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_3@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_40@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_41@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_42@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_4@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_5@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_6@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_7@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_8@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "common",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_9@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_10@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_11@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_12@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_13@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_14@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_15@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_1@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_2@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_3@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_4@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_5@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_6@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_7@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_8@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "sport",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/sport/emojiiteam_01_9@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_10@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_11@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_12@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_13@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_14@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_15@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_1@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_2@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_3@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_4@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_5@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_6@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_7@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_8@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "plant",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/plant/emojiiteam_02_9@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_10@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_11@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_12@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_13@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_14@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_15@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_1@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_2@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_3@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_4@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_5@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_6@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_7@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_8@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "ICON",
+    "code": "explore",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/explore/emojiitem_03_9@2x.png",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#FFEAD5",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#E7FFD5",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#D5FFED",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#D5E8FF",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#DDD5FF",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#FFD5E2",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#DCDEE8",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "COLOR",
+    "code": "1",
+    "name": "#ECEEF6",
+    "value": "",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "SELF_MODEL_COMMON_CONFIG",
+    "code": "config",
+    "name": "自定义模型公共配置",
+    "value": "{\n    \"config\":\n    [\n        {\n            \"standard\": true,\n            \"constraintType\": \"range\",\n            \"default\": 2048,\n            \"constraintContent\":\n            [\n                {\n                    \"name\": 1\n                },\n                {\n                    \"name\": 8192\n                }\n            ],\n            \"name\": \"最大回复长度\",\n            \"fieldType\": \"int\",\n            \"initialValue\": 2048,\n            \"key\": \"maxTokens\",\n            \"required\": true\n        },\n        {\n            \"standard\": true,\n            \"constraintContent\":\n            [\n                {\n                    \"name\": 0\n                },\n                {\n                    \"name\": 1\n                }\n            ],\n            \"precision\": 0.1,\n            \"required\": true,\n            \"constraintType\": \"range\",\n            \"default\": 0.5,\n            \"name\": \"核采样阈值\",\n            \"fieldType\": \"float\",\n            \"initialValue\": 0.5,\n            \"key\": \"temperature\"\n        },\n        {\n            \"standard\": true,\n            \"constraintType\": \"range\",\n            \"default\": 4,\n            \"constraintContent\":\n            [\n                {\n                    \"name\": 1\n                },\n                {\n                    \"name\": 6\n                }\n            ],\n            \"name\": \"生成多样性\",\n            \"fieldType\": \"int\",\n            \"initialValue\": 4,\n            \"key\": \"topK\",\n            \"required\": true\n        }\n    ]\n}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "DEFAULT_SLICE_RULES_CBG",
+    "code": "1",
+    "name": "CBG默认切片规则",
+    "value": "{\"type\":0,\"seperator\":[\"\\n\"],\"lengthRange\":[256,1024]}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "CUSTOM_SLICE_RULES_CBG",
+    "code": "1",
+    "name": "CBG自定义切片模板",
+    "value": "{\"type\":1,\"seperator\":[\"\\n\"],\"lengthRange\":[16,1024]}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "DEFAULT_SLICE_RULES_SPARK",
+    "code": "1",
+    "name": "Spark默认切片规则",
+    "value": "{\"type\":0,\"seperator\":[\"\\n\"],\"lengthRange\":[16,1024]}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "CUSTOM_SLICE_RULES_SPARK",
+    "code": "1",
+    "name": "Spark自定义切片模板",
+    "value": "{\"type\":1,\"seperator\":[\"\\n\"],\"lengthRange\":[16,1024]}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "DEFAULT_SLICE_RULES_AIUI",
+    "code": "1",
+    "name": "AIUI默认切片规则",
+    "value": "{\"type\":0,\"seperator\":[\"\\n\"],\"lengthRange\":[16,1024]}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "CUSTOM_SLICE_RULES_AIUI",
+    "code": "1",
+    "name": "AIUI自定义切片模板",
+    "value": "{\"type\":1,\"seperator\":[\"\\n\"],\"lengthRange\":[16,1024]}",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "CUSTOM_SLICE_SEPERATORS_AIUI",
+    "code": "1",
+    "name": "AIUI自定义分隔符",
+    "value": "[\n{\n\"id\": 1,\n\"name\": \"换行符\",\n\"symbol\": \"\\\\n\"\n},\n{\n\"id\": 2,\n\"name\": \"中文句号\",\n\"symbol\": \"。\"\n},\n{\n\"id\": 3,\n\"name\": \"英文句号\",\n\"symbol\": \".\"\n},\n{\n\"id\": 4,\n\"name\": \"中文叹号\",\n\"symbol\": \"！\"\n},\n{\n\"id\": 5,\n\"name\": \"英文叹号\",\n\"symbol\": \"!\"\n},\n{\n\"id\": 6,\n\"name\": \"中文问号\",\n\"symbol\": \"？\"\n},\n{\n\"id\": 7,\n\"name\": \"英文问号\",\n\"symbol\": \"?\"\n},\n{\n\"id\": 8,\n\"name\": \"中文分号\",\n\"symbol\": \"；\"\n},\n{\n\"id\": 9,\n\"name\": \"英文分号\",\n\"symbol\": \";\"\n},\n{\n\"id\": 10,\n\"name\": \"中文省略号\",\n\"symbol\": \"……\"\n},\n{\n\"id\": 11,\n\"name\": \"英文省略号\",\n\"symbol\": \"...\"\n}\n]",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "CUSTOM_SLICE_SEPERATORS_CBG",
+    "code": "1",
+    "name": "CBG自定义分隔符",
+    "value": "[\n{\n\"id\": 1,\n\"name\": \"换行符\",\n\"symbol\": \"\\\\n\"\n},\n{\n\"id\": 2,\n\"name\": \"中文句号\",\n\"symbol\": \"。\"\n},\n{\n\"id\": 3,\n\"name\": \"英文句号\",\n\"symbol\": \".\"\n},\n{\n\"id\": 4,\n\"name\": \"中文叹号\",\n\"symbol\": \"！\"\n},\n{\n\"id\": 5,\n\"name\": \"英文叹号\",\n\"symbol\": \"!\"\n},\n{\n\"id\": 6,\n\"name\": \"中文问号\",\n\"symbol\": \"？\"\n},\n{\n\"id\": 7,\n\"name\": \"英文问号\",\n\"symbol\": \"?\"\n},\n{\n\"id\": 8,\n\"name\": \"中文分号\",\n\"symbol\": \"；\"\n},\n{\n\"id\": 9,\n\"name\": \"英文分号\",\n\"symbol\": \";\"\n},\n{\n\"id\": 10,\n\"name\": \"中文省略号\",\n\"symbol\": \"……\"\n},\n{\n\"id\": 11,\n\"name\": \"英文省略号\",\n\"symbol\": \"...\"\n}\n]",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "CUSTOM_SLICE_SEPERATORS_SPARK",
+    "code": "1",
+    "name": "SPARK自定义分隔符",
+    "value": "[\n{\n\"id\": 1,\n\"name\": \"换行符\",\n\"symbol\": \"\\\\n\"\n},\n{\n\"id\": 2,\n\"name\": \"中文句号\",\n\"symbol\": \"。\"\n},\n{\n\"id\": 3,\n\"name\": \"英文句号\",\n\"symbol\": \".\"\n},\n{\n\"id\": 4,\n\"name\": \"中文叹号\",\n\"symbol\": \"！\"\n},\n{\n\"id\": 5,\n\"name\": \"英文叹号\",\n\"symbol\": \"!\"\n},\n{\n\"id\": 6,\n\"name\": \"中文问号\",\n\"symbol\": \"？\"\n},\n{\n\"id\": 7,\n\"name\": \"英文问号\",\n\"symbol\": \"?\"\n},\n{\n\"id\": 8,\n\"name\": \"中文分号\",\n\"symbol\": \"；\"\n},\n{\n\"id\": 9,\n\"name\": \"英文分号\",\n\"symbol\": \";\"\n},\n{\n\"id\": 10,\n\"name\": \"中文省略号\",\n\"symbol\": \"……\"\n},\n{\n\"id\": 11,\n\"name\": \"英文省略号\",\n\"symbol\": \"...\"\n}\n]",
+    "is_valid": 1,
+    "remarks": ""
+  },
+  {
+    "category": "DB_TABLE_TEMPLATE",
+    "code": "TB",
+    "name": "数据库字段导入模版",
+    "value": "https://oss-beijing-m8.openstorage.cn/SparkBotDev/sparkBot/DB_TABLE_导入模板.xlsx",
+    "is_valid": 1,
+    "remarks": null
+  },
+  {
+    "category": "ICON",
+    "code": "rag",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "icon/rag/Personal@1x.png",
+    "is_valid": 1,
+    "remarks": "SparkDesk-RAG"
+  },
+  {
+    "category": "ICON",
+    "code": "rag",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "icon/rag/Spark@1x.png",
+    "is_valid": 1,
+    "remarks": "CBG-RAG"
+  },
+  {
+    "category": "ICON",
+    "code": "rag",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "icon/rag/Stellar@1x.png",
+    "is_valid": 1,
+    "remarks": "AIUI-RAG2"
+  },
+  {
+    "category": "DB_TABLE_RESERVED_KEYWORD",
+    "code": "reserved_keyword",
+    "name": "数据库关键字",
+    "value": "all,analyse,analyze,and,any,array,as,asc,asymmetric,authorization,binary,both,case,cast,check,collate,collation,column,concurrently,constraint,create,cross,current_catalog,current_date,current_role,current_schema,current_time,current_timestamp,current_user,default,deferrable,desc,distinct,do,else,end,except,false,fetch,for,foreign,freeze,from,full,grant,group,having,ilike,in,initially,inner,intersect,into,is,isnull,join,lateral,leading,left,like,limit,localtime,localtimestamp,natural,not,notnull,null,offset,on,only,or,order,outer,overlaps,placing,primary,references,returning,right,select,session_user,similar,some,symmetric,table,tablesample,then,to,trailing,true,union,unique,user,using,variadic,verbose,when,where,window,with",
+    "is_valid": 1,
+    "remarks": null
+  },
+  {
+    "category": "ICON",
+    "code": "rag",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "icon/rag/20251011-140414.png",
+    "is_valid": 1,
+    "remarks": "Ragflow-RAG"
+  },
+  {
+    "category": "ICON",
+    "code": "rpa_robot",
+    "name": "http://oss-beijing-m8.openstorage.cn/SparkBotProd/",
+    "value": "icon/tool/rpa_robot_icon.png",
+    "is_valid": 1,
+    "remarks": ""
+  }
+]

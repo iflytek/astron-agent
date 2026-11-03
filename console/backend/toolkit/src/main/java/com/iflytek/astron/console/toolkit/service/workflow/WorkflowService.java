@@ -134,7 +134,6 @@ import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
@@ -209,18 +208,6 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
     String env;
     @Value("${workflow.internal-api-key:}")
     String workflowInternalApiKey;
-    @org.springframework.beans.factory.annotation.Value("${mcp-server.file-path}")
-    private String mcpServerFilePath;
-
-    // MCP server cache, key is the ID from file, value is JSONObject
-    private static volatile Map<String, JSONObject> MCP_SERVER_CACHE = new HashMap<>();
-    // Cache last load time
-    private static volatile long lastCacheLoadTime = 0;
-    // Cache expiration time (30 seconds)
-    private static final long CACHE_EXPIRE_TIME = 30000;
-    // Cache load lock
-    private static final Object CACHE_LOAD_LOCK = new Object();
-
     @Autowired
     WorkflowDialogMapper workflowDialogMapper;
     @Autowired
@@ -4864,133 +4851,17 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return result;
     }
 
-    public Object getMcpServerList(String categoryId, Integer page, Integer pageSize, HttpServletRequest request) {
-        String uid = UserInfoManagerHandler.getUserId();
-        List<McpServerTool> mcpToolList = mcpServerHandler.getMcpToolList(categoryId, page, pageSize, uid);
-        List<McpToolConfig> configs = mcpToolConfigMapper.selectList(new LambdaQueryWrapper<McpToolConfig>().eq(McpToolConfig::getUid, uid));
-        if (CollUtil.isNotEmpty(mcpToolList)) {
-            for (McpServerTool mcpServerTool : mcpToolList) {
-                Map<String, McpToolConfig> collect = configs.stream().collect(Collectors.toMap(McpToolConfig::getMcpId, s -> s));
-                if (CollUtil.isNotEmpty(collect)) {
-                    if (collect.containsKey(mcpServerTool.getId())) {
-                        McpToolConfig config = collect.get(mcpServerTool.getId());
-                        mcpServerTool.setHasConfig(true);
-                        if (!StringUtils.isBlank(config.getParameters()) && config.getCustomize()) {
-                            mcpServerTool.setParam(true);
-                        }
-                        mcpServerTool.setSparkId(config.getServerId());
-                    }
-                }
-            }
-        }
-        return mcpToolList;
-    }
 
-    /**
-     * Debug tool
-     *
-     * @param req
-     * @return
-     */
-    public Object debugServerTool(McpToolReq req) {
-        JSONObject reqObj = new JSONObject();
-        reqObj.put("mcp_server_id", req.getMcpServerId());
-        reqObj.put("mcp_server_url", req.getMcpServerUrl());
-        reqObj.put("tool_name", req.getToolName());
-        reqObj.put("tool_args", req.getToolArgs());
-        // Add plugin debug history
-        ToolBoxOperateHistory toolBoxOperateHistory = new ToolBoxOperateHistory();
-        toolBoxOperateHistory.setToolId(req.getToolId());
-        toolBoxOperateHistory.setUid(UserInfoManagerHandler.getUserId());
-        toolBoxOperateHistory.setType(1);
-        toolBoxOperateHistoryMapper.insert(toolBoxOperateHistory);
-        return mcpServerHandler.debugServerTool(reqObj);
-    }
 
-    public JSONObject getServerToolDetail(String serverId) {
-        return mcpServerHandler.getMcpServerInfo(serverId);
-    }
 
-    /**
-     * Add secret key
-     *
-     * @param serverId
-     * @return
-     */
-    public Object andEnvKey(String serverId, HttpServletRequest request) {
-        String uid = UserInfoManagerHandler.getUserId();
-        McpToolConfig mcpToolConfig = mcpToolConfigMapper.selectOne(new LambdaQueryWrapper<McpToolConfig>()
-                .eq(McpToolConfig::getUid, uid)
-                .eq(McpToolConfig::getMcpId, serverId));
-        // 1. Check if it's an update or new AK
-        JSONObject ret = mcpServerHandler.checkMcpToolsIsNeedEnvKeys(serverId);
-        JSONArray parameters = ret.getJSONArray("parameters");
-        Map<String, String> existMap = new HashMap<>(parameters.size());
-        for (Object parameter : parameters) {
-            JSONObject param = (JSONObject) parameter;
-            if (StringUtils.isNotBlank(param.getString("default"))) {
-                param.put("hasDefault", true);
-                param.put("default", null);
-                // Has default value
-                existMap.put(param.getString("name"), param.getString("default"));
-            } else {
-                param.put("hasDefault", false);
-            }
-        }
-        if (CollUtil.isNotEmpty(existMap)) {
-            String key = "mcp_list:mcp_id_".concat(serverId);
-            String mapString = JSON.toJSONString(existMap);
-            redisTemplate.opsForValue().set(key, mapString, 30, TimeUnit.MINUTES);
-        }
-        if (mcpToolConfig != null && StringUtils.isNotBlank(mcpToolConfig.getParameters())) {
-            JSONObject jsonObject = JSON.parseObject(mcpToolConfig.getParameters());
-            ret.put("oldParameters", jsonObject);
-        }
-        return ApiResult.success(ret);
-    }
 
-    public Object pushEnvKey(McpPushDto req, HttpServletRequest rq) {
-        String key = "mcp_list:mcp_id_".concat(req.getMcpId());
-        String storedJson = (String) redisTemplate.opsForValue().get(key);
-        if (StringUtils.isNotBlank(storedJson)) {
-            Map<String, String> existMap = JSON.parseObject(storedJson, new TypeReference<Map<String, String>>() {});
-            Map<String, String> envMap = req.getEnv();
-            if (MapUtils.isNotEmpty(envMap)) {
-                envMap.forEach(existMap::put);
-            }
-            req.setEnv(existMap);
-        }
-        String uid = UserInfoManagerHandler.getUserId();
-        // 1. Generate short link
-        JSONObject request = new JSONObject();
-        // request.put("name",req.getServerName());
-        request.put("env", req.getEnv());
-        if (StringUtils.isNotEmpty(req.getRecordId())) {
-            request.put("record", Long.parseLong(req.getRecordId()));
-        }
-        String url = mcpServerHandler.getMcpUrl(request, commonConfig.getAppId());
-        // 2. Generate ID
-        String mcpServerId = generateServerId(req, url);
-        // 3. Authorization
-        mcpAuth(req.getRecordId(), null);
-        // Save local configuration
-        saveLocalConfig(req, uid, url, mcpServerId, req.getEnv(), req.getCustomize());
-        return ApiResult.success(mcpServerId);
-    }
 
-    private String generateServerId(McpPushDto req, String url) {
-        JSONObject linkReq = new JSONObject();
-        linkReq.put("app_id", commonConfig.getAppId());
-        linkReq.put("name", req.getServerName());
-        linkReq.put("type", "docker");
-        //
-        linkReq.put("mcp_server_url", url);
-        linkReq.put("description", req.getServerDesc());
-        linkReq.put("mcp_schema", "");
-        JSONObject linkRep = mcpServerHandler.mcpPublish(linkReq);
-        String mcpServerId = linkRep.getString("id");
-        return mcpServerId;
-    }
+
+
+
+
+
+
 
     public void mcpAuth(String recordId, String flowId) {
         long effectTime = LocalDateTime.now().plusYears(50).toEpochSecond(ZoneOffset.of("+8"));
@@ -5014,35 +4885,7 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         mcpServerHandler.McpAuth(authReq);
     }
 
-    private void saveLocalConfig(McpPushDto req, String uid, String url, String mcpServerId, Map<String, String> env, Boolean customize) {
-        McpToolConfig config = mcpToolConfigMapper.selectOne(new LambdaQueryWrapper<McpToolConfig>()
-                .eq(McpToolConfig::getUid, uid)
-                .eq(McpToolConfig::getMcpId, req.getMcpId()));
-        if (config == null) {
-            McpToolConfig mcpToolConfig = new McpToolConfig();
-            mcpToolConfig.setMcpId(req.getMcpId());
-            mcpToolConfig.setUid(uid);
-            mcpToolConfig.setSortLink(url);
-            mcpToolConfig.setServerId(mcpServerId);
-            mcpToolConfig.setCustomize(customize);
-            mcpToolConfig.setCreateTime(new Date());
-            mcpToolConfig.setUpdateTime(new Date());
-            if (env != null) {
-                mcpToolConfig.setParameters(JSON.toJSONString(env));
-            }
-            mcpToolConfigMapper.insert(mcpToolConfig);
-        } else {
-            config.setSortLink(url);
-            config.setServerId(mcpServerId);
-            if (env != null) {
-                config.setParameters(JSON.toJSONString(env));
-            }
-            config.setCustomize(customize);
-            config.setCreateTime(new Date());
-            config.setUpdateTime(new Date());
-            mcpToolConfigMapper.updateById(config);
-        }
-    }
+
 
 
     public Object replaceAppId(String appId, String flowId) {
@@ -5626,66 +5469,11 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         }
     }
 
-    public McpServerToolDetailVO getServerToolDetailLocally(String serverId) {
-        // Get directly from cache
-        JSONObject jsonObject = MCP_SERVER_CACHE.get(serverId);
-        if (jsonObject != null) {
-            return convertJson2DetailVO(jsonObject);
-        }
-        return null;
-    }
 
-    /**
-     * Convert JSON object to McpServerToolDetailVO
-     */
-    private McpServerToolDetailVO convertJson2DetailVO(JSONObject jsonObject) {
-        McpServerToolDetailVO detailVO = new McpServerToolDetailVO();
 
-        // Set root level properties
-        detailVO.setId(jsonObject.getString("id"));
 
-        // Handle mcp object
-        JSONObject mcpObject = jsonObject.getJSONObject("mcp");
-        if (mcpObject != null) {
-            detailVO.setTools(mcpObject.getJSONArray("tools"));
-            setBasicProperties(detailVO, mcpObject);
-        }
 
-        return detailVO;
-    }
 
-    /**
-     * Set basic properties
-     */
-    private void setBasicProperties(McpServerToolDetailVO detailVO, JSONObject mcpObject) {
-        detailVO.setBrief(mcpObject.getString("brief"));
-        detailVO.setOverview(mcpObject.getString("overview"));
-        detailVO.setCreator(mcpObject.getString("creator"));
-        detailVO.setCreateTime(mcpObject.getString("createTime"));
-        detailVO.setLogoUrl(mcpObject.getString("logo"));
-        detailVO.setMcpType(mcpObject.getString("mcpType"));
-
-        // Handle content field with proper unescaping for markdown rendering
-        String content = mcpObject.getString("content");
-        if (content != null) {
-            // Unescape common escape sequences that might interfere with markdown rendering
-            content = content.replace("\\n", "\n")
-                    .replace("\\r", "\r")
-                    .replace("\\t", "\t")
-                    .replace("\\\"", "\"")
-                    .replace("\\'", "'")
-                    .replace("\\\\", "\\");
-        }
-        detailVO.setContent(content);
-
-        JSONArray tags = mcpObject.getJSONArray("tags");
-        if (tags != null) {
-            detailVO.setTags(tags.toJavaList(String.class));
-        }
-        detailVO.setRecordId(mcpObject.getString("recordId"));
-        detailVO.setName(mcpObject.getString("name"));
-        detailVO.setServerUrl(mcpObject.getString("server"));
-    }
 
 
     public static class Input {
@@ -5740,141 +5528,15 @@ public class WorkflowService extends ServiceImpl<WorkflowMapper, Workflow> {
         return pageData;
     }
 
-    public List<McpServerTool> getMcpServerListLocally(String categoryId, Integer pageNo, Integer pageSize, Boolean authorized,
-            HttpServletRequest request) {
-        // Check if cache has expired, reload if expired
-        checkAndRefreshCache();
 
-        List<McpServerTool> filteredList = MCP_SERVER_CACHE.values()
-                .stream()
-                .filter(jsonObject -> {
-                    if (StringUtils.isNotBlank(categoryId)) {
-                        String objCategoryId = jsonObject.getString("categoryId");
-                        if (!categoryId.equals(objCategoryId)) {
-                            return false;
-                        }
-                    }
 
-                    if (authorized != null) {
-                        Boolean objAuthorized = jsonObject.getBoolean("authorized");
-                        return objAuthorized != null && objAuthorized == authorized;
-                    }
 
-                    return true;
-                })
-                .map(this::convertJson2McpServerTool)
-                .collect(Collectors.toList());
 
-        int total = filteredList.size();
-        int startIndex = (pageNo - 1) * pageSize;
-        int endIndex = Math.min(startIndex + pageSize, total);
 
-        if (startIndex >= total || startIndex < 0) {
-            return new ArrayList<>();
-        }
 
-        return filteredList.subList(startIndex, endIndex);
-    }
 
-    private McpServerTool convertJson2McpServerTool(JSONObject jsonObject) {
-        McpServerTool mcpServerTool = new McpServerTool();
-        mcpServerTool.setId(jsonObject.getString("id"));
 
-        // Get properties from mcp object
-        JSONObject mcpObject = jsonObject.getJSONObject("mcp");
-        if (mcpObject != null) {
-            mcpServerTool.setBrief(mcpObject.getString("brief"));
-            mcpServerTool.setOverview(mcpObject.getString("overview"));
-            mcpServerTool.setCreator(mcpObject.getString("creator"));
-            mcpServerTool.setCreateTime(mcpObject.getString("createTime"));
-            mcpServerTool.setLogoUrl(mcpObject.getString("logo"));
-            mcpServerTool.setName(mcpObject.getString("name"));
-            mcpServerTool.setMcpType(mcpObject.getString("mcpType"));
 
-            // Handle content field with proper unescaping for markdown rendering
-            String content = mcpObject.getString("content");
-            if (content != null) {
-                // Unescape common escape sequences that might interfere with markdown rendering
-                content = content.replace("\\n", "\n")
-                        .replace("\\r", "\r")
-                        .replace("\\t", "\t")
-                        .replace("\\\"", "\"")
-                        .replace("\\'", "'")
-                        .replace("\\\\", "\\");
-            }
-            mcpServerTool.setContent(content);
-
-            mcpServerTool.setTools(mcpObject.getJSONArray("tools"));
-            mcpServerTool.setTags(mcpObject.getJSONArray("tags"));
-            mcpServerTool.setAuthorized(mcpObject.getBoolean("authorized"));
-            mcpServerTool.setServerUrl(mcpObject.getString("server"));
-        }
-
-        return mcpServerTool;
-    }
-
-    /**
-     * Check if cache has expired, and refresh cache if it has
-     */
-    private void checkAndRefreshCache() {
-        long now = System.currentTimeMillis();
-        // If cache is empty or has expired, reload
-        if (MCP_SERVER_CACHE.isEmpty() || (now - lastCacheLoadTime) > CACHE_EXPIRE_TIME) {
-            synchronized (CACHE_LOAD_LOCK) {
-                // Double check to prevent other threads from already loading
-                if (MCP_SERVER_CACHE.isEmpty() || (now - lastCacheLoadTime) > CACHE_EXPIRE_TIME) {
-                    loadMcpServersFromFiles();
-                    lastCacheLoadTime = System.currentTimeMillis();
-                }
-            }
-        }
-    }
-
-    /**
-     * Load MCP server configuration from files, using the id field in files as cache key
-     */
-    private void loadMcpServersFromFiles() {
-        // Use regular HashMap as it's single-threaded construction and atomic replacement
-        Map<String, JSONObject> tempCache = new HashMap<>();
-
-        List<JSONObject> jsonObjects = readAllJsonFiles();
-        for (JSONObject jsonObject : jsonObjects) {
-            // Use the id field in file
-            String id = jsonObject.getString("id");
-            if (StringUtils.isNotBlank(id)) {
-                tempCache.put(id, jsonObject);
-            }
-        }
-
-        // Atomic replacement of entire cache
-        MCP_SERVER_CACHE = tempCache;
-        log.info("Loaded and cached {} MCP tools", MCP_SERVER_CACHE.size());
-    }
-
-    private List<JSONObject> readAllJsonFiles() {
-        List<JSONObject> jsonObjects = new ArrayList<>();
-        PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-
-        // Read all JSON files under the path
-        org.springframework.core.io.Resource[] resources = null;
-        try {
-            resources = resolver.getResources(mcpServerFilePath + "/*.json");
-
-            for (org.springframework.core.io.Resource resource : resources) {
-                try (InputStream inputStream = resource.getInputStream()) {
-                    // Read file content and convert to JSONObject;
-                    JSONObject jsonObject = JSON.parseObject(inputStream, JSONObject.class);
-
-                    jsonObjects.add(jsonObject);
-                }
-            }
-        } catch (IOException e) {
-            log.error("Failed to read file for MCP-Server registration, file path={}", mcpServerFilePath, e);
-            throw new BusinessException(ResponseEnum.WORKFLOW_MCP_SERVER_REGISTRY_FAILED);
-        }
-
-        return jsonObjects;
-    }
 
     public void removeAllCanvasHold() {
         // Clear canvas multi-open count

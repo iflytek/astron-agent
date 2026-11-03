@@ -26,12 +26,8 @@ const DeleteSpaceModal: React.FC<DeleteSpaceModalProps> = ({
 
   const handleSubmit = async () => {
     try {
-      // Since we removed captcha, pass dummy values for mobile and verifyCode
-      // This assumes the backend will be updated to not require these fields
       await deleteSpace({
         spaceId,
-        mobile: '',
-        verifyCode: '',
       });
       message.success(t('space.deleteSpaceSuccess'));
       deleteSpaceCb();

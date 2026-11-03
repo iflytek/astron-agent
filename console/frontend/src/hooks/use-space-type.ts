@@ -7,7 +7,6 @@ import {
   updateCorporateSpace,
   deleteCorporateSpace,
   checkSpaceName,
-  deleteSpaceSendCode,
   getLastVisitSpace,
   getJoinedCorporateList,
   visitSpace,
@@ -27,8 +26,6 @@ export const SPACE_TYPES = {
 
 interface DeleteSpaceParams {
   spaceId: string;
-  mobile: string;
-  verifyCode: string;
 }
 
 export const useSpaceType = (navigate?: any) => {
@@ -81,12 +78,6 @@ export const useSpaceType = (navigate?: any) => {
     [isPersonalSpace]
   );
 
-  const sendCodeForDelete = useCallback(async () => {
-    return deleteSpaceSendCode({
-      spaceId,
-    });
-  }, [spaceId]);
-
   const deleteSpace = useCallback(
     async (params: DeleteSpaceParams) => {
       if (isPersonalSpace()) {
@@ -109,7 +100,7 @@ export const useSpaceType = (navigate?: any) => {
       });
 
       if (params?.isJump) {
-        window.location.href = '/space/agent';
+        window.location.href = '/resource/knowledge';
       }
     },
     [setSpaceStore]
@@ -128,9 +119,9 @@ export const useSpaceType = (navigate?: any) => {
       const resetTeamPath = (hasSpace: boolean) => {
         if (param?.isJump) {
           if (hasSpace) {
-            navigate?.('/space/agent');
+            navigate?.('/resource/knowledge');
           } else {
-            navigate?.('/home');
+            navigate?.(`/enterprise/${_enterpriseId || enterpriseId}/space`);
           }
         }
       };
@@ -209,7 +200,7 @@ export const useSpaceType = (navigate?: any) => {
   const deleteSpaceCb = useCallback(async () => {
     if (!isTeamSpace()) {
       getLastVisitSpaceInfo();
-      navigate?.('/space/agent');
+      navigate?.('/resource/knowledge');
       return;
     }
 
@@ -249,7 +240,7 @@ export const useSpaceType = (navigate?: any) => {
           }
 
           if (!window.location.pathname.includes('/home')) {
-            window.location.href = '/home';
+            window.location.href = '/space';
             return;
           }
 
@@ -289,7 +280,6 @@ export const useSpaceType = (navigate?: any) => {
       // 空间操作
       createSpace,
       editSpace,
-      sendCodeForDelete,
       deleteSpace,
       deleteSpaceCb,
       checkName,
@@ -308,7 +298,6 @@ export const useSpaceType = (navigate?: any) => {
       isDefaultPersonalSpace,
       createSpace,
       editSpace,
-      sendCodeForDelete,
       deleteSpace,
       deleteSpaceCb,
       checkName,

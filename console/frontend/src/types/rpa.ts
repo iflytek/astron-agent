@@ -52,6 +52,7 @@ export interface RpaRobot {
 
   icon: string;
   apiKey?: string;
+  assistantId?: number;
 }
 
 export interface RpaDetailInfo {

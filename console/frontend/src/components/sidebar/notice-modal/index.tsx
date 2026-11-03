@@ -10,10 +10,7 @@ import { CaretDownOutlined } from '@ant-design/icons';
 import { Dropdown, Menu, Modal, Button, message, Popconfirm } from 'antd';
 import { CloseIcon } from '@/components/svg-icons';
 import styles from './index.module.scss';
-import { useSparkCommonStore } from '@/store/spark-store/spark-common';
-import BotCard from './bot-card';
 import { useTranslation } from 'react-i18next';
-import messageSpace from '@/assets/imgs/share-page/message_space.svg';
 import { getTextContent, createSafeHTML } from '@/utils/sanitizer';
 interface NoticeModalProps {
   open: boolean;
@@ -31,9 +28,17 @@ const initCoverImg = (messageItem: Notification): string => {
   return systemCover[typeIndex] || '';
 };
 
-const renderSpecialMsg = (selectMessageObj: any) => {
-  if (selectMessageObj?.type === 'SYSTEM') {
-    return null;
+const renderSpecialMsg = (item: Notification) => {
+  try {
+    const payload = JSON.parse(item?.payload || '{}');
+    if (
+      payload.inviteId ||
+      (item?.type?.toUpperCase() === 'SYSTEM' && payload.outlink)
+    ) {
+      return <a href="/space/invitations">查看并处理我的邀请</a>;
+    }
+  } catch {
+    /* Historical notifications may not contain JSON payloads. */
   }
   return null;
 };
@@ -72,23 +77,25 @@ const renderNotificationItem = (
       </div>
       <p>{getTextContent(item.body)}</p>
     </div>
-    <span
-      className={styles.del}
-      onClick={e => {
-        e.stopPropagation();
-      }}
-    >
-      <Popconfirm
-        title={t('systemMessage.isConfirmDelete')}
-        onConfirm={e => {
-          delMessage(item, e);
+    {item.type.toUpperCase() !== 'BROADCAST' && (
+      <span
+        className={styles.del}
+        onClick={e => {
+          e.stopPropagation();
         }}
-        okText={t('systemMessage.delete')}
-        cancelText={t('systemMessage.cancel')}
       >
-        <CloseIcon />
-      </Popconfirm>
-    </span>
+        <Popconfirm
+          title={t('systemMessage.isConfirmDelete')}
+          onConfirm={e => {
+            delMessage(item, e);
+          }}
+          okText={t('systemMessage.delete')}
+          cancelText={t('systemMessage.cancel')}
+        >
+          <CloseIcon />
+        </Popconfirm>
+      </span>
+    )}
   </li>
 );
 
@@ -156,9 +163,7 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
   onClose,
   onMessageRead,
 }) => {
-  const [selectType, setSelectType] = useState<string>('0');
-  const myMessage = useSparkCommonStore(state => state.myMessage);
-  const setMyMessage = useSparkCommonStore(state => state.setMyMessage);
+  const [selectType, setSelectType] = useState<string>('2');
   const [messageType, setMessageType] = useState<any[]>(messageTypeList);
   const [messageDetail, setMessageDetail] = useState<string>('');
   const [selectedId, setSelectedId] = useState<number>(0);
@@ -174,7 +179,9 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
 
   const getMessages = async (queryMessageType?: string) => {
     const queryParam = {
-      type: queryMessageType || '0',
+      type:
+        messageTypeList[Number(queryMessageType ?? selectType)]?.typeInfo ||
+        'SYSTEM',
       unreadOnly: false,
       pageIndex: 1,
       pageSize: 100,
@@ -205,7 +212,11 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
       console.warn('Failed to parse payload:', e);
     }
 
-    setMessageDetail(messageItem.body || '');
+    setMessageDetail(
+      payload.outlink
+        ? getTextContent(messageItem.body || '')
+        : messageItem.body || ''
+    );
     setSelectedId(messageItem.id);
 
     if (payload.outlink) {
@@ -249,8 +260,9 @@ const NoticeModal: React.FC<NoticeModalProps> = ({
   };
 
   useEffect(() => {
-    getMessages();
-  }, []);
+    if (open)
+      getMessages(selectType).catch(() => message.error('无法读取通知'));
+  }, [open, selectType]);
 
   return (
     <div>

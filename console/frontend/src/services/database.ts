@@ -47,11 +47,11 @@ export async function update(params: UpdateDbParams): Promise<void> {
 }
 // 删除数据库
 export async function deleteDb(params: DeleteDbParams): Promise<void> {
-  await http.get('/db/delete', { params });
+  await http.post('/db/delete', params);
 }
 // 复制数据库
 export async function copyDb(params: CopyDbParams): Promise<void> {
-  await http.get('/db/copy', { params });
+  await http.post('/db/copy', params);
 }
 
 // 创建表
@@ -66,7 +66,7 @@ export async function tableList(
 }
 // 删除表
 export async function deleteTable(params: DeleteTableParams): Promise<void> {
-  await http.get('/db/delete-table', { params });
+  await http.post('/db/delete-table', params);
 }
 // 获取表字段
 export async function fieldList(
@@ -92,7 +92,7 @@ export async function operateTableData(
 }
 // 复制表
 export async function copyTable(params: CopyTableParams): Promise<void> {
-  await http.get('/db/copy-table', { params });
+  await http.post('/db/copy-table', params);
 }
 // 导入数据
 export async function importData(params: ImportDataParams): Promise<unknown> {

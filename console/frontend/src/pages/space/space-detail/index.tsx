@@ -6,7 +6,7 @@ import React, {
   useRef,
 } from 'react';
 import { Select, message } from 'antd';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useDebounceFn } from 'ahooks';
 
 import SpaceTab from '@/components/space/space-tab';
@@ -26,8 +26,6 @@ import useUserStore from '@/store/user-store';
 import useSpaceStore from '@/store/space-store';
 import { SpaceType, RoleType } from '@/types/permission';
 import { roleToRoleType } from '@/pages/space/config';
-import { useSpaceType } from '@/hooks/use-space-type';
-import { useEnterprise } from '@/hooks/use-enterprise';
 import styles from './index.module.scss';
 import { TAB_KEYS, DEBOUNCE_DELAY, DEFAULT_VALUES } from '@/pages/space/config';
 import { getSpaceDetail, spaceInvite, visitSpace } from '@/services/space';
@@ -305,88 +303,53 @@ interface TabContentParams {
 
 // 空间信息管理Hook
 const useSpaceInfo = (spaceId: string | undefined): UseSpaceInfoReturn => {
-  const navigate = useNavigate();
-  const { setUserRole } = useUserStore();
-  const { spaceType, setSpaceStore } = useSpaceStore();
-  const { isTeamSpace, deleteSpaceCb, handleTeamSwitch, getLastVisitSpace } =
-    useSpaceType(navigate);
-  const { isTeamSpaceEmpty } = useEnterprise();
-
   const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const updateSpaceStore = useCallback(
-    async (spaceInfo: SpaceInfo): Promise<void> => {
-      const { enterpriseId: detailEnterpriseId } = spaceInfo;
-
-      if (
-        (isTeamSpace() && !detailEnterpriseId) ||
-        (detailEnterpriseId && !isTeamSpace())
-      ) {
-        await visitSpace(spaceId);
-        setSpaceStore({
-          enterpriseId: detailEnterpriseId,
-          spaceType: detailEnterpriseId ? 'team' : 'personal',
-        });
-        setTimeout(() => {
-          getLastVisitSpace();
-        });
-      }
-    },
-    [spaceId, isTeamSpace, setSpaceStore, getLastVisitSpace]
-  );
-
+  const [loading, setLoading] = useState(true);
+  const sequence = useRef(0);
   const loadSpaceInfo = useCallback(async (): Promise<void> => {
+    const current = ++sequence.current;
     if (!spaceId) {
+      setSpaceInfo(null);
       setLoading(false);
       return;
     }
-
-    setSpaceStore({ spaceId });
-
+    useSpaceStore.getState().setSpaceStore({ spaceId, enterpriseId: '' });
+    setLoading(true);
     try {
-      setLoading(true);
-      const response = await getSpaceDetail();
-      const spaceInfo = response as unknown as SpaceInfo;
-      updateSpaceStore(spaceInfo);
-      setSpaceInfo(spaceInfo);
-      setUserRole(
-        spaceType as SpaceType,
-        roleToRoleType(spaceInfo?.userRole, isTeamSpace()) as RoleType
-      );
-    } catch (err: unknown) {
-      const error = err as { msg?: string; desc?: string };
-      message.error(error?.msg || error?.desc);
-      deleteSpaceCb();
+      const result = (await getSpaceDetail()) as unknown as SpaceInfo;
+      if (current !== sequence.current) return;
+      const team = Boolean(result.enterpriseId);
+      useSpaceStore.getState().setSpaceStore({
+        spaceId: String(result.id),
+        spaceName: result.name,
+        enterpriseId: result.enterpriseId ? String(result.enterpriseId) : '',
+        spaceType: team ? 'team' : 'personal',
+        spaceAvatar: result.avatarUrl || '',
+      });
+      useUserStore
+        .getState()
+        .setUserRole(
+          team ? SpaceType.ENTERPRISE : SpaceType.PERSONAL,
+          roleToRoleType(result.userRole, team) as RoleType
+        );
+      setSpaceInfo(result);
+      await visitSpace(spaceId);
+    } catch {
+      if (current === sequence.current) {
+        setSpaceInfo(null);
+        message.error('无法读取此空间，或您已没有访问权限。');
+      }
     } finally {
-      setLoading(false);
+      if (current === sequence.current) setLoading(false);
     }
-  }, [
-    spaceId,
-    spaceType,
-    isTeamSpace,
-    updateSpaceStore,
-    setUserRole,
-    deleteSpaceCb,
-    setSpaceStore,
-  ]);
-
-  const checkNoTeamSpace = useCallback(() => {
-    if (isTeamSpaceEmpty) {
-      handleTeamSwitch();
-    }
-  }, [isTeamSpaceEmpty, handleTeamSwitch]);
-
+  }, [spaceId]);
   useEffect(() => {
-    loadSpaceInfo();
-    checkNoTeamSpace();
-  }, [loadSpaceInfo, checkNoTeamSpace]);
-
-  return {
-    spaceInfo,
-    loading,
-    loadSpaceInfo,
-  };
+    void loadSpaceInfo();
+    return () => {
+      sequence.current += 1;
+    };
+  }, [loadSpaceInfo]);
+  return { spaceInfo, loading, loadSpaceInfo };
 };
 
 // 弹窗状态管理Hook

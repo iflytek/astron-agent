@@ -1,6 +1,6 @@
 # Python Console 目标架构
 
-范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 01 账号。
+范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 02 空间与资源管理，建立在 01 账号基础上。
 
 ## 职责与调用方向
 
@@ -59,3 +59,7 @@ Agent 调用工作流、工作流调用 Agent 是明确的执行依赖，后续�
 - [Django 数据迁移操作](https://docs.djangoproject.com/en/5.2/ref/migration-operations/)
 
 以上 API 经 Context7 核验；实现锁定实际可安装的 Django 5.2 维护版本。
+
+## 02 影响评估
+
+前端空间与资源页面 → Django spaces/resources/knowledge → 既有 Console 业务表及 core/plugin、core/knowledge、core/memory/database。内部模型/沙箱/产物接口读取已有工作流归属用于授权，不实现工作流编排。保留配置权限位、业务 UID 和资源主键；MinIO 复用既有桶和对象键。平台账号的 config_info JSON 与 platform_account_text:* Redis 文本缓存被多个 core 服务消费，保存时定向失效缓存；不读取 Java 对象缓存，不改 Kafka/core/common。具体契约与验证见 [02 技术设计](02-resources/technical-design.md)。

@@ -43,12 +43,12 @@ const requestPaths = [
   '/workflow/resume',
 ];
 
-const captureRequest = async (path, getContext) => {
+const captureRequest = async (path, getContext, method = 'POST') => {
   let capturedRequest;
 
   await fetchSseWithContext(path, {
     getContext,
-    method: 'POST',
+    method,
     openWhenHidden: true,
     onerror(error) {
       throw error;
@@ -56,6 +56,7 @@ const captureRequest = async (path, getContext) => {
     fetch: async (input, init) => {
       capturedRequest = {
         input: input.toString(),
+        method: init?.method,
         headers: new globalThis.Headers(init?.headers),
       };
 
@@ -214,4 +215,52 @@ test('a synchronous workflow business-error frame is terminal', () => {
     false
   );
   assert.equal(isTerminalWorkflowSseErrorFrame({ code: 0 }), false);
+});
+
+test('knowledge document search sends authenticated team context on its GET stream', async () => {
+  const request = await captureRequest(
+    '/file/search-file?repoId=91',
+    () => ({
+      languageCode: 'zh-CN',
+      spaceId: '42',
+      spaceType: 'team',
+      enterpriseId: '7',
+    }),
+    'GET'
+  );
+  assert.equal(request.method, 'GET');
+  assert.equal(request.headers.get('space-id'), '42');
+  assert.equal(request.headers.get('enterprise-id'), '7');
+  assert.equal(request.headers.get('authorization'), null);
+});
+
+test('failed knowledge stream ends instead of retrying a forbidden request', async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchSseWithContext('/file/search-file?repoId=91', {
+      getContext: () => ({
+        languageCode: 'zh-CN',
+        spaceId: '42',
+        spaceType: 'team',
+        enterpriseId: '7',
+      }),
+      method: 'GET',
+      openWhenHidden: true,
+      fetch: async () => {
+        calls += 1;
+        return new Response('{}', {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+      async onopen(response) {
+        if (!response.ok) throw new Error('forbidden');
+      },
+      onerror(error) {
+        throw error;
+      },
+    }),
+    /forbidden/
+  );
+  assert.equal(calls, 1);
 });

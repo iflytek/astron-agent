@@ -19,7 +19,6 @@ import {
 import {
   modelCreate,
   deleteModelAPI,
-  modelRsaPublicKey,
   getModelDetail,
   getLocalModelList,
   createOrUpdateLocalModel,
@@ -54,7 +53,6 @@ import {
   normalizeModelProvider,
 } from '../utils/provider';
 import { mapProviderToVendor } from '../utils/provider-group';
-import { encryptApiKey } from '../utils/encrypt-api-key';
 
 const { TextArea } = Input;
 
@@ -404,8 +402,7 @@ const handleSubmitForm = async (params: {
   if (!validateFormData(modelParams)) return;
 
   try {
-    const data = await modelRsaPublicKey();
-    const encryptedApiKey = encryptApiKey(data, modelInfo?.apiKEY);
+    const encryptedApiKey = modelInfo?.apiKEY;
 
     // 构建提交参数
     const submitParams = buildSubmitParams({

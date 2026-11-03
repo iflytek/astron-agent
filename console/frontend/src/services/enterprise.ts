@@ -45,7 +45,7 @@ export const getEnterpriseSearchUsername = (params: any) => {
 
 // 邀请加入企业团队 /inviteRecord/enterpriseInvite
 export const enterpriseInvite = (params: any) => {
-  return http.post(`/invite-record/enterprise-invite`, params);
+  return http.post(`/invite-record/enterprise-invite`, { members: params });
 };
 
 // 获取团队成员列表 /enterpriseUser/page
@@ -101,14 +101,15 @@ export const batchImportEnterpriseUsername = (
   options: { signal?: AbortSignal } = {}
 ) => {
   return http.post('/invite-record/enterprise-batch-search-username', params, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     signal: options.signal, // 传递 AbortSignal
   });
 };
 
 // 访问企业团队
 export const visitEnterprise = (enterpriseId: string) => {
-  return http.get(`/enterprise/visit-enterprise?enterpriseId=${enterpriseId}`);
+  return http.post('/enterprise/visit-enterprise', {
+    enterpriseId: enterpriseId || null,
+  });
 };
 
 // 开源 升级套餐

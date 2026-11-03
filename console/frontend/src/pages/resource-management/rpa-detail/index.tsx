@@ -71,7 +71,7 @@ export const RpaDetail = () => {
             onClick={() =>
               modalRpaRunRef.current?.showModal({
                 ...record,
-                apiKey: rpaDetail?.fields?.apiKey,
+                assistantId: rpaDetail?.id,
               })
             }
           >

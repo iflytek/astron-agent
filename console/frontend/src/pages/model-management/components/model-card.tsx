@@ -11,7 +11,6 @@ import {
   getModelDetail,
   modelCreate,
   createOrUpdateLocalModel,
-  modelRsaPublicKey,
 } from '@/services/model';
 import {
   ModelInfo,
@@ -26,17 +25,6 @@ import i18next from 'i18next';
 import styles from './model-card.module.scss';
 import classNames from 'classnames';
 import { getModelProviderLabel } from '../utils/provider';
-import { encryptApiKey as encryptLongApiKey } from '../utils/encrypt-api-key';
-
-// 加密API密钥工具函数
-const encryptApiKey = (publicKey: string, apiKey: string): string => {
-  return encryptLongApiKey(publicKey, apiKey); /*
-    throw new Error('API密钥加密失败');
-  }
-  return encrypted;
-*/
-};
-
 // 重新发布模型函数
 const republishModel = async (
   model: ModelInfo,
@@ -66,12 +54,6 @@ const republishModel = async (
       await createOrUpdateLocalModel(localModelParams);
     } else {
       // 第三方模型重新发布
-      const publicKey = await modelRsaPublicKey();
-      const encryptedApiKey = encryptApiKey(
-        publicKey,
-        modelDetail.apiKey || ''
-      );
-
       // 解析配置参数
       let config = [];
       if (modelDetail.config && typeof modelDetail.config === 'string') {
@@ -85,7 +67,7 @@ const republishModel = async (
       const submitParams = {
         id: model.id,
         endpoint: modelDetail.url,
-        apiKey: encryptedApiKey,
+        apiKey: modelDetail.apiKey || '',
         apiKeyMasked: false, // 因为重新发布，不需要掩码
         modelName: modelDetail.name,
         description: modelDetail.desc,

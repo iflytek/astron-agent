@@ -9,9 +9,9 @@ external services.
 | Purpose | Implementation |
 | --- | --- |
 | Tenant API keys and secrets | `core/tenant/tools/generator/app.go` reads `crypto/rand.Reader`; keys use 16 random bytes and secrets use 24 random bytes. Random-source failure stops generation. |
-| Persistent service tokens | `PersistentServiceToken` generates 48 random bytes with Java `SecureRandom`, stores them in a deployment-specific file, and compares tokens with `MessageDigest.isEqual`. Explicit operator-provided tokens require separate entropy assessment. |
-| Invitation-link encryption | `AESUtil` uses AES-256-GCM, a 12-byte IV from `SecureRandom`, and a 128-bit tag. It accepts a 64-character hexadecimal key. Key ownership and rotation are separate from algorithm/key-length selection. |
-| Model credential encryption | `RSAUtil` generates 2048-bit RSA key pairs through Java's cryptography provider. Its existing PKCS#1 v1.5 encryption format is retained for client compatibility; imported key files require operator review. The `ECB` component of Java's RSA transformation name does not describe an AES-ECB operation. |
+| Persistent service tokens | Deployment provisions persistent random tokens in existing secret files or environment variables. Python Console reads the same tokens and uses constant-time comparison on its internal resource endpoints; restarting Console does not rotate tokens. |
+| Space invitations | Invitations are addressed to a UID and accepted by that authenticated user in a transaction. Console no longer uses encrypted invitation URLs. |
+| Model and resource credentials | Python Console preserves the existing database credential values and exposes masked management responses. Provider SDK calls and authorized internal endpoints receive credentials server-side. Browser submissions use the same-origin HTTPS/session/CSRF boundary; the old model RSA transmission protocol is removed. Existing API-key columns and platform JSON remain in their original storage format. |
 | Request signing | Python `hmac`/`hashlib` and Java's cryptography APIs implement the standard HMAC-SHA-256 signing paths. |
 | Console passwords and sessions | Python Console uses Django Argon2 password hashing and database-backed sessions. Persistent `CONSOLE_SECRET_KEY` must be shared by replicas. Password-reset tokens expire and become invalid after successful reset. |
 

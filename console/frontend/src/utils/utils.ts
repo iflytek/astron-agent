@@ -27,12 +27,12 @@ export function downloadExcel(
   };
   downloadKnowledgeByViolation(params).then((data: Blob) => {
     const excelBlob = new Blob([data], {
-      type: 'application/vnd.ms-excel',
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const excelUrl = URL.createObjectURL(excelBlob);
     const a = document.createElement('a');
     a.href = excelUrl;
-    a.download = name + '的违规详情.xls'; // 设置文件名
+    a.download = name + '的违规详情.xlsx'; // 设置文件名
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

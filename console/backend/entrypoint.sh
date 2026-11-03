@@ -8,6 +8,9 @@ if [ "${CONSOLE_RUN_MIGRATIONS:-true}" = "true" ]; then
     else
         python manage.py import_legacy_users
     fi
+    if [ -n "${OSS_ENDPOINT:-}" ]; then
+        python manage.py init_resource_storage
+    fi
 fi
 
 exec uvicorn astron_console.asgi:application --host 0.0.0.0 --port 8080 \

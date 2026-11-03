@@ -72,11 +72,11 @@ export const PersonSpace = ({
       setSpaceAvatar(item.avatarUrl);
       setIsShowSpacePopover(false);
       if (item.id === '') {
-        navigate('/space/agent');
+        navigate('/resource/knowledge');
         setSpaceId('');
       } else {
         setSpaceId(item.id);
-        navigate('/space/agent');
+        navigate('/resource/knowledge');
       }
     } catch (err: any) {
       message.error(err.msg || t('space.accessSpaceFailed'));

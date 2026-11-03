@@ -1,0 +1,64 @@
+.navigation {
+  width: 220px;
+  min-width: 220px;
+  height: 100%;
+  padding: 28px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  background: #fff;
+  border-right: 1px solid #ececf2;
+  overflow: auto;
+
+  a {
+    color: #343441;
+    text-decoration: none;
+  }
+  nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  nav a {
+    padding: 10px 14px;
+    border-radius: 8px;
+  }
+  nav a:hover,
+  nav a.active {
+    color: #6356ea;
+    background: #f1efff;
+  }
+}
+.brand {
+  font-size: 22px;
+  font-weight: 700;
+  padding: 0 10px;
+}
+.scope {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #676773;
+  font-size: 12px;
+  select {
+    width: 100%;
+    padding: 9px;
+    border: 1px solid #d8d8e2;
+    border-radius: 8px;
+    color: #262626;
+  }
+}
+.footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 14px;
+  button {
+    text-align: left;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+  }
+}

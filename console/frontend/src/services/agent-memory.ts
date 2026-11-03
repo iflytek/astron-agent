@@ -16,7 +16,7 @@ export interface SaveAgentMemoryConfigParams {
   botId: number;
   provider?: string;
   enabled: boolean;
-  apiKeyCiphertext?: string;
+  apiKey?: string;
   autoSearch: boolean;
   searchTopK: number;
   minScore: number;

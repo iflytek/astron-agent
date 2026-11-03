@@ -186,23 +186,6 @@ bot:
   default:
     avatar: ${BOT_DEFAULT_AVATAR:null}
 
-space:
-  limit:
-    free:
-      space-count: 1
-      user-count: 50
-    pro:
-      space-count: 10
-      user-count: 100
-    team:
-      space-count: 10000
-      user-count: 100
-    enterprise:
-      space-count: 10000
-      user-count: 500
-  invite-message-template:
-    url: ${CONSOLE_DOMAIN:localhost:3000}/sharepage?param=
-
 # WeChat third-party platform configuration
 wechat:
   thirdparty:
