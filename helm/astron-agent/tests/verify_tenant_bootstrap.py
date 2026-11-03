@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Dict, List, Mapping, Sequence, Tuple
 
 CHART = Path(__file__).resolve().parent.parent
@@ -386,6 +387,30 @@ def _verify_sandbox_external_secrets() -> None:
         raise VerificationError("existing sandbox Secret must not be replaced")
 
 
+def _verify_console_internal_hosts() -> None:
+    public_hosts = "public.example.org,198.51.100.8"
+    for fullname in ("astron-agent", "custom-release"):
+        rendered = _render((
+            "--set-string", "consoleHub.auth.allowedHosts=public.example.org\\,198.51.100.8",
+            "--set-string", f"fullnameOverride={fullname}",
+        ))
+        service_host = fullname + "-console-hub"
+        _find_document(rendered, "Service", service_host)
+        console = _find_document(rendered, "Deployment", service_host)
+        _, environment = _main_container_environment(console)
+        if environment["CONSOLE_ALLOWED_HOSTS"]["value"] != public_hosts + "," + service_host:
+            raise VerificationError("Console must preserve public hosts and add its actual internal service host")
+        for consumer in ("core-agent", "core-workflow"):
+            deployment = _find_document(rendered, "Deployment", fullname + "-" + consumer)
+            _, environment = _main_container_environment(deployment)
+            keys = ["SKILL_SANDBOX_RUNTIME_CONFIG_URL", "SKILL_SANDBOX_ARTIFACT_UPLOAD_URL"]
+            if consumer == "core-workflow":
+                keys.append("MODEL_RUNTIME_CONFIG_URL")
+            for key in keys:
+                if urlsplit(environment[key]["value"]).hostname != service_host:
+                    raise VerificationError("internal caller URL is inconsistent with Console allowed hosts")
+
+
 def _verify_explicit_render() -> None:
     explicit_key = "K" * 48
     explicit_secret = "S" * 48
@@ -649,6 +674,7 @@ def main() -> int:
             raise VerificationError("Helm lint failed")
         _verify_lookup_and_seed_sources()
         _verify_default_render()
+        _verify_console_internal_hosts()
         _verify_sandbox_external_secrets()
         _verify_explicit_render()
         _verify_external_secret_render()
@@ -668,7 +694,7 @@ def main() -> int:
         return 1
     print(
         "tenant bootstrap Helm gate: PASS "
-        f"(8 positive modes, 4 tenant consumers, 3 workflow consumers, "
+        f"(10 positive modes, 4 tenant consumers, 3 workflow consumers, "
         f"{negative_count} negative cases)"
     )
     return 0

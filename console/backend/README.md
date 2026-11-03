@@ -68,6 +68,8 @@ uv run ruff format --check astron_console manage.py
 
 Compose 使用主 `docker/astronAgent/docker-compose.yaml`。RPA 资源管理使用所配置平台的开放 API 凭据，不恢复 Casdoor。先配置上述密钥、域名和 Cookie 设置，再构建当前 Console/前端镜像。Helm 使用 `consoleHub.auth.existingSecret` 指向已有 Secret，键默认为 `secret-key`；多副本迁移先单独完成。移除 Casdoor 定义不执行数据库删除。
 
+`CONSOLE_ALLOWED_HOSTS`（Helm 为 `consoleHub.auth.allowedHosts`）保留配置的公网主机列表。Compose 自动追加内部 `console-hub`，Helm 自动追加与 core 调用 URL 相同的实际 Service 名；无需把内部主机手写到公网配置，也不使用 `*` 放开 Host 校验。直接运行 Python 时，应在允许列表中明确填写实际调用主机名。
+
 
 ## 空间与资源
 

@@ -326,6 +326,55 @@ class AccountTests(TestCase):
 
 
 class DeploymentConfigurationTests(SimpleTestCase):
+    def test_public_and_internal_hosts_reach_business_auth_without_allowing_other_hosts(self):
+        # These are the Compose and custom-name Helm forms. Their assembly from
+        # user values and caller URLs is checked by the deployment render gates.
+        for internal_host in ("console-hub", "custom-release-console-hub"):
+            with self.subTest(internal_host=internal_host):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-c",
+                        """
+import django, json, os
+django.setup()
+from django.test import Client
+client = Client()
+host = os.environ['INTERNAL_TEST_HOST'] + ':8080'
+requests = [
+    client.get('/health', HTTP_HOST='console.example.org'),
+    client.get('/skill-sandbox/internal-runtime-config', HTTP_HOST=host),
+    client.get('/model/internal-runtime-config', HTTP_HOST=host),
+    client.post('/workflow/artifacts/internal-upload', HTTP_HOST=host),
+    client.get('/skill-sandbox/internal-runtime-config', HTTP_HOST=host,
+               HTTP_X_SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN='host-test-token-12345678901234567'),
+    client.get('/health', HTTP_HOST='untrusted.example.org'),
+]
+print(json.dumps({'statuses': [r.status_code for r in requests],
+                  'auth_codes': [r.json()['code'] for r in requests[1:4]],
+                  'scope_message': requests[4].json()['message']}))
+""",
+                    ],
+                    cwd=settings.BASE_DIR,
+                    env={
+                        **os.environ,
+                        "DJANGO_SETTINGS_MODULE": "astron_console.settings",
+                        "CONSOLE_ALLOWED_HOSTS": f"console.example.org,{internal_host}",
+                        "INTERNAL_TEST_HOST": internal_host,
+                        "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN": (
+                            "host-test-token-12345678901234567"
+                        ),
+                    },
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload["statuses"], [200, 403, 403, 403, 400, 400])
+                self.assertEqual(payload["auth_codes"], [403, 403, 403])
+                self.assertIn("uid", payload["scope_message"])
+
     def test_public_hostname_keeps_loopback_healthcheck_and_rejects_unknown_hosts(self):
         result = subprocess.run(
             [
