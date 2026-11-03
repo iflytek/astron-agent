@@ -337,7 +337,7 @@ async def node_debug(
     :raises CustomExceptionCM: If node execution fails
     """
     workflow_dsl = WorkflowDSL.model_validate(
-        sanitize_protocol(workflow_dsl.model_dump())
+        sanitize_protocol(workflow_dsl.model_dump(by_alias=True))
     )
     # Record start time for performance measurement
     time_start = time.time() * 1000
