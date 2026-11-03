@@ -10,12 +10,13 @@ RUN uv sync --frozen --no-dev --extra mysql --no-install-project
 FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libmariadb3 curl && rm -rf /var/lib/apt/lists/* \
-    && useradd --uid 10001 --create-home console
+    && groupadd --gid 10001 console \
+    && useradd --uid 10001 --gid 10001 --create-home console
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY console/backend/astron_console /app/astron_console
 COPY console/backend/manage.py console/backend/entrypoint.sh /app/
 ENV PATH="/app/.venv/bin:$PATH" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-USER console
+USER 10001:10001
 EXPOSE 8080
 ENTRYPOINT ["sh", "/app/entrypoint.sh"]

@@ -98,7 +98,7 @@ jobs:
       - name: Verify rendered sandbox credential contract
         env:
           CONSOLE_SECRET_KEY: test-only-compose-validation-key-not-for-deployment-123456789
-        run: python3 docker/astronAgent/scripts/verify_security_contract.py
+        run: python3 docker/astronAgent/scripts/verify_security_contract.py --exercise-credential-lifecycle
 
       - name: Verify Helm internal credential contract
         run: python3 helm/astron-agent/tests/verify_tenant_bootstrap.py

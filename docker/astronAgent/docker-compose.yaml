@@ -9,10 +9,13 @@ services:
   internal-credentials-init:
     image: busybox:1.35
     container_name: astron-agent-internal-credentials-init
+    user: "0:0"
     environment:
       CONFIGURED_WORKFLOW_INTERNAL_API_KEY: "${WORKFLOW_INTERNAL_API_KEY:-}"
       CONFIGURED_TENANT_KEY: "${TENANT_KEY:-}"
       CONFIGURED_TENANT_SECRET: "${TENANT_SECRET:-}"
+      CONFIGURED_ARTIFACT_TOKEN: "${SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN:-}"
+      CONFIGURED_RUNTIME_TOKEN: "${SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN:-}"
     command:
       - /bin/sh
       - -ec
@@ -57,10 +60,58 @@ services:
           value="$$3"
           temporary="$$directory/.$$name.tmp.$$$$"
           mkdir -p "$$directory"
+          chmod 0755 "$$directory"
           printf '%s\n' "$$value" > "$$temporary"
           chmod 0444 "$$temporary"
           mv -f "$$temporary" "$$directory/$$name"
         }
+
+        # These two values were previously created by the Java Console. Keep
+        # existing file bytes unchanged; initialization now belongs to this job.
+        resolve_sandbox_token() {
+          file="$$1"
+          configured="$$2"
+          if [ -e "$$file" ] || [ -L "$$file" ]; then
+            [ -f "$$file" ] && [ ! -L "$$file" ] || exit 1
+            value="$$(cat "$$file")"
+            if [ -n "$$configured" ] && [ "$$configured" != "$$value" ]; then
+              echo 'Sandbox credential override conflicts with persisted value.' >&2
+              exit 1
+            fi
+          else
+            value="$$configured"
+            [ -n "$$value" ] || value="$$(generate_hex 48)"
+          fi
+          single_line="$$(printf '%s' "$$value" | tr -d '\r\n')"
+          [ "$${#value}" -ge 32 ] && [ "$$value" = "$$single_line" ] || {
+            echo 'Sandbox credential must contain at least 32 characters and no line breaks.' >&2
+            exit 1
+          }
+          printf '%s' "$$value"
+        }
+
+        prepare_sandbox_token() {
+          directory="$$1"
+          name="$$2"
+          value="$$3"
+          mkdir -p "$$directory"
+          if [ ! -e "$$directory/$$name" ]; then
+            printf '%s\n' "$$value" > "$$directory/$$name"
+          fi
+          # The init job alone writes; consumers share only this read group.
+          chown 0:10001 "$$directory" "$$directory/$$name"
+          chmod 0750 "$$directory"
+          chmod 0440 "$$directory/$$name"
+        }
+
+        artifact_token="$$(resolve_sandbox_token /secrets/artifact/artifact-upload-token "$$CONFIGURED_ARTIFACT_TOKEN")"
+        runtime_token="$$(resolve_sandbox_token /secrets/runtime/sandbox-runtime-credential-token "$$CONFIGURED_RUNTIME_TOKEN")"
+        [ "$$artifact_token" != "$$runtime_token" ] || {
+          echo 'Artifact and runtime credentials must be independent.' >&2
+          exit 1
+        }
+        prepare_sandbox_token /secrets/artifact artifact-upload-token "$$artifact_token"
+        prepare_sandbox_token /secrets/runtime sandbox-runtime-credential-token "$$runtime_token"
 
         workflow_key="$$CONFIGURED_WORKFLOW_INTERNAL_API_KEY"
         if [ "$$workflow_key" = "$$workflow_placeholder" ]; then
@@ -139,6 +190,8 @@ services:
     volumes:
       - workflow_internal_secrets:/secrets/workflow
       - tenant_bootstrap_secrets:/secrets/tenant
+      - artifact_upload_secrets:/secrets/artifact
+      - sandbox_runtime_credential_secrets:/secrets/runtime
     restart: "no"
 
   # PostgreSQL Database
@@ -542,6 +595,7 @@ services:
   core-agent:
     image: ghcr.io/iflytek/astron-agent/core-agent:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-core-agent
+    group_add: ["10001"]
     environment:
       SERVICE_LOCATION: "${SERVICE_LOCATION:-hf}"
       SERVICE_HOST: "${SERVICE_HOST:-0.0.0.0}"
@@ -596,10 +650,8 @@ services:
       APP_AUTH_API_KEY_FILE: "/app/secrets/tenant/tenant-key"
       APP_AUTH_SECRET_FILE: "/app/secrets/tenant/tenant-secret"
       WORKFLOW_INTERNAL_API_KEY_FILE: "/app/secrets/workflow/workflow-internal-api-key"
-      SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN: "${SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN:-}"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE: "/app/secrets/artifact/artifact-upload-token"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_URL: "http://console-hub:8080/workflow/artifacts/internal-upload"
-      SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN: "${SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN:-}"
       SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE: "/app/secrets/runtime/sandbox-runtime-credential-token"
       SKILL_SANDBOX_RUNTIME_CONFIG_URL: "http://console-hub:8080/skill-sandbox/internal-runtime-config"
       SKILL_RESOURCE_TRUSTED_ORIGIN: "${OSS_REMOTE_ENDPOINT:-http://minio.localhost:${EXPOSE_MINIO_PORT:-18998}}"
@@ -676,6 +728,7 @@ services:
   core-workflow:
     image: ghcr.io/iflytek/astron-agent/core-workflow:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-core-workflow
+    group_add: ["10001"]
     environment:
       RUNTIME_ENV: "${RUNTIME_ENV:-dev}"
       # Optional process-level override. Leave empty to use the built-in
@@ -738,10 +791,8 @@ services:
       MODEL_RUNTIME_CONFIG_URL: "http://console-hub:8080/model/internal-runtime-config"
       PGSQL_BASE_URL: "${PGSQL_BASE_URL:-http://core-database:${CORE_DATABASE_PORT}}"
       RPA_BASE_URL: "${RPA_BASE_URL:-http://core-rpa:${CORE_RPA_PORT}}"
-      SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN: "${SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN:-}"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE: "/app/secrets/artifact/artifact-upload-token"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_URL: "http://console-hub:8080/workflow/artifacts/internal-upload"
-      SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN: "${SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN:-}"
       SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE: "/app/secrets/runtime/sandbox-runtime-credential-token"
       SKILL_SANDBOX_RUNTIME_CONFIG_URL: "http://console-hub:8080/skill-sandbox/internal-runtime-config"
     depends_on:
@@ -819,6 +870,7 @@ services:
   console-hub:
     image: ghcr.io/iflytek/astron-agent/console-hub:${ASTRON_AGENT_VERSION:-latest}
     container_name: astron-agent-console-hub
+    group_add: ["10001"]
     build:
       context: ../..
       dockerfile: console/backend/Dockerfile
@@ -886,9 +938,7 @@ services:
       TENANT_CREATE_APP: "${TENANT_CREATE_APP:-}"
       TENANT_GET_APP_DETAIL: "${TENANT_GET_APP_DETAIL:-}"
       TENANT_VERIFY_APP_AUTH: "${TENANT_VERIFY_APP_AUTH:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/key/verify}"
-      SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN: "${SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN:-}"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE: "/app/secrets/artifact/artifact-upload-token"
-      SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN: "${SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN:-}"
       SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE: "/app/secrets/runtime/sandbox-runtime-credential-token"
       SKILL_SANDBOX_ARTIFACT_BUCKET: "${SKILL_SANDBOX_ARTIFACT_BUCKET:-workflow-artifacts}"
       SKILL_SANDBOX_ARTIFACT_MAX_FILE_SIZE: "${SKILL_SANDBOX_ARTIFACT_MAX_FILE_SIZE:-20MB}"
@@ -896,8 +946,8 @@ services:
       SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_TOTAL_SIZE_PER_WORKFLOW: "${SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_TOTAL_SIZE_PER_WORKFLOW:-1GB}"
       SKILL_SANDBOX_ARTIFACT_ALLOWED_EXTENSIONS: "${SKILL_SANDBOX_ARTIFACT_ALLOWED_EXTENSIONS:-txt,md,csv,json,pdf,png,jpg,jpeg,gif,webp,doc,docx,xls,xlsx,ppt,pptx,zip}"
     volumes:
-      - artifact_upload_secrets:/app/secrets/artifact
-      - sandbox_runtime_credential_secrets:/app/secrets/runtime
+      - artifact_upload_secrets:/app/secrets/artifact:ro
+      - sandbox_runtime_credential_secrets:/app/secrets/runtime:ro
       - workflow_internal_secrets:/app/secrets/workflow:ro
       - tenant_bootstrap_secrets:/app/secrets/tenant:ro
 

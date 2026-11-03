@@ -331,6 +331,59 @@ def _verify_default_render() -> None:
     _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
     _verify_managed_workflow_internal_auth(rendered)
     _verify_workflow_ingress_gateway_headers(rendered)
+    _verify_sandbox_bindings(
+        rendered,
+        "astron-agent-console-hub-artifact-upload",
+        "astron-agent-console-hub-sandbox-runtime-credential",
+    )
+
+
+def _verify_sandbox_bindings(rendered: str, artifact_secret: str, runtime_secret: str) -> None:
+    for deployment_name in WORKFLOW_CONSUMERS:
+        deployment = _find_document(rendered, "Deployment", deployment_name)
+        _, environment = _main_container_environment(deployment)
+        for name, secret, key in (
+            ("SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN", artifact_secret, "artifact-upload-token"),
+            (
+                "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN",
+                runtime_secret,
+                "sandbox-runtime-credential-token",
+            ),
+        ):
+            binding = environment.get(name, {})
+            if (
+                binding.get("secret_name") != secret
+                or binding.get("secret_key") != key
+                or name + "_FILE" in environment
+            ):
+                raise VerificationError(
+                    "sandbox credentials must use the same Secret environment bindings"
+                )
+    console = _find_document(rendered, "Deployment", "astron-agent-console-hub")
+    for setting in ("runAsNonRoot: true", "runAsUser: 10001", "runAsGroup: 10001"):
+        if setting not in console:
+            raise VerificationError("Console non-root identity is missing")
+
+
+def _verify_sandbox_external_secrets() -> None:
+    rendered = _render(
+        (
+            "--set-string",
+            "consoleHub.artifactUpload.existingSecret=retained-artifact",
+            "--set-string",
+            "consoleHub.sandboxRuntimeCredential.existingSecret=retained-runtime",
+        )
+    )
+    _verify_sandbox_bindings(rendered, "retained-artifact", "retained-runtime")
+    for name in (
+        "astron-agent-console-hub-artifact-upload",
+        "astron-agent-console-hub-sandbox-runtime-credential",
+    ):
+        try:
+            _find_document(rendered, "Secret", name)
+        except VerificationError:
+            continue
+        raise VerificationError("existing sandbox Secret must not be replaced")
 
 
 def _verify_explicit_render() -> None:
@@ -596,6 +649,7 @@ def main() -> int:
             raise VerificationError("Helm lint failed")
         _verify_lookup_and_seed_sources()
         _verify_default_render()
+        _verify_sandbox_external_secrets()
         _verify_explicit_render()
         _verify_external_secret_render()
         _verify_workflow_external_secret_render()
@@ -614,7 +668,7 @@ def main() -> int:
         return 1
     print(
         "tenant bootstrap Helm gate: PASS "
-        f"(7 positive modes, 4 tenant consumers, 3 workflow consumers, "
+        f"(8 positive modes, 4 tenant consumers, 3 workflow consumers, "
         f"{negative_count} negative cases)"
     )
     return 0
