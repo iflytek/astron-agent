@@ -15,6 +15,8 @@ Use the workflow API when you want to:
 
 If you only want to evaluate or operate the full platform, start with [Quick Start](./quick-start.md) or [Deployment](./deploy.md) instead.
 
+If the caller is an AI agent that speaks MCP (Claude, goose, Cline, Cursor and others), use the [Astron Agent MCP server](https://github.com/iflytek/astron-agent/tree/main/integrations/mcp-server) instead of writing an HTTP client. It exposes published workflows as MCP tools over this same API.
+
 ## Integration boundary
 
 ```text
