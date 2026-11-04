@@ -1,7 +1,7 @@
 [meta]
 version = 1
 
-[[java.apps]]
+[[python.apps]]
 name = "console-backend"
 dir = "console/backend"
 enabled = true
