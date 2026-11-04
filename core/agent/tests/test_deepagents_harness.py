@@ -653,3 +653,28 @@ async def test_real_anthropic_sdk_final_turn_never_uses_assistant_prefill(
         assert "Answer in Chinese" in str(captured[-1]["system"])
     finally:
         await server.cleanup()
+
+
+@pytest.mark.asyncio
+async def test_raised_tool_failure_is_sanitized_and_emitted_as_failed_result(
+    context: Any,
+) -> None:
+    async def broken(action_input: Any, span: Any) -> Any:
+        raise RuntimeError("https://service/?api_key=must-never-leak")
+
+    span, trace, exporter = context
+    runner, model = engine([call(), answer()], [plugin(run=broken)], max_loop=1)
+    chunks = [
+        chunk async for chunk in WorkflowAgentRunner(engine=runner).run(span, trace)
+    ]
+    tool = next(
+        c.choices[0].delta.tool_calls[0]
+        for c in chunks
+        if c.choices[0].delta.tool_calls
+    )
+    assert json.loads(tool.function.response)["code"] != 0
+    assert "must-never-leak" not in str(chunks)
+    assert "must-never-leak" not in str(model.prompts)
+    assert runner.model_handle._closed
+    for observed in exporter.get_finished_spans():
+        assert "must-never-leak" not in str(observed.events)

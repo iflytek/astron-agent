@@ -75,7 +75,7 @@ def test_invalid_resource_urls_fail_before_network(url: str) -> None:
         validate_skill_resource_url(url)
 
 
-def test_malicious_bot_skill_is_removed_without_creating_http_session(
+def test_malicious_bot_skill_is_rejected_without_creating_http_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class UnexpectedSession:
@@ -99,7 +99,8 @@ def test_malicious_bot_skill_is_removed_without_creating_http_session(
         ]
     )
 
-    assert factory.gen() == []
+    with pytest.raises(ValueError):
+        factory.gen()
 
 
 @pytest.mark.asyncio

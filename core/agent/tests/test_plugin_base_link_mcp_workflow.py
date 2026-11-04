@@ -3,7 +3,7 @@
 import json
 from dataclasses import dataclass
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -500,3 +500,29 @@ class TestWorkflowPluginRunnerAndFactory:
         plugin = await factory.create_workflow_plugin(schema)
         assert plugin.flow_id == "fid"
         assert plugin.typ == "workflow"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "servers",
+    [
+        [],
+        [{"server_id": "configured", "server_status": 500, "server_message": "secret"}],
+    ],
+)
+async def test_mcp_initialization_failure_cannot_silently_remove_tools(
+    servers: Any,
+) -> None:
+    from agent.exceptions.plugin_exc import PluginExc
+    from agent.service.plugin.mcp import McpPluginFactory
+
+    factory = McpPluginFactory(
+        app_id="app", mcp_server_ids=["configured"], mcp_server_urls=[]
+    )
+    with patch.object(
+        McpPluginFactory, "query_servers", AsyncMock(return_value=servers)
+    ):
+        with pytest.raises(PluginExc) as error:
+            await factory.build_tools(Span(app_id="test", uid="user"))
+        assert error.value.c == 40026
+        assert "secret" not in str(error.value)

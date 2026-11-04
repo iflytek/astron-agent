@@ -9,7 +9,7 @@ class CustomCompletionModelConfigInputs(BaseModel):
     domain: str
     api: str
     provider: str = Field(default="")
-    api_key: str = Field(default="")
+    api_key: str = Field(default="", repr=False)
 
 
 class CustomCompletionInstructionInputs(BaseModel):

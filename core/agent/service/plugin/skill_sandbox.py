@@ -243,6 +243,8 @@ def _runtime_config_query(config: "SkillSandboxConfig") -> dict[str, str]:
     workflow_id = str(config.workflow_id or "").strip()
     if workflow_id:
         query["flowId"] = workflow_id
+    if config.agent_id:
+        query["agentId"] = config.agent_id
     space_id = str(config.space_id or "").strip()
     if space_id:
         query["spaceId"] = space_id
@@ -481,11 +483,12 @@ class SkillSandboxRunner(BaseModel):
 
             if not command:
                 return PluginResponse(
+                    code=40024,
                     result={
                         "skill_id": self.skill_id,
                         "configured": True,
                         "error": "command_required",
-                    }
+                    },
                 )
 
             request = SandboxExecutionRequest(
@@ -504,18 +507,21 @@ class SkillSandboxRunner(BaseModel):
             except json.JSONDecodeError:
                 result["result_json"] = None
             result["skill_id"] = self.skill_id
-            return PluginResponse(result=result)
+            return PluginResponse(
+                code=0 if result.get("exit_code") == 0 else 40024, result=result
+            )
 
     def _is_configured(self) -> bool:
         return self.sandbox_config is not None and self.sandbox_config.enabled
 
     def _unsupported_response(self) -> PluginResponse:
         return PluginResponse(
+            code=40024,
             result={
                 "skill_id": self.skill_id,
                 "configured": False,
                 "message": SCRIPT_SANDBOX_UNCONFIGURED_MESSAGE,
-            }
+            },
         )
 
     def _normalize_relative_path(self, value: Any, default: str) -> str:
@@ -534,6 +540,8 @@ class SkillSandboxRunner(BaseModel):
 
 class SkillSandboxConfig(BaseModel):
     enabled: bool = False
+    agent_id: str = ""
+    session_id: str = ""
     workflow_id: str = ""
     run_id: str = ""
     node_id: str = ""
@@ -759,6 +767,8 @@ class E2BSandboxProvider:
                         type(exc).__name__,
                     )
                     artifact["upload_error"] = ARTIFACT_UPLOAD_FAILED_ERROR
+            if not uploader.is_configured():
+                artifact["upload_error"] = ARTIFACT_UPLOAD_CONFIG_ERROR
             artifacts.append(artifact)
         logger.info(
             "Skill sandbox artifact scan finished: skill_id={}, upload_configured={}, candidates={}, artifacts={}",
@@ -815,7 +825,7 @@ class ArtifactUploader:
         self.skill_id = skill_id
 
     def is_configured(self) -> bool:
-        if not self.config.workflow_id or not self.config.uid:
+        if not (self.config.workflow_id or self.config.agent_id) or not self.config.uid:
             return False
         try:
             _load_artifact_upload_url()
@@ -829,7 +839,16 @@ class ArtifactUploader:
         artifact_upload_url = _load_artifact_upload_url()
         artifact_upload_token = _load_artifact_upload_token()
         form = aiohttp.FormData()
-        form.add_field("flowId", self.config.workflow_id)
+        if self.config.agent_id and not self.config.workflow_id:
+            parsed = urlsplit(artifact_upload_url)
+            artifact_upload_url = parsed._replace(
+                path="/agents/artifacts/internal-upload"
+            ).geturl()
+            form.add_field("agentId", self.config.agent_id)
+            if self.config.session_id:
+                form.add_field("sessionId", self.config.session_id)
+        else:
+            form.add_field("flowId", self.config.workflow_id)
         form.add_field("uid", self.config.uid)
         if self.config.space_id:
             form.add_field("spaceId", self.config.space_id)

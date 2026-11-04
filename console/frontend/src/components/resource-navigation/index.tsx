@@ -13,6 +13,7 @@ interface SpaceOption {
 }
 
 const links = [
+  ['/space/agent', '独立 Agent'],
   ['/resource/knowledge', '知识库'],
   ['/management/model', '模型管理'],
   ['/resource/plugin', '工具管理'],

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Modal, Form, message } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { getLanguageCode } from '@/utils/http';
-import AgentCreationModal from '@/components/agent-creation';
 import MakeCreateModal from '@/components/make-creation';
 import { useTranslation } from 'react-i18next';
 
@@ -25,13 +24,12 @@ const HeaderFeedbackModal: React.FC<HeaderFeedbackModalProps> = ({
   const [makeModalVisible, setMakeModalVisible] = useState(false);
   const [form] = Form.useForm();
   const [selectedBox, setSelectedBox] = useState('');
-  const [AgentCreationModalVisible, IntelligentModalVisible] =
-    useState<boolean>(false); //智能体创建
   const [virtualModal, setVirtualModal] = useState<boolean>(false); //虚拟人创建
   const handleBoxClick = (boxName: string): void => {
     setSelectedBox(boxName);
     if (boxName === 'cueWord') {
-      IntelligentModalVisible(true);
+      onCancel();
+      navigate('/space/agent');
     } else if (boxName === 'workflow') {
       setMakeModalVisible(true);
     } else if (boxName === 'virtual') {
@@ -50,8 +48,7 @@ const HeaderFeedbackModal: React.FC<HeaderFeedbackModalProps> = ({
     }
   }, [visible]);
 
-  const childModalVisible =
-    makeModalVisible || AgentCreationModalVisible || virtualModal;
+  const childModalVisible = makeModalVisible || virtualModal;
 
   return (
     <Modal
@@ -115,12 +112,6 @@ const HeaderFeedbackModal: React.FC<HeaderFeedbackModalProps> = ({
         />
       )}
 
-      <AgentCreationModal
-        visible={AgentCreationModalVisible}
-        onCancel={() => {
-          IntelligentModalVisible(false);
-        }}
-      />
       {virtualModal && (
         <VirtualConfig
           visible={virtualModal}

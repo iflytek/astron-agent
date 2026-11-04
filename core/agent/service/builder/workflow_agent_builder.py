@@ -10,6 +10,7 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionPluginKnowledgeInputs,
 )
 from agent.engine.deepagents_runner import DeepAgentsRunner
+from agent.exceptions.plugin_exc import KnowledgeQueryExc
 from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.knowledge import KnowledgePluginFactory
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
@@ -93,6 +94,10 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 "artifact_upload_token",
                 "runtimeCredentialToken",
                 "runtime_credential_token",
+                "workflowId",
+                "flowId",
+                "runId",
+                "nodeId",
             ):
                 sandbox.pop(untrusted_key, None)
             sandbox["uid"] = self.inputs.uid
@@ -101,6 +106,12 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 self.inputs.meta_data.run_id or self.inputs.meta_data.caller_sid
             )
             sandbox["node_id"] = self.inputs.meta_data.node_id
+            sandbox["agent_id"] = self.inputs.meta_data.agent_id
+            sandbox["session_id"] = self.inputs.meta_data.session_id
+            if self.inputs.meta_data.agent_id:
+                # Console owns the standalone identity; never trust Skill JSON.
+                sandbox["space_id"] = self.inputs.meta_data.space_id
+                sandbox["spaceId"] = self.inputs.meta_data.space_id
 
     async def query_knowledge_by_workflow(
         self, knowledge_list: list[CustomCompletionPluginKnowledgeInputs], span: Span
@@ -112,7 +123,15 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             if not tasks:
                 return [], ""
 
-            results = await asyncio.gather(*tasks)
+            pending = [asyncio.create_task(task) for task in tasks]
+            try:
+                results = await asyncio.gather(*pending)
+            finally:
+                # gather does not cancel siblings when one retrieval fails.
+                for task in pending:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
             metadata_list, _ = self._process_knowledge_results(results)
             backgrounds = self._extract_backgrounds(metadata_list)
 
@@ -135,6 +154,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             "3": "Ragflow-RAG",
         }
         tasks = []
+        if any(not item.match.repo_ids for item in knowledge_list):
+            raise KnowledgeQueryExc()
 
         for knowledge in knowledge_list:
             repo_ids = knowledge.match.repo_ids or []
@@ -151,10 +172,6 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     "dataset_ids": dataset_ids,
                 }
             )
-
-            if not (repo_ids or doc_ids):
-                span.add_info_events({"skip_reason": "no repo_ids or doc_ids"})
-                continue
 
             top_k = knowledge.top_k or 3
             score_threshold = 0.3
@@ -188,7 +205,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
         metadata_map: dict[str, list[dict[str, str]]] = {}
 
         for resp in results:
-            for result in resp.get("data", {}).get("results", []):
+            KnowledgePluginFactory.validate_response(resp)
+            for result in resp["data"]["results"]:
                 title = result.get("title", "")
                 source_id = result.get("docId", "")
                 content = result.get("content", "")

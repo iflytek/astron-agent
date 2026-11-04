@@ -33,11 +33,7 @@ class McpPluginRunner(BaseModel):
                 "tool_args": action_input,
                 "sid": sp.sid,
             }
-            sp.add_info_events(
-                attributes={
-                    "mcp-plugin-run-inputs": json.dumps(data, ensure_ascii=False)
-                }
-            )
+            sp.add_info_events({"server_id": self.server_id, "tool_name": self.name})
             try:
                 run_url = os.getenv("RUN_MCP_PLUGIN_URL")
                 if not run_url:
@@ -55,13 +51,7 @@ class McpPluginRunner(BaseModel):
                         response.raise_for_status()
                         if response.status == 200:
                             resp = await response.json()
-                            sp.add_info_events(
-                                attributes={
-                                    "mcp-plugin-run-outputs": json.dumps(
-                                        resp, ensure_ascii=False
-                                    )
-                                }
-                            )
+                            sp.add_info_events({"mcp-response-received": True})
                         else:
                             sp.add_info_events(
                                 attributes={
@@ -71,8 +61,8 @@ class McpPluginRunner(BaseModel):
                                 }
                             )
                             raise RunMcpPluginExc
-            except asyncio.TimeoutError as e:
-                raise RunMcpPluginExc from e
+            except (asyncio.TimeoutError, aiohttp.ClientError, ValueError):
+                raise RunMcpPluginExc from None
 
             end_time = int(round(time.time() * 1000))
             plugin_response = PluginResponse(
@@ -93,35 +83,29 @@ class McpPluginFactory(BaseModel):
     mcp_server_urls: list
 
     async def gen(self, span: Span) -> list[McpPlugin]:
-        return await self.build_tools(span)
+        try:
+            return await self.build_tools(span)
+        except Exception:
+            raise GetMcpPluginExc() from None
 
     async def build_tools(self, span: Span) -> list[McpPlugin]:
         mcp_plugins: list[McpPlugin] = []
         servers_list = await self.query_servers(span)
+        expected = len(set(self.mcp_server_ids)) + len(set(self.mcp_server_urls))
+        if len(servers_list) < expected:
+            raise GetMcpPluginExc()
         for server in servers_list:
             server_status = server.get("server_status")
             server_id = server.get("server_id", "")
             server_url = server.get("server_url", "")
-            server_message = server.get("server_message", "")
 
-            # Skip failed servers with warning log, don't break entire plugin building
             if server_status != 0:
-                span.add_info_events(
-                    attributes={
-                        "mcp-server-error": json.dumps(
-                            {
-                                "server_id": server_id,
-                                "server_url": server_url,
-                                "status": server_status,
-                                "message": server_message,
-                            },
-                            ensure_ascii=False,
-                        )
-                    }
-                )
-                continue
+                # Missing configured tools must fail the run, not change its abilities.
+                raise GetMcpPluginExc
 
-            for tool in server.get("tools", []):
+            if not isinstance(server.get("tools"), list) or not server["tools"]:
+                raise GetMcpPluginExc()
+            for tool in server["tools"]:
                 mcp_plugin = McpPlugin(
                     server_id=server_id,
                     server_url=server_url,
@@ -147,8 +131,9 @@ class McpPluginFactory(BaseModel):
                 "mcp_server_urls": self.mcp_server_urls,
             }
             sp.add_info_events(
-                attributes={
-                    "mcp-query-servers-inputs": json.dumps(data, ensure_ascii=False)
+                {
+                    "mcp-server-count": len(self.mcp_server_ids)
+                    + len(self.mcp_server_urls)
                 }
             )
             try:
@@ -165,13 +150,7 @@ class McpPluginFactory(BaseModel):
                         response.raise_for_status()
                         if response.status == 200:
                             resp = await response.json()
-                            sp.add_info_events(
-                                attributes={
-                                    "mcp-plugin-list-outputs": json.dumps(
-                                        resp, ensure_ascii=False
-                                    )
-                                }
-                            )
+                            sp.add_info_events({"mcp-list-response-received": True})
                         else:
                             sp.add_info_events(
                                 attributes={
@@ -181,8 +160,8 @@ class McpPluginFactory(BaseModel):
                                 }
                             )
                             raise GetMcpPluginExc
-            except asyncio.TimeoutError as e:
-                raise GetMcpPluginExc from e
+            except (asyncio.TimeoutError, aiohttp.ClientError, ValueError):
+                raise GetMcpPluginExc from None
 
             code = resp.get("code")
             if code != 0:

@@ -95,23 +95,6 @@
         <Bug pattern="DE_MIGHT_IGNORE"/>
     </Match>
 
-    <!-- ================================ -->
-    <!-- 8. Hub module specific exclusions -->
-    <!-- ================================ -->
-
-    <!-- Exclude redundant null check in MyBotController -->
-    <Match>
-        <Class name="com.iflytek.astron.console.hub.controller.user.MyBotController"/>
-        <Method name="getBotDetail"/>
-        <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE"/>
-    </Match>
-
-    <!-- Exclude redundant null check in ChatEnhanceServiceImpl -->
-    <Match>
-        <Class name="com.iflytek.astron.console.hub.service.chat.impl.ChatEnhanceServiceImpl"/>
-        <Method name="saveFile"/>
-        <Bug pattern="RCN_REDUNDANT_NULLCHECK_OF_NONNULL_VALUE"/>
-    </Match>
     <!-- Toolkit universal low value alarm filtering -->
     <Match>
         <!-- Naming/Style Category -->

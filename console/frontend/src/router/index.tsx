@@ -2,7 +2,7 @@ import Loading from '@/components/loading';
 import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Layout from '@/layouts/index';
-import ConfigPage from '@/pages/config-page';
+import AgentWorkspace from '@/pages/agents/editor';
 
 const AccountAccess = lazy(() => import('@/pages/account-access'));
 const ResourceTools = lazy(
@@ -22,12 +22,12 @@ const WorkFlowAnalysis = lazy(
 );
 const WorkFlowFiles = lazy(() => import('@/pages/workflow/workflow-files'));
 
-const ChatPage = lazy(() => import('@/pages/chat-page'));
+const AgentList = lazy(() => import('@/pages/agents/list'));
 const PersonalSpace = lazy(() => import('@/pages/space/personal'));
 const SpaceInvitations = lazy(() => import('@/pages/space/invitations'));
 const SpaceDetail = lazy(() => import('@/pages/space/space-detail'));
 const EnterpriseSpace = lazy(() => import('@/pages/space/enterprise'));
-const SpacePage = lazy(() => import('@/pages/space-page'));
+
 const TeamCreate = lazy(() => import('@/pages/space/team-create'));
 // const SmartRedirect = lazy(() => import('@/pages/smart-redirect'));
 const ReleaseManagement = lazy(() => import('@/pages/release-management'));
@@ -169,15 +169,17 @@ const routes = [
     ),
     children: [
       {
-        path: '/space/*',
+        path: '/space/agent',
         element: (
           <Suspense fallback={<Loading />}>
-            <SpacePage />
+            <AgentList />
           </Suspense>
         ),
       },
     ],
   },
+  { path: '/space/bot/:id/chat', element: <AgentWorkspace mode="chat" /> },
+  { path: '/space/config/base', element: <AgentWorkspace /> },
   ...(['login', 'register', 'reset-password', 'account'] as const).map(
     path => ({
       path: `/${path}`,
@@ -226,7 +228,7 @@ const routes = [
     path: '/chat/:botId/:version?',
     element: (
       <Suspense fallback={<Loading />}>
-        <ChatPage />
+        <AgentWorkspace mode="chat" />
       </Suspense>
     ),
   },
@@ -242,8 +244,8 @@ const routes = [
     path: '/space',
     children: [
       {
-        path: '/space/config/*',
-        element: <ConfigPage />,
+        path: '/space/config/:id/base',
+        element: <AgentWorkspace />,
       },
     ],
   },
