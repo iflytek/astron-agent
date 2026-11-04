@@ -70,6 +70,12 @@ check-python: ## 🔍 Check Python code quality
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Processing $$dir...$(RESET)"; \
 				if (cd $$dir && \
+				if [ "$$dir" = "console/backend" ]; then \
+					uv sync --locked && \
+					uv run ruff check astron_console manage.py && \
+					uv run ruff format --check astron_console manage.py && \
+					uv run python manage.py makemigrations --check --dry-run --settings=astron_console.settings_test; \
+				else \
 				echo "$(YELLOW)    Installing Python quality tools...$(RESET)" && \
 				$(PYTHON) -m pip install black==24.4.2 isort==5.13.2 flake8==7.0.0 mypy==1.18.2 pylint==3.1.0 'types-requests>=2.32.4.20250913' && \
 				echo "$(YELLOW)    1. Running flake8 code style check...$(RESET)" && \
@@ -85,7 +91,8 @@ check-python: ## 🔍 Check Python code quality
 					$(PYTHON) -m $(MYPY) .; \
 				fi && \
 				echo "$(YELLOW)    5. Running pylint code analysis...$(RESET)" && \
-				find . -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT)); then \
+				find . -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT); \
+				fi); then \
 					echo "$(GREEN)    ✅ $$dir passed all checks$(RESET)"; \
 				else \
 					echo "$(RED)    ❌ $$dir failed quality checks$(RESET)"; \
@@ -114,7 +121,11 @@ test-python: ## 🧪 Run Python tests
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Testing $$dir...$(RESET)"; \
 				(cd $$dir && \
-				if [ -d "tests" ]; then \
+				if [ "$$dir" = "console/backend" ]; then \
+					uv sync --locked && \
+					uv run coverage run --source=astron_console manage.py test --settings=astron_console.settings_test && \
+					uv run coverage report; \
+				elif [ -d "tests" ]; then \
 					echo "$(YELLOW)    Running tests...$(RESET)" && \
 					if [ -f "uv.lock" ]; then \
 						echo "$(YELLOW)      Syncing dependencies with uv...$(RESET)" && \
