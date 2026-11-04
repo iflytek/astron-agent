@@ -39,7 +39,7 @@ Django 使用 ASGI `StreamingHttpResponse` 的异步生成器；上游连接由 
 
 保留 `agent_memory_config` 中 Base64 RSA 密文，复用 `config_info/MODEL_SECRET_KEY/private_key` 对应旧密钥，不能重新生成或重加密已有配置。浏览器仅得到 hasApiKey 等状态。默认共享长期偏好，不共享会话历史；工作流中间值、工具原始结果不自动写入偏好。自动记忆只接受真实完成的独立用户对话；工作流契约默认不采集，未来04只可显式提交用户偏好。
 
-迁移通过 Django 历史模型和 introspection 接管已有表，增加必要的新表/字段，保留旧账号、Agent/工作流配置、记忆、收藏、历史和对象存储。不得执行 Flyway DROP 初始脚本。删除本阶段替代的 Java Agent聊天/调试/记忆与 Spring AI 执行、重复工具编排、相关测试/构建依赖；04/05仍拥有的业务源码仅在依赖确证后删除，不以Java可编译为理由保留旧执行引擎。
+迁移通过 Django 历史模型和 introspection 接管已有表；执行 schema_editor DDL 的 RunPython 显式设置 atomic=False，以支持 MySQL 的非事务 DDL。增加必要的新表/字段，保留旧账号、Agent/工作流配置、记忆、收藏、历史和对象存储。不得执行 Flyway DROP 初始脚本。删除本阶段替代的 Java Agent聊天/调试/记忆与 Spring AI 执行、重复工具编排、相关测试/构建依赖；04/05仍拥有的业务源码仅在依赖确证后删除，不以Java可编译为理由保留旧执行引擎。
 
 ## 验证
 

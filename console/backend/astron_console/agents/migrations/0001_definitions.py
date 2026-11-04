@@ -273,5 +273,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.SeparateDatabaseAndState(state_operations=state_operations),
-        migrations.RunPython(adopt_definitions, migrations.RunPython.noop),
+        # Schema adoption executes DDL; MySQL cannot run it inside RunPython's transaction.
+        migrations.RunPython(adopt_definitions, migrations.RunPython.noop, atomic=False),
     ]
