@@ -354,7 +354,7 @@ async def stream_run(run, payload, agent, scope):
             completed, _ = await asyncio.wait({read_task}, timeout=0.25)
             if loop.time() - last_saved >= 2:
                 await sync_to_async(checkpoint)(run)
-                last_saved = last_sent = loop.time()
+                last_saved = loop.time()
             if loop.time() - last_sent >= KEEPALIVE_SECONDS:
                 # Transport liveness only: never invent model output or history events.
                 yield ": keepalive\n\n"

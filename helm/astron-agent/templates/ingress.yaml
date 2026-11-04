@@ -1,6 +1,6 @@
 {{- if .Values.ingress.enabled -}}
 {{- $consoleApiPath := "/console-api(/|$)(.*)" -}}
-{{- $agentsApiPath := "/console-api/agents(/|$)(.*)" -}}
+{{- $agentsApiPath := "/console-api/(agents(/|$).*)" -}}
 {{- $gatewayAuthDenyPath := "/console-api/internal/gateway/auth/workflow(/|$)(.*)" -}}
 {{- $artifactUploadDenyPath := "/console-api/workflow/artifacts/internal-upload(/|$)(.*)" -}}
 {{- $runtimeConfigDenyPath := "/console-api/skill-sandbox/internal-runtime-config(/|$)(.*)" -}}
@@ -122,7 +122,8 @@ metadata:
     {{- include "astron-agent.labels" . | nindent 4 }}
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /agents/$2
+    # Capture the complete Agent path: the collection must stay /agents, not /agents/.
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"

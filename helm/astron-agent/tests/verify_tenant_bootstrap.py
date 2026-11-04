@@ -349,22 +349,45 @@ def _verify_agent_ingress_routes(rendered: str) -> None:
         'nginx.ingress.kubernetes.io/proxy-buffering: "off"',
         'nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"',
         'nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"',
-        'nginx.ingress.kubernetes.io/rewrite-target: /agents/$2',
     )
     if (
-        path != "/console-api/agents(/|$)(.*)" or path_type != "ImplementationSpecific"
-        or backend != "astron-agent-console-hub"
+        path_type != "ImplementationSpecific" or backend != "astron-agent-console-hub"
         or any(x not in document for x in expected)
     ):
         raise VerificationError(
             "Agent Ingress must select the unbuffered 1800s /agents/ rewrite"
         )
-    match = re.match("^" + path, AGENT_STREAM_PATH)
-    if (
-        not match
-        or "/agents/" + match.group(2) != "/agents/147/sessions/test-session/stream"
-    ):
-        raise VerificationError("Agent Ingress strips or duplicates the Agent path")
+    rewrite = re.search(
+        r"nginx.ingress.kubernetes.io/rewrite-target:\s*([^\n]+)", document
+    )
+    if not rewrite:
+        raise VerificationError("Agent Ingress rewrite-target is missing")
+    target = rewrite.group(1).strip('"')
+    # Match the public GET/POST URLs used by the Console against the rendered
+    # ingress capture groups. Django's collection is /agents without a slash.
+    cases = (
+        ("GET", "/console-api/agents", "/agents"),
+        ("POST", "/console-api/agents", "/agents"),
+        ("GET", "/console-api/agents?page=1", "/agents"),
+        ("GET", "/console-api/agents/147", "/agents/147"),
+        ("POST", "/console-api/agents/147/sessions", "/agents/147/sessions"),
+        ("POST", AGENT_STREAM_PATH, "/agents/147/sessions/test-session/stream"),
+        ("GET", "/console-api/agents/", "/agents/"),
+    )
+    for method, uri, expected_path in cases:
+        request_path = urlsplit(uri).path
+        chosen_path, _, chosen_backend, chosen_document = selected(request_path)
+        if chosen_document != document or chosen_backend != "astron-agent-console-hub":
+            raise VerificationError(f"Agent Ingress does not handle {method} {uri}")
+        match = re.match("^" + chosen_path, request_path, re.I)
+        rewritten = re.sub(
+            r"\$(\d+)", lambda group: match.group(int(group.group(1))) or "", target
+        )
+        if rewritten != expected_path:
+            raise VerificationError(f"Agent Ingress rewrite changes {method} {uri}")
+    for unrelated in ("/console-api/agents-extra", "/console-api/agentsX", "/console-api/agents.json"):
+        if selected(unrelated)[3] == document:
+            raise VerificationError("Agent Ingress regex must retain the slash/end boundary")
     if "/console-api/chat-message" in rendered:
         raise VerificationError("obsolete Helm Java chat-message route remains")
     for internal in CONSOLE_INTERNAL_PATHS:
