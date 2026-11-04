@@ -10,6 +10,7 @@ from astron_console.resources.models import (
     ConfigInfo,
     McpConfig,
     Model,
+    OfficialModel,
     SandboxConfig,
     Tool,
     WorkflowScope,
@@ -69,6 +70,107 @@ class ResourceTests(TransactionTestCase):
         self.assertEqual(result.status_code, 200, result.content)
         self.assertEqual(result.json()["data"]["uid"], "legacy-owner")
         self.assertNotIn(b"retained-secret", result.content)
+
+    def test_model_list_filters_before_pagination_and_retains_search(self):
+        local = Model.objects.create(
+            uid=self.user.pk, name="Retained local", type=2, remark="deployment"
+        )
+        Model.objects.create(uid=self.user.pk, name="Unmatched", type=1)
+        cases = [(0, [local.pk, self.model.pk]), (1, [self.model.pk]), (2, [local.pk])]
+        for model_filter, expected in cases:
+            with (
+                self.subTest(model_filter=model_filter),
+                patch(
+                    "astron_console.resources.clients.call", return_value={"status": "running"}
+                ) as call,
+            ):
+                found = []
+                for current in range(1, len(expected) + 1):
+                    result = self.write(
+                        "post",
+                        "/api/model/list",
+                        {
+                            "type": 2,
+                            "filter": model_filter,
+                            "name": "Retained",
+                            "page": current,
+                            "pageSize": 1,
+                        },
+                    )
+                    self.assertEqual(result.status_code, 200, result.content)
+                    data = result.json()["data"]
+                    self.assertEqual((data["total"], data["pages"]), (len(expected), len(expected)))
+                    found.extend(row["id"] for row in data["records"])
+                self.assertEqual(found, expected)
+                self.assertEqual(call.call_count, 0 if model_filter == 1 else 1)
+
+    def test_third_party_list_does_not_depend_on_local_model_service(self):
+        Model.objects.create(uid=self.user.pk, name="Local", type=2, remark="deployment")
+        with patch(
+            "astron_console.resources.clients.call", side_effect=UpstreamError("unavailable")
+        ) as call:
+            result = self.write("post", "/api/model/list", {"type": 2, "filter": 1})
+            self.assertEqual(result.status_code, 200, result.content)
+            self.assertEqual(
+                [row["id"] for row in result.json()["data"]["records"]], [self.model.pk]
+            )
+            call.assert_not_called()
+            for model_filter in (0, 2):
+                result = self.write("post", "/api/model/list", {"type": 2, "filter": model_filter})
+                self.assertEqual(result.status_code, 502, result.content)
+
+    def test_model_type_filters_preserve_personal_and_space_ownership(self):
+        SpacePermission.objects.update_or_create(
+            permission_key="ModelController_list_POST", defaults={"owner": True}
+        )
+        space = Space.objects.create(name="Own space", uid=self.user.pk)
+        SpaceMember.objects.create(space_id=space.pk, uid=self.user.pk, role=1)
+        foreign_space = Space.objects.create(name="Foreign space", uid=self.other.pk)
+        expected = {None: {1: self.model.pk}, space.pk: {}}
+        for model_type in (1, 2):
+            if model_type == 2:
+                expected[None][2] = Model.objects.create(uid=self.user.pk, type=2).pk
+            expected[space.pk][model_type] = Model.objects.create(
+                uid=self.other.pk, space_id=space.pk, type=model_type
+            ).pk
+            Model.objects.create(uid=self.other.pk, type=model_type)
+            Model.objects.create(uid=self.user.pk, space_id=foreign_space.pk, type=model_type)
+            Model.objects.create(uid=self.user.pk, type=model_type, is_deleted=True)
+        for scope, types in expected.items():
+            headers = {} if scope is None else {"HTTP_SPACE_ID": str(scope)}
+            for model_filter in (0, 1, 2):
+                with self.subTest(scope=scope, model_filter=model_filter):
+                    result = self.write(
+                        "post", "/api/model/list", {"type": 2, "filter": model_filter}, **headers
+                    )
+                    self.assertEqual(result.status_code, 200, result.content)
+                    ids = {row["id"] for row in result.json()["data"]["records"]}
+                    expected_ids = (
+                        set(types.values()) if model_filter == 0 else {types[model_filter]}
+                    )
+                    self.assertEqual(ids, expected_ids)
+        for model_filter in (0, 1, 2):
+            result = self.write(
+                "post",
+                "/api/model/list",
+                {"type": 2, "filter": model_filter},
+                HTTP_SPACE_ID=str(foreign_space.pk),
+            )
+            self.assertEqual(result.status_code, 403)
+
+    def test_model_filter_validation_and_official_branch(self):
+        for value in (-1, 3, "1", None, True, 1.5, [], {}):
+            with self.subTest(value=value):
+                result = self.write("post", "/api/model/list", {"type": 2, "filter": value})
+                self.assertEqual(result.status_code, 400, result.content)
+        result = self.write("post", "/api/model/list", {"type": 2})
+        self.assertEqual(result.status_code, 200, result.content)
+        self.assertEqual(result.json()["data"]["total"], 1)
+        official = OfficialModel.objects.create(name="Official")
+        for model_filter in (0, 1, 2):
+            result = self.write("post", "/api/model/list", {"type": 1, "filter": model_filter})
+            self.assertEqual(result.status_code, 200, result.content)
+            self.assertEqual([row["id"] for row in result.json()["data"]["records"]], [official.pk])
 
     def test_cross_personal_access_denied_before_probe(self):
         self.client.force_login(self.other)

@@ -1,13 +1,9 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { message } from 'antd';
 import { useModelContext } from '../context/model-context';
-import { getModelList } from '@/services/model';
-import {
-  ModelFilterParams,
-  ModelInfo,
-  ModelType,
-  ShelfStatus,
-} from '@/types/model';
+import { getAllModels } from '@/services/model';
+import { shouldShowRequestError } from '@/utils/http-error';
+import { ModelInfo, ModelType, ShelfStatus } from '@/types/model';
 
 /**
  * 模型操作Hook
@@ -28,22 +24,42 @@ export const useModelOperations = (
   handleModelSaveSuccess: () => void;
   handleModelDeleteSuccess: () => void;
 } => {
-  const { state, actions } = useModelContext();
+  const { state, actions, modelRequest } = useModelContext();
+  const ownedRequest = useRef<AbortController | null>(null);
+  const activeScope = useRef<{ type: ModelType; filter: number } | null>(null);
+  useEffect(() => {
+    activeScope.current = { type: modelType, filter: state.filterType };
+    return (): void => {
+      activeScope.current = null;
+      ownedRequest.current?.abort();
+    };
+  }, [modelType, state.filterType]);
 
   // 刷新模型列表
   const refreshModels = useCallback(async (): Promise<void> => {
+    // A completed card action may still hold a callback from an old filter or
+    // an unmounted page. It must not cancel the current initialization.
+    if (
+      activeScope.current?.type !== modelType ||
+      activeScope.current.filter !== state.filterType
+    ) {
+      return;
+    }
+    modelRequest.current?.abort();
+    const controller = new AbortController();
+    modelRequest.current = controller;
+    ownedRequest.current = controller;
     try {
       actions.setLoading(true);
 
-      const params: ModelFilterParams = {
-        type: modelType,
-        page: 1,
-        pageSize: 9999,
-        filter: modelType === 2 ? (state.filterType ?? 0) : 0,
-      };
-
-      const data = await getModelList(params);
-      const records = data?.records ?? [];
+      const records = await getAllModels(
+        {
+          type: modelType,
+          filter: modelType === 2 ? (state.filterType ?? 0) : 0,
+        },
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
 
       actions.setModels(records);
 
@@ -52,10 +68,18 @@ export const useModelOperations = (
         m => m.shelfStatus === ShelfStatus.WAIT_OFF_SHELF
       );
       actions.setShelfOffModels(willBeRemoved);
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      // HTTP/business errors are already displayed by the shared interceptor.
+      if (shouldShowRequestError(error)) {
+        message.error(
+          error instanceof Error ? error.message : '模型列表加载失败'
+        );
+      }
     } finally {
-      actions.setLoading(false);
+      if (!controller.signal.aborted) actions.setLoading(false);
     }
-  }, [modelType, state.filterType, actions]);
+  }, [modelType, state.filterType, actions, modelRequest]);
 
   // 快速筛选即将下架的模型
   const handleQuickFilter = useCallback((): void => {

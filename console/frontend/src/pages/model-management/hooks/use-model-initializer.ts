@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useModelContext } from '../context/model-context';
-import { getModelList } from '@/services/model';
+import { getAllModels } from '@/services/model';
+import { message } from 'antd';
+import { shouldShowRequestError } from '@/utils/http-error';
 import {
-  ModelFilterParams,
   ModelInfo,
   CategoryNode,
   ShelfStatus,
@@ -17,7 +18,7 @@ import {
 export const useModelInitializer = (
   modelType: ModelType = ModelType.OFFICIAL
 ): void => {
-  const { state, actions } = useModelContext();
+  const { state, actions, modelRequest } = useModelContext();
 
   // 构建分类树
   const buildMergedTree = (list: ModelInfo[]): CategoryNode[] => {
@@ -82,20 +83,22 @@ export const useModelInitializer = (
 
   // 初始化加载数据
   useEffect(() => {
+    modelRequest.current?.abort();
+    const controller = new AbortController();
+    modelRequest.current = controller;
     const loadData = async (): Promise<void> => {
       try {
         actions.setLoading(true);
 
-        const params: ModelFilterParams = {
-          type: modelType,
-          page: 1,
-          pageSize: 9999,
-          name: state.searchInput || '',
-          filter: modelType === 2 ? state.filterType : 0,
-        };
-
-        const data = await getModelList(params);
-        const records = data?.records ?? [];
+        const records = await getAllModels(
+          {
+            type: modelType,
+            name: state.searchInput || '',
+            filter: modelType === 2 ? state.filterType : 0,
+          },
+          controller.signal
+        );
+        if (controller.signal.aborted) return;
 
         // 设置模型列表
         actions.setModels(records);
@@ -112,18 +115,25 @@ export const useModelInitializer = (
           actions.setCategoryList(trees);
         }
       } catch (error) {
+        if (controller.signal.aborted) return;
+        if (shouldShowRequestError(error)) {
+          message.error(
+            error instanceof Error ? error.message : '模型列表加载失败'
+          );
+        }
         actions.setModels([]);
         actions.setShelfOffModels([]);
         if (modelType === 1) {
           actions.setCategoryList([]);
         }
       } finally {
-        actions.setLoading(false);
+        if (!controller.signal.aborted) actions.setLoading(false);
       }
     };
 
-    loadData();
-  }, [modelType, state.filterType, actions]);
+    void loadData();
+    return (): void => controller.abort();
+  }, [modelType, state.filterType, actions, modelRequest]);
 
   // 从sessionStorage恢复状态（仅官方模型）
   useEffect(() => {
