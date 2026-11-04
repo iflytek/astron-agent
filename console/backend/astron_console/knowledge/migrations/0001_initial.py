@@ -313,5 +313,5 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.SeparateDatabaseAndState(state_operations=operations),
-        migrations.RunPython(adopt_tables, migrations.RunPython.noop),
+        migrations.RunPython(adopt_tables, migrations.RunPython.noop, atomic=False),
     ]
