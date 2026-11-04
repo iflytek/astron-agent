@@ -61,7 +61,7 @@ export default function ResourceTools({
   const [parameters, setParameters] = useState('{}');
   const [debugName, setDebugName] = useState('');
   const [debugInput, setDebugInput] = useState(
-    mode === 'tools' ? '{"query": {}, "body": {}}' : '{}'
+    mode === 'tools' ? '{"query": {}}' : '{}'
   );
   const [result, setResult] = useState('');
   const [error, setError] = useState('');

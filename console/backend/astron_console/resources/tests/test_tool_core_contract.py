@@ -19,8 +19,8 @@ import httpx
 from django.test import TestCase, override_settings
 
 from astron_console.accounts.models import User, UserProfile
-from astron_console.resources import clients
-from astron_console.resources.models import Tool
+from astron_console.resources import clients, tools
+from astron_console.resources.models import Tool, ToolHistory
 
 from .test_resources import SCHEMA
 
@@ -255,3 +255,81 @@ class ToolCoreContractTests(TestCase):
     def test_core_create_dto_does_not_accept_a_caller_selected_version(self):
         info = self.management.CreateInfo.model_validate({"name": "Lookup", "version": "V9.0"})
         self.assertNotIn("version", info.model_dump(exclude_none=True))
+
+    def test_debug_preserves_body_presence_after_authorization(self):
+        row = Tool.objects.create(
+            user_id=self.user.pk,
+            name="Lookup",
+            tool_id="tool@1234",
+            deleted=False,
+            schema=json.dumps(SCHEMA),
+            end_point="https://example.com/lookup",
+            method="get",
+        )
+        for request_body in ({}, {"body": {}}, {"body": {"query": "agent", "limit": 10}}):
+            with (
+                self.subTest(request_body=request_body),
+                patch(
+                    "astron_console.resources.tools.require_resource_access",
+                    wraps=tools.require_resource_access,
+                ) as authorize,
+                patch(
+                    "astron_console.resources.tools.schema_auth", wraps=tools.schema_auth
+                ) as credentials,
+                patch("astron_console.resources.clients.call", wraps=clients.call) as link,
+            ):
+                order = Mock()
+                order.attach_mock(authorize, "authorize")
+                order.attach_mock(credentials, "credentials")
+                order.attach_mock(link, "link")
+                response = self.client.post(
+                    f"/resources/tools/{row.pk}/debug",
+                    request_body,
+                    content_type="application/json",
+                )
+                self.assertEqual(response.status_code, 200, response.content)
+                self.assertEqual(
+                    [call[0] for call in order.mock_calls], ["authorize", "credentials", "link"]
+                )
+                method, url, outbound = self.requests[-1]
+                self.assertEqual((method, url.path), ("POST", "/api/v1/tools/tool_debug"))
+                self.assertEqual(outbound["method"], "GET")
+                self.assertEqual(outbound["server"], row.end_point)
+                self.assertEqual("body" in outbound, "body" in request_body)
+                if "body" in request_body:
+                    self.assertEqual(outbound["body"], request_body["body"])
+                self.assertEqual(
+                    self.execution.ToolDebugRequest.model_validate(outbound).body,
+                    request_body.get("body"),
+                )
+        self.assertEqual(
+            ToolHistory.objects.filter(tool_id=row.tool_id, uid=self.user.pk).count(), 3
+        )
+
+    def test_debug_denial_precedes_body_validation_credentials_and_link_call(self):
+        other = User.objects.create_user(id="foreign-uid", username="foreign-owner")
+        row = Tool.objects.create(
+            user_id=other.pk,
+            name="Private",
+            tool_id="private-tool",
+            deleted=False,
+            schema=json.dumps(SCHEMA),
+            end_point="https://example.com/private",
+            method="get",
+        )
+        with (
+            patch(
+                "astron_console.resources.tools.schema_auth", wraps=tools.schema_auth
+            ) as credentials,
+            patch("astron_console.resources.clients.call", wraps=clients.call) as link,
+        ):
+            response = self.client.post(
+                f"/resources/tools/{row.pk}/debug",
+                {"body": "invalid-object"},
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 403, response.content)
+        credentials.assert_not_called()
+        link.assert_not_called()
+        self.assertEqual(self.requests, [])
+        self.assertFalse(ToolHistory.objects.exists())

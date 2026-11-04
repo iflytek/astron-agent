@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
+import * as React from 'react';
+import * as jsxRuntime from 'react/jsx-runtime';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 function load(path, deps = {}) {
   const source = readFileSync(
@@ -9,10 +12,12 @@ function load(path, deps = {}) {
     'utf8'
   );
   const code = ts.transpileModule(source, {
+    fileName: path,
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2020,
       esModuleInterop: true,
+      jsx: ts.JsxEmit.ReactJSX,
     },
   }).outputText;
   const exports = {};
@@ -43,7 +48,14 @@ test('tool and retrieval failures preserve partial text and failed terminal stat
   });
   run = reduceRun(run, {
     type: 'knowledge',
-    data: { references: [{ title: 'Document' }] },
+    data: {
+      references: [
+        {
+          source_id: 'doc',
+          chunk: [{ chunk_context: 'Document\nRetrieved text' }],
+        },
+      ],
+    },
   });
   run = reduceRun(run, {
     type: 'error',
@@ -198,4 +210,69 @@ test('ordinary agent edits omit resource references and explicit MCP clearing se
     }),
     {}
   );
+});
+
+test('knowledge references show escaped source titles and actual excerpts equally live and from history', () => {
+  const { EventDetails } = load('pages/agents/conversation.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+  });
+  const references = [
+    {
+      source_id: 'internal-document-id',
+      chunk: [
+        {
+          chunk_context:
+            '操作说明.pdf\nMCP支持自定义URL。\nSkill可访问授权文件。',
+        },
+        {
+          chunk_context:
+            '<img src=x onerror=alert(1)>\n<script>alert(2)</script> [原文](javascript:alert(3))',
+        },
+      ],
+    },
+  ];
+  const live = reduceRun(initial(), {
+    type: 'knowledge',
+    data: { references },
+  });
+  const markup = renderToStaticMarkup(
+    React.createElement(EventDetails, { events: live.events })
+  );
+  const history = JSON.parse(JSON.stringify(live.events));
+  assert.equal(
+    renderToStaticMarkup(
+      React.createElement(EventDetails, { events: history })
+    ),
+    markup
+  );
+  assert.match(markup, /知识引用/);
+  assert.match(markup, /操作说明.pdf/);
+  assert.match(markup, /MCP支持自定义URL。\nSkill可访问授权文件。/);
+  assert.match(markup, /&lt;img/);
+  assert.match(markup, /&lt;script&gt;/);
+  assert.doesNotMatch(
+    markup,
+    /internal-document-id|chunk_context|source_id|<pre|<img|<script|<a[ >]/
+  );
+});
+
+test('malformed stored knowledge references display an error rather than empty successful citations', () => {
+  const { EventDetails } = load('pages/agents/conversation.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+  });
+  const markup = renderToStaticMarkup(
+    React.createElement(EventDetails, {
+      events: [
+        {
+          type: 'knowledge',
+          data: { references: [{ source_id: 'doc', chunk: [{}] }] },
+        },
+      ],
+    })
+  );
+  assert.match(markup, /role="alert"/);
+  assert.match(markup, /知识引用格式无效/);
+  assert.doesNotMatch(markup, /个片段|<details/);
 });

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Modal } from 'antd';
 import { Link, useNavigate } from 'react-router-dom';
 import useSpaceStore from '@/store/space-store';
 import {
@@ -24,6 +25,10 @@ export default function AgentList() {
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const [deleteTarget, setDeleteTarget] = useState<AgentDefinition | null>(
+    null
+  );
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -50,6 +55,8 @@ export default function AgentList() {
     };
   }, [spaceId, enterpriseId, page, search, favorite, revision]);
   const action = async (operation: () => Promise<unknown>) => {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError('');
     try {
@@ -58,6 +65,7 @@ export default function AgentList() {
     } catch (reason) {
       setError(errorText(reason));
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -180,8 +188,8 @@ export default function AgentList() {
                 className="danger"
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(`删除“${agent.botName}”？`))
-                    void action(() => deleteAgent(agent.id));
+                  setError('');
+                  setDeleteTarget(agent);
                 }}
               >
                 删除
@@ -213,6 +221,35 @@ export default function AgentList() {
           下一页
         </button>
       </div>
+      <Modal
+        title="删除 Agent"
+        open={deleteTarget !== null}
+        okText="删除"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        cancelButtonProps={{ disabled: busy }}
+        confirmLoading={busy}
+        closable={!busy}
+        keyboard={!busy}
+        maskClosable={!busy}
+        onCancel={() => {
+          if (!submitting.current) setDeleteTarget(null);
+        }}
+        onOk={() => {
+          if (!deleteTarget) return;
+          void action(async () => {
+            await deleteAgent(deleteTarget.id);
+            setDeleteTarget(null);
+          });
+        }}
+      >
+        <p>删除 Agent“{deleteTarget?.botName}”？</p>
+        {error && (
+          <p role="alert" className="agents-error">
+            {error}
+          </p>
+        )}
+      </Modal>
     </main>
   );
 }
