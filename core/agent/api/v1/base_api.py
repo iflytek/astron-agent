@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import json
 import os
@@ -13,6 +14,7 @@ from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.langfuse import langfuse_enabled
 from common.otlp.trace.span import Span
+from loguru import logger
 from opentelemetry.trace import Status as OtelStatus
 from opentelemetry.trace import StatusCode
 from pydantic import BaseModel, ConfigDict
@@ -44,6 +46,7 @@ class RunContext:
     span: Span
     node_trace_log: NodeTraceLog
     meter: Meter
+    cancelled: bool = False
 
 
 class CompletionBase(BaseModel, ABC):
@@ -154,6 +157,11 @@ class CompletionBase(BaseModel, ABC):
         attributes: dict[str, Any] = {"code": context.error.c}
         if langfuse_enabled():
             attributes["astron.agent.error_code"] = context.error.c
+        if context.cancelled:
+            attributes["astron.agent.run.status"] = "cancelled"
+            context.span.set_status(
+                OtelStatus(StatusCode.ERROR, "Agent execution cancelled")
+            )
         if context.error.c != 0 and langfuse_enabled():
             # The application protocol reports errors as terminal SSE frames,
             # so no exception escapes this span context automatically.  Mark
@@ -163,7 +171,11 @@ class CompletionBase(BaseModel, ABC):
             attributes.update(
                 {
                     "langfuse.observation.level": "ERROR",
-                    "langfuse.observation.status_message": "Agent execution failed",
+                    "langfuse.observation.status_message": (
+                        "Agent execution cancelled"
+                        if context.cancelled
+                        else "Agent execution failed"
+                    ),
                 }
             )
         context.span.set_attributes(attributes=attributes)
@@ -185,6 +197,25 @@ class CompletionBase(BaseModel, ABC):
                 }
             )
 
+    def _record_cancellation(
+        self, context: RunContext, reason: str, *, completed: bool
+    ) -> None:
+        if completed:
+            return
+        # Retain the existing nonzero audit code; cancellation produces no SSE error.
+        context.error = AgentInternalExc()
+        context.error.m = "Agent execution cancelled"
+        context.error_log = reason
+        context.cancelled = True
+        metadata = self.inputs.meta_data
+        logger.info(
+            "Agent execution cancelled caller_sid={} run_id={} sid={} reason={}",
+            metadata.caller_sid,
+            metadata.run_id,
+            context.span.sid,
+            reason,
+        )
+
     async def run_runner(
         self, node_trace_log: NodeTraceLog, meter: Meter, span: Span
     ) -> AsyncGenerator[str, None]:
@@ -200,6 +231,7 @@ class CompletionBase(BaseModel, ABC):
                 meter=meter,
             )
 
+            completed = False
             try:
                 try:
                     runner = await self.build_runner(sp)
@@ -226,7 +258,13 @@ class CompletionBase(BaseModel, ABC):
 
                 stop_frame, done_frame = await self._terminal_chunks(context)
                 yield stop_frame
+                completed = True
                 yield done_frame
+            except (asyncio.CancelledError, GeneratorExit) as exc:
+                self._record_cancellation(
+                    context, type(exc).__name__, completed=completed
+                )
+                raise
             finally:
                 # Never yield from a generator finalizer.  Starlette closes the
                 # response iterator when a client disconnects; yielding here

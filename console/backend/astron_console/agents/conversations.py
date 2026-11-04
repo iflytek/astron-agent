@@ -22,6 +22,7 @@ from .files import file_data
 from .resource_resolution import resolve_resources, snapshot_references
 
 logger = logging.getLogger(__name__)
+KEEPALIVE_SECONDS = 10
 
 
 def session_data(row):
@@ -330,7 +331,7 @@ async def stream_run(run, payload, agent, scope):
     read_task = None
     finished = done = failed = False
     loop = asyncio.get_running_loop()
-    last_saved = loop.time()
+    last_saved = last_sent = loop.time()
     deadline = loop.time() + settings.AGENT_TIMEOUT_SECONDS
     try:
         yield sse("run", {"id": run.pk, "sessionId": run.session_id})
@@ -354,6 +355,10 @@ async def stream_run(run, payload, agent, scope):
             if loop.time() - last_saved >= 2:
                 await sync_to_async(checkpoint)(run)
                 last_saved = loop.time()
+            if loop.time() - last_sent >= KEEPALIVE_SECONDS:
+                # Transport liveness only: never invent model output or history events.
+                yield ": keepalive\n\n"
+                last_sent = loop.time()
             if not completed:
                 continue
             try:
@@ -400,6 +405,7 @@ async def stream_run(run, payload, agent, scope):
                 if kind != "delta":
                     run.events.append({"type": kind, "data": data})
                 yield sse(kind, data)
+                last_sent = loop.time()
             if len(run.answer) + len(run.reasoning) > 2000000:
                 raise ValueError("Agent response exceeds maximum size")
         if status != "cancelled":
@@ -418,7 +424,16 @@ async def stream_run(run, payload, agent, scope):
                 run.events.append({"type": "error", "data": event})
                 yield sse("error", event)
     except (asyncio.CancelledError, GeneratorExit):
-        status, error_code = "cancelled", "client_disconnected"
+        if await cancellation_requested(run.pk):
+            status, error_code = "cancelled", "cancelled"
+        else:
+            status, error_code = "interrupted", "client_disconnected"
+            run.events.append(
+                {
+                    "type": "error",
+                    "data": {"code": error_code, "message": "连接已断开，已保存收到的部分内容"},
+                }
+            )
         raise
     except Exception as exc:
         status, error_code = "failed", type(exc).__name__
