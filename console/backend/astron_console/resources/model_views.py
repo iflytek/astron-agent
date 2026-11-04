@@ -172,7 +172,16 @@ def model_list(request):
         if payload.get("name"):
             query = query.filter(name__icontains=text(payload, "name"))
         return page(query.order_by("-id"), payload, official_data)
+    model_filter = payload.get("filter", 0)
+    if (
+        not isinstance(model_filter, int)
+        or isinstance(model_filter, bool)
+        or model_filter not in (0, 1, 2)
+    ):
+        raise ValidationError("模型筛选类型无效")
     query = listing(Model.objects.filter(is_deleted=False), scope, payload)
+    if model_filter:
+        query = query.filter(type=model_filter)
 
     def refreshed(row):
         if row.type == 2 and row.remark:

@@ -3,6 +3,7 @@ import React, {
   useContext,
   useReducer,
   useMemo,
+  useRef,
   ReactNode,
 } from 'react';
 import { ModelInfo, CategoryNode } from '@/types/model';
@@ -106,6 +107,7 @@ const modelReducer = (state: ModelState, action: ModelAction): ModelState => {
 
 // Context类型定义
 interface ModelContextValue {
+  modelRequest: React.MutableRefObject<AbortController | null>;
   state: ModelState;
   actions: {
     setModels: (models: ModelInfo[]) => void;
@@ -137,6 +139,8 @@ interface ModelProviderProps {
 
 export const ModelProvider: React.FC<ModelProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(modelReducer, initialState);
+  // Initialization and modal/card refreshes share one active list request.
+  const modelRequest = useRef<AbortController | null>(null);
 
   const actions = useMemo(
     () => ({
@@ -177,6 +181,7 @@ export const ModelProvider: React.FC<ModelProviderProps> = ({ children }) => {
     () => ({
       state,
       actions,
+      modelRequest,
     }),
     [state, actions]
   );
