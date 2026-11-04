@@ -273,19 +273,57 @@ AGENT_STREAM_PATH = "/console-api/agents/147/sessions/test-session/stream"
 
 
 def _verify_docker_agent_proxy(source: str) -> None:
-    # These locations have no nested blocks. Check the selected longest prefix,
-    # rather than accepting SSE settings in an unrelated obsolete location.
+    # These locations have no nested blocks. Model exact-match priority and
+    # proxy_pass's implicit slash redirect before selecting a longest prefix.
     locations = re.findall(
         r"location\s+(?:(\^~|=)\s+)?(/[^\s{]*)\s*\{([^{}]*)\}", source
     )
 
-    def selected(path: str) -> Tuple[str, str, str]:
+    def selected(uri: str) -> Tuple[str, str, str]:
+        path = urlsplit(uri).path
+        exact = next((row for row in locations if row[0] == "=" and row[1] == path), None)
+        if exact:
+            return exact
+        # Official ngx_http_core_module: a slash-ending proxied prefix returns
+        # 301 for the slashless URI unless an exact location handles it first.
+        if any(
+            row[0] != "=" and row[1] == path + "/" and "proxy_pass " in row[2]
+            for row in locations
+        ):
+            raise VerificationError("Docker Agent collection would receive Nginx's implicit 301")
         matches = [
             row for row in locations if path.startswith(row[1]) and row[0] != "="
         ]
         if not matches:
             raise VerificationError("Docker console API route is missing")
         return max(matches, key=lambda row: len(row[1]))
+
+    for method in ("GET", "POST"):
+        for query in ("", "?page=1&name=test%20agent", "?source=create"):
+            uri = "/console-api/agents" + query
+            modifier, prefix, block = selected(uri)
+            expected = (
+                "proxy_pass http://console-hub:8080/agents;",
+                "proxy_set_header Host $host;",
+                "proxy_set_header X-Real-IP $remote_addr;",
+                "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+                "proxy_set_header X-Forwarded-Proto $scheme;",
+                "proxy_connect_timeout 30s;",
+                "proxy_send_timeout 30s;",
+                "proxy_read_timeout 30s;",
+            )
+            if (
+                modifier != "=" or prefix != "/console-api/agents"
+                or any(value not in block for value in expected)
+            ):
+                raise VerificationError(f"Docker {method} {uri} must proxy directly to /agents")
+            # A literal proxy_pass URI without '?' preserves the query; default
+            # method/body forwarding must not be overridden for POST creation.
+            if re.search(
+                r"\b(?:return|rewrite|proxy_method|proxy_set_body)\b"
+                r"|proxy_pass_request_body\s+off\b", block
+            ):
+                raise VerificationError("Docker Agent collection must preserve method/body/query without redirect")
 
     modifier, prefix, block = selected(AGENT_STREAM_PATH)
     expected = (
