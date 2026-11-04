@@ -352,6 +352,8 @@ def debug(request, pk):
         "openapi_schema": json.dumps(schema),
     }
     for key in ("path", "query", "header", "body"):
+        if key == "body" and key not in request.payload:
+            continue
         value = request.payload.get(key, {})
         if not isinstance(value, dict):
             raise ValidationError(f"{key}必须是对象")
