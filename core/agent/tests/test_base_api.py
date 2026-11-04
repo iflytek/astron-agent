@@ -1,6 +1,8 @@
 """Test CompletionBase class and its methods in base_api module"""
 
+import asyncio
 import time
+from contextlib import aclosing
 from dataclasses import dataclass
 from typing import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,6 +11,10 @@ import pytest
 from common.otlp import sid as sid_module
 from common.otlp.metrics.meter import Meter
 from common.otlp.trace.span import Span
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from agent.api.schemas.base_inputs import BaseInputs, MetaDataInputs
 from agent.api.schemas.completion_chunk import ReasonChatCompletionChunk
@@ -216,36 +222,128 @@ class TestCompletionBase:
             assert len(results) > 0
 
     @pytest.mark.asyncio
-    async def test_run_runner_aclose_does_not_yield_from_finalizer(
+    @pytest.mark.parametrize("close_mode", ["aclose", "cancel"])
+    @pytest.mark.parametrize("langfuse", ["false", "true"])
+    async def test_cancelled_runner_closes_upstream_and_records_cancellation(
+        self,
+        completion: ConcreteCompletion,
+        span: Span,
+        node_trace: NodeTrace,
+        monkeypatch: pytest.MonkeyPatch,
+        request: pytest.FixtureRequest,
+        close_mode: str,
+        langfuse: str,
+    ) -> None:
+        """Close a real async source, preserving task cancellation and partial output."""
+        monkeypatch.setenv("UPLOAD_NODE_TRACE", "true")
+        monkeypatch.setenv("UPLOAD_METRICS", "true")
+        monkeypatch.setenv("LANGFUSE_ENABLED", langfuse)
+        monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+        monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+        completion.inputs.meta_data.caller_sid = "console-caller-1"
+        completion.inputs.meta_data.run_id = "console-run-1"
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        request.addfinalizer(provider.shutdown)
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        span.tracer = provider.get_tracer("cancel-test")
+        source_closed = asyncio.Event()
+        source_waiting = asyncio.Event()
+        received: list[str] = []
+
+        async def source() -> AsyncIterator[ReasonChatCompletionChunk]:
+            try:
+                yield ReasonChatCompletionChunk(
+                    id="partial",
+                    created=0,
+                    model="test",
+                    choices=[],
+                    object="chat.completion.chunk",
+                )
+                source_waiting.set()
+                await asyncio.Event().wait()
+            finally:
+                source_closed.set()
+
+        runner = MagicMock()
+        runner.run.return_value = source()
+        meter = MagicMock(spec=Meter)
+
+        async def consume() -> None:
+            async with aclosing(
+                completion.run_runner(node_trace, meter, span)
+            ) as stream:
+                async for frame in stream:
+                    received.append(frame)
+                    if close_mode == "aclose":
+                        break
+
+        with (
+            patch.object(ConcreteCompletion, "build_runner", return_value=runner),
+            patch.object(NodeTrace, "upload", return_value={}) as upload,
+            patch("agent.api.v1.base_api.logger.info") as info_log,
+        ):
+            task = asyncio.create_task(consume())
+            if close_mode == "cancel":
+                await asyncio.wait_for(source_waiting.wait(), timeout=2)
+                task.cancel("sensitive cancellation reason must not be logged")
+                with pytest.raises(asyncio.CancelledError):
+                    await task
+            else:
+                await task
+
+        assert source_closed.is_set()
+        assert len(received) == 1
+        assert "[DONE]" not in received[0]
+        assert '"code":0' in received[0]
+        assert node_trace.end_time is not None
+        status = upload.call_args.kwargs["status"]
+        assert status.code == AgentInternalExc.c
+        assert status.message == "Agent execution cancelled"
+        meter.in_error_count.assert_called_once_with(AgentInternalExc.c)
+        info_log.assert_called_once_with(
+            "Agent execution cancelled caller_sid={} run_id={} sid={} reason={}",
+            "console-caller-1",
+            "console-run-1",
+            span.sid,
+            "CancelledError" if close_mode == "cancel" else "GeneratorExit",
+        )
+        run_span = next(
+            item for item in exporter.get_finished_spans() if item.name == "RunRunner"
+        )
+        assert run_span.status.status_code == StatusCode.ERROR
+        assert run_span.attributes is not None
+        assert run_span.attributes["code"] == AgentInternalExc.c
+        assert run_span.attributes["astron.agent.run.status"] == "cancelled"
+        if langfuse == "true":
+            assert (
+                run_span.attributes["langfuse.observation.status_message"]
+                == "Agent execution cancelled"
+            )
+
+    @pytest.mark.asyncio
+    async def test_close_after_done_does_not_report_cancellation(
         self, completion: ConcreteCompletion, span: Span, node_trace: NodeTrace
     ) -> None:
-        """A client disconnect closes the source iterator and returns cleanly."""
-        mock_chunk = MagicMock()
-        mock_chunk.object = "chat.completion.chunk"
-        mock_chunk.model_dump_json.return_value = '{"test": "chunk"}'
-        mock_chunk.id = None
-        source_closed = False
+        """Consumers may close immediately after receiving the terminal marker."""
 
-        async def mock_run_generator() -> AsyncIterator[MagicMock]:
-            nonlocal source_closed
-            try:
-                yield mock_chunk
-                while True:  # pragma: no cover - cancelled by aclose
-                    yield mock_chunk
-            finally:
-                source_closed = True
+        async def source() -> AsyncIterator[ReasonChatCompletionChunk]:
+            return
+            yield  # pragma: no cover
 
-        mock_runner = AsyncMock()
-        mock_runner.run = AsyncMock(return_value=mock_run_generator())
-
-        with patch.object(ConcreteCompletion, "build_runner", return_value=mock_runner):
-            response_stream = completion.run_runner(
-                node_trace, Meter("app", "func"), span
-            )
-            assert "data:" in await anext(response_stream)
-            await response_stream.aclose()
-
-        assert source_closed is True
+        runner = MagicMock()
+        runner.run.return_value = source()
+        with (
+            patch.object(ConcreteCompletion, "build_runner", return_value=runner),
+            patch("agent.api.v1.base_api.logger.info") as info_log,
+        ):
+            async with aclosing(
+                completion.run_runner(node_trace, Meter("app", "func"), span)
+            ) as stream:
+                async for frame in stream:
+                    if frame == "data: [DONE]\n\n":
+                        break
+        info_log.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_run_runner_build_failed(

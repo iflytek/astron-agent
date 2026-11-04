@@ -158,7 +158,9 @@ class ConversationTests(TransactionTestCase):
         async_to_sync(disconnect)()
         run.refresh_from_db()
         self.session.refresh_from_db()
-        self.assertEqual(run.status, "cancelled")
+        self.assertEqual(run.status, "interrupted")
+        self.assertEqual(run.error_code, "client_disconnected")
+        self.assertEqual(run.events[-1]["data"]["code"], "client_disconnected")
         self.assertIsNone(self.session.active_run_id)
 
     def test_retry_excludes_its_question_and_future_turns(self):
@@ -326,3 +328,49 @@ class ConversationTests(TransactionTestCase):
         run.refresh_from_db()
         self.assertTrue(run.cancel_requested)
         self.assertTrue(AgentSession.objects.filter(pk=self.session.pk).exists())
+
+    @override_settings(AGENT_TIMEOUT_SECONDS=20)
+    def test_silent_upstream_stays_live_without_fabricating_output(self):
+        run = self.new_run()
+        closed = []
+
+        async def silent(payload):
+            try:
+                await asyncio.Event().wait()
+                yield "unreachable"
+            finally:
+                closed.append(True)
+
+        async def check():
+            stream = conversations.stream_run(run, {}, self.agent, self.scope)
+            await anext(stream)
+            # Keep the production interval: database checkpoints every two seconds
+            # must not postpone a transport heartbeat due after ten seconds.
+            self.assertEqual(await asyncio.wait_for(anext(stream), 12), ": keepalive\n\n")
+            self.assertGreaterEqual(saved.call_count, 4)
+            await sync_to_async(AgentRun.objects.filter(pk=run.pk).update)(cancel_requested=True)
+            self.assertIn('"status": "cancelled"', await asyncio.wait_for(anext(stream), 1))
+            await stream.aclose()
+
+        with (
+            patch.object(conversations, "upstream", silent),
+            patch.object(conversations, "checkpoint", wraps=conversations.checkpoint) as saved,
+            patch("astron_console.agents.memory.search", return_value=[]),
+        ):
+            async_to_sync(check)()
+        run.refresh_from_db()
+        self.assertEqual((run.status, run.answer, run.events), ("cancelled", "", []))
+        self.assertEqual(closed, [True])
+
+    def test_explicit_stop_followed_by_disconnect_is_cancelled(self):
+        run = self.new_run()
+
+        async def disconnect():
+            stream = conversations.stream_run(run, {}, self.agent, self.scope)
+            await anext(stream)
+            await sync_to_async(AgentRun.objects.filter(pk=run.pk).update)(cancel_requested=True)
+            await stream.aclose()
+
+        async_to_sync(disconnect)()
+        run.refresh_from_db()
+        self.assertEqual((run.status, run.error_code), ("cancelled", "cancelled"))

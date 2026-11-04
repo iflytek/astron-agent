@@ -262,6 +262,149 @@ def _verify_workflow_ingress_gateway_headers(rendered: str) -> None:
         raise VerificationError("workflow Ingress exposes the raw internal key")
 
 
+CONSOLE_INTERNAL_PATHS = (
+    "/console-api/internal/gateway/auth/workflow",
+    "/console-api/workflow/artifacts/internal-upload",
+    "/console-api/skill-sandbox/internal-runtime-config",
+    "/console-api/agents/internal/resolve",
+    "/console-api/agents/artifacts/internal-upload",
+)
+AGENT_STREAM_PATH = "/console-api/agents/147/sessions/test-session/stream"
+
+
+def _verify_docker_agent_proxy(source: str) -> None:
+    # These locations have no nested blocks. Check the selected longest prefix,
+    # rather than accepting SSE settings in an unrelated obsolete location.
+    locations = re.findall(
+        r"location\s+(?:(\^~|=)\s+)?(/[^\s{]*)\s*\{([^{}]*)\}", source
+    )
+
+    def selected(path: str) -> Tuple[str, str, str]:
+        matches = [
+            row for row in locations if path.startswith(row[1]) and row[0] != "="
+        ]
+        if not matches:
+            raise VerificationError("Docker console API route is missing")
+        return max(matches, key=lambda row: len(row[1]))
+
+    modifier, prefix, block = selected(AGENT_STREAM_PATH)
+    expected = (
+        "proxy_pass http://console-hub:8080/agents/;",
+        "proxy_buffering off;",
+        "proxy_cache off;",
+        "proxy_http_version 1.1;",
+        "proxy_send_timeout 1800s;",
+        "proxy_read_timeout 1800s;",
+        "add_header X-Accel-Buffering 'no';",
+    )
+    if (
+        modifier != "^~" or prefix != "/console-api/agents/"
+        or any(x not in block for x in expected)
+    ):
+        raise VerificationError(
+            "Docker Agent SSE route must rewrite to /agents/ with unbuffered 1800s timeouts"
+        )
+    if "/console-api/chat-message/" in source:
+        raise VerificationError("obsolete Docker Java chat-message route remains")
+    _, generic_prefix, generic_block = selected("/console-api/models")
+    if generic_prefix != "/console-api/" or any(
+        f"proxy_{kind}_timeout 30s;" not in generic_block
+        for kind in ("connect", "send", "read")
+    ):
+        raise VerificationError("ordinary Docker console API timeouts must remain 30s")
+    for path in CONSOLE_INTERNAL_PATHS:
+        for suffix in ("", "/", "/extra.css"):
+            modifier, prefix, block = selected(path + suffix)
+            if (
+                modifier != "^~" or prefix != path
+                or "return 404;" not in block or "proxy_pass" in block
+            ):
+                raise VerificationError(
+                    "Docker internal console API is not denied before proxy/static routing"
+                )
+
+
+def _verify_agent_ingress_routes(rendered: str) -> None:
+    routes = []
+    for document in _documents(rendered):
+        if _kind(document) != "Ingress":
+            continue
+        for path, path_type, backend in re.findall(
+            r"^\s+- path:\s*([^\n]+)\n\s+pathType:\s*(\S+)\n"
+            r"\s+backend:\n\s+service:\n\s+name:\s*(\S+)", document, re.M
+        ):
+            routes.append((path.strip('"'), path_type, backend, document))
+    # ingress-nginx orders regex locations by descending path length, first match wins.
+    routes.sort(key=lambda row: len(row[0]), reverse=True)
+
+    def selected(path: str) -> Tuple[str, str, str, str]:
+        for route in routes:
+            if re.match("^" + route[0], path, re.I):
+                return route
+        raise VerificationError("rendered console Ingress route is missing")
+
+    path, path_type, backend, document = selected(AGENT_STREAM_PATH)
+    expected = (
+        'nginx.ingress.kubernetes.io/use-regex: "true"',
+        'nginx.ingress.kubernetes.io/proxy-buffering: "off"',
+        'nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"',
+        'nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"',
+    )
+    if (
+        path_type != "ImplementationSpecific" or backend != "astron-agent-console-hub"
+        or any(x not in document for x in expected)
+    ):
+        raise VerificationError(
+            "Agent Ingress must select the unbuffered 1800s /agents/ rewrite"
+        )
+    rewrite = re.search(
+        r"nginx.ingress.kubernetes.io/rewrite-target:\s*([^\n]+)", document
+    )
+    if not rewrite:
+        raise VerificationError("Agent Ingress rewrite-target is missing")
+    target = rewrite.group(1).strip('"')
+    # Match the public GET/POST URLs used by the Console against the rendered
+    # ingress capture groups. Django's collection is /agents without a slash.
+    cases = (
+        ("GET", "/console-api/agents", "/agents"),
+        ("POST", "/console-api/agents", "/agents"),
+        ("GET", "/console-api/agents?page=1", "/agents"),
+        ("GET", "/console-api/agents/147", "/agents/147"),
+        ("POST", "/console-api/agents/147/sessions", "/agents/147/sessions"),
+        ("POST", AGENT_STREAM_PATH, "/agents/147/sessions/test-session/stream"),
+        ("GET", "/console-api/agents/", "/agents/"),
+    )
+    for method, uri, expected_path in cases:
+        request_path = urlsplit(uri).path
+        chosen_path, _, chosen_backend, chosen_document = selected(request_path)
+        if chosen_document != document or chosen_backend != "astron-agent-console-hub":
+            raise VerificationError(f"Agent Ingress does not handle {method} {uri}")
+        match = re.match("^" + chosen_path, request_path, re.I)
+        rewritten = re.sub(
+            r"\$(\d+)", lambda group: match.group(int(group.group(1))) or "", target
+        )
+        if rewritten != expected_path:
+            raise VerificationError(f"Agent Ingress rewrite changes {method} {uri}")
+    for unrelated in ("/console-api/agents-extra", "/console-api/agentsX", "/console-api/agents.json"):
+        if selected(unrelated)[3] == document:
+            raise VerificationError("Agent Ingress regex must retain the slash/end boundary")
+    if "/console-api/chat-message" in rendered:
+        raise VerificationError("obsolete Helm Java chat-message route remains")
+    for internal in CONSOLE_INTERNAL_PATHS:
+        for suffix in ("", "/", "/extra.css"):
+            _, path_type, backend, _ = selected(internal + suffix)
+            if (
+                path_type != "ImplementationSpecific"
+                or backend != "astron-agent-console-api-deny"
+            ):
+                raise VerificationError(
+                    "internal console Ingress must select deny before Agent/generic routes"
+                )
+    deny = _find_document(rendered, "Service", "astron-agent-console-api-deny")
+    if re.search(r"^\s+selector:", deny, re.M):
+        raise VerificationError("internal console deny Service must have no selected upstream")
+
+
 def _verify_workflow_internal_auth_bindings(
     rendered: str, secret_name: str, secret_key: str
 ) -> None:
@@ -333,6 +476,7 @@ def _verify_default_render() -> None:
     _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
     _verify_managed_workflow_internal_auth(rendered)
     _verify_workflow_ingress_gateway_headers(rendered)
+    _verify_agent_ingress_routes(rendered)
     _verify_sandbox_bindings(
         rendered,
         "astron-agent-console-hub-artifact-upload",
@@ -674,6 +818,9 @@ def main() -> int:
         if lint.returncode != 0:
             raise VerificationError("Helm lint failed")
         _verify_lookup_and_seed_sources()
+        _verify_docker_agent_proxy(
+            (CHART.parent.parent / "docker/astronAgent/nginx/nginx.conf").read_text()
+        )
         _verify_default_render()
         _verify_console_internal_hosts()
         _verify_sandbox_external_secrets()
@@ -696,7 +843,7 @@ def main() -> int:
     print(
         "tenant bootstrap Helm gate: PASS "
         f"(10 positive modes, 4 tenant consumers, 3 workflow consumers, "
-        f"{negative_count} negative cases)"
+        f"{negative_count} negative cases, Docker/Helm Agent SSE and internal-route contracts)"
     )
     return 0
 
