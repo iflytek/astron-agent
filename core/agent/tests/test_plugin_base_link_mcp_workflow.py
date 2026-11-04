@@ -116,7 +116,8 @@ class TestLinkPluginRunner:
         )
 
     def test_assemble_parameters(self, runner: LinkPluginRunner) -> None:
-        header, query = runner.assemble_parameters({"X-A": "override"}, {"q1": 2})
+        header, query, path = runner.assemble_parameters({"X-A": "override"}, {"q1": 2})
+        assert path == {}
         assert header["X-A"] == "override"
         # q1 comes from business_input (x-from=1)
         assert query["q1"] == 2
@@ -153,30 +154,9 @@ class TestLinkPluginFactoryParseSchemas:
                 "schema": {"type": "string", "x-from": 0},
             }
         ]
-        params, required = factory.parse_request_query_schema(schema)
+        params, required = factory.parse_request_parameters_schema(schema)
         assert params["p1"]["type"] == "string"
         assert "p1" in required
-
-    def test_recursive_parse_request_body_schema(
-        self, factory: LinkPluginFactory
-    ) -> None:
-        body_schema = {
-            "properties": {
-                "f1": {"type": "string", "description": "d", "x-from": 0},
-                "nested": {
-                    "type": "object",
-                    "properties": {
-                        "f2": {"type": "number", "description": "n", "x-from": 0}
-                    },
-                },
-            },
-            "required": ["f1"],
-        }
-        props: dict[str, dict[str, Any]] = {}
-        required: set[str] = set()
-        factory.recursive_parse_request_body_schema(body_schema, props, required)
-        assert "f1" in props and "f2" in props
-        assert "f1" in required
 
 
 class TestMcpPluginRunnerAndFactory:

@@ -1,16 +1,263 @@
 import asyncio
 import json
 import os
+import re
 import time
 from base64 import b64encode
-from typing import Any, List, Optional, Union
+from typing import Any, List, Union
 
 import aiohttp
 from common.otlp.trace.span import Span
-from pydantic import BaseModel, Field
+from jsonschema import Draft202012Validator, SchemaError, ValidationError
+from pydantic import BaseModel
+from referencing import Registry
 
-from agent.exceptions.plugin_exc import GetToolSchemaExc, RunToolExc
+from agent.exceptions.plugin_exc import GetToolSchemaExc, PluginExc, RunToolExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
+
+# OpenAPI transport stays in core/link; this adapter only projects model arguments.
+_MISSING = object()
+_HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options", "trace"}
+_UNSUPPORTED_SCHEMA = {
+    "$ref",
+    "$dynamicRef",
+    "allOf",
+    "anyOf",
+    "oneOf",
+    "not",
+    "if",
+    "then",
+    "else",
+    "dependentSchemas",
+    "dependentRequired",
+    "patternProperties",
+    "prefixItems",
+    "unevaluatedProperties",
+    "unevaluatedItems",
+    "contains",
+    "discriminator",
+    "$defs",
+    "definitions",
+    "dependencies",
+    "additionalItems",
+    "propertyNames",
+}
+_SCALAR_SCHEMA_KEYS = {
+    "type",
+    "description",
+    "title",
+    "enum",
+    "const",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "format",
+    "minimum",
+    "maximum",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
+    "multipleOf",
+    "minItems",
+    "maxItems",
+    "uniqueItems",
+    "minProperties",
+    "maxProperties",
+}
+_CREDENTIAL_HEADERS = {"authorization", "proxy-authorization", "x-api-key", "api-key"}
+
+
+def _source(schema: dict[str, Any]) -> str:
+    if ("x-display" in schema and not isinstance(schema["x-display"], bool)) or (
+        "x-from" in schema and schema["x-from"] not in (0, 1, 2)
+    ):
+        raise GetToolSchemaExc("Unsupported OpenAPI parameter source")
+    if schema.get("format") == "password":
+        return "fixed"
+    if "x-value" in schema or "const" in schema or schema.get("readOnly"):
+        return "fixed"
+    if "x-display" in schema:
+        return "model" if schema["x-display"] else "fixed"
+    return {0: "model", 1: "business", 2: "fixed"}.get(schema.get("x-from", 0), "model")
+
+
+def _json_schema(schema: dict[str, Any], *, public: bool = False) -> dict[str, Any]:
+    """Project inline OpenAPI schemas without copying hidden values into tool metadata."""
+    if not isinstance(schema, dict) or _UNSUPPORTED_SCHEMA.intersection(schema):
+        raise GetToolSchemaExc("Unsupported OpenAPI request schema")
+    if any(isinstance(value, (dict, list)) for value in schema.get("enum", [])):
+        raise GetToolSchemaExc("Composite OpenAPI enum values are unsupported")
+    result = {key: value for key, value in schema.items() if key in _SCALAR_SCHEMA_KEYS}
+    _normalize_openapi_bounds(result, schema)
+    if "properties" in schema:
+        result.setdefault("type", "object")
+        result["properties"], result["required"] = _object_projection(schema, public)
+    elif schema.get("required"):
+        raise GetToolSchemaExc("Unsupported OpenAPI object without declared properties")
+    for key in ("items", "additionalProperties"):
+        if key in schema:
+            value = schema[key]
+            if isinstance(value, dict) and _source(value) != "model":
+                raise GetToolSchemaExc(
+                    "Fixed dynamic OpenAPI value schemas are unsupported"
+                )
+            result[key] = (
+                _json_schema(value, public=public) if isinstance(value, dict) else value
+            )
+    try:
+        Draft202012Validator.check_schema(result)
+    except SchemaError:
+        raise GetToolSchemaExc("Invalid OpenAPI request schema") from None
+    return result
+
+
+def _object_projection(
+    schema: dict[str, Any], public: bool
+) -> tuple[dict[str, Any], list[str]]:
+    properties, required = schema["properties"], schema.get("required", [])
+    if (
+        not isinstance(properties, dict)
+        or not isinstance(required, list)
+        or not all(isinstance(name, str) for name in required)
+        or not set(required).issubset(properties)
+    ):
+        raise GetToolSchemaExc("Invalid OpenAPI object properties")
+    if {"minProperties", "maxProperties", "enum", "const"}.intersection(schema):
+        raise GetToolSchemaExc("Unsupported OpenAPI object-wide constraints")
+    projected = {}
+    for name, detail in properties.items():
+        if detail.get("readOnly"):
+            continue
+        hidden = _source(detail) != "model"
+        if hidden and name in required and _value(detail, name, {}, {}) is _MISSING:
+            raise GetToolSchemaExc(
+                "Required hidden OpenAPI property has no configured value"
+            )
+        if not (public and hidden):
+            projected[name] = _json_schema(detail, public=public)
+    return projected, [name for name in required if name in projected]
+
+
+def _normalize_openapi_bounds(result: dict[str, Any], schema: dict[str, Any]) -> None:
+    if schema.get("nullable") and isinstance(result.get("type"), str):
+        result["type"] = [result["type"], "null"]
+    for bound in ("Minimum", "Maximum"):
+        exclusive = "exclusive" + bound
+        if isinstance(result.get(exclusive), bool):
+            enabled = result.pop(exclusive)
+            if enabled:
+                inclusive = bound.lower()
+                if inclusive not in result:
+                    raise GetToolSchemaExc("Invalid OpenAPI exclusive bound")
+                result[exclusive] = result.pop(inclusive)
+
+
+def _parameter_schema(parameter: dict[str, Any]) -> dict[str, Any]:
+    location = parameter.get("in")
+    if "$ref" in parameter or location not in {"header", "query", "path"}:
+        raise GetToolSchemaExc("Unsupported OpenAPI parameter location or reference")
+    name = parameter.get("name")
+    if (
+        not isinstance(name, str)
+        or not name
+        or not isinstance(parameter.get("schema"), dict)
+    ):
+        raise GetToolSchemaExc("OpenAPI parameter requires a name and inline schema")
+    schema = dict(parameter["schema"])
+    for key in ("x-value", "x-from", "x-display"):
+        if key in parameter:
+            schema[key] = parameter[key]
+    default_style = "form" if location == "query" else "simple"
+    if (
+        parameter.get("style", default_style) != default_style
+        or schema.get("type") in ("object", "array")
+        or isinstance(schema.get("type"), list)
+        or "content" in parameter
+        or parameter.get("allowReserved")
+    ):
+        raise GetToolSchemaExc("Unsupported OpenAPI parameter serialization")
+    if location == "header" and name.lower() in _CREDENTIAL_HEADERS:
+        schema["x-display"] = False
+    if location == "path" and parameter.get("required") is not True:
+        raise GetToolSchemaExc("OpenAPI path parameters must be required")
+    if parameter.get("description"):
+        schema["description"] = parameter["description"]
+    normalized = _json_schema(schema)
+    if normalized.get("type") not in (None, "string", "integer", "number", "boolean"):
+        raise GetToolSchemaExc("Unsupported OpenAPI parameter serialization")
+    return schema
+
+
+def _body_schema(method_schema: dict[str, Any]) -> dict[str, Any]:
+    body = method_schema.get("requestBody")
+    if body is None:
+        return {}
+    content = body.get("content", {})
+    if "$ref" in body or set(content) != {"application/json"}:
+        raise GetToolSchemaExc(
+            "Only inline application/json request bodies are supported"
+        )
+    schema = content["application/json"].get("schema", {})
+    if schema.get("type", "object") != "object" or "properties" not in schema:
+        raise GetToolSchemaExc("JSON request body must declare object properties")
+    _json_schema(schema)
+    return schema
+
+
+def _value(
+    schema: dict[str, Any], name: str, inputs: dict[str, Any], business: dict[str, Any]
+) -> Any:
+    if schema.get("readOnly"):
+        return _MISSING
+    default = schema.get(
+        "x-value", schema.get("const", schema.get("default", _MISSING))
+    )
+    source = _source(schema)
+    if source == "model":
+        return inputs.get(name, default)
+    if source == "business":
+        return business.get(name, default)
+    return default
+
+
+def _assemble_value(
+    schema: dict[str, Any], value: Any, business: dict[str, Any]
+) -> Any:
+    if isinstance(value, dict):
+        return _assemble_object(schema, value, business)
+    if isinstance(value, list) and isinstance(schema.get("items"), dict):
+        return [_assemble_value(schema["items"], item, business) for item in value]
+    return value
+
+
+def _assemble_object(
+    schema: dict[str, Any], inputs: dict[str, Any], business: dict[str, Any]
+) -> dict[str, Any]:
+    properties = schema.get("properties", {})
+    result = {}
+    for name, detail in properties.items():
+        value = _value(detail, name, inputs, business)
+        if value is _MISSING:
+            continue
+        nested_business = business.get(name, {})
+        result[name] = _assemble_value(
+            detail, value, nested_business if isinstance(nested_business, dict) else {}
+        )
+    additional = schema.get("additionalProperties", True)
+    for name, value in inputs.items():
+        if name not in properties and additional is not False:
+            result[name] = (
+                _assemble_value(additional, value, {})
+                if isinstance(additional, dict)
+                else value
+            )
+    return result
+
+
+def _validate_value(schema: dict[str, Any], value: Any) -> None:
+    try:
+        Draft202012Validator(_json_schema(schema), registry=Registry()).validate(value)
+    except ValidationError:
+        raise RunToolExc("Invalid OpenAPI tool arguments") from None
 
 
 class LinkPluginRunner(BaseModel):
@@ -23,75 +270,41 @@ class LinkPluginRunner(BaseModel):
 
     def assemble_parameters(
         self, action_input: dict[str, Any], business_input: dict[str, Any]
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
-        header: dict[str, Any] = {}
-        query: dict[str, Any] = {}
-        parameters_schema = self.method_schema.get("parameters", [])
-        for parameter in parameters_schema:
-            if parameter["in"] == "header":
-                self.update_params(header, parameter, action_input, business_input)
-            elif parameter["in"] == "query":
-                self.update_params(query, parameter, action_input, business_input)
-        return header, query
-
-    @staticmethod
-    def update_params(
-        params: dict[str, Any],
-        header_parameter: dict[str, Any],
-        action_input: dict[str, Any],
-        business_input: dict[str, Any],
-    ) -> None:
-        """Assemble header"""
-        x_from = header_parameter.get("schema", {}).get("x-from")
-        name = header_parameter.get("name", "unknown_field")
-        value = header_parameter.get("schema", {}).get("default")
-        if "x-display" in header_parameter.get("schema", {}):
-            x_display = header_parameter.get("schema", {}).get("x-display")
-            if x_display:  # Model recognition
-                value = action_input.get(name, value)
-            # else: # Business passthrough
-            #     value = business_input.get(name, value)
-        else:
-            if x_from == 0:  # Model recognition
-                value = action_input.get(name, value)
-            elif x_from == 1:  # Business passthrough
-                value = business_input.get(name, value)
-        params[name] = value
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        sections: dict[str, dict[str, Any]] = {"header": {}, "query": {}, "path": {}}
+        for parameter in self.method_schema.get("parameters", []):
+            schema = _parameter_schema(parameter)
+            name = parameter["name"]
+            value = _value(schema, name, action_input, business_input)
+            if value is _MISSING:
+                if parameter.get("required"):
+                    raise RunToolExc("Missing required OpenAPI parameter")
+                continue
+            _validate_value(schema, value)
+            sections[parameter["in"]][name] = value
+        return sections["header"], sections["query"], sections["path"]
 
     def assemble_body(
         self,
-        body_schema: Any,
+        body_schema: dict[str, Any],
         action_input: dict[str, Any],
         business_input: dict[str, Any],
     ) -> dict[str, Any]:
-        properties = {}
-        body_properties = body_schema.get("properties", {})
-        for parameter_name, parameter_detail in body_properties.items():
-            parameter_type = parameter_detail.get("type")
-            if parameter_type == "object":
-                # recursive
-                _properties = self.assemble_body(
-                    parameter_detail, action_input, business_input
-                )
-                properties[parameter_name] = _properties
-            else:
-                x_from = parameter_detail.get("x-from")
-                value = parameter_detail.get("default")
-                if "x-display" in parameter_detail:
-                    x_display = parameter_detail.get("x-display")
-                    if x_display:
-                        value = action_input.get(parameter_name, value)
-                    # else:
-                    #     value = business_input.get(parameter_name, value)
-                else:
-                    if x_from == 0:
-                        value = action_input.get(parameter_name, value)
-                    elif x_from == 1:
-                        value = business_input.get(parameter_name, value)
-                    else:
-                        value = action_input.get(parameter_name, value)
-                properties[parameter_name] = value
-        return properties
+        if not body_schema:
+            return {}
+        parameter_names = {
+            item["name"] for item in self.method_schema.get("parameters", [])
+        }
+        inputs = {
+            key: value
+            for key, value in action_input.items()
+            if key not in parameter_names
+        }
+        if not inputs and not self.method_schema.get("requestBody", {}).get("required"):
+            return {}
+        result = _assemble_object(body_schema, inputs, business_input)
+        _validate_value(body_schema, result)
+        return result
 
     @staticmethod
     def dumps(payload: dict[str, Any]) -> str:
@@ -103,39 +316,28 @@ class LinkPluginRunner(BaseModel):
         """Call link"""
         with span.start("Run") as sp:
             start_time = int(round(time.time() * 1000))
-            body_schema = (
-                self.method_schema.get("requestBody", {})
-                .get("content", {})
-                .get("application/json", {})
-                .get("schema", {})
-            )
-            _header, _query = self.assemble_parameters(action_input, {})
-            _body = self.assemble_body(body_schema, action_input, {})
-
-            run_link_payload: dict[str, Any] = {
-                "header": {},
-                "parameter": {},
-                "payload": {"message": {}},
+            body_schema = _body_schema(self.method_schema)
+            header, query, path = self.assemble_parameters(action_input, {})
+            body = self.assemble_body(body_schema, action_input, {})
+            message = {
+                name: self.dumps(value)
+                for name, value in {
+                    "header": header,
+                    "query": query,
+                    "path": path,
+                    "body": body,
+                }.items()
+                if value
             }
-            run_link_payload["header"]["app_id"] = self.app_id
-            run_link_payload["header"]["uid"] = self.uid
-            run_link_payload["parameter"]["tool_id"] = self.tool_id
-            run_link_payload["parameter"]["operation_id"] = self.operation_id
-            run_link_payload["parameter"]["version"] = self.version
-
-            callback_payload: dict[str, Any] = {}
-            header = self.dumps(_header)
-            query = self.dumps(_query)
-            body = self.dumps(_body)
-            if header:
-                run_link_payload["payload"]["message"]["header"] = header
-                callback_payload["header"] = _header
-            if query:
-                run_link_payload["payload"]["message"]["query"] = query
-                callback_payload["query"] = _query
-            if body:
-                run_link_payload["payload"]["message"]["body"] = body
-                callback_payload["body"] = _body
+            run_link_payload = {
+                "header": {"app_id": self.app_id, "uid": self.uid},
+                "parameter": {
+                    "tool_id": self.tool_id,
+                    "operation_id": self.operation_id,
+                    "version": self.version,
+                },
+                "payload": {"message": message},
+            }
             sp.add_info_events({"tool_id": self.tool_id, "version": self.version})
             # Finished parsing parameters, start calling link
             result: dict[str, Any] = {}
@@ -179,7 +381,7 @@ class LinkPluginRunner(BaseModel):
                 log=[
                     {
                         "name": self.operation_id,
-                        "input": callback_payload,
+                        "input": action_input,
                         "output": result,
                     }
                 ],
@@ -197,19 +399,13 @@ class LinkPluginFactory(BaseModel):
     uid: str
     tool_ids: List[Union[str, dict[str, Any]]]
 
-    const_headers: dict[str, str] = Field(default={"Content-Type": "application/json"})
-
     async def gen(self, span: Span) -> list[LinkPlugin]:
         try:
             return await self.parse_react_schema_list(span)
+        except PluginExc:
+            raise
         except Exception:
             raise GetToolSchemaExc() from None
-
-    async def run(
-        self, _operation_id: str, _action_input: dict[str, Any], _span: Span
-    ) -> Optional[PluginResponse]:
-        # This method appears to be incomplete in the original, return None
-        return None
 
     async def tool_schema_list(self, span: Span) -> list[dict[str, Any]]:
         """Query protocol list from spark link subsystem"""
@@ -271,175 +467,124 @@ class LinkPluginFactory(BaseModel):
         return tools_data
 
     @staticmethod
-    def parse_request_query_schema(
-        query_schema: list[dict[str, Any]],
+    def parse_request_parameters_schema(
+        parameters: list[dict[str, Any]],
     ) -> tuple[dict[str, dict[str, Any]], set[str]]:
-        """Parse parameters"""
-
-        query_parameters: dict[str, dict[str, Any]] = {}
-        query_required: set[str] = set()
-        for parameter in query_schema:
-
-            parameter_name = parameter.get("name")
-            if parameter_name is None:
+        properties: dict[str, dict[str, Any]] = {}
+        required: set[str] = set()
+        for parameter in parameters:
+            schema = _parameter_schema(parameter)
+            name = parameter["name"]
+            if _source(schema) != "model":
+                if (
+                    parameter.get("required")
+                    and _value(schema, name, {}, {}) is _MISSING
+                ):
+                    raise GetToolSchemaExc(
+                        "Required hidden OpenAPI parameter has no configured value"
+                    )
                 continue
+            if name in properties:
+                raise GetToolSchemaExc("Ambiguous OpenAPI parameter names")
+            properties[name] = _json_schema(schema, public=True)
+            if parameter.get("required"):
+                required.add(name)
+        return properties, required
 
-            parameter_description = parameter.get("description")
-            parameter_type = parameter.get("schema", {}).get("type")
-            parameter_in = parameter.get("in")
-            parameter_required = parameter.get("required")
-            parameter_x_from = parameter.get("schema", {}).get("x-from")
-            if "x-display" in parameter.get("schema", {}):
-                parameter_x_display = parameter.get("schema", {}).get("x-display")
-                if parameter_x_display:  # Model recognition
-                    if parameter_in == "query":
-                        query_parameters[parameter_name] = {
-                            "description": parameter_description,
-                            "type": parameter_type,
-                        }
-                        if parameter_required:
-                            query_required.add(parameter_name)
-            else:
-                if parameter_x_from == 0:  # Model recognition
-                    if parameter_in == "query":
-                        query_parameters[parameter_name] = {
-                            "description": parameter_description,
-                            "type": parameter_type,
-                        }
-                        if parameter_required:
-                            query_required.add(parameter_name)
-        return query_parameters, query_required
+    def _create_plugin(
+        self, tool_id: str, version: str, method_schema: dict[str, Any]
+    ) -> LinkPlugin:
+        parameters, required = self.parse_request_parameters_schema(
+            method_schema.get("parameters", [])
+        )
+        body = _body_schema(method_schema)
+        public_body = _json_schema(body, public=True)
+        body_properties = public_body.get("properties", {})
+        parameter_names = {item["name"] for item in method_schema.get("parameters", [])}
+        if parameter_names & body.get("properties", {}).keys():
+            raise GetToolSchemaExc("Ambiguous OpenAPI body and parameter names")
+        # A single flat argument namespace preserves existing Link tools; body objects stay nested.
+        properties = {**parameters, **body_properties}
+        body_required = public_body.get("required", [])
+        if method_schema.get("requestBody", {}).get("required"):
+            required.update(body_required)
+        model_schema = {
+            **public_body,
+            "type": "object",
+            "properties": properties,
+            "required": sorted(required),
+        }
+        model_schema["additionalProperties"] = False
+        if body_required and not method_schema.get("requestBody", {}).get("required"):
+            model_schema["dependentRequired"] = {
+                name: body_required for name in body_properties
+            }
+        action_name = method_schema.get("operationId", "")
+        if not action_name:
+            raise GetToolSchemaExc("OpenAPI operationId is required")
+        description = method_schema.get("description", method_schema.get("summary", ""))
+        return LinkPlugin(
+            tool_id=tool_id,
+            name=action_name,
+            description=description,
+            schema_template=f"tool_name:{action_name}, tool_description:{description}, tool_parameters:{json.dumps(model_schema, ensure_ascii=False)}",
+            typ="link",
+            run=LinkPluginRunner(
+                app_id=self.app_id,
+                uid=self.uid,
+                tool_id=tool_id,
+                version=version,
+                operation_id=action_name,
+                method_schema=method_schema,
+            ).run,
+        )
 
-    def recursive_parse_request_body_schema(
-        self,
-        body_schema: dict[str, Any],
-        properties: dict[str, dict[str, Any]],
-        required_set: set[str],
-    ) -> None:
-        """Recursively parse body"""
-        request_body_properties = body_schema.get("properties", {})
-        for parameter_name, parameter_detail in request_body_properties.items():
-            parameter_description = parameter_detail.get("description", "")
-            parameter_type = parameter_detail.get("type")
-            parameter_x_from = parameter_detail.get("x-from")
-            if parameter_type == "object":
-                # recursive
-                self.recursive_parse_request_body_schema(
-                    parameter_detail, properties, required_set
-                )
-            else:
-                if "x-display" in parameter_detail:
-                    parameter_x_display = parameter_detail.get("x-display")
-                    if parameter_x_display:
-                        properties[parameter_name] = {
-                            "description": parameter_description,
-                            "type": parameter_type,
-                        }
-                else:
-                    if parameter_x_from == 0:
-                        properties[parameter_name] = {
-                            "description": parameter_description,
-                            "type": parameter_type,
-                        }
-        # Outermost required values
-        request_body_required = body_schema.get("required", [])
-        required_set.update(request_body_required)
+    @staticmethod
+    def _operation_schema(
+        path: str, path_schema: dict[str, Any], operation: dict[str, Any]
+    ) -> dict[str, Any]:
+        if "$ref" in path_schema:
+            raise GetToolSchemaExc("Referenced OpenAPI paths are unsupported")
+        merged = {}
+        for items in (
+            path_schema.get("parameters", []),
+            operation.get("parameters", []),
+        ):
+            seen = set()
+            for parameter in items:
+                _parameter_schema(parameter)
+                key = (parameter["in"], parameter["name"])
+                if key in seen:
+                    raise GetToolSchemaExc("Duplicate OpenAPI parameter")
+                seen.add(key)
+                merged[key] = parameter
+        path_names = {name for location, name in merged if location == "path"}
+        if set(re.findall(r"\{([^{}]+)\}", path)) != path_names:
+            raise GetToolSchemaExc(
+                "OpenAPI path parameters do not match the URL template"
+            )
+        return {**operation, "parameters": list(merged.values())}
 
     async def parse_react_schema_list(self, span: Span) -> list[LinkPlugin]:
-        """Generate tools and tool_names for ReAct"""
+        """Adapt configured OpenAPI operations to the existing Agent tool bridge."""
         with span.start("ParseReactSchemaList") as sp:
             tools: list[LinkPlugin] = []
-
             for tool_schema in await self.tool_schema_list(sp):
-                tool_id = tool_schema.get("id")
-                version = tool_schema.get("version")
+                tool_id, version = tool_schema.get("id"), tool_schema.get("version")
                 if tool_id is None or version is None:
                     raise GetToolSchemaExc
-
-                tool_schema_data = json.loads(tool_schema.get("schema", "{}"))
+                schema = json.loads(tool_schema.get("schema", "{}"))
                 before_count = len(tools)
-                for _, path_schema in tool_schema_data.get("paths", {}).items():
-                    for method, method_schema in path_schema.items():
-                        if method.lower() not in {
-                            "get",
-                            "post",
-                            "put",
-                            "delete",
-                            "patch",
-                            "head",
-                            "options",
-                        }:
+                for path, path_schema in schema.get("paths", {}).items():
+                    for method, operation in path_schema.items():
+                        if method.lower() not in _HTTP_METHODS:
                             continue
-                        action_name = method_schema.get("operationId", "")  # Tool name
-                        action_description = method_schema.get(
-                            "description", ""
-                        )  # Tool description
-
-                        # Parse query
-                        query_schema = method_schema.get("parameters", [])
-                        query_parameters, query_required = (
-                            self.parse_request_query_schema(query_schema)
+                        method_schema = self._operation_schema(
+                            path, path_schema, operation
                         )
-
-                        # Parse body, currently only supports application/json format
-                        request_body_schema = (
-                            method_schema.get("requestBody", {})
-                            .get("content", {})
-                            .get("application/json", {})
-                            .get("schema", {})
+                        tools.append(
+                            self._create_plugin(tool_id, version, method_schema)
                         )
-                        body_parameters: dict[str, dict[str, Any]] = {}
-                        body_required: set[str] = set()
-                        self.recursive_parse_request_body_schema(
-                            request_body_schema, body_parameters, body_required
-                        )
-
-                        # Remove nested keys
-                        delete_required_keys = []
-                        for k in body_required:
-                            if k not in body_parameters:
-                                delete_required_keys.append(k)
-                        for k in delete_required_keys:
-                            body_required.discard(k)
-
-                        # Merge body and query
-                        parameters: dict[str, dict[str, Any]] = {
-                            **query_parameters,
-                            **body_parameters,
-                        }
-                        required = [*query_required, *body_required]
-
-                        property_template = json.dumps(
-                            {
-                                "type": "object",
-                                "properties": parameters,
-                                "required": required,
-                            },
-                            ensure_ascii=False,
-                        )
-                        schema_template = (
-                            f"tool_name:{action_name}, "
-                            f"tool_description:{action_description}, "
-                            f"tool_parameters:{property_template}"
-                        )
-
-                        # Create tool execution object
-                        tool = LinkPlugin(
-                            tool_id=tool_id,
-                            name=action_name,
-                            description=action_description,
-                            schema_template=schema_template,
-                            typ="link",
-                            run=LinkPluginRunner(
-                                app_id=self.app_id,
-                                uid=self.uid,
-                                tool_id=tool_id,
-                                version=version,
-                                operation_id=action_name,
-                                method_schema=method_schema,
-                            ).run,
-                        )
-                        tools.append(tool)
                 if len(tools) == before_count:
                     raise GetToolSchemaExc
             return tools

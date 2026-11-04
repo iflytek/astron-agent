@@ -27,9 +27,15 @@ React Agent 管理/聊天/调试 → 同源 Nginx → Django agents → 原业�
 
 聊天和调试使用同一 Console 执行服务，构造既有 `CustomCompletionInputs`（授权模型、prompt/personality、plugin、messages、max_loop_count、调用元数据），附 `X-Workflow-Internal-Key` 和应用身份。定义 ID、用户、空间、会话和运行 ID 来自服务端权威记录。调试使用当前草稿，独立聊天可显式使用快照；选定配置在一次执行中固定。
 
-Nginx 为 `/console-api/agents/` 提供独立的长连接代理，关闭缓冲和缓存；不再保留已替代的 Java chat-message 流路由。服务等待模型或工具期间每10秒发送 SSE 注释保活，不生成伪文本或历史事件。Agent 内部解析与产物上传接口只允许服务内网访问，Compose与Helm公网路由明确拒绝。
+插件执行沿用 `Console 授权工具版本 → core/agent LinkPluginFactory / LinkPluginRunner → core/plugin/link`。标准 OpenAPI 的 path、query、header 和 JSON body 参数不要求私有扩展才能供模型填写，保留必填和类型等约束；显式配置的固定值与隐藏凭据只在可信执行侧组装，不进入模型参数。路径参数交给 Link 已有的 `message.path`，由下游统一完成占位符替换、URL编码和安全校验。不能支持的配置明确拒绝，不能静默丢字段或生成零参数工具。这段共享适配影响所有调用 core/agent 的入口，须回归现有工具配置；不改 Link 的 HTTP 执行、安全边界或工作流节点生命周期。
+
+参数校验复用已有 `jsonschema` 官方验证器。模型参数投影只负责内部 Link 协议和固定凭据分离：支持内联标量 path/query/header 与嵌套 JSON 对象正文；引用、组合 schema、cookie、非默认参数序列化、非 JSON 正文和根数组当前明确返回工具配置错误，不自行实现另一套 OpenAPI 执行器。
+
+Nginx 为 `/console-api/agents/` 提供独立的长连接代理，关闭缓冲和缓存；集合接口 `/console-api/agents` 精确代理到 `/agents`，保留 GET/POST、正文及查询参数，避免 Nginx 隐式尾斜杠重定向。Helm 同样保留集合与子路径边界。服务等待模型或工具期间每10秒发送 SSE 注释保活，不生成伪文本或历史事件。Agent 内部解析与产物上传接口只允许服务内网访问，Compose与Helm公网路由明确拒绝。
 
 前端消费真实事件：运行标识、文本/推理增量、工具调用与结果、知识引用、错误、终态。core/agent 的非零 code、非零工具结果和缺失终止信号不能变成成功；工具/检索故障保留具体阶段与脱敏错误。可恢复工具失败可继续由同一个 Agent 内核解释，但界面仍展示失败结果。模型或服务断开终止该次运行。
+
+知识引用依据 Core 实际的 `delta.tool_calls[type=knowledge].function.response.metadata_list` 契约解析，保存来源与 `chunk_context` 原片段，并在实时界面和历史中显示来源标题及正文摘录。对应检索内容由既有 builder 注入 DeepAgentsRunner 的参考上下文。畸形引用响应明确报错；不使用没有实际生产者的顶层字段，不伪造文档链接或额外下载原文。
 
 Django 使用 ASGI `StreamingHttpResponse` 的异步生成器；上游连接由 HTTPX 流上下文关闭。浏览器断开、显式停止和超时均取消读取任务并关闭上游，触发 core/agent 原有取消清理。停止 API 按运行归属鉴权，支持不同 ASGI worker 处理。停止 API 写入取消标记，执行 worker 每 250ms 检查；执行期间每 2 秒保存心跳，异常退出超过 45 秒的未完成运行在读取历史或再次运行时标记为 interrupted。显式停止保存为 cancelled；被动断连/离页保存为 interrupted 并保留断连原因，二者均取消上游。core 使用可关联运行ID记录取消，已发完DONE的正常收尾保持成功。停止请求不能抢改已成功终态；终态写入有条件更新，区分 completed/cancelled/failed/interrupted。
 
