@@ -27,9 +27,11 @@ React Agent 管理/聊天/调试 → 同源 Nginx → Django agents → 原业�
 
 聊天和调试使用同一 Console 执行服务，构造既有 `CustomCompletionInputs`（授权模型、prompt/personality、plugin、messages、max_loop_count、调用元数据），附 `X-Workflow-Internal-Key` 和应用身份。定义 ID、用户、空间、会话和运行 ID 来自服务端权威记录。调试使用当前草稿，独立聊天可显式使用快照；选定配置在一次执行中固定。
 
+Nginx 为 `/console-api/agents/` 提供独立的长连接代理，关闭缓冲和缓存；不再保留已替代的 Java chat-message 流路由。服务等待模型或工具期间每10秒发送 SSE 注释保活，不生成伪文本或历史事件。Agent 内部解析与产物上传接口只允许服务内网访问，Compose与Helm公网路由明确拒绝。
+
 前端消费真实事件：运行标识、文本/推理增量、工具调用与结果、知识引用、错误、终态。core/agent 的非零 code、非零工具结果和缺失终止信号不能变成成功；工具/检索故障保留具体阶段与脱敏错误。可恢复工具失败可继续由同一个 Agent 内核解释，但界面仍展示失败结果。模型或服务断开终止该次运行。
 
-Django 使用 ASGI `StreamingHttpResponse` 的异步生成器；上游连接由 HTTPX 流上下文关闭。浏览器断开、显式停止和超时均取消读取任务并关闭上游，触发 core/agent 原有取消清理。停止 API 按运行归属鉴权，支持不同 ASGI worker 处理。停止 API 写入取消标记，执行 worker 每 250ms 检查；执行期间每 2 秒保存心跳，异常退出超过 45 秒的未完成运行在读取历史或再次运行时标记为 interrupted。停止请求不能抢改已成功终态；终态写入有条件更新，区分 completed/cancelled/failed/interrupted。
+Django 使用 ASGI `StreamingHttpResponse` 的异步生成器；上游连接由 HTTPX 流上下文关闭。浏览器断开、显式停止和超时均取消读取任务并关闭上游，触发 core/agent 原有取消清理。停止 API 按运行归属鉴权，支持不同 ASGI worker 处理。停止 API 写入取消标记，执行 worker 每 250ms 检查；执行期间每 2 秒保存心跳，异常退出超过 45 秒的未完成运行在读取历史或再次运行时标记为 interrupted。显式停止保存为 cancelled；被动断连/离页保存为 interrupted 并保留断连原因，二者均取消上游。core 使用可关联运行ID记录取消，已发完DONE的正常收尾保持成功。停止请求不能抢改已成功终态；终态写入有条件更新，区分 completed/cancelled/failed/interrupted。
 
 会话每次运行持久化用户输入、实际收到的文本、工具结果、引用及状态。原聊天/调试记录以确定性 ID 非破坏导入；旧服务的 answer_type=2 和 sid 不能证明正常完成，未明确停止的旧记录标记为状态未知的 interrupted，原表及原文保留。旧文件保留名称等展示信息，不重新执行失效 URL；需要在新执行中使用时重新上传。断开和取消保存部分响应，不补造回答。重答创建新的执行尝试，使用目标用户问题之前的历史，保留旧尝试，不将被替代答案并入本次上下文。文件记录按用户/空间/Agent授权，实际解析其内容进入请求；不把文件 URL 当作已读内容，不接受任意远程下载地址。
 

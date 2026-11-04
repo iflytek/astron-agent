@@ -1,10 +1,15 @@
 {{- if .Values.ingress.enabled -}}
 {{- $consoleApiPath := "/console-api(/|$)(.*)" -}}
+{{- $agentsApiPath := "/console-api/agents(/|$)(.*)" -}}
 {{- $gatewayAuthDenyPath := "/console-api/internal/gateway/auth/workflow(/|$)(.*)" -}}
 {{- $artifactUploadDenyPath := "/console-api/workflow/artifacts/internal-upload(/|$)(.*)" -}}
 {{- $runtimeConfigDenyPath := "/console-api/skill-sandbox/internal-runtime-config(/|$)(.*)" -}}
-{{- if or (le (len $gatewayAuthDenyPath) (len $consoleApiPath)) (le (len $artifactUploadDenyPath) (len $consoleApiPath)) (le (len $runtimeConfigDenyPath) (len $consoleApiPath)) -}}
-{{- fail "internal console API deny paths must remain longer than the generic /console-api regex so ingress-nginx orders them first" -}}
+{{- $agentResolveDenyPath := "/console-api/agents/internal/resolve(/|$)(.*)" -}}
+{{- $agentArtifactDenyPath := "/console-api/agents/artifacts/internal-upload(/|$)(.*)" -}}
+{{- range $path := list $gatewayAuthDenyPath $artifactUploadDenyPath $runtimeConfigDenyPath $agentResolveDenyPath $agentArtifactDenyPath -}}
+{{- if or (le (len $path) (len $consoleApiPath)) (le (len $path) (len $agentsApiPath)) -}}
+{{- fail "internal console API deny paths must remain longer than the Agent and generic API regexes so ingress-nginx orders them first" -}}
+{{- end -}}
 {{- end -}}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -112,12 +117,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "astron-agent.fullname" . }}-console-api-chat
+  name: {{ include "astron-agent.fullname" . }}-console-api-agents
   labels:
     {{- include "astron-agent.labels" . | nindent 4 }}
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /chat-message/$2
+    nginx.ingress.kubernetes.io/rewrite-target: /agents/$2
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
@@ -137,7 +142,7 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
-          - path: /console-api/chat-message(/|$)(.*)
+          - path: {{ $agentsApiPath | quote }}
             pathType: ImplementationSpecific
             backend:
               service:
@@ -175,7 +180,7 @@ spec:
       http:
         paths:
           # ingress-nginx sorts regex locations by descending path length. These
-          # service-only paths are deliberately longer than the generic route and
+          # service-only paths are longer than both Agent and generic routes and
           # terminate at a selectorless Service with no endpoints (HTTP 503).
           - path: {{ $gatewayAuthDenyPath | quote }}
             pathType: ImplementationSpecific
@@ -192,6 +197,20 @@ spec:
                 port:
                   number: 80
           - path: {{ $runtimeConfigDenyPath | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-console-api-deny
+                port:
+                  number: 80
+          - path: {{ $agentResolveDenyPath | quote }}
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-console-api-deny
+                port:
+                  number: 80
+          - path: {{ $agentArtifactDenyPath | quote }}
             pathType: ImplementationSpecific
             backend:
               service:
