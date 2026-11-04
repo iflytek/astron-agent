@@ -274,6 +274,38 @@ def sse(kind, data):
     return f"event: {kind}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+class KnowledgeReferenceError(ValueError):
+    """The core knowledge tool call did not contain valid citation metadata."""
+
+
+def knowledge_references(tool):
+    """Consume WorkflowAgentRunner's knowledge tool-call response, without re-retrieving."""
+    try:
+        response = json.loads(tool["function"]["response"])
+    except (KeyError, TypeError, ValueError):
+        raise KnowledgeReferenceError from None
+    references = response.get("metadata_list") if isinstance(response, dict) else None
+    if not isinstance(references, list):
+        raise KnowledgeReferenceError
+    for source in references:
+        if (
+            not isinstance(source, dict)
+            or not isinstance(source.get("source_id"), str)
+            or not source["source_id"]
+            or not isinstance(source.get("chunk"), list)
+            or not source["chunk"]
+        ):
+            raise KnowledgeReferenceError
+        for chunk in source["chunk"]:
+            if (
+                not isinstance(chunk, dict)
+                or not isinstance(chunk.get("chunk_context"), str)
+                or not chunk["chunk_context"].strip()
+            ):
+                raise KnowledgeReferenceError
+    return references
+
+
 def checkpoint(run, *, final=None, error_code=""):
     now = timezone.now()
     changes = {
@@ -383,9 +415,6 @@ async def stream_run(run, payload, agent, scope):
                         {"code": chunk["code"], "message": "Agent执行失败，请检查模型或资源服务"},
                     )
                 )
-            references = chunk.get("knowledge_metadata")
-            if references:
-                events.append(("knowledge", {"references": references}))
             for choice in chunk.get("choices") or []:
                 delta = choice.get("delta") or {}
                 content, reasoning = (
@@ -399,7 +428,10 @@ async def stream_run(run, payload, agent, scope):
                     run.reasoning += reasoning
                     events.append(("delta", {"content": content, "reasoningContent": reasoning}))
                 for tool in delta.get("tool_calls") or []:
-                    events.append(("tool", tool))
+                    if isinstance(tool, dict) and tool.get("type") == "knowledge":
+                        events.append(("knowledge", {"references": knowledge_references(tool)}))
+                    else:
+                        events.append(("tool", tool))
                 finished = finished or bool(choice.get("finish_reason"))
             for kind, data in events:
                 if kind != "delta":
@@ -440,10 +472,17 @@ async def stream_run(run, payload, agent, scope):
         logger.warning(
             "Agent run failed run=%s agent=%s error_type=%s", run.pk, agent.pk, type(exc).__name__
         )
-        event = {
-            "code": "execution_failed",
-            "message": "Agent执行或资源服务失败，已保存收到的部分内容",
-        }
+        if isinstance(exc, KnowledgeReferenceError):
+            error_code = "knowledge_reference_invalid"
+            event = {
+                "code": error_code,
+                "message": "知识引用解析失败，已保存收到的部分内容",
+            }
+        else:
+            event = {
+                "code": "execution_failed",
+                "message": "Agent执行或资源服务失败，已保存收到的部分内容",
+            }
         run.events.append({"type": "error", "data": event})
         yield sse("error", event)
     finally:

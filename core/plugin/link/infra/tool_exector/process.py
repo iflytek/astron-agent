@@ -61,7 +61,7 @@ class HttpRun:
         method: str,
         path: Dict[str, str],
         query: Optional[Dict[str, str]],
-        header: Optional[Dict[str, str]],
+        header: Optional[Dict[str, Any]],
         body: Optional[Dict[str, Any]],
         open_api_schema: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -194,10 +194,15 @@ class HttpRun:
             f"url: {url}, header: {self.header}, " f"body: {self.body}"
         )
 
-        kwargs: Dict[str, Any] = {
-            "headers": self.header if self.header else None,
-            "json": self.body if self.body else None,
-        }
+        # OpenAPI values retain their types through validation; HTTP fields are text.
+        headers = dict(self.header) if self.header else None
+        if headers:
+            for name, value in headers.items():
+                if isinstance(value, bool):
+                    headers[name] = "true" if value else "false"
+                elif isinstance(value, (int, float)):
+                    headers[name] = str(value)
+        kwargs: Dict[str, Any] = {"headers": headers, "json": self.body}
 
         self._validate_destination(url)
         socket_factory = create_socket_factory(

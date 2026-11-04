@@ -19,6 +19,39 @@ from astron_console.spaces.permissions import ResourceScope
 urlpatterns = [path("", include("astron_console.agents.urls"))]
 
 
+def knowledge_chunk(response):
+    # Faithful wire shape of WorkflowAgentRunner._handle_knowledge_metadata:
+    # metadata_list is JSON inside delta.tool_calls.function.response. The
+    # top-level schema field remains empty when core serializes this chunk.
+    return {
+        "id": "",
+        "object": "chat.completion.chunk",
+        "code": 0,
+        "knowledge_metadata": [],
+        "choices": [
+            {
+                "index": 0,
+                "delta": {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "index": 0,
+                            "type": "knowledge",
+                            "reason": "",
+                            "function": {
+                                "name": "knowledge",
+                                "arguments": '{"query": "hello"}',
+                                "response": response,
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": None,
+            }
+        ],
+    }
+
+
 @override_settings(ROOT_URLCONF=__name__, AGENT_TIMEOUT_SECONDS=10)
 class ConversationTests(TransactionTestCase):
     def setUp(self):
@@ -77,14 +110,24 @@ class ConversationTests(TransactionTestCase):
 
     def test_completion_tool_and_knowledge_are_saved(self):
         run = self.new_run()
+        references = [
+            {
+                "source_id": "original-document-id",
+                "chunk": [
+                    {"chunk_context": "操作说明.pdf\nMCP支持自定义URL。"},
+                    {"chunk_context": "操作说明.pdf\nSkill可访问授权文件。"},
+                ],
+            },
+            {"source_id": "second-document", "chunk": [{"chunk_context": "补充说明\n真实片段"}]},
+        ]
         output, remembered = self.collect(
             run,
             [
                 {"choices": [{"delta": {"content": "partial", "reasoning_content": "reason"}}]},
                 {
                     "choices": [{"delta": {"tool_calls": [{"id": "tool", "result": "result"}]}}],
-                    "knowledge_metadata": [{"title": "source"}],
                 },
+                knowledge_chunk(json.dumps({"metadata_list": references}, ensure_ascii=False)),
                 {"choices": [{"delta": {"content": " answer"}, "finish_reason": "stop"}]},
                 "[DONE]",
             ],
@@ -98,7 +141,67 @@ class ConversationTests(TransactionTestCase):
         self.assertIsNone(self.session.active_run_id)
         self.assertEqual(remembered, 1)
         self.assertEqual({e["type"] for e in run.events}, {"tool", "knowledge"})
+        citation = {"type": "knowledge", "data": {"references": references}}
+        self.assertIn(citation, run.events)
+        live = [
+            json.loads(event.split("data: ", 1)[1])
+            for event in output
+            if event.startswith("event: knowledge\n")
+        ]
+        self.assertEqual(live, [citation["data"]])
+        self.assertEqual(
+            [e for e in run.events if e["type"] == "tool"],
+            [{"type": "tool", "data": {"id": "tool", "result": "result"}}],
+        )
+        history = self.client.get(f"/agents/{self.agent.pk}/sessions/{self.session.pk}/messages")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.json()["data"][0]["events"], run.events)
         self.assertIn('"status": "completed"', output[-1])
+
+    def test_invalid_knowledge_response_fails_and_preserves_partial_history(self):
+        malformed = [
+            "{invalid-json",
+            json.dumps({"metadata_list": None}),
+            json.dumps({"metadata_list": {"source_id": "doc"}}),
+            json.dumps({"metadata_list": [{"source_id": "doc", "chunk": []}]}),
+            json.dumps({"metadata_list": [{"source_id": "doc", "chunk": [{}]}]}),
+            json.dumps({"metadata_list": [{"source_id": "doc", "chunk": [{"chunk_context": 3}]}]}),
+        ]
+        for response in malformed:
+            with self.subTest(response=response):
+                run = self.new_run()
+                output, remembered = self.collect(
+                    run,
+                    [
+                        {"choices": [{"delta": {"content": "partial"}}]},
+                        knowledge_chunk(response),
+                        {
+                            "choices": [
+                                {"delta": {"content": "not consumed"}, "finish_reason": "stop"}
+                            ]
+                        },
+                        "[DONE]",
+                    ],
+                )
+                run.refresh_from_db()
+                self.assertEqual((run.status, run.answer, remembered), ("failed", "partial", 0))
+                self.assertEqual(run.error_code, "knowledge_reference_invalid")
+                error = {
+                    "type": "error",
+                    "data": {
+                        "code": "knowledge_reference_invalid",
+                        "message": "知识引用解析失败，已保存收到的部分内容",
+                    },
+                }
+                self.assertEqual(run.events, [error])
+                self.assertFalse(any(event.startswith("event: knowledge\n") for event in output))
+                self.assertIn(conversations.sse("error", error["data"]), output)
+                self.assertIn('"status": "failed"', output[-1])
+                history = self.client.get(
+                    f"/agents/{self.agent.pk}/sessions/{self.session.pk}/messages"
+                ).json()["data"]
+                saved = next(item for item in history if item["id"] == run.pk)
+                self.assertEqual((saved["events"], saved["answer"]), ([error], "partial"))
 
     def test_error_or_disconnect_never_completes_or_remembers(self):
         for tail, status in [

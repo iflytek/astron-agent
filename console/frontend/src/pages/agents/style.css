@@ -274,6 +274,16 @@
   background: #f7f8fc;
   padding: 12px;
 }
+.agents-references li {
+  margin-top: 12px;
+  padding: 12px;
+  border-left: 3px solid #d6d0f5;
+  background: #f7f8fc;
+}
+.agents-references p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
 .agents-composer {
   padding: 16px;
   background: white;

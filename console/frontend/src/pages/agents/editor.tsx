@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Modal } from 'antd';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import useSpaceStore from '@/store/space-store';
 import {
@@ -22,13 +23,23 @@ import Conversation from './conversation';
 import { errorText } from './errors';
 import './style.css';
 
-function Memory({ agentId }: { agentId: number }) {
+function Memory({
+  agentId,
+  agentName,
+}: {
+  agentId: number;
+  agentName: string;
+}) {
   const [config, setConfig] = useState<AgentMemoryConfig | null>(null);
   const [items, setItems] = useState<AgentMemoryItem[]>([]);
   const [apiKey, setApiKey] = useState('');
   const [memory, setMemory] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
+  const [deleteTarget, setDeleteTarget] = useState<
+    { kind: 'one'; item: AgentMemoryItem } | { kind: 'all' } | null
+  >(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
@@ -51,6 +62,8 @@ function Memory({ agentId }: { agentId: number }) {
     };
   }, [agentId, revision]);
   const action = async (fn: () => Promise<unknown>) => {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError('');
     try {
@@ -59,6 +72,7 @@ function Memory({ agentId }: { agentId: number }) {
     } catch (reason) {
       setError(errorText(reason));
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -185,8 +199,8 @@ function Memory({ agentId }: { agentId: number }) {
           className="danger"
           disabled={busy || !items.length}
           onClick={() => {
-            if (window.confirm('清空当前用户在此 Agent 下的长期记忆？'))
-              void action(() => deleteAgentMemory(agentId));
+            setError('');
+            setDeleteTarget({ kind: 'all' });
           }}
         >
           清空记忆
@@ -198,8 +212,8 @@ function Memory({ agentId }: { agentId: number }) {
           <button
             disabled={busy}
             onClick={() => {
-              if (window.confirm('删除此条记忆？'))
-                void action(() => deleteAgentMemory(agentId, item.id));
+              setError('');
+              setDeleteTarget({ kind: 'one', item });
             }}
           >
             删除
@@ -207,6 +221,51 @@ function Memory({ agentId }: { agentId: number }) {
         </div>
       ))}
       {!items.length && <p className="agents-muted">暂无记忆</p>}
+      <Modal
+        title={
+          deleteTarget?.kind === 'all' ? '清空长期记忆' : '删除一条长期记忆'
+        }
+        open={deleteTarget !== null}
+        okText={deleteTarget?.kind === 'all' ? '清空记忆' : '删除这条记忆'}
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        cancelButtonProps={{ disabled: busy }}
+        confirmLoading={busy}
+        closable={!busy}
+        keyboard={!busy}
+        maskClosable={!busy}
+        onCancel={() => {
+          if (!submitting.current) setDeleteTarget(null);
+        }}
+        onOk={() => {
+          if (!deleteTarget) return;
+          void action(async () => {
+            await deleteAgentMemory(
+              agentId,
+              deleteTarget.kind === 'one' ? deleteTarget.item.id : undefined
+            );
+            setDeleteTarget(null);
+          });
+        }}
+      >
+        <p>
+          {deleteTarget?.kind === 'all'
+            ? `清空当前用户在 Agent“${agentName}”下的全部长期记忆？`
+            : `删除当前用户在 Agent“${agentName}”下的这条长期记忆？`}
+        </p>
+        {deleteTarget?.kind === 'one' && (
+          <p
+            style={{ whiteSpace: 'pre-wrap', maxHeight: 200, overflow: 'auto' }}
+          >
+            {deleteTarget.item.memory}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="agents-error">
+            {error}
+          </p>
+        )}
+      </Modal>
     </section>
   );
 }
@@ -673,7 +732,9 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           {(tab === 'chat' || tab === 'debug') && (
             <Conversation key={tab} agent={agent} kind={tab} />
           )}
-          {tab === 'memory' && <Memory agentId={id} />}
+          {tab === 'memory' && (
+            <Memory agentId={id} agentName={agent.botName} />
+          )}
           {tab === 'versions' && (
             <section className="agents-panel">
               <h2>不可变版本快照</h2>

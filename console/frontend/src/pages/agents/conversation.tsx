@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Modal } from 'antd';
 import MarkdownRender from '@/components/markdown-render';
 import { downloadFileWithHeaders } from '@/utils/http';
 import {
@@ -46,7 +47,70 @@ function Attachment({ agentId, file }: { agentId: number; file: AgentFile }) {
   );
 }
 
-function EventDetails({ events }: { events: AgentRun['events'] }) {
+interface KnowledgeSource {
+  source_id: string;
+  chunk: Array<{ chunk_context: string }>;
+}
+
+function isKnowledgeSource(value: unknown): value is KnowledgeSource {
+  if (!value || typeof value !== 'object') return false;
+  const source = value as Record<string, unknown>;
+  return (
+    typeof source.source_id === 'string' &&
+    !!source.source_id &&
+    Array.isArray(source.chunk) &&
+    source.chunk.length > 0 &&
+    source.chunk.every(
+      chunk =>
+        chunk &&
+        typeof chunk.chunk_context === 'string' &&
+        !!chunk.chunk_context.trim()
+    )
+  );
+}
+
+function KnowledgeReferences({ references }: { references: unknown }) {
+  if (!Array.isArray(references) || !references.every(isKnowledgeSource))
+    return (
+      <p role="alert" className="agents-error">
+        知识引用格式无效，无法显示来源片段。
+      </p>
+    );
+  return (
+    <details open>
+      <summary>
+        知识引用 ·{' '}
+        {references.reduce((count, source) => count + source.chunk.length, 0)}{' '}
+        个片段
+      </summary>
+      {!references.length && (
+        <p className="agents-muted">本次检索未返回引用。</p>
+      )}
+      <ol className="agents-references">
+        {references.flatMap((source, sourceIndex) =>
+          source.chunk.map((chunk, chunkIndex) => {
+            // Core builds chunk_context as source title + newline + retrieved text.
+            const separator = chunk.chunk_context.indexOf('\n');
+            const title =
+              separator < 0 ? '' : chunk.chunk_context.slice(0, separator);
+            const excerpt =
+              separator < 0
+                ? chunk.chunk_context
+                : chunk.chunk_context.slice(separator + 1);
+            return (
+              <li key={`${sourceIndex}:${chunkIndex}`}>
+                <strong>{title || '未命名来源'}</strong>
+                <p>{excerpt}</p>
+              </li>
+            );
+          })
+        )}
+      </ol>
+    </details>
+  );
+}
+
+export function EventDetails({ events }: { events: AgentRun['events'] }) {
   return (
     <div className="agents-events">
       {(events || []).map((event, index) => {
@@ -69,10 +133,7 @@ function EventDetails({ events }: { events: AgentRun['events'] }) {
           );
         if (event.type === 'knowledge')
           return (
-            <details key={index} open>
-              <summary>知识引用</summary>
-              <pre>{JSON.stringify(data.references || data, null, 2)}</pre>
-            </details>
+            <KnowledgeReferences key={index} references={data.references} />
           );
         return null;
       })}
@@ -433,8 +494,10 @@ export default function Conversation({
 }) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [selected, setSelected] = useState<AgentSession | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AgentSession | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const submitting = useRef(false);
   const [revision, setRevision] = useState(0);
   const alive = useRef(true);
   useEffect(() => {
@@ -456,6 +519,8 @@ export default function Conversation({
     };
   }, [agent.id, kind, revision]);
   const create = async () => {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setError('');
     try {
@@ -467,18 +532,27 @@ export default function Conversation({
     } catch (reason) {
       if (alive.current) setError(errorText(reason));
     } finally {
+      submitting.current = false;
       if (alive.current) setBusy(false);
     }
   };
   const remove = async (session: AgentSession) => {
-    if (!window.confirm('删除此会话？')) return;
+    if (submitting.current) return;
+    submitting.current = true;
+    setBusy(true);
     setError('');
     try {
       await deleteAgentSession(agent.id, session.id);
-      setSessions(current => current.filter(row => row.id !== session.id));
-      if (selected?.id === session.id) setSelected(null);
+      if (alive.current) {
+        setSessions(current => current.filter(row => row.id !== session.id));
+        setSelected(current => (current?.id === session.id ? null : current));
+        setDeleteTarget(null);
+      }
     } catch (reason) {
-      setError(errorText(reason));
+      if (alive.current) setError(errorText(reason));
+    } finally {
+      submitting.current = false;
+      if (alive.current) setBusy(false);
     }
   };
   return (
@@ -502,7 +576,11 @@ export default function Conversation({
             </button>
             <button
               aria-label={`删除会话 ${session.title}`}
-              onClick={() => void remove(session)}
+              disabled={busy}
+              onClick={() => {
+                setError('');
+                setDeleteTarget(session);
+              }}
             >
               ×
             </button>
@@ -528,6 +606,34 @@ export default function Conversation({
           </div>
         )}
       </div>
+      <Modal
+        title={kind === 'debug' ? '删除调试会话' : '删除聊天会话'}
+        open={deleteTarget !== null}
+        okText="删除会话"
+        cancelText="取消"
+        okButtonProps={{ danger: true }}
+        cancelButtonProps={{ disabled: busy }}
+        confirmLoading={busy}
+        closable={!busy}
+        keyboard={!busy}
+        maskClosable={!busy}
+        onCancel={() => {
+          if (!submitting.current) setDeleteTarget(null);
+        }}
+        onOk={() => {
+          if (deleteTarget) void remove(deleteTarget);
+        }}
+      >
+        <p>
+          删除 Agent“{agent.botName}”的{kind === 'debug' ? '调试' : '聊天'}会话“
+          {deleteTarget?.title || '未命名会话'}”？
+        </p>
+        {error && (
+          <p role="alert" className="agents-error">
+            {error}
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }
