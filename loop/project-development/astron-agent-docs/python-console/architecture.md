@@ -1,6 +1,6 @@
 # Python Console 目标架构
 
-范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 02 空间与资源管理，建立在 01 账号基础上。
+范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 03 独立 Agent 与统一执行，建立在 01 账号与 02 空间资源基础上。
 
 ## 职责与调用方向
 
@@ -63,3 +63,9 @@ Agent 调用工作流、工作流调用 Agent 是明确的执行依赖，后续�
 ## 02 影响评估
 
 前端空间与资源页面 → Django spaces/resources/knowledge → 既有 Console 业务表及 core/plugin、core/knowledge、core/memory/database。内部模型/沙箱/产物接口读取已有工作流归属用于授权，不实现工作流编排。保留配置权限位、业务 UID 和资源主键；MinIO 复用既有桶和对象键。平台账号的 config_info JSON 与 platform_account_text:* Redis 文本缓存被多个 core 服务消费，保存时定向失效缓存；不读取 Java 对象缓存，不改 Kafka/core/common。具体契约与验证见 [02 技术设计](02-resources/technical-design.md)。
+
+## 03 影响评估
+
+独立聊天与调试由 React → Django agents → core/agent → DeepAgentsRunner 统一执行。Django 接管原 Agent 定义、人格和收藏，新增不可变快照、发布指针及按用户/空间隔离的会话执行记录；原历史以确定性 ID 非破坏导入。取消标记与心跳在 MySQL 中协调，ASGI 断连关闭上游流，保存实际部分响应。模型、MCP、插件、Skill 和知识引用复用02的权限与资源记录，凭据不进入快照或前端。
+
+Mem0 保留原 RSA 配置、用户 UID 与 `bot-<稳定Agent ID>`，以空间 metadata 限定长期偏好；不按版本或入口切分，不把工作流中间结果自动写入。04/05仅接收版本解析和发布指针契约，本阶段不实现它们的节点、运行生命周期和发布渠道。删除已替代的 Java Spring AI、独立聊天/调试/记忆及重复工具循环；共享的未迁移工作流数据和原 SQL 保留。具体边界见 [03 技术设计](03-agents/technical-design.md)。

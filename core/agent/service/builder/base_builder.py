@@ -1,10 +1,8 @@
-import json
 import os
 import ssl
 from typing import Union, cast
 
 import httpx
-from common.otlp.trace.langfuse import serialize_langfuse_value
 from common.otlp.trace.span import Span
 from pydantic import BaseModel, Field
 
@@ -102,18 +100,11 @@ class BaseApiBuilder(BaseModel):
 
             sp.add_info_events(
                 {
-                    "link-tool-ids": str(tool_ids),
-                    "mcp-server-ids": mcp_server_ids,
-                    "mcp-server-urls": mcp_server_urls,
-                    "workflow-ids": workflow_ids,
-                    "skills": serialize_langfuse_value(skills or []) or "[]",
-                    "built-plugins": json.dumps(
-                        [
-                            f"{plugin.typ}\n{plugin.schema_template}"
-                            for plugin in plugins
-                        ],
-                        ensure_ascii=False,
-                    ),
+                    "link-tool-count": len(tool_ids),
+                    "mcp-server-count": len(mcp_server_ids) + len(mcp_server_urls),
+                    "workflow-count": len(workflow_ids),
+                    "skill-count": len(skills or []),
+                    "built-plugin-count": len(plugins),
                 }
             )
 

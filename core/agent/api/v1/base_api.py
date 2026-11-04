@@ -2,7 +2,6 @@ import inspect
 import json
 import os
 import time
-import traceback
 from abc import ABC, abstractmethod
 from contextlib import aclosing
 from dataclasses import dataclass
@@ -220,10 +219,10 @@ class CompletionBase(BaseModel, ABC):
 
                 except BaseExc as exc:
                     context.error = exc
-                    context.error_log = traceback.format_exc()
+                    context.error_log = type(exc).__name__
                 except Exception as exc:  # pylint: disable=broad-exception-caught
-                    context.error = AgentInternalExc(str(exc))
-                    context.error_log = traceback.format_exc()
+                    context.error = AgentInternalExc("Agent execution failed")
+                    context.error_log = type(exc).__name__
 
                 stop_frame, done_frame = await self._terminal_chunks(context)
                 yield stop_frame

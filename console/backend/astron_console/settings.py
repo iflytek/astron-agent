@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     "astron_console.spaces",
     "astron_console.resources",
     "astron_console.knowledge",
+    "astron_console.agents",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -196,3 +197,6 @@ CONSOLE_SPACE_LIMITS = {
         ("enterprise", 10000, 500),
     )
 }
+
+AGENT_URL = os.environ.get("AGENT_URL", "http://core-agent:17870")
+AGENT_TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "600"))

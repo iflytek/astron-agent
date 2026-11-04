@@ -150,8 +150,8 @@ class TestSkillPluginFactory:
         assert "working_dir" not in plugins[1].schema_template
         assert "output_dir" not in plugins[1].schema_template
 
-    def test_gen_skips_invalid_skills(self) -> None:
-        """Test skipping invalid skill definitions"""
+    def test_gen_rejects_invalid_skills(self) -> None:
+        """Test rejecting incomplete configured skills"""
         factory = SkillPluginFactory(
             skills=[
                 {
@@ -165,7 +165,8 @@ class TestSkillPluginFactory:
             ]
         )
 
-        assert factory.gen() == []
+        with pytest.raises(ValueError):
+            factory.gen()
 
     def test_sandbox_config_ignores_untrusted_payload_credentials(self) -> None:
         """Runtime payload credentials are not retained in the sandbox model."""
@@ -1129,8 +1130,9 @@ class TestSkillPluginFactory:
         assert len(result.stdout.encode()) <= MAX_ARTIFACT_SCAN_OUTPUT_BYTES
 
     @pytest.mark.asyncio
-    async def test_artifact_upload_uses_flow_id_without_workflow_id_param(
-        self, monkeypatch: pytest.MonkeyPatch
+    @pytest.mark.parametrize("standalone", [False, True])
+    async def test_artifact_upload_uses_authoritative_execution_identity(
+        self, monkeypatch: pytest.MonkeyPatch, standalone: bool
     ) -> None:
         """Test numeric flow ids are not sent as workflow database ids."""
         fields: list[tuple[str, Any]] = []
@@ -1187,7 +1189,9 @@ class TestSkillPluginFactory:
         uploader = ArtifactUploader(
             SkillSandboxConfig(
                 artifact_upload_url="https://attacker.example/workflow/artifacts/internal-upload",
-                workflow_id="7460522478717390848",
+                workflow_id="" if standalone else "7460522478717390848",
+                agent_id="42" if standalone else "",
+                session_id="session" if standalone else "",
                 uid="user-1",
             ),
             "skill-1",
@@ -1196,13 +1200,17 @@ class TestSkillPluginFactory:
         await uploader.upload("result.txt", b"done", "text/plain")
 
         field_names = [name for name, _ in fields]
-        assert "flowId" in field_names
+        assert ("flowId" in field_names) is not standalone
+        assert ("agentId" in field_names) is standalone
+        assert ("sessionId" in field_names) is standalone
         assert "workflowId" not in field_names
         assert request_kwargs["headers"] == {
             "X-Skill-Sandbox-Artifact-Token": deployment_token,
         }
         assert request_kwargs["url"] == (
-            "http://console-hub:8080/workflow/artifacts/internal-upload"
+            "http://console-hub:8080/agents/artifacts/internal-upload"
+            if standalone
+            else "http://console-hub:8080/workflow/artifacts/internal-upload"
         )
         assert request_kwargs["allow_redirects"] is False
 

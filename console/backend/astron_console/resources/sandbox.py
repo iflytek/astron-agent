@@ -183,6 +183,10 @@ def runtime(request):
         if workflow.space_id != space_id or (space_id is None and workflow.uid != uid):
             raise PermissionDenied
     scope = ResourceScope(uid=uid, space_id=space_id, enterprise_id=None)
+    if request.GET.get("agentId"):
+        from astron_console.agents.definitions import get_scoped_agent
+
+        get_scoped_agent(scope, request.GET["agentId"])
     row = scope_queryset(SandboxConfig.objects.filter(deleted=False, enabled=True), scope).first()
     if row is None or not row.api_key:
         raise Http404

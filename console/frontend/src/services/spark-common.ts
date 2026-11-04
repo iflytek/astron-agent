@@ -309,20 +309,6 @@ export const aiGenPrologue = (name: any) => {
   return http.post(`/bot/ai-prologue-gen`, name);
 };
 
-// 一句话创建助手
-export const quickCreateBot = (str: string) => {
-  const formData = new FormData();
-  formData.append('sentence', str);
-  return http({
-    url: `/bot/ai-sentence-gen`,
-    method: 'POST',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
-};
-
 // 模板创建
 export const createFromTemplate = (params: any) => {
   return http.post(`/workflow/bot/createFromTemplate`, params);
@@ -394,11 +380,6 @@ export const listRepos = () => {
   return http.get(
     `/repo/list?pageNo=1&pageSize=999&content=&orderBy=create_time`
   );
-};
-
-// 获取模版数据
-export const getBotTemplate = (botId?: any) => {
-  return http.get(`/bot/template${botId ? `?botId=${botId}` : ''}`);
 };
 
 // 生成开场白

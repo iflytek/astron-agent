@@ -136,13 +136,7 @@ class LinkPluginRunner(BaseModel):
             if body:
                 run_link_payload["payload"]["message"]["body"] = body
                 callback_payload["body"] = _body
-            sp.add_info_events(
-                attributes={
-                    "link-plugin-run-inputs": json.dumps(
-                        run_link_payload, ensure_ascii=False
-                    )
-                }
-            )
+            sp.add_info_events({"tool_id": self.tool_id, "version": self.version})
             # Finished parsing parameters, start calling link
             result: dict[str, Any] = {}
             try:
@@ -162,13 +156,7 @@ class LinkPluginRunner(BaseModel):
                         response.raise_for_status()
                         if response.status == 200:
                             result = await response.json()
-                            sp.add_info_events(
-                                attributes={
-                                    "link-plugin-run-outputs": json.dumps(
-                                        result, ensure_ascii=False
-                                    )
-                                }
-                            )
+                            sp.add_info_events({"tool-response-received": True})
                         else:
                             sp.add_info_events(
                                 attributes={
@@ -178,8 +166,8 @@ class LinkPluginRunner(BaseModel):
                                 }
                             )
                             raise RunToolExc
-            except asyncio.TimeoutError as e:
-                raise RunToolExc from e
+            except (asyncio.TimeoutError, aiohttp.ClientError, ValueError):
+                raise RunToolExc from None
 
             end_time = int(round(time.time() * 1000))
             plugin_response = PluginResponse(
@@ -212,7 +200,10 @@ class LinkPluginFactory(BaseModel):
     const_headers: dict[str, str] = Field(default={"Content-Type": "application/json"})
 
     async def gen(self, span: Span) -> list[LinkPlugin]:
-        return await self.parse_react_schema_list(span)
+        try:
+            return await self.parse_react_schema_list(span)
+        except Exception:
+            raise GetToolSchemaExc() from None
 
     async def run(
         self, _operation_id: str, _action_input: dict[str, Any], _span: Span
@@ -236,33 +227,48 @@ class LinkPluginFactory(BaseModel):
                     tl_id = tool_id.get("tool_id", "")
                     tl_version = tool_id.get("version", "")
                     url += "&tool_ids=" + tl_id + "&versions=" + tl_version
-            sp.add_info_events(attributes={"link-plugin-tool-schema-list-inputs": url})
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    response.raise_for_status()
-                    if response.status == 200:
-                        result = await response.json()
+            sp.add_info_events({"requested-tool-count": len(self.tool_ids)})
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as response:
+                        response.raise_for_status()
+                        if response.status == 200:
+                            result = await response.json()
+                            return self._validated_tool_schemas(result)
+
                         sp.add_info_events(
                             attributes={
                                 "link-plugin-tool-schema-list-outputs": (
-                                    json.dumps(result, ensure_ascii=False)
+                                    f"response code is {response.status}"
                                 )
                             }
                         )
-                        print(result)
-                        if result.get("code") != 0:
-                            raise GetToolSchemaExc
-                        tools_data = result.get("data", {}).get("tools", [])
-                        return tools_data if isinstance(tools_data, list) else []
+                        raise GetToolSchemaExc
+            except (aiohttp.ClientError, ValueError, TypeError, AttributeError):
+                raise GetToolSchemaExc from None
 
-                    sp.add_info_events(
-                        attributes={
-                            "link-plugin-tool-schema-list-outputs": (
-                                f"response code is {response.status}"
-                            )
-                        }
-                    )
-                    raise GetToolSchemaExc
+    def _validated_tool_schemas(self, result: dict[str, Any]) -> list[dict[str, Any]]:
+        if result.get("code") != 0:
+            raise GetToolSchemaExc
+        tools_data = result.get("data", {}).get("tools", [])
+        if not isinstance(tools_data, list) or not tools_data:
+            raise GetToolSchemaExc
+        expected = {
+            (
+                (item, "V1.0")
+                if isinstance(item, str)
+                else (item.get("tool_id"), item.get("version"))
+            )
+            for item in self.tool_ids
+        }
+        actual = {
+            (item.get("id"), item.get("version"))
+            for item in tools_data
+            if isinstance(item, dict)
+        }
+        if not expected.issubset(actual):
+            raise GetToolSchemaExc
+        return tools_data
 
     @staticmethod
     def parse_request_query_schema(
@@ -348,11 +354,22 @@ class LinkPluginFactory(BaseModel):
                 tool_id = tool_schema.get("id")
                 version = tool_schema.get("version")
                 if tool_id is None or version is None:
-                    continue
+                    raise GetToolSchemaExc
 
                 tool_schema_data = json.loads(tool_schema.get("schema", "{}"))
+                before_count = len(tools)
                 for _, path_schema in tool_schema_data.get("paths", {}).items():
-                    for _, method_schema in path_schema.items():
+                    for method, method_schema in path_schema.items():
+                        if method.lower() not in {
+                            "get",
+                            "post",
+                            "put",
+                            "delete",
+                            "patch",
+                            "head",
+                            "options",
+                        }:
+                            continue
                         action_name = method_schema.get("operationId", "")  # Tool name
                         action_description = method_schema.get(
                             "description", ""
@@ -423,4 +440,6 @@ class LinkPluginFactory(BaseModel):
                             ).run,
                         )
                         tools.append(tool)
+                if len(tools) == before_count:
+                    raise GetToolSchemaExc
             return tools

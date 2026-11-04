@@ -46,11 +46,11 @@ class SkillPluginFactory(BaseModel):
             resources = self._normalize_resources(skill.get("resources") or [])
             sandbox_config = self._normalize_sandbox_config(skill.get("sandbox"))
             if not (skill_id and name and download_url):
-                continue
+                raise ValueError("Skill configuration is incomplete")
             try:
                 download_url = validate_skill_resource_url(download_url)
             except RuntimeError:
-                continue
+                raise ValueError(SKILL_RESOURCE_ERROR) from None
             plugins.extend(
                 [
                     SkillPlugin(
@@ -111,6 +111,8 @@ class SkillPluginFactory(BaseModel):
             run_id=str(raw_config.get("run_id") or raw_config.get("runId") or ""),
             node_id=str(raw_config.get("node_id") or raw_config.get("nodeId") or ""),
             uid=str(raw_config.get("uid") or ""),
+            agent_id=str(raw_config.get("agent_id") or ""),
+            session_id=str(raw_config.get("session_id") or ""),
             space_id=str(raw_config.get("space_id") or raw_config.get("spaceId") or ""),
         )
 
@@ -119,12 +121,12 @@ class SkillPluginFactory(BaseModel):
         total_bytes = 0
         seen_paths: set[str] = set()
         if not isinstance(raw_resources, list):
-            return resources
+            raise ValueError(SKILL_RESOURCE_ERROR)
         for item in raw_resources:
             if len(resources) >= MAX_SKILL_RESOURCE_COUNT:
-                break
+                raise ValueError(SKILL_RESOURCE_ERROR)
             if not isinstance(item, dict):
-                continue
+                raise ValueError(SKILL_RESOURCE_ERROR)
             path = self._normalize_path(item.get("path"))
             download_url = str(
                 item.get("download_url") or item.get("downloadUrl") or ""
@@ -133,7 +135,7 @@ class SkillPluginFactory(BaseModel):
                 file_size = int(item.get("file_size") or item.get("fileSize") or 0)
                 download_url = validate_skill_resource_url(download_url)
             except (TypeError, ValueError, RuntimeError):
-                continue
+                raise ValueError(SKILL_RESOURCE_ERROR) from None
             if (
                 not path
                 or path in seen_paths
@@ -141,7 +143,7 @@ class SkillPluginFactory(BaseModel):
                 or file_size > MAX_SKILL_RESOURCE_BYTES
                 or total_bytes + file_size > MAX_SKILL_RESOURCE_TOTAL_BYTES
             ):
-                continue
+                raise ValueError(SKILL_RESOURCE_ERROR)
             seen_paths.add(path)
             total_bytes += file_size
             resources.append(

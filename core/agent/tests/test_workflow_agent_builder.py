@@ -236,6 +236,7 @@ class TestWorkflowAgentRunnerBuilder:
         )
 
         mock_result = {
+            "code": 0,
             "data": {
                 "results": [
                     {
@@ -245,7 +246,7 @@ class TestWorkflowAgentRunnerBuilder:
                         "references": {},
                     }
                 ]
-            }
+            },
         }
 
         with patch.object(
@@ -272,8 +273,10 @@ class TestWorkflowAgentRunnerBuilder:
             repo_type=1,
         )
 
-        tasks = builder._create_knowledge_tasks([knowledge_input], span)
-        assert len(tasks) == 0
+        from agent.exceptions.plugin_exc import PluginExc
+
+        with pytest.raises(PluginExc):
+            builder._create_knowledge_tasks([knowledge_input], span)
 
     def test_create_knowledge_tasks_with_repo_ids(
         self, builder: WorkflowAgentRunnerBuilder, span: Span
@@ -291,6 +294,8 @@ class TestWorkflowAgentRunnerBuilder:
 
         tasks = builder._create_knowledge_tasks([knowledge_input], span)
         assert len(tasks) == 1
+        for task in tasks:
+            task.close()
 
     def test_process_knowledge_results(
         self, builder: WorkflowAgentRunnerBuilder
@@ -298,6 +303,7 @@ class TestWorkflowAgentRunnerBuilder:
         """Test processing knowledge query results"""
         results = [
             {
+                "code": 0,
                 "data": {
                     "results": [
                         {
@@ -313,7 +319,7 @@ class TestWorkflowAgentRunnerBuilder:
                             "references": {},
                         },
                     ]
-                }
+                },
             }
         ]
 
@@ -382,7 +388,7 @@ class TestWorkflowAgentRunnerBuilder:
             rag_type="AIUI-RAG2",
         )
 
-        mock_result: dict[str, Any] = {"data": {"results": []}}
+        mock_result: dict[str, Any] = {"code": 0, "data": {"results": []}}
 
         with patch(
             "agent.service.builder.workflow_agent_builder.KnowledgePluginFactory"
@@ -425,3 +431,40 @@ class TestKnowledgeQueryParams:
         assert params.top_k == 3
         assert params.score_threshold == 0.3
         assert params.rag_type == "AIUI-RAG2"
+
+
+def test_standalone_skill_context_uses_console_scope_and_no_workflow() -> None:
+    from agent.api.schemas.base_inputs import MetaDataInputs
+
+    inputs = CustomCompletionInputs(
+        uid="owner",
+        messages=[LLMMessage(role="user", content="hi")],
+        model_config=CustomCompletionModelConfigInputs(
+            domain="m", api="https://example.com", api_key="key"
+        ),
+        max_loop_count=1,
+        meta_data=MetaDataInputs(agent_id="42", space_id=5, session_id="s", run_id="r"),
+    )
+    builder = WorkflowAgentRunnerBuilder(
+        app_id="test", uid="owner", span=Span(app_id="test", uid="owner"), inputs=inputs
+    )
+    skills = [
+        {
+            "sandbox": {
+                "enabled": True,
+                "uid": "other",
+                "space_id": 9,
+                "flowId": "forged",
+            }
+        }
+    ]
+    builder._inject_skill_runtime_context(skills)
+    from agent.service.plugin.skill import SkillPluginFactory
+
+    config = SkillPluginFactory(skills=[])._normalize_sandbox_config(
+        skills[0]["sandbox"]
+    )
+    assert config is not None
+    assert config.uid == "owner" and config.space_id == "5"
+    assert config.agent_id == "42" and config.session_id == "s"
+    assert config.workflow_id == ""

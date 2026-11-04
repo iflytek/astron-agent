@@ -1,6 +1,7 @@
 """The single Agent execution engine: official Deep Agents + platform adapters."""
 
 import asyncio
+import json
 import time
 from contextlib import aclosing
 from typing import (
@@ -27,6 +28,7 @@ from langchain.agents.middleware import (
     ModelCallLimitMiddleware,
     ModelRequest,
     ModelResponse,
+    ToolErrorMiddleware,
     hook_config,
 )
 from langchain_core.callbacks import UsageMetadataCallbackHandler
@@ -48,6 +50,13 @@ from agent.engine.plugin_tools import build_plugin_tools
 from agent.exceptions.agent_exc import AgentInternalExc
 from agent.exceptions.plugin_exc import CallLlmPluginExc, PluginExc, llm_plugin_error
 from agent.service.plugin.base import BasePlugin
+
+
+def tool_error_message(exc: Exception, request: Any) -> str:
+    """Use the framework's error middleware without publishing provider secrets."""
+    logger.warning("Agent tool failed; error_type={}", type(exc).__name__)
+    code = exc.c if isinstance(exc, BaseExc) else 40024
+    return json.dumps({"code": code, "message": "Tool execution failed"})
 
 
 class HarnessState(AgentState):
@@ -351,6 +360,7 @@ class DeepAgentsRunner(BaseModel):
                         run_limit=self.max_loop + 1, exit_behavior="error"
                     ),
                     middleware,
+                    ToolErrorMiddleware(on_error=tool_error_message),
                 ],
             ),
         )
@@ -458,7 +468,11 @@ class DeepAgentsRunner(BaseModel):
             execution = ToolExecution(
                 action=message.name or "",
                 action_input=tool_arguments.get(message.tool_call_id, {}),
-                action_output={"result": message.content},
+                action_output=(
+                    {"code": 40024, "message": "Tool execution failed"}
+                    if message.status == "error"
+                    else {"result": message.content}
+                ),
                 tool_type="tool",
             )
         return AgentResponse(
