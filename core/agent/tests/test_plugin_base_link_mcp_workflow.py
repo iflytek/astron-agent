@@ -1,6 +1,7 @@
 """Test plugin base/link/mcp/workflow module"""
 
 import json
+from base64 import b64decode
 from dataclasses import dataclass
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -127,14 +128,16 @@ class TestLinkPluginRunner:
             "application/json"
         ]["schema"]
         body = runner.assemble_body(body_schema, {"f1": "y"}, {})
+        assert body is not None
         assert body["f1"] == "y"
 
     def test_dumps(self) -> None:
         payload = {"a": 1}
         s = LinkPluginRunner.dumps(payload)
         assert s
-        # Empty payload returns empty string
-        assert LinkPluginRunner.dumps({}) == ""
+        # Explicit empty JSON differs from an omitted payload.
+        assert json.loads(b64decode(LinkPluginRunner.dumps({}))) == {}
+        assert LinkPluginRunner.dumps(None) == ""
 
 
 class TestLinkPluginFactoryParseSchemas:

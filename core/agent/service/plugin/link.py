@@ -289,9 +289,9 @@ class LinkPluginRunner(BaseModel):
         body_schema: dict[str, Any],
         action_input: dict[str, Any],
         business_input: dict[str, Any],
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         if not body_schema:
-            return {}
+            return None
         parameter_names = {
             item["name"] for item in self.method_schema.get("parameters", [])
         }
@@ -300,15 +300,19 @@ class LinkPluginRunner(BaseModel):
             for key, value in action_input.items()
             if key not in parameter_names
         }
-        if not inputs and not self.method_schema.get("requestBody", {}).get("required"):
-            return {}
         result = _assemble_object(body_schema, inputs, business_input)
+        if (
+            not inputs
+            and not result
+            and not self.method_schema.get("requestBody", {}).get("required")
+        ):
+            return None
         _validate_value(body_schema, result)
         return result
 
     @staticmethod
-    def dumps(payload: dict[str, Any]) -> str:
-        if payload:
+    def dumps(payload: dict[str, Any] | None) -> str:
+        if payload is not None:
             return b64encode(json.dumps(payload, ensure_ascii=True).encode()).decode()
         return ""
 
@@ -327,7 +331,7 @@ class LinkPluginRunner(BaseModel):
                     "path": path,
                     "body": body,
                 }.items()
-                if value
+                if value or (name == "body" and value is not None)
             }
             run_link_payload = {
                 "header": {"app_id": self.app_id, "uid": self.uid},

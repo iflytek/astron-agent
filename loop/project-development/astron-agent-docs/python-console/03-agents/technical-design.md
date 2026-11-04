@@ -27,7 +27,9 @@ React Agent 管理/聊天/调试 → 同源 Nginx → Django agents → 原业�
 
 聊天和调试使用同一 Console 执行服务，构造既有 `CustomCompletionInputs`（授权模型、prompt/personality、plugin、messages、max_loop_count、调用元数据），附 `X-Workflow-Internal-Key` 和应用身份。定义 ID、用户、空间、会话和运行 ID 来自服务端权威记录。调试使用当前草稿，独立聊天可显式使用快照；选定配置在一次执行中固定。
 
-插件执行沿用 `Console 授权工具版本 → core/agent LinkPluginFactory / LinkPluginRunner → core/plugin/link`。标准 OpenAPI 的 path、query、header 和 JSON body 参数不要求私有扩展才能供模型填写，保留必填和类型等约束；显式配置的固定值与隐藏凭据只在可信执行侧组装，不进入模型参数。路径参数交给 Link 已有的 `message.path`，由下游统一完成占位符替换、URL编码和安全校验。不能支持的配置明确拒绝，不能静默丢字段或生成零参数工具。这段共享适配影响所有调用 core/agent 的入口，须回归现有工具配置；不改 Link 的 HTTP 执行、安全边界或工作流节点生命周期。
+插件执行沿用 `Console 授权工具版本 → core/agent LinkPluginFactory / LinkPluginRunner → core/plugin/link`。标准 OpenAPI 的 path、query、header 和 JSON body 参数不要求私有扩展才能供模型填写，保留必填和类型等约束；显式配置的固定值与隐藏凭据只在可信执行侧组装，不进入模型参数。路径参数交给 Link 已有的 `message.path`，由下游统一完成占位符替换、URL编码和安全校验。不能支持的配置明确拒绝，不能静默丢字段或生成零参数工具。这段共享适配影响所有调用 core/agent 的入口，须回归现有工具配置；Link 继续拥有 HTTP 执行与安全边界。
+
+正文存在性与请求头序列化贯穿 Agent→Link→官方 aiohttp 客户端：未提供正文保持 `None`，显式空对象保持 `{}`，可选正文中的固定配置值仍须发送；请求头先校验原始 schema 类型，再序列化为 HTTP 标量文本。Link 的执行和调试入口都保留这一区分，避免给无正文的 GET 添加 JSON。共享影响限于正确传输这些基础值，非空正文、鉴权、SSRF、路径安全校验和工作流生命周期保持原契约。
 
 参数校验复用已有 `jsonschema` 官方验证器。模型参数投影只负责内部 Link 协议和固定凭据分离：支持内联标量 path/query/header 与嵌套 JSON 对象正文；引用、组合 schema、cookie、非默认参数序列化、非 JSON 正文和根数组当前明确返回工具配置错误，不自行实现另一套 OpenAPI 执行器。
 

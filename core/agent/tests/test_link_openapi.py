@@ -494,3 +494,81 @@ async def test_unprojectable_private_values_fail_configuration(
     assert exc.value.c == 40023
     assert "private-" not in str(exc.value)
     assert not link_server["requests"]
+
+
+@pytest.mark.asyncio
+async def test_optional_body_preserves_fixed_and_implicit_defaults(
+    link_server: dict[str, Any]
+) -> None:
+    op = operation(link_server)
+    op["requestBody"] = {
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "token": {
+                            "type": "string",
+                            "x-display": False,
+                            "default": "body-private",
+                        },
+                        "limit": {"type": "integer", "default": 3},
+                        "enabled": {"type": "boolean", "default": False},
+                    },
+                }
+            }
+        }
+    }
+    span = Span(app_id="app", uid="user")
+    plugin = (await factory().gen(span))[0]
+    inputs = arguments()
+    del inputs["input"]
+    result = await plugin.run(action_input=inputs, span=span)
+    assert decoded_request(link_server)["body"] == {
+        "token": "body-private",
+        "limit": 3,
+        "enabled": False,
+    }
+    assert "body-private" not in plugin.schema_template
+    assert "body-private" not in json.dumps(result.log)
+
+
+@pytest.mark.asyncio
+async def test_required_empty_body_is_encoded_as_present(
+    link_server: dict[str, Any]
+) -> None:
+    operation(link_server)["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {"schema": {"type": "object", "properties": {}}}
+        },
+    }
+    span = Span(app_id="app", uid="user")
+    plugin = (await factory().gen(span))[0]
+    inputs = arguments()
+    del inputs["input"]
+    await plugin.run(action_input=inputs, span=span)
+    assert decoded_request(link_server)["body"] == {}
+
+
+@pytest.mark.asyncio
+async def test_scalar_headers_are_validated_before_http_serialization(
+    link_server: dict[str, Any]
+) -> None:
+    op = operation(link_server)
+    op["parameters"] += [
+        param("X-Count", "header", type="integer"),
+        param("X-Enabled", "header", type="boolean"),
+    ]
+    span = Span(app_id="app", uid="user")
+    plugin = (await factory().gen(span))[0]
+    inputs = {**arguments(), "X-Count": 3, "X-Enabled": False}
+    Draft202012Validator(plugin_schema(plugin)).validate(inputs)
+    await plugin.run(action_input=inputs, span=span)
+    assert decoded_request(link_server)["header"]["X-Count"] == 3
+    assert decoded_request(link_server)["header"]["X-Enabled"] is False
+    for invalid in ({"X-Count": "3"}, {"X-Enabled": "false"}):
+        with pytest.raises(PluginExc) as exc:
+            await plugin.run(action_input={**inputs, **invalid}, span=span)
+        assert exc.value.c == 40024
+    assert len(link_server["requests"]) == 1

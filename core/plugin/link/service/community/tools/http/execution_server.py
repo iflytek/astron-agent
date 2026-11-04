@@ -401,7 +401,7 @@ async def handle_debug_success_response(
 
 def process_message_params(
     message: Dict[str, Any],
-) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any], Optional[Dict[str, Any]]]:
     """Process and decode message parameters."""
     message_header = (
         json.loads(base64.b64decode(header_data).decode("utf-8"))
@@ -421,7 +421,7 @@ def process_message_params(
     body = (
         json.loads(base64.b64decode(body_data).decode("utf-8"))
         if (body_data := message.get("body"))
-        else {}
+        else None
     )
     return message_header, message_query, path, body
 
@@ -431,7 +431,7 @@ def setup_http_request(
     message_header: Dict[str, Any],
     message_query: Dict[str, Any],
     path: Dict[str, Any],
-    body: Dict[str, Any],
+    body: Optional[Dict[str, Any]],
     open_api_schema: Dict[str, Any],
 ) -> HttpRun:
     """Setup HTTP request instance."""
@@ -806,7 +806,7 @@ async def tool_debug(  # noqa: C901
                 path=tool_debug_params.path if tool_debug_params.path else {},
                 query=tool_debug_params.query if tool_debug_params.query else {},
                 header=tool_debug_params.header if tool_debug_params.header else {},
-                body=tool_debug_params.body if tool_debug_params.body else {},
+                body=tool_debug_params.body,
                 open_api_schema=openapi_schema,
             )
             result = await http_inst.do_call(span_context)
