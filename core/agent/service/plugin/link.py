@@ -301,12 +301,16 @@ class LinkPluginRunner(BaseModel):
             if key not in parameter_names
         }
         result = _assemble_object(body_schema, inputs, business_input)
-        if (
-            not inputs
-            and not result
-            and not self.method_schema.get("requestBody", {}).get("required")
-        ):
-            return None
+        if not inputs and not self.method_schema.get("requestBody", {}).get("required"):
+            if not result:
+                return None
+            validator = Draft202012Validator(
+                _json_schema(body_schema), registry=Registry()
+            )
+            errors = list(validator.iter_errors(result))
+            # Defaults alone do not select an optional body with missing required fields.
+            if errors and all(error.validator == "required" for error in errors):
+                return None
         _validate_value(body_schema, result)
         return result
 

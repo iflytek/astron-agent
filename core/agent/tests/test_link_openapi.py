@@ -572,3 +572,78 @@ async def test_scalar_headers_are_validated_before_http_serialization(
             await plugin.run(action_input={**inputs, **invalid}, span=span)
         assert exc.value.c == 40024
     assert len(link_server["requests"]) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("nested", [False, True])
+async def test_optional_body_defaults_do_not_select_incomplete_body(
+    link_server: dict[str, Any], nested: bool
+) -> None:
+    body_schema = {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+            "query": {"type": "string"},
+            "limit": {"type": "integer", "default": 10},
+        },
+    }
+    if nested:
+        body_schema = {
+            "type": "object",
+            "required": ["payload"],
+            "properties": {"payload": {**body_schema, "default": {}}},
+        }
+    operation(link_server)["requestBody"] = {
+        "content": {"application/json": {"schema": body_schema}}
+    }
+    span = Span(app_id="app", uid="user")
+    plugin = (await factory().gen(span))[0]
+    inputs = arguments()
+    del inputs["input"]
+    # No model body input: an optional body may still be omitted despite defaults.
+    Draft202012Validator(plugin_schema(plugin)).validate(inputs)
+    await plugin.run(action_input=inputs, span=span)
+    assert "body" not in decoded_request(link_server)
+
+    partial: dict[str, Any] = {"payload": {"limit": 5}} if nested else {"limit": 5}
+    with pytest.raises(PluginExc) as exc:
+        await plugin.run(action_input={**inputs, **partial}, span=span)
+    assert exc.value.c == 40024
+    assert len(link_server["requests"]) == 1
+
+    provided: dict[str, Any] = (
+        {"payload": {"query": "agent"}} if nested else {"query": "agent"}
+    )
+    complete = {"query": "agent", "limit": 10}
+    await plugin.run(action_input={**inputs, **provided}, span=span)
+    assert decoded_request(link_server)["body"] == (
+        {"payload": complete} if nested else complete
+    )
+
+
+@pytest.mark.asyncio
+async def test_optional_body_omission_does_not_hide_invalid_default_types(
+    link_server: dict[str, Any]
+) -> None:
+    operation(link_server)["requestBody"] = {
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "required": ["query"],
+                    "properties": {
+                        "query": {"type": "string"},
+                        "limit": {"type": "integer", "default": "invalid"},
+                    },
+                }
+            }
+        }
+    }
+    span = Span(app_id="app", uid="user")
+    plugin = (await factory().gen(span))[0]
+    inputs = arguments()
+    del inputs["input"]
+    with pytest.raises(PluginExc) as exc:
+        await plugin.run(action_input=inputs, span=span)
+    assert exc.value.c == 40024
+    assert not link_server["requests"]
