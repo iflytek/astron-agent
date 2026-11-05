@@ -129,7 +129,14 @@ def io_items(items, *, inputs=False):
                 "name": item["name"],
                 "schema": converted,
                 "required": bool(item.get("required", False)),
-                "fileType": item.get("fileType", ""),
+                **(
+                    {
+                        "fileType": item["fileType"],
+                        "allowedFileType": item.get("allowedFileType", []),
+                    }
+                    if item.get("fileType")
+                    else {}
+                ),
             }
         )
     return result

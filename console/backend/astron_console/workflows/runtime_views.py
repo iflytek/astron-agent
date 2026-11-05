@@ -155,7 +155,16 @@ def history(request):
         parent_run_id__isnull=True,
         history_hidden=False,
     )
+    requested_version = request.GET.get("version")
+    if requested_version:
+        _, version_id = select_graph(workflow, requested_version)
+        rows = rows.filter(version_id=version_id)
+    else:
+        rows = rows.filter(version_id__isnull=True)
+    rows = rows.exclude(kind="node-debug")
     result = [dialogue_data(reconcile(row)) for row in rows.order_by("create_time")[:500]]
+    if requested_version:
+        return result
     legacy = WorkflowDialog.objects.filter(
         workflow_id=workflow.pk,
         uid=scope.uid,
@@ -190,6 +199,8 @@ def trace_item(run, workflow):
     for event in run.events:
         if event.get("usage"):
             usage = event["usage"]
+        elif event.get("node_debug"):
+            usage = event["node_debug"].get("token_cost", {})
     return {
         "sid": run.pk,
         "runId": run.pk,
@@ -227,6 +238,19 @@ def traces(request, flow_id, run_id=None):
         nodes = []
         for event in run.events:
             node = (event.get("workflow_step") or {}).get("node")
+            debug = event.get("node_debug")
+            if debug:
+                from astron_console.resources.common import parsed
+
+                node = {
+                    "id": debug.get("node_id", event.get("node_id", "")),
+                    "alias_name": debug.get("alias_name", ""),
+                    "executed_time": float(debug.get("node_exec_cost", 0)) * 1000,
+                    "inputs": parsed(debug.get("input")),
+                    "outputs": parsed(debug.get("output")),
+                    "usage": debug.get("token_cost", {}),
+                    "finish_reason": "stop" if run.status == "completed" else run.status,
+                }
             if not node:
                 continue
             nodes.append(
@@ -280,8 +304,7 @@ def statistics(request):
     return result
 
 
-@api_endpoint(["POST"])
-def prepare_node(request, node_id):
+def prepare_node(request, node_id, code_params=None):
     from .execution_context import graph_nodes, graph_value, select_graph
 
     scope = scope_for(request, EXECUTE)
@@ -295,16 +318,25 @@ def prepare_node(request, node_id):
     supplied = (request.payload.get("data") or {}).get("nodes", [])
     if selected is None or len(supplied) != 1 or supplied[0].get("id") != node_id:
         raise ValidationError("调试节点不存在")
+    if code_params is not None:
+        selected.setdefault("data", {}).setdefault("nodeParam", {}).update(code_params)
+        selected["data"]["inputs"] = supplied[0]["data"]["inputs"]
+        selected["data"]["outputs"] = []
     inputs = {}
     for item in supplied[0].get("data", {}).get("inputs", []):
         value = item.get("schema", {}).get("value", {})
         if value.get("type") == "literal":
             inputs[item["name"]] = value.get("content")
     run = prepare_run(
-        scope, workflow, inputs, kind="node-debug", graph=graph, version_id=version_id
+        scope,
+        workflow,
+        inputs,
+        kind="node-debug",
+        graph={"nodes": [selected], "edges": []},
+        version_id=version_id,
     )
     claim_run(run)
-    return {"runId": run.pk}
+    return run
 
 
 @api_endpoint(["POST"])
@@ -331,14 +363,43 @@ def code_run(request):
         raise Http404
     param = node.setdefault("data", {}).setdefault("nodeParam", {})
     param["code"] = request.payload.get("code", "")
-    param["variables"] = request.payload.get("variables", [])
+    variables = request.payload.get("variables", [])
+    if not isinstance(variables, list) or any(
+        not isinstance(v, dict) or not isinstance(v.get("name"), str) for v in variables
+    ):
+        raise ValidationError("代码输入格式无效")
+    values = {v["name"]: v.get("content") for v in variables}
+
+    def input_type(value):
+        if isinstance(value, list):
+            return "array-" + (input_type(value[0]) if value else "string")
+        return {bool: "boolean", int: "integer", float: "number", dict: "object"}.get(
+            type(value), "string"
+        )
+
+    node["data"]["inputs"] = [
+        {
+            "name": name,
+            "schema": {"type": input_type(value), "value": {"type": "literal", "content": value}},
+        }
+        for name, value in values.items()
+    ]
     request.payload["flowId"] = workflow.flow_id
     request.payload["version"] = requested_version
     request.payload["data"] = {"nodes": [node], "edges": []}
-    return async_to_sync(_node_debug)(request, node_id)
+    result = async_to_sync(_node_debug)(request, node_id, code_params={"code": param["code"]})
+    if result.status_code != 200:
+        return result
+    data = json.loads(result.content)["data"]
+    output = data.get("raw_output") or data.get("output", "")
+    try:
+        output = json.loads(output)
+    except (TypeError, ValueError):
+        pass
+    return {"code": 0, "data": output, "message": "执行成功", "runId": data["runId"]}
 
 
-async def _node_debug(request, node_id):
+async def _node_debug(request, node_id, code_params=None):
     import asyncio
 
     import httpx
@@ -349,10 +410,7 @@ async def _node_debug(request, node_id):
 
     from .lifecycle import cancel_core, checkpoint, core_headers, core_payload
 
-    prepared = await sync_to_async(prepare_node.__wrapped__)(request, node_id)
-    if prepared.status_code != 200:
-        return prepared
-    run = await WorkflowRun.objects.aget(pk=json.loads(prepared.content)["data"]["runId"])
+    run = await sync_to_async(prepare_node)(request, node_id, code_params)
     status, error = "failed", "node_debug_failed"
 
     async def heartbeat():
@@ -374,7 +432,7 @@ async def _node_debug(request, node_id):
             if value.get("code") not in (0, "0"):
                 raise ValueError("Core node failed")
         data = value.get("data") or {}
-        run.events.append({"node_debug": data})
+        run.events.append({"node_debug": data, "node_id": node_id})
         run.output = str(data.get("output", ""))
         status, error = "completed", ""
         return response({**data, "runId": run.pk})

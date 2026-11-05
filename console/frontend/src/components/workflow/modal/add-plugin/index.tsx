@@ -19,7 +19,6 @@ import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import DeletePlugin from './delete-plugin';
 import {
   ToolDebugger,
-  CreateTool,
   ToolDetail,
 } from '@/components/modal/plugin';
 import { useTranslation } from 'react-i18next';
@@ -91,8 +90,7 @@ const LeftNav = ({
         className="w-full text-[#fff] mt-6 flex items-center gap-2"
         onClick={e => {
           e.stopPropagation();
-          setCurrentTab('');
-          setToolOperate('create');
+          window.open('/resource/plugin', '_blank', 'noopener,noreferrer');
           setCurrentToolInfo({
             id: '',
             name: '',
@@ -308,7 +306,7 @@ const ToolItem = ({
                         ...item,
                       });
                       setOperateId('');
-                      setToolOperate('edit');
+                      window.open('/resource/plugin', '_blank', 'noopener,noreferrer');
                     }}
                   >
                     {t('workflow.nodes.toolNode.edit')}
@@ -817,19 +815,7 @@ const AddPlugin = (): React.ReactElement => {
                   )}
                   {toolOperate && (
                     <>
-                      {['create', 'edit']?.includes(toolOperate) && (
-                        <CreateTool
-                          showHeader={false}
-                          currentToolInfo={currentToolInfo}
-                          handleCreateToolDone={() => handleChangeTab('person')}
-                          step={step}
-                          setStep={setStep}
-                          botIcon={botIcon}
-                          setBotIcon={setBotIcon}
-                          botColor={botColor}
-                          setBotColor={setBotColor}
-                        />
-                      )}
+
                       {toolOperate === 'test' && (
                         <ToolDebugger
                           selectedCard={currentToolInfo}

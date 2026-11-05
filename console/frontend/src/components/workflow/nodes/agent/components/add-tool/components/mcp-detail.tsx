@@ -121,7 +121,7 @@ const useMCPDetail = ({
           : item.value;
     }
     const params = {
-      mcpServerId: '',
+      mcpServerId: currentToolId,
       mcpServerUrl: currentMcp.serverUrl,
       toolName: tool.name,
       toolId: currentToolId,

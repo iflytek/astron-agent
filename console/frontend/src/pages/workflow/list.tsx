@@ -14,8 +14,8 @@ import { getFixedUrl } from '@/components/workflow/utils';
 import '@/pages/agents/style.css';
 
 interface Template {
-  id: number;
-  templateId: number;
+  id: string;
+  templateId: string;
   title: string;
   subtitle?: string;
   deletable?: boolean;

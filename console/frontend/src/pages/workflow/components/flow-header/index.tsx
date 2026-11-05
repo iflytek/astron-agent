@@ -186,7 +186,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       {modalType === 'text' && currentFlow && (
         <FlowEdit currentFlow={currentFlow} setModalType={setModalType} />
       )}
-      <VirtualConfig
+      {modalType === 'virtual' && <VirtualConfig
         visible={modalType === 'virtual'}
         onCancel={() => {
           setModalType('');
@@ -210,7 +210,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
           } as any
         }
         onSubmit={handleEditSumbit}
-      />
+      />}
       <div
         className="w-full h-[80px] bg-[#fff] border-b border-[#e2e8ff] flex justify-between px-6 py-5"
         style={{ borderRadius: '0px 0px 24px 24px' }}

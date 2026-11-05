@@ -8,7 +8,8 @@ from django.urls import include, path
 
 from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.models import Agent, AgentState, AgentVersion
-from astron_console.resources.models import Model
+from astron_console.resources.models import McpConfig, Model, Tool
+from astron_console.spaces.models import Space, SpaceMember, SpacePermission
 from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.execution_context import (
     cancel_root,
@@ -16,7 +17,13 @@ from astron_console.workflows.execution_context import (
     runtime_identity,
 )
 from astron_console.workflows.lifecycle import claim_run, prepare_run, stream_run
-from astron_console.workflows.models import ExecutionContext, Workflow, WorkflowRun
+from astron_console.workflows.models import (
+    ExecutionContext,
+    PromptTemplate,
+    Workflow,
+    WorkflowRun,
+    WorkflowVersion,
+)
 from astron_console.workflows.protocol import starter_graph
 
 urlpatterns = [path("", include("astron_console.workflows.urls"))]
@@ -96,6 +103,37 @@ class RuntimeTests(TransactionTestCase):
         self.assertEqual(retried.resolved_agents, first.resolved_agents)
         new = prepare_run(self.scope, self.workflow, {})
         self.assertEqual(new.resolved_agents["agent::one"]["versionId"], second_version.pk)
+
+    def test_canvas_catalog_uses_scoped_models_and_never_exposes_credentials(self):
+        Model.objects.create(uid="another-owner", name="private", enable=True)
+        result = self.client.get("/workflow/models?nodeType=agent")
+        self.assertEqual(result.status_code, 200, result.content)
+        items = result.json()["data"]["workflow"][0]["modelList"]
+        self.assertEqual([r["id"] for r in items], [self.model.pk])
+        self.assertNotIn(b"secret", result.content)
+        self.assertNotIn(b"example.com", result.content)
+        PromptTemplate.objects.create(uid="another-owner", name="private", prompt="{}")
+        PromptTemplate.objects.create(
+            uid="-1", name="shared", prompt='{"userQuery":"{{question}}"}'
+        )
+        result = self.client.get("/workflow/agent-node/prompt-template?pageSize=999")
+        self.assertEqual(result.status_code, 200, result.content)
+        self.assertEqual(result.json()["data"]["pageData"][0]["inputs"], [{"name": "question"}])
+        self.assertEqual(result.json()["data"]["totalCount"], 1)
+
+    def test_history_filters_draft_version_and_single_node_runs(self):
+        version = WorkflowVersion.objects.create(
+            flow_id=self.workflow.flow_id, version_num="v1", data=self.workflow.data
+        )
+        draft = prepare_run(self.scope, self.workflow, {})
+        fixed = prepare_run(self.scope, self.workflow, {}, version_id=version.pk, graph=self.graph)
+        prepare_run(self.scope, self.workflow, {}, kind="node-debug")
+        result = self.client.get("/workflow/dialog/list", {"workflowId": self.workflow.pk})
+        self.assertEqual([r["runId"] for r in result.json()["data"]], [draft.pk])
+        result = self.client.get(
+            "/workflow/dialog/list", {"workflowId": self.workflow.pk, "version": "v1"}
+        )
+        self.assertEqual([r["runId"] for r in result.json()["data"]], [fixed.pk])
 
     def test_runtime_rechecks_deleted_agent_and_resource(self):
         run = prepare_run(self.scope, self.workflow, {})
@@ -337,3 +375,159 @@ class RuntimeTests(TransactionTestCase):
         self.assertTrue(control_state(run.pk, run.context_id)["cancelled"])
         run.refresh_from_db()
         self.assertEqual(run.status, "cancelled")
+
+    def test_code_idea_uses_temporary_code_inputs_and_reports_actual_tokens(self):
+        import httpx
+
+        node = {
+            "id": "ifly-code::one",
+            "data": {
+                "nodeParam": {"code": "old code"},
+                "inputs": [
+                    {
+                        "name": "value",
+                        "schema": {
+                            "type": "string",
+                            "value": {
+                                "type": "ref",
+                                "content": {"nodeId": "missing", "name": "value"},
+                            },
+                        },
+                    }
+                ],
+                "outputs": [{"name": "result", "schema": {"type": "string"}}],
+            },
+        }
+        self.graph["nodes"].append(node)
+        # An unrelated invalid inline Agent must not prevent a selected code test.
+        self.graph["nodes"].append({"id": "agent::invalid", "data": {"nodeParam": {}}})
+        self.workflow.data = json.dumps(self.graph)
+        self.workflow.save()
+        captured = []
+
+        def core(request):
+            captured.append(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json={
+                    "code": 0,
+                    "data": {
+                        "node_id": node["id"],
+                        "output": "{}",
+                        "raw_output": '{"result":"new input"}',
+                        "token_cost": {
+                            "prompt_tokens": 2,
+                            "completion_tokens": 3,
+                            "total_tokens": 5,
+                        },
+                    },
+                },
+            )
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(core))
+        with patch("httpx.AsyncClient", return_value=client):
+            response = self.post(
+                "/workflow/code/run",
+                {
+                    "flow_id": self.workflow.flow_id,
+                    "node_id": node["id"],
+                    "code": "new code",
+                    "variables": [{"name": "new_argument", "content": "new input"}],
+                },
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["code"], 0)
+        self.assertEqual(response.json()["data"]["data"], {"result": "new input"})
+        self.assertEqual(captured[0]["chat"]["parameters"]["new_argument"], "new input")
+        nodes = captured[0]["protocol"]["data"]["nodes"]
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(nodes[0]["data"]["inputs"][0]["name"], "new_argument")
+        self.assertEqual(nodes[0]["data"]["outputs"], [])
+        self.assertEqual(nodes[0]["data"]["nodeParam"]["code"], "new code")
+        self.workflow.refresh_from_db()
+        self.assertEqual(
+            json.loads(self.workflow.data)["nodes"][-2]["data"]["nodeParam"]["code"], "old code"
+        )
+        statistics = self.client.get("/workflow/statistics", {"flowId": self.workflow.flow_id})
+        self.assertEqual(statistics.json()["data"]["totalTokens"], 5)
+
+    def test_mcp_canvas_debug_cannot_bypass_resource_execution_permission(self):
+        space = Space.objects.create(name="Scoped", uid=self.user.pk)
+        SpaceMember.objects.create(space_id=space.pk, uid=self.user.pk, role=1)
+        for key in ["WorkflowController_list_GET", "ToolBoxController_getDetail_GET"]:
+            SpacePermission.objects.update_or_create(permission_key=key, defaults={"owner": True})
+        SpacePermission.objects.update_or_create(
+            permission_key="ToolBoxController_debugToolV2_POST", defaults={"owner": False}
+        )
+        row = McpConfig.objects.create(
+            uid=self.user.pk,
+            space_id=space.pk,
+            name="mcp",
+            mcp_id="server",
+            sort_link="https://example.com/secret",
+        )
+        with patch("astron_console.workflows.catalog.clients.call") as upstream:
+            response = self.client.post(
+                "/workflow/debug-server-tool",
+                json.dumps({"mcpServerId": str(row.pk), "toolName": "write", "toolArgs": {}}),
+                content_type="application/json",
+                HTTP_SPACE_ID=str(space.pk),
+            )
+        self.assertEqual(response.status_code, 403, response.content)
+        upstream.assert_not_called()
+
+    def test_new_openapi_tool_projects_required_inputs_and_outputs_without_legacy_schema(self):
+        schema = {
+            "openapi": "3.0.0",
+            "servers": [{"url": "https://example.com"}],
+            "paths": {
+                "/echo": {
+                    "post": {
+                        "operationId": "echo",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "required": ["message"],
+                                        "properties": {"message": {"type": "string", "x-from": 1}},
+                                    }
+                                }
+                            }
+                        },
+                        "responses": {
+                            "200": {
+                                "content": {
+                                    "application/json": {
+                                        "schema": {
+                                            "type": "object",
+                                            "properties": {"answer": {"type": "string"}},
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    }
+                }
+            },
+        }
+        row = Tool.objects.create(
+            user_id=self.user.pk,
+            name="echo",
+            tool_id="echo-id",
+            version="V1",
+            operation_id="echo",
+            schema=json.dumps(schema),
+            web_schema=None,
+        )
+        Tool.objects.create(user_id=self.user.pk, name="draft", tool_id="draft-id", status=0)
+        response = self.client.get("/workflow/tools")
+        self.assertEqual(response.status_code, 200, response.content)
+        items = response.json()["data"]["pageData"]
+        self.assertEqual([item["id"] for item in items], [str(row.pk)])
+        projection = json.loads(items[0]["webSchema"])
+        self.assertEqual(projection["toolRequestInput"][0]["name"], "message")
+        self.assertTrue(projection["toolRequestInput"][0]["required"])
+        self.assertEqual(projection["toolRequestInput"][0]["from"], 1)
+        self.assertEqual(projection["toolRequestOutput"][0]["name"], "answer")
+        self.assertIsInstance(items[0]["authInfo"], str)

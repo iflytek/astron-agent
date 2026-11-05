@@ -104,3 +104,21 @@ def test_console_run_rejects_uid_beyond_database_limit() -> None:
                 "chat": {"flow_id": "flow", "uid": "u" * 129, "parameters": {}},
             }
         )
+
+
+@pytest.mark.asyncio
+async def test_cancel_finished_event_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from workflow.exception.e import CustomException
+    from workflow.exception.errors.err_code import CodeEnum
+
+    monkeypatch.setattr(
+        console.EventRegistry,
+        "get_event",
+        Mock(side_effect=CustomException(CodeEnum.EVENT_REGISTRY_NOT_FOUND_ERROR)),
+    )
+    response = await console.cancel(
+        "expired", console.ConsoleCancel(run_id="expired", root_id="root")
+    )
+    assert json.loads(response.body)["code"] == 0

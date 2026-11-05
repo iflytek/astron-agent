@@ -14,6 +14,7 @@ from workflow.domain.entities.response import Resp, Streaming
 from workflow.engine.dsl_engine import WorkflowEngineFactory
 from workflow.engine.entities.workflow_dsl import WorkflowDSL
 from workflow.exception.e import CustomException
+from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.fastapi.middleware.auth import (
     require_workflow_internal_api_key,
 )
@@ -73,7 +74,14 @@ async def run(
 
 @router.post("/events/{event_id}/cancel")
 async def cancel(event_id: str, request: ConsoleCancel) -> JSONResponse:
-    event = EventRegistry.get_event(event_id)
+    try:
+        event = EventRegistry.get_event(event_id)
+    except CustomException as exc:
+        if exc.code != CodeEnum.EVENT_REGISTRY_NOT_FOUND_ERROR.code:
+            raise
+        # An already-finished event has nothing left to cancel. The durable
+        # Console root still prevents any subsequent nested work.
+        return Resp.success({"cancelled": True})
     if (
         event.console_run_id != request.run_id
         or event.console_root_id != request.root_id

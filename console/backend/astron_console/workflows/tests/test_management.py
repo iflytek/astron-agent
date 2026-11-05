@@ -14,7 +14,13 @@ from astron_console.resources.models import ConfigInfo, Model
 from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.automation import claim_due, claim_pending, enqueue, next_fire
 from astron_console.workflows.management_views import create_workflow
-from astron_console.workflows.models import AutomationRun, AutomationTask, Workflow, WorkflowVersion
+from astron_console.workflows.models import (
+    AutomationRun,
+    AutomationTask,
+    Workflow,
+    WorkflowTemplate,
+    WorkflowVersion,
+)
 from astron_console.workflows.protocol import normalize_graph, starter_graph, to_protocol
 from astron_console.workflows.templates import export_yaml, parse_yaml
 
@@ -83,6 +89,27 @@ class ManagementTests(TransactionTestCase):
         self.assertEqual(result.json()["data"]["uid"], self.other.pk)
         self.assertIsNone(result.json()["data"]["spaceId"])
 
+    def test_legacy_null_fields_clone_and_canvas_picker_pagination(self):
+        self.workflow.edge_type = None
+        self.workflow.avatar_icon = None
+        self.workflow.save()
+        result = self.client.get(f"/workflow/clone?id={self.workflow.pk}")
+        self.assertEqual(result.status_code, 200, result.content)
+        self.workflow.published_data = self.workflow.data
+        self.workflow.save()
+        result = self.client.get("/workflow/list?current=1&pageSize=999&status=1")
+        self.assertEqual(result.status_code, 200, result.content)
+        self.assertEqual([r["id"] for r in result.json()["data"]["pageData"]], [self.workflow.pk])
+        result = self.client.get(
+            f"/workflow/list?pageSize=999&status=1&flowId={self.workflow.flow_id}"
+        )
+        self.assertEqual(result.json()["data"]["pageData"], [])
+
+    def test_plain_start_output_does_not_become_a_file_parameter(self):
+        protocol = to_protocol(starter_graph(), self.workflow, self.scope)
+        output = protocol["data"]["nodes"][0]["data"]["outputs"][0]
+        self.assertNotIn("fileType", output)
+
     def test_export_omits_runtime_secrets_and_yaml_rejects_aliases_and_objects(self):
         graph = json.loads(self.workflow.data)
         graph["nodes"][0]["data"]["nodeParam"] = {
@@ -108,6 +135,14 @@ class ManagementTests(TransactionTestCase):
         )
         self.assertEqual(exported.status_code, 200, exported.content)
         tid = exported.json()["data"]["id"]
+        self.assertIsInstance(tid, str)
+        large_id = 2083099577214906371
+        WorkflowTemplate.objects.filter(pk=tid).update(id=large_id)
+        listed = self.client.post(
+            "/workflow/bot/templateList", "{}", content_type="application/json"
+        )
+        tid = listed.json()["data"][0]["templateId"]
+        self.assertEqual(tid, str(large_id))
         self.workflow.deleted = True
         self.workflow.save()
         cloned = self.write("post", "/workflow/bot/createFromTemplate", {"templateId": tid})

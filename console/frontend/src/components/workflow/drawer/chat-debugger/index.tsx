@@ -185,6 +185,8 @@ const useChatDebuggerEffect = (
   const isChatEnd = useChatStore(state => state.isChatEnd);
   const setDebuggering = useChatStore(state => state.setDebuggering);
   const getDialogues = useChatStore(state => state.getDialogues);
+  const historyVersion = useFlowsManager(state => state.historyVersion);
+  const historyVersionNum = useFlowsManager(state => state.historyVersionData?.versionNum);
   const setChatList = useChatStore(state => state.setChatList);
   const chatInfoRef = useChatStore(state => state.chatInfoRef);
   const interruptChat = useChatStore(state => state.interruptChat);
@@ -217,7 +219,7 @@ const useChatDebuggerEffect = (
   }, [flowResult?.status, currentFlow?.flowId]);
   useEffect(() => {
     currentFlow?.id && getDialogues(currentFlow?.id, true);
-  }, [currentFlow?.id]);
+  }, [currentFlow?.id, historyVersion, historyVersionNum]);
   useEffect(() => {
     const handleBeforeUnload = (): void => {
       useChatStore.getState().controllerRef?.abort();
