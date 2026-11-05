@@ -87,7 +87,8 @@ export async function getDialogueAPI(
   version?: string
 ): Promise<WorkflowDialogue[]> {
   return http.get<WorkflowDialogue[], WorkflowDialogue[]>(
-    '/workflow/dialog/list', { params: { workflowId: id, type, version } }
+    '/workflow/dialog/list',
+    { params: { workflowId: id, type, version } }
   );
 }
 

@@ -121,6 +121,22 @@ class RuntimeTests(TransactionTestCase):
         self.assertEqual(result.json()["data"]["pageData"][0]["inputs"], [{"name": "question"}])
         self.assertEqual(result.json()["data"]["totalCount"], 1)
 
+    def test_retry_does_not_resolve_new_invalid_draft_dependencies(self):
+        original = prepare_run(self.scope, self.workflow, {})
+        original.status = "failed"
+        original.save(update_fields=["status"])
+        invalid = starter_graph()
+        invalid["nodes"].append(
+            {"id": "agent::unconfigured", "data": {"nodeParam": {"modelId": 999999}}}
+        )
+        self.workflow.data = json.dumps(invalid)
+        self.workflow.save()
+        retried = prepare_run(self.scope, self.workflow, {}, retry_of=original)
+        self.assertEqual(retried.graph, original.graph)
+        self.assertEqual(retried.resolved_agents, original.resolved_agents)
+        with self.assertRaises(PermissionDenied):
+            prepare_run(self.scope, self.workflow, {})
+
     def test_history_filters_draft_version_and_single_node_runs(self):
         version = WorkflowVersion.objects.create(
             flow_id=self.workflow.flow_id, version_num="v1", data=self.workflow.data
@@ -313,6 +329,13 @@ class RuntimeTests(TransactionTestCase):
         )
         child_state.published_version_id = child_v2.pk
         child_state.save()
+        child_flow.data = json.dumps(
+            {
+                "nodes": [{"id": "agent::invalid", "data": {"nodeParam": {"modelId": 999999}}}],
+                "edges": [],
+            }
+        )
+        child_flow.save(update_fields=["data"])
         context = {"run_id": parent.pk, "root_id": parent.context_id, "node_id": "agent::one"}
         root, scope, _, chain, _ = runtime_identity(context)
         child = prepare_run(

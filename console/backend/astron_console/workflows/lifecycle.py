@@ -68,7 +68,6 @@ def prepare_run(
     workflow = get_workflow(scope, workflow.flow_id, EXECUTE)
     if not isinstance(inputs, dict) or len(json.dumps(inputs)) > 200000:
         raise ValidationError("输入必须为有效对象且不超过200KB")
-    graph = freeze_graph(scope, graph if graph is not None else workflow.data)
     if retry_of:
         if retry_of.status not in TERMINAL or retry_of.workflow_id != workflow.pk:
             raise ValidationError("只能重试本工作流已结束的运行")
@@ -89,6 +88,8 @@ def prepare_run(
         snapshots = root.snapshots
         chain = extend_chain(chain, f"workflow:{workflow.flow_id}")
     else:
+        if not retry_of:
+            graph = freeze_graph(scope, graph if graph is not None else workflow.data)
         snapshots = freeze_dependencies(scope, workflow=workflow, graph=graph, previous=previous)
         snapshots["workflows"][str(workflow.flow_id)]["version_id"] = version_id
         chain = [f"workflow:{workflow.flow_id}"]

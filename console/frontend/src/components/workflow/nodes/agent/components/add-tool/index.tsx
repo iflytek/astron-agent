@@ -36,10 +36,7 @@ import dayjs from 'dayjs';
 import { capitalizeFirstLetter } from '@/components/workflow/utils/reactflowUtils';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import DeletePlugin from '@/components/workflow/modal/add-plugin/delete-plugin';
-import {
-  ToolDebugger,
-  ToolDetail,
-} from '@/components/modal/plugin';
+import { ToolDebugger, ToolDetail } from '@/components/modal/plugin';
 import MCPDetail from './components/mcp-detail';
 import KnowledgeList from './components/knowledge-list';
 import SkillList from './components/skill-list';
@@ -750,7 +747,11 @@ const ListItem = ({
                         ...item,
                       });
                       setOperateId('');
-                      window.open('/resource/plugin', '_blank', 'noopener,noreferrer');
+                      window.open(
+                        '/resource/plugin',
+                        '_blank',
+                        'noopener,noreferrer'
+                      );
                     }}
                   >
                     {t('workflow.nodes.toolNode.edit')}
@@ -989,7 +990,6 @@ const OperationContent = ({
     <>
       {operate && (
         <>
-
           {operate === 'test' && (
             <ToolDebugger
               selectedCard={currentToolInfo}

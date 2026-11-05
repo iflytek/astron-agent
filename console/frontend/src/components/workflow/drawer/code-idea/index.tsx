@@ -558,7 +558,11 @@ const IOTestPanel = ({
     codeRun(params)
       .then((res: CodeRunResponse): void => {
         if (res.code === 0) {
-          setOutput(typeof res.data === 'string' ? res.data : JSON.stringify(res.data, null, 2));
+          setOutput(
+            typeof res.data === 'string'
+              ? res.data
+              : JSON.stringify(res.data, null, 2)
+          );
           message.success(res?.message);
           setErrCodeMsg('');
           setCodeRunningStatus('success');

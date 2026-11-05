@@ -186,7 +186,9 @@ const useChatDebuggerEffect = (
   const setDebuggering = useChatStore(state => state.setDebuggering);
   const getDialogues = useChatStore(state => state.getDialogues);
   const historyVersion = useFlowsManager(state => state.historyVersion);
-  const historyVersionNum = useFlowsManager(state => state.historyVersionData?.versionNum);
+  const historyVersionNum = useFlowsManager(
+    state => state.historyVersionData?.versionNum
+  );
   const setChatList = useChatStore(state => state.setChatList);
   const chatInfoRef = useChatStore(state => state.chatInfoRef);
   const interruptChat = useChatStore(state => state.interruptChat);
