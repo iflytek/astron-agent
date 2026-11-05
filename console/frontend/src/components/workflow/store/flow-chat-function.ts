@@ -140,14 +140,20 @@ const getDialogues = (
   shouldAddDivider = false
 ): void => {
   const manager = useFlowsManager.getState();
-  const version = manager.historyVersion ? manager.historyVersionData?.versionNum : undefined;
+  const version = manager.historyVersion
+    ? manager.historyVersionData?.versionNum
+    : undefined;
   set({ chatList: [] });
   getDialogueAPI(id, 1, version)
     .then(data => {
       if (String(useFlowsManager.getState().currentFlow?.id) !== String(id))
         return;
       const current = useFlowsManager.getState();
-      if ((current.historyVersion ? current.historyVersionData?.versionNum : undefined) !== version)
+      if (
+        (current.historyVersion
+          ? current.historyVersionData?.versionNum
+          : undefined) !== version
+      )
         return;
       const chatList: ChatListItem[] = [];
       let chatId = data?.[0]?.chatId || null;

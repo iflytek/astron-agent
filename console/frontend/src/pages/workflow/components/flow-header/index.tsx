@@ -186,31 +186,33 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       {modalType === 'text' && currentFlow && (
         <FlowEdit currentFlow={currentFlow} setModalType={setModalType} />
       )}
-      {modalType === 'virtual' && <VirtualConfig
-        visible={modalType === 'virtual'}
-        onCancel={() => {
-          setModalType('');
-        }}
-        formValues={
-          {
-            flowId: currentFlow?.flowId,
-            name: currentFlow?.name,
-            botType: currentFlow?.category,
-            avatar: currentFlow?.avatarIcon,
-            botDesc: currentFlow?.description,
-            talkAgentConfig: {
-              interactType: flowConfig?.interactType,
-              vcn: flowConfig?.vcn,
-              sceneId: flowConfig?.sceneId,
-              sceneMode: flowConfig?.sceneMode,
-              sceneEnable: flowConfig?.sceneEnable,
-              vcnEnable: flowConfig?.vcnEnable,
-              callSceneId: flowConfig?.callSceneId,
-            },
-          } as any
-        }
-        onSubmit={handleEditSumbit}
-      />}
+      {modalType === 'virtual' && (
+        <VirtualConfig
+          visible={modalType === 'virtual'}
+          onCancel={() => {
+            setModalType('');
+          }}
+          formValues={
+            {
+              flowId: currentFlow?.flowId,
+              name: currentFlow?.name,
+              botType: currentFlow?.category,
+              avatar: currentFlow?.avatarIcon,
+              botDesc: currentFlow?.description,
+              talkAgentConfig: {
+                interactType: flowConfig?.interactType,
+                vcn: flowConfig?.vcn,
+                sceneId: flowConfig?.sceneId,
+                sceneMode: flowConfig?.sceneMode,
+                sceneEnable: flowConfig?.sceneEnable,
+                vcnEnable: flowConfig?.vcnEnable,
+                callSceneId: flowConfig?.callSceneId,
+              },
+            } as any
+          }
+          onSubmit={handleEditSumbit}
+        />
+      )}
       <div
         className="w-full h-[80px] bg-[#fff] border-b border-[#e2e8ff] flex justify-between px-6 py-5"
         style={{ borderRadius: '0px 0px 24px 24px' }}

@@ -17,7 +17,9 @@ import ClearFlowCanvas from '@/components/workflow/modal/clear-flow-canvas';
 function FlowModal(): React.ReactElement {
   const toolOpen = useFlowsManager(state => state.toolModalInfo.open);
   const mcpOpen = useFlowsManager(state => state.mcpModalInfo.open);
-  const promptOpen = useFlowsManager(state => state.selectAgentPromptModalInfo.open);
+  const promptOpen = useFlowsManager(
+    state => state.selectAgentPromptModalInfo.open
+  );
   return (
     <>
       <AddFlow />
