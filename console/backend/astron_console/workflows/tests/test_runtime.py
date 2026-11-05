@@ -286,9 +286,15 @@ class RuntimeTests(TransactionTestCase):
 
         with patch("astron_console.workflows.lifecycle.upstream", complete):
             run = prepare_run(self.scope, self.workflow, {})
-            async_to_sync(consume)(run)
+            frames = async_to_sync(consume)(run)
         run.refresh_from_db()
         self.assertEqual(run.status, "completed")
+        self.assertIn("event: run-end", frames[-1])
+        terminal = json.loads(frames[-1].split("data: ", 1)[1])
+        self.assertEqual(
+            terminal["durationMs"],
+            int((run.update_time - run.create_time).total_seconds() * 1000),
+        )
         with (
             patch("astron_console.workflows.lifecycle.upstream", disconnected),
             patch("astron_console.workflows.lifecycle.cancel_core"),
@@ -298,6 +304,23 @@ class RuntimeTests(TransactionTestCase):
         run.refresh_from_db()
         self.assertEqual(run.status, "interrupted")
         self.assertEqual(run.output, "partial")
+
+    def test_trace_node_durations_convert_core_seconds_to_milliseconds(self):
+        run = prepare_run(self.scope, self.workflow, {})
+        run.status = "completed"
+        run.events = [
+            {"workflow_step": {"node": {"id": "agent::one", "executed_time": 3.793}}},
+            {"workflow_step": {"node": {"id": "agent::one", "executed_time": None}}},
+            {"node_debug": {"node_id": "code::one", "node_exec_cost": "0.125"}},
+        ]
+        run.save()
+        response = self.client.get(
+            f"/publish/workflows/{self.workflow.flow_id}/trace/executions/{run.pk}"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            [node["duration"] for node in response.json()["data"]["nodes"]], [3793, 0, 125]
+        )
 
     def test_nested_workflow_started_later_reuses_root_agent_snapshot(self):
         child_agent = Agent.objects.create(

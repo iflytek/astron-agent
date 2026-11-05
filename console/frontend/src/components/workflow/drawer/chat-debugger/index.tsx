@@ -672,9 +672,7 @@ export function ChatDebuggerContent({
         <div className="w-full flex items-center justify-between px-5">
           <div className="flex items-center gap-2 text-desc">
             <img src={icons.chatListTip} className="w-3 h-3 mt-0.5" alt="" />
-            <span>
-              {t('workflow.nodes.chatDebugger.keepOnly10DialogueRecords')}
-            </span>
+            <span>{t('workflow.nodes.chatDebugger.debugHistory')}</span>
           </div>
           <span className="text-xs text-gray-500">
             {historyVersion

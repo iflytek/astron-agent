@@ -623,6 +623,16 @@ const handleMessage = (
         get
       );
     }
+    if (
+      typeof frame.durationMs === 'number' &&
+      Number.isFinite(frame.durationMs)
+    ) {
+      const manager = useFlowsManager.getState();
+      manager.setFlowResult({
+        ...manager.flowResult,
+        timeCost: (Math.max(0, frame.durationMs) / 1000).toString(),
+      });
+    }
     return;
   }
   const data: WebSocketMessageData = frame;

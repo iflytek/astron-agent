@@ -14,12 +14,15 @@ function harness({ stop, history, build } = {}) {
   const manager = {
     currentFlow: { id: 'workflow', flowId: 'flow' },
     autonomousMode: true,
+    flowResult: { status: 'running', timeCost: '', totalTokens: '' },
     setCanPublish() {},
     setShowNodeList() {},
     setCanvasesDisabled(value) {
       ui.disabled = value;
     },
     setFlowResult(value) {
+      manager.flowResult = value;
+      ui.timeCost = value.timeCost;
       ui.status = value.status;
       // The drawer effect disconnects when its flow status is cleared.
       if (!value.status) state.controllerRef?.abort();
@@ -303,4 +306,22 @@ test('real variable-mode node frames append JSON once and mark node success', ()
   });
   assert.equal(h.state.endNodeTextQueue, '{"output":"answer"}');
   assert.equal(h.flow.nodes[0].data.status, 'success');
+});
+
+test('run-end retains authoritative elapsed seconds after terminal handling', () => {
+  for (const status of ['completed', 'cancelled', 'paused']) {
+    const h = harness();
+    h.actions.handleResumeChat('continue', h.get, h.set);
+    h.frame({ runId: 'old-run', status, durationMs: 4180 }, 'run-end');
+    assert.equal(h.ui.timeCost, '4.18');
+    assert.equal(h.state.runStatus, status);
+    assert.equal(
+      h.ui.status,
+      status === 'paused'
+        ? 'running'
+        : status === 'completed'
+          ? 'success'
+          : 'failed'
+    );
+  }
 });
