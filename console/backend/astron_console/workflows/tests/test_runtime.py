@@ -151,6 +151,15 @@ class RuntimeTests(TransactionTestCase):
         )
         self.assertEqual([r["runId"] for r in result.json()["data"]], [fixed.pk])
 
+    def test_history_displays_each_saved_answer_once(self):
+        run = prepare_run(self.scope, self.workflow, {})
+        run.output = "one actual answer"
+        run.status = "completed"
+        run.save(update_fields=["output", "status"])
+        response = self.client.get("/workflow/dialog/list", {"workflowId": self.workflow.pk})
+        answer = json.loads(response.json()["data"][0]["answer"])
+        self.assertEqual(answer["messageContent"] + answer["content"], run.output)
+
     def test_runtime_rechecks_deleted_agent_and_resource(self):
         run = prepare_run(self.scope, self.workflow, {})
         claim_run(run)

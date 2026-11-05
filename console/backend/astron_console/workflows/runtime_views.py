@@ -117,7 +117,7 @@ def dialogue_data(run):
         }
         for name, value in run.inputs.items()
     ]
-    answer = {"messageContent": run.output, "content": run.output, "reasoningContent": ""}
+    answer = {"messageContent": "", "content": run.output, "reasoningContent": ""}
     output = {}
     for event in run.events:
         node = (event.get("workflow_step") or {}).get("node") or {}

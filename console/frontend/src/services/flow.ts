@@ -77,7 +77,9 @@ export async function buildFlowAPI(params: unknown): Promise<unknown> {
   return http.post('/workflow/build', params);
 }
 
-export async function stopWorkflowRun(runId: string): Promise<unknown> {
+export async function stopWorkflowRun(
+  runId: string
+): Promise<{ runId: string; status: string }> {
   return http.post(`/workflow/runs/${encodeURIComponent(runId)}/stop`);
 }
 

@@ -124,7 +124,9 @@ const ChatFooter = ({
           className="origin-btn px-[24px]"
           onClick={() => clearData()}
         >
-          {debuggering ? '停止运行' : t('common.cancel')}
+          {debuggering || interruptChat.interrupt
+            ? '停止运行'
+            : t('common.cancel')}
         </Button>
         <Button
           type="primary"

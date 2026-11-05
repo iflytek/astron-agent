@@ -4,6 +4,7 @@ from contextlib import nullcontext
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -13,6 +14,7 @@ from workflow.consts.engine.timeout import QueueTimeout
 from workflow.engine.callbacks.openai_types_sse import (
     Choice,
     Delta,
+    GenerateUsage,
     LLMGenerate,
     NodeInfo,
     WorkflowStep,
@@ -77,6 +79,120 @@ def test_release_filter_keeps_workflow_end_content() -> None:
     assert filtered.workflow_step.node is None
     assert filtered.workflow_step.seq == 4
     assert filtered.choices[0].delta.content == '{"output":[{"name":"test"}]}'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_release", [False, True])
+@pytest.mark.parametrize("is_resume", [False, True], ids=["initial", "resume"])
+@pytest.mark.parametrize(
+    "content_chunks",
+    [["04恢复", "成功"], ["重复", "重复"], []],
+    ids=[
+        "node-deltas-before-aggregate",
+        "identical-legitimate-deltas",
+        "terminal-only",
+    ],
+)
+async def test_chat_stream_emits_content_once_and_preserves_terminal_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    is_release: bool,
+    is_resume: bool,
+    content_chunks: list[str],
+) -> None:
+    frames = [
+        LLMGenerate(
+            id="engine-sid",
+            workflow_step=WorkflowStep(node=NodeInfo(id="node-end::1"), progress=1),
+            choices=[
+                Choice(
+                    index=0,
+                    delta=Delta(content=chunk, reasoning_content="思考"),
+                )
+            ],
+        )
+        for chunk in content_chunks
+    ]
+    final_content = "".join(content_chunks) or "仅终帧答案"
+    final_reasoning = "思考" * len(content_chunks) or "仅终帧思考"
+    frames.append(
+        LLMGenerate(
+            id="engine-sid",
+            workflow_step=WorkflowStep(
+                node=NodeInfo(id="flow_obj", outputs={"answer": final_content}),
+                progress=1,
+            ),
+            choices=[
+                Choice(
+                    index=0,
+                    delta=Delta(
+                        content=final_content, reasoning_content=final_reasoning
+                    ),
+                    finish_reason=ChatStatus.FINISH_REASON.value,
+                )
+            ],
+            usage=GenerateUsage(prompt_tokens=2, completion_tokens=3, total_tokens=5),
+        )
+    )
+    registry = Mock()
+    registry.get_event.return_value = SimpleNamespace(
+        is_stream=True,
+        timeout=1,
+        get_workflow_q_name=lambda: "resume-queue",
+    )
+    registry.fetch_resume_data = AsyncMock(
+        side_effect=[{"message": frame.model_dump_json()} for frame in frames]
+    )
+    monkeypatch.setattr(chat_service, "EventRegistry", lambda: registry)
+    span = Mock()
+    span.sid = "resume-sid"
+    span.start.return_value = nullcontext(span)
+    span.add_info_events_async = AsyncMock()
+    span.add_info_event_async = AsyncMock()
+
+    if is_resume:
+        stream = chat_service.chat_resume_response_stream(
+            span=span,
+            event_id="resume-event",
+            audit_policy=AppAuditPolicy.DEFAULT.value,
+            is_release=is_release,
+        )
+    else:
+        response_queue: asyncio.Queue[LLMGenerate] = asyncio.Queue()
+        for frame in frames:
+            response_queue.put_nowait(frame)
+        stream = chat_service._chat_response_stream(
+            response_queue=response_queue,
+            flow_id="flow-1",
+            app_audit_policy=AppAuditPolicy.DEFAULT,
+            event_id="resume-event",
+            is_stream=True,
+            is_release=is_release,
+            span=span,
+            engine_task=asyncio.create_task(asyncio.sleep(0)),
+        )
+    responses = [json.loads(chunk.removeprefix("data: ")) async for chunk in stream]
+
+    assert len(responses) == len(frames)
+    assert all(response["code"] == 0 for response in responses)
+    expected_sid = "resume-sid" if is_resume else "engine-sid"
+    assert all(response["id"] == expected_sid for response in responses)
+    deltas = [response["choices"][0]["delta"] for response in responses]
+    assert "".join(delta["content"] for delta in deltas) == final_content
+    assert "".join(delta["reasoning_content"] for delta in deltas) == final_reasoning
+    assert [delta["content"] for delta in deltas[:-1]] == content_chunks
+    assert deltas[-1]["content"] == ("" if content_chunks else final_content)
+    assert deltas[-1]["reasoning_content"] == (
+        "" if content_chunks else final_reasoning
+    )
+    assert responses[-1]["choices"][0]["finish_reason"] == "stop"
+    assert responses[-1]["usage"]["total_tokens"] == 5
+    assert responses[-1]["workflow_step"]["progress"] == 1
+    if not is_release:
+        assert responses[-1]["workflow_step"]["node"]["outputs"] == {
+            "answer": final_content
+        }
+    registry.on_finished.assert_called_once_with(event_id="resume-event")
+    registry.on_interrupt.assert_not_called()
 
 
 @pytest.mark.asyncio
