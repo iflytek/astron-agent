@@ -544,19 +544,22 @@ def validate_artifact(file):
 @csrf_exempt
 @api_endpoint(["POST"], authenticated=False)
 @clients.service_errors
-def upload_artifact(request):
+def upload_artifact(request, console=False):
     configured = getattr(settings, "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN", "")
     candidate = request.headers.get("X-Skill-Sandbox-Artifact-Token", "")
     if len(configured) < 32 or not hmac.compare_digest(configured.encode(), candidate.encode()):
         raise PermissionDenied()
     p = request.POST
-    uid = text(p.get("uid"), 128)
-    scope = ResourceScope(uid, number(p.get("spaceId")) if p.get("spaceId") else None, None)
     from astron_console.publishing.public_files import workflow_upload_identity
 
-    published = workflow_upload_identity(p)
-    if published:
-        grant, scope, published_run = published
+    execution = workflow_upload_identity(p, console=console)
+    grant = None
+    if execution:
+        grant, scope, run = execution
+        uid = grant.caller_uid if grant else run.uid
+    else:
+        uid = text(p.get("uid"), 128)
+        scope = ResourceScope(uid, number(p.get("spaceId")) if p.get("spaceId") else None, None)
     file = request.FILES.get("file")
     name, content_type = validate_artifact(file)
     metadata = {
@@ -568,7 +571,7 @@ def upload_artifact(request):
     bucket = getattr(settings, "SKILL_SANDBOX_ARTIFACT_BUCKET", "workflow-artifacts")
     with transaction.atomic():
         workflow = artifact_workflow(scope, p.get("workflowId"), p.get("flowId"), True)
-        if published and workflow.pk != published_run.workflow_id:
+        if execution and workflow.pk != run.workflow_id:
             raise PermissionDenied
         active = Artifact.objects.filter(workflow_id=workflow.pk, deleted=False)
         if active.count() >= getattr(
@@ -583,7 +586,7 @@ def upload_artifact(request):
             row = save(
                 Artifact(
                     uid=uid,
-                    space_id=grant.caller_space_id if published else scope.space_id,
+                    space_id=grant.caller_space_id if grant else scope.space_id,
                     workflow_id=workflow.pk,
                     run_id=metadata["runId"],
                     node_id=metadata["nodeId"],
@@ -599,7 +602,14 @@ def upload_artifact(request):
         except Exception:
             storage.remove(key, bucket)
             raise
-    logger.info("Stored artifact id=%s workflow=%s size=%s", row.pk, workflow.pk, file.size)
+    logger.info(
+        "Stored artifact id=%s workflow=%s size=%s runtime=%s run=%s",
+        row.pk,
+        workflow.pk,
+        file.size,
+        "console" if console else "legacy",
+        row.run_id,
+    )
     return artifact_dump(row)
 
 

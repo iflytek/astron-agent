@@ -468,3 +468,60 @@ def test_standalone_skill_context_uses_console_scope_and_no_workflow() -> None:
     assert config.uid == "owner" and config.space_id == "5"
     assert config.agent_id == "42" and config.session_id == "s"
     assert config.workflow_id == ""
+
+
+def test_public_workflow_skill_keeps_config_owner_and_upload_caller_separate() -> None:
+    from agent.api.schemas.base_inputs import MetaDataInputs
+    from agent.service.plugin.skill import SkillPluginFactory
+    from agent.service.plugin.skill_sandbox import _runtime_config_query
+
+    inputs = CustomCompletionInputs(
+        uid="caller",
+        messages=[LLMMessage(role="user", content="hi")],
+        model_config=CustomCompletionModelConfigInputs(
+            domain="m", api="https://example.com", api_key="key"
+        ),
+        max_loop_count=1,
+        meta_data=MetaDataInputs(
+            execution_uid="owner",
+            workflow_id="flow",
+            agent_id="42",
+            space_id=5,
+            run_id="run",
+            node_id="agent::one",
+            console_context={"run_id": "run", "root_id": "root"},
+        ),
+    )
+    builder = WorkflowAgentRunnerBuilder(
+        app_id="test",
+        uid="caller",
+        span=Span(app_id="test", uid="caller"),
+        inputs=inputs,
+    )
+    skills = [
+        {
+            "sandbox": {
+                "enabled": True,
+                "uid": "forged",
+                "root_id": "forged",
+                "artifact_uid": "forged",
+                "space_id": 99,
+            }
+        }
+    ]
+    builder._inject_skill_runtime_context(skills)
+    config = SkillPluginFactory(skills=[])._normalize_sandbox_config(
+        skills[0]["sandbox"]
+    )
+    assert config is not None
+    assert config.uid == "owner" and config.artifact_uid == "caller"
+    assert config.console and config.root_id == "root" and config.run_id == "run"
+    assert _runtime_config_query(config) == {
+        "uid": "owner",
+        "flowId": "flow",
+        "agentId": "42",
+        "spaceId": "5",
+    }
+    inputs.meta_data.console_context.pop("root_id")
+    with pytest.raises(ValueError, match="incomplete"):
+        builder._inject_skill_runtime_context(skills)

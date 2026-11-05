@@ -263,6 +263,15 @@ def authorized_params(node, workflow, scope):
         # Sandbox credentials/limits are obtained by the existing authenticated core client.
         params["executionUid"] = scope.uid
         params["executionSpaceId"] = scope.space_id
+        # Canvas/retained JSON only selects whether to use the sandbox. Its
+        # ownership and execution identifiers never authorize a callback.
+        sandbox = params.get("sandbox")
+        params["sandbox"] = {
+            "enabled": isinstance(sandbox, dict) and sandbox.get("enabled") is True,
+            "uid": scope.uid,
+            "spaceId": str(scope.space_id or ""),
+            "workflowId": str(workflow.flow_id),
+        }
         params["flowId"] = workflow.flow_id
     if "topN" in params:
         params["topN"] = str(params["topN"])

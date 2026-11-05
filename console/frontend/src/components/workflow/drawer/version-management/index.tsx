@@ -23,7 +23,11 @@ export default function VersionManagement({
   const setCanvasesDisabled = useFlowsManager(
     state => state.setCanvasesDisabled
   );
-  const initFlowData = useFlowsManager(state => state.initFlowData);
+  const adoptWorkflowDraft = useFlowsManager(state => state.adoptWorkflowDraft);
+  const flushCurrentFlow = useFlowsManager(state => state.flushCurrentFlow);
+  const setAdvancedConfiguration = useFlowsManager(
+    state => state.setAdvancedConfiguration
+  );
   const [versions, setVersions] = useState<VersionItem[]>([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -52,39 +56,69 @@ export default function VersionManagement({
       ignore = true;
     };
   }, [open, currentFlow?.flowId, page]);
-  const select = (version: VersionItem | null): void => {
-    const raw = version?.data || currentFlow?.originData || currentFlow?.data;
-    if (!raw) return;
-    const graph: WorkflowSnapshot = JSON.parse(raw);
-    useFlowStore.getState().setNodes(
-      graph.nodes.map(node => ({
-        ...node,
-        type: 'custom',
-        nodeType: node.id.split('::')[0] || node.nodeType,
-        selected: false,
-        data: { ...node.data, status: '' },
-      }))
-    );
-    useFlowStore.getState().setEdges(graph.edges);
-    setHistoryVersionData(version);
-    setHistoryVersion(!!version);
-    setCanvasesDisabled(!!version);
+  const select = async (version: VersionItem | null): Promise<boolean> => {
+    try {
+      await flushCurrentFlow();
+      const draft = useFlowsManager.getState().currentFlow;
+      const raw = version?.data || draft?.originData || draft?.data;
+      if (!raw) return false;
+      const graph: WorkflowSnapshot = JSON.parse(raw);
+      // Never expose a historical graph to synchronous draft autosave observers.
+      setHistoryVersion(true);
+      useFlowStore.getState().setNodes(
+        graph.nodes.map(node => ({
+          ...node,
+          type: 'custom',
+          nodeType: node.id.split('::')[0] || node.nodeType,
+          selected: false,
+          data: { ...node.data, status: '' },
+        }))
+      );
+      useFlowStore.getState().setEdges(graph.edges);
+      setHistoryVersionData(version);
+      setHistoryVersion(!!version);
+      setCanvasesDisabled(!!version);
+      setAdvancedConfiguration(false);
+      return true;
+    } catch {
+      message.error('切换版本前保存失败，请重试');
+      return false;
+    }
   };
   const restore = async (): Promise<void> => {
     if (!target || !currentFlow?.flowId || !currentFlow.id) return;
     setRestoring(true);
+    const wasDisabled = useFlowsManager.getState().canvasesDisabled;
+    setCanvasesDisabled(true);
+    setAdvancedConfiguration(false);
+    let committed = false;
     try {
-      await restoreVersion({
+      await flushCurrentFlow();
+      const restored = await restoreVersion({
         flowId: currentFlow.flowId,
         id: String(target.id),
       });
-      await initFlowData(currentFlow.id);
+      committed = true;
+      adoptWorkflowDraft(restored);
       setHistoryVersionData(null);
       setHistoryVersion(false);
       setCanvasesDisabled(false);
       setTarget(null);
     } catch {
-      message.error('版本恢复失败，请检查提示后重试');
+      if (!committed) setCanvasesDisabled(wasDisabled);
+      else
+        useFlowsManager.setState({
+          currentFlow: undefined,
+          draftLoaded: false,
+          canvasesDisabled: true,
+          isLoading: false,
+          initializationError: '版本已恢复，界面加载失败，请重新加载草稿',
+        });
+      message.error(
+        committed
+          ? '版本已恢复，请重新加载草稿后继续'
+          : '版本恢复失败，请检查提示后重试'
+      );
     } finally {
       setRestoring(false);
     }
@@ -99,7 +133,7 @@ export default function VersionManagement({
       rootStyle={{ top: 80, right: operationResultOpen ? 530 : 0 }}
     >
       {error && <Alert type="error" message={error} />}
-      <Button block className="mb-4" onClick={() => select(null)}>
+      <Button block className="mb-4" onClick={() => void select(null)}>
         返回当前草稿
       </Button>
       {!versions.length && !error && <Empty description="尚未保存版本" />}
@@ -116,10 +150,10 @@ export default function VersionManagement({
           <p>{version.versionNum}</p>
           <p className="text-gray-500 text-xs my-2">{version.createdTime}</p>
           <div className="flex gap-2">
-            <Button onClick={() => select(version)}>查看</Button>
+            <Button onClick={() => void select(version)}>查看</Button>
             <Button
-              onClick={() => {
-                select(version);
+              onClick={async () => {
+                if (!(await select(version))) return;
                 const state = useFlowsManager.getState();
                 state.setVersionManagement(false);
                 state.checkFlow();

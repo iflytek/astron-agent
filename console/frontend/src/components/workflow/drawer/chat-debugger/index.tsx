@@ -1,3 +1,4 @@
+import { useWorkflowExecutionView } from '../../hooks/use-workflow-execution-view';
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, message, Spin } from 'antd';
@@ -414,7 +415,7 @@ export function ChatDebuggerContent({
   setOpen,
 }: ChatDebuggerContentProps): React.ReactElement {
   const { t } = useTranslation();
-  const currentFlow = useFlowsManager(state => state.currentFlow);
+  const currentFlow = useWorkflowExecutionView();
   const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const userInput = useChatStore(state => state.userInput);
   const setUserInput = useChatStore(state => state.setUserInput);
@@ -445,12 +446,7 @@ export function ChatDebuggerContent({
     state => state.handleChatTypeChange
   );
   const { startNode, trialRun, talkAgentConfig } = useChatDebuggerContent({
-    currentFlow: historyVersion
-      ? ({
-          ...currentFlow,
-          flowConfig: historyVersionData?.flowConfig || '{}',
-        } as FlowType)
-      : currentFlow,
+    currentFlow,
   });
   const interactType = Number(talkAgentConfig?.interactType);
   const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;
@@ -489,23 +485,12 @@ export function ChatDebuggerContent({
       return;
     }
     if (open) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (
           sdkAvatarInfo.avatar_id !== talkAgentConfig?.sceneId &&
           talkAgentConfig?.sceneId
         ) {
           sdkAvatarInfo.avatar_id = talkAgentConfig?.sceneId;
-          // getSceneList().then(data => {
-          //   const list: SceneItem[] = Array.isArray(data)
-          //     ? (data as SceneItem[])
-          //     : [];
-          //   list.find(
-          //     (item: SceneItem) => item.sceneId === talkAgentConfig?.sceneId
-          //   )?.defaultVCN &&
-          //     (sdkTTSInfo.vcn =
-          //       list.find(
-          //         (item: SceneItem) => item.sceneId === talkAgentConfig?.sceneId
-          //       )?.defaultVCN || '');
           if (talkAgentConfig?.sceneId) {
             vmsInteractionCmpRef?.current?.instance &&
               vmsInteractionCmpRef?.current?.dispose();
@@ -518,23 +503,6 @@ export function ChatDebuggerContent({
               sdkTTSInfo,
             });
           setVmsInteractiveRefStatus('init');
-          //播放开场白
-          if (currentFlow?.advancedConfig) {
-            const advancedConfig = JSON.parse(currentFlow?.advancedConfig);
-            if (
-              advancedConfig?.prologue?.enabled &&
-              advancedConfig?.prologue?.prologueText
-            ) {
-              typeof advancedConfig?.prologue?.prologueText === 'string' &&
-                vmsInteractionCmpRef?.current?.instance?.writeText(
-                  advancedConfig?.prologue?.prologueText,
-                  {
-                    tts: sdkTTSInfo,
-                  }
-                );
-            }
-          }
-          // });
         } else {
           if (interactType !== 2) {
             vmsInteractionCmpRef?.current?.instance &&
@@ -542,8 +510,26 @@ export function ChatDebuggerContent({
             chatAnswer = '';
           }
         }
+        //播放开场白
+        if (interactType === 2 && currentFlow?.advancedConfig) {
+          const advancedConfig = JSON.parse(currentFlow?.advancedConfig);
+          if (
+            advancedConfig?.prologue?.enabled &&
+            advancedConfig?.prologue?.prologueText
+          ) {
+            typeof advancedConfig?.prologue?.prologueText === 'string' &&
+              vmsInteractionCmpRef?.current?.instance?.writeText(
+                advancedConfig?.prologue?.prologueText,
+                {
+                  tts: sdkTTSInfo,
+                }
+              );
+          }
+        }
       });
+      return () => clearTimeout(timer);
     }
+    return undefined;
   }, [
     currentFlow?.advancedConfig,
     handleChatTypeChange,

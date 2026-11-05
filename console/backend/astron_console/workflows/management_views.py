@@ -96,6 +96,9 @@ def payload_graph(payload, default=None):
 
 
 def update_fields(row, payload, scope):
+    # Older canvases use color and round-trip nullable metadata unchanged.
+    if "color" in payload and "avatarColor" not in payload:
+        payload = {**payload, "avatarColor": payload["color"]}
     for key, field, limit in [
         ("name", "name", 255),
         ("description", "description", 512),
@@ -104,8 +107,10 @@ def update_fields(row, payload, scope):
         ("edgeType", "edge_type", 255),
     ]:
         if key in payload:
+            if key != "name" and payload[key] is None:
+                continue
             setattr(row, field, text(payload, key, required=key == "name", limit=limit))
-    if "category" in payload:
+    if "category" in payload and payload["category"] is not None:
         row.category = number(payload["category"]) if payload["category"] else None
     if "data" in payload:
         row.data = json.dumps(
@@ -116,12 +121,22 @@ def update_fields(row, payload, scope):
             value = parsed(payload[key])
             if not isinstance(value, dict):
                 raise ValidationError(f"{key}必须为对象")
+            if key == "advancedConfig":
+                value = merge_config(parsed(row.advanced_config), value)
             setattr(row, field, json.dumps(clean_config(value), ensure_ascii=False))
     if "flowConfig" in payload:
         from astron_console.channels.workflow_media import save_draft
 
         save_draft(scope, row, payload["flowConfig"])
     row.update_time = timezone.now()
+
+
+def merge_config(previous, patch):
+    """Patch independent settings without dropping siblings; arrays/null replace."""
+    result = dict(previous) if isinstance(previous, dict) else {}
+    for key, value in patch.items():
+        result[key] = merge_config(result.get(key), value) if isinstance(value, dict) else value
+    return result
 
 
 def create_workflow(scope, payload):

@@ -17,6 +17,7 @@ class MetaDataInputs(BaseModel):
     run_id: str = Field(default="")
     node_id: str = Field(default="")
     agent_id: str = Field(default="", max_length=128)
+    execution_uid: str = Field(default="", max_length=128)
     space_id: int | None = Field(default=None, ge=1)
     source: str = Field(default="", max_length=64)
     session_id: str = Field(default="", max_length=128)

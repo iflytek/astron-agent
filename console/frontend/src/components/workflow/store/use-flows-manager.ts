@@ -7,8 +7,11 @@ import {
   removeTextNodeConfig,
   getFlowDetail,
   initFlowData,
+  adoptWorkflowDraft,
+  hasUnsavedCurrentFlow,
   autoSaveCurrentFlow,
   flushCurrentFlow,
+  saveAdvancedConfig,
   checkFlow,
   canPublishSetNot,
   setModels,
@@ -166,8 +169,12 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
     set({ workflowTracePanelOpen }),
   getFlowDetail: (): void => getFlowDetail(get),
   initFlowData: (id): Promise<void> => initFlowData(id, set),
+  adoptWorkflowDraft: (flow): void => adoptWorkflowDraft(flow, set),
+  hasUnsavedCurrentFlow: (): boolean => hasUnsavedCurrentFlow(get),
   autoSaveCurrentFlow: (): void => autoSaveCurrentFlow(get),
   flushCurrentFlow: (): Promise<void> => flushCurrentFlow(get),
+  saveAdvancedConfig: (patch, delayed, generation): void =>
+    saveAdvancedConfig(get, patch, delayed, generation),
   checkFlow: (): boolean => checkFlow(get),
   resetFlowsManager: (): void => {
     resetCurrentFlowSave();

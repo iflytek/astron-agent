@@ -214,6 +214,7 @@ def prepare_public(
         "max_loop_count": config.get("maxLoopCount", 5),
         "meta_data": {
             "caller": "console-published",
+            "execution_uid": scope.uid,
             "source": kind,
             "agent_id": str(agent.pk),
             "space_id": candidate.space_id,

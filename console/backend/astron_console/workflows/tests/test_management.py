@@ -105,6 +105,108 @@ class ManagementTests(TransactionTestCase):
         )
         self.assertEqual(result.json()["data"]["pageData"], [])
 
+    def test_canvas_nullable_metadata_and_color_round_trip(self):
+        self.workflow.avatar_icon = "retained-icon"
+        self.workflow.avatar_color = "#123456"
+        self.workflow.description = "retained description"
+        self.workflow.category = 7
+        self.workflow.save()
+        response = self.write(
+            "put",
+            "/workflow",
+            {
+                "id": self.workflow.pk,
+                "name": "renamed",
+                "avatarIcon": None,
+                "avatarColor": None,
+                "description": None,
+                "edgeType": None,
+                "category": None,
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()["data"]
+        self.assertEqual(
+            (data["name"], data["avatarIcon"], data["avatarColor"]),
+            ("renamed", "retained-icon", "#123456"),
+        )
+        self.assertEqual(data["description"], "retained description")
+        self.assertEqual(data["category"], 7)
+        response = self.write(
+            "put",
+            "/workflow",
+            {
+                "id": self.workflow.pk,
+                "avatarIcon": "",
+                "color": "#abcdef",
+                "category": "",
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.workflow.refresh_from_db()
+        self.assertEqual((self.workflow.avatar_icon, self.workflow.avatar_color), ("", "#abcdef"))
+        self.assertIsNone(self.workflow.category)
+        response = self.write(
+            "put",
+            "/workflow",
+            {
+                "id": self.workflow.pk,
+                "color": "ignored",
+                "avatarColor": "canonical",
+            },
+        )
+        self.assertEqual(response.json()["data"]["avatarColor"], "canonical")
+        self.assertEqual(
+            self.write(
+                "put",
+                "/workflow",
+                {
+                    "id": self.workflow.pk,
+                    "name": None,
+                },
+            ).status_code,
+            400,
+        )
+
+    def test_advanced_config_patches_preserve_siblings_arrays_and_explicit_clears(self):
+        patches = [
+            {
+                "textToSpeech": {"enabled": False, "vcn_cn": "saved-voice"},
+                "prologue": {"enabled": True, "inputExample": ["first", "second"]},
+                "chatBackground": {"enabled": True, "info": {"name": "bg", "url": "old"}},
+                "future": {"keep": 1},
+            },
+            {"prologue": {"prologueText": "welcome"}},
+            {"textToSpeech": {"enabled": True}},
+            {"prologue": {"inputExample": ["replacement"]}},
+            {"prologue": {"prologueText": ""}, "chatBackground": {"info": None}},
+            {},
+        ]
+        for patch in patches:
+            response = self.write(
+                "put",
+                "/workflow",
+                {
+                    "id": self.workflow.pk,
+                    "advancedConfig": patch,
+                },
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+        expected = {
+            "textToSpeech": {"enabled": True, "vcn_cn": "saved-voice"},
+            "prologue": {"enabled": True, "inputExample": ["replacement"], "prologueText": ""},
+            "chatBackground": {"enabled": True, "info": None},
+            "future": {"keep": 1},
+        }
+        response = self.client.get(f"/workflow?id={self.workflow.pk}")
+        self.assertEqual(response.json()["data"]["advancedConfig"], expected)
+        cloned = self.client.get(f"/workflow/clone?id={self.workflow.pk}")
+        self.assertEqual(cloned.json()["data"]["advancedConfig"], expected)
+        created = self.write("post", "/workflow/version", {"flowId": self.workflow.flow_id})
+        self.assertEqual(created.status_code, 200, created.content)
+        version = WorkflowVersion.objects.get(pk=created.json()["data"]["id"])
+        self.assertEqual(json.loads(version.advanced_config), expected)
+
     def test_plain_start_output_does_not_become_a_file_parameter(self):
         protocol = to_protocol(starter_graph(), self.workflow, self.scope)
         output = protocol["data"]["nodes"][0]["data"]["outputs"][0]

@@ -1,3 +1,5 @@
+import type { FlowType } from '@/components/workflow/types';
+import { normalizeWorkflowResponse } from './workflow-response';
 import type {
   VersionItem,
   FeedbackItem,
@@ -57,8 +59,10 @@ export async function getVersionList(params: {
 export async function restoreVersion(params: {
   flowId: string;
   id: string;
-}): Promise<unknown> {
-  return await http.post('/workflow/version/restore', params);
+}): Promise<FlowType> {
+  return normalizeWorkflowResponse(
+    await http.post<FlowType, FlowType>('/workflow/version/restore', params)
+  );
 }
 // 删除版本
 export async function delVersion(id: string): Promise<unknown> {

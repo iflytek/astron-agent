@@ -141,7 +141,7 @@ class PublicFileTests(TestCase):
             publication, "caller", {"inputs": {"AGENT_USER_INPUT": "file"}}
         )
         response = self.client.post(
-            "/workflow/artifacts/internal-upload",
+            "/workflow/artifacts/console-upload",
             {
                 "file": SimpleUploadedFile("output.txt", b"private output"),
                 "uid": "caller",
@@ -149,6 +149,7 @@ class PublicFileTests(TestCase):
                 "workflowId": workflow.pk,
                 "flowId": workflow.flow_id,
                 "runId": run.pk,
+                "rootId": run.context_id,
                 "nodeId": code_id,
                 "source": "code_sandbox",
             },
@@ -219,3 +220,129 @@ class PublicFileTests(TestCase):
         for row in rows[:2]:
             self.assertEqual(self.client.get(f"/workflow/artifacts/{row.pk}").status_code, 404)
             self.assertEqual(self.client.delete(f"/workflow/artifacts/{row.pk}").status_code, 404)
+
+    @patch("astron_console.publishing.services.validate_graph")
+    @patch("astron_console.knowledge.storage.put")
+    def test_modern_artifact_callback_cannot_forge_or_downgrade_execution(self, put, validate):
+        import json
+
+        from astron_console.knowledge.models import Artifact
+        from astron_console.workflows.lifecycle import claim_run, core_payload, prepare_run
+        from astron_console.workflows.management_views import create_workflow
+        from astron_console.workflows.models import WorkflowRun
+
+        workflow = create_workflow(self.scope, {"name": "artifact identities"})
+        graph = json.loads(workflow.data)
+        node_id = "ifly-code::artifact"
+        graph["nodes"].append(
+            {
+                "id": node_id,
+                "data": {
+                    "nodeParam": {
+                        "code": "def main(): return {}",
+                        "sandbox": {
+                            "enabled": True,
+                            "uid": "forged",
+                            "spaceId": "999",
+                            "runId": "trace-sid",
+                            "nodeId": "forged",
+                            "workflowId": "forged",
+                            "console": False,
+                        },
+                    }
+                },
+            }
+        )
+        workflow.data = json.dumps(graph)
+        workflow.save()
+        bot = services.bind_workflow(self.scope, workflow.pk)
+        publication = Publication.objects.get(
+            pk=services.submit(self.scope, bot.pk, "MARKET")["publicationId"]
+        )
+        run, grant, _ = public_runtime.prepare_public(publication, "caller", {"inputs": {}})
+        payload = core_payload(run)
+        sandbox = next(n for n in payload["protocol"]["data"]["nodes"] if n["id"] == node_id)[
+            "data"
+        ]["nodeParam"]["sandbox"]
+        self.assertEqual(
+            sandbox,
+            {
+                "enabled": True,
+                "console": True,
+                "uid": "publisher",
+                "spaceId": "",
+                "workflowId": workflow.flow_id,
+            },
+        )
+        self.assertEqual(payload["chat"]["uid"], "caller")
+        self.assertEqual(
+            payload["chat"]["ext"]["console_context"], {"run_id": run.pk, "root_id": run.context_id}
+        )
+        values = {
+            "uid": "caller",
+            "spaceId": "",
+            "flowId": workflow.flow_id,
+            "runId": run.pk,
+            "rootId": run.context_id,
+            "nodeId": node_id,
+            "source": "code_sandbox",
+        }
+
+        def upload(values, path="/workflow/artifacts/console-upload"):
+            return self.client.post(
+                path,
+                {**values, "file": SimpleUploadedFile("output.txt", b"private")},
+                HTTP_X_SKILL_SANDBOX_ARTIFACT_TOKEN="token" * 10,
+            )
+
+        for key in ("runId", "rootId", "nodeId", "flowId", "uid"):
+            for value in ("", "forged"):
+                with self.subTest(key=key, value=value):
+                    response = upload({**values, key: value})
+                    self.assertEqual(response.status_code, 403, response.content)
+        self.assertEqual(upload({**values, "uid": "publisher"}).status_code, 403)
+        self.assertEqual(upload({**values, "spaceId": "99"}).status_code, 403)
+        self.assertEqual(upload(values, "/workflow/artifacts/internal-upload").status_code, 403)
+        put.assert_not_called()
+        self.assertFalse(Artifact.objects.exists())
+        response = upload(values)
+        self.assertEqual(response.status_code, 200, response.content)
+        artifact = Artifact.objects.get()
+        self.assertEqual((artifact.uid, artifact.run_id), ("caller", run.pk))
+
+        child_workflow = create_workflow(self.scope, {"name": "artifact child", "data": graph})
+        child = WorkflowRun.objects.create(
+            workflow_id=child_workflow.pk,
+            uid="publisher",
+            context_id=run.context_id,
+            parent_run_id=run.pk,
+            graph=graph,
+            status="running",
+        )
+        response = upload({**values, "runId": child.pk, "flowId": child_workflow.flow_id})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(Artifact.objects.get(run_id=child.pk).uid, "caller")
+
+        private = prepare_run(self.scope, workflow, {})
+        claim_run(private)
+        response = upload(
+            {**values, "runId": private.pk, "rootId": private.context_id, "uid": "publisher"}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(Artifact.objects.get(run_id=private.pk).uid, "publisher")
+        run.status = "completed"
+        run.save(update_fields=["status"])
+        self.assertEqual(upload(values).status_code, 403)
+        publication.active = False
+        publication.save(update_fields=["active"])
+        self.assertEqual(
+            upload({**values, "runId": child.pk, "flowId": child_workflow.flow_id}).status_code, 404
+        )
+
+        # True legacy callbacks have no durable Console run or root; their old
+        # service-token/owner contract still works even before dialog creation.
+        legacy = {**values, "runId": "legacy-inflight-sid", "uid": "publisher"}
+        legacy.pop("rootId")
+        response = upload(legacy, "/workflow/artifacts/internal-upload")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(Artifact.objects.get(run_id="legacy-inflight-sid").uid, "publisher")

@@ -101,7 +101,18 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 "nodeId",
             ):
                 sandbox.pop(untrusted_key, None)
-            sandbox["uid"] = self.inputs.uid
+            context = self.inputs.meta_data.console_context
+            if context and any(
+                not isinstance(context.get(key), str) or not context[key]
+                for key in ("run_id", "root_id")
+            ):
+                raise ValueError("Console artifact execution context is incomplete")
+            if context and context["run_id"] != self.inputs.meta_data.run_id:
+                raise ValueError("Console artifact run identity does not match")
+            sandbox["console"] = bool(context)
+            sandbox["root_id"] = context.get("root_id", "")
+            sandbox["uid"] = self.inputs.meta_data.execution_uid or self.inputs.uid
+            sandbox["artifact_uid"] = self.inputs.uid
             sandbox["workflow_id"] = self.inputs.meta_data.workflow_id
             sandbox["run_id"] = (
                 self.inputs.meta_data.run_id or self.inputs.meta_data.caller_sid
@@ -109,8 +120,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             sandbox["node_id"] = self.inputs.meta_data.node_id
             sandbox["agent_id"] = self.inputs.meta_data.agent_id
             sandbox["session_id"] = self.inputs.meta_data.session_id
-            if self.inputs.meta_data.agent_id:
-                # Console owns the standalone identity; never trust Skill JSON.
+            if context or self.inputs.meta_data.agent_id:
+                # Console owns the execution scope; never trust Skill JSON.
                 sandbox["space_id"] = self.inputs.meta_data.space_id
                 sandbox["spaceId"] = self.inputs.meta_data.space_id
 

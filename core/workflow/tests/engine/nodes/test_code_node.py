@@ -60,6 +60,7 @@ async def test_code_node_executes_zero_parameter_main(
         sandbox={"enabled": True, "uid": "user-1"},
     )
     variable_pool = MagicMock()
+    variable_pool.system_params.get.return_value = {}
     variable_pool.get_output_schema.return_value = {"type": "string"}
     span = MagicMock()
     span.add_info_events_async = AsyncMock()

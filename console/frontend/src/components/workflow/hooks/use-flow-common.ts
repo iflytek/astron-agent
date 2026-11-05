@@ -5,6 +5,7 @@ import { useMemoizedFn } from 'ahooks';
 import { useLocation } from 'react-router-dom';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { message } from 'antd';
+import { shouldShowRequestError } from '@/utils/http-error';
 import useUserStore from '@/store/user-store';
 import {
   generateKnowledgeOutput,
@@ -719,10 +720,17 @@ export const useFlowCommon = (): UseFlowCommonReturn => {
         if (!isCurrent()) return;
       }
       setOpenOperationResult(true);
-    } catch {
-      // Business errors (including 8129) are displayed by the shared Axios
-      // interceptor. Never leave the chat debugger open after a failed guard.
-      if (isCurrent()) setOpenOperationResult(false);
+    } catch (error) {
+      // Response errors are displayed by HTTP; local/network save failures
+      // also need visible feedback when the execution barrier rejects.
+      if (isCurrent()) {
+        setOpenOperationResult(false);
+        if (shouldShowRequestError(error)) {
+          message.error(
+            error instanceof Error ? error.message : '工作流保存失败，请重试'
+          );
+        }
+      }
     } finally {
       debuggerPreflightGuardRef.current.finish(request);
     }
