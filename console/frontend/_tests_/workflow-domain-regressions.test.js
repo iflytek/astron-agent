@@ -326,3 +326,57 @@ test('iterator removal uses the previous output index and preserves sibling inpu
     ]
   );
 });
+
+test('published Agent references accept API-created query/input bindings without an inline template', () => {
+  for (const name of ['query', 'input']) {
+    const node = {
+      nodeType: 'agent',
+      data: {
+        nodeParam: {
+          agentId: 158,
+          instruction: { queryErrMsg: 'stale error' },
+        },
+        inputs: [
+          {
+            id: 'query',
+            name,
+            schema: {
+              type: 'string',
+              value: {
+                type: 'ref',
+                content: {
+                  nodeId: 'node-start::start',
+                  name: 'AGENT_USER_INPUT',
+                },
+              },
+            },
+          },
+        ],
+        outputs: [],
+      },
+    };
+    assert.equal(utilities.checkedNodeParams(node), true);
+    assert.equal(node.data.nodeParam.instruction.queryErrMsg, '');
+    assert.equal(utilities.checkedNodeInputData(node.data.inputs, node), true);
+    node.data.inputs[0].schema.value.content = {};
+    assert.equal(utilities.checkedNodeInputData(node.data.inputs, node), false);
+    node.data.inputs = [];
+    assert.equal(utilities.checkedNodeParams(node), false);
+  }
+});
+
+test('inline Agents still require their query template and model configuration', () => {
+  const node = {
+    nodeType: 'agent',
+    data: {
+      nodeParam: { plugin: { mcpServerUrls: [] } },
+      inputs: [{ name: 'query' }],
+      outputs: [],
+    },
+  };
+  assert.equal(utilities.checkedNodeParams(node), false);
+  node.data.nodeParam.instruction.query = '{{query}}';
+  assert.equal(utilities.checkedNodeParams(node), false);
+  node.data.nodeParam.serviceId = 'configured-model';
+  assert.equal(utilities.checkedNodeParams(node), true);
+});

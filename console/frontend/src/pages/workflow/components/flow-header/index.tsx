@@ -7,6 +7,8 @@ import VirtualConfig from '@/components/virtual-config-modal';
 import dayjs from 'dayjs';
 import { isJSON } from '@/utils';
 import { saveFlowAPI } from '@/services/flow';
+import { message } from 'antd';
+import { shouldShowRequestError } from '@/utils/http-error';
 
 import arrowLeft from '@/assets/imgs/knowledge/workflow-back.png';
 import flowEditIcon from '@/assets/imgs/workflow/flow-edit-icon.png';
@@ -140,7 +142,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       : {};
   }, [currentFlow?.flowConfig]);
 
-  const handleEditSumbit = (fields: any) => {
+  const handleEditSumbit = (fields: any): Promise<void> => {
     const config = {
       ...fields.talkAgentConfig,
     };
@@ -153,23 +155,37 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       category: fields.botType,
       flowConfig: config,
     };
-    const advancedConfig = JSON.parse(currentFlow?.advancedConfig);
-    saveFlowAPI(params).then(data => {
-      setModalType('');
-      setCurrentFlow((currentFlow: any) => ({
-        ...currentFlow,
-        name: fields.name,
-        description: fields.botDesc,
-        updateTime: currentFlow.updateTime,
-        avatarIcon: fields.avatar,
-        category: fields.botType,
-        flowConfig: JSON.stringify(config),
-        advancedConfig: JSON.stringify({
-          ...advancedConfig,
-          textToSpeech: { ...advancedConfig.textToSpeech, vcn_cn: config.vcn },
-        }),
-      }));
-    });
+    return saveFlowAPI({
+      ...params,
+      ...(typeof config.vcn === 'string'
+        ? { advancedConfig: { textToSpeech: { vcn_cn: config.vcn } } }
+        : {}),
+    })
+      .then(data => {
+        setModalType('');
+        setCurrentFlow((previous: any) =>
+          previous?.id === data.id
+            ? {
+                ...previous,
+                name: data.name,
+                description: data.description,
+                updateTime: data.updateTime,
+                avatarIcon: data.avatarIcon,
+                category: data.category,
+                flowConfig: data.flowConfig,
+                advancedConfig: data.advancedConfig,
+              }
+            : previous
+        );
+      })
+      .catch(error => {
+        // Leave the form open; never show a local-only voice as saved.
+        if (shouldShowRequestError(error)) {
+          message.error(
+            error instanceof Error ? error.message : '工作流保存失败'
+          );
+        }
+      });
   };
 
   useEffect(() => {

@@ -2,7 +2,7 @@
 {{- $consoleApiPath := "/console-api(/|$)(.*)" -}}
 {{- $agentsApiPath := "/console-api/(agents(/|$).*)" -}}
 {{- $gatewayAuthDenyPath := "/console-api/internal/gateway/auth/workflow(/|$)(.*)" -}}
-{{- $artifactUploadDenyPath := "/console-api/workflow/artifacts/internal-upload(/|$)(.*)" -}}
+{{- $artifactUploadDenyPath := "/console-api/workflow/artifacts/(internal|console)-upload(/|$)(.*)" -}}
 {{- $runtimeConfigDenyPath := "/console-api/skill-sandbox/internal-runtime-config(/|$)(.*)" -}}
 {{- $workflowInternalDenyPath := "/console-api/workflow/internal(/|$)(.*)" -}}
 {{- $agentResolveDenyPath := "/console-api/agents/internal/resolve(/|$)(.*)" -}}

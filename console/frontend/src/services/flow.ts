@@ -15,6 +15,12 @@ import type {
   WorkflowModelsResponse,
 } from '@/types/workflow-api';
 import http from '@/utils/http';
+import { normalizeWorkflowResponse } from './workflow-response';
+import { trackWorkflowSave } from './workflow-save-tracker';
+export {
+  waitForWorkflowSaves,
+  hasPendingWorkflowSaves,
+} from './workflow-save-tracker';
 export {
   getWorkflowImportEntryStatus,
   getWorkflowImportDependencyPresentation,
@@ -34,7 +40,10 @@ export {
 export async function listFlows(
   params: WorkflowListParams
 ): Promise<WorkflowPage> {
-  return http.get<WorkflowPage, WorkflowPage>('/workflow/list', { params });
+  const page = await http.get<WorkflowPage, WorkflowPage>('/workflow/list', {
+    params,
+  });
+  return { ...page, pageData: page.pageData.map(normalizeWorkflowResponse) };
 }
 
 export async function getFlowInputsInfo(
@@ -53,7 +62,9 @@ export async function deleteFlowAPI(id: number): Promise<unknown> {
 }
 
 export async function getFlowDetailAPI(id: string): Promise<FlowType> {
-  return http.get<FlowType, FlowType>(`/workflow?id=${id}`);
+  return normalizeWorkflowResponse(
+    await http.get<FlowType, FlowType>(`/workflow?id=${id}`)
+  );
 }
 
 export async function getFlowModelList(
@@ -66,11 +77,22 @@ export async function getFlowModelList(
 }
 
 export async function copyFlowAPI(id: string | number): Promise<FlowType> {
-  return http.get<FlowType, FlowType>(`/workflow/clone?id=${id}`);
+  return normalizeWorkflowResponse(
+    await http.get<FlowType, FlowType>(`/workflow/clone?id=${id}`)
+  );
 }
 
 export async function saveFlowAPI(params: unknown): Promise<FlowType> {
-  return http.put<FlowType, FlowType>('/workflow', params);
+  const id =
+    params && typeof params === 'object' && 'id' in params
+      ? params.id
+      : undefined;
+  return trackWorkflowSave(
+    id,
+    http
+      .put<FlowType, FlowType>('/workflow', params)
+      .then(normalizeWorkflowResponse)
+  );
 }
 
 export async function buildFlowAPI(params: unknown): Promise<unknown> {
@@ -273,7 +295,9 @@ export async function getEvaluateStatus(params: unknown): Promise<unknown> {
 export async function getLatestWorkflow(params: {
   flowId: string;
 }): Promise<FlowType> {
-  return http.get<FlowType, FlowType>('/workflow/get-max-version', { params });
+  return normalizeWorkflowResponse(
+    await http.get<FlowType, FlowType>('/workflow/get-max-version', { params })
+  );
 }
 
 //workflow上传流式图片接口

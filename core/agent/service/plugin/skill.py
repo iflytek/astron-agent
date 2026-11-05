@@ -102,6 +102,9 @@ class SkillPluginFactory(BaseModel):
             return None
         return SkillSandboxConfig(
             enabled=bool(raw_config.get("enabled")),
+            console=raw_config.get("console") is True,
+            root_id=str(raw_config.get("root_id") or ""),
+            artifact_uid=str(raw_config.get("artifact_uid") or ""),
             workflow_id=str(
                 raw_config.get("workflow_id")
                 or raw_config.get("workflowId")

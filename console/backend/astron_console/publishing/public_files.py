@@ -174,7 +174,7 @@ def workflow_download(request, artifact_id):
 
     row = Artifact.objects.filter(pk=artifact_id, deleted=False).first()
     grant = workflow_grant(row.run_id) if row else None
-    if grant is None or row.uid != grant.caller_uid:
+    if grant is None or row.uid != grant.caller_uid or row.space_id != grant.caller_space_id:
         raise Http404
     check_grant(grant)
     authorize_caller(request, grant)
@@ -188,32 +188,43 @@ def workflow_download(request, artifact_id):
     )
 
 
-def workflow_upload_identity(values):
+def workflow_upload_identity(values, *, console=False):
+    """Modern callbacks cannot downgrade into the retained legacy upload route."""
+    from astron_console.workflows.authorization import EXECUTE, active_scope, get_workflow
+    from astron_console.workflows.execution_context import checked_root, graph_nodes
     from astron_console.workflows.models import WorkflowRun
 
-    from .services import candidate_scope
-
-    grant = workflow_grant(values.get("runId"))
-    if grant is None:
+    run_id = values.get("runId")
+    run = WorkflowRun.objects.filter(pk=run_id).first() if run_id else None
+    if not console:
+        if run is not None or values.get("rootId"):
+            raise PermissionDenied
+        # Old Core callbacks predate durable Console runs. Keep their existing
+        # service-token + workflow-owner boundary, including in-flight runs.
         return None
-    check_grant(grant)
-    from astron_console.workflows.execution_context import checked_root
-
-    checked_root(grant.root_id)
-    run = WorkflowRun.objects.filter(
-        pk=values.get("runId"),
-        context_id=grant.root_id,
-        status__in=["running", "resuming"],
-        cancel_requested=False,
-    ).first()
-    if run is None:
-        raise PermissionDenied
-    if grant.caller_uid != values.get("uid") or str(grant.candidate.space_id or "") != str(
-        values.get("spaceId") or ""
+    if (
+        run is None
+        or not values.get("rootId")
+        or values["rootId"] != run.context_id
+        or run.status not in {"running", "resuming"}
+        or run.cancel_requested
     ):
         raise PermissionDenied
+    checked_root(run.context_id)
+    scope = active_scope(run.uid, run.space_id)
+    workflow = get_workflow(scope, run.workflow_id, EXECUTE)
+    if str(values.get("flowId") or "") != str(workflow.flow_id):
+        raise PermissionDenied
+    grant = (
+        PublicRunGrant.objects.select_related("candidate").filter(root_id=run.context_id).first()
+    )
+    if grant:
+        check_grant(grant)
+    caller = grant.caller_uid if grant else run.uid
+    if caller != values.get("uid") or str(run.space_id or "") != str(values.get("spaceId") or ""):
+        raise PermissionDenied
     node = next(
-        (node for node in run.graph.get("nodes", []) if node.get("id") == values.get("nodeId")),
+        (node for node in graph_nodes(run.graph) if node.get("id") == values.get("nodeId")),
         None,
     )
     if node is None:
@@ -237,7 +248,7 @@ def workflow_upload_identity(values):
             config = inline_definition(node)
         if str(values.get("skillId", "")) not in {str(x) for x in config.get("skills", [])}:
             raise PermissionDenied
-    return grant, candidate_scope(grant.candidate), run
+    return grant, scope, run
 
 
 def workflow_grant(run_id):

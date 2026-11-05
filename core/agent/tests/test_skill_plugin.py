@@ -1131,8 +1131,9 @@ class TestSkillPluginFactory:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("standalone", [False, True])
+    @pytest.mark.parametrize("modern", [False, True])
     async def test_artifact_upload_uses_authoritative_execution_identity(
-        self, monkeypatch: pytest.MonkeyPatch, standalone: bool
+        self, monkeypatch: pytest.MonkeyPatch, standalone: bool, modern: bool
     ) -> None:
         """Test numeric flow ids are not sent as workflow database ids."""
         fields: list[tuple[str, Any]] = []
@@ -1192,7 +1193,12 @@ class TestSkillPluginFactory:
                 workflow_id="" if standalone else "7460522478717390848",
                 agent_id="42" if standalone else "",
                 session_id="session" if standalone else "",
-                uid="user-1",
+                uid="owner",
+                artifact_uid="caller",
+                console=modern,
+                root_id="root" if modern else "",
+                run_id="run",
+                node_id="agent::one",
             ),
             "skill-1",
         )
@@ -1210,8 +1216,14 @@ class TestSkillPluginFactory:
         assert request_kwargs["url"] == (
             "http://console-hub:8080/agents/artifacts/internal-upload"
             if standalone
-            else "http://console-hub:8080/workflow/artifacts/internal-upload"
+            else (
+                "http://console-hub:8080/workflow/artifacts/console-upload"
+                if modern
+                else "http://console-hub:8080/workflow/artifacts/internal-upload"
+            )
         )
+        assert ("uid", "caller") in fields
+        assert (("rootId", "root") in fields) is (modern and not standalone)
         assert request_kwargs["allow_redirects"] is False
 
     @pytest.mark.asyncio

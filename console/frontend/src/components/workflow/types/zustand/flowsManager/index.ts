@@ -1,3 +1,4 @@
+import type { AdvancedConfigUpdate } from '../../drawer/advanced-config';
 import type { VersionItem } from '../../drawer/chat-debugger';
 import type { ParameterProperty } from '../../domain';
 import type {
@@ -176,6 +177,16 @@ export type FlowsManagerStoreType = {
   addTextNodeConfig: (params: unknown) => Promise<void>;
   autoSaveCurrentFlow: () => void;
   flushCurrentFlow: () => Promise<void>;
+  draftSaveGeneration: number;
+  draftLoaded: boolean;
+  initializationError: string;
+  adoptWorkflowDraft: (flow: FlowType) => void;
+  hasUnsavedCurrentFlow: () => boolean;
+  saveAdvancedConfig: (
+    patch: AdvancedConfigUpdate,
+    delayed: boolean,
+    generation: number
+  ) => void;
   canPublishSetNot: () => void;
   checkFlow: () => boolean;
   canPublish: boolean;

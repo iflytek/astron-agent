@@ -503,7 +503,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     getVcnList()
       .then((res: VcnItem[]) => {
         setOfficialVcnList(res);
-        setSelectedVoice(res[0]?.voiceType || '');
+        setSelectedVoice(current => current || res[0]?.voiceType || '');
       })
       .catch(err => {});
     getAvatarList();

@@ -1,6 +1,7 @@
+import { useWorkflowSaveNavigation } from '@/components/workflow/hooks/use-workflow-save-navigation';
 import type { WorkflowSnapshot } from '@/components/workflow/types/domain';
 import React, { useEffect, memo } from 'react';
-import { Button, Spin } from 'antd';
+import { Alert, Button, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useMemoizedFn } from 'ahooks';
 import { useParams, useLocation } from 'react-router-dom';
@@ -22,10 +23,14 @@ import chatResultClose from '@/assets/imgs/workflow/chat-result-close.png';
 // ========= 组件 =========
 const Index = (): React.ReactElement => {
   const { t } = useTranslation();
+  useWorkflowSaveNavigation();
   const { id } = useParams();
   const location = useLocation();
   // store hooks
   const currentFlow = useFlowsManager(state => state.currentFlow);
+  const initializationError = useFlowsManager(
+    state => state.initializationError
+  );
   const setModels = useFlowsManager(state => state.setModels);
   const setCanvasesDisabled = useFlowsManager(
     state => state.setCanvasesDisabled
@@ -55,7 +60,7 @@ const Index = (): React.ReactElement => {
   const historyVersion = useFlowsManager(state => state.historyVersion);
 
   useEffect(() => {
-    id && initFlowData(id);
+    if (id) void initFlowData(id).catch(() => undefined);
   }, [id, location]);
 
   useEffect(() => {
@@ -91,7 +96,6 @@ const Index = (): React.ReactElement => {
 
   // 初始化清理
   useEffect(() => {
-    setCanvasesDisabled(false);
     return (): void => {
       setNodes([]);
     };
@@ -122,6 +126,22 @@ const Index = (): React.ReactElement => {
 
   return (
     <div className="flex flex-col w-full h-full flow-container">
+      {initializationError && (
+        <Alert
+          type="error"
+          showIcon
+          message={initializationError}
+          action={
+            <Button
+              onClick={() => {
+                if (id) void initFlowData(id).catch(() => undefined);
+              }}
+            >
+              重新加载
+            </Button>
+          }
+        />
+      )}
       <FlowModal />
       <FlowDrawer />
       <CommunityQRCode />

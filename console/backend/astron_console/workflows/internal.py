@@ -97,6 +97,7 @@ def agent_runtime(request):
         "max_loop_count": config.get("maxLoopCount", 5),
         "meta_data": {
             "caller": "workflow-agent-node",
+            "execution_uid": scope.uid,
             "source": "workflow",
             "agent_id": str(agent.pk) if agent else "",
             "space_id": scope.space_id,

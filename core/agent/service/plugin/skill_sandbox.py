@@ -540,6 +540,9 @@ class SkillSandboxRunner(BaseModel):
 
 class SkillSandboxConfig(BaseModel):
     enabled: bool = False
+    console: bool = False
+    root_id: str = ""
+    artifact_uid: str = ""
     agent_id: str = ""
     session_id: str = ""
     workflow_id: str = ""
@@ -833,6 +836,23 @@ class ArtifactUploader:
             return False
         return True
 
+    def _workflow_target(self, url: str, form: aiohttp.FormData) -> str:
+        if not self.config.console:
+            return url
+        if not all(
+            (
+                self.config.root_id,
+                self.config.run_id,
+                self.config.node_id,
+                self.config.artifact_uid,
+            )
+        ):
+            raise RuntimeError(SANDBOX_RUNTIME_CONFIG_ERROR)
+        form.add_field("rootId", self.config.root_id)
+        return (
+            urlsplit(url)._replace(path="/workflow/artifacts/console-upload").geturl()
+        )
+
     async def upload(
         self, file_name: str, file_bytes: bytes, content_type: str
     ) -> dict[str, Any]:
@@ -848,8 +868,9 @@ class ArtifactUploader:
             if self.config.session_id:
                 form.add_field("sessionId", self.config.session_id)
         else:
+            artifact_upload_url = self._workflow_target(artifact_upload_url, form)
             form.add_field("flowId", self.config.workflow_id)
-        form.add_field("uid", self.config.uid)
+        form.add_field("uid", self.config.artifact_uid or self.config.uid)
         if self.config.space_id:
             form.add_field("spaceId", self.config.space_id)
         if self.config.run_id:

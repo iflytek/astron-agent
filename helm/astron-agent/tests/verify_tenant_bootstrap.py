@@ -295,6 +295,7 @@ PUBLIC_API_DENIED_PATHS = (
 CONSOLE_INTERNAL_PATHS = (
     "/console-api/internal/gateway/auth/workflow",
     "/console-api/workflow/artifacts/internal-upload",
+    "/console-api/workflow/artifacts/console-upload",
     "/console-api/skill-sandbox/internal-runtime-config",
     "/console-api/agents/internal/resolve",
     "/console-api/agents/artifacts/internal-upload",

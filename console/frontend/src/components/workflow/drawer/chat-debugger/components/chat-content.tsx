@@ -1,3 +1,4 @@
+import { useWorkflowExecutionView } from '../../../hooks/use-workflow-execution-view';
 import useWorkflowChatStore from '@/components/workflow/store/use-chat-store';
 import React, {
   useEffect,
@@ -799,7 +800,7 @@ const useChatContent = ({
   chatList,
   setChatList,
 }: Pick<ChatContentProps, 'chatList' | 'setChatList'>) => {
-  const currentFlow = useFlowsManager(state => state.currentFlow);
+  const currentFlow = useWorkflowExecutionView();
   const [sid, setSid] = useState<string | undefined>('');
   const advancedConfig = useMemo<ChatContentAdvancedConfig>(() => {
     if (currentFlow?.advancedConfig && isJSON(currentFlow.advancedConfig)) {

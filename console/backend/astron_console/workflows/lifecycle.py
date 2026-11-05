@@ -185,6 +185,9 @@ def core_payload(run):
     from .protocol import to_protocol
 
     protocol = to_protocol(run.graph, workflow, scope)
+    for node in protocol["data"]["nodes"]:
+        if node["id"].startswith("ifly-code::"):
+            node["data"]["nodeParam"]["sandbox"]["console"] = True
     from astron_console.publishing.runtime_authorization import caller_uid
 
     subject = caller_uid(checked_root(run.context_id))

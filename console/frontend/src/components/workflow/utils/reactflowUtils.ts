@@ -578,7 +578,15 @@ function validateAgentParams(currentCheckNode: WorkflowNode): boolean {
   }
 
   currentCheckNode.data.nodeParam.instruction ??= {};
-  if (!currentCheckNode.data.nodeParam.instruction.query?.trim()) {
+  const referencedInput =
+    currentCheckNode.data.nodeParam.agentId &&
+    currentCheckNode.data.inputs.some(input =>
+      ['query', 'input'].includes(input.name)
+    );
+  if (
+    !currentCheckNode.data.nodeParam.instruction.query?.trim() &&
+    !referencedInput
+  ) {
     currentCheckNode.data.nodeParam.instruction.queryErrMsg = i18next.t(
       'workflow.nodes.validation.valueCannotBeEmpty'
     );

@@ -3,8 +3,6 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Drawer, Switch, Input, Upload, message } from 'antd';
 import type { UploadProps as AntdUploadProps, UploadFile } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
-import { saveFlowAPI } from '@/services/flow';
-import { debounce, cloneDeep } from 'lodash';
 import { isJSON } from '@/utils';
 import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 import OpeningRemarks from './opening-remarks';
@@ -243,6 +241,10 @@ const CharacterVoice: React.FC<CharacterVoiceProps> = ({
   });
   const [mySpeaker, setMySpeaker] = useState<MyVCNItem[]>([]);
 
+  useEffect(() => {
+    setBotCreateActiveV({ cn: advancedConfig.textToSpeech.vcn_cn || '' });
+  }, [advancedConfig.textToSpeech.vcn_cn]);
+
   const handleVoiceChange = (voice: { cn: string }): void => {
     setBotCreateActiveV(voice);
     handleAdvancedConfigChange(() => {
@@ -256,7 +258,7 @@ const CharacterVoice: React.FC<CharacterVoiceProps> = ({
   };
 
   // 渲染发音人显示
-  const renderBotVcn = () => {
+  const renderBotVcn = (): React.ReactElement => {
     const vcnObj =
       vcnList.find((item: VcnItem) => item.voiceType === botCreateActiveV.cn) ||
       mySpeaker.find((item: MyVCNItem) => item.assetId === botCreateActiveV.cn);
@@ -469,27 +471,30 @@ const useAdvancedConfiguration = (): UseAdvancedConfigurationReturn => {
     const configStr = currentFlow?.advancedConfig as string | undefined;
     if (configStr && typeof configStr === 'string' && isJSON(configStr)) {
       const parsedConfig = JSON.parse(configStr);
-      if (parsedConfig?.chatBackground?.info) {
-        setChatBackgroundInfo(parsedConfig.chatBackground.info);
-      }
       return {
+        ...parsedConfig,
         needGuide: parsedConfig?.needGuide,
         prologue: {
+          ...parsedConfig?.prologue,
           enabled: parsedConfig?.prologue?.enabled ?? true,
           prologueText: parsedConfig?.prologue?.prologueText || '',
           inputExample: parsedConfig?.prologue?.inputExample || [''],
         },
         feedback: {
+          ...parsedConfig?.feedback,
           enabled: parsedConfig?.feedback?.enabled ?? true,
         },
         textToSpeech: {
+          ...parsedConfig?.textToSpeech,
           enabled: parsedConfig?.textToSpeech?.enabled ?? true,
           vcn_cn: parsedConfig?.textToSpeech?.vcn_cn || '',
         },
         suggestedQuestionsAfterAnswer: {
+          ...parsedConfig?.suggestedQuestionsAfterAnswer,
           enabled: parsedConfig?.suggestedQuestionsAfterAnswer?.enabled ?? true,
         },
         chatBackground: {
+          ...parsedConfig?.chatBackground,
           enabled: parsedConfig?.chatBackground?.enabled ?? true,
           info: parsedConfig?.chatBackground?.info || null,
         },
@@ -506,7 +511,7 @@ const useAdvancedConfiguration = (): UseAdvancedConfigurationReturn => {
         },
         textToSpeech: {
           enabled: true,
-          vcnCn: '',
+          vcn_cn: '',
         },
         suggestedQuestionsAfterAnswer: {
           enabled: true,
@@ -533,41 +538,42 @@ const useAdvancedConfiguration = (): UseAdvancedConfigurationReturn => {
     [advancedConfig]
   );
 
-  const updateAdvancedConfigParams = useCallback(
-    (updateParams: AdvancedConfigUpdate) => {
-      const params = {
-        id: currentFlow?.id,
-        flowId: currentFlow?.flowId,
-        advancedConfig: updateParams,
-      };
-      saveFlowAPI(params);
-    },
-    [currentFlow?.id, currentFlow?.flowId]
+  const saveAdvancedConfig = useFlowsManager(state => state.saveAdvancedConfig);
+  const draftSaveGeneration = useFlowsManager(
+    state => state.draftSaveGeneration
   );
-
+  useEffect(() => {
+    setChatBackgroundInfo(advancedConfig.chatBackground.info);
+  }, [advancedConfig.chatBackground.info]);
+  const updateAdvancedConfigParams = useCallback(
+    (patch: AdvancedConfigUpdate) =>
+      saveAdvancedConfig(patch, false, draftSaveGeneration),
+    [saveAdvancedConfig, draftSaveGeneration]
+  );
   const updateAdvancedConfigParamsDebounce = useCallback(
-    debounce((updateParams: AdvancedConfigUpdate) => {
-      const params = {
-        id: currentFlow?.id,
-        flowId: currentFlow?.flowId,
-        advancedConfig: updateParams,
-      };
-      saveFlowAPI(params);
-    }, 500),
-    [currentFlow?.id, currentFlow?.flowId]
+    (patch: AdvancedConfigUpdate) =>
+      saveAdvancedConfig(patch, true, draftSaveGeneration),
+    [saveAdvancedConfig, draftSaveGeneration]
   );
 
   const handleAdvancedConfigChange = useCallback(
     (callback: () => void) => {
+      const state = useFlowsManager.getState();
+      if (
+        !state.draftLoaded ||
+        state.historyVersion ||
+        state.canvasesDisabled ||
+        state.draftSaveGeneration !== draftSaveGeneration
+      )
+        return;
       callback && callback();
       setCurrentFlow((currentFlow: FlowType | undefined) => {
-        if (currentFlow) {
-          currentFlow.advancedConfig = JSON.stringify(advancedConfig);
-        }
-        return cloneDeep(currentFlow);
+        return currentFlow
+          ? { ...currentFlow, advancedConfig: JSON.stringify(advancedConfig) }
+          : currentFlow;
       });
     },
-    [advancedConfig]
+    [advancedConfig, draftSaveGeneration]
   );
 
   function beforeUpload(file: UploadFile): boolean {
@@ -657,7 +663,9 @@ function AdvancedConfiguration(): React.ReactElement {
     right: 0,
     zIndex: 998,
   });
-  const open = useFlowsManager(state => state.advancedConfiguration);
+  const open = useFlowsManager(
+    state => state.advancedConfiguration && !state.historyVersion
+  );
   const setOpen = useFlowsManager(state => state.setAdvancedConfiguration);
   const currentFlow = useFlowsManager(state => state.currentFlow);
   const {
