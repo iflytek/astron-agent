@@ -81,7 +81,9 @@ GENERATED_CREDENTIALS = (
                 "APP_MANAGE_PLAT_KEY_FILE": "/app/secrets/tenant/tenant-key",
                 "APP_MANAGE_PLAT_SECRET_FILE": ("/app/secrets/tenant/tenant-secret"),
             },
-            "console-hub": {},
+            "console-hub": {
+                "TENANT_SECRET_FILE": "/app/secrets/tenant/tenant-secret",
+            },
         },
     },
 )
@@ -103,6 +105,7 @@ FORBIDDEN_INLINE_CREDENTIALS = {
     "console-hub": (
         "TENANT_KEY",
         "TENANT_SECRET",
+        "TENANT_INTERNAL_API_KEY",
         "WORKFLOW_INTERNAL_API_KEY",
     ),
 }
@@ -493,6 +496,9 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
     def writable_consumer(config: MutableMapping[str, Any], _marker: str) -> None:
         _set_mount_mode(config, "core-workflow", "/app/secrets/artifact", False)
 
+    def missing_console_tenant_key(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"].pop("TENANT_SECRET_FILE", None)
+
     def writable_console(config: MutableMapping[str, Any], _marker: str) -> None:
         _set_mount_mode(config, "console-hub", "/app/secrets/runtime", False)
 
@@ -593,6 +599,11 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
             "missing-console-workflow-key-file",
             missing_console_workflow_key,
             "services.console-hub.environment.WORKFLOW_INTERNAL_API_KEY_FILE",
+        ),
+        (
+            "missing-console-tenant-secret-file",
+            missing_console_tenant_key,
+            "services.console-hub.environment.TENANT_SECRET_FILE",
         ),
         ("missing-internal-console-host", missing_internal_host, "services.console-hub.environment.CONSOLE_ALLOWED_HOSTS"),
         (
@@ -1254,6 +1265,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         public_config = _render_compose(compose_file, {"CONSOLE_ALLOWED_HOSTS": public_hosts})
         if public_config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] != public_hosts + ",console-hub":
             raise GateError("configured public hosts were not preserved with the internal service host")
+        tenant_config = _render_compose(compose_file, {
+            "CORE_TENANT_PORT": "15052", "TENANT_URL": "",
+        })
+        if tenant_config["services"]["console-hub"]["environment"].get("TENANT_URL") != "http://core-tenant:15052":
+            raise GateError("Console tenant URL must follow CORE_TENANT_PORT")
+        override_config = _render_compose(compose_file, {
+            "TENANT_URL": "https://tenant.example.org", "CORE_TENANT_PORT": "15052",
+        })
+        if override_config["services"]["console-hub"]["environment"].get("TENANT_URL") != "https://tenant.example.org":
+            raise GateError("explicit Console tenant URL was not preserved")
         exercise_shell_credential_lifecycle(config)
         if args.exercise_credential_lifecycle:
             exercise_credential_lifecycle(compose_file)

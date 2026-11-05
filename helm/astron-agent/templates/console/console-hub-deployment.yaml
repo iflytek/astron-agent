@@ -181,6 +181,8 @@ spec:
           value: {{ $value | quote }}
         {{- end }}
         {{- end }}
+        - name: TENANT_URL
+          value: {{ printf "http://%s-core-tenant:%v" (include "astron-agent.fullname" .) .Values.coreTenant.service.port | quote }}
         - name: TENANT_ID
           value: {{ include "astron-agent.tenantBootstrapID" . | quote }}
         - name: TENANT_KEY

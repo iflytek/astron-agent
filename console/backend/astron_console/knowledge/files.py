@@ -29,6 +29,7 @@ from astron_console.spaces.permissions import (
 )
 
 from . import clients, storage
+from .artifact_queries import exclude_public_artifacts
 from .common import dump, filename, number, payload, save, text
 from .models import Artifact, SkillFile, WorkflowIdentity
 
@@ -412,15 +413,6 @@ def artifact_location(row):
     return row.bucket_name or storage.bucket(), key
 
 
-def public_artifact_runs():
-    from astron_console.publishing.models import PublicRunGrant
-    from astron_console.workflows.models import WorkflowRun
-
-    return WorkflowRun.objects.filter(
-        context_id__in=PublicRunGrant.objects.values("root_id")
-    ).values("id")
-
-
 def artifact_dump(row, download=False):
     result = {
         k: v
@@ -452,16 +444,14 @@ def artifacts(request, artifact_id=None, workflow_id=None, action=None):
         return [
             artifact_dump(r)
             for r in scope_queryset(
-                Artifact.objects.filter(workflow_id=workflow_id, deleted=False).exclude(
-                    run_id__in=public_artifact_runs()
+                exclude_public_artifacts(
+                    Artifact.objects.filter(workflow_id=workflow_id, deleted=False)
                 ),
                 scope,
             ).order_by("-id")
         ]
     row = scope_queryset(
-        Artifact.objects.filter(pk=artifact_id, deleted=False).exclude(
-            run_id__in=public_artifact_runs()
-        ),
+        exclude_public_artifacts(Artifact.objects.filter(pk=artifact_id, deleted=False)),
         scope,
     ).first()
     if not row:

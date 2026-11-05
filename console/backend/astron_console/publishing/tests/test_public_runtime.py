@@ -188,9 +188,22 @@ class PublicExecutionTests(TestCase):
             run_id=run.pk, uid=self.viewer.pk, file_name="private.txt"
         )
         Artifact.objects.create(run_id=run.pk, uid=self.stranger.pk, file_name="other.txt")
+        Artifact.objects.create(
+            run_id=run.pk, uid=self.viewer.pk, space_id=999, file_name="other-space.txt"
+        )
+        from astron_console.workflows.models import WorkflowRun
+
+        child = WorkflowRun.objects.create(
+            workflow_id=workflow.pk,
+            uid=self.viewer.pk,
+            context_id=run.context_id,
+            parent_run_id=run.pk,
+        )
+        Artifact.objects.create(run_id=child.pk, uid=self.viewer.pk, file_name="child.txt")
         history = self.client.get(f"/published/{bot.pk}/history").json()["data"]
-        self.assertEqual(len(history[0]["files"]), 1)
-        self.assertEqual(history[0]["files"][0]["name"], "private.txt")
+        self.assertEqual(
+            {item["name"] for item in history[0]["files"]}, {"private.txt", "child.txt"}
+        )
         self.assertEqual(
             history[0]["files"][0]["downloadUrl"],
             f"/console-api/published/workflow-artifacts/{own_file.pk}",

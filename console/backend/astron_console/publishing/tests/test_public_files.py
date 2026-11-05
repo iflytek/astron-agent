@@ -167,3 +167,55 @@ class PublicFileTests(TestCase):
             self.assertEqual(
                 self.client.get(f"/published/workflow-artifacts/{row.pk}").status_code, 200
             )
+
+    @patch("astron_console.publishing.services.validate_graph")
+    def test_management_hides_public_root_and_children_but_keeps_legacy_artifacts(self, validate):
+        from astron_console.knowledge.artifact_queries import exclude_public_artifacts
+        from astron_console.knowledge.models import Artifact
+        from astron_console.workflows.management_views import create_workflow
+        from astron_console.workflows.models import WorkflowRun
+
+        workflow = create_workflow(self.scope, {"name": "workflow"})
+        bot = services.bind_workflow(self.scope, workflow.pk)
+        publication = Publication.objects.get(
+            pk=services.submit(self.scope, bot.pk, "MARKET")["publicationId"]
+        )
+        run, _, _ = public_runtime.prepare_public(publication, self.publisher.pk, {"inputs": {}})
+        child = WorkflowRun.objects.create(
+            workflow_id=workflow.pk,
+            uid=self.publisher.pk,
+            context_id=run.context_id,
+            parent_run_id=run.pk,
+        )
+        private = WorkflowRun.objects.create(
+            workflow_id=workflow.pk, uid=self.publisher.pk, context_id="management"
+        )
+        rows = [
+            Artifact.objects.create(
+                workflow_id=workflow.pk,
+                run_id=run_id,
+                uid=self.publisher.pk,
+                file_name=name,
+            )
+            for run_id, name in [
+                (run.pk, "public-root"),
+                (child.pk, "public-child"),
+                (private.pk, "management"),
+                (None, "legacy-null"),
+                ("unknown-old-run", "legacy-unknown"),
+            ]
+        ]
+        with self.assertNumQueries(1):
+            self.assertEqual(
+                set(exclude_public_artifacts(Artifact.objects.all()).values_list("pk", flat=True)),
+                {row.pk for row in rows[2:]},
+            )
+        self.client.force_login(self.publisher)
+        response = self.client.get(f"/workflow/{workflow.pk}/artifacts")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            {item["id"] for item in response.json()["data"]}, {row.pk for row in rows[2:]}
+        )
+        for row in rows[:2]:
+            self.assertEqual(self.client.get(f"/workflow/artifacts/{row.pk}").status_code, 404)
+            self.assertEqual(self.client.delete(f"/workflow/artifacts/{row.pk}").status_code, 404)
