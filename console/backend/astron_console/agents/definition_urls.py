@@ -1,8 +1,9 @@
 from django.urls import path
 
-from . import definitions, memory
+from . import copywriting, definitions, memory
 
 urlpatterns = [
+    path("bot/ai-prologue-gen", copywriting.generate_prologue),
     path("agents", definitions.collection),
     path("agents/<int:agent_id>", definitions.item),
     path("agents/<int:agent_id>/favorite", definitions.favorite),

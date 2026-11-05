@@ -1,16 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Button, Upload, Slider, Input, message, Spin } from 'antd';
+import { Button, Upload, Slider, message } from 'antd';
 import type { UploadProps } from 'antd';
 import type { RcFile } from 'antd/es/upload/interface';
 import type { AvatarType } from '@/types/resource';
-import { avatarImageGenerate } from '@/services/common';
 import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 import { avatarGenerationMethods } from '@/constants';
 import uploadAct from '@/assets/imgs/knowledge/icon_zhishi_upload_act.png';
 import zoomIn from '@/assets/imgs/main/icon_zoomin.png';
 import zoomOut from '@/assets/imgs/main/icon_zoomout.png';
-import placeholderImage from '@/assets/imgs/common/ai_chat_placeholder.png';
 import close from '@/assets/imgs/workflow/modal-close.png';
 
 const { Dragger } = Upload;
@@ -33,17 +31,6 @@ interface EditIconModalProps {
   setBotIcon: (imageUrl: string) => void;
   botColor: string;
   setShowModal: (show: boolean) => void;
-}
-
-function isImageInfo(value: unknown): value is ImageInfo {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'downloadLink' in value &&
-    typeof value.downloadLink === 'string' &&
-    's3Key' in value &&
-    typeof value.s3Key === 'string'
-  );
 }
 
 function Image(props: {
@@ -338,65 +325,6 @@ const AvatarUpload = ({
   );
 };
 
-const AvatarAIChat = ({
-  activeTab,
-  generateImageObject,
-  loading,
-  setGenerateImageDescription,
-  generateImage,
-  generateImageDescription,
-}: {
-  activeTab: string;
-  generateImageObject: ImageInfo;
-  loading: boolean;
-  setGenerateImageDescription: (description: string) => void;
-  generateImage: () => void;
-  generateImageDescription: string;
-}): React.ReactElement | null => {
-  if (activeTab !== 'chat') return null;
-  return (
-    <div className="mt-6">
-      <div
-        className="w-full h-[165px] flex items-center justify-center rounded-lg"
-        style={{
-          background:
-            'linear-gradient(90deg, rgba(223, 231, 253, 0.26) 0%, rgba(239, 227, 253, 0.81) 100%)',
-          border: '1px solid #E4EAFF',
-        }}
-      >
-        <Spin spinning={loading}>
-          <img
-            src={
-              generateImageObject.downloadLink
-                ? generateImageObject.downloadLink
-                : placeholderImage
-            }
-            className="w-[88px] h-[88px] rounded-md"
-            alt=""
-          />
-        </Spin>
-      </div>
-      <div className="relative mt-4">
-        <Input
-          className="user-chat-input w-full"
-          maxLength={80}
-          value={generateImageDescription}
-          onChange={e => setGenerateImageDescription(e.target.value)}
-          onPressEnter={e => {
-            e.stopPropagation();
-            e.preventDefault();
-            generateImage();
-          }}
-          placeholder="说点什么吧..."
-        />
-        <div className="send-btns">
-          <span onClick={() => generateImage()} className="ai-chat-img"></span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 function EditIconModal(props: EditIconModalProps): React.ReactElement {
   const { icons, colors, botIcon, setBotIcon, botColor, setShowModal } = props;
 
@@ -408,13 +336,6 @@ function EditIconModal(props: EditIconModalProps): React.ReactElement {
     downloadLink: '',
     s3Key: '',
   });
-  const [generateImageDescription, setGenerateImageDescription] = useState('');
-  const [generateImageObject, setGenerateImageObject] = useState({
-    downloadLink: '',
-    s3Key: '',
-  });
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     if (botColor) {
       setPreviewIcon(
@@ -427,30 +348,8 @@ function EditIconModal(props: EditIconModalProps): React.ReactElement {
     }
   }, []);
 
-  function generateImage(): void {
-    if (loading) return;
-    if (!generateImageDescription?.trim()) {
-      message.error('描述不能为空！');
-      return;
-    }
-    setLoading(true);
-    avatarImageGenerate(generateImageDescription)
-      .then(data => {
-        if (isImageInfo(data)) {
-          setGenerateImageObject(data);
-        } else {
-          message.error('图片生成失败，请重试');
-        }
-      })
-      .finally(() => setLoading(false));
-  }
-
   function handleOk(): void {
-    if (activeTab === 'upload') {
-      setBotIcon(uploadImageObject.downloadLink);
-    } else {
-      setBotIcon(generateImageObject.downloadLink);
-    }
+    setBotIcon(uploadImageObject.downloadLink);
     setShowModal(false);
   }
 
@@ -487,7 +386,9 @@ function EditIconModal(props: EditIconModalProps): React.ReactElement {
     accept: '.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff',
     beforeUpload,
     onChange: (info): void => {
-      if (info.file.status === 'done') {
+      if (info.file.status === 'error') {
+        message.error('图片上传失败，请重试');
+      } else if (info.file.status === 'done') {
         if (
           info.file.response &&
           info.file.response.data &&
@@ -502,12 +403,7 @@ function EditIconModal(props: EditIconModalProps): React.ReactElement {
     },
   };
 
-  const checkEnableSave = useMemo(() => {
-    return (
-      (activeTab === 'upload' && !uploadImageObject.downloadLink) ||
-      (activeTab === 'chat' && !generateImageObject.downloadLink)
-    );
-  }, [activeTab, uploadImageObject, generateImageObject]);
+  const checkEnableSave = !uploadImageObject.downloadLink;
 
   const avatarFilterGenerationMethods = useMemo(() => {
     return avatarGenerationMethods.filter(item => item.activeTab !== 'gallery');
@@ -537,14 +433,6 @@ function EditIconModal(props: EditIconModalProps): React.ReactElement {
           activeTab={activeTab}
           uploadImageObject={uploadImageObject}
           uploadProps={uploadProps}
-        />
-        <AvatarAIChat
-          activeTab={activeTab}
-          generateImageObject={generateImageObject}
-          loading={loading}
-          setGenerateImageDescription={setGenerateImageDescription}
-          generateImage={generateImage}
-          generateImageDescription={generateImageDescription}
         />
         <div className="flex flex-row-reverse gap-3 mt-7">
           <Button

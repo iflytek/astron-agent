@@ -185,11 +185,6 @@ export const releasedBotWithChannel = (params: any) => {
   });
 };
 
-// 获取bot类型
-export const getBotType = () => {
-  return http.post(`/bot/type-list`);
-};
-
 // WorkFlow智能体创建 (助手2.0的基本信息保存)
 export const submitBotBaseInfo = (params: any): Promise<any> => {
   // return http.post(`/u/bot/v2/base-save`, params);
@@ -248,9 +243,12 @@ export const getWebAppUsageChart = (
   return http.get(`/bot/web/usage/${type}?botId=${botId}&type=${daytype}`);
 };
 
-// 用量监控
-export const aiGenPrologue = (name: any) => {
-  return http.post(`/bot/ai-prologue-gen`, name);
+// 使用当前作用域中显式选择的模型生成助手简介
+export const aiGenPrologue = (params: {
+  name: string;
+  modelId: number;
+}): Promise<string> => {
+  return http.post<unknown, string>(`/bot/ai-prologue-gen`, params);
 };
 
 // 模板创建

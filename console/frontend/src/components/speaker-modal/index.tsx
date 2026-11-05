@@ -4,7 +4,7 @@ import listenImg from '@/assets/svgs/listen_play.svg';
 import listenStopImg from '@/assets/svgs/listen_stop.svg';
 import createSpeakerIcon from '@/assets/svgs/create-speaker.svg';
 import moreIcon from '@/assets/svgs/my-speaker-more.svg';
-import { Modal, Segmented, Popover, message } from 'antd';
+import { Button, Modal, Segmented, Popover, message } from 'antd';
 import { CheckOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { useLocaleStore } from '@/store/spark-store/locale-store';
@@ -64,7 +64,8 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
   const { locale: localeNow } = useLocaleStore();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [activeTab, setActiveTab] = useState<'basic' | 'official'>('official');
-  const [mySpeaker, setMySpeaker] = useState<any[]>([]);
+  const [mySpeaker, setMySpeaker] = useState<MyVCNItem[]>([]);
+  const [speakerError, setSpeakerError] = useState('');
   const [editVCNId, setEditVCNId] = useState<number | null>(null); // 编辑的训练id
   const [editVCNName, setEditVCNName] = useState<string>(''); // 编辑的训练名称
   const [popoverVisible, setPopoverVisible] = useState<string | null>(null);
@@ -88,8 +89,7 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
         getMyVoicerList();
       })
       .catch(err => {
-        message.error(err.msg);
-        console.log(err);
+        message.error(err?.message || '音色操作失败，请重试。');
       });
   };
 
@@ -112,7 +112,7 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
             getMyVoicerList();
           })
           .catch(err => {
-            console.log(err);
+            message.error(err?.message || '音色操作失败，请重试。');
           });
       },
     });
@@ -168,16 +168,16 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
     getMyVoicerList();
   };
 
-  const getMyVoicerList = () => {
-    getMySpeakerList()
-      .then(res => {
-        setMySpeaker(res);
-        onMySpeakerChange?.(res);
-      })
-      .catch(err => {
-        message.error(err.msg);
-        console.log(err);
-      });
+  const getMyVoicerList = async (): Promise<void> => {
+    setSpeakerError('');
+    try {
+      const speakers = await getMySpeakerList();
+      if (!Array.isArray(speakers)) throw new Error('Invalid speakers');
+      setMySpeaker(speakers);
+      onMySpeakerChange?.(speakers);
+    } catch {
+      setSpeakerError('我的音色加载失败，请重试。');
+    }
   };
 
   // official voice
@@ -239,6 +239,14 @@ const SpeakerModal: React.FC<SpeakerModalProps> = ({
           </div>
         }
       >
+        {speakerError && (
+          <div role="alert" className="mb-3 text-red-600">
+            {speakerError}
+            <Button size="small" onClick={() => void getMyVoicerList()}>
+              重试
+            </Button>
+          </div>
+        )}
         <Segmented
           value={activeTab}
           onChange={value => setActiveTab(value as 'basic' | 'official')}
