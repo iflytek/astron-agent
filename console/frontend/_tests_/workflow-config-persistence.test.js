@@ -265,13 +265,13 @@ test('late voice catalog loading preserves the saved selection instead of resett
   const load = productionFunction(
     '../src/components/virtual-config-modal/index.tsx',
     node =>
-      ts.isCallExpression(node) &&
-      node.expression.getText() === 'useEffect' &&
-      node.arguments[0]?.getText().includes('getVcnList()')
-        ? node.arguments[0]
+      ts.isVariableDeclaration(node) && node.name.getText() === 'getVoiceList'
+        ? node.initializer
         : undefined,
     {
+      formValues: undefined,
       getVcnList: async () => [{ voiceType: 'catalog-default' }],
+      setVoiceError: () => {},
       setOfficialVcnList: () => {},
       setSelectedVoice: update => {
         selected = typeof update === 'function' ? update(selected) : update;
@@ -376,6 +376,7 @@ function virtualSubmitHandler(onSubmit, extra = {}) {
         : undefined,
     {
       submitPending,
+      generationPending: { current: false },
       onCancel: () => {
         view.cancelled = true;
       },
@@ -611,6 +612,8 @@ test('refreshed media settings and late avatar catalog retain the persisted scen
         { sceneId: 'catalog-first', defaultVCN: 'catalog-voice' },
       ],
       setAvatarList: noop,
+      setAvatarError: noop,
+      formValues,
       setSelectedAvatar: update => {
         avatar = typeof update === 'function' ? update(avatar) : update;
       },
@@ -641,6 +644,7 @@ function avatarConsumer() {
     parameters: sdk.parameters,
     errors,
     sdkAvatarInfo,
+    state: sdk.state,
     async consume(currentFlow) {
       previousCleanup?.();
       pending = undefined;
@@ -687,7 +691,7 @@ function avatarConsumer() {
   };
 }
 
-test('actual media edit, refreshed execution view and SDK consume the saved call avatar', async () => {
+test('legacy call avatar configuration survives editing and refresh without being sent to the SDK', async () => {
   let current = { id: 42, flowId: 'media-flow', type: 4, advancedConfig: '{}' };
   let stored;
   const save = mediaSaveHandler({
@@ -725,11 +729,12 @@ test('actual media edit, refreshed execution view and SDK consume the saved call
   assert.equal(selected.sceneMode, 1);
   assert.equal(selected.sceneId, 'broadcast-retained');
   assert.equal(selected.callSceneId, 'avatar_lfy');
-  assert.equal(consumer.parameters.at(-1).avatar.avatar_id, 'avatar_lfy');
-  assert.equal(consumer.parameters.at(-1).tts.vcn, 'retained-voice');
+  assert.equal(consumer.parameters.length, 0);
+  assert.equal(consumer.sdkAvatarInfo.avatar_id, '');
+  assert.match(consumer.errors[0], /旧通话形象不支持/);
 });
 
-test('actual SDK switches broadcast/call frozen versions independently of the current draft', async () => {
+test('frozen supported avatars remain independent while legacy versions dispose the current SDK without fallback', async () => {
   const media = (sceneMode, name) => ({
     interactType: 2,
     sceneEnable: 1,
@@ -750,26 +755,23 @@ test('actual SDK switches broadcast/call frozen versions independently of the cu
   };
   const original = JSON.stringify(draft);
   const consumer = avatarConsumer();
-  for (const [version, expected] of [
-    [versionA, 'broadcast-A'],
-    [versionB, 'call-B'],
-    [versionA, 'broadcast-A'],
-  ]) {
-    await consumer.consume(workflowExecutionView(draft, true, version));
-    assert.equal(consumer.parameters.at(-1).avatar.avatar_id, expected);
-  }
-  assert.equal(consumer.parameters.length, 3);
-  assert.deepEqual(
-    consumer.parameters.map(p => p.tts.vcn),
-    ['voice-A', 'voice-B', 'voice-A']
-  );
+  await consumer.consume(workflowExecutionView(draft, true, versionA));
+  assert.equal(consumer.parameters.at(-1).avatar.avatar_id, 'broadcast-A');
+  await consumer.consume(workflowExecutionView(draft, true, versionB));
+  assert.equal(consumer.parameters.length, 1);
+  assert.equal(consumer.sdkAvatarInfo.avatar_id, '');
+  assert.equal(consumer.state.vmsInteractiveRef, null);
+  assert.match(consumer.errors.at(-1), /旧通话形象不支持/);
+  await consumer.consume(workflowExecutionView(draft, true, versionA));
+  assert.equal(consumer.parameters.length, 2);
+  assert.equal(consumer.parameters.at(-1).avatar.avatar_id, 'broadcast-A');
   assert.equal(JSON.stringify(draft), original);
-  // Retained string-valued mode also selects the call avatar.
   await consumer.consume({
     ...draft,
     flowConfig: JSON.stringify(media('1', 'legacy')),
   });
-  assert.equal(consumer.parameters.at(-1).avatar.avatar_id, 'call-legacy');
+  assert.equal(consumer.parameters.length, 2);
+  assert.equal(consumer.sdkAvatarInfo.avatar_id, '');
 });
 
 test('a missing call avatar never starts or retains the other mode avatar', async () => {
@@ -801,6 +803,526 @@ test('a missing call avatar never starts or retains the other mode avatar', asyn
   assert.equal(consumer.parameters.length, 1);
   assert.equal(consumer.sdkAvatarInfo.avatar_id, '');
   assert.deepEqual(consumer.errors, [
-    '所选模式未配置虚拟人形象，请先完成设置。',
+    '旧通话形象不支持当前虚拟人播放，请在设置中选择目录形象。',
   ]);
+});
+
+// Compile the production service modules and intercept only the HTTP boundary.
+// This catches retired routes and response-shape regressions hidden by service mocks.
+function mediaServices(http) {
+  const require = createRequire(import.meta.url);
+  const load = file => {
+    const source = readFileSync(
+      new URL(`../src/services/${file}.ts`, import.meta.url),
+      'utf8'
+    );
+    const module = { exports: {} };
+    const compiled = ts.transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2020,
+        esModuleInterop: true,
+      },
+    }).outputText;
+    new Function('require', 'module', 'exports', compiled)(
+      name =>
+        name === '../utils/http' || name === '@/utils/http'
+          ? http
+          : require(name),
+      module,
+      module.exports
+    );
+    return module.exports;
+  };
+  return {
+    ...load('agent-square'),
+    ...load('spark-common'),
+    ...load('chat'),
+    ...load('model'),
+  };
+}
+function mediaCallback(name, scope, component = 'virtual-config-modal') {
+  return productionFunction(
+    `../src/components/${component}/index.tsx`,
+    node =>
+      ts.isVariableDeclaration(node) && node.name.getText() === name
+        ? node.initializer
+        : undefined,
+    { formValues: undefined, ...scope }
+  );
+}
+
+test('media category loader calls the live shared endpoint, maps its labels and excludes category 25', async () => {
+  const requests = [];
+  let fail = true,
+    options,
+    error,
+    loading;
+  const rows = [
+    { typeKey: 1, typeName: '办公助手', typeNameEn: 'Office' },
+    { typeKey: 25, typeName: '排除' },
+  ];
+  const services = mediaServices({
+    get: async path => {
+      requests.push(path);
+      if (fail) throw new Error('offline');
+      return rows;
+    },
+  });
+  const load = mediaCallback('getBotTypeList', {
+    getAgentType: services.getAgentType,
+    setCategoriesLoading: value => {
+      loading = value;
+    },
+    setCategoryError: value => {
+      error = value;
+    },
+    setBotTypeList: value => {
+      options = value;
+    },
+  });
+  await load();
+  assert.match(error, /分类加载失败/);
+  assert.equal(loading, false);
+  fail = false;
+  await load();
+  assert.deepEqual(
+    requests,
+    Array(2).fill('/home-page/agent-square/get-bot-type-list')
+  );
+  assert.deepEqual(options, [rows[0]]);
+  assert.equal(error, '');
+  const selectSource = readFileSync(
+    new URL(
+      '../src/components/virtual-config-modal/index.tsx',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  assert.match(
+    selectSource,
+    /fieldNames=\{\{ label: 'typeName', value: 'typeKey' \}\}/
+  );
+  assert.match(selectSource, /optionFilterProp="typeName"/);
+  assert.doesNotMatch(selectSource, /getBotType\(/);
+});
+
+test('media catalogs use their real HTTP routes, retain saved choices and expose failed loads with retry', async () => {
+  for (const kind of ['avatar', 'voice', 'speaker']) {
+    const requests = [];
+    let fail = true,
+      error,
+      result,
+      selected = 'saved',
+      voice = 'saved-scene-voice',
+      observed;
+    const rows =
+      kind === 'avatar'
+        ? [{ sceneId: 'catalog-scene', defaultVCN: 'catalog-voice' }]
+        : kind === 'voice'
+          ? [{ voiceType: 'catalog-voice', name: '音色' }]
+          : [{ id: 1, assetId: 'speaker', name: '我的音色' }];
+    const http = {};
+    for (const method of ['get', 'post'])
+      http[method] = async path => {
+        requests.push([method, path]);
+        if (fail) throw new Error('offline');
+        return rows;
+      };
+    const services = mediaServices(http);
+    const setError = value => {
+      error = value;
+    };
+    const setRows = value => {
+      result = value;
+    };
+    const setSelected = update => {
+      selected = update(selected);
+    };
+    const load =
+      kind === 'avatar'
+        ? mediaCallback('getAvatarList', {
+            getSceneList: services.getSceneList,
+            setAvatarError: setError,
+            setAvatarList: setRows,
+            setSelectedAvatar: setSelected,
+            setSceneVcn: update => {
+              voice = update(voice);
+            },
+            message: { info: assert.fail },
+            t: key => key,
+          })
+        : kind === 'voice'
+          ? mediaCallback('getVoiceList', {
+              getVcnList: services.getVcnList,
+              setVoiceError: setError,
+              setOfficialVcnList: setRows,
+              setSelectedVoice: setSelected,
+            })
+          : mediaCallback(
+              'getMyVoicerList',
+              {
+                getMySpeakerList: services.getMySpeakerList,
+                setSpeakerError: setError,
+                setMySpeaker: setRows,
+                onMySpeakerChange: value => {
+                  observed = value;
+                },
+              },
+              'speaker-modal'
+            );
+    await load();
+    assert.match(error, /加载失败/);
+    assert.equal(result, undefined);
+    fail = false;
+    await load();
+    assert.equal(error, '');
+    assert.deepEqual(result, rows);
+    assert.equal(selected, 'saved');
+    assert.equal(voice, 'saved-scene-voice');
+    if (kind === 'speaker') assert.deepEqual(observed, rows);
+    const expected =
+      kind === 'avatar'
+        ? ['post', '/talkAgent/getSceneList']
+        : kind === 'voice'
+          ? ['get', '/voice/get-pronunciation-person']
+          : ['get', '/speaker/train/train-speaker'];
+    assert.deepEqual(requests, [expected, expected]);
+  }
+});
+
+test('description model selector consumes complete paginated models and offers only enabled records', async () => {
+  const requests = [];
+  let options,
+    error,
+    fail = true;
+  const services = mediaServices({
+    post: async (path, body) => {
+      requests.push([path, body]);
+      if (fail) return { records: [], total: 2, current: 1, size: 100 };
+      return {
+        records: [
+          { id: 13, name: 'user model', enabled: true },
+          { id: 14, name: 'disabled', enabled: false },
+        ],
+        total: 2,
+        current: 1,
+        size: 100,
+      };
+    },
+  });
+  const load = mediaCallback('getGenerationModels', {
+    getAllModels: services.getAllModels,
+    setGenerationModels: value => {
+      options = value;
+    },
+    setModelError: value => {
+      error = value;
+    },
+  });
+  await load();
+  assert.match(error, /模型加载失败/);
+  fail = false;
+  await load();
+  assert.equal(error, '');
+  assert.deepEqual(options, [{ id: 13, name: 'user model' }]);
+  assert.deepEqual(
+    requests,
+    Array(2).fill([
+      '/api/model/list',
+      { type: 0, filter: 0, page: 1, pageSize: 100 },
+    ])
+  );
+  const source = readFileSync(
+    new URL(
+      '../src/components/virtual-config-modal/index.tsx',
+      import.meta.url
+    ),
+    'utf8'
+  );
+  assert.match(source, /\[modelId, setModelId\] = useState<number>\(\)/);
+});
+
+function descriptionGenerator(post, overrides = {}) {
+  const state = {
+    error: '',
+    loading: false,
+    description: 'original description',
+  };
+  const scope = {
+    generationPending: { current: false },
+    submitPending: { current: false },
+    modelId: 13,
+    form: {
+      getFieldValue: field =>
+        field === 'name' ? '  Name from form  ' : state.description,
+      setFieldValue: (field, value) => {
+        assert.equal(field, 'botDesc');
+        state.description = value;
+      },
+    },
+    setGenerationError: value => {
+      state.error = value;
+    },
+    setLoading: value => {
+      state.loading = value;
+    },
+    aiGenPrologue: mediaServices({ post }).aiGenPrologue,
+    ...overrides,
+  };
+  return { state, scope, generate: mediaCallback('aiGen', scope) };
+}
+
+test('AI description calls the real endpoint with explicit model and name, deduplicates and waits', async () => {
+  const requests = [];
+  let finish;
+  const pending = new Promise(resolve => {
+    finish = resolve;
+  });
+  const { state, generate, scope } = descriptionGenerator((path, body) => {
+    requests.push([path, body]);
+    return pending;
+  });
+  const request = generate();
+  await generate();
+  assert.deepEqual(requests, [
+    ['/bot/ai-prologue-gen', { name: 'Name from form', modelId: 13 }],
+  ]);
+  assert.equal(state.loading, true);
+  assert.equal(scope.generationPending.current, true);
+  assert.equal(state.description, 'original description');
+  finish('Generated description');
+  await request;
+  assert.equal(state.description, 'Generated description');
+  assert.equal(state.error, '');
+  assert.equal(state.loading, false);
+  assert.equal(scope.generationPending.current, false);
+});
+
+test('AI description failure or empty reply preserves text and remains retryable', async () => {
+  for (const response of [
+    new Error('upstream failed'),
+    '',
+    { text: 'wrong shape' },
+  ]) {
+    let fail = true;
+    const { state, generate } = descriptionGenerator(async () => {
+      if (!fail) return 'retry success';
+      if (response instanceof Error) throw response;
+      return response;
+    });
+    await generate();
+    assert.ok(state.error);
+    assert.equal(state.loading, false);
+    assert.equal(state.description, 'original description');
+    fail = false;
+    await generate();
+    assert.equal(state.error, '');
+    assert.equal(state.description, 'retry success');
+  }
+});
+
+test('AI description requires a name and explicit model before sending any HTTP request', async () => {
+  for (const overrides of [
+    { modelId: undefined },
+    { form: { getFieldValue: () => '  ' } },
+  ]) {
+    const { state, generate } = descriptionGenerator(assert.fail, overrides);
+    await generate();
+    assert.match(state.error, /请/);
+    assert.equal(state.loading, false);
+    assert.equal(state.description, 'original description');
+  }
+});
+
+test('generated descriptions up to the backend limit save unchanged while longer input is rejected', async () => {
+  const writes = [],
+    errors = [];
+  const { handleSubmit } = virtualSubmitHandler(
+    async value => writes.push(value),
+    {
+      message: { error: value => errors.push(value) },
+    }
+  );
+  const description = 'a'.repeat(255);
+  await handleSubmit({
+    name: 'English assistant',
+    botType: 1,
+    botDesc: description,
+  });
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].botDesc, description);
+  await handleSubmit({
+    name: 'English assistant',
+    botType: 1,
+    botDesc: description + 'a',
+  });
+  assert.equal(writes.length, 1);
+  assert.match(errors[0], /255/);
+});
+
+test('opening a legacy media configuration and loading catalogs preserves even empty saved fields', async () => {
+  const config = {
+    interactType: 2,
+    sceneEnable: 1,
+    vcnEnable: 1,
+    sceneMode: 1,
+    sceneId: '',
+    callSceneId: 'avatar_wmy001',
+    sceneVcn: '',
+    vcn: '',
+  };
+  const formValues = {
+    name: 'legacy',
+    botDesc: 'description',
+    botType: 1,
+    avatar: '',
+    talkAgentConfig: config,
+  };
+  const state = {};
+  const setter = key => update => {
+    state[key] = typeof update === 'function' ? update(state[key]) : update;
+  };
+  const scope = {
+    formValues,
+    form: { setFieldValue: noop },
+    setAvatarUrl: noop,
+    setAvatarLoaded: noop,
+    setEnableAvatar: noop,
+    setEnableVoice: noop,
+    setBotCreateActiveV: noop,
+    botCreateActiveV: {},
+    setSelectedAvatar: setter('sceneId'),
+    setCallSceneId: setter('callSceneId'),
+    setSceneMode: setter('sceneMode'),
+    setSelectedVoice: setter('vcn'),
+    setSceneVcn: setter('sceneVcn'),
+  };
+  const hydrate = productionFunction(
+    '../src/components/virtual-config-modal/index.tsx',
+    node =>
+      ts.isCallExpression(node) &&
+      node.expression.getText() === 'useEffect' &&
+      node.arguments[0]?.getText().includes("form.setFieldValue('name'")
+        ? node.arguments[0]
+        : undefined,
+    scope
+  );
+  hydrate();
+  const before = structuredClone(state);
+  const services = mediaServices({
+    post: async path => {
+      assert.equal(path, '/talkAgent/getSceneList');
+      return [{ sceneId: '118801001', defaultVCN: 'catalog-voice' }];
+    },
+    get: async path => {
+      assert.equal(path, '/voice/get-pronunciation-person');
+      return [{ voiceType: 'catalog-voice' }];
+    },
+  });
+  await mediaCallback('getAvatarList', {
+    ...scope,
+    getSceneList: services.getSceneList,
+    setAvatarError: noop,
+    setAvatarList: noop,
+    message: { info: assert.fail },
+    t: key => key,
+  })();
+  await mediaCallback('getVoiceList', {
+    ...scope,
+    getVcnList: services.getVcnList,
+    setVoiceError: noop,
+    setOfficialVcnList: noop,
+  })();
+  assert.deepEqual(state, before);
+  assert.deepEqual(state, {
+    sceneId: '',
+    callSceneId: 'avatar_wmy001',
+    sceneMode: 1,
+    vcn: '',
+    sceneVcn: '',
+  });
+});
+
+test('only explicit confirmation of a supported catalog avatar changes a legacy mode and preserves its old call ID', async () => {
+  const state = {
+    sceneMode: 1,
+    sceneId: 'old-broadcast',
+    callSceneId: 'avatar_lfy',
+    sceneVcn: 'old-scene-voice',
+    vcn: 'saved-voice',
+    open: true,
+    error: '',
+  };
+  const choose = mediaCallback('confirmAvatarSelection', {
+    avatarList: [{ sceneId: '118801001', defaultVCN: 'catalog-voice' }],
+    tempSelectedAvatar: '118801001',
+    tempSelectedVoice: 'saved-voice',
+    voiceOptions: [],
+    setSelectedAvatar: value => {
+      state.sceneId = value;
+    },
+    setSceneMode: value => {
+      state.sceneMode = value;
+    },
+    setSceneVcn: value => {
+      state.sceneVcn = value;
+    },
+    setSelectedVoice: value => {
+      state.vcn = value;
+    },
+    setAvatarModalVisible: value => {
+      state.open = value;
+    },
+    setAvatarError: value => {
+      state.error = value;
+    },
+  });
+  assert.equal(state.sceneMode, 1);
+  choose();
+  assert.equal(state.sceneMode, 0);
+  assert.equal(state.sceneId, '118801001');
+  assert.equal(state.callSceneId, 'avatar_lfy');
+  assert.equal(state.open, false);
+  const writes = [];
+  const { handleSubmit } = virtualSubmitHandler(
+    async value => writes.push(value),
+    {
+      sceneMode: state.sceneMode,
+      selectedAvatar: state.sceneId,
+      callSceneId: state.callSceneId,
+      sceneVcn: state.sceneVcn,
+      selectedVoice: state.vcn,
+    }
+  );
+  await handleSubmit(mediaFields);
+  const consumer = avatarConsumer();
+  await consumer.consume({
+    flowConfig: JSON.stringify(writes[0].talkAgentConfig),
+    advancedConfig: '{}',
+  });
+  assert.equal(consumer.parameters.at(-1).avatar.avatar_id, '118801001');
+  assert.equal(writes[0].talkAgentConfig.callSceneId, 'avatar_lfy');
+});
+
+test('empty or stale avatar catalogs display an error without switching mode or dismissing the selector', () => {
+  for (const avatarList of [[], [{ sceneId: 'another-id' }]]) {
+    let error = '';
+    const choose = mediaCallback('confirmAvatarSelection', {
+      avatarList,
+      tempSelectedAvatar: 'missing-id',
+      tempSelectedVoice: '',
+      voiceOptions: [],
+      setSelectedAvatar: assert.fail,
+      setSceneMode: assert.fail,
+      setSceneVcn: assert.fail,
+      setSelectedVoice: assert.fail,
+      setAvatarModalVisible: assert.fail,
+      setAvatarError: value => {
+        error = value;
+      },
+    });
+    choose();
+    assert.match(error, /可用形象/);
+  }
 });

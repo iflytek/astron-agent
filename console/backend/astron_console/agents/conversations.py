@@ -332,11 +332,12 @@ async def cancellation_requested(run_id):
     return await sync_to_async(AgentRun.objects.filter(pk=run_id, cancel_requested=True).exists)()
 
 
-async def upstream(payload):
+async def upstream(payload, *, direct_completion=False):
     key = settings.WORKFLOW_INTERNAL_API_KEY
     if not key:
         raise RuntimeError("Agent内部身份未配置")
-    url = settings.AGENT_URL.rstrip("/") + "/agent/v1/custom/chat/completions"
+    endpoint = "llm" if direct_completion else "custom"
+    url = settings.AGENT_URL.rstrip("/") + f"/agent/v1/{endpoint}/chat/completions"
     async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=10)) as client:
         async with client.stream(
             "POST",

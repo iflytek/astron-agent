@@ -389,9 +389,9 @@ const useChatDebuggerContent = ({
       sceneMode,
       sceneId,
       callSceneId,
-      // Both modes use the official SDK's avatar.avatar_id; keep the saved
-      // choices separate and never substitute the other mode's avatar.
-      avatarId: sceneMode === 1 ? callSceneId : sceneId,
+      // Legacy call avatars belong to SparkOS, not the Avatar SDK asset catalog.
+      // Retain their configuration, but never send them or fall back to another face.
+      avatarId: sceneMode === 0 ? sceneId : '',
       vcn: typeof config.vcn === 'string' ? config.vcn : '',
     };
   }, [currentFlow?.flowConfig]);
@@ -487,6 +487,12 @@ export function ChatDebuggerContent({
       avatar?.dispose();
     };
     if (!open || chatType !== 'vms' || !hasVirtualScene) return cleanup;
+    if (talkAgentConfig.sceneMode === 1) {
+      setAvatarError(
+        '旧通话形象不支持当前虚拟人播放，请在设置中选择目录形象。'
+      );
+      return cleanup;
+    }
     if (!talkAgentConfig.avatarId) {
       setAvatarError('所选模式未配置虚拟人形象，请先完成设置。');
       return cleanup;
@@ -534,6 +540,7 @@ export function ChatDebuggerContent({
     open,
     avatarRetry,
     setVmsInteractiveRefStatus,
+    talkAgentConfig.sceneMode,
     talkAgentConfig.avatarId,
     talkAgentConfig.vcn,
   ]);
