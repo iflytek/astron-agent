@@ -49,7 +49,7 @@ smart_check: ## 🔍 Intelligent code quality check (detect active projects)
 			go) echo "  - Checking Go code..." && $(MAKE) --no-print-directory check-go ;; \
 			python) echo "  - Checking Python code..." && $(MAKE) --no-print-directory check-python ;; \
 			typescript) echo "  - Checking TypeScript code..." && $(MAKE) --no-print-directory check-typescript ;; \
-		esac; \
+		esac || exit $$?; \
 	done
 	@echo "$(YELLOW)Checking comment language compliance...$(RESET)"
 	@for lang in $(ACTIVE_PROJECTS); do \
@@ -57,7 +57,7 @@ smart_check: ## 🔍 Intelligent code quality check (detect active projects)
 			go) $(MAKE) --no-print-directory check-comments-go ;; \
 			python) $(MAKE) --no-print-directory check-comments-python ;; \
 			typescript) $(MAKE) --no-print-directory check-comments-typescript ;; \
-		esac; \
+		esac || exit $$?; \
 	done
 	@echo "$(GREEN)✅ Quality check complete: $(ACTIVE_PROJECTS)$(RESET)"
 
@@ -75,7 +75,7 @@ smart_test: ## 🧪 Intelligent test execution (detect active projects)
 			go) echo "  - Running Go tests..." && $(MAKE) --no-print-directory test-go ;; \
 			python) echo "  - Running Python tests..." && $(MAKE) --no-print-directory test-python ;; \
 			typescript) echo "  - Running TypeScript tests..." && $(MAKE) --no-print-directory test-typescript ;; \
-		esac; \
+		esac || exit $$?; \
 	done
 	@echo "$(GREEN)✅ Testing complete: $(ACTIVE_PROJECTS)$(RESET)"
 
@@ -91,9 +91,9 @@ smart_build: ## 📦 Intelligent project build (detect active projects)
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "  - Building Go project..." && $(MAKE) --no-print-directory build-go ;; \
-			python) echo "  - Python doesn't need building (interpreted execution)" ;; \
+			python) echo "  - Installing Python project dependencies..." && $(MAKE) --no-print-directory build-python ;; \
 			typescript) echo "  - Building TypeScript project..." && $(MAKE) --no-print-directory build-typescript ;; \
-		esac; \
+		esac || exit $$?; \
 	done
 	@echo "$(GREEN)✅ Build complete: $(ACTIVE_PROJECTS)$(RESET)"
 

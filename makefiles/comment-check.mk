@@ -22,7 +22,7 @@ check-comments: ## Check that all comments are written in English
 				go) $(MAKE) --no-print-directory check-comments-go ;; \
 				python) $(MAKE) --no-print-directory check-comments-python ;; \
 				typescript) $(MAKE) --no-print-directory check-comments-typescript ;; \
-			esac; \
+			esac || exit $$?; \
 		done; \
 	else \
 		if [ ! -f "$(COMMENT_CHECK_SCRIPT)" ]; then \
@@ -56,7 +56,7 @@ check-comments-go: ## Check Go comments for English language
 					done; \
 				done; \
 			else \
-				echo "  $(RED)Directory $$dir does not exist$(RESET)"; \
+				echo "  $(RED)Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 	else \
@@ -87,7 +87,7 @@ check-comments-python: ## Check Python comments for English language
 					done; \
 				done; \
 			else \
-				echo "  $(RED)Directory $$dir does not exist$(RESET)"; \
+				echo "  $(RED)Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 	else \
@@ -118,7 +118,7 @@ check-comments-typescript: ## Check TypeScript comments for English language
 					done; \
 				done; \
 			else \
-				echo "  $(RED)Directory $$dir does not exist$(RESET)"; \
+				echo "  $(RED)Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 	else \
