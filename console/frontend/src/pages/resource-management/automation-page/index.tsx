@@ -28,6 +28,7 @@ import {
 import dayjs from 'dayjs';
 import SiderContainer from '@/components/sider-container';
 import { getFlowInputsInfo, listFlows } from '@/services/flow';
+import { getVersionList } from '@/services/common';
 import {
   createAutomationTask,
   deleteAutomationTask,
@@ -155,6 +156,9 @@ const AutomationPage: FC = () => {
   const [workflows, setWorkflows] = useState<
     Pick<WorkflowListItem, 'name' | 'flowId'>[]
   >([]);
+  const [versionOptions, setVersionOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([]);
   const [inputSchemas, setInputSchemas] = useState<WorkflowInputSchema[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -209,9 +213,8 @@ const AutomationPage: FC = () => {
     try {
       const data = await listFlows({
         current: 1,
-        pageSize: 999,
+        pageSize: 100,
         search: keyword,
-        status: 1,
       });
       setWorkflows(
         data.pageData.flatMap(item =>
@@ -228,10 +231,20 @@ const AutomationPage: FC = () => {
   const loadWorkflowInputs = useCallback(
     async (
       flowId: string,
-      inputParams: Record<string, any> = {}
+      inputParams: Record<string, any> = {},
+      version?: string
     ): Promise<void> => {
       try {
-        const raw = await getFlowInputsInfo(flowId);
+        const [raw, versions] = await Promise.all([
+          getFlowInputsInfo(flowId, version),
+          getVersionList({ flowId, current: 1, size: 100 }),
+        ]);
+        setVersionOptions(
+          versions.records.map(version => ({
+            value: version.versionNum,
+            label: `${version.name} (${version.versionNum})`,
+          }))
+        );
         const schemas = normalizeInputsPayload(raw);
         setInputSchemas(schemas);
         form.setFieldsValue({
@@ -316,11 +329,16 @@ const AutomationPage: FC = () => {
       inputParamsJson: JSON.stringify(inputParams, null, 2),
     });
     setDrawerOpen(true);
-    void loadWorkflowInputs(record.flowId, inputParams);
+    void loadWorkflowInputs(record.flowId, inputParams, record.version);
   };
 
   const handleWorkflowChange = (flowId: string): void => {
-    form.setFieldsValue({ inputParamsJson: '{}', inputValues: {} });
+    form.setFieldsValue({
+      inputParamsJson: '{}',
+      inputValues: {},
+      version: undefined,
+    });
+    setVersionOptions([]);
     void loadWorkflowInputs(flowId);
   };
 
@@ -787,21 +805,32 @@ const AutomationPage: FC = () => {
             </Form.Item>
             <Form.Item
               name="flowId"
-              label="已发布工作流"
-              rules={[{ required: true, message: '请选择已发布工作流' }]}
+              label="工作流"
+              rules={[{ required: true, message: '请选择工作流' }]}
             >
               <Select
                 showSearch
                 loading={workflowLoading}
                 options={workflowOptions}
-                placeholder="搜索并选择已发布工作流"
+                placeholder="搜索并选择工作流"
                 filterOption={false}
                 onSearch={fetchWorkflows}
                 onChange={handleWorkflowChange}
               />
             </Form.Item>
-            <Form.Item name="version" label="发布版本">
-              <Input placeholder="为空时使用工作流默认发布版本" />
+            <Form.Item
+              name="version"
+              label="固定工作流版本"
+              rules={[{ required: true, message: '请选择已保存版本' }]}
+            >
+              <Select
+                options={versionOptions}
+                placeholder="请先在画布保存版本"
+                onChange={(version: string) => {
+                  const flowId = form.getFieldValue('flowId');
+                  if (flowId) void loadWorkflowInputs(flowId, {}, version);
+                }}
+              />
             </Form.Item>
           </div>
 

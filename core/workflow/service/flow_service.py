@@ -323,7 +323,11 @@ def gen_mcp_input_schema(flow: Flow) -> dict:
 
 
 async def node_debug(
-    workflow_dsl: WorkflowDSL, flow_id: str, uid: str, span: Span
+    workflow_dsl: WorkflowDSL,
+    flow_id: str,
+    uid: str,
+    span: Span,
+    console_context: dict | None = None,
 ) -> NodeDebugRespVo:
     """
     Execute node debugging for a single workflow node.
@@ -352,19 +356,33 @@ async def node_debug(
     variable_pool = VariablePool(protocol=workflow_dsl.nodes)
     node_instance = WorkflowEngineFactory.create_debug_node(workflow_dsl, span)
 
+    if console_context:
+        from workflow.infra.console_runtime import control
+
+        await control(console_context)
+        variable_pool.system_params.set(ParamKey.ConsoleContext, console_context)
+
     # Disable retry mechanism for node debugging to get immediate feedback
     node_instance.retry_config.should_retry = False
 
     variable_pool.system_params.set(ParamKey.FlowId, flow_id).set(ParamKey.Uid, uid)
     variable_pool.system_params.set(ParamKey.ModelFlowId, flow_id)
 
-    if node_instance.node_id.startswith(NodeType.FLOW.value):
+    if node_instance.node_id.startswith(NodeType.FLOW.value) and not console_context:
         await set_flow_node_output_mode(
             variable_pool=variable_pool, node_instance=node_instance, span=span
         )
 
     # Execute the node and get results
-    res: NodeRunResult = await node_instance.async_execute(variable_pool, span=span)
+    res: NodeRunResult
+    if console_context:
+        from workflow.infra.console_runtime import execute_with_control
+
+        res = await execute_with_control(
+            node_instance.async_execute(variable_pool, span=span), console_context
+        )
+    else:
+        res = await node_instance.async_execute(variable_pool, span=span)
 
     # Check execution status and raise exception if failed
     if res.status != WorkflowNodeExecutionStatus.SUCCEEDED and res.error:

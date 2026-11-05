@@ -204,8 +204,15 @@ def resolve_resources(scope, definition, *, runtime=True):
                         },
                     }
                 )
-    if runtime and refs(definition.get("workflows")):
-        raise ValidationError("工作流工具运行属于04，当前尚未迁移；原配置已保留")
+    workflows = refs(definition.get("workflows"))
+    if workflows:
+        from astron_console.workflows.authorization import EXECUTE, get_workflow
+        from astron_console.workflows.execution_context import workflow_reference
+
+        for value in workflows:
+            workflow = get_workflow(scope, workflow_reference(value), EXECUTE)
+            if runtime:
+                plugin["workflow_ids"].append(str(workflow.flow_id))
     if not runtime:
         return {}
     return {
@@ -262,6 +269,15 @@ def resources(request, agent_id):
             result[key] = options(factory(), name)
         except PermissionDenied:
             result[key] = []
+    from astron_console.workflows.authorization import EXECUTE
+    from astron_console.workflows.models import Workflow
+
+    try:
+        result["workflows"] = options(
+            scoped(Workflow.objects.filter(deleted=False), scope, EXECUTE)
+        )
+    except PermissionDenied:
+        result["workflows"] = []
     return result
 
 
@@ -303,6 +319,6 @@ def snapshot_references(scope, definition):
         identifiers.append(row.pk)
     result["mcpServerIds"] = list(dict.fromkeys(identifiers))
     result["mcpServerUrls"] = []
-    # Workflow selection is outside 03. Preserve stable references only, never copied DSL.
+    # Keep only authorized workflow identities; runtime resolves the fixed dependency graph.
     result["workflows"] = [reference(x, "flowId", "flow_id") for x in refs(result.get("workflows"))]
     return result

@@ -1,5 +1,5 @@
 import type { WorkflowSnapshot } from '@/components/workflow/types/domain';
-import React, { useEffect, useState, memo } from 'react';
+import React, { useEffect, memo } from 'react';
 import { Button, Spin } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { useMemoizedFn } from 'ahooks';
@@ -52,7 +52,6 @@ const Index = (): React.ReactElement => {
   const setZoom = useFlowStore(state => state.setZoom);
 
   // 本地状态
-  const [publishModal, setPublishModal] = useState<boolean>(false);
   const historyVersion = useFlowsManager(state => state.historyVersion);
 
   useEffect(() => {
@@ -145,10 +144,7 @@ const Index = (): React.ReactElement => {
       {/* 顶部工具栏 */}
       <FlowHeader currentFlow={currentFlow}>
         {showNodeList ? (
-          <BtnGroups
-            publishModal={publishModal}
-            setPublishModal={setPublishModal}
-          />
+          <BtnGroups />
         ) : (
           <Button
             type="text"

@@ -46,6 +46,8 @@ class Event(BaseModel):
     interrupt_node: str = ""
     is_async: bool = False
     execute_id: str = ""
+    console_run_id: str = ""
+    console_root_id: str = ""
 
     def get_workflow_q_name(self) -> str:
         """
@@ -197,6 +199,18 @@ class EventRegistry(BaseShutdownEvent):
             raise ValueError(f"Event has no field named '{key}'")
         setattr(event, key, value)
         cls.save_event(event)
+
+    @classmethod
+    def request_cancel(cls, event_id: str) -> None:
+        get_cache_service().set_ex(
+            key=f"{cls._event_key(event_id)}:cancel",
+            value="1",
+            expire_time=3600,
+        )
+
+    @classmethod
+    def is_cancelled(cls, event_id: str) -> bool:
+        return bool(get_cache_service().get(f"{cls._event_key(event_id)}:cancel"))
 
     @classmethod
     def on_interrupt(cls, event_id: str) -> None:

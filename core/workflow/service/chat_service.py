@@ -95,7 +95,7 @@ async def event_stream(
     response_queue: Queue = Queue()
 
     task = asyncio.create_task(
-        _run(
+        _run_controlled(
             app_alias_id,
             event_id,
             workflow_dsl,
@@ -119,6 +119,81 @@ async def event_stream(
         span,
         task,
     )
+
+
+async def _run_controlled(
+    app_alias_id: str,
+    event_id: str,
+    workflow_dsl: Dict,
+    workflow_dsl_update_time: datetime,
+    chat_vo: ChatVo,
+    is_release: bool,
+    app_audit_policy: AppAuditPolicy,
+    response_queue: Queue,
+    span: Span,
+    model_flow_id: str = "",
+) -> None:
+    """Keep the existing engine alive across pause while observing root cancellation."""
+    from workflow.infra.console_runtime import control
+
+    context = chat_vo.ext.get("console_context")
+    if not context:
+        return await _run(
+            app_alias_id,
+            event_id,
+            workflow_dsl,
+            workflow_dsl_update_time,
+            chat_vo,
+            is_release,
+            app_audit_policy,
+            response_queue,
+            span,
+            model_flow_id,
+        )
+
+    async def monitor() -> None:
+        while True:
+            await control(context)
+            if await asyncio.to_thread(EventRegistry.is_cancelled, event_id):
+                raise CustomException(
+                    CodeEnum.WORKFLOW_EXECUTION_ERROR, err_msg="Workflow cancelled"
+                )
+            await asyncio.sleep(0.5)
+
+    execution = asyncio.create_task(
+        _run(
+            app_alias_id,
+            event_id,
+            workflow_dsl,
+            workflow_dsl_update_time,
+            chat_vo,
+            is_release,
+            app_audit_policy,
+            response_queue,
+            span,
+            model_flow_id,
+        )
+    )
+    watcher = asyncio.create_task(monitor())
+    try:
+        completed, _ = await asyncio.wait(
+            {execution, watcher}, return_when=asyncio.FIRST_COMPLETED
+        )
+        if watcher in completed:
+            await watcher
+        await execution
+    except CustomException as exc:
+        await response_queue.put(
+            LLMGenerate.workflow_end_error(
+                sid=span.sid,
+                code=exc.code,
+                message=exc.message,
+            )
+        )
+    finally:
+        for task in (execution, watcher):
+            task.cancel()
+        await asyncio.gather(execution, watcher, return_exceptions=True)
 
 
 def _init_workflow_trace(
@@ -152,6 +227,7 @@ async def _get_or_build_workflow_engine(
     is_release: bool,
     workflow_dsl: Dict,
     span_context: Span,
+    console_context: dict | None = None,
 ) -> WorkflowEngine:
     """
     Get or build workflow engine with caching mechanism.
@@ -177,7 +253,7 @@ async def _get_or_build_workflow_engine(
     )
 
     for key in sparkflow_engine.engine_ctx.built_nodes:
-        if key.startswith(NodeType.FLOW.value):
+        if key.startswith(NodeType.FLOW.value) and not console_context:
             await set_flow_node_output_mode(
                 variable_pool=sparkflow_engine.engine_ctx.variable_pool,
                 node_instance=sparkflow_engine.engine_ctx.built_nodes[
@@ -332,6 +408,9 @@ async def _get_chat_history(
     :param span_context: Distributed tracing span context
     :return: List of historical chat records or empty list
     """
+    if chat_vo.ext.get("console_context"):
+        # Console supplied scoped history; never load the legacy whole-flow history.
+        return []
     uid = chat_vo.uid
     history = []
 
@@ -541,7 +620,10 @@ async def _run(
 
             # Get or build workflow engine
             sparkflow_engine = await _get_or_build_workflow_engine(
-                is_release, workflow_dsl, span_context
+                is_release,
+                workflow_dsl,
+                span_context,
+                chat_vo.ext.get("console_context"),
             )
             # Initialize streaming processing components
             need_order_stream_result_q: asyncio.Queue[Any] = asyncio.Queue()
@@ -556,6 +638,9 @@ async def _run(
                 ParamKey.ModelFlowId, model_flow_id
             ).set(
                 ParamKey.Ext, {"phone_number": chat_vo.ext.get("phone_number", "")}
+            )
+            sparkflow_engine.engine_ctx.variable_pool.system_params.set(
+                ParamKey.ConsoleContext, chat_vo.ext.get("console_context", {})
             )
             # Initialize model content output queues
             await _init_stream_q(
@@ -621,6 +706,8 @@ async def _run(
             code = err.code
             error_message = err.message
         except asyncio.exceptions.CancelledError:
+            code = CodeEnum.WORKFLOW_EXECUTION_ERROR.code
+            error_message = "Workflow execution cancelled"
             raise
         except Exception as err:
             llm_resp = LLMGenerate.workflow_end_error(
@@ -1338,6 +1425,9 @@ async def chat_resume_response_stream(
             yield Streaming.generate_data(llm_resp.model_dump(exclude_none=True))
             return
 
+        except asyncio.CancelledError:
+            await asyncio.to_thread(EventRegistry.request_cancel, event_id)
+            raise
         finally:
             if EventRegistry().check_event_lock(event_id=event_id):
                 EventRegistry().unlock_event(event_id=event_id)

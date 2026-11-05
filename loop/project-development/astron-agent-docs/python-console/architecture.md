@@ -1,6 +1,6 @@
 # Python Console 目标架构
 
-范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 03 独立 Agent 与统一执行，建立在 01 账号与 02 空间资源基础上。
+范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 04 工作流与 Agent 引用，建立在 01 账号、02 空间资源与 03 独立 Agent 基础上。
 
 ## 职责与调用方向
 
@@ -69,3 +69,7 @@ Agent 调用工作流、工作流调用 Agent 是明确的执行依赖，后续�
 独立聊天与调试由 React → Django agents → core/agent → DeepAgentsRunner 统一执行。Django 接管原 Agent 定义、人格和收藏，新增不可变快照、发布指针及按用户/空间隔离的会话执行记录；原历史以确定性 ID 非破坏导入。取消标记与心跳在 MySQL 中协调，ASGI 断连关闭上游流，保存实际部分响应。模型、MCP、插件、Skill 和知识引用复用02的权限与资源记录，凭据不进入快照或前端。
 
 Mem0 保留原 RSA 配置、用户 UID 与 `bot-<稳定Agent ID>`，以空间 metadata 限定长期偏好；不按版本或入口切分，不把工作流中间结果自动写入。04/05仅接收版本解析和发布指针契约，本阶段不实现它们的节点、运行生命周期和发布渠道。删除已替代的 Java Spring AI、独立聊天/调试/记忆及重复工具循环；共享的未迁移工作流数据和原 SQL 保留。具体边界见 [03 技术设计](03-agents/technical-design.md)。
+
+## 04 影响评估
+
+React画布 → Django workflows（管理、授权、冻结图与Agent版本、运行记录）→ core/workflow现有调度 → core/agent统一执行。Agent工作流工具经Console建立受限子运行，共享根取消和调用预算；Core EventRegistry扩展事件级取消，暂停恢复保持原活跃执行，不冒充持久化恢复。复用02产物及03偏好，不改变原UID、数据、密钥和Mem0命名空间。具体契约与验证见[04技术设计](04-workflows/technical-design.md)。

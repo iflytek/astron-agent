@@ -29,56 +29,6 @@ public class VersionController {
     VersionService versionService;
 
     /**
-     * Query workflow versions by flowId with pagination.
-     *
-     * @param page pagination information
-     * @param flowId workflow identifier
-     * @return paginated list of workflow versions
-     * @throws IllegalArgumentException if {@code flowId} is blank
-     */
-    @GetMapping("/list")
-    public Object list(Page<WorkflowVersion> page,
-            @RequestParam String flowId) {
-        return versionService.listPage(page, flowId);
-    }
-
-    /**
-     * Create a new workflow version.
-     *
-     * <p>
-     * Request body fields:
-     * <ul>
-     * <li>flowId - workflow identifier</li>
-     * <li>botId - bot identifier</li>
-     * <li>name - version name</li>
-     * <li>publishChannel - publish channel (1: WeChat, 2: Spark Desk, 3: API, 4: MCP)</li>
-     * <li>publishResult - publish result (success / failed / reviewing)</li>
-     * <li>description - version description</li>
-     * </ul>
-     * </p>
-     *
-     * @param createDto workflow version object to create
-     * @return result containing created workflow version data
-     * @throws IllegalArgumentException if required fields are missing
-     */
-    @PostMapping
-    public ApiResult<JSONObject> create(@RequestBody WorkflowVersion createDto) {
-        return versionService.create(createDto);
-    }
-
-    /**
-     * Restore a workflow version.
-     *
-     * @param createDto workflow version data to restore
-     * @return restore result
-     * @throws IllegalArgumentException if the version does not exist
-     */
-    @PostMapping("/restore")
-    public ApiResult<JSONObject> restore(@RequestBody WorkflowVersion createDto) {
-        return versionService.restore(createDto);
-    }
-
-    /**
      * Update workflow version publish result.
      *
      * @param createDto workflow version data with ID and publish result
@@ -112,18 +62,6 @@ public class VersionController {
     @GetMapping("/get-max-version")
     public Object getMaxVersion(@RequestParam String botId) {
         return versionService.getMaxVersion(botId);
-    }
-
-    /**
-     * Check whether a workflow version has system data.
-     *
-     * @param createDto workflow version filter object
-     * @return check result (true/false or equivalent object)
-     * @throws IllegalArgumentException if version is not found
-     */
-    @PostMapping("/have-version-sys-data")
-    public Object haveVersionSysData(@RequestBody WorkflowVersion createDto) {
-        return versionService.haveVersionSysData(createDto);
     }
 
     /**

@@ -10,6 +10,7 @@ from agent.exceptions.agent_exc import AgentInternalExc
 class MetaDataInputs(BaseModel):
     """extra inputs"""
 
+    console_context: dict[str, Any] = Field(default_factory=dict)
     caller: str = Field(default="chat_open_api")
     caller_sid: str = Field(default="")
     workflow_id: str = Field(default="")

@@ -1,6 +1,5 @@
 import type {
   VersionItem,
-  PublicResultItem,
   FeedbackItem,
 } from '@/components/workflow/types/drawer/chat-debugger';
 import type { ConfigResponse } from '@/types/resource';
@@ -65,17 +64,6 @@ export async function restoreVersion(params: {
 export async function delVersion(id: string): Promise<unknown> {
   return await http.delete(`/workflow/version?id=${id}`);
 }
-//发布结果
-export async function getPublicResult(params: {
-  flowId: string;
-  name: string;
-}): Promise<PublicResultItem[]> {
-  return await http.get<PublicResultItem[], PublicResultItem[]>(
-    '/workflow/version/publish-result',
-    { params }
-  );
-}
-
 export async function nextQuestionAdvice(data: {
   question: string;
 }): Promise<string[]> {

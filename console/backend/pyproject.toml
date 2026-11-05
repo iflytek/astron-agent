@@ -22,6 +22,8 @@ dependencies = [
   "cryptography>=46,<51",
   "pypdf>=5,<7",
   "python-docx>=1.2,<2",
+  "croniter>=6,<7",
+  "pyyaml>=6,<7",
 ]
 
 [project.optional-dependencies]

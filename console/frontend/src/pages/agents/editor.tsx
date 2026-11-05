@@ -9,6 +9,7 @@ import {
   getAgentResources,
   listAgentVersions,
   createAgentVersion,
+  publishAgentVersion,
   getAgentMemoryConfig,
   saveAgentMemoryConfig,
   listAgentMemories,
@@ -308,6 +309,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
   const [agent, setAgent] = useState<AgentDefinition | null>(null);
   const [draft, setDraft] = useState<AgentDefinition | null>(null);
   const [knowledgeChanged, setKnowledgeChanged] = useState(false);
+  const [workflowsChanged, setWorkflowsChanged] = useState(false);
   const [toolsChanged, setToolsChanged] = useState(false);
   const [skillsChanged, setSkillsChanged] = useState(false);
   const [mcpChanged, setMcpChanged] = useState(false);
@@ -325,6 +327,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           setAgent(value);
           setDraft(value);
           setKnowledgeChanged(false);
+          setWorkflowsChanged(false);
           setToolsChanged(false);
           setSkillsChanged(false);
           setMcpChanged(false);
@@ -380,6 +383,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           skills: skillsChanged,
           mcpServerIds: mcpChanged,
           repoIds: knowledgeChanged,
+          workflows: workflowsChanged,
         }),
         maxLoopCount: draft.maxLoopCount,
         revision: draft.revision,
@@ -389,6 +393,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       setAgent(saved);
       setDraft(saved);
       setKnowledgeChanged(false);
+      setWorkflowsChanged(false);
       setToolsChanged(false);
       setSkillsChanged(false);
       setMcpChanged(false);
@@ -644,6 +649,15 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                     }}
                   />
                   <ResourceSelect
+                    title="工作流工具"
+                    value={draft.workflows || []}
+                    options={resources.workflows || []}
+                    onChange={workflows => {
+                      patch({ workflows });
+                      setWorkflowsChanged(true);
+                    }}
+                  />
+                  <ResourceSelect
                     title="知识库"
                     value={draft.repoIds || []}
                     options={resources.repos}
@@ -762,6 +776,23 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       版本{' '}
                       {String(version.id || version.versionId || index + 1)}
                     </summary>
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        setBusy(true);
+                        setError('');
+                        void publishAgentVersion(id, Number(version.id))
+                          .then(() =>
+                            setNotice(
+                              `已将版本 ${version.id} 设为工作流引用版本，新运行生效。`
+                            )
+                          )
+                          .catch(reason => setError(errorText(reason)))
+                          .finally(() => setBusy(false));
+                      }}
+                    >
+                      用于工作流引用
+                    </button>
                     <pre>{JSON.stringify(version, null, 2)}</pre>
                   </details>
                 ))

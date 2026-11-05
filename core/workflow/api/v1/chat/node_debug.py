@@ -96,7 +96,11 @@ async def node_debug(node_debug_vo: NodeDebugVo) -> JSONResponse:
                 else ""
             )
             node_debug_resp_vo = await flow_service.node_debug(
-                node_debug_vo.data, node_debug_vo.id, uid, span_context
+                node_debug_vo.data,
+                node_debug_vo.id,
+                uid,
+                span_context,
+                console_context=node_debug_vo.console_context,
             )
 
         except CustomException as err:

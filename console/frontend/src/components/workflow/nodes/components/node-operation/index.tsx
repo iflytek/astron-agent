@@ -193,6 +193,9 @@ const useNodeDebugger = (
               flowId: latestFlow?.flowId,
               name: latestFlow?.name,
               description: latestFlow?.description,
+              ...(manager.historyVersion
+                ? { version: manager.historyVersionData?.versionNum }
+                : {}),
               data: {
                 nodes: [requestNode],
                 edges: [],

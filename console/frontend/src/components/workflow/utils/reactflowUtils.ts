@@ -587,6 +587,7 @@ function validateAgentParams(currentCheckNode: WorkflowNode): boolean {
 
   currentCheckNode.data.nodeParam.instruction.queryErrMsg = '';
 
+  if (currentCheckNode.data.nodeParam.agentId) return true;
   return Boolean(
     currentCheckNode?.data.nodeParam.instruction?.query?.trim() &&
       currentCheckNode?.data.nodeParam?.plugin?.mcpServerUrls?.every(
@@ -728,6 +729,11 @@ export function validateDatabaseParams(
 }
 
 function validateServiceIdParams(currentCheckNode: WorkflowNode): boolean {
+  if (
+    currentCheckNode.nodeType === 'agent' &&
+    currentCheckNode.data.nodeParam.agentId
+  )
+    return true;
   const nodeTypesRequiringServiceId = [
     'spark-llm',
     'knowledge-pro-base',

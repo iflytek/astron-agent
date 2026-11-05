@@ -1,219 +1,184 @@
+"""Workflow tools authorized and tracked by Console, executed by core/workflow."""
+
 import asyncio
 import json
 import os
 import time
-from dataclasses import dataclass
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
+from urllib.parse import urlsplit
+from uuid import uuid4
 
-import aiohttp
 import httpx
-from common.otlp.trace.langfuse import (
-    WORKFLOW_TRACE_AUDIENCE,
-    inject_trusted_langfuse_context,
-    redact_trusted_trace_headers,
-)
 from common.otlp.trace.span import Span
-from openai import AsyncOpenAI
+from httpx_sse import aconnect_sse
 from pydantic import BaseModel, Field
 
 from agent.exceptions.plugin_exc import RunWorkflowExc
 from agent.infra.credentials import credential_from_env_or_file
-from agent.infra.workflow_internal_auth import (
-    WORKFLOW_INTERNAL_API_KEY_HEADER,
-    WORKFLOW_INTERNAL_API_KEY_PLACEHOLDER,
-)
 from agent.service.plugin.base import BasePlugin, PluginResponse
 
 
-def _redact_workflow_request_headers(headers: dict[str, str]) -> dict[str, str]:
-    """Remove internal authentication and signed trace headers from telemetry."""
-    trace_safe_headers = redact_trusted_trace_headers(headers)
-    return {
-        key: value
-        for key, value in trace_safe_headers.items()
-        if key.lower() != WORKFLOW_INTERNAL_API_KEY_HEADER.lower()
-    }
+def _endpoint(action: str) -> str:
+    base = os.getenv("CONSOLE_INTERNAL_BASE_URL", "").rstrip("/")
+    parsed = urlsplit(base)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise RunWorkflowExc
+    return f"{base}/workflow/internal/{action}"
 
 
-def _configured_workflow_internal_api_key() -> str:
-    """Load the deployment key once per request and fail closed if unavailable."""
-    internal_api_key = credential_from_env_or_file(
+def _headers() -> dict[str, str]:
+    key = credential_from_env_or_file(
         "WORKFLOW_INTERNAL_API_KEY",
         "WORKFLOW_INTERNAL_API_KEY_FILE",
         min_length=32,
-        placeholders=(WORKFLOW_INTERNAL_API_KEY_PLACEHOLDER,),
+        placeholders=("CHANGE_ME_WORKFLOW_INTERNAL_API_KEY",),
     )
-    if not internal_api_key:
+    if not key:
         raise RunWorkflowExc
-    return internal_api_key
+    return {"X-Workflow-Internal-Key": key}
 
 
-class _AgentConfig(BaseModel):
-    """Workflow-related configuration loaded from environment.
-
-    Tests may monkeypatch this object on the module (see test_plugin_base_link_mcp_workflow),
-    so keep the name `agent_config` stable.
-    """
-
-    WORKFLOW_SSE_BASE_URL: str = Field(
-        default_factory=lambda: os.getenv("WORKFLOW_SSE_BASE_URL", "")
-    )
-    GET_WORKFLOWS_URL: str = Field(
-        default_factory=lambda: os.getenv("GET_WORKFLOWS_URL", "")
-    )
+def _context(value: dict) -> dict:
+    if any(
+        not isinstance(value.get(key), str) or not value[key]
+        for key in ("run_id", "root_id")
+    ):
+        raise RunWorkflowExc
+    return value
 
 
-agent_config = _AgentConfig()
-
-
-@dataclass
-class ResponseContext:
-    """Response context parameters"""
-
-    code: int
-    sid: str
-    start_time: int
-    end_time: int
-    action_input: dict
+async def _request(action: str, payload: dict) -> dict:
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+            response = await client.post(
+                _endpoint(action), json=payload, headers=_headers()
+            )
+            response.raise_for_status()
+            data = response.json()
+        if (
+            not isinstance(data, dict)
+            or data.get("code") != 0
+            or not isinstance(data.get("data"), dict)
+        ):
+            raise RunWorkflowExc
+        return data["data"]
+    except (httpx.HTTPError, ValueError):
+        raise RunWorkflowExc from None
 
 
 class WorkflowPluginRunner(BaseModel):
     app_id: str
     uid: str
     flow_id: str
-    stream: bool = Field(default=True)
-
-    def _build_request_params(self, action_input: dict) -> dict:
-        """Build request parameters"""
-        internal_api_key = _configured_workflow_internal_api_key()
-        return {
-            "model": "",
-            "messages": [],
-            "stream": True,
-            "extra_body": {
-                "flow_id": self.flow_id,
-                "uid": self.uid,
-                "parameters": action_input,
-                "ext": {"bot_id": "workflow", "caller": "agent"},
-            },
-            "extra_headers": {
-                "X-consumer-username": self.app_id,
-                WORKFLOW_INTERNAL_API_KEY_HEADER: internal_api_key,
-                **inject_trusted_langfuse_context(
-                    method="POST",
-                    audience=WORKFLOW_TRACE_AUDIENCE,
-                    tenant_id=self.app_id,
-                ),
-            },
-        }
-
-    def _create_error_response(
-        self, ctx: ResponseContext, chunk_data: dict
-    ) -> PluginResponse:
-        """Create error response"""
-        return PluginResponse(
-            code=ctx.code,
-            sid=ctx.sid,
-            start_time=ctx.start_time,
-            end_time=ctx.end_time,
-            result=chunk_data,
-            log=[
-                {
-                    "name": self.flow_id,
-                    "input": ctx.action_input,
-                    "output": chunk_data,
-                    "sid": ctx.sid,
-                }
-            ],
-        )
-
-    def _create_success_response(
-        self, ctx: ResponseContext, content: str, reasoning_content: str
-    ) -> PluginResponse:
-        """Create success response"""
-        return PluginResponse(
-            code=ctx.code,
-            sid=ctx.sid,
-            start_time=ctx.start_time,
-            end_time=ctx.end_time,
-            result={
-                "content": content,
-                "reasoning_content": reasoning_content,
-            },
-            log=[
-                {
-                    "name": self.flow_id,
-                    "input": ctx.action_input,
-                    "content": content,
-                    "reasoning_content": reasoning_content,
-                    "sid": ctx.sid,
-                }
-            ],
-        )
+    context: dict = Field(default_factory=dict)
 
     async def run(
         self, action_input: dict, span: Span
     ) -> AsyncIterator[PluginResponse]:
-        with span.start("Run") as sp:
-            start_time = int(round(time.time() * 1000))
-            params = self._build_request_params(action_input)
-            logged_params = {
-                **params,
-                "extra_headers": _redact_workflow_request_headers(
-                    params.get("extra_headers", {})
-                ),
-            }
-
+        context = _context(self.context)
+        started = int(time.time() * 1000)
+        invocation_id = str(uuid4())
+        complete = False
+        with span.start("RunWorkflow") as sp:
+            # Runtime arguments and credentials must not enter telemetry.
             sp.add_info_events(
-                attributes={
-                    "workflow-plugin-run-inputs": json.dumps(
-                        logged_params, ensure_ascii=False
-                    )
-                }
+                {"flow_id": self.flow_id, "invocation_id": invocation_id}
             )
-
-            flow_client = AsyncOpenAI(
-                base_url=agent_config.WORKFLOW_SSE_BASE_URL, api_key="no_need"
-            )
-
             try:
-                response = await flow_client.chat.completions.create(
-                    **params, timeout=int(os.getenv("WORKFLOWS_CALL_TIMEOUT", "90"))
-                )
-                async for chunk in response:
-                    chunk_data = chunk.model_dump()
-                    sp.add_info_events(
-                        attributes={
-                            "workflow-plugin-run-outputs": json.dumps(
-                                chunk_data, ensure_ascii=False
+                async with httpx.AsyncClient(
+                    timeout=httpx.Timeout(
+                        float(os.getenv("WORKFLOWS_CALL_TIMEOUT", "1800")), connect=10
+                    ),
+                    follow_redirects=False,
+                ) as client:
+                    async with aconnect_sse(
+                        client,
+                        "POST",
+                        _endpoint("tool-run"),
+                        headers=_headers(),
+                        json={
+                            "context": context,
+                            "flowId": self.flow_id,
+                            "parameters": action_input,
+                            "invocationId": invocation_id,
+                        },
+                    ) as stream:
+                        stream.response.raise_for_status()
+                        async for event in stream.aiter_sse():
+                            if (
+                                not event.data
+                                or event.event != "message"
+                                or event.data == "[DONE]"
+                            ):
+                                continue
+                            message = event.json()
+                            if (
+                                not isinstance(message, dict)
+                                or message.get("code", 0)
+                                or message.get("event_data")
+                            ):
+                                raise RunWorkflowExc
+                            choices = message.get("choices") or []
+                            if not choices:
+                                continue
+                            choice = choices[0]
+                            delta = choice.get("delta") or {}
+                            node = (message.get("workflow_step") or {}).get(
+                                "node"
+                            ) or {}
+                            complete = choice.get(
+                                "finish_reason"
+                            ) == "stop" and node.get("id") in (None, "flow_obj")
+                            content = delta.get("content") or ""
+                            reasoning = delta.get("reasoning_content") or ""
+                            yield PluginResponse(
+                                code=0,
+                                sid=message.get("id", ""),
+                                start_time=started,
+                                end_time=int(time.time() * 1000),
+                                result={
+                                    "content": content,
+                                    "reasoning_content": reasoning,
+                                },
+                                log=[
+                                    {
+                                        "name": self.flow_id,
+                                        "input": action_input,
+                                        "content": content,
+                                        "reasoning_content": reasoning,
+                                    }
+                                ],
                             )
-                        }
-                    )
-
-                    ctx = ResponseContext(
-                        code=chunk_data.get("code"),
-                        sid=chunk_data.get("id"),
-                        start_time=start_time,
-                        end_time=int(round(time.time() * 1000)),
-                        action_input=action_input,
-                    )
-
-                    if ctx.code != 0:
-                        yield self._create_error_response(ctx, chunk_data)
-                    elif not chunk.choices:
-                        continue
-                    else:
-                        content = chunk.choices[0].delta.content
-                        reasoning_content = (
-                            chunk.choices[0]
-                            .delta.to_dict()
-                            .get("reasoning_content", "")
+                            if complete:
+                                return
+                if not complete:
+                    raise RunWorkflowExc
+            except (httpx.HTTPError, ValueError):
+                raise RunWorkflowExc from None
+            finally:
+                if not complete:
+                    try:
+                        await asyncio.wait_for(
+                            asyncio.shield(
+                                _request(
+                                    "cancel",
+                                    {
+                                        "runId": context["run_id"],
+                                        "rootId": context["root_id"],
+                                    },
+                                )
+                            ),
+                            timeout=11,
                         )
-                        yield self._create_success_response(
-                            ctx, content, reasoning_content
-                        )
-            except httpx.TimeoutException as e:
-                raise RunWorkflowExc from e
+                    except (Exception, asyncio.CancelledError):
+                        pass
 
 
 class WorkflowPlugin(BasePlugin):
@@ -224,115 +189,37 @@ class WorkflowPluginFactory(BaseModel):
     app_id: str
     uid: str
     workflow_ids: list
+    context: dict = Field(default_factory=dict)
 
     async def gen(self, span: Span) -> list[WorkflowPlugin]:
-        schema_list = await self.query_workflows_schema_list(span)
+        context = _context(self.context)
         plugins = []
-        for schema in schema_list:
-            plugin = await self.create_workflow_plugin(schema)
-            plugins.append(plugin)
-        return plugins
-
-    @staticmethod
-    async def do_query_workflow_schema(workflow_id: str, span: Span) -> dict[str, Any]:
-        with span.start("DoQueryWorkflowsSchema") as sp:
-            sp.add_info_events(
-                attributes={
-                    "workflow-plugin-do-query-workflow-schema-inputs": json.dumps(
-                        {"flow_id": workflow_id}, ensure_ascii=False
-                    )
-                }
+        for flow_id in self.workflow_ids:
+            schema = await _request(
+                "tool-schema", {"context": context, "flowId": flow_id}
             )
-            internal_api_key = _configured_workflow_internal_api_key()
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    agent_config.GET_WORKFLOWS_URL,
-                    json={"flow_id": workflow_id},
-                    headers={WORKFLOW_INTERNAL_API_KEY_HEADER: internal_api_key},
-                ) as response:
-                    response.raise_for_status()
-                    result = await response.json()
-                    telemetry_summary = {
-                        "code": result.get("code"),
-                        "sid": result.get("sid"),
-                        "flow_id": workflow_id,
-                        "has_data": result.get("data") is not None,
-                    }
-                    sp.add_info_events(
-                        attributes={
-                            "workflow-plugin-do-query-workflow-schema-outputs": (
-                                json.dumps(telemetry_summary, ensure_ascii=False)
-                            )
-                        }
-                    )
-                    return dict(result)
-
-    async def query_workflows_schema_list(self, span: Span) -> list:
-        with span.start("QueryWorkflowsSchemaList") as sp:
-            query_tasks = [
-                self.do_query_workflow_schema(flow_id, sp)
-                for flow_id in self.workflow_ids
-            ]
-            results = await asyncio.gather(*query_tasks)
-            return results
-
-    async def create_workflow_plugin(self, workflow_schema: dict) -> WorkflowPlugin:
-        flow_id = workflow_schema.get("data", {}).get("data", {}).get("id", "")
-        flow_name = workflow_schema.get("data", {}).get("data", {}).get("name", "")
-        flow_description = (
-            workflow_schema.get("data", {}).get("data", {}).get("description", "")
-        )
-        nodes = (
-            workflow_schema.get("data", {})
-            .get("data", {})
-            .get("data", {})
-            .get("nodes", [])
-        )
-
-        for node in nodes:
-            if node.get("id", "").startswith("node-start::"):
-                react_parameters = {}
-                required_list = []
-                for output in node.get("data", {}).get("outputs", []):
-                    react_parameters[output.get("name")] = output.get("schema", {})
-                    if output.get("required", False):
-                        required_list.append(output.get("name"))
-                t_p = json.dumps(
-                    {
-                        "type": "object",
-                        "properties": react_parameters,
-                        "required": required_list,
-                    },
-                    ensure_ascii=False,
-                )
-                react_plugin_prompt = (
-                    f"tool_name:{flow_name}, tool_description:{flow_description}, "
-                    f"tool_parameters:{t_p}"
-                )
-
-                workflow_plugin = WorkflowPlugin(
-                    flow_id=flow_id,
-                    name=flow_name,
-                    description=flow_description,
-                    schema_template=react_plugin_prompt,
+            if str(schema.get("flowId")) != str(flow_id) or not isinstance(
+                schema.get("parameters"), dict
+            ):
+                raise RunWorkflowExc
+            name = schema.get("name") or f"workflow_{flow_id}"
+            description = schema.get("description") or ""
+            plugins.append(
+                WorkflowPlugin(
+                    flow_id=str(flow_id),
+                    name=name,
+                    description=description,
+                    schema_template=(
+                        f"tool_name:{name}, tool_description:{description}, "
+                        f"tool_parameters:{json.dumps(schema['parameters'], ensure_ascii=False)}"
+                    ),
                     typ="workflow",
                     run=WorkflowPluginRunner(
-                        app_id=self.app_id, uid=self.uid, flow_id=flow_id
+                        app_id=self.app_id,
+                        uid=self.uid,
+                        flow_id=str(flow_id),
+                        context=context,
                     ).run,
                 )
-                return workflow_plugin
-
-        # If no valid workflow node found, return default plugin
-        return WorkflowPlugin(
-            flow_id=flow_id,
-            name=flow_name or "unknown",
-            description=flow_description or "unknown workflow",
-            schema_template=(
-                "tool_name:unknown, tool_description:unknown workflow, "
-                "tool_parameters:{}"
-            ),
-            typ="workflow",
-            run=WorkflowPluginRunner(
-                app_id=self.app_id, uid=self.uid, flow_id=flow_id
-            ).run,
-        )
+            )
+        return plugins

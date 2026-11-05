@@ -13,5 +13,4 @@ if [ "${CONSOLE_RUN_MIGRATIONS:-true}" = "true" ]; then
     fi
 fi
 
-exec uvicorn astron_console.asgi:application --host 0.0.0.0 --port 8080 \
-    --workers "${CONSOLE_WORKERS:-2}" --no-proxy-headers --no-access-log
+exec python manage.py serve_console

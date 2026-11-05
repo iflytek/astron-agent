@@ -25,9 +25,11 @@ export interface AgentDefinition {
   mcpServerIds: number[];
   readonly mcpServerUrls: string[];
   repoIds: number[];
+  workflows?: number[];
   readonly legacyDatasetIds?: string[];
   maxLoopCount: number;
   revision?: number;
+  publishedVersionId?: number | null;
   readonly configuredMcpCount?: number;
   promptType?: number;
   promptSections?: Array<{ key: string; value: string }>;
@@ -40,7 +42,7 @@ export interface AgentDefinition {
 
 type AgentResourceSelection = Pick<
   AgentDefinition,
-  'tools' | 'skills' | 'mcpServerIds' | 'repoIds'
+  'tools' | 'skills' | 'mcpServerIds' | 'repoIds' | 'workflows'
 >;
 
 export type AgentResourceChanges = Partial<
@@ -56,6 +58,7 @@ export const buildAgentResourceUpdate = (
   ...(changed.skills ? { skills: draft.skills } : {}),
   ...(changed.mcpServerIds ? { mcpServerIds: draft.mcpServerIds } : {}),
   ...(changed.repoIds ? { repoIds: draft.repoIds } : {}),
+  ...(changed.workflows ? { workflows: draft.workflows || [] } : {}),
 });
 
 export interface AgentResourceOptions {
@@ -64,6 +67,7 @@ export interface AgentResourceOptions {
   mcp: Array<{ id: number; name: string; url?: string }>;
   skills: Array<{ id: number; name: string }>;
   repos: Array<{ id: number; name: string }>;
+  workflows?: Array<{ id: number; name: string }>;
 }
 
 export interface AgentSession {
@@ -302,3 +306,6 @@ export const streamAgentRun = async (
     }
   );
 };
+
+export const publishAgentVersion = (id: number | string, versionId: number) =>
+  http.put(`/agents/${id}/published-version`, { versionId });

@@ -22,6 +22,19 @@ export interface WorkflowListParams {
 
 /** WorkflowDialog stores its question and answer as JSON strings. */
 export interface WorkflowDialogue {
+  runId?: string;
+  eventId?: string;
+  interrupt?: {
+    event_id?: string;
+    node_id?: string;
+    need_reply?: boolean;
+    value?: {
+      type?: string;
+      option?: import('@/components/workflow/types/drawer/chat-debugger').OptionItem[];
+    };
+  };
+  status?: string;
+  resolvedAgents?: Record<string, { agentId: number; versionId: number }>;
   id: string;
   workflowId: string;
   chatId: string;

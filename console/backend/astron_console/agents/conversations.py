@@ -192,6 +192,7 @@ def prompt_for(config):
     return prompt
 
 
+@transaction.atomic
 def prepare(request, agent_id, session_id):
     agent, scope, session = get_session(request, agent_id, session_id)
     values = request.payload
@@ -267,6 +268,9 @@ def prepare(request, agent_id, session_id):
             "caller_sid": run.pk,
         },
     }
+    from astron_console.workflows.execution_context import register_agent_root
+
+    payload["meta_data"]["console_context"] = register_agent_root(run, agent, scope, frozen)
     return run, payload, agent, scope
 
 
@@ -493,6 +497,13 @@ async def stream_run(run, payload, agent, scope):
         if stream:
             with suppress(Exception):
                 await stream.aclose()
+        from astron_console.workflows.execution_context import cancel_root
+        from astron_console.workflows.models import ExecutionContext
+
+        if status != "completed":
+            await asyncio.shield(sync_to_async(cancel_root)(run.pk, status))
+        else:
+            await sync_to_async(ExecutionContext.objects.filter(pk=run.pk).update)(status=status)
         await asyncio.shield(sync_to_async(checkpoint)(run, final=status, error_code=error_code))
         logger.info("Agent run ended run=%s agent=%s status=%s", run.pk, agent.pk, status)
     if status == "completed":

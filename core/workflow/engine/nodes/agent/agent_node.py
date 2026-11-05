@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from typing import Any, Dict, List, Tuple
+from uuid import uuid4
 
 import aiohttp
 from aiohttp import ClientResponse, ClientTimeout
@@ -31,6 +32,7 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.infra import console_runtime
 from workflow.infra.providers.llm.runtime_config import resolve_model_config
 from workflow.infra.providers.llm.schemas import StreamOutputMsg
 from workflow.utils.credentials import credential_from_env_or_file
@@ -50,6 +52,16 @@ def _redact_agent_request_headers(headers: dict[str, str]) -> dict[str, str]:
     }
 
 
+def _agent_frame(line: bytes) -> dict | None:
+    line_str = line.decode("utf-8").strip()
+    if not line_str.startswith("data:"):
+        return None
+    data = line_str.removeprefix("data:").strip()
+    if data == "[DONE]":
+        return None
+    return json.loads(data)
+
+
 # Temporarily unused
 class Instruction(BaseModel):
     """Instruction configuration for agent node.
@@ -59,9 +71,9 @@ class Instruction(BaseModel):
     :param query: Query instruction template
     """
 
-    reasoning: str = Field(...)
-    answer: str = Field(...)
-    query: str = Field(...)
+    reasoning: str = ""
+    answer: str = ""
+    query: str = ""
 
 
 class AgentModelConfig(BaseModel):
@@ -265,17 +277,34 @@ class AgentNode(BaseNode):
     apiKey: str = Field(default="", exclude=True, repr=False)
     apiSecret: str = Field(default="", exclude=True, repr=False)
     uid: str = Field(default="")
-    modelConfig: AgentModelConfig
-    instruction: Instruction
-    plugin: AgentNodePlugin
+    agentId: str | int | None = None
+    modelConfig: AgentModelConfig = Field(
+        default_factory=lambda: AgentModelConfig(domain="", api="", agentStrategy=1)
+    )
+    instruction: Instruction = Field(default_factory=Instruction)
+    plugin: AgentNodePlugin = Field(
+        default_factory=lambda: AgentNodePlugin(
+            mcpServerIds=[], mcpServerUrls=[], tools=[], workflowIds=[]
+        )
+    )
     metaData: AgentMetaData = AgentMetaData()
-    maxLoopCount: int = Field(...)
+    maxLoopCount: int = Field(default=5)
     stream: bool = Field(default=True)
     maxTokens: int = Field(default=10240)
     enableChatHistoryV2: EnableChatHistoryV2 = Field(
         default_factory=EnableChatHistoryV2
     )
     source: str = Field(default=ModelProviderEnum.OPENAI.value)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reference_ignores_inline_execution_config(cls, value: Any) -> Any:
+        if isinstance(value, dict) and value.get("agentId") is not None:
+            value = dict(value)
+            # Only the published definition may select models, tools and loop limits.
+            for key in ("modelConfig", "plugin", "maxLoopCount"):
+                value.pop(key, None)
+        return value
 
     def _build_agent_request_headers(self) -> dict[str, str]:
         """Build an authenticated request for the deployment-internal Agent API."""
@@ -330,6 +359,12 @@ class AgentNode(BaseNode):
         )
 
         messages = await self._deal_history(inputs, variable_pool, span)
+        if not query_instruction:
+            query_instruction = str(
+                inputs.get("query")
+                or inputs.get("input")
+                or json.dumps(inputs, ensure_ascii=False)
+            )
         messages.append(AgentNodeMessage("user", query_instruction).to_dict())
         await span.add_info_event_async(f"messages: {messages}")
 
@@ -374,6 +409,7 @@ class AgentNode(BaseNode):
                     headers=headers,
                     json=req_body,
                 ) as response:
+                    response.raise_for_status()
                     content_list, reasoning_content_list, token_usage = (
                         await self._process_stream_response(
                             response, variable_pool, msg_or_end_node_deps, span
@@ -468,15 +504,11 @@ class AgentNode(BaseNode):
         content_list = []
         reasoning_content_list = []
         token_usage = {}
+        completed = False
         async for line in response.content:
-            line_str = line.decode("utf-8")
-            if line_str == "\n":
+            msg = _agent_frame(line)
+            if msg is None:
                 continue
-
-            await span.add_info_event_async(f"recv: {line_str}")
-            msg = json.loads(line_str.removeprefix("data:"))
-            if line_str == "[DONE]":
-                break
 
             if msg.get("code", 0) != 0:
                 raise CustomException(
@@ -487,7 +519,7 @@ class AgentNode(BaseNode):
 
             choices = msg.get("choices", [{}])
             if len(choices) == 0:
-                break
+                continue
 
             content = choices[0].get("delta", {}).get("content", "")
             reasoning_content = choices[0].get("delta", {}).get("reasoning_content", "")
@@ -500,7 +532,7 @@ class AgentNode(BaseNode):
                 tool_calls_optimize = extract_tool_calls_content(tool_calls)
                 reasoning_content_list.append(tool_calls_optimize)
 
-            finish_reason = choices[0].get("finish_reason", ChatStatus.FINISH_REASON)
+            finish_reason = choices[0].get("finish_reason")
             # Put frame content into msg_or_end_node_deps for streaming
             # await self.put_agent_content(self.node_id, variable_pool, msg_or_end_node_deps, msg)
             await self.put_stream_content(
@@ -511,9 +543,15 @@ class AgentNode(BaseNode):
                 msg,
             )
             if finish_reason == ChatStatus.FINISH_REASON.value:
+                completed = True
                 token_usage = msg.get("usage", {})
                 token_usage = token_usage if token_usage else {}
                 break
+        if not completed:
+            raise CustomException(
+                CodeEnum.AGENT_NODE_EXECUTION_ERROR,
+                err_msg="Agent stream ended without completion",
+            )
         return content_list, reasoning_content_list, token_usage
 
     async def _generate_agent_request(
@@ -532,6 +570,25 @@ class AgentNode(BaseNode):
         :param span: Tracing span for monitoring
         :return: Request body dictionary
         """
+        context = variable_pool.system_params.get(ParamKey.ConsoleContext, default={})
+        if context:
+            console_runtime.validate_context(context)
+            return await console_runtime.request(
+                "agent-runtime",
+                {
+                    "runId": context["run_id"],
+                    "nodeId": self.node_id,
+                    "query": messages[-1]["content"],
+                    "reasoningInstruction": reasoning_instruction,
+                    "answerInstruction": answer_instruction,
+                    "invocationId": str(uuid4()),
+                },
+            )
+        if self.agentId is not None:
+            raise CustomException(
+                CodeEnum.AGENT_NODE_EXECUTION_ERROR,
+                err_msg="Agent references require a Console run",
+            )
         model = await resolve_model_config(
             str(variable_pool.system_params.get(ParamKey.ModelFlowId, default="")),
             str(self.modelId),
@@ -595,6 +652,8 @@ class AgentNode(BaseNode):
         :return: List of formatted message dictionaries
         """
         messages: List[Dict] = []
+        if variable_pool.system_params.get(ParamKey.ConsoleContext, default={}):
+            return messages
         if not (self.enableChatHistoryV2 and self.enableChatHistoryV2.is_enabled):
             return messages
         rounds = self.enableChatHistoryV2.rounds

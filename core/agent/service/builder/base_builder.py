@@ -46,6 +46,7 @@ class BaseApiBuilder(BaseModel):
         mcp_server_urls: list,
         workflow_ids: list,
         skills: list | None = None,
+        console_context: dict | None = None,
     ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]]:
 
         with self.span.start("BuildPlugins") as sp:
@@ -80,7 +81,10 @@ class BaseApiBuilder(BaseModel):
 
             if workflow_ids:
                 workflow_tools = await WorkflowPluginFactory(
-                    app_id=self.app_id, uid=self.uid, workflow_ids=workflow_ids
+                    app_id=self.app_id,
+                    uid=self.uid,
+                    workflow_ids=workflow_ids,
+                    context=console_context or {},
                 ).gen(sp)
                 plugins.extend(
                     cast(

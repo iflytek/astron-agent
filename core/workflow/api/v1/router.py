@@ -12,12 +12,14 @@ from workflow.api.v1.chat import (
     sse_debug_chat_router,
     sse_openapi_router,
 )
+from workflow.api.v1.chat.console import router as console_router
 from workflow.api.v1.flow import auth_router, file_router, layout_router
 
 # Main workflow router with v1 prefix
 workflow_router = APIRouter(prefix="/workflow/v1")
 
 # Include all sub-routers
+workflow_router.include_router(console_router)
 workflow_router.include_router(layout_router)
 workflow_router.include_router(auth_router)
 workflow_router.include_router(node_debug_router)

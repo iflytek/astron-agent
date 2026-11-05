@@ -45,7 +45,7 @@ class ChatVo(BaseModel):
     Value object for chat request parameters.
 
     :param flow_id: The workflow ID (required)
-    :param uid: User ID, maximum 40 characters
+    :param uid: User ID, maximum 128 characters
     :param stream: Whether to use streaming response
     :param ext: Extended fields dictionary
     :param parameters: Parameters object (required)
@@ -55,7 +55,7 @@ class ChatVo(BaseModel):
     """
 
     flow_id: str = Field(min_length=1, description="Workflow ID")  # Required
-    uid: str = Field("", max_length=40, description="User ID, maximum 40 characters")
+    uid: str = Field("", max_length=128, description="User ID, maximum 128 characters")
     stream: bool = Field(True, description="Whether to use streaming")
     ext: Dict[str, Any] = Field({}, description="Extended fields")
     parameters: Dict[str, Any] = Field(..., description="Parameters object")  # Required
