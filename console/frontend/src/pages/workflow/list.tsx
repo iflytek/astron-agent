@@ -9,6 +9,10 @@ import {
   copyFlowAPI,
   workflowImport,
 } from '@/services/flow';
+import VirtualConfig, {
+  type FormValues,
+} from '@/components/virtual-config-modal';
+import { createTalkAgent } from '@/services/spark-common';
 import type { FlowType } from '@/components/workflow/types';
 import { getFixedUrl } from '@/components/workflow/utils';
 import '@/pages/agents/style.css';
@@ -32,6 +36,7 @@ export default function WorkflowList(): ReactElement {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [creatingVirtual, setCreatingVirtual] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FlowType | null>(null);
@@ -77,6 +82,11 @@ export default function WorkflowList(): ReactElement {
       setBusy(false);
     }
   };
+  const createVirtualWorkflow = async (values: FormValues): Promise<void> => {
+    const flow = await createTalkAgent(values);
+    setCreatingVirtual(false);
+    navigate(`/work_flow/${flow.maasId}/arrange?botId=${flow.botId}`);
+  };
   return (
     <main className="agents-page">
       <header className="agents-header">
@@ -85,9 +95,14 @@ export default function WorkflowList(): ReactElement {
           <p>管理画布、版本与运行，复用已发布的独立 Agent。</p>
         </div>
         <Link to="/management/release">发布管理</Link>
-        <Button type="primary" onClick={() => setCreating(true)}>
-          新建工作流
-        </Button>
+        <div className="agents-actions">
+          <Button onClick={() => setCreatingVirtual(true)}>
+            新建语音 / 虚拟人
+          </Button>
+          <Button type="primary" onClick={() => setCreating(true)}>
+            新建工作流
+          </Button>
+        </div>
       </header>
       <div className="agents-toolbar">
         <Input.Search
@@ -242,6 +257,13 @@ export default function WorkflowList(): ReactElement {
           </article>
         ))}
       </div>
+      {creatingVirtual && (
+        <VirtualConfig
+          visible={creatingVirtual}
+          onSubmit={createVirtualWorkflow}
+          onCancel={() => setCreatingVirtual(false)}
+        />
+      )}
       <Modal
         title="新建工作流"
         open={creating}

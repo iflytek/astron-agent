@@ -465,8 +465,14 @@ export const getVCNList = () => {
   return http.post(`/talkAgent/getVCNList`);
 };
 //
-export const createTalkAgent = (params: any) => {
-  return http.post(`/talkAgent/create`, params);
+interface CreatedTalkAgent {
+  maasId: number | string;
+  botId: number | string;
+  flowId: string;
+}
+
+export const createTalkAgent = (params: unknown): Promise<CreatedTalkAgent> => {
+  return http.post<unknown, CreatedTalkAgent>(`/talkAgent/create`, params);
 };
 
 //

@@ -7,15 +7,13 @@ import VirtualConfig from '@/components/virtual-config-modal';
 import dayjs from 'dayjs';
 import { isJSON } from '@/utils';
 import { saveFlowAPI } from '@/services/flow';
-import { message } from 'antd';
-import { shouldShowRequestError } from '@/utils/http-error';
+import { Button } from 'antd';
 
 import arrowLeft from '@/assets/imgs/knowledge/workflow-back.png';
 import flowEditIcon from '@/assets/imgs/workflow/flow-edit-icon.png';
 import flowSuccessIcon from '@/assets/imgs/workflow/flow-success-icon.png';
 import flowRunningIcon from '@/assets/imgs/workflow/flow-running-icon.png';
 import flowFailedIcon from '@/assets/imgs/workflow/flow-failed-icon.png';
-import flowEditNormal from '@/assets/imgs/workflow/flow-edit-normal.svg';
 import { TFunction } from 'i18next';
 interface FlowHeaderProps {
   currentTab?: 'arrange' | 'overview' | 'files';
@@ -160,32 +158,23 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       ...(typeof config.vcn === 'string'
         ? { advancedConfig: { textToSpeech: { vcn_cn: config.vcn } } }
         : {}),
-    })
-      .then(data => {
-        setModalType('');
-        setCurrentFlow((previous: any) =>
-          previous?.id === data.id
-            ? {
-                ...previous,
-                name: data.name,
-                description: data.description,
-                updateTime: data.updateTime,
-                avatarIcon: data.avatarIcon,
-                category: data.category,
-                flowConfig: data.flowConfig,
-                advancedConfig: data.advancedConfig,
-              }
-            : previous
-        );
-      })
-      .catch(error => {
-        // Leave the form open; never show a local-only voice as saved.
-        if (shouldShowRequestError(error)) {
-          message.error(
-            error instanceof Error ? error.message : '工作流保存失败'
-          );
-        }
-      });
+    }).then(data => {
+      setModalType('');
+      setCurrentFlow((previous: any) =>
+        previous?.id === data.id
+          ? {
+              ...previous,
+              name: data.name,
+              description: data.description,
+              updateTime: data.updateTime,
+              avatarIcon: data.avatarIcon,
+              category: data.category,
+              flowConfig: data.flowConfig,
+              advancedConfig: data.advancedConfig,
+            }
+          : previous
+      );
+    });
   };
 
   useEffect(() => {
@@ -223,6 +212,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
                 sceneEnable: flowConfig?.sceneEnable,
                 vcnEnable: flowConfig?.vcnEnable,
                 callSceneId: flowConfig?.callSceneId,
+                sceneVcn: flowConfig?.sceneVcn,
               },
             } as any
           }
@@ -253,12 +243,13 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
                 {currentTab === 'arrange' && (
                   <>
                     {isVirtualFlow ? (
-                      <img
-                        src={flowEditNormal}
-                        className="w-[94px] h-[28px] cursor-pointer"
-                        alt=""
+                      <Button
+                        size="small"
+                        disabled={historyVersion}
                         onClick={() => setModalType('virtual')}
-                      />
+                      >
+                        语音与虚拟人设置
+                      </Button>
                     ) : (
                       <img
                         src={flowEditIcon}

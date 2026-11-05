@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import ts from 'typescript';
+import { readConfigObject } from '../src/components/workflow/drawer/chat-debugger/chat-state.ts';
 import * as coordinators from '../src/components/workflow/store/workflow-save-coordinator.ts';
 import { workflowExecutionView } from '../src/components/workflow/store/workflow-execution-view.ts';
 import {
@@ -472,7 +473,7 @@ test('actual history selection flushes the draft before showing read-only nodes'
   h.manager.resetCurrentFlowSave();
 });
 
-test('actual chat rendering and virtual prologue use version A and then B without draft leakage', () => {
+test('actual chat rendering and virtual prologue use version A and then B without draft leakage', async () => {
   const make = name => ({
     flowConfig: JSON.stringify({
       interactType: 2,
@@ -507,9 +508,7 @@ test('actual chat rendering and virtual prologue use version A and then B withou
   ).useWorkflowExecutionView;
   const sdkAvatarInfo = { avatar_id: 'same-avatar' },
     sdkTTSInfo = {};
-  const spoken = [],
-    timers = new Map();
-  let timerId = 0;
+  const spoken = [];
   let previousCleanup;
   for (const version of [a, b, a]) {
     state.historyVersionData = version;
@@ -544,8 +543,15 @@ test('actual chat rendering and virtual prologue use version A and then B withou
           : undefined,
       {
         currentFlow: view,
-        talkAgentConfig: JSON.parse(view.flowConfig),
+        talkAgentConfig: {
+          ...JSON.parse(view.flowConfig),
+          avatarId: JSON.parse(view.flowConfig).sceneId,
+        },
         interactType: 2,
+        chatType: 'vms',
+        setAvatarError: noop,
+        setLoadingVms: noop,
+        readConfigObject,
         handleChatTypeChange: noop,
         setCallStatus: noop,
         hasVirtualScene: true,
@@ -561,26 +567,20 @@ test('actual chat rendering and virtual prologue use version A and then B withou
                 spoken.push({ text, vcn: options.tts.vcn }),
             },
             dispose: noop,
-            initAvatar: noop,
+            initAvatar: async () => true,
           },
         },
-        setTimeout: fn => {
-          timers.set(++timerId, fn);
-          return timerId;
-        },
-        clearTimeout: id => timers.delete(id),
       }
     );
     previousCleanup = effect();
-    const pending = timers.get(timerId);
-    pending();
+    await tick();
     assert.deepEqual(spoken.at(-1), {
       text: expected,
       vcn: JSON.parse(view.flowConfig).vcn,
     });
   }
   previousCleanup();
-  assert.equal(timers.size, 0);
+  assert.equal(spoken.length, 3);
   assert.equal(draft.advancedConfig, JSON.stringify(b.advancedConfig));
 });
 

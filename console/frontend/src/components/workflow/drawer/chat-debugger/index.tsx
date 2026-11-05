@@ -33,7 +33,9 @@ import {
 
 // 从统一的图标管理中导入
 import { Icons } from '@/components/workflow/icons';
-import VmsInteractionCmp from '@/components/vms-interaction-cmp';
+import VmsInteractionCmp, {
+  type VirtualAvatarHandle,
+} from '@/components/vms-interaction-cmp';
 import './index.scss';
 // 获取 Chat Debugger 模块的图标
 const icons = Icons.chatDebugger;
@@ -57,23 +59,6 @@ const initInterruptChat: InterruptChatType = {
   option: null,
   needReply: true,
 };
-
-interface VirtualAvatarHandle {
-  instance?: {
-    writeText: (
-      text: string,
-      options?: {
-        tts?: { vcn: string };
-        avatar_dispatch?: { interactive_mode: number };
-      }
-    ) => Promise<unknown>;
-  };
-  dispose: () => void;
-  initAvatar: (options: {
-    sdkAvatarInfo: { avatar_id: string };
-    sdkTTSInfo: { vcn: string };
-  }) => Promise<void>;
-}
 
 type ChatFooterProps = Pick<
   ChatStoreType,
@@ -390,6 +375,10 @@ const useChatDebuggerContent = ({
   }, [nodes]);
   const talkAgentConfig = useMemo(() => {
     const config = readConfigObject(currentFlow?.flowConfig);
+    const sceneMode = Number(config.sceneMode) === 1 ? 1 : 0;
+    const sceneId = typeof config.sceneId === 'string' ? config.sceneId : '';
+    const callSceneId =
+      typeof config.callSceneId === 'string' ? config.callSceneId : '';
     return {
       interactType:
         typeof config.interactType === 'number' ||
@@ -397,7 +386,12 @@ const useChatDebuggerContent = ({
           ? config.interactType
           : undefined,
       sceneEnable: config.sceneEnable,
-      sceneId: typeof config.sceneId === 'string' ? config.sceneId : undefined,
+      sceneMode,
+      sceneId,
+      callSceneId,
+      // Both modes use the official SDK's avatar.avatar_id; keep the saved
+      // choices separate and never substitute the other mode's avatar.
+      avatarId: sceneMode === 1 ? callSceneId : sceneId,
       vcn: typeof config.vcn === 'string' ? config.vcn : '',
     };
   }, [currentFlow?.flowConfig]);
@@ -452,6 +446,8 @@ export function ChatDebuggerContent({
   const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;
   const [callStatus, setCallStatus] = useState('hangup');
   const [loadingVms, setLoadingVms] = useState<boolean>(false);
+  const [avatarError, setAvatarError] = useState('');
+  const [avatarRetry, setAvatarRetry] = useState(0);
   const vmsInteractionCmpRef = useRef<VirtualAvatarHandle>(null);
   const vmsInteractiveRefStatus = useChatStores(
     state => state.vmsInteractiveRefStatus
@@ -474,71 +470,72 @@ export function ChatDebuggerContent({
       handleChatTypeChange('text');
       setCallStatus('hangup');
     }
-    sdkTTSInfo.vcn = talkAgentConfig?.vcn;
-    //如果开启了虚拟人，可能是语音通话虚拟人，也可能是语音通话，但是都需要初始化虚拟人必要的参数
-    if (!hasVirtualScene) {
-      vmsInteractionCmpRef?.current?.instance &&
-        vmsInteractionCmpRef?.current?.dispose();
-      sdkAvatarInfo.avatar_id = '';
-      setVmsInteractiveRefStatus('init');
-      chatAnswer = '';
-      return;
+  }, [interactType, handleChatTypeChange, open]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const avatar = vmsInteractionCmpRef.current;
+    // This invalidates both a ready SDK and any pending signature/start request.
+    avatar?.dispose();
+    sdkAvatarInfo.avatar_id = '';
+    sdkTTSInfo.vcn = talkAgentConfig.vcn;
+    chatAnswer = '';
+    setAvatarError('');
+    setLoadingVms(false);
+    const cleanup = (): void => {
+      cancelled = true;
+      avatar?.dispose();
+    };
+    if (!open || chatType !== 'vms' || !hasVirtualScene) return cleanup;
+    if (!talkAgentConfig.avatarId) {
+      setAvatarError('所选模式未配置虚拟人形象，请先完成设置。');
+      return cleanup;
     }
-    if (open) {
-      const timer = setTimeout(() => {
+    if (!avatar) {
+      setAvatarError('虚拟人连接尚未就绪，请重试。');
+      return cleanup;
+    }
+    const voice = { vcn: talkAgentConfig.vcn };
+    void avatar
+      .initAvatar({
+        sdkAvatarInfo: { avatar_id: talkAgentConfig.avatarId },
+        sdkTTSInfo: voice,
+      })
+      .then(async started => {
+        if (cancelled || !started) return;
+        sdkAvatarInfo.avatar_id = talkAgentConfig.avatarId;
+        const advancedConfig = readConfigObject(currentFlow?.advancedConfig);
+        const prologue = advancedConfig.prologue as
+          | { enabled?: boolean; prologueText?: unknown }
+          | undefined;
         if (
-          sdkAvatarInfo.avatar_id !== talkAgentConfig?.sceneId &&
-          talkAgentConfig?.sceneId
+          prologue?.enabled &&
+          typeof prologue.prologueText === 'string' &&
+          prologue.prologueText
         ) {
-          sdkAvatarInfo.avatar_id = talkAgentConfig?.sceneId;
-          if (talkAgentConfig?.sceneId) {
-            vmsInteractionCmpRef?.current?.instance &&
-              vmsInteractionCmpRef?.current?.dispose();
-            chatAnswer = '';
-            setVmsInteractiveRefStatus('init');
-          }
-          interactType === 2 &&
-            vmsInteractionCmpRef?.current?.initAvatar({
-              sdkAvatarInfo,
-              sdkTTSInfo,
-            });
-          setVmsInteractiveRefStatus('init');
-        } else {
-          if (interactType !== 2) {
-            vmsInteractionCmpRef?.current?.instance &&
-              vmsInteractionCmpRef?.current?.dispose();
-            chatAnswer = '';
-          }
+          await avatar.instance?.writeText(prologue.prologueText, {
+            tts: voice,
+          });
         }
-        //播放开场白
-        if (interactType === 2 && currentFlow?.advancedConfig) {
-          const advancedConfig = JSON.parse(currentFlow?.advancedConfig);
-          if (
-            advancedConfig?.prologue?.enabled &&
-            advancedConfig?.prologue?.prologueText
-          ) {
-            typeof advancedConfig?.prologue?.prologueText === 'string' &&
-              vmsInteractionCmpRef?.current?.instance?.writeText(
-                advancedConfig?.prologue?.prologueText,
-                {
-                  tts: sdkTTSInfo,
-                }
-              );
-          }
-        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        avatar.dispose();
+        sdkAvatarInfo.avatar_id = '';
+        setVmsInteractiveRefStatus('error');
+        setAvatarError('虚拟人连接失败，请检查配置后重试。');
       });
-      return () => clearTimeout(timer);
-    }
-    return undefined;
+    return cleanup;
   }, [
+    currentFlow?.id,
     currentFlow?.advancedConfig,
-    handleChatTypeChange,
     hasVirtualScene,
-    interactType,
+    chatType,
     open,
+    avatarRetry,
     setVmsInteractiveRefStatus,
-    talkAgentConfig?.sceneId,
-    talkAgentConfig?.vcn,
+    talkAgentConfig.avatarId,
+    talkAgentConfig.vcn,
   ]);
   useChatDebuggerEffect(
     currentFlow,
@@ -551,10 +548,9 @@ export function ChatDebuggerContent({
 
   const closeFunction = () => {
     clearData(setOpen);
-    vmsInteractionCmpRef?.current?.instance &&
-      vmsInteractionCmpRef?.current?.dispose();
+    vmsInteractionCmpRef.current?.dispose();
     sdkAvatarInfo.avatar_id = '';
-    setVmsInteractiveRefStatus('init');
+    setVmsInteractiveRefStatus('stop');
     chatAnswer = '';
   };
   useEffect(() => {
@@ -603,7 +599,9 @@ export function ChatDebuggerContent({
                 });
               chatAnswer = chatAnswer.slice(str.length, chatAnswer.length);
             } else {
-              vmsInteractionCmpRef?.current?.instance?.writeText(chatAnswer);
+              vmsInteractionCmpRef?.current?.instance?.writeText(chatAnswer, {
+                tts: sdkTTSInfo,
+              });
             }
           }
         }
@@ -659,6 +657,17 @@ export function ChatDebuggerContent({
           />
         </div>
       </div>
+      {avatarError && open && chatType === 'vms' && (
+        <div role="alert" className="relative z-[11] mx-5 my-2 text-red-600">
+          {avatarError}
+          <Button
+            className="ml-2"
+            onClick={() => setAvatarRetry(value => value + 1)}
+          >
+            重试连接
+          </Button>
+        </div>
+      )}
       <div className="flex-1 flex flex-col overflow-hidden mt-1 relative">
         <div className="w-full flex items-center justify-between px-5">
           <div className="flex items-center gap-2 text-desc">

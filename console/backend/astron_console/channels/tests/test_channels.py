@@ -555,12 +555,18 @@ class ChannelTests(TestCase):
             {
                 "name": "avatar",
                 "botDesc": "description",
-                "talkAgentConfig": {"interactType": 2},
+                "avatar": "https://example.com/avatar.png",
+                "botType": 2,
+                "talkAgentConfig": {"interactType": 2, "vcn": "x5_lingxiaoyue_flow"},
             },
         )
         self.assertEqual(response.status_code, 200, response.content)
         created = response.json()["data"]
         url = f"/workflow?id={created['maasId']}"
+        detail = self.client.get(url).json()["data"]
+        self.assertEqual(detail["avatarIcon"], "https://example.com/avatar.png")
+        self.assertEqual(str(detail["category"]), "2")
+        self.assertEqual(detail["advancedConfig"]["textToSpeech"]["vcn_cn"], "x5_lingxiaoyue_flow")
         self.assertEqual(
             json.loads(self.client.get(url).json()["data"]["flowConfig"])["interactType"], 2
         )
@@ -581,6 +587,10 @@ class ChannelTests(TestCase):
         self.assertEqual(saved.status_code, 200, saved.content)
         version = saved.json()["data"]
         self.assertEqual(json.loads(version["flowConfig"])["interactType"], 1)
+        self.assertEqual(
+            version["advancedConfig"]["textToSpeech"]["vcn_cn"],
+            "x5_lingxiaoyue_flow",
+        )
         self.write(
             "/talkAgent/updateConfig",
             {"botId": created["botId"], "talkAgentConfig": {"interactType": 2}},
@@ -608,6 +618,10 @@ class ChannelTests(TestCase):
         self.assertEqual(restored.status_code, 200, restored.content)
         self.assertEqual(
             json.loads(self.client.get(url).json()["data"]["flowConfig"])["interactType"], 1
+        )
+        self.assertEqual(
+            self.client.get(url).json()["data"]["advancedConfig"]["textToSpeech"]["vcn_cn"],
+            "x5_lingxiaoyue_flow",
         )
 
     def test_speaker_rename_rejects_legacy_column_overflow(self):
