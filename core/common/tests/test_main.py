@@ -2,7 +2,7 @@
 Main test module for common package
 """
 
-import pytest
+from unittest.mock import Mock, patch
 
 
 class TestCommonModule:
@@ -45,10 +45,28 @@ class TestCommonModule:
         assert service_manager is service_manager2
         assert isinstance(service_manager, ServiceManager)
 
+    @patch.dict(
+        "sys.modules",
+        {
+            "redis": Mock(),
+            "rediscluster": Mock(),
+            "boto3": Mock(),
+            "botocore": Mock(),
+            "botocore.exceptions": Mock(ClientError=Exception),
+        },
+    )
     def test_initialize_services_function(self) -> None:
-        """Test initialize_services function exists and is callable"""
-        # Skip this test due to dependency issues
-        pytest.skip("Skipping due to missing dependencies")
+        """Initialization registers the requested real factory and dependencies."""
+        from common.initialize.initialize import initialize_services
+        from common.service.base import ServiceType
+
+        with patch("common.initialize.initialize.service_manager") as manager:
+            initialize_services([ServiceType.SETTINGS_SERVICE])
+
+        manager.register_factory.assert_called_once()
+        call = manager.register_factory.call_args
+        assert call.args[0].service_class.name == ServiceType.SETTINGS_SERVICE
+        assert call.kwargs["dependencies"] == [ServiceType.SETTINGS_SERVICE]
 
     def test_service_type_enum_values(self) -> None:
         """Test ServiceType enum has expected values"""
@@ -213,8 +231,6 @@ class TestCommonModuleIntegration:
 
     def test_hmac_auth_workflow(self) -> None:
         """Test HMAC authentication workflow"""
-        from unittest.mock import Mock, patch
-
         from common.utils.hmac_auth import HMACAuth
 
         url = "https://api.example.com/test"
