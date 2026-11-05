@@ -17,7 +17,11 @@ import useChatStore from '@/components/workflow/store/use-chat-store';
 import type { FlowType } from '@/components/workflow/types';
 import type { WorkflowNode } from '@/components/workflow/types/domain';
 import type { ChatStoreType } from '@/components/workflow/types/zustand/chat';
-import { appendChatReply, readConfigObject } from './chat-state';
+import {
+  appendChatReply,
+  createStartInputInitializer,
+  readConfigObject,
+} from './chat-state';
 import useChatStores from '@/store/chat-store';
 // 类型导入
 import {
@@ -176,6 +180,7 @@ const useChatDebuggerEffect = (
   vmsInteractiveRefStatus: string
 ): void => {
   const isMounted = useRef<boolean>(false);
+  const initializeInputs = useRef(createStartInputInitializer());
   const flowResult = useFlowsManager(state => state.flowResult);
   const setInterruptChat = useChatStore(state => state.setInterruptChat);
   const clearNodeStatus = useChatStore(state => state.clearNodeStatus);
@@ -236,8 +241,11 @@ const useChatDebuggerEffect = (
     };
   }, [currentFlow?.flowId]);
   useEffect(() => {
-    open &&
-      !isMounted.current &&
+    initializeInputs.current(
+      open,
+      currentFlow?.flowId,
+      startNode?.data?.outputs
+    ) &&
       setStartNodeParams(
         startNode?.data?.outputs?.map(input => {
           const errorMsg =
@@ -271,7 +279,7 @@ const useChatDebuggerEffect = (
           };
         }) || []
       );
-  }, [startNode, open]);
+  }, [startNode, open, currentFlow?.flowId]);
   useEffect(() => {
     if (isMounted.current) {
       !debuggering && buildPassRef && handleSaveDialogue();

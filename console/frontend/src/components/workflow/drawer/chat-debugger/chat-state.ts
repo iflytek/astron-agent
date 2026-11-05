@@ -9,6 +9,26 @@ function isConfigObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Reopen and late graph loading initialize inputs; runtime node clones do not. */
+export function createStartInputInitializer(): (
+  open: boolean,
+  flowId: string | undefined,
+  outputs: unknown[] | undefined
+) => boolean {
+  let initialized: string | undefined;
+  return (open, flowId, outputs) => {
+    if (!open) {
+      initialized = undefined;
+      return false;
+    }
+    if (!outputs) return false;
+    const key = JSON.stringify([flowId, outputs]);
+    if (key === initialized) return false;
+    initialized = key;
+    return true;
+  };
+}
+
 export function readConfigObject(
   value: string | undefined
 ): Record<string, unknown> {
