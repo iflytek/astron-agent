@@ -59,19 +59,24 @@ check-tools-go: ## ✅ Check Go development tools availability
 		echo "  Go version: $$($(GO) version)"; \
 	fi
 
+# Fail fast only for CI operations; setup and cleanup retain their own semantics.
+# Keep project subshells unguarded: if/&&/|| would disable Bash errexit inside.
+check-go test-go build-go: SHELL := /bin/bash
+
 check-go: ## 🔍 Check Go code quality
-	@if [ -n "$(GO_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(GO_DIRS)" ]; then \
 		echo "$(YELLOW)Checking Go code quality in: $(GO_DIRS)$(RESET)"; \
 		for dir in $(GO_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Processing $$dir...$(RESET)"; \
-				cd $$dir; \
+				(cd "$$dir"; \
 				echo "$(YELLOW)    Installing Go tools...$(RESET)"; \
 				$(GO) install golang.org/x/tools/cmd/goimports@latest; \
 				$(GO) install github.com/fzipp/gocyclo/cmd/gocyclo@latest; \
 				$(GO) install honnef.co/go/tools/cmd/staticcheck@2025.1.1; \
-				curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$($(GO) env GOPATH)/bin v2.5.0; \
-				export PATH=$$PATH:$$($(GO) env GOPATH)/bin; \
+				GO_TOOLS_PATH=$$($(GO) env GOPATH); \
+				curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b "$$GO_TOOLS_PATH/bin" v2.5.0; \
+				export PATH=$$PATH:$$GO_TOOLS_PATH/bin; \
 				echo "$(YELLOW)    Checking format compliance...$(RESET)"; \
 				UNFORMATTED="$$($(GOIMPORTS) -l .)"; \
 				if [ -n "$$UNFORMATTED" ]; then \
@@ -91,9 +96,9 @@ check-go: ## 🔍 Check Go code quality
 				fi; \
 				echo "$(YELLOW)    Running golangci-lint...$(RESET)"; \
 				$(GOLANGCI_LINT) run ./... --timeout=5m; \
-				cd - > /dev/null; \
+				); \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)Go code quality checks completed$(RESET)"; \
@@ -102,15 +107,15 @@ check-go: ## 🔍 Check Go code quality
 	fi
 
 test-go: ## 🧪 Run Go tests
-	@if [ -n "$(GO_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(GO_DIRS)" ]; then \
 		echo "$(YELLOW)Running Go tests in: $(GO_DIRS)$(RESET)"; \
 		for dir in $(GO_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Testing $$dir...$(RESET)"; \
-				cd $$dir && GOCACHE=$$(pwd)/.gocache $(GO) test ./... -v; \
-				cd - > /dev/null; \
+				(cd "$$dir"; GOCACHE=$$(pwd)/.gocache $(GO) test ./... -v; \
+				); \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)Go tests completed$(RESET)"; \
@@ -119,18 +124,18 @@ test-go: ## 🧪 Run Go tests
 	fi
 
 build-go: ## 📦 Build Go projects
-	@if [ -n "$(GO_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(GO_DIRS)" ]; then \
 		echo "$(YELLOW)Building Go services in: $(GO_DIRS)$(RESET)"; \
 		for dir in $(GO_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Building $$dir...$(RESET)"; \
-				cd $$dir && \
-				mkdir -p bin && \
-				GOCACHE=$$(pwd)/.gocache $(GO) build -o bin/server ./cmd/server && \
+				(cd "$$dir"; \
+				mkdir -p bin; \
+				GOCACHE=$$(pwd)/.gocache $(GO) build -o bin/server .; \
 				echo "$(GREEN)  Built: $$dir/bin/server$(RESET)"; \
-				cd - > /dev/null; \
+				); \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)Go build completed$(RESET)"; \

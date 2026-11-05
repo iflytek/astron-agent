@@ -83,7 +83,7 @@ RPA是独立项目，本轮无需实现联合登录。删除Astron Agent内的Ca
 
 本地执行Console全量Django测试、迁移一致性与ruff；Core Agent/Workflow受影响全量检查；前端type-check/lint/test/build；Compose安全契约与Helm测试。重点覆盖已有表重复接管/未知列保留、审批并发与失败、发布版本固定、应用失效与越权、分享撤销、两种执行身份隔离、公开恢复与取消、渠道重放和错误。
 
-完整CI使用最终提交的Git隔离检出，按仓库`makefiles/localci.toml`运行全部11个应用的`make ci`，不得被本机覆盖缩小范围。`build-push.yml`成功不能替代完整CI；`ci.yml`默认不监听bugfix/superteam，需要显式触发或在隔离检出执行。
+完整CI使用最终提交的Git隔离检出，按仓库`makefiles/localci.toml`运行全部11个应用的`make ci`，不得被本机覆盖缩小范围。`build-push.yml`成功不能替代完整CI；`ci.yml`包含`bugfix/superteam`和`core/common`。各应用质量、测试和构建失败必须向顶层传播并中止后续任务，不能被循环或成功提示覆盖；Tenant从模块根包构建，并核对实际二进制产出。
 
 发布沿用origin到office同名分支PR/镜像流程。服务器`/data/astron-agent`原有部署改动必须保留；旧脚本deploy会无条件覆盖两个部署文件，不能直接执行，先核对并准备保留服务器差异的合入结果。测试/生产阶段共享同一次部署，不重复发布，不reset运行目录。核对镜像revision和重启持久性，最终同步本地、origin、office。
 

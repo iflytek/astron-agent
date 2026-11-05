@@ -62,83 +62,74 @@ check-tools-python: ## ✅ Check Python development tools availability
 		echo "  Pip version: $$($(PYTHON) -m pip --version)"; \
 	fi
 
+# Keep project subshells unguarded: if/&&/|| would disable Bash errexit inside.
+check-python test-python build-python: SHELL := /bin/bash
+
 check-python: ## 🔍 Check Python code quality
-	@if [ -n "$(PYTHON_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(PYTHON_DIRS)" ]; then \
 		echo "$(YELLOW)Checking Python code quality in: $(PYTHON_DIRS)$(RESET)"; \
-		FAILED_PROJECTS=""; \
 		for dir in $(PYTHON_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Processing $$dir...$(RESET)"; \
-				if (cd $$dir && \
+				(cd "$$dir"; \
 				if [ "$$dir" = "console/backend" ]; then \
-					uv sync --locked && \
-					uv run ruff check astron_console manage.py && \
-					uv run ruff format --check astron_console manage.py && \
+					uv sync --locked; \
+					uv run ruff check astron_console manage.py; \
+					uv run ruff format --check astron_console manage.py; \
 					uv run python manage.py makemigrations --check --dry-run --settings=astron_console.settings_test; \
 				else \
-				echo "$(YELLOW)    Installing Python quality tools...$(RESET)" && \
-				$(PYTHON) -m pip install black==24.4.2 isort==5.13.2 flake8==7.0.0 mypy==1.18.2 pylint==3.1.0 'types-requests>=2.32.4.20250913' && \
-				echo "$(YELLOW)    1. Running flake8 code style check...$(RESET)" && \
-				$(PYTHON) -m $(FLAKE8) . && \
-				echo "$(YELLOW)    2. Checking isort import order...$(RESET)" && \
-				$(PYTHON) -m isort --check-only --profile black . && \
-				echo "$(YELLOW)    3. Checking black code format...$(RESET)" && \
-				$(PYTHON) -m black --check . && \
-				echo "$(YELLOW)    4. Running mypy type checking...$(RESET)" && \
+				echo "$(YELLOW)    Installing Python quality tools...$(RESET)"; \
+				$(PYTHON) -m pip install black==24.4.2 isort==5.13.2 flake8==7.0.0 mypy==1.18.2 pylint==3.1.0 'types-requests>=2.32.4.20250913'; \
+				echo "$(YELLOW)    1. Running flake8 code style check...$(RESET)"; \
+				$(PYTHON) -m $(FLAKE8) .; \
+				echo "$(YELLOW)    2. Checking isort import order...$(RESET)"; \
+				$(PYTHON) -m isort --check-only --profile black .; \
+				echo "$(YELLOW)    3. Checking black code format...$(RESET)"; \
+				$(PYTHON) -m black --check .; \
+				echo "$(YELLOW)    4. Running mypy type checking...$(RESET)"; \
 				if [ "$$dir" = "core/agent" ]; then \
 					bash "$(CURDIR)/makefiles/check_agent_mypy.sh" "$(PYTHON)" $(MYPY_FLAGS) .; \
 				else \
 					$(PYTHON) -m $(MYPY) .; \
-				fi && \
-				echo "$(YELLOW)    5. Running pylint code analysis...$(RESET)" && \
-				find . -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT); \
-				fi); then \
-					echo "$(GREEN)    ✅ $$dir passed all checks$(RESET)"; \
-				else \
-					echo "$(RED)    ❌ $$dir failed quality checks$(RESET)"; \
-					FAILED_PROJECTS="$$FAILED_PROJECTS $$dir"; \
 				fi; \
+				echo "$(YELLOW)    5. Running pylint code analysis...$(RESET)"; \
+				find . -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT); \
+				fi); \
+				echo "$(GREEN)    ✅ $$dir passed all checks$(RESET)"; \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
-				FAILED_PROJECTS="$$FAILED_PROJECTS $$dir(missing)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
-		if [ -n "$$FAILED_PROJECTS" ]; then \
-			echo "$(RED)Python code quality checks failed for:$$FAILED_PROJECTS$(RESET)"; \
-			echo "$(YELLOW)Please fix the issues above and run 'make check-python' again$(RESET)"; \
-			exit 1; \
-		else \
-			echo "$(GREEN)All Python projects passed code quality checks$(RESET)"; \
-		fi; \
+		echo "$(GREEN)All Python projects passed code quality checks$(RESET)"; \
 	else \
 		echo "$(BLUE)Skipping Python checks (no Python projects configured)$(RESET)"; \
 	fi
 
 test-python: ## 🧪 Run Python tests
-	@if [ -n "$(PYTHON_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(PYTHON_DIRS)" ]; then \
 		echo "$(YELLOW)Running Python tests in: $(PYTHON_DIRS)$(RESET)"; \
 		for dir in $(PYTHON_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Testing $$dir...$(RESET)"; \
-				(cd $$dir && \
+				(cd "$$dir"; \
 				if [ "$$dir" = "console/backend" ]; then \
-					uv sync --locked && \
-					uv run coverage run --source=astron_console manage.py test --settings=astron_console.settings_test && \
+					uv sync --locked; \
+					uv run coverage run --source=astron_console manage.py test --settings=astron_console.settings_test; \
 					uv run coverage report; \
 				elif [ -d "tests" ]; then \
-					echo "$(YELLOW)    Running tests...$(RESET)" && \
+					echo "$(YELLOW)    Running tests...$(RESET)"; \
 					if [ -f "uv.lock" ]; then \
-						echo "$(YELLOW)      Syncing dependencies with uv...$(RESET)" && \
-						uv sync && \
+						echo "$(YELLOW)      Syncing dependencies with uv...$(RESET)"; \
+						uv sync; \
 						uv run python -m pytest tests/ -v; \
 					else \
 						$(PYTHON) -m pytest tests/ -v; \
 					fi; \
 				else \
 					echo "$(BLUE)    No tests directory found$(RESET)"; \
-				fi) || exit 1; \
+				fi); \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)Python tests completed$(RESET)"; \
@@ -147,15 +138,15 @@ test-python: ## 🧪 Run Python tests
 	fi
 
 build-python: ## 📦 Build Python projects (install dependencies)
-	@if [ -n "$(PYTHON_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(PYTHON_DIRS)" ]; then \
 		echo "$(YELLOW)Building Python projects in: $(PYTHON_DIRS)$(RESET)"; \
 		for dir in $(PYTHON_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Building $$dir...$(RESET)"; \
-				cd $$dir && \
+				(cd "$$dir"; \
 				if [ -f uv.lock ]; then \
 					echo "$(YELLOW)    Installing dependencies with uv...$(RESET)"; \
-					uv sync; \
+					if [ "$$dir" = "console/backend" ]; then uv sync --locked; else uv sync; fi; \
 					echo "$(GREEN)  Dependencies installed with uv: $$dir$(RESET)"; \
 				elif [ -f requirements.txt ]; then \
 					echo "$(YELLOW)    Installing dependencies with pip...$(RESET)"; \
@@ -164,9 +155,9 @@ build-python: ## 📦 Build Python projects (install dependencies)
 				else \
 					echo "$(BLUE)  No uv.lock or requirements.txt found in $$dir$(RESET)"; \
 				fi; \
-				cd - > /dev/null; \
+				); \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)Python build completed$(RESET)"; \
