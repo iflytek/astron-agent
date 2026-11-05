@@ -14,6 +14,7 @@ from astron_console.agents import conversations
 from astron_console.agents.models import Agent, AgentFile, AgentRun, AgentSession
 from astron_console.agents.resource_resolution import resolve_resources
 from astron_console.http import api_endpoint
+from astron_console.knowledge.artifact_queries import artifacts_for_root
 from astron_console.knowledge.models import Artifact
 from astron_console.resources.common import text, upstream_errors
 from astron_console.spaces.permissions import resolve_scope
@@ -507,15 +508,17 @@ def published_history(request, bot_id):
     for grant in grants.select_related("candidate").order_by("-create_time")[:100]:
         run = grant_run(grant)
         artifacts = [file_data(row) for row in AgentFile.objects.filter(run_id=run.pk)]
-        workflow_ids = WorkflowRun.objects.filter(context_id=grant.root_id).values("id")
         artifacts.extend(
             {
                 "id": str(row.pk),
                 "name": row.file_name,
                 "downloadUrl": f"/console-api/published/workflow-artifacts/{row.pk}",
             }
-            for row in Artifact.objects.filter(
-                run_id__in=workflow_ids, uid=grant.caller_uid, deleted=False
+            for row in artifacts_for_root(
+                Artifact.objects.filter(
+                    uid=grant.caller_uid, space_id=grant.caller_space_id, deleted=False
+                ),
+                grant.root_id,
             )
         )
         result.append(

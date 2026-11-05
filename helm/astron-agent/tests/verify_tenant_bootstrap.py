@@ -659,11 +659,19 @@ def _verify_console_internal_hosts() -> None:
         rendered = _render((
             "--set-string", "consoleHub.auth.allowedHosts=public.example.org\\,198.51.100.8",
             "--set-string", f"fullnameOverride={fullname}",
+            "--set", "coreTenant.service.port=15052",
         ))
         service_host = fullname + "-console-hub"
         _find_document(rendered, "Service", service_host)
         console = _find_document(rendered, "Deployment", service_host)
         _, environment = _main_container_environment(console)
+        tenant_host = fullname + "-core-tenant"
+        _find_document(rendered, "Service", tenant_host)
+        if environment.get("TENANT_URL", {}).get("value") != f"http://{tenant_host}:15052":
+            raise VerificationError("Console tenant URL must follow the actual Service name and port")
+        secret = environment.get("TENANT_SECRET", {})
+        if not secret.get("secret_name") or not secret.get("secret_key"):
+            raise VerificationError("Console tenant credential must retain its existing Secret binding")
         if environment["CONSOLE_ALLOWED_HOSTS"]["value"] != public_hosts + "," + service_host:
             raise VerificationError("Console must preserve public hosts and add its actual internal service host")
         for consumer in ("core-agent", "core-workflow"):

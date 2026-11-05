@@ -905,6 +905,8 @@ services:
       WECHAT_TOKEN: "${WECHAT_TOKEN:-your-wechat-token}"
       WECHAT_ENCODING_AES_KEY: "${WECHAT_ENCODING_AES_KEY:-your-wechat-encoding-aes-key}"
       ADMIN_UID: "${ADMIN_UID:-9999}"
+      TENANT_URL: "${TENANT_URL:-http://core-tenant:${CORE_TENANT_PORT:-5052}}"
+      TENANT_SECRET_FILE: "/app/secrets/tenant/tenant-secret"
       TENANT_ID: "${TENANT_ID:-680ab54f}"
       MAAS_APP_ID: "${MAAS_APP_ID:-${TENANT_ID:-680ab54f}}"
       APP_URL: "${APP_URL:-}"
