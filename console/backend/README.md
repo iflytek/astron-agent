@@ -14,7 +14,7 @@
 |---|---|
 | `CONSOLE_SECRET_KEY` 或 `_FILE` | 必需，至少 50 字符的随机 Django 密钥；各实例共享且持久保存 |
 | `CONSOLE_ALLOWED_HOSTS` | 允许的公开主机名/IP，逗号分隔，无协议和端口；本机健康检查地址 localhost、127.0.0.1 始终保留 |
-| `CONSOLE_PUBLIC_ORIGIN` | 用户访问的完整 origin，用于生成重设链接 |
+| `CONSOLE_PUBLIC_ORIGIN` | 用户访问的完整 origin（含协议及非默认端口），用于重设链接、公开文件地址和 API 调用说明；反向代理后的内部地址不作为公开地址 |
 | `CONSOLE_CSRF_TRUSTED_ORIGINS` | HTTPS 网关的公开 origin，逗号分隔 |
 | `CONSOLE_COOKIE_SECURE` | 默认 true；仅本地/隔离 HTTP 验证设 false |
 | `MYSQL_HOST/PORT/USER/PASSWORD` | Console 数据库连接，密码支持 `_FILE` |

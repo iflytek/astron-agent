@@ -44,9 +44,9 @@ interface HeaderFeedbackModalProps {
   visible: boolean;
   formValues?: FormValues;
   onCancel: () => void;
-  onSubmit: (data: FormValues) => void; //表单提交
+  onSubmit: (data: FormValues) => void | Promise<void>; //表单提交
 }
-interface FormValues {
+export interface FormValues {
   name: string;
   botType: number;
   avatar: string;
@@ -106,6 +106,12 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const submitPending = useRef(false);
+  const handleCancel = (): void => {
+    if (!submitPending.current) onCancel();
+  };
   const [form] = Form.useForm();
   //类型列表
   const [botTypeList, setBotTypeList] = useState<any>([]);
@@ -324,6 +330,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     avatar?: string;
     botDesc?: string;
   }) => {
+    if (submitPending.current) return;
     const name = (values?.name ?? '').trim();
     const botDesc = (values?.botDesc ?? '').trim();
 
@@ -337,7 +344,9 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       return;
     }
 
-    setLoading(true);
+    submitPending.current = true;
+    setSubmitting(true);
+    setSubmitError('');
     try {
       const botTypeNum =
         typeof values?.botType === 'number'
@@ -370,9 +379,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
         },
       };
 
-      onSubmit?.(fields);
-
-      setLoading(false);
+      await onSubmit(fields);
     } catch (err) {
       const msg =
         typeof err === 'object' &&
@@ -380,10 +387,10 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
         'message' in (err as Record<string, unknown>)
           ? String((err as Record<string, unknown>).message)
           : t('virtualConfig.submitFailed');
-      message.error(msg);
-      setLoading(false);
+      setSubmitError(msg);
     } finally {
-      setLoading(false);
+      submitPending.current = false;
+      setSubmitting(false);
     }
   };
   /**
@@ -421,9 +428,9 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       const res = await getSceneList();
       const list: SceneItem[] = Array.isArray(res) ? (res as SceneItem[]) : [];
       setAvatarList(list);
-      if (!selectedAvatar && list.length > 0) {
-        setSelectedAvatar(list[0]!.sceneId || '');
-        setSceneVcn(list[0]!.defaultVCN || '');
+      if (list.length > 0) {
+        setSelectedAvatar(current => current || list[0]!.sceneId || '');
+        setSceneVcn(current => current || list[0]!.defaultVCN || '');
       }
       if (list.length === 0) {
         message.info(t('virtualConfig.noAvatar'));
@@ -533,13 +540,18 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       width={680}
       open={visible}
       centered
-      onCancel={onCancel}
+      onCancel={handleCancel}
+      closable={!submitting}
+      keyboard={!submitting}
       destroyOnClose
       maskClosable={false}
       footer={null}
       styles={{ body: { padding: 0, maxHeight: '70vh', overflow: 'auto' } }}
     >
-      <Spin spinning={loading} tip={t('virtualConfig.generate') + '...'}>
+      <Spin
+        spinning={loading || submitting}
+        tip={submitting ? '正在保存…' : t('virtualConfig.generate') + '...'}
+      >
         <div className={styles.modal_content}>
           <div className={styles.title}>{t('virtualConfig.baseConfig')}</div>
           <div className={styles.scrollable_content}>
@@ -547,6 +559,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
               form={form}
               preserve={false}
               onFinish={handleSubmit}
+              disabled={submitting}
               style={{ position: 'relative' }}
             >
               <div className={styles.sectionHeader}>
@@ -1262,16 +1275,24 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                     </div>
                   </div>
                 )}
+                {submitError && (
+                  <p role="alert" className="text-red-600">
+                    {submitError}
+                  </p>
+                )}
                 <div className={styles.footerContinerRight}>
-                  <div
+                  <Button
                     className={styles.cancelBtn}
-                    onClick={() => {
-                      onCancel();
-                    }}
+                    disabled={submitting}
+                    onClick={handleCancel}
                   >
                     {t('virtualConfig.cancel')}
-                  </div>
-                  <Button className={styles.submitBtn} htmlType="submit">
+                  </Button>
+                  <Button
+                    className={styles.submitBtn}
+                    htmlType="submit"
+                    loading={submitting}
+                  >
                     {t('virtualConfig.submitBtn')}
                   </Button>
                 </div>

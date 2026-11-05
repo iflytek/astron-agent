@@ -4,6 +4,7 @@ import secrets
 from collections import defaultdict
 from datetime import timedelta
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import Http404
@@ -222,7 +223,7 @@ def api_info(request):
         "appId": app.app_id,
         "appKey": app.app_key,
         "appSecret": app.app_secret,
-        "serviceUrl": request.build_absolute_uri(path),
+        "serviceUrl": settings.CONSOLE_PUBLIC_ORIGIN + path,
         "flowId": publication.candidate.resource_id,
         "versionId": publication.candidate.version_id,
     }

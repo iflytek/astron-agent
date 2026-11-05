@@ -156,6 +156,27 @@ class PublicationTests(TestCase):
         with self.assertRaises(Http404):
             services.require_publication(bot_id=self.bot.pk, channel="API", app_id="other")
 
+    def test_api_url_uses_public_origin_behind_proxy(self):
+        App.objects.create(
+            uid="owner", app_id="app", app_name="app", app_key="key", app_secret="secret"
+        )
+        result = services.submit(self.scope, self.bot.pk, "API", target_id="app")
+        candidate = Publication.objects.get(pk=result["publicationId"]).candidate
+        for origin in ["http://console.example:18888", "https://console.example"]:
+            for kind, prefix in [("agent", "agent"), ("workflow", "workflow")]:
+                with self.subTest(origin=origin, kind=kind):
+                    # Model a proxy that forwards only the internal host and HTTP scheme.
+                    type(candidate).objects.filter(pk=candidate.pk).update(resource_kind=kind)
+                    with override_settings(CONSOLE_PUBLIC_ORIGIN=origin):
+                        response = self.client.get(
+                            "/publish-api/get-bot-api-info", {"botId": self.bot.pk}
+                        )
+                    self.assertEqual(response.status_code, 200, response.content)
+                    self.assertEqual(
+                        response.json()["data"]["serviceUrl"],
+                        f"{origin}/{prefix}/v1/chat/completions",
+                    )
+
     def test_market_safe_projection_and_share_revocation(self):
         services.submit(self.scope, self.bot.pk, "MARKET")
         result = self.client.get(f"/bot/detail/{self.bot.pk}")

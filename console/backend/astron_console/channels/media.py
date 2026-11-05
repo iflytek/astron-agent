@@ -346,7 +346,13 @@ def talk_create(request, upgrade=False):
         avatar=text(data, "avatar", limit=1024),
         bot_type=number(data.get("botType") or 1),
     )
-    workflow_data = {"name": name, "description": description}
+    workflow_data = {
+        "name": name,
+        "description": description,
+        "avatarIcon": row.avatar,
+        "category": row.bot_type,
+        "advancedConfig": {"textToSpeech": {"vcn_cn": config["vcn"]}},
+    }
     if graph is not None:
         workflow_data["data"] = graph
     workflow = create_workflow(scope, workflow_data)
