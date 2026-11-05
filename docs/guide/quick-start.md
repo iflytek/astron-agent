@@ -1,8 +1,6 @@
 # Quick Start
 
-> Python Console migration: configure internal accounts using the [deployment guide](/DEPLOYMENT_GUIDE) before startup. New users register at `/register`; existing users retain their UID and receive an operator-issued password-reset link. This intermediate branch does not yet provide the full business flow.
-
-> Python Console migration: configure internal accounts using the [deployment guide](/DEPLOYMENT_GUIDE) before startup. New users register at `/register`; existing users retain their UID and receive an operator-issued password-reset link. This intermediate branch does not yet provide the full business flow.
+> Configure Python Console using the [deployment guide](/DEPLOYMENT_GUIDE). New users register at `/register`; existing users retain their UID and receive an operator-issued password-reset link. Preserve business data and persistent credentials during upgrades.
 
 This page keeps the shortest path for first-time evaluation. Start with a local environment, then move to the full deployment and configuration references when needed.
 

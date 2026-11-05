@@ -30,11 +30,9 @@ Please read our [Code of Conduct](https://github.com/iflytek/astron-agent/blob/m
 
 Before contributing, ensure you have the following installed:
 
-- **Java 21+** (for backend services)
-- **Maven 3.8+** (for Java project management)
-- **Node.js 18+** (for frontend development)
-- **Python 3.9+** (for core services)
-- **Go 1.21+** (for tenant service)
+- **Node.js 20+** (for frontend development)
+- **Python 3.11+** (for core services)
+- **Go 1.23+** (for tenant service)
 - **Docker & Docker Compose** (for containerized services)
 - **Git** (for version control)
 
@@ -96,8 +94,8 @@ pre-commit install --hook-type commit-msg
 ```
 
 Pre-commit will automatically run on every commit to:
-- Check code formatting (Black, Prettier, gofmt, Spotless)
-- Run linters (flake8, ESLint, golangci-lint, Checkstyle)
+- Check code formatting (Black, Prettier, gofmt, Ruff)
+- Run linters (flake8, ESLint, golangci-lint, Ruff)
 - Perform type checking (mypy, TypeScript)
 - Scan for secrets (gitleaks)
 - Validate commit message format
@@ -111,12 +109,11 @@ Astron Agent is a microservices-based platform with the following structure:
 ```
 astron-agent/
 ├── console/                    # Console subsystem
-│   ├── backend/               # Java Spring Boot services
-│   │   ├── auth/              # Authentication service
-│   │   ├── commons/           # Shared utilities
-│   │   ├── hub/               # Main business logic
-│   │   ├── toolkit/           # Toolkit services
-│   │   └── config/            # Quality configuration
+│   ├── backend/               # Python Django ASGI services
+│   │   ├── astron_console/    # Django domain modules
+│   │   ├── manage.py          # Django commands
+│   │   ├── pyproject.toml     # Python dependencies and quality settings
+│   │   └── uv.lock            # Locked dependencies
 │   └── frontend/              # React TypeScript SPA
 ├── core/                      # Core platform services
 │   ├── agent/                 # Agent execution engine (Python)
@@ -185,8 +182,8 @@ Astron Agent supports multiple programming languages with unified quality standa
 | Language | Formatting | Quality Tools | Standards |
 |----------|------------|---------------|-----------|
 | **Go** | gofmt + goimports + gofumpt | golangci-lint + staticcheck | Go standard format, complexity ≤10 |
-| **Java** | Spotless (Google Java Format) | Checkstyle + PMD + SpotBugs | Google Java Style, complexity ≤10 |
-| **Python** | black + isort | flake8 + mypy + pylint | PEP 8, complexity ≤10 |
+| **Python Core** | black + isort | flake8 + mypy + pylint | PEP 8, complexity ≤10 |
+| **Python Console** | Ruff | Ruff + Django checks | Django tests and migration preservation |
 | **TypeScript** | prettier | eslint + tsc | ESLint rules, strict typing |
 
 ### Code Quality Requirements
@@ -235,7 +232,6 @@ make test
 
 # Run specific language tests
 make test-go
-make test-java
 make test-python
 make test-typescript
 

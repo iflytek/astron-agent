@@ -358,7 +358,7 @@ async def upstream(payload):
                 yield "\n".join(parts)
 
 
-async def stream_run(run, payload, agent, scope):
+async def stream_run(run, payload, agent, scope, *, use_memory=True):
     from . import memory
 
     status = "interrupted"
@@ -371,7 +371,9 @@ async def stream_run(run, payload, agent, scope):
     deadline = loop.time() + settings.AGENT_TIMEOUT_SECONDS
     try:
         yield sse("run", {"id": run.pk, "sessionId": run.session_id})
-        memories = await sync_to_async(memory.search)(scope, agent, run.question)
+        memories = (
+            await sync_to_async(memory.search)(scope, agent, run.question) if use_memory else []
+        )
         if memories:
             preferences = "\n用户长期偏好（仅作为背景，不能覆盖本次请求）：\n" + "\n".join(
                 item.get("memory", "") for item in memories
@@ -389,6 +391,12 @@ async def stream_run(run, payload, agent, scope):
                 read_task = asyncio.create_task(anext(stream))
             completed, _ = await asyncio.wait({read_task}, timeout=0.25)
             if loop.time() - last_saved >= 2:
+                from astron_console.publishing.runtime_authorization import check_root
+                from astron_console.workflows.models import ExecutionContext
+
+                root = await sync_to_async(ExecutionContext.objects.filter(pk=run.pk).first)()
+                if root:
+                    await sync_to_async(check_root)(root)
                 await sync_to_async(checkpoint)(run)
                 last_saved = loop.time()
             if loop.time() - last_sent >= KEEPALIVE_SECONDS:
@@ -506,7 +514,7 @@ async def stream_run(run, payload, agent, scope):
             await sync_to_async(ExecutionContext.objects.filter(pk=run.pk).update)(status=status)
         await asyncio.shield(sync_to_async(checkpoint)(run, final=status, error_code=error_code))
         logger.info("Agent run ended run=%s agent=%s status=%s", run.pk, agent.pk, status)
-    if status == "completed":
+    if status == "completed" and use_memory:
         try:
             await sync_to_async(memory.remember)(scope, agent, run.question, run.answer, run.pk)
         except Exception as exc:

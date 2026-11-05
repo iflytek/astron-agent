@@ -27,7 +27,7 @@ vendor/
 .gocache/
 .golangci-cache/
 
-# Java/Maven
+# Retired build output must not be committed during upgrades
 target/
 *.class
 *.jar

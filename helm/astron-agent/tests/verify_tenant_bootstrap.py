@@ -252,14 +252,44 @@ def _verify_workflow_ingress_gateway_headers(rendered: str) -> None:
     expected = (
         "nginx.ingress.kubernetes.io/auth-response-headers: "
         '"X-Consumer-Username,X-Workflow-Gateway-Timestamp,'
-        'X-Workflow-Gateway-Signature"'
+        'X-Workflow-Gateway-Signature,X-Workflow-Internal-Key"'
     )
     if expected not in ingress:
         raise VerificationError(
             "workflow Ingress signed identity headers are incomplete"
         )
-    if "X-Workflow-Internal-Key" in ingress:
-        raise VerificationError("workflow Ingress exposes the raw internal key")
+    if "-core-workflow" in ingress:
+        raise VerificationError("public API must resolve execution through Console")
+    expected_paths = {
+        "/workflow/v1/chat/completions$", "/workflow/v1/resume$",
+        "/workflow/v1/stop$", "/agent/v1/chat/completions$",
+    }
+    routes = re.findall(
+        r"^\s+- path:\s*([^\n]+)\n\s+pathType:\s*(\S+)\n"
+        r"\s+backend:\n\s+service:\n\s+name:\s*(\S+)", ingress, re.M
+    )
+    if {path.strip('"') for path, _, _ in routes} != expected_paths:
+        raise VerificationError("public API allowlist must contain only anchored documented paths")
+    if any(kind != "ImplementationSpecific" or backend != "astron-agent-console-hub"
+           for _, kind, backend in routes):
+        raise VerificationError("public API routes must all target Console through anchored regexes")
+    if 'nginx.ingress.kubernetes.io/auth-method: "GET"' not in ingress or not re.search(
+        r'nginx.ingress.kubernetes.io/auth-url: "http://astron-agent-console-hub\.[^/]+/internal/gateway/auth/workflow"',
+        ingress,
+    ):
+        raise VerificationError("public API routes require Console gateway authentication")
+    for path in PUBLIC_API_DENIED_PATHS:
+        if any(re.match("^" + pattern.strip('"'), path, re.I) for pattern, _, _ in routes):
+            raise VerificationError("public API Ingress exposes a private or suffixed route: " + path)
+
+
+PUBLIC_API_DENIED_PATHS = (
+    "/workflow/v1/console/run", "/workflow/v1/console/events/run/cancel",
+    "/workflow/v1/debug/resume", "/agent/v1/custom/chat/completions",
+    "/workflow/v1/stop/", "/workflow/v1/stop/extra", "/workflow/v1/stopping",
+    "/workflow/v1/resume/extra", "/agent/v1/stop", "/agent/v1/resume",
+    "/workflow/v1/chat/completions/extra", "/agent/v1/chat/completions/extra",
+)
 
 
 CONSOLE_INTERNAL_PATHS = (
@@ -297,6 +327,27 @@ def _verify_docker_agent_proxy(source: str) -> None:
         if not matches:
             raise VerificationError("Docker console API route is missing")
         return max(matches, key=lambda row: len(row[1]))
+
+    for api_path in ("/workflow/v1/chat/completions", "/workflow/v1/resume",
+                     "/agent/v1/chat/completions", "/workflow/v1/stop"):
+        modifier, prefix, block = selected(api_path)
+        required = (
+            "proxy_pass http://console-hub:8080" + api_path + ";",
+            "auth_request /_gateway_auth/workflow;",
+            "proxy_set_header Authorization $http_authorization;",
+            'proxy_set_header X-Consumer-Username "";',
+            'proxy_set_header X-Workflow-Internal-Key "";',
+            'proxy_set_header X-Workflow-Gateway-Timestamp "";',
+            'proxy_set_header X-Workflow-Gateway-Signature "";',
+            "proxy_buffering off;",
+            "proxy_read_timeout 30s;" if api_path.endswith("/stop") else "proxy_read_timeout 1800s;",
+        )
+        if modifier != "=" or prefix != api_path or any(v not in block for v in required):
+            raise VerificationError("public API must authenticate through Console and strip service identity: " + api_path)
+    for api_path in PUBLIC_API_DENIED_PATHS:
+        _, _, block = selected(api_path)
+        if "return 404;" not in block:
+            raise VerificationError("private Core execution route is exposed: " + api_path)
 
     for method in ("GET", "POST"):
         for query in ("", "?page=1&name=test%20agent", "?source=create"):
@@ -342,8 +393,19 @@ def _verify_docker_agent_proxy(source: str) -> None:
         raise VerificationError(
             "Docker Agent SSE route must rewrite to /agents/ with unbuffered 1800s timeouts"
         )
+    modifier, prefix, block = selected("/console-api/published/42/stream")
+    if (
+        modifier != "^~" or prefix != "/console-api/published/"
+        or any(value not in block for value in (
+            "proxy_pass http://console-hub:8080/published/;",
+            "proxy_buffering off;", "proxy_cache off;",
+            "proxy_http_version 1.1;", "proxy_send_timeout 1800s;",
+            "proxy_read_timeout 1800s;", "add_header X-Accel-Buffering 'no';",
+        ))
+    ):
+        raise VerificationError("Docker published chat must preserve the unbuffered 1800s SSE contract")
     if "/console-api/chat-message/" in source:
-        raise VerificationError("obsolete Docker Java chat-message route remains")
+        raise VerificationError("obsolete direct core chat-message route remains")
     _, generic_prefix, generic_block = selected("/console-api/models")
     if generic_prefix != "/console-api/" or any(
         f"proxy_{kind}_timeout 30s;" not in generic_block
@@ -426,8 +488,29 @@ def _verify_agent_ingress_routes(rendered: str) -> None:
     for unrelated in ("/console-api/agents-extra", "/console-api/agentsX", "/console-api/agents.json"):
         if selected(unrelated)[3] == document:
             raise VerificationError("Agent Ingress regex must retain the slash/end boundary")
+    published_path = "/console-api/published/42/stream"
+    chosen_path, chosen_type, chosen_backend, chosen_document = selected(published_path)
+    if (
+        chosen_type != "ImplementationSpecific"
+        or chosen_backend != "astron-agent-console-hub"
+        or any(value not in chosen_document for value in expected)
+    ):
+        raise VerificationError("published chat Ingress must preserve the unbuffered 1800s SSE contract")
+    published_rewrite = re.search(
+        r"nginx.ingress.kubernetes.io/rewrite-target:\s*([^\n]+)", chosen_document
+    )
+    if not published_rewrite:
+        raise VerificationError("published chat Ingress rewrite-target is missing")
+    published_match = re.match("^" + chosen_path, published_path, re.I)
+    rewritten = re.sub(
+        r"\$(\d+)",
+        lambda group: published_match.group(int(group.group(1))) or "",
+        published_rewrite.group(1).strip('"'),
+    )
+    if rewritten != "/published/42/stream":
+        raise VerificationError("published chat Ingress must preserve the upstream stream path")
     if "/console-api/chat-message" in rendered:
-        raise VerificationError("obsolete Helm Java chat-message route remains")
+        raise VerificationError("obsolete direct core chat-message route remains")
     for internal in CONSOLE_INTERNAL_PATHS:
         for suffix in ("", "/", "/extra.css"):
             _, path_type, backend, _ = selected(internal + suffix)

@@ -39,7 +39,7 @@
 
 **Module Path**: `console/backend/`
 
-**Language**: Java
+**Language**: Python
 
 **Main Responsibilities**:
 - Provide REST API and SSE interfaces for management console
@@ -49,12 +49,9 @@
 - File upload/download services
 - Data statistics and analytics
 
-**Tech Stack**: Spring Boot 3.5.4, MyBatis Plus 3.5.7, Spring Security, OAuth2
+**Tech Stack**: Django 5.2, ASGI, Django ORM, session authentication and CSRF
 
-**Sub-modules**:
-- **hub**: Main API service module
-- **toolkit**: Utility module
-- **commons**: Common module (DTOs, utilities, etc.)
+**Domain modules**: accounts, spaces, resources, knowledge, agents, workflows, publishing.
 
 ---
 
@@ -68,7 +65,7 @@
 
 **Main Responsibilities**:
 - Agent core execution engine
-- Support multiple Agent types (Chat Agent, CoT Agent, CoT Process Agent)
+- Unified Deep Agents execution for independent Agents and workflow Agent nodes
 - Agent lifecycle management
 - Tool invocation and plugin integration
 - Session management and context persistence
@@ -264,7 +261,7 @@ UI Layer
          ↓ HTTP/REST/SSE
 
 Console Backend Layer
-    └── Console Backend (Java Spring Boot)
+    └── Console Backend (Python Django ASGI)
          ↓ HTTP/REST
 
 Core Microservices Layer
@@ -302,7 +299,7 @@ External Services
 | Frontend → Backend | HTTP/REST, SSE | REST API calls and server-sent events |
 | Backend → Core Services | HTTP/REST | RESTful API invocation |
 | Core Services ↔ Core Services | Kafka Topics | Asynchronous event-driven communication |
-| Core Services → MySQL | JDBC/SQLAlchemy | Data persistence |
+| Core Services → MySQL | MySQL drivers / SQLAlchemy | Data persistence |
 | Core Services → Redis | Redis Protocol | Cache read/write, session management |
 | Core Services → Kafka | Kafka Protocol | Publish/subscribe events |
 | Core Services → MinIO | MinIO API (PUT/GET) | File upload/download |
@@ -333,7 +330,7 @@ External Services
 | Layer | Module | Language/Framework | Version |
 |-------|--------|-------------------|---------|
 | **Frontend** | Console Frontend | TypeScript + React | TS 5.9.2, React 18.2.0 |
-| **Backend** | Console Backend | Java + Spring Boot | Java 21, Spring Boot 3.5.4 |
+| **Backend** | Console Backend | Python + Django | Python 3.11, Django 5.2 |
 | **Microservices** | Agent Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Workflow Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Knowledge Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
@@ -359,11 +356,10 @@ External Services
 - **Code Analysis**: Pylint, Flake8
 - **Testing**: Pytest (coverage ≥ 70%)
 
-### Java Modules
-- **Architecture**: Spring Boot layered architecture
-- **Code Style**: Checkstyle
-- **Code Analysis**: PMD
-- **Testing**: JUnit
+### Python Console
+- **Architecture**: Django domain modules with ASGI streaming
+- **Checks**: Ruff, Django migration checks and Django test runner
+- **Execution**: core/agent and core/workflow own runtime orchestration
 
 ### TypeScript Modules
 - **Code Style**: ESLint + Prettier

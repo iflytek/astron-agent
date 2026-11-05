@@ -7,7 +7,6 @@ This directory contains code quality detection tool documentation for different 
 | Language | Documentation | Makefile Commands | Toolchain |
 |----------|---------------|-------------------|-----------|
 | **Go** | [`go.md`](./langs/go.md) | `make fmt-go`, `make check-go` | gofmt + goimports + gofumpt + golines + staticcheck + golangci-lint |
-| **Java** | [`java.md`](./langs/java.md) | `make fmt-java`, `make check-java` | spotless + checkstyle + spotbugs + pmd |
 | **Python** | [`python.md`](./langs/python.md) | `make fmt-python`, `make check-python` | black + isort + flake8 + mypy + pylint |
 | **TypeScript** | [`typescript.md`](./langs/typescript.md) | `make fmt-typescript`, `make check-typescript` | prettier + eslint + tsc |
 
@@ -22,7 +21,6 @@ make check     # Check all language quality
 ### Single Language Commands
 ```bash
 make fmt-go && make check-go           # Go
-make fmt-java && make check-java       # Java  
 make fmt-python && make check-python   # Python
 make fmt-typescript && make check-typescript  # TypeScript
 ```

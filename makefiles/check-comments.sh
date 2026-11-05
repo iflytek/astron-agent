@@ -71,50 +71,6 @@ except Exception as e:
     pass
 EOF
             ;;
-        "java")
-            # Extract Java comments and annotation messages precisely
-            python3 - "$file" << 'EOF'
-import sys
-import re
-
-file_path = sys.argv[1] if len(sys.argv) > 1 else '/dev/stdin'
-try:
-    with open(file_path, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
-
-    for i, line in enumerate(lines, 1):
-        stripped = line.strip()
-
-        # Single line comment //
-        if re.match(r'^\s*//', line):
-            comment_content = re.sub(r'^\s*//\s*', '', line).strip()
-            if comment_content:
-                print(f"{i}: {comment_content}")
-
-        # Multi-line comment /* or javadoc /**
-        elif re.match(r'^\s*/\*', line):
-            comment_content = re.sub(r'^\s*/\*+\s*', '', line).strip()
-            comment_content = re.sub(r'\*/\s*$', '', comment_content).strip()
-            if comment_content:
-                print(f"{i}: {comment_content}")
-
-        # Multi-line comment continuation *
-        elif re.match(r'^\s*\*[^/]', line):
-            comment_content = re.sub(r'^\s*\*\s*', '', line).strip()
-            if comment_content:
-                print(f"{i}: {comment_content}")
-
-        # Check annotation message parameters (validation messages should be English)
-        elif 'message' in line and re.search(r'message\s*=\s*"[^"]*"', line):
-            match = re.search(r'message\s*=\s*"([^"]*)"', line)
-            if match:
-                message_content = match.group(1)
-                print(f"{i}: {message_content}")
-
-except Exception as e:
-    pass
-EOF
-            ;;
         "py")
             # Extract Python comments and docstrings precisely
             python3 - "$file" << 'EOF'
@@ -281,17 +237,8 @@ main() {
         fi
     done
 
-    # Java files
-    for java_dir in console/backend; do
-        if [ -d "$java_dir" ]; then
-            while IFS= read -r -d '' file; do
-                source_files+=("$file")
-            done < <(find "$java_dir" -name "*.java" ! -path "*/target/*" -print0 2>/dev/null || true)
-        fi
-    done
-
     # Python files
-    for python_dir in core/memory/database core/plugin/rpa core/plugin/link core/plugin/aitools core/agent core/knowledge core/workflow; do
+    for python_dir in console/backend core/common core/memory/database core/plugin/rpa core/plugin/link core/plugin/aitools core/agent core/knowledge core/workflow; do
         if [ -d "$python_dir" ]; then
             while IFS= read -r -d '' file; do
                 source_files+=("$file")
@@ -352,7 +299,7 @@ show_help() {
     echo "  -h, --help     Show this help message"
     echo ""
     echo "This script checks that all comments in source code are written in English."
-    echo "Supported file types: .go, .java, .py, .ts, .tsx, .js, .jsx"
+    echo "Supported file types: .go, .py, .ts, .tsx, .js, .jsx"
 }
 
 # Parse arguments

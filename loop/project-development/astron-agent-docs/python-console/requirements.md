@@ -4,7 +4,7 @@
 
 将 `console/backend` 的 Java hub、toolkit、commons 全部替换为 Python 控制台，统一独立 Agent 与工作流 Agent 节点的执行逻辑，移除 Casdoor，提供内部账号系统。
 
-当前独立聊天和调试由 Java Spring AI 执行；工作流 AgentNode 经 HTTP/SSE 调用 `core/agent` 的 Deep Agents 内核。Java 还负责配置、权限、发布、历史、长期记忆、资源管理和内部凭据接口。实际调用链以源码为准，架构总览中的旧 Chat/CoT 与 Memory 描述不作为实现前提。
+迁移前，独立聊天和调试由 Java Spring AI 执行；工作流 AgentNode 经 HTTP/SSE 调用 `core/agent` 的 Deep Agents 内核。Java 同时负责配置、权限、发布、历史、长期记忆、资源管理和内部凭据接口。目标实现统一采用 Python Console 管理与 Core 执行；实际调用链以源码为准，旧 Chat/CoT 与 Memory 描述不作为实现前提。
 
 ## 已确定的共同要求
 
@@ -27,7 +27,7 @@
 | 04 | [工作流与 Agent 引用](04-workflows/requirements.md) | 工作流可管理和执行，并复用已发布独立 Agent | 03 |
 | 05 | [发布渠道与完整产品交付](05-publishing/requirements.md) | 发布、共享、渠道、应用等能力恢复，Java/Casdoor 完全退出 | 04 |
 
-各子需求分别拥有其业务接口、前端配套、数据迁移、测试及文档。全局架构只在父目录维护；当前执行范围为 04 工作流与 Agent 引用，01 账号、02 空间资源与 03 独立 Agent 为前置依赖。子需求验收不要求未迁移兄弟功能可用，也不代表总体完成。
+各子需求分别拥有其业务接口、前端配套、数据迁移、测试及文档。全局架构只在父目录维护；当前执行范围为 05 发布渠道与完整产品交付及整体迁移收尾，01—04 为已完成的前置依赖。05 必须完成全部子需求回归与总体验收，不能以部分渠道可用代表总体完成。
 
 ## 总体验收
 

@@ -79,6 +79,12 @@ export default function AgentList() {
         <button className="primary" onClick={() => setCreating(true)}>
           创建 Agent
         </button>
+        <Link className="button" to="/management/release">
+          发布管理
+        </Link>
+        <Link className="button" to="/store/agent">
+          Agent 市场
+        </Link>
       </header>
       <div className="agents-toolbar">
         <input

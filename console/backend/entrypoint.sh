@@ -8,6 +8,7 @@ if [ "${CONSOLE_RUN_MIGRATIONS:-true}" = "true" ]; then
     else
         python manage.py import_legacy_users
     fi
+    python manage.py adopt_legacy_publications --allow-unresolved
     if [ -n "${OSS_ENDPOINT:-}" ]; then
         python manage.py init_resource_storage
     fi

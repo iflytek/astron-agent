@@ -32,7 +32,7 @@
 
       .ant-table-cell {
         color: #43436b;
-        .ant-empty.ant-empty-normal{
+        .ant-empty.ant-empty-normal {
           display: block;
           text-align: center;
         }
@@ -46,7 +46,7 @@
       .ant-table-header,
       .ant-table-thead {
         .ant-table-cell {
-          background: #F1F0FF;
+          background: #f1f0ff;
           font-family: PingFang SC;
           font-size: 14px;
           font-weight: normal;
@@ -66,7 +66,7 @@
             display: none;
           }
         }
-        border-bottom: 1px solid #E7E7F0;
+        border-bottom: 1px solid #e7e7f0;
         border-radius: 10px 10px 0 0;
       }
       .ant-table-thead {
@@ -138,8 +138,8 @@
         }
 
         &.ant-pagination-item-active {
-          background: #6356EA;
-          border: 1px solid #6356EA;
+          background: #6356ea;
+          border: 1px solid #6356ea;
           color: #fff;
           a {
             color: #fff;
@@ -149,7 +149,7 @@
     }
 
     .noData {
-      margin:50px autp;
+      margin: 50px autp;
       text-align: center;
       :global {
         .ant-table-tbody > tr > td {
@@ -157,7 +157,7 @@
         }
       }
     }
-    .tableOperation{
+    .tableOperation {
       display: flex;
       flex-direction: row-reverse;
       margin-bottom: 20px;

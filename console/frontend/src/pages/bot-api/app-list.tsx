@@ -1,265 +1,101 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Table, message, Input, Modal, Button, Form, Typography } from 'antd';
+import { useEffect, useState, type ReactElement } from 'react';
+import { Alert, Button, Table } from 'antd';
+import Credential from './components/credential';
 import { useTranslation } from 'react-i18next';
-import { getApiList, createApp } from '@/services/spark-common';
-import { UserApp } from '@/types/common';
-import { maskMiddleText } from '@/utils/utils';
-import styles from './app-list.module.scss';
-import { PlusOutlined, CopyOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { listApplications } from '@/services/published-api';
+import type { UserApp } from '@/types/common';
+import { errorText } from '@/pages/agents/errors';
+import CreateApplication from './components/create-application';
+import styles from './app-list.module.scss';
 
-interface AppListProps {}
-
-const AppListPage: React.FC<AppListProps> = () => {
-  const [appList, setAppList] = useState<UserApp[]>([]);
-  const [loading, setLoading] = useState(false);
+export default function AppListPage(): ReactElement {
   const { t } = useTranslation();
-  const [isShowCreateAppModal, setIsShowCreateAppModal] =
-    useState<boolean>(false); // 是否显示创建应用弹框
-  const [createAppForm] = Form.useForm(); //创建应用表单
-
-  const appListColumns = [
-    {
-      title: t('appManage.appId'),
-      dataIndex: 'appId',
-      key: 'appId',
-      render: (text: string) => {
-        return <div title={text || '--'}>{text || '--'}</div>;
-      },
-    },
-    {
-      title: t('appManage.appName'),
-      dataIndex: 'appName',
-      key: 'appName',
-      render: (text: string) => {
-        return <div title={text || '--'}>{text || '--'}</div>;
-      },
-    },
-    {
-      title: t('appManage.appDescribe'),
-      dataIndex: 'appDescribe',
-      key: 'appDescribe',
-      render: (text: string) => {
-        return <div title={text || '--'}>{text || '--'}</div>;
-      },
-    },
-    {
-      title: t('appManage.apiKey'),
-      dataIndex: 'appKey',
-      key: 'appKey',
-      render: (text: string) => {
-        return (
-          <div
-            title={
-              text
-                ? maskMiddleText(text, {
-                    prefixLen: 2,
-                    suffixLen: 2,
-                    starLen: text?.length - 4,
-                  })
-                : '--'
-            }
-          >
-            {text ? (
-              <Typography.Text
-                copyable={{ text: text, icon: <CopyOutlined /> }}
-              >
-                {maskMiddleText(text, {
-                  prefixLen: 2,
-                  suffixLen: 2,
-                  starLen: text?.length - 4,
-                }) || '--'}
-              </Typography.Text>
-            ) : (
-              '--'
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      title: t('appManage.apiSecret'),
-      dataIndex: 'appSecret',
-      key: 'appSecret',
-      render: (text: string) => {
-        return (
-          <div
-            title={
-              text
-                ? maskMiddleText(text, {
-                    prefixLen: 2,
-                    suffixLen: 2,
-                    starLen: text?.length - 4,
-                  })
-                : '--'
-            }
-          >
-            {text ? (
-              <Typography.Text
-                copyable={{ text: text, icon: <CopyOutlined /> }}
-              >
-                {maskMiddleText(text, {
-                  prefixLen: 2,
-                  suffixLen: 2,
-                  starLen: text?.length - 4,
-                }) || '--'}
-              </Typography.Text>
-            ) : (
-              '--'
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      title: t('appManage.createTime'),
-      dataIndex: 'createTime',
-      key: 'createTime',
-      render: (text: string) => {
-        return (
-          <div title={text ? dayjs(text)?.format('YYYY-MM-DD HH:mm:ss') : '--'}>
-            {text ? dayjs(text)?.format('YYYY-MM-DD HH:mm:ss') : '--'}
-          </div>
-        );
-      },
-    },
-  ];
-
-  const loadAppList = async () => {
+  const [apps, setApps] = useState<UserApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
     setLoading(true);
-    getApiList()
-      .then(data => {
-        setAppList(data);
+    setError('');
+    listApplications()
+      .then(rows => {
+        if (active) setApps(rows);
       })
-      .catch(err => {
-        console.log(err);
+      .catch(reason => {
+        if (active) setError(errorText(reason));
       })
       .finally(() => {
-        setLoading(false);
+        if (active) setLoading(false);
       });
-  };
-  const handleSubmitCreateApp = () => {
-    createAppForm.validateFields().then(values => {
-      createApp(values)
-        .then(() => {
-          message.success(t('appManage.createAppSuccess'));
-          setIsShowCreateAppModal(false);
-          createAppForm.resetFields();
-          loadAppList();
-        })
-        .catch(err => {
-          console.log(err);
-        });
-    });
-  };
-
-  useEffect(() => {
-    loadAppList();
-  }, []);
+    return (): void => {
+      active = false;
+    };
+  }, [revision]);
 
   return (
-    <div className={`${styles.appListPage} page-container-inner-UI`}>
+    <main className={`${styles.appListPage} page-container-inner-UI`}>
       <div className={styles.title}>
-        <div className={styles.aff}>{t('sidebar.appManagement')}</div>
+        <h1 className={styles.aff}>{t('sidebar.appManagement')}</h1>
       </div>
+      <p>应用密钥用于调用已绑定的 Agent 和工作流。请仅在服务端保存密钥。</p>
+      {error && <Alert type="error" message={error} className="my-4" />}
       <div className={styles.tableArea}>
-        <div className={styles.tableOperation}>
+        <div className={`${styles.tableOperation} gap-3`}>
           <Button
-            type="primary"
-            onClick={() => setIsShowCreateAppModal(true)}
-            style={{ height: '32px' }}
+            onClick={() => setRevision(value => value + 1)}
+            disabled={loading}
           >
-            <PlusOutlined style={{ fontSize: '16px', color: '#fff' }} />{' '}
+            刷新
+          </Button>
+          <Button type="primary" onClick={() => setCreating(true)}>
             {t('botApi.createApp')}
           </Button>
         </div>
-        <Table
-          className={appList?.length === 0 ? styles.noData : ''}
+        <Table<UserApp>
           loading={loading}
-          dataSource={appList}
-          columns={appListColumns}
-          rowKey={(record: UserApp) => 'row_' + record.appId}
-          scroll={{
-            scrollToFirstRowOnChange: true,
-            y: 'max(200px ,calc(100vh - 350px))',
-          }}
+          dataSource={apps}
+          rowKey="appId"
           pagination={false}
+          scroll={{ x: 1000 }}
+          columns={[
+            { title: t('appManage.appId'), dataIndex: 'appId' },
+            { title: t('appManage.appName'), dataIndex: 'appName' },
+            { title: t('appManage.appDescribe'), dataIndex: 'appDescribe' },
+            {
+              title: 'API Key',
+              dataIndex: 'appKey',
+              render: (value: string): ReactElement => (
+                <Credential value={value} />
+              ),
+            },
+            {
+              title: 'API Secret',
+              dataIndex: 'appSecret',
+              render: (value: string): ReactElement => (
+                <Credential value={value} />
+              ),
+            },
+            {
+              title: t('appManage.createTime'),
+              dataIndex: 'createTime',
+              render: (value: string): string =>
+                value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '—',
+            },
+          ]}
         />
       </div>
-      <Modal
-        open={isShowCreateAppModal}
-        onCancel={() => {
-          setIsShowCreateAppModal(false);
-          createAppForm.resetFields();
-        }}
-        title={t('botApi.createApp')}
-        width={500}
-        centered
-        maskClosable={false}
-        footer={[
-          <Button
-            onClick={() => {
-              setIsShowCreateAppModal(false);
-              createAppForm.resetFields();
-            }}
-          >
-            {t('btnCancel')}
-          </Button>,
-          <Button
-            type="primary"
-            loading={loading}
-            onClick={() => {
-              handleSubmitCreateApp();
-            }}
-          >
-            {t('btnOk')}
-          </Button>,
-        ]}
-      >
-        <div className={styles.createAppModal}>
-          <Form
-            form={createAppForm}
-            name="promptForm"
-            initialValues={{ remember: true }}
-            autoComplete="off"
-          >
-            <Form.Item
-              label={t('botApi.createAppName')}
-              name="appName"
-              rules={[
-                {
-                  required: true,
-                  message: t('botApi.createAppNameRequired'),
-                },
-              ]}
-              colon={false}
-              labelCol={{ span: 24 }}
-              wrapperCol={{ span: 24 }}
-            >
-              <Input placeholder={t('botApi.createAppNamePlaceholder')} />
-            </Form.Item>
-            <Form.Item
-              label={t('botApi.createAppDesc')}
-              name="appDescribe"
-              rules={[
-                {
-                  required: true,
-                  message: t('botApi.createAppDescRequired'),
-                },
-              ]}
-              labelCol={{ span: 24 }}
-              wrapperCol={{ span: 24 }}
-            >
-              <Input.TextArea
-                placeholder={t('botApi.createAppDescPlaceholder')}
-                rows={4}
-              />
-            </Form.Item>
-          </Form>
-        </div>
-      </Modal>
-    </div>
+      {creating && (
+        <CreateApplication
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            setRevision(value => value + 1);
+          }}
+        />
+      )}
+    </main>
   );
-};
-
-export default AppListPage;
+}

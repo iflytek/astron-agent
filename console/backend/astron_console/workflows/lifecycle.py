@@ -185,11 +185,14 @@ def core_payload(run):
     from .protocol import to_protocol
 
     protocol = to_protocol(run.graph, workflow, scope)
+    from astron_console.publishing.runtime_authorization import caller_uid
+
+    subject = caller_uid(checked_root(run.context_id))
     return {
         "protocol": protocol,
         "chat": {
             "flow_id": str(workflow.flow_id),
-            "uid": scope.uid,
+            "uid": subject,
             "stream": True,
             "parameters": run.inputs,
             "chat_id": run.chat_id,

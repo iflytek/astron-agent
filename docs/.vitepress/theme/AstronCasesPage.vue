@@ -151,7 +151,7 @@ const zhContent: CasesContent = {
       subtitle: "企业知识库与数字人导览",
       tags: ["制造业", "知识库", "私有化"],
       scenario: "企业私有知识库、数字人导览、智能体应用与 RPA 联动。",
-      delivery: "围绕容器稳定性、Nginx/HTTPS、Casdoor 登录和联合部署链路完成排障。",
+      delivery: "围绕容器稳定性、Nginx/HTTPS、内部账号登录和服务部署链路完成排障。",
       outcome: "在内网环境搭建起知识库和智能体底座，推动项目进入真实业务验证阶段。"
     },
     {
@@ -293,7 +293,7 @@ const enContent: CasesContent = {
       subtitle: "Knowledge base and digital guide",
       tags: ["Manufacturing", "Knowledge Base", "Private Deployment"],
       scenario: "Private enterprise knowledge base, digital human guide, and Agent + RPA integration.",
-      delivery: "Solved container stability, Nginx/HTTPS, Casdoor login, and joint deployment issues.",
+      delivery: "Solved container stability, Nginx/HTTPS, internal account login, and service deployment issues.",
       outcome: "Built a private knowledge and agent foundation and moved the project into real business validation."
     },
     {

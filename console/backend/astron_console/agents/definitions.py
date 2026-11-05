@@ -404,23 +404,10 @@ def versions(request, agent_id):
 @api_endpoint(["PUT"])
 @transaction.atomic
 def published(request, agent_id):
-    agent, scope = get_agent(request, agent_id, WRITE)
-    Agent.objects.select_for_update().get(pk=agent.pk)
-    version_id = number(request.payload.get("versionId"))
-    row = AgentVersion.objects.filter(pk=version_id, agent_id=agent.pk).first()
-    if row is None:
-        raise Http404
-    validate_resources(scope, row.definition)
-    state, _ = AgentState.objects.get_or_create(agent_id=agent.pk)
-    state.published_version_id = row.pk
-    state.save(update_fields=["published_version_id"])
-    logger.info(
-        "Agent published pointer changed agent_id=%s version_id=%s uid=%s",
-        agent.pk,
-        row.pk,
-        scope.uid,
-    )
-    return {"agentId": agent.pk, "versionId": row.pk}
+    from astron_console.publishing.services import submit
+
+    _, scope = get_agent(request, agent_id, WRITE)
+    return submit(scope, agent_id, "INTERNAL", version_id=request.payload.get("versionId"))
 
 
 def resolve_version(scope, agent_id, version_id=None):

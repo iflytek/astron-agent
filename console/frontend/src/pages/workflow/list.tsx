@@ -84,6 +84,7 @@ export default function WorkflowList(): ReactElement {
           <h1>工作流</h1>
           <p>管理画布、版本与运行，复用已发布的独立 Agent。</p>
         </div>
+        <Link to="/management/release">发布管理</Link>
         <Button type="primary" onClick={() => setCreating(true)}>
           新建工作流
         </Button>
@@ -175,6 +176,19 @@ export default function WorkflowList(): ReactElement {
               </Button>
               <Button danger onClick={() => setDeleteTarget(flow)}>
                 删除
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void action(async () => {
+                    await http.post('/publish/workflows/bind', {
+                      workflowId: flow.id,
+                    });
+                    navigate('/management/release');
+                  })
+                }
+              >
+                发布与分享
               </Button>
             </div>
           </article>

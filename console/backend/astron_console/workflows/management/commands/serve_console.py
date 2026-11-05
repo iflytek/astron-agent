@@ -26,6 +26,7 @@ class Command(BaseCommand):
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
         try:
+            children.append(subprocess.Popen([sys.executable, "manage.py", "run_channel_jobs"]))
             children.append(
                 subprocess.Popen(
                     [

@@ -445,7 +445,12 @@ export function ChatDebuggerContent({
     state => state.handleChatTypeChange
   );
   const { startNode, trialRun, talkAgentConfig } = useChatDebuggerContent({
-    currentFlow,
+    currentFlow: historyVersion
+      ? ({
+          ...currentFlow,
+          flowConfig: historyVersionData?.flowConfig || '{}',
+        } as FlowType)
+      : currentFlow,
   });
   const interactType = Number(talkAgentConfig?.interactType);
   const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;

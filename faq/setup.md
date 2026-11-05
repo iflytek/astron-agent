@@ -35,8 +35,7 @@
 docker compose down
 docker compose up -d
 ```
-注意: 如果涉及数据库字段变更，可能需要执行数据库迁移。如果测试环境允许，可使用
-docker compose down -v 清空数据重新初始化（慎用，会删除所有数据）。
+数据库字段由 Python Console 的 Django 迁移更新。保留原业务数据库、UID、配置和凭据卷；不要用清空数据卷处理升级问题。
 
 ## Windows 上运行对 Docker Desktop 版本有要求吗？
 
@@ -71,7 +70,7 @@ Docker 的 `latest` 标签只在本地没有该镜像时才会真正去拉取，
 
 ## 打开 RPA 客户端卡在加载界面？
 
-当前 Console 身份迁移不包含外部 RPA 身份系统；Agent 与 RPA 联合集成暂不可用，将在发布与渠道阶段恢复。
+RPA 平台使用独立部署和登录，通过既有 API Key 接入 Astron Agent 资源及执行接口；不提供联合登录或联合部署。
 
 ## Astron RPA 客户端支持国产信创或麒麟系统吗？
 

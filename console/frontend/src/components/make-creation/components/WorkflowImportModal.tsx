@@ -441,7 +441,6 @@ function WorkflowImportModal({
 
   const uploadProps = {
     name: 'file',
-    action: '/xingchen-api/image/upload',
     showUploadList: false,
     accept: '.yml,.yaml',
     beforeUpload,

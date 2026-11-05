@@ -81,10 +81,13 @@ def preserve_bindings(graph, old_value):
 
 
 def workflow_data(row):
+    from astron_console.channels.workflow_media import read_draft
+
     result = serialize(row, exclude=("published_data", "bak"))
     result["data"] = json.dumps(public_graph(row.data or starter_graph()), ensure_ascii=False)
     result["ext"] = clean_config(parsed(row.ext))
     result["advancedConfig"] = clean_config(parsed(row.advanced_config))
+    result["flowConfig"] = json.dumps(read_draft(row), ensure_ascii=False)
     return result
 
 
@@ -92,7 +95,7 @@ def payload_graph(payload, default=None):
     return normalize_graph(payload.get("data", default if default is not None else starter_graph()))
 
 
-def update_fields(row, payload):
+def update_fields(row, payload, scope):
     for key, field, limit in [
         ("name", "name", 255),
         ("description", "description", 512),
@@ -114,6 +117,10 @@ def update_fields(row, payload):
             if not isinstance(value, dict):
                 raise ValidationError(f"{key}必须为对象")
             setattr(row, field, json.dumps(clean_config(value), ensure_ascii=False))
+    if "flowConfig" in payload:
+        from astron_console.channels.workflow_media import save_draft
+
+        save_draft(scope, row, payload["flowConfig"])
     row.update_time = timezone.now()
 
 
@@ -126,7 +133,7 @@ def create_workflow(scope, payload):
         name=text(payload, "name", required=True, limit=255),
         data=json.dumps(payload_graph(payload), ensure_ascii=False),
     )
-    update_fields(row, payload)
+    update_fields(row, payload, scope)
     row.save()
     logger.info("Workflow created workflow_id=%s flow_id=%s uid=%s", row.pk, row.flow_id, scope.uid)
     return row
@@ -189,7 +196,7 @@ def collection(request):
         return None
     if request.method == "PUT":
         row = Workflow.objects.select_for_update().get(pk=row.pk)
-        update_fields(row, request.payload)
+        update_fields(row, request.payload, scope)
         row.save()
     return workflow_data(row)
 
@@ -204,14 +211,26 @@ def clone(request):
     payload["name"] = row.name[:248] + " 副本"
     payload["data"] = normalize_graph(row.data)
     payload.pop("ext", None)
-    return workflow_data(create_workflow(scope, payload))
+    from astron_console.channels.workflow_media import record
+
+    if record(row.flow_id) is None:
+        payload.pop("flowConfig", None)
+    copied = create_workflow(scope, payload)
+    copied.type = row.type
+    copied.save(update_fields=["type"])
+    return workflow_data(copied)
 
 
 def version_data(row):
+    from astron_console.channels.workflow_media import read_version
+
     result = serialize(row, exclude=("sys_data",))
     result["data"] = json.dumps(public_graph(row.data), ensure_ascii=False)
     result["advancedConfig"] = clean_config(parsed(row.advanced_config))
     result["version"] = row.version_num
+    result["flowConfig"] = json.dumps(
+        read_version(row.flow_id, row.version_num), ensure_ascii=False
+    )
     return result
 
 
@@ -254,8 +273,8 @@ def versions(request):
             version_data,
         )
     row = Workflow.objects.select_for_update().get(pk=row.pk)
-    if "data" in payload:
-        update_fields(row, payload)
+    if "data" in payload or "flowConfig" in payload or "advancedConfig" in payload:
+        update_fields(row, payload, scope)
         row.save()
     from .execution_context import freeze_graph
 
@@ -268,6 +287,9 @@ def versions(request):
         data=json.dumps(frozen, ensure_ascii=False),
         advanced_config=json.dumps(clean_config(parsed(row.advanced_config)), ensure_ascii=False),
     )
+    from astron_console.channels.workflow_media import freeze_version
+
+    freeze_version(row, version)
     logger.info("Workflow version created workflow_id=%s version_id=%s", row.pk, version.pk)
     return version_data(version)
 
@@ -288,6 +310,9 @@ def restore(request):
         row = get_workflow(scope, payload.get("flowId"), WRITE)
         version = get_version(row, payload.get("versionNum", payload.get("version")))
     row = Workflow.objects.select_for_update().get(pk=row.pk)
+    from astron_console.channels.workflow_media import restore_version
+
+    restore_version(scope, row, version)
     row.data = json.dumps(normalize_graph(version.data), ensure_ascii=False)
     if version.advanced_config:
         row.advanced_config = version.advanced_config
@@ -302,7 +327,13 @@ def latest(request):
     row = get_workflow(scope, request.GET.get("flowId"))
     version = get_version(row)
     result = workflow_data(row)
-    result.update(data=version_data(version)["data"], version=version.version_num)
+    frozen = version_data(version)
+    result.update(
+        data=frozen["data"],
+        flowConfig=frozen["flowConfig"],
+        advancedConfig=frozen["advancedConfig"],
+        version=version.version_num,
+    )
     return result
 
 
@@ -375,10 +406,8 @@ def strategies(request, category):
 
 @api_endpoint(["POST"])
 def build(request):
-    import httpx
-
     from .authorization import EXECUTE
-    from .protocol import to_protocol
+    from .validation import validate_graph
 
     scope = scope_for(request, EXECUTE)
     payload = request.payload
@@ -388,24 +417,7 @@ def build(request):
         else get_workflow(scope, payload.get("flowId"), EXECUTE)
     )
     graph = preserve_bindings(payload_graph(payload, parsed(row.data)), row.data)
-    protocol = to_protocol(graph, row, scope)
-    base = getattr(settings, "WORKFLOW_URL", "").rstrip("/")
-    key = getattr(settings, "WORKFLOW_INTERNAL_API_KEY", "")
-    if not base or not key:
-        raise ValidationError("工作流服务未配置")
-    try:
-        with httpx.Client(timeout=60) as client:
-            result = client.post(
-                base + "/workflow/v1/console/validate",
-                json={"protocol": protocol},
-                headers={"X-Workflow-Internal-Key": key, "X-Consumer-Username": row.app_id},
-            )
-            result.raise_for_status()
-            body = result.json()
-        if body.get("code", body.get("header", {}).get("code")) != 0:
-            raise ValidationError("工作流校验失败，请检查节点及连线")
-    except (httpx.HTTPError, ValueError) as exc:
-        raise ValidationError("工作流校验服务不可用") from exc
+    validate_graph(graph, row, scope)
     if "data" in payload:
         require_resource_access(
             scope, owner_uid=row.uid, space_id=row.space_id, permission_key=WRITE

@@ -56,7 +56,9 @@ flowData:
 - `dependencyManifest` 是可选的顶层数组，详情见资源规则；无插件依赖时省略或写 `[]`。
 - 不输出数据库记录外壳、`app`、`workflow`、`graph`、`sourceNodeId`、`targetNodeId` 等其他协议字段。新建时不填工作流级 `flowId`、`uid`、`appId`。
 - 使用单个 YAML 文档、字符串键、两空格缩进；不使用重复键、自定义 YAML 标签、锚点、别名或合并键。避免超过导入解析器的 50 层嵌套和 20 Mi 字符限制；网关可能另有上传大小限制。
+::: v-pre
 - 为 `{{变量}}`、颜色、看似数字/布尔值的字符串加引号；多行提示词和 Python 代码用 `|` 或 `|-`。
+:::
 
 ## 节点、连线和变量
 
@@ -110,7 +112,9 @@ schema:
 
 当前前端按文本检查字面量，故 `content` 使用字符串，即使 `schema.type` 是数字或布尔值；例如 `'80'`、`'true'`、`'[1, 2]'`。复杂对象/数组优先引用上游输出或复用导出的编码，不把任意 YAML 对象放进 literal。空字符串字面量可能不通过表单校验。
 
+::: v-pre
 提示词里的 `{{question}}` 只对应**本节点 inputs 的 name**；必须先用 ref 把上游变量绑定到本节点。不要写 `{{节点ID.output}}` 或其他平台的变量语法。参数字段名有区别：模型/消息/结束使用 `template`，文本拼接使用 `prompt`。
+:::
 
 ### 连线和执行顺序
 
@@ -204,7 +208,9 @@ flowData:
 
 ### 文本处理 `text-joiner`
 
+::: v-pre
 拼接：`nodeParam: {mode: 0, prompt: '主题：{{subject}}\n内容：{{body}}'}`，定义 `subject/body` 两个 string 输入、一个 string 输出。实际需要换行时使用 YAML 多行块，单引号内的 `\n` 是字面字符。
+:::
 
 拆分：`nodeParam: {mode: 1, separator: ','}`，定义一个 string 输入、一个 `array-string` 输出；分隔符不能为空。改模式时同步调整输出类型和所有下游引用。
 
@@ -262,7 +268,9 @@ data:
     enableChatHistoryV2: {isEnabled: false, rounds: 1}
 ```
 
+::: v-pre
 插入后把原边替换为 `start → summarize → end`，结束输入改为引用 `output-summary / spark-llm::summarize / output`，结束位置右移，模板改为 `'{{output}}'`。
+:::
 
 此块仅是待绑定的结构示例。运行所需 `llmId/serviceId/domain/source/modelId/url/uid` 及模型参数，按目标环境真实导出节点填写，字段组合取决于模型来源，不能把示例 ID、任意模型名称或自造 URL 当有效配置。目标环境模型信息缺失时仍可生成可导入草稿，但必须明确“导入后需选择模型”；平台选择模型会补充环境配置，可能新增思考输出，之后复核原输出引用。普通文本输出用 `respFormat: 0`；结构化响应、思考输出、多模态需沿用对应模型配置和输出 schema。
 

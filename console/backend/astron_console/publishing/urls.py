@@ -1,0 +1,57 @@
+from django.urls import path
+
+from . import gateway, public_files, public_runtime, views
+
+urlpatterns = [
+    path("published/<int:bot_id>/files", public_files.upload),
+    path("published/<int:bot_id>/files/<str:file_id>", public_files.download),
+    path("published/workflow-artifacts/<int:artifact_id>", public_files.workflow_download),
+    path("workflow/v1/chat/completions", public_runtime.workflow_api),
+    path("workflow/v1/resume", public_runtime.resume_api),
+    path("workflow/v1/stop", public_runtime.stop_api),
+    path("agent/v1/chat/completions", public_runtime.agent_api),
+    path("published/<int:bot_id>", public_runtime.published_detail),
+    path("published/<int:bot_id>/chat", public_runtime.published_chat),
+    path("published/<int:bot_id>/history", public_runtime.published_history),
+    path("published/runs/<str:run_id>/<str:action>", public_runtime.published_control),
+    path("internal/gateway/auth/workflow", gateway.workflow_auth),
+    path("workflow/publish", views.workflow_publish),
+    path("publish/workflows/bind", views.workflow_binding),
+    path("workflow/web/info", views.workflow_web),
+    path("workflow/version/publish-result", views.workflow_channel_versions),
+    path("open-api/workflow-io-info-list", views.workflow_io),
+    path("publish/bots/<int:bot_id>/status", views.bots),
+    path("publish/bots", views.bots),
+    path("publish/bots/<int:bot_id>", views.bot_endpoint),
+    path("publish/bots/<int:bot_id>/prepare", views.prepare),
+    path("publish/bots/<int:bot_id>/release", views.publish),
+    path(
+        "publish/bots/<int:bot_id>/summary", lambda r, bot_id: views.analytics(r, bot_id, "summary")
+    ),
+    path(
+        "publish/bots/<int:bot_id>/timeseries",
+        lambda r, bot_id: views.analytics(r, bot_id, "timeseries"),
+    ),
+    path("publish/bots/<int:bot_id>/trace", lambda r, bot_id: views.analytics(r, bot_id, "trace")),
+    path(
+        "publish/bots/<int:bot_id>/versions",
+        lambda r, bot_id: views.analytics(r, bot_id, "versions"),
+    ),
+    path("publish-api/create-user-app", views.create_app),
+    path("publish-api/app-list", views.apps),
+    path("publish-api/create-bot-api", views.create_api),
+    path("publish-api/get-bot-api-info", views.api_info),
+    path("publish/approvals", views.approvals),
+    path("publish/approvals/<int:approval_id>", views.approvals),
+    path("publish/approvals/<int:approval_id>/<str:action>", views.decide),
+    path("home-page/agent-square/get-bot-type-list", views.market_types),
+    path("home-page/agent-square/get-bot-page-by-type", views.market),
+    path("bot/page", views.market),
+    path("bot/detail/<int:bot_id>", views.market_detail),
+    path("bot/favorite/list", views.favorite_list),
+    path("bot/favorite/<str:action>", views.favorite),
+    path("share/get-share-key", views.share_key),
+    path("share/add-shared-agent", views.add_shared),
+    path("share/revoke", views.revoke_share),
+    path("agent/getShareKey", views.share_key),
+]

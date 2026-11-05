@@ -221,62 +221,6 @@ export const getWechatAuthUrl = (
   );
 };
 
-// 点击调试前
-export const getInputsType = (params: any) => {
-  return http.post(`/xingchen-api/u/bot/v2/getInputsType`, params);
-};
-
-// mcp发布
-export const publishMCP = (params: any) => {
-  return http.post(`/publishMCP`, params);
-};
-
-// mcp概览
-export const getMcpContent = (params: any) => {
-  return http.post(`/getMcpContent`, params);
-};
-
-// 助手api
-// 是否实名认证
-export const getApiCertInfo = (): Promise<boolean> => {
-  return http.get(`/bot/api/cert/info`);
-};
-
-// 获取api列表
-export const getApiList = (): Promise<any[]> => {
-  return http.get(`/publish-api/app-list`);
-};
-
-// 获取订单列表
-export const getOrderList = (): Promise<any[]> => {
-  return http.get(`/userAuth/getBindableOrderId`);
-};
-
-// api详情
-export const getApiInfo = (botId: string) => {
-  return http.get(`/publish-api/get-bot-api-info?botId=${botId}`);
-};
-
-// 获取api 实时用量
-export const getApiUsage = (botId: any) => {
-  return http.post(`/publish-api/usage-real-time?botId=${botId}`);
-};
-
-// 创建助手api
-export const createApi = (params: { botId: string; appId: string }) => {
-  return http.post(`/publish-api/create-bot-api`, params);
-};
-
-// create app of user
-export const createApp = (params: any) => {
-  return http.post(`/publish-api/create-user-app`, params);
-};
-
-// 获取api 历史用量
-export const getApiHistory = (botId: any, type: number): Promise<any> => {
-  return http.get(`/bot/api/usage/history?botId=${botId}&type=${type}`);
-};
-
 // web应用
 // 获取信息
 export const getWebAppInfo = (
@@ -537,24 +481,31 @@ export const upgradeWorkflow = (params: any) => {
 /**
  * @description 创建一句话复刻任务
  */
+export interface VoiceTrainingStatus {
+  taskId: string;
+  status: 'created' | 'training' | 'unknown' | 'succeeded' | 'failed';
+  speakerId?: number;
+  error?: string;
+}
+
 export const createOnceTrainTask = (params: {
   language?: string;
   sex: number;
   segId: number;
   formData: FormData;
-}): Promise<{ id: string }> => {
-  const filteredParams = Object.fromEntries(
-    Object.entries(params).filter(([_, value]) => value !== undefined)
-  );
-  return http({
-    url: `/speaker/train/create?${qs.stringify(filteredParams)}`,
-    method: 'POST',
-    data: params.formData,
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+}): Promise<VoiceTrainingStatus> => {
+  const query = qs.stringify({
+    language: params.language,
+    sex: params.sex,
+    segId: params.segId,
   });
+  return http.post(`/speaker/train/create?${query}`, params.formData);
 };
+
+export const getVoiceTrainingStatus = (
+  taskId: string
+): Promise<VoiceTrainingStatus> =>
+  http.get(`/speaker/train/tasks/${encodeURIComponent(taskId)}`);
 
 /**
  * @description get my vcn list
