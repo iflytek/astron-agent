@@ -245,7 +245,7 @@ def traces(request, flow_id, run_id=None):
                 node = {
                     "id": debug.get("node_id", event.get("node_id", "")),
                     "alias_name": debug.get("alias_name", ""),
-                    "executed_time": float(debug.get("node_exec_cost", 0)) * 1000,
+                    "executed_time": debug.get("node_exec_cost", 0),
                     "inputs": parsed(debug.get("input")),
                     "outputs": parsed(debug.get("output")),
                     "usage": debug.get("token_cost", {}),
@@ -259,7 +259,7 @@ def traces(request, flow_id, run_id=None):
                     "nodeId": node.get("id"),
                     "nodeName": node.get("alias_name"),
                     "nodeType": str(node.get("id", "")).split("::")[0],
-                    "duration": node.get("executed_time", 0),
+                    "duration": float(node.get("executed_time") or 0) * 1000,
                     "status": "failed"
                     if node.get("error_outputs")
                     else node.get("finish_reason", "running"),

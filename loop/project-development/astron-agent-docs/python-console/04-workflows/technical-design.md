@@ -38,7 +38,7 @@ Agent节点messages仅包含当前工作流run/node的输入与该调度上下�
 
 ## 生命周期、取消与递归
 
-新增内部 `/workflow/v1/console/run` 接收冻结Core协议和可信运行上下文，调用现有event_stream/WorkflowEngine，不从可变Core草稿重新取图。返回现有LLMGenerate事件，Console只添加运行标识事件并持久化实际输出。非零code、断流缺少终态、节点错误不能记成功。统计与追踪来自真实运行事件和历史，不合成成功结果。
+新增内部 `/workflow/v1/console/run` 接收冻结Core协议和可信运行上下文，调用现有event_stream/WorkflowEngine，不从可变Core草稿重新取图。返回现有LLMGenerate事件，Console只添加运行标识事件并持久化实际输出。非零code、断流缺少终态、节点错误不能记成功。统计与追踪来自真实运行事件和历史，不合成成功结果。Core节点耗时以秒返回，Console追踪接口统一换算为毫秒；run-end事件提供基于持久化起止时间的durationMs，前端换算为秒展示，恢复后的总耗时包含暂停时间。
 
 Core现有暂停是Redis EventRegistry协调的活跃engine_task等待，不是跨进程持久化检查点。继续使用该机制：收到interrupt保存paused/eventId；恢复在Console事务内占用同一运行，重验权限后发送Core resume，禁止重复恢复。进程退出、事件过期或无法恢复明确记interrupted，不重放已完成节点冒充恢复。新尝试由用户明确触发并保留旧尝试。
 

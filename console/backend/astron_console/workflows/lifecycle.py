@@ -387,4 +387,13 @@ async def stream_run(run, *, resume_content=None):
             await asyncio.shield(cancel_core(run))
         await asyncio.shield(sync_to_async(checkpoint)(run, status, error))
         logger.info("Workflow ended run=%s root=%s status=%s", run.pk, run.context_id, run.status)
-    yield sse({"runId": run.pk, "status": run.status, "error": run.error}, "run-end")
+    await sync_to_async(run.refresh_from_db)(fields=["update_time"])
+    yield sse(
+        {
+            "runId": run.pk,
+            "status": run.status,
+            "error": run.error,
+            "durationMs": max(0, int((run.update_time - run.create_time).total_seconds() * 1000)),
+        },
+        "run-end",
+    )
