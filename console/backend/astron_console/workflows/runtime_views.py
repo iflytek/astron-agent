@@ -34,6 +34,10 @@ def owned_run(request, run_id, permission=READ):
     run = WorkflowRun.objects.filter(pk=run_id, uid=scope.uid, space_id=scope.space_id).first()
     if run is None:
         raise Http404
+    from astron_console.publishing.models import PublicRunGrant
+
+    if PublicRunGrant.objects.filter(root_id=run.context_id).exists():
+        raise Http404
     get_workflow(scope, run.workflow_id, permission)
     return reconcile(run)
 
@@ -155,6 +159,9 @@ def history(request):
         parent_run_id__isnull=True,
         history_hidden=False,
     )
+    from astron_console.publishing.models import PublicRunGrant
+
+    rows = rows.exclude(context_id__in=PublicRunGrant.objects.values("root_id"))
     requested_version = request.GET.get("version")
     if requested_version:
         _, version_id = select_graph(workflow, requested_version)
@@ -224,6 +231,9 @@ def trace_rows(request, flow_id):
     query = WorkflowRun.objects.filter(
         workflow_id=workflow.pk, uid=scope.uid, space_id=scope.space_id
     ).order_by("-create_time")
+    from astron_console.publishing.models import PublicRunGrant
+
+    query = query.exclude(context_id__in=PublicRunGrant.objects.values("root_id"))
     return workflow, query
 
 

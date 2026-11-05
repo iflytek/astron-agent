@@ -20,7 +20,6 @@ check-comments: ## Check that all comments are written in English
 		for lang in $(ACTIVE_PROJECTS); do \
 			case $$lang in \
 				go) $(MAKE) --no-print-directory check-comments-go ;; \
-				java) $(MAKE) --no-print-directory check-comments-java ;; \
 				python) $(MAKE) --no-print-directory check-comments-python ;; \
 				typescript) $(MAKE) --no-print-directory check-comments-typescript ;; \
 			esac; \
@@ -62,37 +61,6 @@ check-comments-go: ## Check Go comments for English language
 		done; \
 	else \
 		echo "$(BLUE)Skipping Go comment check (no Go projects configured)$(RESET)"; \
-	fi
-
-check-comments-java: ## Check Java comments for English language
-	@if [ -n "$(JAVA_DIRS)" ]; then \
-		echo "$(YELLOW)Checking Java comments in: $(JAVA_DIRS)$(RESET)"; \
-		for dir in $(JAVA_DIRS); do \
-			if [ -d "$$dir" ]; then \
-				echo "  Processing $$dir..."; \
-				find $$dir -name "*.java" ! -path "*/target/*" -exec grep -l '//' {} \; 2>/dev/null | while read file; do \
-					echo "    Checking: $$file"; \
-					grep -n '//' "$$file" | while IFS=: read -r line_num comment; do \
-						comment_text=$$(echo "$$comment" | sed 's|^\s*//\s*||'); \
-						if [ "$$(uname)" = "Darwin" ]; then \
-							if echo "$$comment_text" | grep -qE '[一-龯]' 2>/dev/null; then \
-								echo "      $(RED)Line $$line_num: Contains Chinese characters$(RESET)"; \
-								echo "      Content: $$comment_text"; \
-							fi; \
-						else \
-							if echo "$$comment_text" | grep -qP '[\x{4e00}-\x{9fff}]' 2>/dev/null; then \
-								echo "      $(RED)Line $$line_num: Contains Chinese characters$(RESET)"; \
-								echo "      Content: $$comment_text"; \
-							fi; \
-						fi; \
-					done; \
-				done; \
-			else \
-				echo "  $(RED)Directory $$dir does not exist$(RESET)"; \
-			fi; \
-		done; \
-	else \
-		echo "$(BLUE)Skipping Java comment check (no Java projects configured)$(RESET)"; \
 	fi
 
 check-comments-python: ## Check Python comments for English language
@@ -179,12 +147,11 @@ info-comment-check: ## Show comment checking information
 	else \
 		echo "  Status: $(RED)Missing$(RESET)"; \
 	fi
-	@echo "  Supported languages: Go, Java, Python, TypeScript"
+	@echo "  Supported languages: Go, Python, TypeScript"
 	@echo "  Rule: All comments must be written in English"
 	@echo ""
 	@echo "$(YELLOW)Available commands:$(RESET)"
 	@echo "  make check-comments           - Check all supported files"
 	@echo "  make check-comments-go        - Check only Go files"
-	@echo "  make check-comments-java      - Check only Java files"
 	@echo "  make check-comments-python    - Check only Python files"
 	@echo "  make check-comments-typescript - Check only TypeScript files"

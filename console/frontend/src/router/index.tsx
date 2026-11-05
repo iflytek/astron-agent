@@ -31,7 +31,10 @@ const EnterpriseSpace = lazy(() => import('@/pages/space/enterprise'));
 
 const TeamCreate = lazy(() => import('@/pages/space/team-create'));
 // const SmartRedirect = lazy(() => import('@/pages/smart-redirect'));
-const ReleaseManagement = lazy(() => import('@/pages/release-management'));
+const ReleaseManagement = lazy(() => import('@/pages/publishing'));
+const PublishedChat = lazy(() => import('@/pages/publishing/chat'));
+const AgentMarket = lazy(() => import('@/pages/publishing/market'));
+const WechatCallback = lazy(() => import('@/pages/channels/wechat-callback'));
 const BotApi = lazy(() => import('@/pages/bot-api/api'));
 const SharePage = lazy(() => import('@/pages/share-page'));
 const AppListPage = lazy(() => import('@/pages/bot-api/app-list'));
@@ -40,6 +43,30 @@ const PlatformAccountManagement = lazy(
 );
 
 const routes = [
+  {
+    path: '/publish/wechat/callback',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <WechatCallback />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/published/:botId',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <PublishedChat />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/store/agent',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <AgentMarket />
+      </Suspense>
+    ),
+  },
   {
     path: '/',
     element: (

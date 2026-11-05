@@ -30,7 +30,6 @@ smart_install_tools:
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "  - Installing Go tools..." && $(MAKE) --no-print-directory install-tools-go ;; \
-			java) echo "  - Installing Java tools..." && $(MAKE) --no-print-directory install-tools-java ;; \
 			python) echo "  - Installing Python tools..." && $(MAKE) --no-print-directory install-tools-python ;; \
 			typescript) echo "  - Installing TypeScript tools..." && $(MAKE) --no-print-directory install-tools-typescript ;; \
 		esac; \
@@ -48,7 +47,6 @@ smart_check: ## 🔍 Intelligent code quality check (detect active projects)
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "  - Checking Go code..." && $(MAKE) --no-print-directory check-go ;; \
-			java) echo "  - Checking Java code..." && $(MAKE) --no-print-directory check-java ;; \
 			python) echo "  - Checking Python code..." && $(MAKE) --no-print-directory check-python ;; \
 			typescript) echo "  - Checking TypeScript code..." && $(MAKE) --no-print-directory check-typescript ;; \
 		esac; \
@@ -57,7 +55,6 @@ smart_check: ## 🔍 Intelligent code quality check (detect active projects)
 	@for lang in $(ACTIVE_PROJECTS); do \
 		case $$lang in \
 			go) $(MAKE) --no-print-directory check-comments-go ;; \
-			java) $(MAKE) --no-print-directory check-comments-java ;; \
 			python) $(MAKE) --no-print-directory check-comments-python ;; \
 			typescript) $(MAKE) --no-print-directory check-comments-typescript ;; \
 		esac; \
@@ -76,7 +73,6 @@ smart_test: ## 🧪 Intelligent test execution (detect active projects)
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "  - Running Go tests..." && $(MAKE) --no-print-directory test-go ;; \
-			java) echo "  - Running Java tests..." && $(MAKE) --no-print-directory test-java ;; \
 			python) echo "  - Running Python tests..." && $(MAKE) --no-print-directory test-python ;; \
 			typescript) echo "  - Running TypeScript tests..." && $(MAKE) --no-print-directory test-typescript ;; \
 		esac; \
@@ -95,7 +91,6 @@ smart_build: ## 📦 Intelligent project build (detect active projects)
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "  - Building Go project..." && $(MAKE) --no-print-directory build-go ;; \
-			java) echo "  - Building Java project..." && $(MAKE) --no-print-directory build-java ;; \
 			python) echo "  - Python doesn't need building (interpreted execution)" ;; \
 			typescript) echo "  - Building TypeScript project..." && $(MAKE) --no-print-directory build-typescript ;; \
 		esac; \
@@ -125,7 +120,6 @@ smart_clean: ## 🧹 Intelligent cleanup of build artifacts
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "  - Cleaning Go build artifacts..." && $(MAKE) --no-print-directory clean-go ;; \
-			java) echo "  - Cleaning Java build artifacts..." && $(MAKE) --no-print-directory clean-java ;; \
 			python) echo "  - Cleaning Python cache..." && $(MAKE) --no-print-directory clean-python ;; \
 			typescript) echo "  - Cleaning TypeScript build artifacts..." && $(MAKE) --no-print-directory clean-typescript ;; \
 		esac; \
@@ -175,7 +169,6 @@ smart_info: ## ℹ️ Show tools and dependency information
 	@for project in $(ACTIVE_PROJECTS); do \
 		case $$project in \
 			go) echo "$(YELLOW)Go Tool Status:$(RESET)" && $(MAKE) --no-print-directory check-tools-go ;; \
-			java) echo "$(YELLOW)Java Tool Status:$(RESET)" && $(MAKE) --no-print-directory check-tools-java ;; \
 			python) echo "$(YELLOW)Python Tool Status:$(RESET)" && $(MAKE) --no-print-directory check-tools-python ;; \
 			typescript) echo "$(YELLOW)TypeScript Tool Status:$(RESET)" && $(MAKE) --no-print-directory check-tools-typescript ;; \
 		esac; \

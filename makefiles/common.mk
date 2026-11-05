@@ -25,7 +25,6 @@ project-status: ## Show detected project status
 	@echo "$(BLUE)Detected Projects:$(RESET)"
 	@if [ -d "backend-go" ]; then echo "  $(GREEN)✓ Go Backend$(RESET)       (backend-go/)"; else echo "  $(RED)✗ Go Backend$(RESET)       (backend-go/)"; fi
 	@if [ -d "frontend-ts" ]; then echo "  $(GREEN)✓ TypeScript Frontend$(RESET) (frontend-ts/)"; else echo "  $(RED)✗ TypeScript Frontend$(RESET) (frontend-ts/)"; fi
-	@if [ -d "backend-java" ]; then echo "  $(GREEN)✓ Java Backend$(RESET)      (backend-java/)"; else echo "  $(RED)✗ Java Backend$(RESET)      (backend-java/)"; fi
 	@if [ -d "backend-python" ]; then echo "  $(GREEN)✓ Python Backend$(RESET)    (backend-python/)"; else echo "  $(RED)✗ Python Backend$(RESET)    (backend-python/)"; fi
 
 # Multi-language tool installation aggregate command
@@ -33,7 +32,6 @@ install-tools: ## Install development and checking tools for all languages
 	@echo "$(YELLOW)Installing multi-language development tools...$(RESET)"
 	@make --no-print-directory install-tools-go
 	@make --no-print-directory install-tools-typescript
-	@make --no-print-directory install-tools-java
 	@make --no-print-directory install-tools-python
 	@echo "$(GREEN)All multi-language tools installation completed!$(RESET)"
 
@@ -42,7 +40,6 @@ check-tools: ## Check if development tools for all languages are installed
 	@echo "$(YELLOW)Checking multi-language development tools...$(RESET)"
 	@make --no-print-directory check-tools-go
 	@make --no-print-directory check-tools-typescript  
-	@make --no-print-directory check-tools-java
 	@make --no-print-directory check-tools-python
 	@echo "$(GREEN)Multi-language tools check completed!$(RESET)"
 
@@ -50,7 +47,6 @@ check-all: ## Check code quality for all language projects
 	@echo "$(YELLOW)Running code quality checks for all projects...$(RESET)"
 	@make --no-print-directory check-go
 	@make --no-print-directory check-typescript
-	@make --no-print-directory check-console-backend
 	@make --no-print-directory check-python
 	@echo "$(GREEN)All code quality checks completed!$(RESET)"
 

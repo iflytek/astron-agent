@@ -782,9 +782,11 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                         setBusy(true);
                         setError('');
                         void publishAgentVersion(id, Number(version.id))
-                          .then(() =>
+                          .then(result =>
                             setNotice(
-                              `已将版本 ${version.id} 设为工作流引用版本，新运行生效。`
+                              result.approvalRequired
+                                ? '已提交发布审批，审批通过后新运行生效。'
+                                : `已将版本 ${version.id} 设为工作流引用版本，新运行生效。`
                             )
                           )
                           .catch(reason => setError(errorText(reason)))

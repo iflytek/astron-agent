@@ -91,7 +91,7 @@ module_id varchar(50) DEFAULT NULL ）。
 
 ## 控制台与工作流引擎各负责什么？
 
-Python Console 负责账号及后续迁移的管理层 API；`core/workflow` 负责工作流编排；`core/agent` 将作为独立 Agent 与工作流 Agent 节点的共享执行引擎。当前只完成账号阶段，资源、Agent 和工作流管理仍待后续迁移，保留的 Java 业务源码不作为登录服务运行。
+Python Console 负责账号、资源、Agent、工作流和发布的管理与授权；`core/workflow` 负责工作流编排；`core/agent` 是独立 Agent 与工作流 Agent 节点的共享执行引擎。
 
 Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`），原用户 ID 与资源归属保持不变。
 
@@ -153,7 +153,7 @@ Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`�
 2. 用新镜像替换 compose 中引用的官方镜像；
 3. 重新 `up -d` 使新镜像生效。
 
-后端（Java / Python 服务）的定制同理，各服务都可以按自己的 Dockerfile 重新出镜像。如果改动只覆盖了一部分文案，通常是还有其他模块（例如后端返回的文案或另一个前端子应用）没有一并重建。
+后端（Python / Go 服务）的定制同理，各服务都可以按自己的 Dockerfile 重新出镜像。如果改动只覆盖了一部分文案，通常是还有其他模块（例如后端返回的文案或另一个前端子应用）没有一并重建。
 
 ## 在线体验、SaaS 版和开源自建版是什么关系？
 
@@ -201,7 +201,7 @@ Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`�
 
 ![创建并绑定应用](assets/workflow_publish_api_2.png)
 
-3. 绑定成功后即可在「服务接口认证信息」中看到接口地址、API Secret、API Key 和 API Flowid，页面还提供 python / java 的 demo 下载。
+3. 绑定成功后即可在「服务接口认证信息」中看到接口地址、API Secret、API Key 和 API Flowid，页面还提供 Python 和 HTTP 示例下载。
 
 ![获取接口地址与鉴权信息](assets/workflow_publish_api_3.png)
 
@@ -255,7 +255,7 @@ Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`�
 
 ## Agent 怎么调用 RPA？
 
-当前内部账号迁移尚未包含外部 RPA 身份与渠道适配，联合启动入口已移除。Agent 与 RPA 集成在发布与渠道迁移阶段恢复。
+RPA 使用外部平台既有 API Key 接入资源管理和工作流执行。外部 RPA 独立部署与登录，Astron Agent 不提供联合登录，也不修改外部 RPA 源码、镜像和部署。
 
 ## Agent 有几种接入 RAG（知识库）的方式？
 

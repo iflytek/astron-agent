@@ -412,12 +412,26 @@ def artifact_location(row):
     return row.bucket_name or storage.bucket(), key
 
 
+def public_artifact_runs():
+    from astron_console.publishing.models import PublicRunGrant
+    from astron_console.workflows.models import WorkflowRun
+
+    return WorkflowRun.objects.filter(
+        context_id__in=PublicRunGrant.objects.values("root_id")
+    ).values("id")
+
+
 def artifact_dump(row, download=False):
     result = {
         k: v
         for k, v in dump(row).items()
         if k not in ("objectKey", "bucketName", "uid", "spaceId", "deleted")
     }
+    from astron_console.publishing.public_files import workflow_grant
+
+    if workflow_grant(row.run_id) is not None:
+        result["downloadUrl"] = f"/console-api/published/workflow-artifacts/{row.pk}"
+        return result
     if download:
         bucket, key = artifact_location(row)
         result["downloadUrl"] = storage.download(
@@ -438,10 +452,18 @@ def artifacts(request, artifact_id=None, workflow_id=None, action=None):
         return [
             artifact_dump(r)
             for r in scope_queryset(
-                Artifact.objects.filter(workflow_id=workflow_id, deleted=False), scope
+                Artifact.objects.filter(workflow_id=workflow_id, deleted=False).exclude(
+                    run_id__in=public_artifact_runs()
+                ),
+                scope,
             ).order_by("-id")
         ]
-    row = scope_queryset(Artifact.objects.filter(pk=artifact_id, deleted=False), scope).first()
+    row = scope_queryset(
+        Artifact.objects.filter(pk=artifact_id, deleted=False).exclude(
+            run_id__in=public_artifact_runs()
+        ),
+        scope,
+    ).first()
     if not row:
         raise Http404()
     artifact_workflow(scope, row.workflow_id)
@@ -540,6 +562,11 @@ def upload_artifact(request):
     p = request.POST
     uid = text(p.get("uid"), 128)
     scope = ResourceScope(uid, number(p.get("spaceId")) if p.get("spaceId") else None, None)
+    from astron_console.publishing.public_files import workflow_upload_identity
+
+    published = workflow_upload_identity(p)
+    if published:
+        grant, scope, published_run = published
     file = request.FILES.get("file")
     name, content_type = validate_artifact(file)
     metadata = {
@@ -551,6 +578,8 @@ def upload_artifact(request):
     bucket = getattr(settings, "SKILL_SANDBOX_ARTIFACT_BUCKET", "workflow-artifacts")
     with transaction.atomic():
         workflow = artifact_workflow(scope, p.get("workflowId"), p.get("flowId"), True)
+        if published and workflow.pk != published_run.workflow_id:
+            raise PermissionDenied
         active = Artifact.objects.filter(workflow_id=workflow.pk, deleted=False)
         if active.count() >= getattr(
             settings, "SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_FILES_PER_WORKFLOW", 1000
@@ -564,7 +593,7 @@ def upload_artifact(request):
             row = save(
                 Artifact(
                     uid=uid,
-                    space_id=scope.space_id,
+                    space_id=grant.caller_space_id if published else scope.space_id,
                     workflow_id=workflow.pk,
                     run_id=metadata["runId"],
                     node_id=metadata["nodeId"],

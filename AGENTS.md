@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Astron Agent is an enterprise-grade Agentic Workflow development platform. It includes the console frontend and backend, multiple core microservices, a plugin system, and deployment and infrastructure configuration. The repository uses a multi-language, multi-module structure. The primary languages are TypeScript, Java, Python, and Go.
+Astron Agent is an enterprise-grade Agentic Workflow development platform. It includes the console frontend and backend, multiple core microservices, a plugin system, and deployment and infrastructure configuration. The repository uses a multi-language, multi-module structure. The primary languages are TypeScript, Python, and Go.
 
 ## Repository Structure
 
@@ -12,12 +12,10 @@ Astron Agent is an enterprise-grade Agentic Workflow development platform. It in
   - React 18 + TypeScript + Vite frontend application
   - Responsible for the console UI, agent creation, chat interface, workflow visualization, model management, plugin marketplace, and related features
 - `console/backend`
-  - Java Spring Boot backend
+  - Python Django 5.2 ASGI backend
   - Responsible for console REST APIs, SSE, authentication, management capabilities, and business aggregation
-  - Main submodules:
-    - `hub`
-    - `toolkit`
-    - `commons`
+  - Domain modules under `astron_console`: accounts, spaces, resources, knowledge, agents, workflows, publishing
+  - Django owns management, authorization, immutable releases, and execution records; core services own Agent and workflow execution
 
 ### Core Microservices
 

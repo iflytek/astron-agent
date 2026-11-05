@@ -1,483 +1,255 @@
-import { useEffect, useState } from 'react';
-import { Button, Form, message, Modal, Input } from 'antd';
-import { useNavigate } from 'react-router-dom';
-import { useSearchParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Alert, Button, Descriptions, Select, Space, Typography } from 'antd';
 import {
-  getApiList,
-  getApiInfo,
-  getApiUsage,
-  createApi,
-  createApp,
-} from '@/services/spark-common';
-import { isPublishApprovalDecision } from '@/services/release-management';
-import { Select } from 'antd';
-import backIcon from '@/assets/svgs/back-create-bot.svg';
-import styles from './api.module.scss';
+  bindPublishedApi,
+  listApplications,
+  publishedApiInfo,
+  type PublishedApiInfo,
+} from '@/services/published-api';
+import type { UserApp } from '@/types/common';
+import useSpaceStore from '@/store/space-store';
+import { errorText } from '@/pages/agents/errors';
+import CreateApplication from './components/create-application';
+import Credential from './components/credential';
+import '@/pages/agents/style.css';
 
-const Divider = () => {
-  return (
-    <div className={styles.divider}>
-      {[1, 2, 3, 4, 5, 6].map((_item, index) => {
-        return <div key={index} className={styles.divider_circle} />;
-      })}
-    </div>
-  );
-};
+export default function BotApi(): ReactElement {
+  const [search] = useSearchParams();
+  const botId = search.get('id') || '';
+  const { spaceId, enterpriseId } = useSpaceStore();
+  const [apps, setApps] = useState<UserApp[]>([]);
+  const [appId, setAppId] = useState('');
+  const [info, setInfo] = useState<PublishedApiInfo | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [revision, setRevision] = useState(0);
+  const requestPending = useRef(false);
 
-export default function BotApi({
-  _isOpenapi = false,
-}: {
-  _isOpenapi?: boolean;
-}) {
-  const { t } = useTranslation();
-  const [createAppForm] = Form.useForm(); //创建应用表单
-  const navigate = useNavigate();
-  // 新增状态，标记是否已经获取过 API 列表
-  const [hasFetchedApiList, setHasFetchedApiList] = useState<boolean>(false);
-  const [searchParams] = useSearchParams();
-  const [botId, setBotId]: any = useState('');
-  const [appList, setAppList] = useState<any[]>([]);
-  const [appId, setAppId] = useState<any>(''); //appId
-  const [apiInfo, setApiInfo] = useState<any>(null);
-  const [apiUsage, setApiUsage] = useState<any>({});
-  const [freshCount, setFreshCount] = useState<number>(0); // 刷新页面数据
-  const [loading, setLoading] = useState(false);
-  const [isShowCreateAppModal, setIsShowCreateAppModal] =
-    useState<boolean>(false); // 是否显示创建应用弹框
-  const [docUrl, setDocUrl] = useState<string>(); // 文档地址
-
-  const createApiFn = async (publishBindId?: any, appIdParam?: any) => {
-    try {
-      const result = await createApi({ botId, appId: appIdParam || appId });
-      if (isPublishApprovalDecision(result)) {
-        message.success('已提交发布审核，审核通过后将自动绑定并发布为 API');
-        return;
-      }
-      setFreshCount(freshCount + 1);
-      message.success('绑定成功');
-    } catch (e: any) {
-      message.error(e?.msg);
-    } finally {
+  useEffect(() => {
+    let active = true;
+    setInfo(null);
+    setAppId('');
+    setError('');
+    if (!botId) {
+      setError('缺少 Agent 或工作流标识，请从发布管理打开 API 配置。');
       setLoading(false);
-    }
-  };
-  //更新 or 绑定
-  const handleBindApi = () => {
-    if (!appId) {
-      message.warning('请先绑定您的应用');
       return;
     }
-    createApiFn(null, appId);
-  };
+    setLoading(true);
+    Promise.all([listApplications(), publishedApiInfo(botId)])
+      .then(([rows, publication]) => {
+        if (!active) return;
+        setApps(rows);
+        setInfo(publication);
+        setAppId(publication?.appId || '');
+      })
+      .catch(reason => {
+        if (active) setError(errorText(reason));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return (): void => {
+      active = false;
+    };
+  }, [botId, spaceId, enterpriseId, revision]);
 
-  /**
-   * update api info
-   * @param botId botId
-   * @param appId appId
-   */
-  const updateApiInfo = async (botId: any, appId: any) => {
-    setAppId(appId);
-    setBotId(botId);
-    createApiFn(null, appId);
-  };
-  /**
-   * load api usage data
-   * @param id botId
-   */
-  const loadApiUsageData = async (id: any) => {
-    const res = await getApiUsage(id);
-    setApiUsage(res);
-  };
-
-  /**
-   * load list of app
-   */
-  const loadAppList = async () => {
-    const res = await getApiList();
-    const data = res.map((item: any) => {
-      return {
-        value: item.appId,
-        label: item.appName || item.appId,
-      };
-    });
-    setAppList(data);
-  };
-
-  /**
-   * load api info
-   * @param id botId
-   */
-  const loadAPiInfo = async (id: string) => {
-    const res = await getApiInfo(id);
-    setApiInfo(res);
-  };
-
-  const handleSubmitCreateApp = () => {
-    createAppForm.validateFields().then(values => {
-      createApp(values)
-        .then(() => {
-          message.success('创建应用成功');
-          setIsShowCreateAppModal(false);
-          createAppForm.resetFields();
-          loadAppList();
-        })
-        .catch(err => {
-          message.error(err?.message || '创建应用失败');
-        });
-    });
-  };
-
-  useEffect(() => {
-    if (searchParams.get('id')) {
-      setBotId(searchParams.get('id'));
+  const bind = async (): Promise<void> => {
+    if (!botId || !appId || requestPending.current) return;
+    requestPending.current = true;
+    setPublishing(true);
+    setError('');
+    setNotice('');
+    try {
+      const result = await bindPublishedApi(botId, appId);
+      setNotice(
+        result.approvalRequired
+          ? '已提交审批，审核通过后生效；当前已发布版本保持不变。'
+          : '发布成功，新的调用将使用此次发布版本。'
+      );
+      setRevision(value => value + 1);
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      requestPending.current = false;
+      setPublishing(false);
     }
-
-    // NOTE: 指令型和工作流类型的智能体文档不同 -- 0715补充
-    const url =
-      searchParams.get('version') !== '1'
-        ? 'https://www.xfyun.cn/doc/spark/Agent04-API%E6%8E%A5%E5%85%A5.html'
-        : 'https://www.xfyun.cn/doc/spark/SparkAssistantAPI.html';
-    setDocUrl(url);
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (appList?.length) {
-      loadAPiInfo(botId);
-      // loadApiUsageData(botId);
-    } else if (!hasFetchedApiList) {
-      loadAppList();
-      setHasFetchedApiList(true);
-    }
-  }, [appList, freshCount, hasFetchedApiList]);
+  };
 
   return (
-    <section className={styles.api_swap}>
-      <section className={styles.api_container}>
-        <div className={styles.api_header}>
-          <img
-            src={backIcon}
-            alt=""
-            style={{ marginRight: '10px', cursor: 'pointer' }}
-            onClick={() => navigate(-1)}
+    <main className="agents-page">
+      <header className="agents-header">
+        <div>
+          <h1>发布为 API</h1>
+          <p>将 Agent 或工作流绑定到应用，以应用密钥调用已发布版本。</p>
+        </div>
+        <Link className="button" to="/management/release">
+          返回发布管理
+        </Link>
+      </header>
+      {error && (
+        <Alert type="error" showIcon message={error} className="mb-4" />
+      )}
+      {notice && (
+        <Alert type="success" showIcon message={notice} className="mb-4" />
+      )}
+      <section className="agents-panel">
+        <h2>应用绑定</h2>
+        <Space wrap className="my-4">
+          <Select
+            aria-label="选择应用"
+            placeholder="选择应用"
+            value={appId || undefined}
+            onChange={setAppId}
+            loading={loading}
+            disabled={loading || publishing}
+            style={{ minWidth: 240 }}
+            options={apps.map(app => ({
+              value: app.appId,
+              label: `${app.appName} (${app.appId})`,
+            }))}
           />
-          <span className={styles.api_header_title}>{t('botApi.botApi')}</span>
-          <span className={styles.api_header_subtitle}>
-            {t('botApi.botApiDesc')}
-          </span>
-        </div>
-        <div className={styles.api_step}>
-          <div className={styles.step}>
-            <img
-              src="https://aixfyun-cn-bj.xfyun.cn/bbs/75713.75546409925/cir.svg"
-              alt=""
-              className={styles.step_index}
-            />
-            <div className={styles.step_detail}>
-              <span className={styles.title}>{t('botApi.bindApp')}</span>
-              <span className={styles.subtitle}>{t('botApi.bindAppDesc')}</span>
-              <span
-                className={styles.fun}
-                onClick={() => {
-                  setIsShowCreateAppModal(true);
-                }}
-              >
-                {t('botApi.createApi')} {' >'}
-              </span>
-            </div>
-          </div>
-          <Divider />
-          <div className={styles.step}>
-            <img
-              src="https://aixfyun-cn-bj.xfyun.cn/bbs/84687.53848944922/cir2.svg"
-              alt=""
-              className={styles.step_index}
-            />
-            <div className={styles.step_detail}>
-              <span className={styles.title}>{t('botApi.callService')}</span>
-              <span className={styles.subtitle}>
-                {t('botApi.callServiceDesc')}
-              </span>
-              <span
-                className={styles.fun}
-                onClick={() => {
-                  window.open(docUrl);
-                }}
-              >
-                {t('botApi.apiDoc')}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className={styles.statistic}>
-          <div className={styles.certified_card}>
-            <div className={styles.certified_card_title}>
-              <span>{t('botApi.apiCertInfo')}</span>
-              <div
-                onClick={() => {
-                  window.open(docUrl);
-                }}
-              >
-                {t('botApi.viewApiDoc')}
-              </div>
-            </div>
-            <div className={styles.appid_box}>
-              <div className={styles.appid_select}>
-                {apiInfo?.appId && (
-                  <>
-                    <span className={styles.appid_select_title}>
-                      {t('botApi.bindAppID')}
-                    </span>
-                    <span
-                      className={styles.appid_select_appid}
-                      title={apiInfo.appId}
-                    >
-                      {apiInfo && apiInfo.appId}
-                    </span>
-
-                    <span className={styles.appid_select_divide} />
-                    <span className={styles.appid_select_title}>
-                      {t('botApi.appName')}
-                    </span>
-                    <span
-                      className={styles.appid_select_appid}
-                      title={apiInfo?.appName}
-                    >
-                      {apiInfo && apiInfo.appName
-                        ? apiInfo.appName
-                        : t('botApi.unNamed')}
-                    </span>
-                    {searchParams.get('version') !== '1' && (
-                      <Button
-                        type="primary"
-                        ghost
-                        size="small"
-                        loading={loading}
-                        style={{
-                          marginLeft: 30,
-                          color: '#fff',
-                          height: '30px',
-                          lineHeight: '30px',
-                          fontSize: '12px',
-                        }}
-                        onClick={() => updateApiInfo(botId, apiInfo.appId)}
-                      >
-                        {t('botApi.updateBind')}
-                      </Button>
-                    )}
-                  </>
-                )}
-                {!apiInfo?.appId && (
-                  <>
-                    <Select
-                      showSearch
-                      style={{ width: 192 }}
-                      placeholder={t('botApi.selectApp')}
-                      onChange={e => {
-                        setAppId(e);
-                      }}
-                      options={appList}
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').includes(input)
-                      }
-                      filterSort={(optionA, optionB) =>
-                        (optionA?.label ?? '')
-                          .toLowerCase()
-                          .localeCompare((optionB?.label ?? '').toLowerCase())
-                      }
-                    />
-                    <Button
-                      type="primary"
-                      ghost
-                      size="small"
-                      loading={loading}
-                      style={{
-                        marginLeft: 10,
-                        color: '#fff',
-                        height: '30px',
-                        lineHeight: '30px',
-                        fontSize: '12px',
-                      }}
-                      onClick={() => handleBindApi()}
-                    >
-                      {t('botApi.bindAppBtn')}
-                    </Button>
-                  </>
-                )}
-              </div>
-              {searchParams.get('version') !== '1' && (
-                <div style={{ marginTop: '4px' }}>
-                  <a
-                    className={styles.appid_download}
-                    href="https://openres.xfyun.cn/xfyundoc/2025-03-25/1fa7e299-25ab-4128-92c9-a56928caea49/1742887223777/workflow_openapi_demo_python.py.zip"
-                  >
-                    {t('botApi.pythonDemoDownload')}
-                  </a>
-                  <a
-                    className={styles.appid_download}
-                    href="https://openres.xfyun.cn/xfyundoc/2025-03-25/ae1c647f-9d9e-4bdf-b50a-7f5e683aa6ad/1742887220264/workflow_openapi_demo_java.java.zip"
-                  >
-                    {t('botApi.javaDemoDownload')}
-                  </a>
-                </div>
-              )}
-            </div>
-            <div className={styles.certified_card_tips}>
-              <span style={{ color: '#DE9B7C' }}>*</span>
-              {t('botApi.bindAppTips')}
-            </div>
-            <img
-              src="https://aixfyun-cn-bj.xfyun.cn/bbs/16415.126278163174/%E8%99%9A%E7%BA%BF.svg"
-              alt=""
-              className={styles.cer_divide}
-            />
-            <div className={`${styles.cer_info}`}>
-              <span className={styles.info_label}>
-                {t('botApi.serviceUrl')}：
-              </span>
-              <span
-                className={styles.info_res}
-                title={apiInfo?.serviceUrl ? apiInfo?.serviceUrl : null}
-              >
-                {apiInfo?.serviceUrl
-                  ? apiInfo?.serviceUrl
-                  : t('botApi.bindAppTips2')}
-              </span>
-            </div>
-            <div className={`${styles.cer_info}`}>
-              <span className={styles.info_label}>API Secret:</span>
-              <span className={styles.info_res}>
-                {apiInfo?.appSecret || t('botApi.bindAppTips2')}
-              </span>
-            </div>
-            <div className={`${styles.cer_info}`}>
-              <span className={styles.info_label}>API Key：</span>
-              <span className={styles.info_res}>
-                {apiInfo?.appKey || t('botApi.bindAppTips2')}
-              </span>
-            </div>
-            {searchParams.get('version') !== '1' && (
-              <div className={`${styles.cer_info}`}>
-                <span className={styles.info_label}>API Flowid</span>
-                <span className={styles.info_res}>
-                  {apiInfo?.flowId || t('botApi.bindAppTips2')}
-                </span>
-              </div>
-            )}
-          </div>
-          {/* <div className={styles.right}>
-            <div className={styles.statistic_card}>
-              <div className={styles.statistic_data}>
-                <img
-                  src="https://aixfyun-cn-bj.xfyun.cn/bbs/21995.93819230774/1.png"
-                  alt=""
-                  className={styles.data_img}
-                />
-                <div className={styles.data_used_num}>
-                  {apiInfo ? apiUsage?.usedCount : '_ _'}
-                </div>
-                <div className={styles.data_title}>
-                  {t('botApi.todayUsedTokenNum')}
-                </div>
-              </div>
-              <div className={styles.statistic_divide} />
-              <div className={styles.statistic_data}>
-                <img
-                  src="https://aixfyun-cn-bj.xfyun.cn/bbs/48258.37497568033/2.png"
-                  alt=""
-                  className={styles.data_img}
-                />
-                <div className={styles.data_used_num}>
-                  {apiInfo ? apiUsage?.left : '_ _'}
-                </div>
-                <div className={styles.data_title}>
-                  {t('botApi.remainTokenNum')}
-                </div>
-              </div>
-              <div className={styles.statistic_divide} />
-              <div className={styles.statistic_data}>
-                <img
-                  src="https://aixfyun-cn-bj.xfyun.cn/bbs/48258.37497568033/2.png"
-                  alt=""
-                  className={styles.data_img}
-                />
-                <div className={styles.data_used_num}>
-                  {apiInfo ? apiUsage?.conc : '_ _'}
-                </div>
-                <div className={styles.data_title}>QPS</div>
-              </div>
-            </div>
-            <div className={styles.statistic_tips}>
-              <div className={styles.statistic_tips_title}>
-                {t('botApi.warmTips')}
-              </div>
-              <ul className={styles.statistic_tips_lists}>
-                <li>{t('botApi.apiKeyWarn')}</li>
-              </ul>
-            </div>
-          </div> */}
-        </div>
-      </section>
-      <Modal
-        open={isShowCreateAppModal}
-        onCancel={() => setIsShowCreateAppModal(false)}
-        title={t('botApi.createApp')}
-        width={500}
-        centered
-        // closable={false}
-        maskClosable={false}
-        destroyOnClose
-        footer={[
-          <Button onClick={() => setIsShowCreateAppModal(false)}>
-            {t('btnCancel')}
-          </Button>,
           <Button
             type="primary"
-            loading={loading}
-            onClick={() => {
-              handleSubmitCreateApp();
-            }}
+            onClick={() => void bind()}
+            loading={publishing}
+            disabled={loading || !appId || !botId}
           >
-            {t('btnOk')}
-          </Button>,
-        ]}
-      >
-        <div className={styles.createAppModal}>
-          <Form
-            form={createAppForm}
-            name="promptForm"
-            initialValues={{ remember: true }}
-            autoComplete="off"
+            {info ? '发布更新' : '绑定并发布'}
+          </Button>
+          <Button onClick={() => setCreating(true)} disabled={publishing}>
+            创建应用
+          </Button>
+          <Button
+            onClick={() => setRevision(value => value + 1)}
+            disabled={publishing || loading}
           >
-            <Form.Item
-              label={t('botApi.createAppName')}
-              name="appName"
-              rules={[
-                { required: true, message: t('botApi.createAppNameRequired') },
-              ]}
-              colon={false}
-              labelCol={{ span: 24 }}
-              wrapperCol={{ span: 24 }}
+            刷新
+          </Button>
+        </Space>
+        {info ? (
+          <Descriptions column={1} bordered size="small">
+            <Descriptions.Item label="名称">{info.botName}</Descriptions.Item>
+            <Descriptions.Item label="当前应用">
+              {info.appName} ({info.appId})
+            </Descriptions.Item>
+            <Descriptions.Item label="服务地址">
+              <Typography.Text copyable>{info.serviceUrl}</Typography.Text>
+            </Descriptions.Item>
+            <Descriptions.Item
+              label={
+                info.serviceUrl.includes('/workflow/v1/')
+                  ? 'Flow ID'
+                  : 'Agent ID'
+              }
             >
-              <Input placeholder={t('botApi.createAppNamePlaceholder')} />
-            </Form.Item>
-            <Form.Item
-              label={t('botApi.createAppDesc')}
-              name="appDescribe"
-              rules={[
-                { required: true, message: t('botApi.createAppDescRequired') },
-              ]}
-              labelCol={{ span: 24 }}
-              wrapperCol={{ span: 24 }}
-            >
-              <Input.TextArea
-                placeholder={t('botApi.createAppDescPlaceholder')}
-                rows={4}
-              />
-            </Form.Item>
-          </Form>
-        </div>
-      </Modal>
+              {info.serviceUrl.includes('/workflow/v1/')
+                ? info.flowId
+                : info.botId}
+            </Descriptions.Item>
+            <Descriptions.Item label="发布版本">
+              {info.versionId}
+            </Descriptions.Item>
+            <Descriptions.Item label="API Key">
+              <Credential value={info.appKey} />
+            </Descriptions.Item>
+            <Descriptions.Item label="API Secret">
+              <Credential value={info.appSecret} />
+            </Descriptions.Item>
+          </Descriptions>
+        ) : (
+          !loading && <p>尚未绑定应用，或发布尚未通过审批。</p>
+        )}
+      </section>
+      <ApiInstructions
+        info={info}
+        requestedWorkflow={search.get('version') !== '1'}
+      />
+      {creating && (
+        <CreateApplication
+          onClose={() => setCreating(false)}
+          onCreated={() => {
+            setCreating(false);
+            setRevision(value => value + 1);
+          }}
+        />
+      )}
+    </main>
+  );
+}
+
+function ApiInstructions({
+  info,
+  requestedWorkflow,
+}: {
+  info: PublishedApiInfo | null;
+  requestedWorkflow: boolean;
+}): ReactElement {
+  const workflow =
+    info?.serviceUrl.includes('/workflow/v1/') ?? requestedWorkflow;
+  const body = workflow
+    ? {
+        flow_id: info?.flowId || '<FLOW_ID>',
+        uid: 'your-user-id',
+        stream: true,
+        parameters: { query: '你好' },
+      }
+    : {
+        bot_id: info?.botId || '<BOT_ID>',
+        user: 'your-user-id',
+        stream: true,
+        sessionId: 'conversation-1',
+        messages: [{ role: 'user', content: '你好' }],
+      };
+  const endpoint =
+    info?.serviceUrl ||
+    `${window.location.origin}/${workflow ? 'workflow' : 'agent'}/v1/chat/completions`;
+  const example = `curl --no-buffer '${endpoint}' \\\n  -H 'Authorization: Bearer <API_KEY>:<API_SECRET>' \\\n  -H 'Content-Type: application/json' \\\n  -d '${JSON.stringify(body, null, 2)}'`;
+
+  return (
+    <section className="agents-panel mt-6">
+      <h2>调用说明</h2>
+      <p className="my-3">
+        在服务端使用 Authorization: Bearer
+        API_KEY:API_SECRET。密钥仅可访问该应用已发布的资源，不能代替 Console
+        登录。
+      </p>
+      <Typography.Paragraph copyable={{ text: example }}>
+        <pre className="overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-4">
+          {example}
+        </pre>
+      </Typography.Paragraph>
+      <p>
+        {workflow
+          ? 'parameters 使用工作流开始节点的输入名称；请将示例 query 替换为实际输入。'
+          : '每次发送一条用户消息；同一 user 和 sessionId 延续服务端会话，不能上传 assistant 历史。'}
+      </p>
+      <p className="mt-2">
+        stream=true 返回实际执行事件的 SSE；stream=false
+        等待本次执行结果。发布更新影响新运行，正在执行的运行保持原版本。
+      </p>
+      {workflow && (
+        <p className="mt-2">
+          暂停后使用相同应用凭据 POST /workflow/v1/resume，正文提供运行返回的
+          runId 和 content。恢复始终返回
+          SSE，继续原版本和原运行，不重放已完成节点。
+        </p>
+      )}
+      <p className="mt-2">
+        Agent 和工作流均可使用相同应用凭据 POST /workflow/v1/stop，正文为
+        {' {"runId":"<RUN_ID>"}'}。cancelRequested=true
+        表示已请求取消，应以返回的 status 和原 SSE
+        终态确认结果；关闭连接不能代替停止请求。
+      </p>
+      <p className="mt-2">
+        runId
+        来自运行事件或非流式响应。停止和恢复只能操作当前应用创建且仍有访问权限的运行，不能通过更换
+        runId 控制其他应用的任务。
+      </p>
     </section>
   );
 }

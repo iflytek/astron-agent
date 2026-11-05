@@ -154,16 +154,26 @@ def internal_upload(request):
     session = run.session
     if (
         str(session.agent_id) != str(values.get("agentId"))
-        or session.uid != values.get("uid")
-        or str(session.space_id or "") != str(values.get("spaceId") or "")
         or values.get("sessionId", session.pk) != session.pk
+        or run.cancel_requested
+        or session.deleted
     ):
         raise PermissionDenied
-    user = User.objects.filter(pk=session.uid, is_active=True).first()
-    if not user or not user.account_enabled or run.cancel_requested or session.deleted:
-        raise PermissionDenied
-    scope = ResourceScope(session.uid, session.space_id, None)
-    agent = get_scoped_agent(scope, session.agent_id)
+    from astron_console.publishing.public_files import upload_identity
+
+    published = upload_identity(run, values)
+    if published:
+        _, scope, agent = published
+    else:
+        if session.uid != values.get("uid") or str(session.space_id or "") != str(
+            values.get("spaceId") or ""
+        ):
+            raise PermissionDenied
+        user = User.objects.filter(pk=session.uid, is_active=True).first()
+        if not user or not user.account_enabled:
+            raise PermissionDenied
+        scope = ResourceScope(session.uid, session.space_id, None)
+        agent = get_scoped_agent(scope, session.agent_id)
     skill_id = str(values.get("skillId", ""))
     if skill_id not in {str(x) for x in run.definition.get("skills", [])}:
         raise PermissionDenied
@@ -178,7 +188,12 @@ def internal_upload(request):
         row = store_file(upload_file, agent, scope, direction="output", run_id=run.pk)
     except ResourceServiceError:
         raise UpstreamError("产物存储失败") from None
-    data = file_data(row)
+    if published:
+        from astron_console.publishing.public_files import file_data as published_file_data
+
+        data = published_file_data(row)
+    else:
+        data = file_data(row)
     return {
         **data,
         "artifactId": row.pk,

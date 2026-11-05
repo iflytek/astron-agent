@@ -12,10 +12,10 @@ external services.
 | Persistent service tokens | Deployment provisions persistent random tokens in existing secret files or environment variables. Python Console reads the same tokens and uses constant-time comparison on its internal resource endpoints; restarting Console does not rotate tokens. |
 | Space invitations | Invitations are addressed to a UID and accepted by that authenticated user in a transaction. Console no longer uses encrypted invitation URLs. |
 | Model and resource credentials | Python Console preserves the existing database credential values and exposes masked management responses. Provider SDK calls and authorized internal endpoints receive credentials server-side. Browser submissions use the same-origin HTTPS/session/CSRF boundary; the old model RSA transmission protocol is removed. Existing API-key columns and platform JSON remain in their original storage format. |
-| Request signing | Python `hmac`/`hashlib` and Java's cryptography APIs implement the standard HMAC-SHA-256 signing paths. |
+| Request signing | Python `hmac`/`hashlib` implement the standard HMAC-SHA-256 signing paths. |
 | Console passwords and sessions | Python Console uses Django Argon2 password hashing and database-backed sessions. Persistent `CONSOLE_SECRET_KEY` must be shared by replicas. Password-reset tokens expire and become invalid after successful reset. |
 
-For account setup and legacy identity preservation, see [Python Console](../console/backend/README.md). Java business mechanisms below remain pending their corresponding migration stages; they are not part of the new login path.
+For account setup and legacy identity preservation, see [Python Console](../console/backend/README.md).
 
 ## External compatibility paths
 
@@ -27,13 +27,7 @@ protocols. Use an authenticated HTTPS endpoint, protect the provider credential,
 and prefer a stronger protocol when the provider supports one. Compatibility
 with a provider does not by itself establish a security-standard exception.
 
-The WeChat adapter retains the platform's SHA-1 signature and AES-CBC message
-format. Its active callback path verifies and decrypts inbound messages using
-the request's timestamp and nonce. The outbound helper now uses `SecureRandom`
-for its 16-character random plaintext prefix; the current callback does not call
-that outbound helper. The prefix is distinct from the caller-supplied protocol
-nonce. Changing the randomness source preserves the wire format; changing the
-signature or cipher requires a compatible platform protocol change.
+The WeChat channel must use the platform signature and encrypted-message protocol through its supported SDK. Provider credentials remain server-side. Channel callbacks do not authenticate browser sessions or grant internal service access.
 
 ## Transport and forward secrecy
 
@@ -46,9 +40,4 @@ forward secrecy for application traffic.
 
 ## References and tests
 
-- `WXBizMsgCryptTest` checks reply framing, encryption/decryption compatibility,
-  and rejection of a mismatched nonce signature. This is retained Java channel code, pending the publishing migration. Its historical focused command was:
-
-  ```bash
-  mvn -pl hub -am -Dtest=WXBizMsgCryptTest -Dsurefire.failIfNoSpecifiedTests=false test
-  ```
+Run the Python Console Django tests and the Compose/Helm credential contract checks. Existing credential bytes, UID ownership, private artifact storage, and rejected invalid signatures remain migration invariants.

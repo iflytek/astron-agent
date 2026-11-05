@@ -308,4 +308,7 @@ export const streamAgentRun = async (
 };
 
 export const publishAgentVersion = (id: number | string, versionId: number) =>
-  http.put(`/agents/${id}/published-version`, { versionId });
+  http.put<unknown, { approvalRequired?: boolean }>(
+    `/agents/${id}/published-version`,
+    { versionId }
+  );

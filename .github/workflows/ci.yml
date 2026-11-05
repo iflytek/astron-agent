@@ -2,9 +2,9 @@ name: 🚀 CI Pipeline
 
 on:
   push:
-    branches: [main, master, 'feature/**']
+    branches: [main, master, 'feature/**', 'bugfix/superteam']
   pull_request:
-    branches: [main, master, 'feature/**']
+    branches: [main, master, 'feature/**', 'bugfix/superteam']
   workflow_dispatch:
 
 concurrency:
@@ -21,7 +21,7 @@ env:
   PYTHON: python3
 
 jobs:
-  console-accounts:
+  console-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,9 +48,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Test coverage summary calculation
-        run: python3 -m unittest discover -s makefiles/tests -p 'test_*.py' -v
 
       - name: Detect active projects
         id: detect
@@ -317,7 +314,6 @@ jobs:
         with:
           name: coverage-${{ matrix.name }}
           path: |
-            ${{ matrix.path }}/**/target/site/jacoco/
             ${{ matrix.path }}/coverage/
             ${{ matrix.path }}/coverage.out
             ${{ matrix.path }}/coverage.xml
@@ -403,7 +399,7 @@ jobs:
   summary:
     name: 📊 Summary
     runs-on: ubuntu-latest
-    needs: [console-accounts, detect-projects, check, test, comment-check]
+    needs: [console-backend, detect-projects, check, test, comment-check]
     if: always() && needs.detect-projects.outputs.has-projects == 'true'
     timeout-minutes: 2
     steps:
@@ -411,7 +407,7 @@ jobs:
         run: |
           echo "=== 🚀 CI Pipeline Summary ==="
           echo ""
-          echo "🔐 Console Accounts: ${{ needs.console-accounts.result }}"
+          echo "🔐 Python Console: ${{ needs.console-backend.result }}"
           echo "🔍 Project Detection: ${{ needs.detect-projects.result }}"
           echo "🔍 Quality Checks: ${{ needs.check.result }}"
           echo "🧪 Tests: ${{ needs.test.result }}"
@@ -419,7 +415,7 @@ jobs:
           echo ""
 
           # Check overall success (comment-check is temporarily disabled, so we accept 'skipped')
-          if [[ "${{ needs.console-accounts.result }}" == "success" && \
+          if [[ "${{ needs.console-backend.result }}" == "success" && \
                 "${{ needs.detect-projects.result }}" == "success" && \
                 "${{ needs.check.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \

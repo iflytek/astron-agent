@@ -30,11 +30,9 @@
 
 在开始贡献之前，请确保已安装以下工具：
 
-- **Java 21+** (用于后端服务)
-- **Maven 3.8+** (用于 Java 项目管理)
-- **Node.js 18+** (用于前端开发)
-- **Python 3.9+** (用于核心服务)
-- **Go 1.21+** (用于租户服务)
+- **Node.js 20+** (用于前端开发)
+- **Python 3.11+** (用于核心服务)
+- **Go 1.23+** (用于租户服务)
 - **Docker & Docker Compose** (用于容器化服务)
 - **Git** (用于版本控制)
 
@@ -96,8 +94,8 @@ pre-commit install --hook-type commit-msg
 ```
 
 Pre-commit 将在每次提交时自动运行：
-- 检查代码格式（Black、Prettier、gofmt、Spotless）
-- 运行代码检查器（flake8、ESLint、golangci-lint、Checkstyle）
+- 检查代码格式（Black、Prettier、gofmt、Ruff）
+- 运行代码检查器（flake8、ESLint、golangci-lint、Ruff）
 - 执行类型检查（mypy、TypeScript）
 - 扫描敏感信息（gitleaks）
 - 验证提交消息格式
@@ -111,12 +109,11 @@ Astron Agent 是一个基于微服务的平台，具有以下结构：
 ```
 astron-agent/
 ├── console/                   # 控制台子系统
-│   ├── backend/               # Java Spring Boot 服务
-│   │   ├── auth/              # 认证服务
-│   │   ├── commons/           # 共享工具
-│   │   ├── hub/               # 主要业务逻辑
-│   │   ├── toolkit/           # 工具包服务
-│   │   └── config/            # 质量配置
+│   ├── backend/               # Python Django ASGI 服务
+│   │   ├── astron_console/    # Django domain modules
+│   │   ├── manage.py          # Django commands
+│   │   ├── pyproject.toml     # Python dependencies and quality settings
+│   │   └── uv.lock            # Locked dependencies
 │   └── frontend/              # React TypeScript SPA
 ├── core/                      # 核心平台服务
 │   ├── agent/                 # 智能体执行引擎 (Python)
@@ -185,7 +182,6 @@ Astron Agent 支持多种编程语言，具有统一的质量标准：
 | 语言 | 格式化 | 质量工具 | 标准 |
 |------|--------|----------|------|
 | **Go** | gofmt + goimports + gofumpt | golangci-lint + staticcheck | Go 标准格式，复杂度 ≤10 |
-| **Java** | Spotless (Google Java Format) | Checkstyle + PMD + SpotBugs | Google Java 风格，复杂度 ≤10 |
 | **Python** | black + isort | flake8 + mypy + pylint | PEP 8，复杂度 ≤10 |
 | **TypeScript** | prettier | eslint + tsc | ESLint 规则，严格类型检查 |
 
@@ -235,7 +231,6 @@ make test
 
 # 运行特定语言测试
 make test-go
-make test-java
 make test-python
 make test-typescript
 

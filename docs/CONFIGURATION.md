@@ -77,7 +77,7 @@ Configuration items in this document are marked as follows:
 | MYSQL_PASSWORD | Use Default | string | MySQL database password (defaults from MYSQL_ROOT_PASSWORD) | root123 |
 | MYSQL_HOST | Use Default | string | MySQL database host address | mysql |
 | MYSQL_PORT | Use Default | int | MySQL database port number | 3306 |
-| MYSQL_URL | Use Default | string | MySQL database JDBC connection URL | jdbc:mysql://mysql:3306/astron_console |
+| MYSQL_URL | Use Default | string | Legacy JDBC-form URL accepted by core account-config readers; Console uses MYSQL_HOST/PORT and CONSOLE_MYSQL_DB | jdbc:mysql://mysql:3306/astron_console |
 | REDIS_PASSWORD | Optional | string | Redis password (empty means no password) | (empty) |
 | REDIS_DATABASE | Use Default | int | Redis database index (0-15) | 0 |
 | REDIS_IS_CLUSTER | Use Default | bool | Whether Redis is in cluster mode | false |

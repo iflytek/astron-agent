@@ -1,6 +1,6 @@
 # Python Console 目标架构
 
-范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前实现范围为 04 工作流与 Agent 引用，建立在 01 账号、02 空间资源与 03 独立 Agent 基础上。
+范围与依赖见 [requirements.md](requirements.md)。架构覆盖整体迁移，当前执行范围为 05 发布渠道与完整产品交付及整体收尾，建立在已完成的 01—04 基础上。
 
 ## 职责与调用方向
 
@@ -73,3 +73,9 @@ Mem0 保留原 RSA 配置、用户 UID 与 `bot-<稳定Agent ID>`，以空间 me
 ## 04 影响评估
 
 React画布 → Django workflows（管理、授权、冻结图与Agent版本、运行记录）→ core/workflow现有调度 → core/agent统一执行。Agent工作流工具经Console建立受限子运行，共享根取消和调用预算；Core EventRegistry扩展事件级取消，暂停恢复保持原活跃执行，不冒充持久化恢复。复用02产物及03偏好，不改变原UID、数据、密钥和Mem0命名空间。具体契约与验证见[04技术设计](04-workflows/technical-design.md)。
+
+## 05 影响评估
+
+发布管理、审批、市场、分享和渠道由Django publishing拥有；公开应用调用先经tenant认证，再进入03/04统一执行与运行建档，不绕过Console直接执行含Agent引用的Core工作流。审批冻结完整内容，渠道成功才原子切换活动发布指针；外部操作与数据库事务分开管理失败状态。发布资源授权主体和最终会话主体分别持久化，分享不授予源空间管理权，不读取发布者历史或偏好。
+
+保留旧应用、密钥、分享、渠道、媒体配置和统计表，删除代码不删除数据。共享改动限于受限发布执行授权、网关与部署入口；不改Kafka/core/common，不清Redis/MinIO或重新生成凭据。RPA是独立项目，本轮只移除Astron Agent的Casdoor依赖及联合登录配置，保留API Key资源与执行集成；不改外部RPA身份、源码、镜像或部署，联合登录留待后续。具体边界、未决依赖及验证见[05技术设计](05-publishing/technical-design.md)。

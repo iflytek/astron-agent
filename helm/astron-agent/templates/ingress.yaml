@@ -67,6 +67,8 @@ metadata:
   labels:
     {{- include "astron-agent.labels" . | nindent 4 }}
   annotations:
+    # Other Ingresses on this host use regex rewrites; anchor every public API.
+    nginx.ingress.kubernetes.io/use-regex: "true"
     # SSE support for long-lived connections
     nginx.ingress.kubernetes.io/proxy-buffering: "off"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
@@ -76,7 +78,8 @@ metadata:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
     nginx.ingress.kubernetes.io/auth-url: "http://{{ include "astron-agent.fullname" . }}-console-hub.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.consoleHub.service.port }}/internal/gateway/auth/workflow"
     nginx.ingress.kubernetes.io/auth-method: "GET"
-    nginx.ingress.kubernetes.io/auth-response-headers: "X-Consumer-Username,X-Workflow-Gateway-Timestamp,X-Workflow-Gateway-Signature"
+    # Overwrite spoofed service identity headers; auth must never return an internal key.
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Consumer-Username,X-Workflow-Gateway-Timestamp,X-Workflow-Gateway-Signature,X-Workflow-Internal-Key"
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -99,20 +102,34 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
-          - path: /workflow/v1/chat/completions
-            pathType: Exact
+          - path: "/agent/v1/chat/completions$"
+            pathType: ImplementationSpecific
             backend:
               service:
-                name: {{ include "astron-agent.fullname" $ }}-core-workflow
+                name: {{ include "astron-agent.fullname" $ }}-console-hub
                 port:
-                  number: {{ $.Values.coreWorkflow.service.port }}
-          - path: /workflow/v1/resume
-            pathType: Exact
+                  number: {{ $.Values.consoleHub.service.port }}
+          - path: "/workflow/v1/chat/completions$"
+            pathType: ImplementationSpecific
             backend:
               service:
-                name: {{ include "astron-agent.fullname" $ }}-core-workflow
+                name: {{ include "astron-agent.fullname" $ }}-console-hub
                 port:
-                  number: {{ $.Values.coreWorkflow.service.port }}
+                  number: {{ $.Values.consoleHub.service.port }}
+          - path: "/workflow/v1/resume$"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-console-hub
+                port:
+                  number: {{ $.Values.consoleHub.service.port }}
+          - path: "/workflow/v1/stop$"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ include "astron-agent.fullname" $ }}-console-hub
+                port:
+                  number: {{ $.Values.consoleHub.service.port }}
     {{- end }}
 ---
 apiVersion: networking.k8s.io/v1

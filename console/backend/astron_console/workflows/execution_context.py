@@ -159,6 +159,9 @@ def checked_root(root_id, *, lock=False):
     if root.cancel_requested or root.status != "active" or root.deadline <= timezone.now():
         raise ValidationError("调用已取消、结束或超时")
     active_scope(root.uid, root.space_id)
+    from astron_console.publishing.runtime_authorization import check_root
+
+    check_root(root)
     if root.agent_run_id:
         from astron_console.agents.models import AgentRun
 

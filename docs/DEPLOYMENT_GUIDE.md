@@ -1,6 +1,6 @@
 # astronAgent Complete Deployment Guide
 
-> This branch is migrating the Console in stages. The current delivery covers accounts; spaces, resources, Agents, workflows and publishing are not yet all available.
+> Python Console uses Django ASGI for accounts, spaces, resources, Agent and workflow management, and publishing. Upgrades preserve business records, UIDs, resource ownership, and persistent credentials. Agent and workflow execution remain in core/agent and core/workflow.
 
 This guide will help you start all components of the astronAgent project in the correct order, including authentication, knowledge base, and core services.
 

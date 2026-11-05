@@ -14,7 +14,6 @@
 #          - Python:     black . && isort .
 #          - TypeScript: npm run format
 #          - Go:         gofmt -w . && goimports -w .
-#          - Java:       mvn spotless:apply
 # =============================================================================
 
 default_language_version:
@@ -262,23 +261,14 @@ repos:
         files: ^core/tenant/.*\.go$
         pass_filenames: false
 
-  # =============================================================================
-  # Java Code Quality (requires local Maven)
-  # =============================================================================
+  # Python Console uses its locked Ruff version and Django domain test suite.
   - repo: local
     hooks:
-      - id: spotless-check
-        name: Check Java formatting with Spotless
-        entry: bash -c 'cd console/backend && mvn spotless:check'
+      - id: console-ruff-check
+        name: Check Python Console with Ruff
+        entry: bash -c 'cd console/backend && uv run ruff check astron_console manage.py && uv run ruff format --check astron_console manage.py'
         language: system
-        files: ^console/backend/.*\.java$
-        pass_filenames: false
-
-      - id: checkstyle
-        name: Check Java style with Checkstyle
-        entry: bash -c 'cd console/backend && mvn checkstyle:check'
-        language: system
-        files: ^console/backend/.*\.java$
+        files: ^console/backend/.*\.py$
         pass_filenames: false
 
   # =============================================================================
@@ -320,4 +310,3 @@ ci:
   autofix_prs: true
   autoupdate_commit_msg: 'ci: pre-commit autoupdate'
   autoupdate_schedule: weekly
-  skip: [spotless-check, checkstyle]

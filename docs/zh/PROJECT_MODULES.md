@@ -39,7 +39,7 @@
 
 **模块路径**：`console/backend/`
 
-**使用语言**：Java
+**使用语言**：Python
 
 **主要职责**：
 - 提供管理控制台的 REST API 和 SSE 接口
@@ -49,12 +49,9 @@
 - 文件上传下载服务
 - 数据统计和分析
 
-**技术栈**：Spring Boot 3.5.4、MyBatis Plus 3.5.7、Spring Security、OAuth2
+**技术栈**：Django 5.2、ASGI、Django ORM、会话认证与 CSRF
 
-**子模块**：
-- **hub**：主 API 服务模块
-- **toolkit**：工具模块
-- **commons**：公共模块（DTO、工具类等）
+**领域模块**：accounts、spaces、resources、knowledge、agents、workflows、publishing。
 
 ---
 
@@ -68,7 +65,7 @@
 
 **主要职责**：
 - Agent 核心执行引擎
-- 支持多种 Agent 类型（Chat Agent、CoT Agent、CoT Process Agent）
+- 通过 Deep Agents 统一执行独立 Agent 和工作流 Agent 节点
 - Agent 生命周期管理
 - 工具调用和插件集成
 - 会话管理和上下文持久化
@@ -264,7 +261,7 @@ UI Layer（用户界面层）
          ↓ HTTP/REST/SSE
 
 Console Backend（控制台后端层）
-    └── Console Backend (Java Spring Boot)
+    └── Console Backend (Python Django ASGI)
          ↓ HTTP/REST
 
 Core Microservices（核心微服务层）
@@ -302,7 +299,7 @@ External Services（外部服务）
 | Frontend → Backend | HTTP/REST, SSE | REST API 调用和服务端推送事件 |
 | Backend → Core Services | HTTP/REST | RESTful API 调用 |
 | Core Services ↔ Core Services | Kafka Topics | 异步事件驱动通信 |
-| Core Services → MySQL | JDBC/SQLAlchemy | 数据持久化 |
+| Core Services → MySQL | MySQL 驱动 / SQLAlchemy | 数据持久化 |
 | Core Services → Redis | Redis Protocol | 缓存读写、会话管理 |
 | Core Services → Kafka | Kafka Protocol | 发布/订阅事件 |
 | Core Services → MinIO | MinIO API (PUT/GET) | 文件上传下载 |
@@ -333,7 +330,7 @@ External Services（外部服务）
 | 层级 | 模块 | 语言/框架 | 版本 |
 |------|------|----------|------|
 | **前端** | Console Frontend | TypeScript + React | TS 5.9.2, React 18.2.0 |
-| **后端** | Console Backend | Java + Spring Boot | Java 21, Spring Boot 3.5.4 |
+| **后端** | Console Backend | Python + Django | Python 3.11, Django 5.2 |
 | **微服务** | Agent Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Workflow Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Knowledge Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
@@ -359,11 +356,10 @@ External Services（外部服务）
 - **代码分析**：Pylint、Flake8
 - **测试**：Pytest（覆盖率 ≥ 70%）
 
-### Java 模块
-- **架构**：Spring Boot 分层架构
-- **代码风格**：Checkstyle
-- **代码分析**：PMD
-- **测试**：JUnit
+### Python Console
+- **架构**：Django 领域模块与 ASGI 流式接口
+- **检查**：Ruff、Django 迁移检查和测试运行器
+- **执行**：core/agent 与 core/workflow 负责运行编排
 
 ### TypeScript 模块
 - **代码风格**：ESLint + Prettier

@@ -1,6 +1,6 @@
 # 🚀 多语言CI/CD工具链
 
-> **统一开发工作流，支持Go、Java、Python、TypeScript**
+> **统一开发工作流，支持Go、Python、TypeScript**
 
 ## 快速开始
 
@@ -70,28 +70,24 @@ enabled = false   # 禁用其他模块以提高执行速度
 ### `make format`
 格式化所有语言的代码：
 - Go: `gofmt` + `goimports` + `gofumpt` + `golines`
-- Java: Maven `spotless:apply`
 - Python: `black` + `isort`
 - TypeScript: `prettier`
 
 ### `make check` (别名: `make lint`)
 所有语言的质量检查：
 - Go: `gocyclo` + `staticcheck` + `golangci-lint`
-- Java: `checkstyle` + `pmd` + `spotbugs`
 - Python: `flake8` + `mypy` + `pylint`
 - TypeScript: `eslint` + `tsc`
 
 ### `make test`
 运行所有项目的测试：
 - Go: `go test` with coverage
-- Java: `mvn test`
 - Python: `pytest` with coverage
 - TypeScript: `npm test`
 
 ### `make build`
 构建所有项目：
 - Go: 构建二进制文件
-- Java: Maven `package`
 - Python: 安装依赖
 - TypeScript: Vite `build`
 
@@ -110,8 +106,8 @@ enabled = false   # 禁用其他模块以提高执行速度
 # Go服务
 cd core/tenant && go run cmd/main.go
 
-# Java服务
-cd console/backend && mvn spring-boot:run
+# Python Console
+cd console/backend && uv run python manage.py runserver 127.0.0.1:8080
 
 # Python服务
 cd core/memory/database && python main.py
@@ -154,14 +150,6 @@ make fmt-go              # 格式化Go代码
 make check-go            # Go质量检查
 make test-go             # 运行Go测试
 make build-go            # 构建Go项目
-```
-
-### Java命令
-```bash
-make fmt-java            # 格式化Java代码
-make check-java          # Java质量检查
-make test-java           # 运行Java测试
-make build-java          # 构建Java项目
 ```
 
 ### Python命令

@@ -72,7 +72,7 @@
 | MYSQL_PASSWORD | 使用默认 | string | MySQL 数据库密码(默认从 MYSQL_ROOT_PASSWORD 获取) | root123 |
 | MYSQL_HOST | 使用默认 | string | MySQL 数据库主机地址 | mysql |
 | MYSQL_PORT | 使用默认 | int | MySQL 数据库端口号 | 3306 |
-| MYSQL_URL | 使用默认 | string | MySQL 数据库 JDBC 连接 URL | jdbc:mysql://mysql:3306/astron_console |
+| MYSQL_URL | 使用默认 | string | 供 core 账号配置读取器兼容的旧 JDBC 形式 URL；Console 使用 MYSQL_HOST/PORT 与 CONSOLE_MYSQL_DB | jdbc:mysql://mysql:3306/astron_console |
 | REDIS_PASSWORD | 可选 | string | Redis 密码(为空表示无密码) | (留空) |
 | REDIS_DATABASE | 使用默认 | int | Redis 数据库索引(0-15) | 0 |
 | REDIS_IS_CLUSTER | 使用默认 | bool | Redis 是否为集群模式 | false |

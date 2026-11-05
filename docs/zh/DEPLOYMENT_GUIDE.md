@@ -1,6 +1,6 @@
 # astronAgent 项目完整部署指南
 
-> 当前分支正在分阶段迁移 Python Console，目前只交付账号功能；空间、资源、Agent、工作流与发布功能尚未全部恢复。
+> Console 使用 Python Django ASGI，覆盖账号、空间、资源、Agent、工作流与发布管理。升级保留原数据库、UID、资源归属和持久凭据；运行端统一使用 core/agent 与 core/workflow。
 
 本指南将帮助您按照正确的顺序启动 astronAgent 项目的所有组件，包括身份认证、知识库和核心服务。
 

@@ -59,7 +59,6 @@ define detect_active_projects
 		else \
 			PROJECTS=""; \
 			[ -f "demo-apps/backends/go/go.mod" ] && [ -d "demo-apps/backends/go/cmd" ] && PROJECTS="$$PROJECTS go"; \
-			[ -f "demo-apps/backends/java/pom.xml" ] && [ -d "demo-apps/backends/java/user-web" ] && PROJECTS="$$PROJECTS java"; \
 			[ -f "demo-apps/backends/python/main.py" ] && [ -f "demo-apps/backends/python/requirements.txt" ] && PROJECTS="$$PROJECTS python"; \
 			[ -f "demo-apps/frontends/ts/package.json" ] && [ -f "demo-apps/frontends/ts/tsconfig.json" ] && PROJECTS="$$PROJECTS typescript"; \
 			echo $$PROJECTS | sed 's/^ //'; \
@@ -72,7 +71,6 @@ define detect_current_context
 	$(shell \
 		CURRENT_DIR=$$(basename "$(PWD)"); \
 		if [ -f "./go.mod" ] || [ "$$CURRENT_DIR" = "go" ]; then echo "go"; \
-		elif [ -f "./pom.xml" ] || [ "$$CURRENT_DIR" = "java" ]; then echo "java"; \
 		elif [ -f "./main.py" ] && [ -f "./requirements.txt" ] || [ "$$CURRENT_DIR" = "python" ]; then echo "python"; \
 		elif [ -f "./package.json" ] && [ -f "./tsconfig.json" ] || [ "$$CURRENT_DIR" = "ts" ]; then echo "typescript"; \
 		else echo "all"; fi \
@@ -110,15 +108,6 @@ define show_project_status
 			done; \
 		else \
 			echo "  $(RED)✗ TypeScript Frontend$(RESET) (no directories configured)"; \
-		fi; \
-	fi
-	@if echo "$(ACTIVE_PROJECTS)" | grep -q "java"; then \
-		if [ -n "$(JAVA_DIRS)" ]; then \
-			for dir in $(JAVA_DIRS); do \
-				if [ -d "$$dir" ]; then echo "  $(GREEN)✓ Java Backend$(RESET)        ($$dir)"; else echo "  $(RED)✗ Java Backend$(RESET)        ($$dir)"; fi; \
-			done; \
-		else \
-			echo "  $(RED)✗ Java Backend$(RESET)         (no directories configured)"; \
 		fi; \
 	fi
 	@if echo "$(ACTIVE_PROJECTS)" | grep -q "python"; then \

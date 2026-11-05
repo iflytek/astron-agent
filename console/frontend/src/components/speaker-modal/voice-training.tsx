@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { message, Modal } from 'antd';
 import '@/utils/record/recorder-core';
 import '@/utils/record/pcm'; // 加载 pcm 编码器
 import {
   createOnceTrainTask,
   getVCNTrainingText,
+  getVoiceTrainingStatus,
 } from '@/services/spark-common';
 import { useTranslation } from 'react-i18next';
 import { useLocaleStore } from '@/store/spark-store/locale-store';
-import language from 'react-syntax-highlighter/dist/esm/languages/hljs/1c';
 
 interface VoiceTrainingProps {
   showVoiceTraining: boolean;
@@ -31,6 +31,15 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
   changeTrainModal,
 }) => {
   const [recordStatus, setRecordStatus] = useState(0);
+  const mounted = useRef(true);
+  const pollingGeneration = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      pollingGeneration.current++;
+    };
+  }, []);
   const [recObj, setRecObj] = useState<any>();
   const [sex, setSex] = useState<1 | 2>(1); // 1: male, 2: female
   const [createStep, setCreateStep] = useState<1 | 2>(1);
@@ -72,12 +81,13 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
   };
 
   function recStop(callback?: () => void) {
+    const generation = ++pollingGeneration.current;
     recObj.stop(
       function (blob: Blob) {
         callback && callback();
         setRecordStatus(3);
         const cloneFile = new File([blob], `clone_audio.pcm`, {
-          type: 'application/json',
+          type: 'application/octet-stream',
           lastModified: Date.now(),
         });
         const formData = new FormData();
@@ -88,14 +98,39 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
           sex,
           formData,
         })
-          .then(() => {
-            setRecordStatus(0);
-            message.success(t('complete'));
-            changeTrainModal();
+          .then(async task => {
+            for (
+              let attempt = 0;
+              attempt < 60 &&
+              mounted.current &&
+              generation === pollingGeneration.current;
+              attempt++
+            ) {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              if (!mounted.current || generation !== pollingGeneration.current)
+                return;
+              const status = await getVoiceTrainingStatus(task.taskId);
+              if (!mounted.current || generation !== pollingGeneration.current)
+                return;
+              if (status.status === 'failed')
+                throw new Error(status.error || '训练失败');
+              if (status.status === 'succeeded') {
+                setRecordStatus(0);
+                message.success(t('complete'));
+                changeTrainModal();
+                return;
+              }
+            }
+            if (mounted.current && generation === pollingGeneration.current) {
+              setRecordStatus(0);
+              message.info('训练仍在进行，完成后可在我的音色中查看。');
+            }
           })
           .catch(err => {
+            if (!mounted.current || generation !== pollingGeneration.current)
+              return;
             setRecordStatus(0);
-            console.log(err);
+            message.error(err instanceof Error ? err.message : String(err));
           });
       },
       function () {
@@ -124,11 +159,13 @@ const VoiceTraining: React.FC<VoiceTrainingProps> = ({
     });
     setRecObj(rec);
     getTrainingText();
+    return () => rec.close();
   }, []);
 
   // 关闭模态框时重置状态
   useEffect(() => {
     if (!showVoiceTraining) {
+      pollingGeneration.current++;
       setRecordStatus(0);
       setSex(1);
       setCreateStep(1);

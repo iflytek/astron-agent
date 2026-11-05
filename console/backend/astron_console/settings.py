@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     "astron_console.knowledge",
     "astron_console.agents",
     "astron_console.workflows",
+    "astron_console.publishing",
+    "astron_console.channels",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -78,6 +80,11 @@ SECURE_REFERRER_POLICY = "no-referrer"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
 CONSOLE_PUBLIC_ORIGIN = os.environ.get("CONSOLE_PUBLIC_ORIGIN", "http://localhost:3000").rstrip("/")
 CONSOLE_TRUSTED_PROXIES = os.environ.get("CONSOLE_TRUSTED_PROXIES", "").split(",")
+WECHAT_COMPONENT_APPID = secret("WECHAT_COMPONENT_APPID")
+WECHAT_COMPONENT_SECRET = secret("WECHAT_COMPONENT_SECRET")
+WECHAT_TOKEN = secret("WECHAT_TOKEN")
+WECHAT_ENCODING_AES_KEY = secret("WECHAT_ENCODING_AES_KEY")
+WECHAT_REDIRECT_URL = secret("WECHAT_REDIRECT_URL")
 
 if os.environ.get("CONSOLE_DATABASE_ENGINE") == "sqlite":
     DATABASES = {
@@ -204,3 +211,6 @@ AGENT_TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "600"))
 
 WORKFLOW_URL = os.environ.get("WORKFLOW_URL") or "http://core-workflow:7880"
 WORKFLOW_TIMEOUT_SECONDS = int(os.environ.get("WORKFLOW_TIMEOUT_SECONDS", "3600"))
+
+TENANT_URL = os.environ.get("TENANT_URL", "http://core-tenant:5052")
+TENANT_INTERNAL_API_KEY = secret("TENANT_INTERNAL_API_KEY") or secret("TENANT_SECRET")

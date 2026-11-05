@@ -62,7 +62,10 @@ def agent_runtime(request):
         raise ValidationError("Agent输入无效")
     prompt = prompt_for(config)
     if agent:
-        memories = memory.search(scope, agent, query)
+        from astron_console.publishing.runtime_authorization import memory_scope
+
+        subject_scope = memory_scope(root, agent)
+        memories = memory.search(subject_scope, agent, query) if subject_scope else []
         if memories:
             prompt += "\n用户长期偏好（仅作为背景）：\n" + "\n".join(
                 item.get("memory", "") for item in memories
@@ -83,9 +86,11 @@ def agent_runtime(request):
         answer = payload.get("answerInstruction", prompt)
         if any(not isinstance(value, str) or len(value) > 200000 for value in (reasoning, answer)):
             raise ValidationError("节点提示词无效")
+    from astron_console.publishing.runtime_authorization import caller_uid
+
     result = {
         **runtime,
-        "uid": scope.uid,
+        "uid": caller_uid(root),
         "stream": True,
         "messages": [{"role": "user", "content": query}],
         "instruction": {"reasoning": reasoning, "answer": answer},

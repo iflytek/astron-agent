@@ -2,7 +2,7 @@
 
 Astron Agent can run workflows for another application through its published workflow API. Your application stays responsible for its own UI and business logic, while Astron Agent provides the workflow, model, knowledge, tool, and RPA orchestration behind an HTTP/SSE boundary.
 
-> This is a service integration, not an in-process library integration. The supported consumer boundary is the public workflow API exposed by Astron Agent's gateway. Internal Python and Java modules are implementation details and are not published as stable SDK packages.
+> This is a service integration, not an in-process library integration. The supported consumer boundary is the public workflow API exposed by Astron Agent's gateway. Internal Python modules are implementation details and are not published as stable SDK packages.
 
 ## When to use this integration
 
@@ -23,7 +23,10 @@ Your application
     │  Authorization: Bearer <application-key>:<application-secret>
     ▼
 Astron Agent gateway (Nginx)
-    │  validates the application and forwards its App ID
+    │  forwards the application credentials to Python Console
+    ▼
+Python Console
+    │  validates application permissions and freezes the published run
     ▼
 Published workflow
     └─ models · knowledge · tools/MCP · RPA
@@ -45,242 +48,90 @@ Call the gateway address shown after publishing. Do not call `core-workflow:7880
 
 Keep the API Secret in a server-side secret store. Do not put it in browser code, mobile packages, source control, screenshots, or client-visible logs.
 
-## 2. Call the published workflow
+## 2. Call a published version
 
-The public endpoint is:
-
-```text
-POST <ASTRON_BASE_URL>/workflow/v1/chat/completions
-```
-
-Use the exact Service URL displayed by the console when it differs from the path above. Authentication uses the application credentials in one header:
-
-```http
-Authorization: Bearer <application-key>:<application-secret>
-Content-Type: application/json
-```
-
-A minimal request is:
-
-```json
-{
-  "flow_id": "<FLOW_ID>",
-  "uid": "user-123",
-  "stream": true,
-  "parameters": {
-    "query": "Summarize this support request"
-  }
-}
-```
-
-`flow_id` and `parameters` are required. The available keys inside `parameters` come from the workflow's Start node, so replace `query` with the inputs defined by your published workflow.
-
-Optional request fields:
-
-| Field | Type | Purpose |
-| --- | --- | --- |
-| `uid` | string | Your end-user identifier (up to 40 characters). |
-| `stream` | boolean | `true` for SSE streaming; `false` for one JSON response. Defaults to `true`. |
-| `chat_id` | string | Your conversation identifier (up to 128 characters). Reuse it when continuing a conversation. |
-| `history` | array | Earlier messages as `{ "role": "user" | "assistant", "content": "...", "content_type": "text" }`. |
-| `ext` | object | Integration-specific metadata forwarded with the request. |
-| `version` | string | Published workflow version when your environment requires one. |
-
-### cURL
+For workflows, use `POST /workflow/v1/chat/completions` with the Service URL and application credentials shown in Console:
 
 ```bash
 export ASTRON_BASE_URL="https://astron.example.com"
 export ASTRON_API_KEY="replace-me"
 export ASTRON_API_SECRET="replace-me"
-export ASTRON_FLOW_ID="replace-me"
 
 curl --no-buffer \
   --request POST "$ASTRON_BASE_URL/workflow/v1/chat/completions" \
   --header "Authorization: Bearer $ASTRON_API_KEY:$ASTRON_API_SECRET" \
   --header "Content-Type: application/json" \
-  --data "{
-    \"flow_id\": \"$ASTRON_FLOW_ID\",
-    \"uid\": \"user-123\",
-    \"chat_id\": \"conversation-456\",
-    \"stream\": true,
-    \"parameters\": {
-      \"query\": \"Summarize this support request\"
-    }
-  }"
-```
-
-### Python
-
-This example uses only the Python standard library. Run it in a backend service, not in browser-delivered code.
-
-```python
-import json
-import os
-import urllib.request
-
-base_url = os.environ["ASTRON_BASE_URL"].rstrip("/")
-credential = f'{os.environ["ASTRON_API_KEY"]}:{os.environ["ASTRON_API_SECRET"]}'
-payload = {
-    "flow_id": os.environ["ASTRON_FLOW_ID"],
+  --data '{
+    "flow_id": "<FLOW_ID>",
     "uid": "user-123",
-    "chat_id": "conversation-456",
-    "stream": True,
-    "parameters": {"query": "Summarize this support request"},
-}
-
-request = urllib.request.Request(
-    f"{base_url}/workflow/v1/chat/completions",
-    data=json.dumps(payload).encode("utf-8"),
-    headers={
-        "Authorization": f"Bearer {credential}",
-        "Content-Type": "application/json",
-        "Accept": "text/event-stream",
-    },
-    method="POST",
-)
-
-with urllib.request.urlopen(request, timeout=1800) as response:
-    for raw_line in response:
-        line = raw_line.decode("utf-8").strip()
-        if not line.startswith("data:"):
-            continue
-        event = json.loads(line.removeprefix("data:").strip())
-        if event.get("code") != 0:
-            raise RuntimeError(event.get("message", "workflow failed"))
-
-        choice = (event.get("choices") or [{}])[0]
-        delta = choice.get("delta") or {}
-        if delta.get("content"):
-            print(delta["content"], end="", flush=True)
-
-        finish_reason = choice.get("finish_reason")
-        if finish_reason == "stop":
-            break
-        if finish_reason == "interrupt":
-            print("\nWorkflow paused and requires a reply.")
-            break
+    "sessionId": "conversation-456",
+    "stream": true,
+    "parameters": {"query": "Summarize this support ticket"}
+  }'
 ```
 
-### Node.js 18+
+| Field | Meaning |
+| --- | --- |
+| `flow_id` | Workflow bound to the authenticated application. |
+| `parameters` | Start-node inputs; replace `query` with the published workflow's actual input names. |
+| `uid` | Nonempty business user identifier, at most 512 characters; defaults to `default`. `user` is also accepted. |
+| `sessionId` | Optional session correlation identifier, at most 96 characters. |
+| `stream` | Boolean, defaults to `true`; `false` waits for the execution result. |
 
-```js
-const baseUrl = process.env.ASTRON_BASE_URL.replace(/\/$/, "");
-const authorization = `Bearer ${process.env.ASTRON_API_KEY}:${process.env.ASTRON_API_SECRET}`;
+Calls use the immutable release bound to the application. A later publication does not change an existing run. Clients cannot select an arbitrary draft through `version` or submit `history` as trusted server-side conversation state.
 
-const response = await fetch(`${baseUrl}/workflow/v1/chat/completions`, {
-  method: "POST",
-  headers: {
-    Authorization: authorization,
-    "Content-Type": "application/json",
-    Accept: "text/event-stream"
-  },
-  body: JSON.stringify({
-    flow_id: process.env.ASTRON_FLOW_ID,
-    uid: "user-123",
-    chat_id: "conversation-456",
-    stream: true,
-    parameters: { query: "Summarize this support request" }
-  })
-});
-
-if (!response.ok || !response.body) {
-  throw new Error(`Astron request failed: ${response.status} ${await response.text()}`);
-}
-
-const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-let buffer = "";
-let finished = false;
-
-while (!finished) {
-  const { value, done } = await reader.read();
-  if (done) break;
-  buffer += value;
-
-  const frames = buffer.split("\n\n");
-  buffer = frames.pop() ?? "";
-
-  for (const frame of frames) {
-    const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
-    if (!dataLine) continue;
-
-    const event = JSON.parse(dataLine.slice(5).trim());
-    if (event.code !== 0) throw new Error(event.message || "workflow failed");
-
-    const choice = event.choices?.[0];
-    if (choice?.delta?.content) process.stdout.write(choice.delta.content);
-    if (choice?.finish_reason === "interrupt") {
-      console.log("\nWorkflow paused and requires a reply.");
-      finished = true;
-    }
-    if (choice?.finish_reason === "stop") finished = true;
-  }
-}
-```
-
-## 3. Handle the response
-
-### Streaming mode
-
-With `stream: true`, the response media type is `text/event-stream`. Each frame contains a `data:` line whose value is JSON. Useful fields include:
+Independent Agents use `POST /agent/v1/chat/completions` with the same authorization and this request shape:
 
 ```json
 {
-  "code": 0,
-  "message": "Success",
-  "id": "request-or-session-id",
-  "choices": [
-    {
-      "delta": {
-        "role": "assistant",
-        "content": "incremental output",
-        "reasoning_content": ""
-      },
-      "finish_reason": null
-    }
-  ],
-  "workflow_step": {
-    "seq": 3,
-    "progress": 0.5
-  }
+  "bot_id": "<BOT_ID>",
+  "user": "user-123",
+  "sessionId": "conversation-456",
+  "stream": true,
+  "messages": [{"role": "user", "content": "Hello"}]
 }
 ```
 
-Consumer rules:
+Send one user message per request. The same application, user and `sessionId` continue the server-side conversation. A session cannot start another run while its current run is still generating.
 
-- append `choices[0].delta.content` when it is non-empty;
-- treat `code != 0` as a workflow error even if the HTTP connection was established successfully;
-- ignore heartbeat frames with `finish_reason: "ping"`;
-- finish on `finish_reason: "stop"`;
-- handle `finish_reason: "interrupt"` only if your workflow contains an interactive pause;
-- do not depend on every intermediate `workflow_step` field as a stable business contract.
+## 3. Handle execution events
 
-### Non-streaming mode
+Streaming responses use SSE. Handle both `event:` and `data:` lines, and ignore heartbeat comments beginning with `:`. Not every data frame is a text delta.
 
-Set `stream` to `false` to receive one JSON response. The response uses the same top-level shape; inspect `code`, `message`, `choices`, and `usage` rather than assuming a plain text body.
+- Workflows start with `event: run`; its `data.runId` identifies the run for control requests. Content frames can contain `choices[0].delta.content`.
+- Workflows end with `event: run-end`. Read `status` to distinguish `completed`, `paused`, `failed`, `cancelled` and `interrupted`. `finish_reason: interrupt` indicates a pause; retain the run ID and confirm the terminal state.
+- Agents start with `event: run`, whose `data.id` is the control run ID, and emit text through `choices[0].delta.content`. Their terminal frame reports `code` and `finish_reason`, followed by `data: [DONE]`; do not parse `[DONE]` as JSON.
+- A successful HTTP connection does not imply execution success. Preserve partial output and report failure or interruption for error codes, failed terminal states or disconnections without a terminal event.
 
-## 4. Resume an interrupted workflow
+With `stream: false`, the JSON response contains `runId`, `sessionId`, `status`, `code` and `choices[0].message.content`. Only `status: completed` means success; pauses, cancellation and failures are not completion.
 
-If a frame has `finish_reason: "interrupt"`, save `event_data.event_id`. After collecting the user's answer, call:
+## 4. Resume and stop runs
 
-```text
-POST <ASTRON_BASE_URL>/workflow/v1/resume
-```
-
-Use the same Authorization header:
+Resume a paused workflow with the original application's credentials:
 
 ```bash
 curl --no-buffer \
   --request POST "$ASTRON_BASE_URL/workflow/v1/resume" \
   --header "Authorization: Bearer $ASTRON_API_KEY:$ASTRON_API_SECRET" \
   --header "Content-Type: application/json" \
-  --data '{
-    "event_id": "<EVENT_ID>",
-    "event_type": "resume",
-    "content": "The user reply"
-  }'
+  --data '{"runId":"<RUN_ID>","content":"The user reply"}'
 ```
 
-The resume response follows the mode of the interrupted request. Event IDs are runtime state: resume promptly and handle an expired or already-resumed event as an error.
+Resume always returns SSE and continues the original run and release without replaying completed nodes. Only a `paused` workflow can resume. Agents, nonpaused runs and runs whose access has been revoked are rejected. `event_id` remains accepted for legacy workflow callers; new clients should retain and use `runId`.
+
+Stop either an Agent or workflow through the same control endpoint:
+
+```bash
+curl \
+  --request POST "$ASTRON_BASE_URL/workflow/v1/stop" \
+  --header "Authorization: Bearer $ASTRON_API_KEY:$ASTRON_API_SECRET" \
+  --header "Content-Type: application/json" \
+  --data '{"runId":"<RUN_ID>"}'
+```
+
+The successful response's `data` contains `id`, `status` and `cancelRequested`. `cancelRequested: true` acknowledges the cancellation request; it does not establish that cancellation has finished. Use the actual returned `status` and the original SSE terminal event. Closing a browser or aborting HTTP is not a substitute for an explicit stop request.
+
+Both controls revalidate application credentials, run ownership and current publication permissions. They only address runs created through the public API by that same application, excluding other applications and Console browser sessions. Undocumented `/workflow/v1/**` and `/agent/v1/**` control routes are not forwarded to core.
 
 ## Production checklist
 
@@ -288,7 +139,7 @@ The resume response follows the mode of the interrupted request. Event IDs are r
 - **Keep credentials server-side.** If a browser or mobile app needs the capability, call your own backend first and let that backend call Astron Agent.
 - **Separate applications and credentials.** Use different Astron applications for environments or consumers that need independent rotation and revocation.
 - **Set streaming-aware timeouts.** The bundled gateway allows long-lived workflow streams, but every proxy and client in front of it must also disable buffering and allow suitable read timeouts.
-- **Use stable IDs.** Generate `uid` and `chat_id` from your system; do not put secrets or sensitive personal data in either value.
+- **Use stable IDs.** Generate `uid` and `sessionId` from your system; do not put secrets or sensitive personal data in either value.
 - **Validate workflow inputs.** Treat `parameters` as untrusted input and constrain it before passing values to tools, databases, or RPA actions.
 - **Record trace IDs safely.** The response `id` is useful for troubleshooting. Log it with the status and duration, but redact credentials and sensitive prompts.
 - **Plan for workflow changes.** Start-node inputs and End-node outputs are the consumer contract. Review them before publishing a new version and test clients against the published workflow.
