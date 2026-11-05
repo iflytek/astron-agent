@@ -217,6 +217,8 @@ spec:
               key: {{ $tenantBootstrapSecretKey }}
         {{- end }}
         {{- if or (eq $serviceName "coreAgent") (eq $serviceName "coreWorkflow") }}
+        - name: CONSOLE_INTERNAL_BASE_URL
+          value: {{ printf "http://%s-console-hub:%d" (include "astron-agent.fullname" $) ($.Values.consoleHub.service.port | int) | quote }}
         - name: WORKFLOW_INTERNAL_API_KEY
           valueFrom:
             secretKeyRef:

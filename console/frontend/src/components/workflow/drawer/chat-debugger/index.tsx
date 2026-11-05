@@ -13,13 +13,11 @@ import {
 import DeleteChatHistory from '@/components/workflow/modal/delete-chat-history';
 import ChatContent from './components/chat-content';
 import ChatInput from './components/chat-input';
-import { getPublicResult } from '@/services/common';
 import useChatStore from '@/components/workflow/store/use-chat-store';
 import type { FlowType } from '@/components/workflow/types';
 import type { WorkflowNode } from '@/components/workflow/types/domain';
 import type { ChatStoreType } from '@/components/workflow/types/zustand/chat';
 import { appendChatReply, readConfigObject } from './chat-state';
-import useChat from '@/hooks/use-chat';
 import useChatStores from '@/store/chat-store';
 // 类型导入
 import {
@@ -126,7 +124,7 @@ const ChatFooter = ({
           className="origin-btn px-[24px]"
           onClick={() => clearData()}
         >
-          {t('common.cancel')}
+          {debuggering ? '停止运行' : t('common.cancel')}
         </Button>
         <Button
           type="primary"
@@ -139,7 +137,7 @@ const ChatFooter = ({
                 const { nodes, edges } = resetNodesAndEdges();
                 handleRunDebugger(nodes, edges, [
                   {
-                    name: 'AGENT_USER_INPUT',
+                    name: startNodeParams[0]?.name || 'AGENT_USER_INPUT',
                     type: 'string',
                     default: userInput,
                     description: t(
@@ -171,21 +169,15 @@ const useChatDebuggerEffect = (
   currentFlow: FlowType | undefined,
   open: boolean,
   startNode: WorkflowNode | undefined,
-  setShowChatDebuggerPage: (show: boolean) => void,
   setStartNodeParams: ChatStoreType['setStartNodeParams'],
   vmsInteractionCmpRef: React.RefObject<VirtualAvatarHandle>,
   vmsInteractiveRefStatus: string
 ): void => {
   const isMounted = useRef<boolean>(false);
-  const historyVersion = useFlowsManager(state => state.historyVersion);
   const flowResult = useFlowsManager(state => state.flowResult);
-  const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const setInterruptChat = useChatStore(state => state.setInterruptChat);
   const clearNodeStatus = useChatStore(state => state.clearNodeStatus);
   const handleSaveDialogue = useChatStore(state => state.handleSaveDialogue);
-  const handleWorkflowDeleteComparisons = useChatStore(
-    state => state.handleWorkflowDeleteComparisons
-  );
   const debuggering = useChatStore(state => state.debuggering);
   const buildPassRef = useChatStore(state => state.buildPassRef);
   const getTextQueueContent = useChatStore(state => state.getTextQueueContent);
@@ -205,7 +197,6 @@ const useChatDebuggerEffect = (
   useEffect(() => {
     if (!flowResult?.status) {
       controllerRef?.abort();
-      handleWorkflowDeleteComparisons();
       setWsMessageStatus('end');
       setInterruptChat({ ...initInterruptChat });
       setNodes(old => {
@@ -230,13 +221,11 @@ const useChatDebuggerEffect = (
   useEffect(() => {
     const handleBeforeUnload = (): void => {
       useChatStore.getState().controllerRef?.abort();
-      handleWorkflowDeleteComparisons();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return (): void => {
       clearNodeStatus();
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleWorkflowDeleteComparisons();
       useChatStore.getState().controllerRef?.abort();
     };
   }, [currentFlow?.flowId]);
@@ -284,30 +273,6 @@ const useChatDebuggerEffect = (
       isMounted.current = true;
     }
   }, [debuggering]);
-  useEffect(() => {
-    if (historyVersion && historyVersionData?.name && currentFlow?.flowId) {
-      const params = {
-        flowId: currentFlow?.flowId,
-        name: historyVersionData?.name,
-      };
-      getPublicResult(params)
-        .then(data => {
-          setShowChatDebuggerPage(
-            Array.isArray(data) &&
-              data.some(
-                (item: unknown) =>
-                  typeof item === 'object' &&
-                  item !== null &&
-                  'publishResult' in item &&
-                  item.publishResult === '成功'
-              )
-          );
-        })
-        .catch(error => {
-          message.error('获取发布结果详情失败:', error);
-        });
-    }
-  }, [historyVersion, historyVersionData, currentFlow?.flowId]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     if (debuggering) {
@@ -434,13 +399,12 @@ export function ChatDebuggerContent({
   open,
   setOpen,
 }: ChatDebuggerContentProps): React.ReactElement {
-  const { handleFlowToChat } = useChat();
   const { t } = useTranslation();
   const currentFlow = useFlowsManager(state => state.currentFlow);
+  const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const userInput = useChatStore(state => state.userInput);
   const setUserInput = useChatStore(state => state.setUserInput);
   const historyVersion = useFlowsManager(state => state.historyVersion);
-  const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const chatType = useChatStore(state => state.chatType);
   const startNodeParams = useChatStore(state => state.startNodeParams);
   const setStartNodeParams = useChatStore(state => state.setStartNodeParams);
@@ -466,12 +430,9 @@ export function ChatDebuggerContent({
   const handleChatTypeChange = useChatStore(
     state => state.handleChatTypeChange
   );
-  const [showChatDebuggerPage, setShowChatDebuggerPage] =
-    useState<boolean>(true);
-  const { startNode, trialRun, multiParams, xfYunBot, talkAgentConfig } =
-    useChatDebuggerContent({
-      currentFlow,
-    });
+  const { startNode, trialRun, talkAgentConfig } = useChatDebuggerContent({
+    currentFlow,
+  });
   const interactType = Number(talkAgentConfig?.interactType);
   const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;
   const [callStatus, setCallStatus] = useState('hangup');
@@ -578,7 +539,6 @@ export function ChatDebuggerContent({
     currentFlow,
     open,
     startNode,
-    setShowChatDebuggerPage,
     setStartNodeParams,
     vmsInteractionCmpRef,
     vmsInteractiveRefStatus
@@ -702,40 +662,12 @@ export function ChatDebuggerContent({
               {t('workflow.nodes.chatDebugger.keepOnly10DialogueRecords')}
             </span>
           </div>
-          {multiParams ? (
-            <div className="text-[#ff9a27] text-sm">
-              {t(
-                'workflow.nodes.chatDebugger.multiParamWorkflowOnlySupportDebugAndPublishAsAPI'
-              )}
-            </div>
-          ) : !showChatDebuggerPage ? (
-            <div className="text-[#ff9a27] text-sm">
-              {t('workflow.nodes.chatDebugger.versionNotPublished')}
-            </div>
-          ) : (
-            <div
-              className="flex items-center gap-2 font-medium cursor-pointer"
-              onClick={() => {
-                const params = {
-                  chatId: xfYunBot?.chatId,
-                  botId: xfYunBot?.botId,
-                  version: historyVersion
-                    ? historyVersionData?.name
-                    : 'debugger',
-                };
-                handleFlowToChat(params);
-              }}
-            >
-              <img
-                src={icons.switchUserChatPageActive}
-                className="w-[18px] h-[18px]"
-                alt=""
-              />
-              <span className="text-[#6356EA]">
-                {t('workflow.nodes.chatDebugger.switchToUserDialoguePage')}
-              </span>
-            </div>
-          )}
+          <span className="text-xs text-gray-500">
+            {historyVersion
+              ? `工作流版本 ${historyVersionData?.name || ''}`
+              : '当前草稿'}{' '}
+            · 历史由服务端保存
+          </span>
         </div>
 
         <div

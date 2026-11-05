@@ -269,7 +269,11 @@ class ResourceTests(TransactionTestCase):
             with connection.schema_editor() as editor:
                 editor.create_model(WorkflowScope)
         try:
-            WorkflowScope.objects.create(
+            from astron_console.workflows.models import Workflow
+
+            Workflow.objects.create(
+                app_id="app",
+                name="retained workflow",
                 id=500,
                 flow_id="flow-500",
                 uid=self.other.pk,

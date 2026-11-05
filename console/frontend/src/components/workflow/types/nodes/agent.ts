@@ -18,12 +18,15 @@ export interface AgentNodeData extends WorkflowNodeData {
 }
 
 export interface AgentNodeParam {
+  agentId?: number;
+  agentName?: string;
   modelConfig?: {
     agentStrategy?: string;
     domain?: string;
     api?: string;
   };
   plugin?: {
+    configuredMcpCount?: number;
     toolsList?: ToolItem[];
     mcpServerUrls?: string[];
     mcpServerIds?: string[];

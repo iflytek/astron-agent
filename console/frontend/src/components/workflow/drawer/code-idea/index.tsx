@@ -551,6 +551,9 @@ const IOTestPanel = ({
       uid: user?.uid.toString(),
       flow_id: currentFlow?.flowId,
       node_id: nodeId,
+      version: useFlowsManager.getState().historyVersion
+        ? useFlowsManager.getState().historyVersionData?.versionNum
+        : undefined,
     };
     codeRun(params)
       .then((res: CodeRunResponse): void => {

@@ -1,3 +1,4 @@
+import useWorkflowChatStore from '@/components/workflow/store/use-chat-store';
 import React, {
   useEffect,
   useRef,
@@ -622,19 +623,29 @@ const MessageRegenerate = ({
           </div>
         </div>
       )}
-      {!debuggering && index === chatList.length - 1 && (
-        <div
-          className="flex items-center gap-1.5 text-desc cursor-pointer ml-[52px]"
-          onClick={() => {
-            setChatList(chatList => chatList.slice(0, chatList?.length - 2));
-            const { nodes, edges } = resetNodesAndEdges();
-            handleRunDebugger(nodes, edges, chatList[index - 1]?.inputs, true);
-          }}
-        >
-          <img src={icons.chatRefresh} className="w-4 h-4" alt="" />
-          <span>{t('workflow.nodes.chatDebugger.regenerate')}</span>
-        </div>
-      )}
+      {!debuggering &&
+        index === chatList.length - 1 &&
+        !!chatList[index]?.runId &&
+        chatList[index]?.status !== 'paused' && (
+          <div
+            className="flex items-center gap-1.5 text-desc cursor-pointer ml-[52px]"
+            onClick={() => {
+              const runId = chatList[index]?.runId;
+              if (!runId) return;
+              useWorkflowChatStore.setState({ runId });
+              const { nodes, edges } = resetNodesAndEdges();
+              handleRunDebugger(
+                nodes,
+                edges,
+                chatList[index - 1]?.inputs,
+                true
+              );
+            }}
+          >
+            <img src={icons.chatRefresh} className="w-4 h-4" alt="" />
+            <span>沿用本次版本重试</span>
+          </div>
+        )}
     </>
   );
 };
@@ -1018,28 +1029,42 @@ function ChatContent({
             renderInputElement={renderInputElement}
           />
         ) : (
-          <MessageReply
-            key={chat.id}
-            chat={chat}
-            currentFlow={currentFlow}
-            debuggering={debuggering}
-            index={index}
-            chatList={chatList}
-            setSid={setSid}
-            setVisible={setVisible}
-            handleResumeChat={handleResumeChat}
-            t={t}
-            advancedConfig={advancedConfig}
-            copyData={copyData}
-            suggestLoading={suggestLoading}
-            suggestProblem={suggestProblem}
-            resetNodesAndEdges={resetNodesAndEdges}
-            handleRunDebugger={handleRunDebugger}
-            needReply={needReply}
-            handleStopConversation={handleStopConversation}
-            setChatList={setChatList}
-            chatType={chatType}
-          />
+          <div key={chat.id}>
+            {chat.runId && (
+              <div className="text-xs text-gray-500 ml-[52px] mb-2">
+                运行 {chat.runId} · {chat.status || '运行中'}{' '}
+                {Object.entries(chat.resolvedAgents || {}).map(
+                  ([node, resolved]) => (
+                    <span className="ml-2" key={node}>
+                      {node}: Agent #{resolved.agentId} / 版本{' '}
+                      {resolved.versionId}
+                    </span>
+                  )
+                )}
+              </div>
+            )}
+            <MessageReply
+              chat={chat}
+              currentFlow={currentFlow}
+              debuggering={debuggering}
+              index={index}
+              chatList={chatList}
+              setSid={setSid}
+              setVisible={setVisible}
+              handleResumeChat={handleResumeChat}
+              t={t}
+              advancedConfig={advancedConfig}
+              copyData={copyData}
+              suggestLoading={suggestLoading}
+              suggestProblem={suggestProblem}
+              resetNodesAndEdges={resetNodesAndEdges}
+              handleRunDebugger={handleRunDebugger}
+              needReply={needReply}
+              handleStopConversation={handleStopConversation}
+              setChatList={setChatList}
+              chatType={chatType}
+            />
+          </div>
         )
       )}
       <FeedbackDialog

@@ -221,7 +221,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
             src={arrowLeft}
             className="w-[28px] cursor-pointer"
             alt=""
-            onClick={() => navigate('/space/agent')}
+            onClick={() => navigate('/space/workflows')}
           />
           <div className="relative flex items-center gap-4">
             <img

@@ -117,6 +117,9 @@ spec:
         {{- if eq $key "mysqlHost" }}
         - name: MYSQL_HOST
           value: {{ default (printf "%s-mysql" (include "astron-agent.fullname" $)) $value | quote }}
+        {{- else if eq $key "workflowUrl" }}
+        - name: WORKFLOW_URL
+          value: {{ printf "http://%s-core-workflow:%d" (include "astron-agent.fullname" $) ($.Values.coreWorkflow.service.port | int) | quote }}
         {{- else if eq $key "redisHost" }}
         - name: REDIS_HOST
           value: {{ printf "%s-redis" (include "astron-agent.fullname" $) | quote }}

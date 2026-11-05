@@ -1,0 +1,187 @@
+[
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "固定节点",
+    "value": "{\"idType\": \"node-start\", \"type\": \"开始节点\", \"position\": {\"x\": 100, \"y\": 300}, \"data\": {\"label\": \"开始\", \"description\": \"工作流的开启节点，用于定义流程调用所需的业务变量信息。\", \"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"开始节点\"}, \"inputs\": [], \"outputs\": [{\"id\": \"\", \"name\": \"AGENT_USER_INPUT\", \"deleteDisabled\": true, \"required\": true, \"schema\": {\"type\": \"string\", \"default\": \"用户本轮对话输入内容\"}}], \"nodeParam\": {}, \"allowInputReference\": false, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/start-node-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "固定节点",
+    "value": "{\"idType\": \"node-end\", \"type\": \"结束节点\", \"position\": {\"x\": 1000, \"y\": 300}, \"data\": {\"label\": \"结束\", \"description\": \"工作流的结束节点，用于输出工作流运行后的最终结果。\", \"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"结束节点\"}, \"inputs\": [{\"id\": \"\", \"name\": \"output\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [], \"nodeParam\": {\"outputMode\": 1, \"template\": \"\", \"streamOutput\": true}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": false, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/end-node-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "基础节点",
+    "value": "{\"idType\": \"spark-llm\", \"nodeType\": \"基础节点\", \"aliasName\": \"大模型\", \"description\": \"根据输入的提示词，调用选定的大模型，对提示词作出回答\", \"data\": {\"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"大模型\"}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"output\", \"schema\": {\"type\": \"string\", \"default\": \"\"}}], \"nodeParam\": {\"maxTokens\": 2048, \"temperature\": 0.5, \"topK\": 4, \"auditing\": \"default\", \"template\": \"\", \"respFormat\": 0, \"patchId\": \"0\", \"appId\": \"d1590f30\", \"uid\": \"\", \"enableChatHistoryV2\": {\"isEnabled\": false, \"rounds\": 1}}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "基础节点",
+    "value": "{\"idType\": \"ifly-code\", \"nodeType\": \"基础节点\", \"aliasName\": \"代码\", \"description\": \"面向开发者提供代码开发能力，目前仅支持python语言，允许使用该节点已定义的变量作为参数传入，返回语句用于输出函数的结果\", \"data\": {\"nodeMeta\": {\"nodeType\": \"工具\", \"aliasName\": \"代码\"}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"key0\", \"schema\": {\"type\": \"string\", \"default\": \"\"}}, {\"id\": \"\", \"name\": \"key1\", \"schema\": {\"type\": \"array-string\", \"default\": \"\"}}, {\"id\": \"\", \"name\": \"key2\", \"schema\": {\"type\": \"object\", \"default\": \"\", \"properties\": [{\"id\": \"\", \"name\": \"key21\", \"type\": \"string\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}]}}], \"nodeParam\": {\"code\": \"# 在这里，'input' 是节点中定义的输入变量之一，您可以直接使用它。\\n# 您也可以定义和使用其他输入变量，例如：input2, input3 等。\\n# 输入变量的类型由节点中对应变量引用的参数类型决定。\\n#\\n# 下面是一个示例，展示如何使用多个输入变量：\\n# def main(input, input2):\\n#     ret = {\\n#         \\\"key0\\\": input + \\\"hello\\\",      # 字符串拼接示例\\n#         \\\"key1\\\": [\\\"hello\\\", \\\"world\\\"],   # 列表示例\\n#         \\\"key2\\\": {\\\"key21\\\": input2}     # 使用 input2 的示例\\n#     }\\n#     return ret\\n#\\n# 您需要输出一个包含多种数据类型的 'ret' 对象，ret 中的每一项对应节点的输出参数。\\n# 最终返回构造好的 ret 对象。\\n# -*- coding: utf-8 -*- \\ndef main(input):\\n    ret = {\\n        \\\"key0\\\": input + \\\"hello\\\",\\n        \\\"key1\\\": [\\\"hello\\\", \\\"world\\\"],\\n        \\\"key2\\\": {\\\"key21\\\": \\\"hi\\\"}\\n    }\\n    return ret\"}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/codeIcon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "基础节点",
+    "value": "{\"idType\": \"knowledge-base\", \"nodeType\": \"基础节点\", \"aliasName\": \"知识库\", \"description\": \"调用知识库，可以指定知识库进行知识检索和答复\", \"data\": {\"nodeMeta\": {\"nodeType\": \"工具\", \"aliasName\": \"知识库\"}, \"inputs\": [{\"id\": \"\", \"name\": \"query\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"results\", \"schema\": {\"type\": \"array-object\", \"properties\": [{\"id\": \"\", \"name\": \"score\", \"type\": \"number\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}, {\"id\": \"\", \"name\": \"docId\", \"type\": \"string\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}, {\"id\": \"\", \"name\": \"title\", \"type\": \"string\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}, {\"id\": \"\", \"name\": \"content\", \"type\": \"string\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}, {\"id\": \"\", \"name\": \"context\", \"type\": \"string\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}, {\"id\": \"\", \"name\": \"references\", \"type\": \"object\", \"default\": \"\", \"required\": true, \"nameErrMsg\": \"\"}]}, \"required\": true, \"nameErrMsg\": \"\"}], \"nodeParam\": {\"repoId\": [], \"repoList\": [], \"topN\": 3, \"score\": 0.2}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/knowledgeIcon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "工具",
+    "value": "{\"idType\": \"flow\", \"nodeType\": \"工具\", \"aliasName\": \"工作流\", \"description\": \"快速集成已发布工作流，高效复用已有能力\", \"data\": {\"nodeMeta\": {\"nodeType\": \"工具\", \"aliasName\": \"工作流\"}, \"inputs\": [], \"outputs\": [], \"nodeParam\": {\"appId\": \"\", \"flowId\": \"\", \"uid\": \"\"}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/flow-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"idType\": \"decision-making\", \"nodeType\": \"基础节点\", \"aliasName\": \"决策\", \"description\": \"结合输入的参数与填写的意图，决定后续的逻辑走向\", \"data\": {\"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"决策\"}, \"nodeParam\": {\"maxTokens\": 2048, \"temperature\": 0.5, \"topK\": 4, \"auditing\": \"default\", \"enableChatHistoryV2\": {\"isEnabled\": false, \"rounds\": 1}, \"uid\": \"2171\", \"intentChains\": [{\"intentType\": 2, \"name\": \"\", \"description\": \"\", \"id\": \"intent-one-of::4724514d-ffc8-4412-bf7f-13cc3375110d\"}, {\"intentType\": 1, \"name\": \"default\", \"description\": \"默认意图\", \"id\": \"intent-one-of::506841e4-3f6c-40b1-a804-dc5ffe723b34\"}], \"reasonMode\": 1, \"model\": \"spark\", \"useFunctionCall\": true, \"promptPrefix\": \"\", \"patchId\": \"0\", \"appId\": \"d1590f30\"}, \"inputs\": [{\"id\": \"\", \"name\": \"Query\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"class_name\", \"schema\": {\"type\": \"string\", \"default\": \"\"}}], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/designMakeIcon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"idType\": \"if-else\", \"nodeType\": \"分支器\", \"aliasName\": \"分支器\", \"description\": \"根据设立的条件，判断选择分支走向\", \"data\": {\"nodeMeta\": {\"nodeType\": \"分支器\", \"aliasName\": \"分支器\"}, \"nodeParam\": {\"cases\": [{\"id\": \"branch_one_of::\", \"level\": 1, \"logicalOperator\": \"and\", \"conditions\": [{\"id\": \"\", \"leftVarIndex\": null, \"rightVarIndex\": null, \"compareOperator\": null}]}, {\"id\": \"branch_one_of::\", \"level\": 999, \"logicalOperator\": \"and\", \"conditions\": []}]}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {\"nodeId\": \"\", \"name\": \"\"}}}}, {\"id\": \"\", \"name\": \"input1\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {\"nodeId\": \"\", \"name\": \"\"}}}}], \"outputs\": [], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": false, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/if-else-node-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"idType\": \"iteration\", \"nodeType\": \"基础节点\", \"aliasName\": \"迭代\", \"description\": \"该节点用于处理循环逻辑，仅支持嵌套一次\", \"data\": {\"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"迭代\"}, \"nodeParam\": {}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"output\", \"schema\": {\"type\": \"array-string\", \"default\": \"\"}}], \"iteratorNodes\": [], \"iteratorEdges\": [], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/iteration-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "转换",
+    "value": "{\"idType\": \"node-variable\", \"nodeType\": \"基础节点\", \"aliasName\": \"变量存储器\", \"description\": \"可以设定多个变量，用于长期保存数据，且持续生效和更新\", \"data\": {\"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"变量存储器\"}, \"nodeParam\": {\"method\": \"set\"}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/variable-memory-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "转换",
+    "value": "{\"idType\": \"extractor-parameter\", \"nodeType\": \"基础节点\", \"aliasName\": \"变量提取器\", \"description\": \"结合提取变量描述，将上一节点输出的自然语言进行提取\", \"data\": {\"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"变量提取器\"}, \"nodeParam\": {\"maxTokens\": 2048, \"temperature\": 0.5, \"topK\": 4, \"auditing\": \"default\", \"model\": \"spark\", \"patchId\": \"0\", \"appId\": \"d1590f30\", \"uid\": \"2171\", \"reasonMode\": 1}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"output\", \"schema\": {\"type\": \"string\", \"description\": \"\"}, \"required\": true}], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/variable-extractor-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "转换",
+    "value": "{\"idType\": \"text-joiner\", \"nodeType\": \"工具\", \"aliasName\": \"文本处理节点\", \"description\": \"用于按照指定格式规则处理多个字符串变量\", \"data\": {\"nodeMeta\": {\"nodeType\": \"工具\", \"aliasName\": \"文本拼接\"}, \"nodeParam\": {\"prompt\": \"\"}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [{\"id\": \"\", \"name\": \"output\", \"schema\": {\"type\": \"string\"}}], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/text-splicing-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "其他",
+    "value": "{\"idType\": \"message\", \"nodeType\": \"基础节点\", \"aliasName\": \"消息\", \"description\": \"在工作流中可以对中间过程的产物进行输出\", \"data\": {\"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"消息\"}, \"nodeParam\": {\"template\": \"\", \"startFrameEnabled\": false}, \"inputs\": [{\"id\": \"\", \"name\": \"input\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": false, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/message-node-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "工具",
+    "value": "{\"idType\": \"plugin\", \"nodeType\": \"工具\", \"aliasName\": \"工具\", \"description\": \"通过添加外部工具，快捷获取技能，满足用户需求\", \"data\": {\"nodeMeta\": {\"nodeType\": \"工具\", \"aliasName\": \"工具\"}, \"inputs\": [], \"outputs\": [], \"nodeParam\": {\"appId\": \"4eea957b\", \"code\": \"\"}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/tool-icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"aliasName\": \"Agent智能决策\", \"idType\": \"agent\", \"data\": {\"outputs\": [{\"id\": \"\", \"customParameterType\": \"deepseekr1\", \"name\": \"REASONING_CONTENT\", \"nameErrMsg\": \"\", \"schema\": {\"default\": \"模型思考过程\", \"type\": \"string\"}}, {\"id\": \"\", \"name\": \"output\", \"nameErrMsg\": \"\", \"schema\": {\"default\": \"\", \"type\": \"string\"}}], \"references\": [], \"allowInputReference\": true, \"inputs\": [{\"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}, \"name\": \"input\", \"id\": \"\"}], \"icon\": \"https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/agent.png\", \"allowOutputReference\": true, \"nodeMeta\": {\"aliasName\": \"智能体节点\", \"nodeType\": \"Agent节点\"}, \"nodeParam\": {\"appId\": \"\", \"enableChatHistoryV2\": {\"isEnabled\": false, \"rounds\": 1}, \"modelConfig\": {\"agentStrategy\": 1}, \"instruction\": {\"reasoning\": \"\", \"answer\": \"\", \"query\": \"\"}, \"plugin\": {\"tools\": [], \"toolsList\": [], \"mcpServerIds\": [], \"mcpServerUrls\": [], \"workflowIds\": []}, \"maxLoopCount\": 10}}, \"description\": \"依据任务需求，通过选择合适的工具列表，实现大 模型的智能调度\", \"nodeType\": \"基础节点\"}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "基础节点",
+    "value": "{\"aliasName\": \"知识库 Pro\", \"idType\": \"knowledge-pro-base\", \"data\": {\"outputs\": [{\"id\": \"52f0819d-e403-43e1-85d3-50519ccfcbcf\", \"name\": \"output\", \"schema\": {\"type\": \"string\", \"default\": \"\"}, \"required\": false, \"nameErrMsg\": \"\"}, {\"id\": \"87247b70-f05c-4125-a416-e2c41be2e1c1\", \"name\": \"result\", \"schema\": {\"type\": \"array-object\", \"default\": \"\", \"properties\": [{\"id\": \"a9db3a72-abb2-4512-a598-13b8294fce60\", \"name\": \"source_id\", \"type\": \"string\", \"default\": \"\", \"required\": false, \"nameErrMsg\": \"\"}, {\"id\": \"c1711905-9f7e-4408-918e-33d57d39f9bc\", \"name\": \"chunk\", \"type\": \"array-object\", \"default\": \"\", \"required\": false, \"nameErrMsg\": \"\", \"properties\": [{\"id\": \"b8b50110-2abc-4732-9c96-6f3b7bad9259\", \"name\": \"chunk_context\", \"type\": \"string\", \"default\": \"\", \"required\": false, \"nameErrMsg\": \"\"}, {\"id\": \"95ffea3c-4008-4df8-84a8-013079e72276\", \"name\": \"score\", \"type\": \"number\", \"default\": \"\", \"required\": false, \"nameErrMsg\": \"\", \"properties\": []}]}]}, \"required\": false, \"nameErrMsg\": \"\"}], \"references\": [], \"allowInputReference\": true, \"inputs\": [{\"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}, \"name\": \"query\", \"id\": \"\"}], \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/knowledgeIcon.png\", \"allowOutputReference\": true, \"nodeMeta\": {\"aliasName\": \"知识库 Pro\", \"nodeType\": \"工具\"}, \"nodeParam\": {\"repoTopK\": 3, \"llmId\": 141, \"topK\": 4, \"repoIds\": [], \"repoList\": [], \"ragType\": 1, \"temperature\": 0.5, \"maxTokens\": 2048, \"answerRole\": \"\", \"repoType\": 1, \"score\": 0.2}}, \"description\": \"通过智能策略调用知识库，可以指定知识库进行知识检索和总结答复\", \"nodeType\": \"基础节点\"}",
+    "is_valid": 0
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "基础节点",
+    "value": "{\"aliasName\": \"问答节点\", \"idType\": \"question-answer\", \"data\": {\"outputs\": [{\"schema\": {\"default\": \"\", \"type\": \"string\", \"description\": \"该节点提问内容\"}, \"name\": \"query\", \"id\": \"\", \"required\": true}, {\"schema\": {\"default\": \"\", \"type\": \"string\", \"description\": \"用户回复内容\"}, \"name\": \"content\", \"id\": \"\", \"required\": true}], \"references\": [], \"allowInputReference\": true, \"inputs\": [{\"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}, \"name\": \"input\", \"id\": \"\"}], \"icon\": \"https://oss-beijing-m8.openstorage.cn/SparkBot/test4/answer-new2.png\", \"allowOutputReference\": true, \"nodeMeta\": {\"aliasName\": \"问答节点\", \"nodeType\": \"基础节点\"}, \"nodeParam\": {\"question\": \"\", \"timeout\": 3, \"needReply\": false, \"answerType\": \"direct\", \"directAnswer\": {\"handleResponse\": false, \"maxRetryCounts\": 2}, \"optionAnswer\": [{\"id\": \"option-one-of::01a35034-8e7a-4a84-83ee-c51d4cbe2660\", \"name\": \"A\", \"type\": 2, \"content\": \"\", \"content_type\": \"string\"}, {\"id\": \"option-one-of::1df8b2ac-c228-4195-8978-54f87b1bdbb9\", \"name\": \"B\", \"type\": 2, \"content\": \"\", \"content_type\": \"string\"}, {\"id\": \"option-one-of::646527fa-a9eb-4216-a324-95fc5601d2bf\", \"name\": \"default\", \"type\": 1, \"content\": \"\", \"content_type\": \"string\"}], \"maxTokens\": 2048, \"temperature\": 0.5, \"topK\": 4, \"model\": \"spark\"}}, \"description\": \"支持在此节点向用户提问，接收用户回复，并输出回复内容及提取的信息\", \"nodeType\": \"基础节点\"}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "基础节点",
+    "value": "{\"aliasName\": \"数据库\", \"idType\": \"database\", \"data\": {\"outputs\": [{\"id\": \"\", \"name\": \"isSuccess\", \"nameErrMsg\": \"\", \"schema\": {\"default\": \"SQL语句执行状态标识，成功true，失败false\", \"type\": \"boolean\"}}, {\"id\": \"\", \"name\": \"message\", \"nameErrMsg\": \"\", \"schema\": {\"default\": \"失败原因\", \"type\": \"string\"}}, {\"id\": \"\", \"name\": \"outputList\", \"nameErrMsg\": \"\", \"schema\": {\"default\": \"执行结果\", \"type\": \"array-object\"}}], \"references\": [], \"allowInputReference\": true, \"inputs\": [{\"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}, \"name\": \"input\", \"id\": \"\"}], \"icon\": \"https://oss-beijing-m8.openstorage.cn/SparkBotDev/icon/user/sparkBot_1752568522509_database_icon.svg\", \"allowOutputReference\": true, \"nodeMeta\": {\"aliasName\": \"数据库节点\", \"nodeType\": \"基础节点\"}, \"nodeParam\": {\"mode\": 0}}, \"description\": \"支持用户自定义的SQL完成对数据库的增删改查操作\", \"nodeType\": \"基础节点\"}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "工具",
+    "value": "{\"idType\": \"rpa\", \"nodeType\": \"基础节点\", \"aliasName\": \"RPA\", \"description\": \"调用RPA，可以指定RPA执行\", \"data\": {\"nodeMeta\": {\"nodeType\": \"工具\", \"aliasName\": \"RPA\"}, \"inputs\": [], \"outputs\": [], \"nodeParam\": {\"projectId\": \"1965981379635499008\", \"header\": {}, \"rpaParams\": {\"execPosition\": \"EXECUTOR\"}, \"source\": \"xiaowu\", \"icon\": \"https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/tool-icon.png\"}, \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true, \"icon\": \"http://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/tool/rpa_icon.png\"}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_AGENT_STRATEGY",
+    "code": "agentStrategy",
+    "name": "ReACT (支持MCP Tools)",
+    "value": "用于指导大模型完成复杂任务的结构化思考和决策过程",
+    "is_valid": 1,
+    "remarks": "1"
+  },
+  {
+    "category": "WORKFLOW_KNOWLEDGE_PRO_STRATEGY",
+    "code": "knowledgeProStrategy",
+    "name": "Agentic RAG",
+    "value": "适用于复杂问题的场景，擅长将复杂问题分解为多个子问题进行检索。",
+    "is_valid": 1,
+    "remarks": "1"
+  },
+  {
+    "category": "WORKFLOW_KNOWLEDGE_PRO_STRATEGY",
+    "code": "knowledgeProStrategy",
+    "name": "Long RAG",
+    "value": "适用于对长文档内容理解与生成任务。",
+    "is_valid": 1,
+    "remarks": "2"
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "工具",
+    "value": "{\"aliasName\": \"MCP\", \"idType\": \"mcp\", \"data\": {\"outputs\": [{\"id\": \"8ff81980-1ed7-4767-a58a-24c3023308b7\", \"name\": \"result\", \"schema\": {\"type\": \"object\", \"default\": \"\", \"properties\": [{\"id\": \"d6139baf-1e21-4138-9f69-30134a3b9ba8\", \"name\": \"isError\", \"type\": \"boolean\", \"default\": \"\", \"required\": false, \"nameErrMsg\": \"\", \"properties\": []}, {\"id\": \"6af38267-17fe-4e77-a064-1f345035e75a\", \"name\": \"content\", \"type\": \"array-object\", \"default\": \"\", \"required\": false, \"nameErrMsg\": \"\"}]}, \"required\": false, \"nameErrMsg\": \"\"}], \"references\": [], \"allowInputReference\": true, \"inputs\": [], \"icon\": \"https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/mcp-new.png\", \"allowOutputReference\": true, \"nodeMeta\": {\"nodeType\": \"工具节点\", \"aliasName\": \"MCP\"}, \"nodeParam\": {}}, \"description\": \"快速调用符合MCP协议的工具\", \"nodeType\": \"mcp\"}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"idType\": \"loop\", \"nodeType\": \"基础节点\", \"aliasName\": \"循环\", \"data\": {\"label\": \"循环\", \"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"循环\"}, \"nodeParam\": {\"maxLoopCount\": 10, \"loopVariables\": [{\"id\": \"\", \"name\": \"loop_value\", \"schema\": {\"type\": \"string\"}, \"value\": {\"type\": \"literal\", \"content\": \"\"}}], \"termination\": {\"logicalOperator\": \"and\", \"conditions\": []}}, \"inputs\": [], \"outputs\": [{\"id\": \"\", \"name\": \"loop_value\", \"schema\": {\"type\": \"string\"}}], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"idType\": \"loop-exit\", \"nodeType\": \"基础节点\", \"aliasName\": \"退出循环\", \"data\": {\"label\": \"退出循环\", \"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"退出循环\"}, \"nodeParam\": {}, \"inputs\": [{\"id\": \"\", \"name\": \"loop_value\", \"schema\": {\"type\": \"string\", \"value\": {\"type\": \"ref\", \"content\": {}}}}], \"outputs\": [], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": false}}",
+    "is_valid": 1
+  },
+  {
+    "category": "WORKFLOW_NODE_TEMPLATE",
+    "code": "1,2",
+    "name": "逻辑",
+    "value": "{\"idType\": \"variable-aggregation\", \"nodeType\": \"基础节点\", \"aliasName\": \"变量聚合\", \"data\": {\"label\": \"变量聚合\", \"nodeMeta\": {\"nodeType\": \"基础节点\", \"aliasName\": \"变量聚合\"}, \"nodeParam\": {}, \"inputs\": [], \"outputs\": [{\"id\": \"\", \"name\": \"output\", \"schema\": {\"type\": \"string\"}}], \"references\": [], \"allowInputReference\": true, \"allowOutputReference\": true}}",
+    "is_valid": 1
+  }
+]

@@ -181,6 +181,7 @@ class ParamKey(str, Enum):
     Uid = "uid"
     AppId = "app_id"
     Ext = "ext"
+    ConsoleContext = "console_context"
 
 
 class SystemParams:

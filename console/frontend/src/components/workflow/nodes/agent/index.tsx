@@ -24,8 +24,6 @@ function editablePlugin(data: WorkflowNodeData) {
     ...previous,
     toolsList: previous?.toolsList ?? [],
     tools: previous?.tools ?? [],
-    mcpServerIds: previous?.mcpServerIds ?? [],
-    mcpServerUrls: previous?.mcpServerUrls ?? [],
     knowledge: previous?.knowledge ?? [],
     skills: previous?.skills ?? [],
   };
@@ -38,7 +36,7 @@ import type {
   NodeDataProps,
 } from '@/components/workflow/nodes/types';
 import type { NodePropsFor } from '@/components/workflow/nodes/types';
-import React, { useMemo, useState, memo } from 'react';
+import React, { useMemo, useState, useEffect, memo } from 'react';
 import {
   FlowSelect,
   FlowTemplateEditor,
@@ -46,7 +44,8 @@ import {
   FlowInput,
   FlowInputNumber,
 } from '@/components/workflow/ui';
-import { Tooltip } from 'antd';
+import { Alert, Select, Tooltip } from 'antd';
+import { listAgents, type AgentDefinition } from '@/services/agents';
 import { useTranslation } from 'react-i18next';
 import { useMemoizedFn } from 'ahooks';
 import { v4 as uuid } from 'uuid';
@@ -76,12 +75,86 @@ export const Agent = memo(({ data }: NodeDataProps) => {
   return (
     <>
       <div className="text-[#333] text-right">
-        {t('workflow.nodes.agentNode.agentStrategy')}
+        {data.nodeParam.agentId
+          ? '引用 Agent'
+          : t('workflow.nodes.agentNode.agentStrategy')}
       </div>
-      <span>{agentStrategyName}</span>
+      <span>
+        {data.nodeParam.agentId
+          ? data.nodeParam.agentName || `Agent #${data.nodeParam.agentId}`
+          : agentStrategyName}
+      </span>
     </>
   );
 });
+
+const AgentReferenceSection = ({
+  data,
+  handleChangeNodeParam,
+}: NodePropsFor<'data' | 'handleChangeNodeParam'>): React.ReactElement => {
+  const [agents, setAgents] = useState<AgentDefinition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const disabled = useFlowsManager(state => state.canvasesDisabled);
+  useEffect(() => {
+    let ignore = false;
+    const fetchAll = async (): Promise<void> => {
+      const items: AgentDefinition[] = [];
+      let page = 1;
+      while (true) {
+        const result = await listAgents({ page, pageSize: 100 });
+        items.push(...result.records);
+        if (items.length >= result.total || !result.records.length) break;
+        page += 1;
+      }
+      if (!ignore) setAgents(items);
+    };
+    void fetchAll()
+      .catch(() => {
+        if (!ignore) setError('无法读取 Agent 列表');
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+  return (
+    <section className="p-4 bg-[#f8faff] rounded-md">
+      <label className="block mb-2 font-medium">引用独立 Agent</label>
+      <Select
+        className="w-full"
+        aria-label="引用独立 Agent"
+        allowClear
+        showSearch
+        optionFilterProp="label"
+        loading={loading}
+        disabled={disabled}
+        placeholder="使用节点内联配置"
+        value={data.nodeParam.agentId}
+        options={agents.map(agent => ({
+          value: agent.id,
+          label: `${agent.botName} (${agent.publishedVersionId ? `版本 ${agent.publishedVersionId}` : '未发布'})`,
+        }))}
+        onChange={(value: number | undefined) =>
+          handleChangeNodeParam((node, id) => {
+            node.nodeParam.agentId = id;
+            node.nodeParam.agentName = agents.find(
+              agent => agent.id === id
+            )?.botName;
+          }, value)
+        }
+      />
+      {error && <Alert type="error" message={error} className="mt-2" />}
+      {data.nodeParam.agentId && (
+        <p className="mt-2 text-xs text-gray-600">
+          新运行使用最新已发布版本；本次运行、重试和恢复固定该版本。未发布草稿不会生效。
+        </p>
+      )}
+    </section>
+  );
+};
 
 const AgentStrategySection = ({
   data,
@@ -363,45 +436,53 @@ const PromptSection = ({
       }
       content={
         <div className="rounded-md px-[18px] pb-3 pointer-events-auto">
-          <div className="mb-4">
-            {t('workflow.nodes.agentNode.roleSetting')}
-          </div>
-          <FlowTemplateEditor
-            id={id}
-            data={data}
-            value={data?.nodeParam?.instruction?.answer}
-            onChange={value =>
-              handleChangeNodeParam(
-                (data, value) =>
-                  (data.nodeParam.instruction = {
-                    ...data.nodeParam.instruction,
-                    answer: value,
-                  }),
-                value
-              )
-            }
-            placeholder={t('workflow.nodes.agentNode.thinkingStepsPlaceholder')}
-          />
-          <div className="my-4">
-            {t('workflow.nodes.agentNode.thinkingSteps')}
-          </div>
-          <FlowTemplateEditor
-            id={id}
-            data={data}
-            onBlur={() => delayCheckNode(id)}
-            value={data?.nodeParam?.instruction?.reasoning}
-            onChange={value =>
-              handleChangeNodeParam(
-                (data, value) =>
-                  (data.nodeParam.instruction = {
-                    ...data.nodeParam.instruction,
-                    reasoning: value,
-                  }),
-                value
-              )
-            }
-            placeholder={t('workflow.nodes.agentNode.thinkingStepsPlaceholder')}
-          />
+          {!data.nodeParam.agentId && (
+            <>
+              <div className="mb-4">
+                {t('workflow.nodes.agentNode.roleSetting')}
+              </div>
+              <FlowTemplateEditor
+                id={id}
+                data={data}
+                value={data?.nodeParam?.instruction?.answer}
+                onChange={value =>
+                  handleChangeNodeParam(
+                    (data, value) =>
+                      (data.nodeParam.instruction = {
+                        ...data.nodeParam.instruction,
+                        answer: value,
+                      }),
+                    value
+                  )
+                }
+                placeholder={t(
+                  'workflow.nodes.agentNode.thinkingStepsPlaceholder'
+                )}
+              />
+              <div className="my-4">
+                {t('workflow.nodes.agentNode.thinkingSteps')}
+              </div>
+              <FlowTemplateEditor
+                id={id}
+                data={data}
+                onBlur={() => delayCheckNode(id)}
+                value={data?.nodeParam?.instruction?.reasoning}
+                onChange={value =>
+                  handleChangeNodeParam(
+                    (data, value) =>
+                      (data.nodeParam.instruction = {
+                        ...data.nodeParam.instruction,
+                        reasoning: value,
+                      }),
+                    value
+                  )
+                }
+                placeholder={t(
+                  'workflow.nodes.agentNode.thinkingStepsPlaceholder'
+                )}
+              />
+            </>
+          )}
           <div className="my-4">
             <span className="text-[#F74E43] text-lg font-medium h-5">*</span>
             <span>{t('workflow.nodes.agentNode.userQuery')}</span>
@@ -573,7 +654,7 @@ const useAgent = ({
       );
       if (!findTool) {
         if (tool?.type === 'mcp') {
-          plugin.mcpServerIds.push(tool.toolId);
+          (plugin.mcpServerIds ??= []).push(tool.toolId);
         } else if (tool?.type === 'tool') {
           plugin.tools.push({
             tool_id: tool.toolId,
@@ -629,7 +710,7 @@ const useAgent = ({
         });
       } else {
         if (findTool?.type === 'mcp') {
-          plugin.mcpServerIds = plugin.mcpServerIds.filter(
+          plugin.mcpServerIds = (plugin.mcpServerIds || []).filter(
             item => item !== tool?.toolId
           );
         } else if (findTool?.type === 'tool') {
@@ -762,46 +843,78 @@ export const AgentDetail = memo((props: NodeComponentProps) => {
       )}
       <div className="p-[14px] pb-[6px]">
         <div className="bg-[#fff] rounded-lg w-full flex flex-col gap-2.5">
-          <FLowCollapse
-            label={
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-medium">
-                  {t('workflow.nodes.largeModelNode.model')}
-                </h2>
-              </div>
-            }
-            content={
-              <div className="rounded-md px-[18px] pb-3">
-                <ModelSelect id={id} data={data} />
-              </div>
-            }
-          />
-          <Inputs id={id} data={data} />
-          <AgentStrategySection
+          <AgentReferenceSection
             data={data}
             handleChangeNodeParam={handleChangeNodeParam}
           />
-          <PluginSection
-            orderToolsList={orderToolsList}
-            setShowModal={setShowModal}
-            handleToolChange={handleToolChange}
-            handleUpdateTool={handleUpdateTool}
-          />
-          <McpAddressSection
-            addressList={addressList}
-            handleChangeAddress={handleChangeAddress}
-            handleRemoveAddress={handleRemoveAddress}
-            handleAddAddress={handleAddAddress}
-          />
+          {!data.nodeParam.agentId && (
+            <FLowCollapse
+              label={
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-medium">
+                    {t('workflow.nodes.largeModelNode.model')}
+                  </h2>
+                </div>
+              }
+              content={
+                <div className="rounded-md px-[18px] pb-3">
+                  <ModelSelect id={id} data={data} />
+                </div>
+              }
+            />
+          )}
+          <Inputs id={id} data={data} />
+          {!data.nodeParam.agentId && (
+            <>
+              <AgentStrategySection
+                data={data}
+                handleChangeNodeParam={handleChangeNodeParam}
+              />
+              <PluginSection
+                orderToolsList={orderToolsList}
+                setShowModal={setShowModal}
+                handleToolChange={handleToolChange}
+                handleUpdateTool={handleUpdateTool}
+              />
+              {!!data.nodeParam.plugin?.configuredMcpCount && (
+                <div className="px-4 py-2 text-xs text-gray-600">
+                  保留 {data.nodeParam.plugin.configuredMcpCount} 个旧 MCP
+                  绑定。修改其他工具不会替换它们。
+                  <button
+                    type="button"
+                    className="ml-2 text-[#6356EA]"
+                    onClick={() =>
+                      handleChangeNodeParam(node => {
+                        const plugin = editablePlugin(node);
+                        plugin.mcpServerIds = [];
+                        plugin.mcpServerUrls = [];
+                        plugin.configuredMcpCount = 0;
+                      }, undefined)
+                    }
+                  >
+                    清除旧 MCP 绑定
+                  </button>
+                </div>
+              )}
+              <McpAddressSection
+                addressList={addressList}
+                handleChangeAddress={handleChangeAddress}
+                handleRemoveAddress={handleRemoveAddress}
+                handleAddAddress={handleAddAddress}
+              />
+            </>
+          )}
           <PromptSection
             id={id}
             data={data}
             handleChangeNodeParam={handleChangeNodeParam}
           />
-          <LoopCountSection
-            data={data}
-            handleChangeNodeParam={handleChangeNodeParam}
-          />
+          {!data.nodeParam.agentId && (
+            <LoopCountSection
+              data={data}
+              handleChangeNodeParam={handleChangeNodeParam}
+            />
+          )}
           <Outputs id={id} data={data}>
             <div className="flex-1 flex items-center justify-between">
               <div className="text-base font-medium">

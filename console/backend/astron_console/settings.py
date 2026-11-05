@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "astron_console.resources",
     "astron_console.knowledge",
     "astron_console.agents",
+    "astron_console.workflows",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -200,3 +201,6 @@ CONSOLE_SPACE_LIMITS = {
 
 AGENT_URL = os.environ.get("AGENT_URL", "http://core-agent:17870")
 AGENT_TIMEOUT_SECONDS = int(os.environ.get("AGENT_TIMEOUT_SECONDS", "600"))
+
+WORKFLOW_URL = os.environ.get("WORKFLOW_URL") or "http://core-workflow:7880"
+WORKFLOW_TIMEOUT_SECONDS = int(os.environ.get("WORKFLOW_TIMEOUT_SECONDS", "3600"))

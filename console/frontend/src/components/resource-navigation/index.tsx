@@ -14,6 +14,8 @@ interface SpaceOption {
 
 const links = [
   ['/space/agent', '独立 Agent'],
+  ['/space/workflows', '工作流'],
+  ['/resource/automation', '定时自动化'],
   ['/resource/knowledge', '知识库'],
   ['/management/model', '模型管理'],
   ['/resource/plugin', '工具管理'],

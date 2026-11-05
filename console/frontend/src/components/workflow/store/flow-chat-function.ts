@@ -1,10 +1,14 @@
+import {
+  readHistoryAnswer,
+  readHistoryQuestion,
+  workflowRetryPath,
+} from './workflow-history';
 import type { EventSourceMessage } from '@microsoft/fetch-event-source';
 import type { WorkflowNode, WorkflowEdge } from '../types/domain';
 import type {
   ResponseResult,
   ResumeChatParams,
   WorkflowChatParams,
-  ChatDebuggerAdvancedConfig,
   BuildFlowParams,
 } from '../types';
 import type {
@@ -18,14 +22,11 @@ import { ChatListItem } from '../types';
 
 import {
   getDialogueAPI,
-  saveDialogueAPI,
-  getInputsType,
-  addComparisons,
+  stopWorkflowRun,
   buildFlowAPI,
   workflowDialogClear,
-  workflowDeleteComparisons,
 } from '@/services/flow';
-import { nextQuestionAdvice } from '@/services/common';
+import { message } from 'antd';
 import { v4 as uuid } from 'uuid';
 import { moveToPosition } from './flow-function';
 import {
@@ -47,7 +48,6 @@ import { getFixedUrl } from '@/components/workflow/utils';
 import {
   createWorkflowSseLifecycle,
   isTerminalWorkflowSseErrorFrame,
-  throwFatalWorkflowSseError,
   type WorkflowSseLifecycle,
 } from './workflow-sse';
 import { fetchSseWithContext } from '@/utils/sse-request';
@@ -113,6 +113,9 @@ export const initialStatus: ChatState = {
   userWheel: false,
   deleteAllModal: false,
   chatIdRef: uuid().replace(/-/g, ''),
+  runId: '',
+  runStatus: '',
+  stopRequested: false,
 };
 
 const getWorkflowSseContext = () => {
@@ -136,45 +139,83 @@ const getDialogues = (
   set: ChatSetter,
   shouldAddDivider = false
 ): void => {
-  getDialogueAPI(id, 1).then(data => {
-    const chatList: ChatListItem[] = [];
-    let chatId = data?.[0]?.chatId || null;
-    data?.forEach(chat => {
-      const currentChatId = chat?.chatId;
-      if (currentChatId !== chatId) {
+  getDialogueAPI(id, 1)
+    .then(data => {
+      if (String(useFlowsManager.getState().currentFlow?.id) !== String(id))
+        return;
+      const chatList: ChatListItem[] = [];
+      let chatId = data?.[0]?.chatId || null;
+      data?.forEach(chat => {
+        const currentChatId = chat?.chatId;
+        if (currentChatId !== chatId) {
+          chatList.unshift({
+            id: uuid(),
+            type: 'divider',
+          });
+        }
+
         chatList.unshift({
+          ...chat,
+          id: chat?.id,
+          type: 'answer',
+          messageContent: readHistoryAnswer(chat.answer).messageContent,
+          reasoningContent: readHistoryAnswer(chat.answer).reasoningContent,
+          content: readHistoryAnswer(chat.answer).content,
+          option: readHistoryAnswer(chat.answer)
+            .option as ChatListItem['option'],
+        });
+        chatList.unshift({
+          ...chat,
+          id: uuid(),
+          type: 'ask',
+          inputs: readHistoryQuestion(chat.question).map(input => ({
+            ...input,
+            default: input.default as StartNodeType['default'],
+            required: false,
+            validationSchema: null,
+            errorMsg: '',
+            originErrorMsg: '',
+          })),
+        });
+        chatId = currentChatId;
+      });
+      if (
+        shouldAddDivider &&
+        data.length !== 0 &&
+        !data.some(item => item.status === 'paused')
+      ) {
+        chatList.push({
           id: uuid(),
           type: 'divider',
         });
       }
-
-      chatList.unshift({
-        ...chat,
-        id: chat?.id,
-        type: 'answer',
-        messageContent: JSON.parse(chat?.answer)?.messageContent || '',
-        reasoningContent: JSON.parse(chat?.answer)?.reasoningContent || '',
-        content: JSON.parse(chat?.answer)?.content || '',
-        option: JSON.parse(chat?.answer)?.option,
+      const paused = data.find(
+        item => item.status === 'paused' && item.runId && item.eventId
+      );
+      set({
+        chatList,
+        ...(paused
+          ? {
+              runId: paused.runId,
+              runStatus: 'paused',
+              interruptChat: {
+                eventId: paused.eventId || '',
+                interrupt: true,
+                nodeId: paused.interrupt?.node_id || '',
+                type: paused.interrupt?.value?.type || '',
+                option: paused.interrupt?.value?.option || null,
+                needReply: paused.interrupt?.need_reply ?? true,
+              },
+            }
+          : {
+              runId: '',
+              runStatus: '',
+              interruptChat: { ...initInterruptChat },
+            }),
       });
-      chatList.unshift({
-        ...chat,
-        id: uuid(),
-        type: 'ask',
-        inputs: JSON.parse(chat?.question),
-      });
-      chatId = currentChatId;
-    });
-    if (shouldAddDivider && data.length !== 0) {
-      chatList.push({
-        id: uuid(),
-        type: 'divider',
-      });
-    }
-    set({
-      chatList,
-    });
-  });
+      if (paused) useFlowsManager.getState().setCanvasesDisabled(true);
+    })
+    .catch(() => message.error('无法读取工作流历史'));
 };
 const handleMoveToPosition = (
   id: string | undefined,
@@ -247,20 +288,10 @@ const clearNodeStatus = (get: ChatGetter): void => {
   );
 };
 const handleSaveDialogue = (get: ChatGetter, set: ChatSetter): void => {
+  // Execution events and answers are written by the server; the browser only reloads them.
   const currentFlow = useFlowsManager.getState().currentFlow;
-  const params = {
-    chatId: get().chatIdRef,
-    type: 1,
-    workflowId: currentFlow?.id,
-    sid: get().chatInfoRef?.sid,
-    questionItem: JSON.stringify(get().chatInfoRef?.question),
-    answerItem: JSON.stringify(get().chatInfoRef?.answerItem),
-    question: JSON.stringify(get().chatInfoRef?.question),
-    answer: JSON.stringify(get().chatInfoRef?.answer),
-  };
-  saveDialogueAPI(params).then(
-    () => currentFlow?.id && getDialogues(currentFlow.id, set)
-  );
+  if (currentFlow?.id && !get().interruptChat.interrupt)
+    getDialogues(currentFlow.id, set);
   get().chatInfoRef = cloneDeep(initChatInfo);
 };
 const handleAuditFailed = (
@@ -530,7 +561,51 @@ const handleMessage = (
   set: ChatSetter
 ): void => {
   if (!e.data || !isJSON(e.data)) return;
-  const data: WebSocketMessageData = JSON.parse(e.data);
+  const frame = JSON.parse(e.data);
+  if (e.event === 'run') {
+    const runId = String(frame.runId || frame.id || '');
+    set({ runId, runStatus: frame.status || 'running' });
+    get().setChatList(items =>
+      items.map((item, index) =>
+        index === items.length - 1
+          ? {
+              ...item,
+              runId,
+              status: frame.status,
+              resolvedAgents: frame.resolvedAgents,
+            }
+          : item
+      )
+    );
+    if (get().stopRequested && runId)
+      void stopWorkflowRun(runId).catch(() =>
+        message.error('停止请求失败，请重试')
+      );
+    return;
+  }
+  if (e.event === 'run-end') {
+    set({ runStatus: frame.status });
+    if (!get().debuggering && frame.status !== 'paused') {
+      const flow = useFlowsManager.getState().currentFlow;
+      if (flow?.id) getDialogues(flow.id, set);
+    }
+    get().setChatList(items =>
+      items.map(item =>
+        item.runId === frame.runId ? { ...item, status: frame.status } : item
+      )
+    );
+    if (frame.status !== 'paused' && get().wsMessageStatus !== 'end') {
+      handleFlowStop(
+        {
+          code: frame.status === 'completed' ? 0 : -1,
+          message: frame.error || frame.status,
+        },
+        get
+      );
+    }
+    return;
+  }
+  const data: WebSocketMessageData = frame;
   const { flowResult, nodeId, nodeStatus, responseResult } =
     extractNodeInfo(data);
   get().chatInfoRef.sid = data?.id;
@@ -578,20 +653,6 @@ const handleRunningNodeStatus = (): void => {
     });
     return cloneDeep(nodes);
   });
-};
-const handleSynchronizeDataToXfyun = (): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  const extension = currentFlow?.ext;
-  if (!extension || !isJSON(extension)) return;
-  const parsed: unknown = JSON.parse(extension);
-  if (typeof parsed !== 'object' || parsed === null || !('botId' in parsed))
-    return;
-  const botId = parsed.botId;
-  if (typeof botId !== 'string' && typeof botId !== 'number') return;
-  const params = {
-    botId,
-  };
-  getInputsType(params);
 };
 const handleMessageEnd = (
   data: WebSocketMessageData,
@@ -658,6 +719,7 @@ const handleResumeChat = (
   set({
     wsMessageStatus: 'start',
     debuggering: true,
+    stopRequested: false,
     controllerRef: controller,
   });
   pushAskToChatList(
@@ -683,14 +745,16 @@ const handleResumeChat = (
   pushAnswerToChatList(get);
   const url = getFixedUrl('/workflow/resume');
   const params: ResumeChatParams = {
+    runId: get().runId,
     flow_id: currentFlow?.flowId,
     eventId: get().interruptChat?.eventId,
     eventType: content ? 'resume' : 'ignore',
     content,
   };
   if (get().versionId) {
-    params.version = get().versionId;
-    params.promptDebugger = true;
+    params.version =
+      useFlowsManager.getState().historyVersionData?.versionNum ||
+      get().versionId;
   }
   const sseLifecycle = createActiveWorkflowSseLifecycle(
     controller,
@@ -716,7 +780,9 @@ const handleResumeChat = (
       sseLifecycle.onClose();
     },
     onmessage(e) {
-      sseLifecycle.onMessage(e);
+      if (e.event === 'run-end' && get().controllerRef === controller)
+        handleMessage(nodes, edges, e, get, set);
+      else sseLifecycle.onMessage(e);
     },
   }).catch(() => undefined);
   clearNodeStatus(get);
@@ -725,11 +791,22 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
   const { nodes, edges, get, set, enters, regen = false } = obj;
   const currentFlow = useFlowsManager.getState().currentFlow;
   const historyVersion = useFlowsManager.getState().historyVersion;
-  const url = getFixedUrl('/workflow/chat');
+  const retryId = regen ? get().runId : '';
+  if (regen && !retryId) {
+    get().setDebuggering(false);
+    message.error('此历史没有可重试的运行标识，请发起新运行');
+    return;
+  }
+  const url = getFixedUrl(
+    retryId ? workflowRetryPath(retryId) : '/workflow/chat'
+  );
   get().controllerRef?.abort();
   const controller = new AbortController();
   set({
     controllerRef: controller,
+    runId: '',
+    runStatus: 'running',
+    stopRequested: false,
   });
   const inputs: Record<string, unknown> = {};
   const enterlist = enters ?? get().startNodeParams;
@@ -764,8 +841,9 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
     regen,
   };
   if (historyVersion) {
-    params.version = get().versionId;
-    params.promptDebugger = true;
+    params.version =
+      useFlowsManager.getState().historyVersionData?.versionNum ||
+      get().versionId;
   }
   const sseLifecycle = createActiveWorkflowSseLifecycle(
     controller,
@@ -791,27 +869,12 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
       sseLifecycle.onClose();
     },
     onmessage(e) {
-      sseLifecycle.onMessage(e);
+      if (e.event === 'run-end' && get().controllerRef === controller)
+        handleMessage(nodes, edges, e, get, set);
+      else sseLifecycle.onMessage(e);
     },
   }).catch(() => undefined);
   clearNodeStatus(get);
-};
-const advancedConfig = (): ChatDebuggerAdvancedConfig => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  if (currentFlow?.advancedConfig && isJSON(currentFlow?.advancedConfig)) {
-    const parsedConfig = JSON.parse(currentFlow?.advancedConfig);
-    return {
-      suggestedQuestionsAfterAnswer: {
-        enabled: parsedConfig?.suggestedQuestionsAfterAnswer?.enabled ?? true,
-      },
-    };
-  } else {
-    return {
-      suggestedQuestionsAfterAnswer: {
-        enabled: true,
-      },
-    };
-  }
 };
 const handleRunDebugger = ({
   nodes,
@@ -827,96 +890,63 @@ const handleRunDebugger = ({
   const setFlowResult = useFlowsManager.getState().setFlowResult;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
-  const suggestedQuestion =
-    inputs?.[0]?.default ?? get().startNodeParams[0]?.default;
-  if (
-    typeof suggestedQuestion === 'string' &&
-    advancedConfig()?.suggestedQuestionsAfterAnswer?.enabled &&
-    get().startNodeParams?.length === 1
-  ) {
-    get().setSuggestLoading(true);
-    nextQuestionAdvice({
-      question: suggestedQuestion,
-    })
-      .then(data => {
-        get().setSuggestProblem(() => data);
-      })
-      .finally(() => get().setSuggestLoading(false));
-  } else {
-    get().setSuggestProblem(() => []);
-  }
+  get().setSuggestProblem(() => []);
   get().buildPassRef = false;
-  let params: BuildFlowParams;
-  let api: (params: BuildFlowParams) => Promise<unknown>;
-  if (useFlowsManager.getState().historyVersion) {
-    get().versionId = uuid();
-    params = {
-      flowId: currentFlow?.flowId,
-      name: currentFlow?.name,
-      data: {
-        nodes: nodes?.map(({ nodeType, ...reset }) => ({
+  const params: BuildFlowParams = {
+    id: currentFlow?.id,
+    flowId: currentFlow?.flowId,
+    name: currentFlow?.name,
+    description: currentFlow?.description,
+    data: {
+      nodes: nodes?.map(({ nodeType, ...reset }) => {
+        const node = {
           ...reset,
           data: {
             ...reset?.data,
             updatable: false,
           },
-        })),
-        edges: edges?.map(({ style, animated, ...reset }) => reset),
-      },
-      version: get().versionId,
-    };
-    api = addComparisons;
-  } else {
-    params = {
-      id: currentFlow?.id,
-      flowId: currentFlow?.flowId,
-      name: currentFlow?.name,
-      description: currentFlow?.description,
-      data: {
-        nodes: nodes?.map(({ nodeType, ...reset }) => {
-          const node = {
-            ...reset,
-            data: {
-              ...reset?.data,
-              updatable: false,
-            },
-          };
-          Reflect.deleteProperty(node.data, 'debuggerResult');
-          return node;
-        }),
-        edges: edges?.map(({ style, animated, ...reset }) => reset),
-      },
-    };
-    api = buildFlowAPI;
-  }
-  api(params).then(() => {
-    setCanPublish(true);
-    setShowNodeList(false);
-    set({
-      preRunningNodeIds: [],
-      buildPassRef: true,
-      userWheel: false,
+        };
+        Reflect.deleteProperty(node.data, 'debuggerResult');
+        return node;
+      }),
+      edges: edges?.map(({ style, animated, ...reset }) => reset),
+    },
+  };
+  const ready =
+    regen || historyVersion ? Promise.resolve() : buildFlowAPI(params);
+  ready
+    .then(() => {
+      setCanPublish(true);
+      setShowNodeList(false);
+      set({
+        preRunningNodeIds: [],
+        buildPassRef: true,
+        userWheel: false,
+      });
+      setFlowResult({
+        status: 'running',
+        timeCost: '',
+        totalTokens: '',
+      });
+      const nodeId = nodes?.find(node => node?.nodeType === 'node-start')?.id;
+      pushAskToChatList(inputs, nodes, nodeId, get);
+      !historyVersion && setCanvasesDisabled(true);
+      pushAnswerToChatList(get);
+      runDebugger({
+        nodes,
+        edges,
+        get,
+        set,
+        enters: inputs,
+        regen,
+      });
+    })
+    .catch(() => {
+      get().setDebuggering(false);
+      setCanvasesDisabled(false);
+      setShowNodeList(true);
+      setFlowResult({ status: 'failed', timeCost: '', totalTokens: '' });
     });
-    setFlowResult({
-      status: 'running',
-      timeCost: '',
-      totalTokens: '',
-    });
-    const nodeId = nodes?.find(node => node?.nodeType === 'node-start')?.id;
-    pushAskToChatList(inputs, nodes, nodeId, get);
-    !historyVersion && setCanvasesDisabled(true);
-    pushAnswerToChatList(get);
-    runDebugger({
-      nodes,
-      edges,
-      get,
-      set,
-      enters: inputs,
-      regen,
-    });
-    //同步数据到开放平台
-    handleSynchronizeDataToXfyun();
-  });
 };
 const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
   const setFlowResult = useFlowsManager.getState().setFlowResult;
@@ -929,6 +959,7 @@ const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
   }
   setOpen(false);
   if (get().debuggering) {
+    handleStopConversation(get);
     setFlowResult({
       status: '',
       timeCost: '',
@@ -1022,7 +1053,7 @@ const handleEnterKey = (
         set,
         inputs: [
           {
-            name: 'AGENT_USER_INPUT',
+            name: get().startNodeParams[0]?.name || 'AGENT_USER_INPUT',
             type: 'string',
             default: get().userInput,
             description: i18n.t(
@@ -1073,35 +1104,22 @@ const resetNodesAndEdges = (
 };
 
 const handleStopConversation = (get: ChatGetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
   get().chatIdRef = uuid().replace(/-/g, '');
-  if (get().interruptChat?.interrupt) {
-    const url = getFixedUrl('/workflow/resume');
-    const params = {
-      flow_id: currentFlow?.flowId,
-      eventId: get().interruptChat?.eventId,
-      eventType: 'abort',
-    };
-    void fetchSseWithContext(url, {
-      getContext: getWorkflowSseContext,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(params),
-      openWhenHidden: true,
-      onerror(error) {
-        throwFatalWorkflowSseError(error);
-      },
-    }).catch(error =>
-      console.error('[Workflow SSE] Abort request failed', error)
+  get().stopRequested = true;
+  const runId = get().runId;
+  if (runId)
+    void stopWorkflowRun(runId).catch(() =>
+      message.error('停止请求失败，请重试')
     );
-  }
+  get().controllerRef?.abort();
+  get().setDebuggering(false);
+  get().wsMessageStatus = 'end';
+  get().runStatus = 'stopping';
   get().setChatList(chatList => [
     ...chatList,
     {
@@ -1141,16 +1159,6 @@ const deleteAllChat = (get: ChatGetter): void => {
     get().setInterruptChat({ ...initInterruptChat });
     !historyVersion && setCanvasesDisabled(false);
   });
-};
-
-const handleWorkflowDeleteComparisons = (get: ChatGetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  if (!get().versionId) return;
-  const parmas = {
-    flowId: currentFlow?.flowId,
-    version: get().versionId,
-  };
-  workflowDeleteComparisons(parmas);
 };
 
 const setChatList = (
@@ -1309,7 +1317,6 @@ export {
   handleEnterKey,
   handleStopConversation,
   deleteAllChat,
-  handleWorkflowDeleteComparisons,
   resetNodesAndEdges,
   setChatList,
   setStartNodeParams,

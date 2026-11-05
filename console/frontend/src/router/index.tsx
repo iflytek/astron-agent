@@ -17,6 +17,7 @@ const PersonalModel = lazy(
 const ModelDetail = lazy(() => import('@/pages/model-management/model-detail'));
 const ResourceManagement = lazy(() => import('@/pages/resource-management'));
 const WorkFlow = lazy(() => import('@/pages/workflow'));
+const WorkflowList = lazy(() => import('@/pages/workflow/list'));
 const WorkFlowAnalysis = lazy(
   () => import('@/pages/workflow/workflow-analysis')
 );
@@ -47,6 +48,14 @@ const routes = [
       </Suspense>
     ),
     children: [
+      {
+        path: '/space/workflows',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <WorkflowList />
+          </Suspense>
+        ),
+      },
       {
         index: true,
         element: <Navigate to="/resource/knowledge" replace />,

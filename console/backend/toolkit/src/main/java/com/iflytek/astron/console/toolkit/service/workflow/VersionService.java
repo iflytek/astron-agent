@@ -38,8 +38,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Version service for managing workflow versions. Handles workflow version creation, listing,
- * restoration, and lifecycle management. Provides version comparison and publishing capabilities.
+ * Remaining channel publishing metadata for migration scope 05.
+ * Workflow snapshot creation, restore and execution now belong to Python workflows.
  *
  * @author VersionService Team
  * @since 1.0.0
@@ -52,8 +52,6 @@ public class VersionService {
     private static final long VERSION_ACTIVE = 1L;
     private static final long VERSION_DELETED = 2L;
 
-    @Autowired
-    WorkflowService workflowService;
 
     @Autowired
     DataPermissionCheckTool dataPermissionCheckTool;
@@ -73,78 +71,10 @@ public class VersionService {
     @Autowired
     private WorkflowConfigMapper workflowConfigMapper;
 
-
     @Value("${spring.profiles.active}")
     String env;
 
     private static final Random random = new Random();
-
-    public Object listPage(Page<WorkflowVersion> page, String flowId) {
-        Page<WorkflowVersion> newPage = new Page<>(page.getCurrent(), page.getSize());
-        Workflow workflow = requireWorkflow(flowId);
-        dataPermissionCheckTool.checkWorkflowVisible(workflow, SpaceInfoUtil.getSpaceId());
-        Page<WorkflowVersion> result = workflowVersionMapper.selectPageByCondition(newPage, flowId);
-        setAgentConfig(null, flowId, result);
-        return result;
-    }
-
-    private void setAgentConfig(String botId, String flowIdStr, Page<WorkflowVersion> workflowVersionPage) {
-        // get WorkflowConfig
-        Map<String, String> cfgByVersion = Collections.emptyMap();
-        try {
-            List<WorkflowConfig> workflowConfigs = new ArrayList<>();
-            if (StringUtils.isNotBlank(botId)) {
-                Integer botIdInt = Integer.parseInt(botId);
-                workflowConfigs = workflowConfigMapper.selectList(
-                        Wrappers.<WorkflowConfig>lambdaQuery()
-                                .eq(WorkflowConfig::getBotId, botIdInt)
-                                .eq(WorkflowConfig::getDeleted, false));
-            }
-            if (StringUtils.isNotBlank(flowIdStr)) {
-                workflowConfigs = workflowConfigMapper.selectList(
-                        Wrappers.<WorkflowConfig>lambdaQuery()
-                                .eq(WorkflowConfig::getFlowId, flowIdStr)
-                                .eq(WorkflowConfig::getDeleted, false));
-            }
-
-            if (CollUtil.isNotEmpty(workflowConfigs)) {
-                cfgByVersion = workflowConfigs.stream()
-                        .filter(cfg -> cfg.getVersionNum() != null)
-                        .collect(Collectors.toMap(
-                                WorkflowConfig::getVersionNum,
-                                WorkflowConfig::getConfig,
-                                (exist, replace) -> exist));
-            }
-        } catch (NumberFormatException ignore) {
-            // When botId is not a number, the voice intelligent agent configuration query is skipped;
-            log.warn("pase error e= ", ignore);
-        }
-
-        String flowId = null;
-        if (StringUtils.isNotBlank(flowIdStr)) {
-            flowId = flowIdStr;
-        } else {
-            if (CollUtil.isNotEmpty(workflowVersionPage.getRecords())) {
-                flowId = workflowVersionPage.getRecords().get(0).getFlowId();
-            }
-        }
-
-        String advancedConfig = null;
-        if (StrUtil.isNotBlank(flowId)) {
-            Workflow flow = workflowMapper.selectOne(
-                    Wrappers.<Workflow>lambdaQuery().eq(Workflow::getFlowId, flowId));
-            if (flow != null) {
-                advancedConfig = flow.getAdvancedConfig();
-            }
-        }
-
-        for (WorkflowVersion record : workflowVersionPage.getRecords()) {
-            record.setFlowConfig(cfgByVersion.get(record.getVersionNum()));
-            if (record.getAdvancedConfig() == null) {
-                record.setAdvancedConfig(advancedConfig);
-            }
-        }
-    }
 
     /**
      * Create workflow version with input parameters createDto: New parameters: String flowId flowId
@@ -154,48 +84,6 @@ public class VersionService {
      * description
      */
     // Exception database operation rollback
-    @Transactional
-    public ApiResult<JSONObject> create(WorkflowVersion createDto) {
-        return createForSpace(createDto, SpaceInfoUtil.getSpaceId());
-    }
-
-    @Transactional
-    public ApiResult<JSONObject> createForSpace(WorkflowVersion createDto, Long spaceId) {
-        log.info(
-                "Starting to add workflow version, flowId={}, botId={}, publishChannel={}",
-                createDto.getFlowId(),
-                createDto.getBotId(),
-                createDto.getPublishChannel());
-        String executionUid = UserInfoManagerHandler.getUserId();
-        Workflow workflow = requireWorkflow(createDto.getFlowId());
-        assertWorkflowExecutionScope(workflow, executionUid, spaceId);
-        return createVersion(createDto, workflow, executionUid, spaceId);
-    }
-
-    /**
-     * Create a workflow version for a bot-bound publish flow after the caller has already verified bot
-     * publish permission and resolved the flowId from the bot binding.
-     */
-    @Transactional
-    public ApiResult<JSONObject> createForBoundBotPublish(WorkflowVersion createDto) {
-        return createForBoundBotPublish(
-                createDto,
-                UserInfoManagerHandler.getUserId(),
-                SpaceInfoUtil.getSpaceId());
-    }
-
-    @Transactional
-    public ApiResult<JSONObject> createForBoundBotPublish(
-            WorkflowVersion createDto, String executionUid, Long executionSpaceId) {
-        log.info(
-                "Starting to add workflow version for bound bot publish, flowId={}, botId={}, publishChannel={}",
-                createDto.getFlowId(),
-                createDto.getBotId(),
-                createDto.getPublishChannel());
-        Workflow workflow = requireWorkflow(createDto.getFlowId());
-        assertWorkflowExecutionScope(workflow, executionUid, executionSpaceId);
-        return createVersion(createDto, workflow, executionUid, executionSpaceId);
-    }
 
     private void assertWorkflowExecutionScope(
             Workflow workflow, String executionUid, Long executionSpaceId) {
@@ -214,76 +102,6 @@ public class VersionService {
                 || spaceUserService.getRole(executionSpaceId, executionUid) == null) {
             throw new BusinessException(ResponseEnum.INSUFFICIENT_PERMISSIONS);
         }
-    }
-
-    private ApiResult<JSONObject> createVersion(
-            WorkflowVersion createDto, Workflow workflow, String executionUid, Long executionSpaceId) {
-        try {
-            // Create workflow version
-            WorkflowVersion workflowVersion = new WorkflowVersion();
-
-            // Set version number
-            String versionNum = generateVersionNumber();
-
-            // Get core test protocol
-            WorkflowReq workflowReq = new WorkflowReq();
-            workflowReq.setId(workflow.getId());
-            workflowReq.setName(workflow.getName());
-            workflowReq.setDescription(workflow.getDescription());
-            workflowReq.setData(JSONObject.parseObject(workflow.getData(), BizWorkflowData.class));
-            FlowProtocol flowProtocol = workflowService.buildWorkflowData(
-                    workflowReq, createDto.getFlowId(), executionUid, executionSpaceId);
-
-            // Only mutate version state after the authoritative workflow build validation succeeds.
-            updateIsVersionForFlowId(createDto.getFlowId());
-
-            // Data setting
-            workflowVersion.setBotId(createDto.getBotId());
-            workflowVersion.setVersionNum(versionNum);
-            workflowVersion.setName(createDto.getName());
-            workflowVersion.setData(workflow.getData());
-            workflowVersion.setSysData(JSONObject.toJSONString(flowProtocol));
-            workflowVersion.setPublishChannel(createDto.getPublishChannel());
-            workflowVersion.setPublishResult(WorkflowConst.PublishResult.normalize(createDto.getPublishResult()));
-            workflowVersion.setFlowId(createDto.getFlowId());
-            workflowVersion.setDeleted(VERSION_ACTIVE);
-            workflowVersion.setDescription(createDto.getDescription());
-            // Set advanced configuration information
-            workflowVersion.setAdvancedConfig(workflow.getAdvancedConfig());
-            // Determine whether it is a voice intelligent agent
-            if (Objects.equals(workflow.getType(), BotTypeEnum.TALK.getType())) {
-                WorkflowConfig workflowConfig = workflowConfigMapper.selectOne(new LambdaQueryWrapper<WorkflowConfig>()
-                        .eq(WorkflowConfig::getFlowId, workflow.getFlowId())
-                        .eq(WorkflowConfig::getVersionNum, "-1")
-                        .eq(WorkflowConfig::getDeleted, false));
-                WorkflowConfig latestConfig = workflowConfigMapper.selectOne(new LambdaQueryWrapper<WorkflowConfig>()
-                        .eq(WorkflowConfig::getFlowId, workflow.getFlowId())
-                        .eq(WorkflowConfig::getName, createDto.getName())
-                        .eq(WorkflowConfig::getDeleted, false)
-                        .orderByDesc(WorkflowConfig::getUpdatedTime)
-                        .last("limit 1"));
-                if (latestConfig != null) {
-                    latestConfig.setConfig(workflowConfig.getConfig());
-                    workflowConfigMapper.updateById(workflowConfig);
-                } else {
-                    workflowConfig.setVersionNum(versionNum);
-                    workflowConfig.setId(null);
-                    workflowConfig.setName(createDto.getName());
-                    workflowConfigMapper.insert(workflowConfig);
-                }
-
-            }
-            workflowVersionMapper.insert(workflowVersion);
-
-            return ApiResult.success(new JSONObject()
-                    .fluentPut("workflowVersionId", workflowVersion.getId())
-                    .fluentPut("workflowVersionName", createDto.getName()));
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_ADD_FAILED);
-        }
-        //
     }
 
     private Workflow requireWorkflow(String flowId) {
@@ -429,28 +247,6 @@ public class VersionService {
     }
 
     /**
-     * Check if version has system data.
-     *
-     * @param createDto Version check parameters
-     * @return API result with availability flag
-     */
-    public ApiResult<JSONObject> haveVersionSysData(WorkflowVersion createDto) {
-        Workflow workflow = requireWorkflow(createDto.getFlowId());
-        dataPermissionCheckTool.checkWorkflowVisible(workflow, SpaceInfoUtil.getSpaceId());
-        List<WorkflowVersion> workflowVersions = workflowVersionMapper.selectList(Wrappers.lambdaQuery(WorkflowVersion.class)
-                .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
-                .eq(WorkflowVersion::getName, createDto.getName()));
-        if (workflowVersions.isEmpty()) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
-        }
-        boolean haveSysData = workflowVersions.stream()
-                .noneMatch(wv -> WorkflowConst.PublishResult.isSuccess(wv.getPublishResult()));
-        return ApiResult.success(new JSONObject()
-                .fluentPut("haveSysData", haveSysData));
-    }
-
-    /**
      * Increment version number based on type.
      *
      * @param maxVersion Current maximum version
@@ -492,130 +288,6 @@ public class VersionService {
             versionNumber = versionNumber.substring(0, 19);
         }
         return versionNumber;
-    }
-
-    /**
-     * Restore a specific version as the current version. Updates workflow with the selected version's
-     * data and marks it as active.
-     *
-     * @param createDto Restore version parameters
-     * @return API result of restoration operation
-     */
-    @Transactional
-    public ApiResult<JSONObject> restore(WorkflowVersion createDto) {
-        log.info(
-                "Starting to restore workflow version, flowId={}, versionId={}",
-                createDto.getFlowId(),
-                createDto.getId());
-        Workflow workflow = requireWorkflow(createDto.getFlowId());
-        assertWorkflowExecutionScope(
-                workflow,
-                UserInfoManagerHandler.getUserId(),
-                SpaceInfoUtil.getSpaceId());
-
-        // Restore version functionality: 1: First update the version protocol to the workflow protocol 2:
-        // Set all other versions' isVersion to 2 for flowId, then set the current passed version id to 1.
-        try {
-            // Get version protocol data
-            WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(
-                    Wrappers.lambdaQuery(WorkflowVersion.class)
-                            .eq(WorkflowVersion::getId, createDto.getId())
-                            .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                            .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
-                            .last("limit 1"));
-            if (workflowVersion == null) {
-                throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
-            }
-            String data = workflowVersion.getData();
-            // Update workflow table protocol data
-            updateFlowIdWorkflow(createDto.getFlowId(), data);
-
-            LambdaUpdateWrapper<WorkflowVersion> updateWrapper1 = new LambdaUpdateWrapper<>();
-            // Update flowId corresponding records, set isVersion to 2
-            updateWrapper1.eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                    .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
-                    .set(WorkflowVersion::getIsVersion, 2);
-            // Execute update
-            if (workflowVersionMapper.update(null, updateWrapper1) < 1) {
-                throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_REDUCTION_FAILED);
-            }
-
-
-            LambdaUpdateWrapper<WorkflowVersion> updateWrapper2 = new LambdaUpdateWrapper<>();
-            // Update id corresponding records, set isVersion to 1
-            updateWrapper2
-                    .eq(WorkflowVersion::getId, createDto.getId())
-                    .eq(WorkflowVersion::getFlowId, createDto.getFlowId())
-                    .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
-                    .set(WorkflowVersion::getIsVersion, 1);
-            // Execute update
-            if (workflowVersionMapper.update(null, updateWrapper2) != 1) {
-                throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_REDUCTION_FAILED);
-            }
-
-            return ApiResult.success(new JSONObject());
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_REDUCTION_FAILED);
-        }
-    }
-
-    /**
-     * Update workflow data for a specific flowId.
-     *
-     * @param flowId Flow ID to update
-     * @param data New workflow data
-     */
-    private void updateFlowIdWorkflow(String flowId, String data) {
-        // Build update conditions
-        LambdaUpdateWrapper<Workflow> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(Workflow::getFlowId, flowId)
-                .eq(Workflow::getDeleted, false)
-                .set(Workflow::getData, WorkflowProtocolSanitizer.sanitize(data))
-                .set(Workflow::getCanPublish, false);
-        // Execute update
-        if (workflowMapper.update(null, updateWrapper) != 1) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_REDUCTION_FAILED);
-        }
-    }
-
-    /**
-     * Logical delete of a workflow version. Marks version as deleted rather than physical deletion.
-     *
-     * @param id Version ID to delete
-     * @return Delete operation result
-     */
-    public Object logicDelete(Long id) {
-        // Security validation
-        WorkflowVersion workflowVersion = workflowVersionMapper.selectOne(
-                Wrappers.lambdaQuery(WorkflowVersion.class)
-                        .eq(WorkflowVersion::getId, id)
-                        .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
-                        .last("limit 1"));
-        if (workflowVersion == null) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
-        }
-        String flowId = workflowVersion.getFlowId();
-        Workflow workflow = requireWorkflow(flowId);
-        assertWorkflowExecutionScope(
-                workflow,
-                UserInfoManagerHandler.getUserId(),
-                SpaceInfoUtil.getSpaceId());
-
-        LambdaUpdateWrapper<WorkflowVersion> updateWrapper = new LambdaUpdateWrapper<>();
-        // Update id corresponding records, set getDeleted to 2 for deletion
-        updateWrapper
-                .eq(WorkflowVersion::getId, id)
-                .eq(WorkflowVersion::getFlowId, flowId)
-                .eq(WorkflowVersion::getDeleted, VERSION_ACTIVE)
-                .set(WorkflowVersion::getDeleted, VERSION_DELETED);
-        // Execute update
-        if (workflowVersionMapper.update(null, updateWrapper) != 1) {
-            throw new BusinessException(ResponseEnum.WORKFLOW_VERSION_NOT_FOUND);
-        }
-
-        return ApiResult.success(new JSONObject());
     }
 
     /**

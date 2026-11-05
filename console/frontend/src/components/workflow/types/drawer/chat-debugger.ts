@@ -75,6 +75,9 @@ export interface ChatInfoType {
 export interface ChatListItem {
   id: string;
   type: 'ask' | 'answer' | 'divider';
+  runId?: string;
+  status?: string;
+  resolvedAgents?: Record<string, { agentId: number; versionId: number }>;
   inputs?: StartNodeType[];
   messageContent?: string;
   reasoningContent?: string;
@@ -170,6 +173,7 @@ export interface WorkflowChatParams {
 
 // 恢复聊天参数类型定义
 export interface ResumeChatParams {
+  runId?: string;
   flow_id?: string;
   eventId: string;
   eventType: 'resume' | 'ignore' | 'abort';
@@ -371,6 +375,7 @@ export interface CodeRunParams {
   uid?: string;
   flow_id?: string;
   node_id?: string;
+  version?: string;
 }
 
 export interface CodeRunResponse {
