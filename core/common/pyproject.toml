@@ -12,6 +12,8 @@ dependencies = [
     "fastapi>=0.115.0",
     "websockets==12.0",
     "pydantic>=2.9.2",
+    "jsonschema>=4.23.0,<5",
+    "snowflake-id>=1.0.2,<2",
     "opentelemetry-api>=1.25.0,<2",
     "opentelemetry-exporter-otlp-proto-grpc>=1.25.0,<2",
     "opentelemetry-proto>=1.25.0,<2",
