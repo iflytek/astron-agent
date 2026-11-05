@@ -48,6 +48,8 @@ import { getFixedUrl } from '@/components/workflow/utils';
 import {
   createWorkflowSseLifecycle,
   isTerminalWorkflowSseErrorFrame,
+  readWorkflowFrameStatus,
+  stopWorkflowSse,
   type WorkflowSseLifecycle,
 } from './workflow-sse';
 import { fetchSseWithContext } from '@/utils/sse-request';
@@ -70,6 +72,7 @@ interface RunDebuggerOptions {
   set: ChatSetter;
   enters?: StartNodeType[];
   regen?: boolean;
+  retryId?: string;
 }
 
 const initInterruptChat: InterruptChatType = {
@@ -134,11 +137,14 @@ export const handleChatTypeChange = (type: string, set: ChatSetter) => {
   });
 };
 
+let historyGeneration = 0;
+
 const getDialogues = (
   id: string,
   set: ChatSetter,
   shouldAddDivider = false
 ): void => {
+  const generation = ++historyGeneration;
   const manager = useFlowsManager.getState();
   const version = manager.historyVersion
     ? manager.historyVersionData?.versionNum
@@ -146,6 +152,7 @@ const getDialogues = (
   set({ chatList: [] });
   getDialogueAPI(id, 1, version)
     .then(data => {
+      if (generation !== historyGeneration) return;
       if (String(useFlowsManager.getState().currentFlow?.id) !== String(id))
         return;
       const current = useFlowsManager.getState();
@@ -371,10 +378,9 @@ const handleFlowStop = (data: WebSocketMessageData, get: ChatGetter): void => {
   handleMessageEnd(data, get);
 };
 const extractNodeInfo = (data: WebSocketMessageData) => {
-  const flowResult = data.choices?.[0]?.['finish_reason'];
+  const { flowResult, nodeStatus } = readWorkflowFrameStatus(data);
   const node = data?.['workflow_step']?.node;
   const nodeId = node?.id;
-  const nodeStatus = node?.['finish_reason'];
   const content = data.choices?.[0]?.delta?.content;
   const responseResult: ResponseResult = {
     timeCost: node?.['executed_time'],
@@ -490,7 +496,12 @@ const handleFinishedNode = (
     currentNode.data.status = 'failed';
     currentNode.data.debuggerResult.failedReason = responseResult?.failedReason;
   }
-  if (nodeId?.startsWith('node-end') && responseResult?.answerMode === 0) {
+  if (
+    nodeId?.startsWith('node-end') &&
+    responseResult?.answerMode === 0 &&
+    !responseResult.nodeAnswerContent &&
+    !beforeContent
+  ) {
     pushContentToAnswer(
       'endNodeTextQueue',
       JSON.stringify(responseResult?.outputs),
@@ -589,10 +600,7 @@ const handleMessage = (
           : item
       )
     );
-    if (get().stopRequested && runId)
-      void stopWorkflowRun(runId).catch(() =>
-        message.error('停止请求失败，请重试')
-      );
+    if (get().stopRequested && runId) handleStopConversation(get);
     return;
   }
   if (e.event === 'run-end') {
@@ -723,6 +731,7 @@ const handleResumeChat = (
   get: ChatGetter,
   set: ChatSetter
 ): void => {
+  historyGeneration += 1;
   const currentFlow = useFlowsManager.getState().currentFlow;
   const nodes = useFlowStore.getState().nodes;
   const edges = useFlowStore.getState().edges;
@@ -803,7 +812,7 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
   const { nodes, edges, get, set, enters, regen = false } = obj;
   const currentFlow = useFlowsManager.getState().currentFlow;
   const historyVersion = useFlowsManager.getState().historyVersion;
-  const retryId = regen ? get().runId : '';
+  const retryId = regen ? obj.retryId : '';
   if (regen && !retryId) {
     get().setDebuggering(false);
     message.error('此历史没有可重试的运行标识，请发起新运行');
@@ -818,7 +827,6 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
     controllerRef: controller,
     runId: '',
     runStatus: 'running',
-    stopRequested: false,
   });
   const inputs: Record<string, unknown> = {};
   const enterlist = enters ?? get().startNodeParams;
@@ -896,6 +904,14 @@ const handleRunDebugger = ({
   inputs,
   regen = false,
 }: RunDebuggerOptions & { inputs?: StartNodeType[] }): void => {
+  historyGeneration += 1;
+  const retryId = regen ? get().runId : '';
+  set({
+    runId: '',
+    runStatus: 'preparing',
+    stopRequested: false,
+    debuggering: true,
+  });
   const currentFlow = useFlowsManager.getState().currentFlow;
   const setCanPublish = useFlowsManager.getState().setCanPublish;
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
@@ -928,6 +944,10 @@ const handleRunDebugger = ({
     regen || historyVersion ? Promise.resolve() : buildFlowAPI(params);
   ready
     .then(() => {
+      if (get().stopRequested) {
+        finishStopConversation(get, 'cancelled');
+        return;
+      }
       setCanPublish(true);
       setShowNodeList(false);
       set({
@@ -951,6 +971,7 @@ const handleRunDebugger = ({
         set,
         enters: inputs,
         regen,
+        retryId,
       });
     })
     .catch(() => {
@@ -961,7 +982,14 @@ const handleRunDebugger = ({
     });
 };
 const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
-  const setFlowResult = useFlowsManager.getState().setFlowResult;
+  if (
+    get().debuggering ||
+    get().interruptChat.interrupt ||
+    get().runStatus === 'stopping'
+  ) {
+    handleStopConversation(get);
+    return;
+  }
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
   get().preRunningNodeIds = [];
@@ -970,14 +998,6 @@ const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
     get().setUserInput('');
   }
   setOpen(false);
-  if (get().debuggering) {
-    handleStopConversation(get);
-    setFlowResult({
-      status: '',
-      timeCost: '',
-      totalTokens: '',
-    });
-  }
   setShowNodeList(true);
   setCanvasesDisabled(false);
 };
@@ -1115,23 +1135,16 @@ const resetNodesAndEdges = (
   };
 };
 
-const handleStopConversation = (get: ChatGetter): void => {
+const finishStopConversation = (get: ChatGetter, status: string): void => {
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
   get().chatIdRef = uuid().replace(/-/g, '');
-  get().stopRequested = true;
-  const runId = get().runId;
-  if (runId)
-    void stopWorkflowRun(runId).catch(() =>
-      message.error('停止请求失败，请重试')
-    );
-  get().controllerRef?.abort();
   get().setDebuggering(false);
   get().wsMessageStatus = 'end';
-  get().runStatus = 'stopping';
+  get().runStatus = status;
   get().setChatList(chatList => [
     ...chatList,
     {
@@ -1140,6 +1153,7 @@ const handleStopConversation = (get: ChatGetter): void => {
     },
   ]);
   get().setInterruptChat({ ...initInterruptChat });
+  get().handleSaveDialogue();
   !historyVersion && setCanvasesDisabled(false);
   setShowNodeList(true);
   setEdges(edges =>
@@ -1156,6 +1170,31 @@ const handleStopConversation = (get: ChatGetter): void => {
     status: '',
     timeCost: '',
     totalTokens: '',
+  });
+};
+
+const handleStopConversation = (get: ChatGetter): void => {
+  get().stopRequested = true;
+  const runId = get().runId;
+  // A stop before the first run frame waits for the authoritative run ID.
+  if (!runId || get().runStatus === 'stopping') return;
+  const controller = get().controllerRef;
+  const flowId = useFlowsManager.getState().currentFlow?.id;
+  const previousStatus = get().runStatus;
+  const isCurrent = (): boolean =>
+    get().controllerRef === controller &&
+    useFlowsManager.getState().currentFlow?.id === flowId;
+  get().runStatus = 'stopping';
+  void stopWorkflowSse({
+    requestStop: () => stopWorkflowRun(runId),
+    controller,
+    isCurrent,
+    onStopped: result => finishStopConversation(get, result.status),
+  }).catch(() => {
+    if (!isCurrent()) return;
+    get().stopRequested = false;
+    get().runStatus = previousStatus;
+    message.error('停止请求失败，请重试');
   });
 };
 

@@ -999,6 +999,16 @@ def _cache_content_and_reasoning_content(
         )
 
 
+def _clear_streamed_terminal_content(response: LLMGenerate, final_content: str) -> None:
+    """Keep aggregate stop content only when no node content was emitted."""
+    if (
+        response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value
+        and final_content
+    ):
+        response.choices[0].delta.content = ""
+        response.choices[0].delta.reasoning_content = ""
+
+
 async def _chat_response_stream(
     response_queue: Queue,
     flow_id: str,
@@ -1082,12 +1092,7 @@ async def _chat_response_stream(
                     )
                     return
 
-                if (
-                    response.choices[0].finish_reason == ChatStatus.FINISH_REASON.value
-                    and final_content
-                ):
-                    response.choices[0].delta.content = ""
-                    response.choices[0].delta.reasoning_content = ""
+                _clear_streamed_terminal_content(response, final_content)
 
                 final_content += response.choices[0].delta.content
                 final_reasoning_content += response.choices[0].delta.reasoning_content
@@ -1377,6 +1382,8 @@ async def chat_resume_response_stream(
                         response.model_dump(exclude_none=True)
                     )
                     return
+
+                _clear_streamed_terminal_content(response, final_content)
 
                 final_content += response.choices[0].delta.content
                 final_reasoning_content += response.choices[0].delta.reasoning_content

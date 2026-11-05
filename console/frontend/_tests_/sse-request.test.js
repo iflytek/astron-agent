@@ -5,6 +5,8 @@ import { fetchSseWithContext } from '../src/utils/sse-request.ts';
 import {
   createWorkflowSseLifecycle,
   isTerminalWorkflowSseErrorFrame,
+  readWorkflowFrameStatus,
+  stopWorkflowSse,
 } from '../src/components/workflow/store/workflow-sse.ts';
 
 const originalDocument = globalThis.document;
@@ -197,6 +199,66 @@ test('an active stream that closes early is finalized only once', () => {
   assert.equal(finalizeCount, 1);
   assert.throws(() => lifecycle.onError(new Error('late socket error')));
   assert.equal(finalizeCount, 1);
+});
+
+test('omitted core finish fields are running frames and node stops stay node-local', () => {
+  assert.deepEqual(readWorkflowFrameStatus({ choices: [{}] }), {
+    flowResult: null,
+    nodeStatus: null,
+  });
+  assert.deepEqual(
+    readWorkflowFrameStatus({
+      choices: [{ delta: { content: '' } }],
+      workflow_step: {
+        node: { id: 'question-answer::1', finish_reason: 'stop' },
+      },
+    }),
+    { flowResult: null, nodeStatus: 'stop' }
+  );
+});
+
+test('explicit stop waits for durable cancellation before disconnecting', async () => {
+  const controller = new AbortController();
+  let acknowledge;
+  let stopped;
+  const pending = stopWorkflowSse({
+    requestStop: () =>
+      new Promise(resolve => {
+        acknowledge = resolve;
+      }),
+    controller,
+    isCurrent: () => true,
+    onStopped: result => {
+      stopped = result.status;
+    },
+  });
+  assert.equal(controller.signal.aborted, false);
+  acknowledge({ status: 'cancelled' });
+  await pending;
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(stopped, 'cancelled');
+});
+
+test('failed or obsolete stop cannot disconnect the active stream', async () => {
+  const controller = new AbortController();
+  await assert.rejects(
+    stopWorkflowSse({
+      requestStop: async () => {
+        throw new Error('denied');
+      },
+      controller,
+      isCurrent: () => true,
+      onStopped: () => assert.fail('failed stop must remain retryable'),
+    })
+  );
+  assert.equal(controller.signal.aborted, false);
+  await stopWorkflowSse({
+    requestStop: async () => ({ status: 'completed' }),
+    controller,
+    isCurrent: () => false,
+    onStopped: () => assert.fail('stale stop must not change the next run'),
+  });
+  assert.equal(controller.signal.aborted, false);
 });
 
 test('a synchronous workflow business-error frame is terminal', () => {
