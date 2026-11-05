@@ -169,8 +169,8 @@ def import_workflow(request):
 
 def template_data(row, scope):
     return {
-        "id": row.pk,
-        "templateId": row.pk,
+        "id": str(row.pk),
+        "templateId": str(row.pk),
         "title": row.title,
         "subtitle": row.subtitle,
         "coverUrl": row.cover_url,

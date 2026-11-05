@@ -209,7 +209,7 @@ export function readMcpRows(value: unknown): McpRow[] {
         kind: 'mcp',
         id: String(item.id),
         name: item.name,
-        toolId: item.server_url,
+        toolId: String(item.id),
         description:
           'brief' in item && typeof item.brief === 'string' ? item.brief : '',
         icon:

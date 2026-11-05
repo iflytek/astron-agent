@@ -61,7 +61,7 @@ export async function getFlowModelList(
   nodeType: string | number
 ): Promise<WorkflowModelsResponse> {
   return http.get<WorkflowModelsResponse, WorkflowModelsResponse>(
-    `/llm/auth-list?appId=${appId}&nodeType=${nodeType}&scene=workflow`
+    `/workflow/models?appId=${appId}&nodeType=${nodeType}`
   );
 }
 
@@ -83,10 +83,11 @@ export async function stopWorkflowRun(runId: string): Promise<unknown> {
 
 export async function getDialogueAPI(
   id: string | number,
-  type: number
+  type: number,
+  version?: string
 ): Promise<WorkflowDialogue[]> {
   return http.get<WorkflowDialogue[], WorkflowDialogue[]>(
-    `/workflow/dialog/list?workflowId=${id}&type=${type}`
+    '/workflow/dialog/list', { params: { workflowId: id, type, version } }
   );
 }
 

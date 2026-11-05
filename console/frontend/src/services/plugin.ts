@@ -4,7 +4,7 @@ export type { ToolImportData } from '@/types/tool-import';
 import type { McpServerTool } from '@/types/workflow-api';
 import http from '@/utils/http';
 import { PageData, ToolItem } from '@/types/resource';
-import { DebugToolParams, MCPToolDetail } from '@/types/plugin-store';
+import { DebugToolParams, DebugInput, MCPToolDetail } from '@/types/plugin-store';
 import { message } from 'antd';
 
 export async function createTool(params: ToolItem): Promise<unknown> {
@@ -44,7 +44,7 @@ export async function updateTool(params: ToolItem): Promise<unknown> {
 }
 
 export async function deleteTool(id: string | number): Promise<unknown> {
-  return await http.delete(`/tool/delete-tool?id=${id}`);
+  return await http.delete(`/resources/tools/${id}`);
 }
 
 export async function getToolDetail(params: {
@@ -59,7 +59,20 @@ export async function debugTool(params: DebugToolParams): Promise<{
   data: Record<string, string | number | boolean>;
   message: string;
 }> {
-  return await http.post(`/tool/debug-tool`, params, {
+  const definition = JSON.parse(params.webSchema) as { toolRequestInput?: DebugInput[] };
+  const value = (item: DebugInput): unknown => {
+    if (item.type === 'object' && item.children?.length)
+      return Object.fromEntries(item.children.map(child => [child.name, value(child)]));
+    if ((item.type === 'object' || item.type === 'array') && typeof item.default === 'string')
+      return JSON.parse(item.default || (item.type === 'array' ? '[]' : '{}'));
+    return item.default;
+  };
+  const payload: Record<string, Record<string, unknown>> = { path: {}, query: {}, header: {}, body: {} };
+  for (const item of definition.toolRequestInput || []) {
+    const location = ['path', 'query', 'header'].includes(item.location) ? item.location : 'body';
+    payload[location]![item.name] = value(item);
+  }
+  return await http.post(`/resources/tools/${params.id}/debug`, payload, {
     timeout: 300000,
   });
 }
@@ -70,7 +83,9 @@ export async function listTools(params: {
   pageNo: number;
   pageSize: number;
 }): Promise<PageData<ToolItem>> {
-  return await http.get(`/tool/list-tools`, { params, responseType: 'json' });
+  return await http.get(`/workflow/tools`, {
+    params: { ...params, name: params.content }, responseType: 'json',
+  });
 }
 
 export async function getToolDefaultIcon(): Promise<unknown> {
@@ -82,7 +97,7 @@ export async function listToolSquare(params: {
   pageSize: number;
   orderFlag: number;
 }): Promise<PageData<ToolItem>> {
-  return await http.post('/tool/list-tool-square', params);
+  return await http.get('/workflow/tools', { params: { ...params, market: true } });
 }
 
 export async function getMcpServerList(): Promise<McpServerTool[]> {
@@ -112,7 +127,7 @@ export async function debugServerToolAPI(params: {
 //获取插件版本列表
 export async function getToolVersionList(toolId: string): Promise<ToolItem[]> {
   return await http.get<ToolItem[], ToolItem[]>(
-    `/tool/get-tool-version?toolId=${toolId}`
+    `/workflow/tools/versions?toolId=${toolId}`
   );
 }
 
@@ -121,7 +136,7 @@ export async function getToolLatestVersion(
   toolIds: string[]
 ): Promise<Record<string, string>> {
   return await http.get<Record<string, string>, Record<string, string>>(
-    '/tool/get-tool-latestVersion',
+    '/workflow/tools/versions',
     { params: { toolIds: toolIds.join(',') } }
   );
 }

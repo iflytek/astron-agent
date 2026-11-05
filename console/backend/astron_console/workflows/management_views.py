@@ -7,6 +7,7 @@ import secrets
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
 
@@ -137,11 +138,32 @@ def listing(request):
     query = scope_queryset(Workflow.objects.filter(deleted=False), scope)
     payload = request.GET.dict()
     payload["page"] = payload.get("current", payload.get("page", 1))
+    # The canvas resource picker requests up to 999 entries; keep the shared
+    # resource API's pagination limit unchanged.
+    size = number(payload.get("pageSize"), 20, 1000)
+    current = number(payload["page"])
     if payload.get("search"):
         query = query.filter(name__icontains=text(payload, "search", limit=255))
     if payload.get("flowId"):
-        query = query.filter(flow_id=payload["flowId"])
-    return page(query.order_by("-top", "-update_time", "-id"), payload, workflow_data)
+        query = query.exclude(flow_id=payload["flowId"])
+    if payload.get("status") == "1":
+        query = query.filter(
+            Q(flow_id__in=WorkflowVersion.objects.filter(deleted=1, is_deleted=0).values("flow_id"))
+            | (Q(published_data__isnull=False) & ~Q(published_data=""))
+        )
+    total = query.count()
+    return {
+        "page": current,
+        "pageSize": size,
+        "totalCount": total,
+        "totalPages": (total + size - 1) // size,
+        "pageData": [
+            workflow_data(row)
+            for row in query.order_by("-top", "-update_time", "-id")[
+                (current - 1) * size : current * size
+            ]
+        ],
+    }
 
 
 @api_endpoint(["GET", "POST", "PUT", "DELETE"])
@@ -178,6 +200,7 @@ def clone(request):
     scope = scope_for(request, CREATE)
     row = get_by_id(scope, request.GET.get("id") or request.payload.get("id"))
     payload = workflow_data(row)
+    payload = {key: value for key, value in payload.items() if value is not None}
     payload["name"] = row.name[:248] + " 副本"
     payload["data"] = normalize_graph(row.data)
     payload.pop("ext", None)

@@ -1,10 +1,17 @@
 from django.urls import include, path
 
-from . import internal, text_nodes
+from . import catalog, internal, text_nodes, tool_catalog
 from . import runtime_views as views
 
 urlpatterns = [
     path("", include("astron_console.workflows.management_urls")),
+    path("workflow/models", catalog.models),
+    path("workflow/tools/versions", catalog.tool_versions),
+    path("workflow/tools", tool_catalog.listing),
+    path("workflow/get-mcp-server-list-locally", catalog.mcp_list),
+    path("workflow/get-server-tool-detail-locally", catalog.mcp_detail),
+    path("workflow/debug-server-tool", catalog.mcp_debug),
+    path("workflow/agent-node/prompt-template", catalog.prompts),
     path("workflow/chat", views.chat),
     path("workflow/node/debug/<str:node_id>", views.node_debug),
     path("workflow/code/run", views.code_run),

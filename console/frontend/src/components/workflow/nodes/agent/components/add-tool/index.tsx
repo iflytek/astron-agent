@@ -37,7 +37,6 @@ import { capitalizeFirstLetter } from '@/components/workflow/utils/reactflowUtil
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import DeletePlugin from '@/components/workflow/modal/add-plugin/delete-plugin';
 import {
-  CreateTool,
   ToolDebugger,
   ToolDetail,
 } from '@/components/modal/plugin';
@@ -467,8 +466,7 @@ const LeftNav = ({
           className="create-tool-tab-normal-child create-tool-tab-active-child"
           onClick={e => {
             e.stopPropagation();
-            setCurrentTab('');
-            setOperate('create');
+            window.open('/resource/plugin', '_blank', 'noopener,noreferrer');
             setCurrentToolInfo({
               id: '',
             });
@@ -752,7 +750,7 @@ const ListItem = ({
                         ...item,
                       });
                       setOperateId('');
-                      setOperate('edit');
+                      window.open('/resource/plugin', '_blank', 'noopener,noreferrer');
                     }}
                   >
                     {t('workflow.nodes.toolNode.edit')}
@@ -991,19 +989,7 @@ const OperationContent = ({
     <>
       {operate && (
         <>
-          {['create', 'edit']?.includes(operate) && (
-            <CreateTool
-              showHeader
-              currentToolInfo={currentToolInfo}
-              handleCreateToolDone={() => handleChangeTab('person')}
-              step={step}
-              setStep={setStep}
-              botIcon={botIcon}
-              setBotIcon={setBotIcon}
-              botColor={botColor}
-              setBotColor={setBotColor}
-            />
-          )}
+
           {operate === 'test' && (
             <ToolDebugger
               selectedCard={currentToolInfo}

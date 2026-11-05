@@ -1,4 +1,5 @@
 import React from 'react';
+import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import AddFlow from '@/components/workflow/modal/add-flow';
 import AddRpa from '@/components/workflow/modal/add-rpa';
 import AddKnowledge from '@/components/workflow/modal/add-knowledge';
@@ -13,17 +14,20 @@ import KnowledgeProParameter from '@/components/workflow/modal/knowledge-pro-par
 import PromptOptimize from '@/components/workflow/modal/prompt-optimize';
 import ClearFlowCanvas from '@/components/workflow/modal/clear-flow-canvas';
 
-function index(): React.ReactElement {
+function FlowModal(): React.ReactElement {
+  const toolOpen = useFlowsManager(state => state.toolModalInfo.open);
+  const mcpOpen = useFlowsManager(state => state.mcpModalInfo.open);
+  const promptOpen = useFlowsManager(state => state.selectAgentPromptModalInfo.open);
   return (
     <>
       <AddFlow />
       <AddRpa />
       <AddKnowledge />
-      <AddPlugin />
-      <AddMcp />
+      {toolOpen && <AddPlugin />}
+      {mcpOpen && <AddMcp />}
       <IterativeAmplificationModal />
       <KnowledgeDetail />
-      <SelectAgentPrompt />
+      {promptOpen && <SelectAgentPrompt />}
       <SetDefaultValue />
       <KnowledgeParameter />
       <KnowledgeProParameter />
@@ -33,4 +37,4 @@ function index(): React.ReactElement {
   );
 }
 
-export default index;
+export default FlowModal;

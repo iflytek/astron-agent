@@ -84,7 +84,7 @@ test('tool parameter previews accept valid rows and reject malformed envelopes',
   );
 });
 
-test('MCP server rows retain their real server identity and optional metadata', () => {
+test('MCP server rows bind resource IDs and retain optional metadata', () => {
   const rows = readMcpRows([
     {
       id: '9007199254740993',
@@ -96,7 +96,7 @@ test('MCP server rows retain their real server identity and optional metadata', 
   ]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].id, '9007199254740993');
-  assert.equal(rows[0].toolId, 'https://example.test/mcp');
+    assert.equal(rows[0].toolId, '9007199254740993');
   assert.equal(rows[0].childName, '');
 });
 

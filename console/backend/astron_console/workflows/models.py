@@ -13,6 +13,22 @@ def run_id():
     return str(uuid.uuid4())
 
 
+class PromptTemplate(models.Model):
+    uid = models.CharField(max_length=128, null=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(null=True)
+    deleted = StoredBooleanField(default=False)
+    prompt = models.TextField(null=True)
+    created_time = models.DateTimeField(null=True)
+    updated_time = models.DateTimeField(null=True)
+    node_category = models.IntegerField(null=True)
+    adaptation_model = models.TextField(null=True)
+    max_loop_count = models.IntegerField(null=True)
+
+    class Meta:
+        db_table = "prompt_template"
+
+
 class Workflow(models.Model):
     uid = models.CharField(max_length=128)
     app_id = models.CharField(max_length=255)

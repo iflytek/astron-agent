@@ -21,7 +21,15 @@ class Migration(migrations.Migration):
                 migrations.CreateModel(
                     name="TextNodeConfig",
                     fields=[
-                        ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                        (
+                            "id",
+                            models.BigAutoField(
+                                auto_created=True,
+                                primary_key=True,
+                                serialize=False,
+                                verbose_name="ID",
+                            ),
+                        ),
                         ("uid", models.CharField(max_length=128)),
                         ("separator", models.TextField()),
                         ("comment", models.CharField(default="", max_length=255)),
