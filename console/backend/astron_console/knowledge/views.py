@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
@@ -12,6 +12,7 @@ from django.http import Http404, StreamingHttpResponse
 from django.utils import timezone
 
 from astron_console.http import api_endpoint
+from astron_console.resources.models import ConfigInfo
 from astron_console.spaces.models import GroupVisibility
 from astron_console.spaces.permissions import (
     require_space_permission,
@@ -118,6 +119,19 @@ def set_visibility(request, repo, data):
 def repo_dump(repo):
     result = dump(repo)
     files = Document.objects.filter(repo_id=repo.pk)
+    icon = (
+        ConfigInfo.objects.filter(category="ICON", code="rag", remarks=repo.tag, is_valid=1)
+        .order_by("id")
+        .first()
+    )
+    try:
+        corner = urljoin(icon.name or "", icon.value or "") if icon else ""
+        parsed_corner = urlsplit(corner)
+        if parsed_corner.scheme not in {"http", "https"} or not parsed_corner.netloc:
+            corner = ""
+    except ValueError:
+        # A malformed optional badge must not make the repository unusable.
+        corner = ""
     result.update(
         fileCount=files.count(),
         charCount=files.aggregate(n=Sum("char_count"))["n"] or 0,
@@ -127,7 +141,7 @@ def repo_dump(repo):
         bots=[],
         tagDtoList=[],
         address="",
-        corner=repo.tag,
+        corner=corner,
     )
     return result
 
