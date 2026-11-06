@@ -412,6 +412,7 @@ function workflowListUI(createTalkAgent) {
       Alert: 'Alert',
       Dropdown: 'Dropdown',
       Empty: 'Empty',
+      Image: 'Image',
       Spin: 'Spin',
       Button: 'Button',
       Input: Object.assign(() => null, {

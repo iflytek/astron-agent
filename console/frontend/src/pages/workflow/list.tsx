@@ -5,6 +5,7 @@ import {
   Button,
   Dropdown,
   Empty,
+  Image,
   Input,
   Modal,
   Pagination,
@@ -204,9 +205,14 @@ export default function WorkflowList(): ReactElement {
                   className={styles.cardBody}
                   to={`/work_flow/${flow.id}/arrange`}
                 >
-                  <img
+                  <Image
+                    preview={false}
+                    width={64}
+                    height={64}
+                    wrapperStyle={{ flexShrink: 0 }}
                     className={styles.avatar}
                     src={flow.avatarIcon || workflowIcon}
+                    fallback={workflowIcon}
                     alt=""
                   />
                   <div className={styles.details}>

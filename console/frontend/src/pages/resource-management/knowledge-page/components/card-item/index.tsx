@@ -72,7 +72,16 @@ const CardItem: React.FC<CardItemProps> = ({ knowledge, onDelete }) => {
 
   return (
     <div className={styles.cardItem} onClick={navigateToDetail}>
-      <img src={knowledge?.corner} className={styles.corner} alt="" />
+      {knowledge.corner && (
+        <img
+          src={knowledge.corner}
+          className={styles.corner}
+          alt=""
+          onError={event => {
+            event.currentTarget.hidden = true;
+          }}
+        />
+      )}
       <div className={styles.content}>
         <div className={styles.header}>
           <img src={folderIcon} className={styles.folderIcon} alt="" />

@@ -24,6 +24,7 @@ from astron_console.knowledge.models import (
     PreviewChunk,
     Repo,
 )
+from astron_console.resources.models import ConfigInfo
 from astron_console.spaces.models import GroupVisibility
 from astron_console.workflows.models import Workflow, WorkflowVersion
 
@@ -75,6 +76,41 @@ class ResourceTests(TestCase):
             ),
             ("owner-uid", "core-stable", "outer", "old-dataset"),
         )
+
+    def test_repository_badge_is_a_configured_image_url_not_the_rag_tag(self):
+        def badge():
+            response = self.client.get("/repo/detail", {"id": self.repo.pk})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json()["data"]["tag"], "AIUI-RAG2")
+            return response.json()["data"]["corner"]
+
+        ConfigInfo.objects.filter(category="ICON", code="rag").delete()
+        self.assertEqual(badge(), "")
+        icon = ConfigInfo.objects.create(
+            category="ICON",
+            code="rag",
+            remarks="AIUI-RAG2",
+            is_valid=0,
+            name="https://images.example.com/assets/",
+            value="rag/stellar.png",
+        )
+        self.assertEqual(badge(), "")
+        icon.is_valid = 1
+        icon.save()
+        self.assertEqual(badge(), "https://images.example.com/assets/rag/stellar.png")
+        icon.value = "https://cdn.example.com/stellar.png"
+        icon.save()
+        self.assertEqual(badge(), "https://cdn.example.com/stellar.png")
+        icon.name = ""
+        icon.value = "AIUI-RAG2"
+        icon.save()
+        self.assertEqual(badge(), "")
+
+        for invalid in ("http://[", "https://[invalid-ipv6]/badge.png"):
+            with self.subTest(invalid=invalid):
+                icon.value = invalid
+                icon.save()
+                self.assertEqual(badge(), "")
 
     def test_personal_resource_and_malformed_scope_rejected(self):
         self.client.force_login(self.other)

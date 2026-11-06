@@ -5,6 +5,7 @@ import {
   Checkbox,
   Dropdown,
   Empty,
+  Image,
   Input,
   Modal,
   Pagination,
@@ -162,9 +163,14 @@ export default function AgentList() {
                   className={styles.cardBody}
                   to={`/space/config/${agent.id}/base`}
                 >
-                  <img
+                  <Image
+                    preview={false}
+                    width={64}
+                    height={64}
+                    wrapperStyle={{ flexShrink: 0 }}
                     className={styles.avatar}
                     src={agent.avatar || botIcon}
+                    fallback={botIcon}
                     alt=""
                   />
                   <div className={styles.details}>
