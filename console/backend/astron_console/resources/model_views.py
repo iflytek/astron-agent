@@ -28,7 +28,6 @@ from .models import (
     ModelCategory,
     ModelCategoryRelation,
     OfficialModel,
-    WorkflowScope,
 )
 
 logger = logging.getLogger(__name__)
@@ -280,25 +279,52 @@ def _java_llm_id(pk):
 
 
 def ensure_unreferenced(row):
+    from astron_console.agents.models import Agent, AgentVersion
+    from astron_console.workflows.models import Workflow, WorkflowVersion
+
     tables = connection.introspection.table_names()
+    if "chat_bot_base" in tables:
+        agents = Agent.objects.filter(is_delete=0, version=1)
+        if agents.filter(model_id=row.pk).exists():
+            raise ValidationError("模型仍被 Agent 引用，无法删除")
+        if (
+            "console_agent_version" in tables
+            and AgentVersion.objects.filter(
+                agent_id__in=agents.values("pk"), definition__modelId__in=[row.pk, str(row.pk)]
+            ).exists()
+        ):
+            raise ValidationError("模型仍被 Agent 版本引用，无法删除")
     if "workflow" in tables:
-        refs = {row.id, _java_llm_id(row.id), (row.id + 123456) ^ 654321}
-        for item in WorkflowScope.objects.filter(deleted=False):
-            data = parsed(item.data)
+        refs = {str(value) for value in (row.id, _java_llm_id(row.id), (row.id + 123456) ^ 654321)}
 
-            def references(value):
-                if isinstance(value, dict):
-                    for key, v in value.items():
-                        if key in {"modelId", "llmId"} and str(v) in {str(r) for r in refs}:
-                            return True
-                        if references(v):
-                            return True
-                if isinstance(value, list):
-                    return any(references(v) for v in value)
-                return False
+        def references(value):
+            if isinstance(value, dict):
+                return any(
+                    (key in {"modelId", "llmId"} and str(item) in refs) or references(item)
+                    for key, item in value.items()
+                )
+            if isinstance(value, list):
+                return any(references(item) for item in value)
+            return False
 
-            if references(data):
+        for item in (
+            Workflow.objects.filter(deleted=False)
+            .only("flow_id", "data", "published_data")
+            .iterator()
+        ):
+            if references(parsed(item.data)) or references(parsed(item.published_data)):
                 raise ValidationError("模型仍被工作流引用，无法删除")
+            # Versions remain executable after the editable draft changes. Match each
+            # retained flow ID as a value, avoiding cross-table collation assumptions.
+            if "workflow_version" in tables and item.flow_id:
+                versions = (
+                    WorkflowVersion.objects.filter(flow_id=item.flow_id, is_deleted=0)
+                    .exclude(deleted=2)
+                    .values_list("data", flat=True)
+                    .iterator()
+                )
+                if any(references(parsed(data)) for data in versions):
+                    raise ValidationError("模型仍被工作流版本引用，无法删除")
     if "bot_model_bind" in tables:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1 FROM bot_model_bind WHERE domain = %s LIMIT 1", [row.domain])

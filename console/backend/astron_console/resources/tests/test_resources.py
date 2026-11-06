@@ -5,6 +5,7 @@ from django.db import connection
 from django.test import Client, TransactionTestCase, override_settings
 
 from astron_console.accounts.models import User, UserProfile
+from astron_console.agents.models import Agent, AgentVersion
 from astron_console.resources.common import UpstreamError
 from astron_console.resources.models import (
     ConfigInfo,
@@ -16,6 +17,7 @@ from astron_console.resources.models import (
     WorkflowScope,
 )
 from astron_console.spaces.models import Space, SpaceMember, SpacePermission
+from astron_console.workflows.models import Workflow, WorkflowVersion
 
 SCHEMA = {
     "openapi": "3.0.3",
@@ -246,6 +248,45 @@ class ResourceTests(TransactionTestCase):
         self.model.refresh_from_db()
         self.assertTrue(self.model.is_deleted)
 
+    def test_model_delete_preserves_agent_draft_reference(self):
+        Agent.objects.create(uid=self.user.pk, model_id=self.model.pk)
+        result = self.client.delete(f"/api/model/delete?modelId={self.model.pk}")
+        self.assertEqual(result.status_code, 400, result.content)
+        self.model.refresh_from_db()
+        self.assertFalse(self.model.is_deleted)
+
+    def test_model_delete_preserves_agent_version_after_draft_changes(self):
+        agent = Agent.objects.create(uid=self.user.pk, model_id=None)
+        AgentVersion.objects.create(
+            agent_id=agent.pk,
+            definition={"modelId": self.model.pk},
+            created_by=self.user.pk,
+        )
+        result = self.client.delete(f"/api/model/delete?modelId={self.model.pk}")
+        self.assertEqual(result.status_code, 400, result.content)
+        self.model.refresh_from_db()
+        self.assertFalse(self.model.is_deleted)
+        Agent.objects.filter(pk=agent.pk).update(is_delete=1)
+        result = self.client.delete(f"/api/model/delete?modelId={self.model.pk}")
+        self.assertEqual(result.status_code, 200, result.content)
+
+    def test_model_delete_preserves_workflow_version_after_draft_changes(self):
+        workflow = Workflow.objects.create(
+            uid=self.user.pk, app_id="app", flow_id="version-only-model", name="Saved", data="{}"
+        )
+        version = WorkflowVersion.objects.create(
+            flow_id=workflow.flow_id,
+            version_num="v1",
+            data=json.dumps({"nodes": [{"data": {"nodeParam": {"modelId": self.model.pk}}}]}),
+        )
+        result = self.client.delete(f"/api/model/delete?modelId={self.model.pk}")
+        self.assertEqual(result.status_code, 400, result.content)
+        self.model.refresh_from_db()
+        self.assertFalse(self.model.is_deleted)
+        WorkflowVersion.objects.filter(pk=version.pk).update(deleted=2)
+        result = self.client.delete(f"/api/model/delete?modelId={self.model.pk}")
+        self.assertEqual(result.status_code, 200, result.content)
+
     def test_internal_brokers_require_credentials(self):
         for url in [
             "/model/internal-runtime-config?flowId=flow&modelId=1",
@@ -364,6 +405,45 @@ class ResourceTests(TransactionTestCase):
             )
         self.assertEqual(result.status_code, 502)
         self.assertFalse(Tool.objects.exists())
+
+    def test_tool_delete_preserves_new_agent_references_before_remote_delete(self):
+        for source in ("draft", "version", "workflow-version"):
+            with self.subTest(source=source):
+                tool = Tool.objects.create(
+                    user_id=self.user.pk, tool_id=f"remote-{source}", version="V1", deleted=0
+                )
+                # Deleting another card of the same tool also deletes this version upstream.
+                selected = Tool.objects.create(
+                    user_id=self.user.pk, tool_id=tool.tool_id, version="V2", deleted=0
+                )
+                agent = Agent.objects.create(
+                    uid=self.user.pk, tools=json.dumps([tool.pk] if source == "draft" else [])
+                )
+                if source == "version":
+                    AgentVersion.objects.create(
+                        agent_id=agent.pk,
+                        definition={"tools": [{"toolId": tool.tool_id, "version": "V1"}]},
+                        created_by=self.user.pk,
+                    )
+                elif source == "workflow-version":
+                    workflow = Workflow.objects.create(
+                        uid=self.user.pk, app_id="app", flow_id="tool-flow", name="Saved", data="{}"
+                    )
+                    WorkflowVersion.objects.create(
+                        flow_id=workflow.flow_id,
+                        version_num="v1",
+                        data=json.dumps(
+                            {"nodes": [{"data": {"nodeParam": {"pluginId": tool.tool_id}}}]}
+                        ),
+                    )
+                with patch("astron_console.resources.clients.call") as remote:
+                    result = self.client.delete(f"/resources/tools/{selected.pk}")
+                self.assertEqual(result.status_code, 400, result.content)
+                remote.assert_not_called()
+                tool.refresh_from_db()
+                selected.refresh_from_db()
+                self.assertFalse(tool.deleted)
+                self.assertFalse(selected.deleted)
 
     def test_tool_registration_and_secret_mask(self):
         with patch(

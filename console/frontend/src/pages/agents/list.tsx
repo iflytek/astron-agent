@@ -1,5 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal } from 'antd';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Pagination,
+  Spin,
+} from 'antd';
+import {
+  EllipsisOutlined,
+  PlusOutlined,
+  StarFilled,
+  StarOutlined,
+} from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import useSpaceStore from '@/store/space-store';
 import {
@@ -9,8 +25,8 @@ import {
   listAgents,
   type AgentDefinition,
 } from '@/services/agents';
-import './style.css';
-
+import botIcon from '@/assets/imgs/main/bot-no.png';
+import styles from './catalog.module.scss';
 import { errorText } from './errors';
 
 export default function AgentList() {
@@ -69,164 +85,209 @@ export default function AgentList() {
       setBusy(false);
     }
   };
+  const create = () => {
+    if (!name.trim()) return;
+    void action(async () => {
+      const row = await createAgent({
+        botName: name.trim(),
+        botDesc: description,
+        prompt: '',
+        supportContext: true,
+        supportUpload: true,
+      });
+      navigate(`/space/config/${row.id}/base`);
+    });
+  };
   return (
-    <main className="agents-page">
-      <header className="agents-header">
-        <div>
+    <main className={styles.page}>
+      <div className={styles.content}>
+        <header className={styles.header}>
           <h1>独立 Agent</h1>
-          <p>配置指令与资源，调试并开始对话。</p>
+          <div className={styles.actions}>
+            <Button onClick={() => navigate('/store/agent')}>Agent 市场</Button>
+            <Button onClick={() => navigate('/management/release')}>
+              发布管理
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreating(true)}
+            >
+              创建 Agent
+            </Button>
+          </div>
+        </header>
+        <div className={styles.toolbar}>
+          <div className={styles.actions}>
+            <Checkbox
+              checked={favorite}
+              onChange={event => {
+                setFavorite(event.target.checked);
+                setPage(1);
+              }}
+            >
+              只看收藏
+            </Checkbox>
+            <span className={styles.count}>{total} 个 Agent</span>
+          </div>
+          <div className={styles.actions}>
+            <Input.Search
+              className={styles.search}
+              aria-label="搜索 Agent"
+              placeholder="搜索名称"
+              allowClear
+              onSearch={value => {
+                setSearch(value);
+                setPage(1);
+              }}
+            />
+            <Button onClick={() => setRevision(value => value + 1)}>
+              刷新
+            </Button>
+          </div>
         </div>
-        <button className="primary" onClick={() => setCreating(true)}>
-          创建 Agent
-        </button>
-        <Link className="button" to="/management/release">
-          发布管理
-        </Link>
-        <Link className="button" to="/store/agent">
-          Agent 市场
-        </Link>
-      </header>
-      <div className="agents-toolbar">
-        <input
-          aria-label="搜索 Agent"
-          placeholder="搜索名称"
-          value={search}
-          onChange={e => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-        />
-        <label className="inline">
-          <input
-            type="checkbox"
-            checked={favorite}
-            onChange={event => {
-              setFavorite(event.target.checked);
-              setPage(1);
-            }}
+        {error && (
+          <Alert
+            className={styles.notice}
+            type="error"
+            showIcon
+            message={error}
           />
-          只看收藏
-        </label>
-        <span>{total} 个 Agent</span>
-        <button onClick={() => setRevision(value => value + 1)}>刷新</button>
+        )}
+        <Spin spinning={loading}>
+          <div className={styles.grid}>
+            {items.map(agent => (
+              <article className={styles.card} key={agent.id}>
+                <Link
+                  className={styles.cardBody}
+                  to={`/space/config/${agent.id}/base`}
+                >
+                  <img
+                    className={styles.avatar}
+                    src={agent.avatar || botIcon}
+                    alt=""
+                  />
+                  <div className={styles.details}>
+                    <h2 title={agent.botName}>{agent.botName}</h2>
+                    <p title={agent.botDesc}>
+                      {agent.botDesc || '尚未填写描述'}
+                    </p>
+                  </div>
+                </Link>
+                <div className={styles.footer}>
+                  <span className={styles.tag}>提示词</span>
+                  <div className={styles.actions}>
+                    <Button
+                      aria-label={
+                        agent.favorite
+                          ? `取消收藏 ${agent.botName}`
+                          : `收藏 ${agent.botName}`
+                      }
+                      title={agent.favorite ? '取消收藏' : '收藏'}
+                      icon={agent.favorite ? <StarFilled /> : <StarOutlined />}
+                      disabled={busy}
+                      onClick={() =>
+                        void action(() =>
+                          favoriteAgent(agent.id, !agent.favorite)
+                        )
+                      }
+                    />
+                    <Button
+                      onClick={() => navigate(`/space/bot/${agent.id}/chat`)}
+                    >
+                      聊天
+                    </Button>
+                    <Dropdown
+                      trigger={['click']}
+                      disabled={busy}
+                      menu={{
+                        items: [
+                          {
+                            key: 'edit',
+                            label: '编辑与调试',
+                            onClick: () =>
+                              navigate(`/space/config/${agent.id}/base`),
+                          },
+                          {
+                            key: 'delete',
+                            label: '删除',
+                            danger: true,
+                            onClick: () => {
+                              setError('');
+                              setDeleteTarget(agent);
+                            },
+                          },
+                        ],
+                      }}
+                    >
+                      <Button
+                        aria-label={`${agent.botName} 更多操作`}
+                        icon={<EllipsisOutlined />}
+                      />
+                    </Dropdown>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          {!loading && !items.length && !error && (
+            <Empty
+              description={
+                favorite
+                  ? '暂无收藏的 Agent'
+                  : '暂无 Agent，创建后即可选择已有模型进行调试'
+              }
+            />
+          )}
+        </Spin>
+        <Pagination
+          className={styles.pagination}
+          current={page}
+          pageSize={20}
+          total={total}
+          showSizeChanger={false}
+          onChange={setPage}
+        />
       </div>
-      {error && (
-        <div role="alert" className="agents-error">
-          {error}
-        </div>
-      )}
-      {creating && (
+      <Modal
+        title="创建提示词 Agent"
+        open={creating}
+        okText="创建并配置"
+        cancelText="取消"
+        confirmLoading={busy}
+        okButtonProps={{ disabled: !name.trim() }}
+        onCancel={() => {
+          if (!busy) setCreating(false);
+        }}
+        onOk={create}
+      >
         <form
-          className="agents-panel"
-          onSubmit={e => {
-            e.preventDefault();
-            void action(async () => {
-              const row = await createAgent({
-                botName: name,
-                botDesc: description,
-                prompt: '',
-                supportContext: true,
-                supportUpload: true,
-              });
-              navigate(`/space/config/${row.id}/base`);
-            });
+          className={styles.form}
+          onSubmit={event => {
+            event.preventDefault();
+            create();
           }}
         >
-          <h2>创建提示词 Agent</h2>
           <label>
             名称
-            <input
+            <Input
               required
               maxLength={48}
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={event => setName(event.target.value)}
             />
           </label>
           <label>
             描述
-            <textarea
+            <Input.TextArea
               maxLength={255}
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={event => setDescription(event.target.value)}
             />
           </label>
-          <div className="agents-actions">
-            <button type="submit" className="primary" disabled={busy}>
-              创建并配置
-            </button>
-            <button type="button" onClick={() => setCreating(false)}>
-              取消
-            </button>
-          </div>
+          {error && <Alert type="error" message={error} />}
         </form>
-      )}
-      <div className="agents-grid">
-        {items.map(agent => (
-          <article className="agents-card" key={agent.id}>
-            <div className="agents-card-heading">
-              <h2>{agent.botName}</h2>
-              <button
-                aria-label={
-                  agent.favorite
-                    ? `取消收藏 ${agent.botName}`
-                    : `收藏 ${agent.botName}`
-                }
-                disabled={busy}
-                onClick={() =>
-                  void action(() => favoriteAgent(agent.id, !agent.favorite))
-                }
-              >
-                {agent.favorite ? '★ 已收藏' : '☆ 收藏'}
-              </button>
-            </div>
-            <p>{agent.botDesc || '尚未填写描述'}</p>
-            <div className="agents-actions">
-              <Link
-                className="button primary"
-                to={`/space/bot/${agent.id}/chat`}
-              >
-                聊天
-              </Link>
-              <Link className="button" to={`/space/config/${agent.id}/base`}>
-                编辑与调试
-              </Link>
-              <button
-                className="danger"
-                disabled={busy}
-                onClick={() => {
-                  setError('');
-                  setDeleteTarget(agent);
-                }}
-              >
-                删除
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {loading && <p role="status">正在读取 Agent…</p>}
-      {!loading && !items.length && !error && (
-        <p className="agents-empty">
-          {favorite
-            ? '暂无收藏的 Agent。'
-            : '暂无 Agent，创建后即可选择已有模型进行调试。'}
-        </p>
-      )}
-      <div className="agents-actions">
-        <button
-          disabled={page === 1}
-          onClick={() => setPage(value => value - 1)}
-        >
-          上一页
-        </button>
-        <span>第 {page} 页</span>
-        <button
-          disabled={page * 20 >= total}
-          onClick={() => setPage(value => value + 1)}
-        >
-          下一页
-        </button>
-      </div>
+      </Modal>
       <Modal
         title="删除 Agent"
         open={deleteTarget !== null}
@@ -250,11 +311,7 @@ export default function AgentList() {
         }}
       >
         <p>删除 Agent“{deleteTarget?.botName}”？</p>
-        {error && (
-          <p role="alert" className="agents-error">
-            {error}
-          </p>
-        )}
+        {error && <Alert type="error" message={error} />}
       </Modal>
     </main>
   );

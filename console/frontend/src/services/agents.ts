@@ -9,6 +9,7 @@ export interface AgentDefinition {
   id: number;
   botName: string;
   botDesc: string;
+  avatar?: string;
   prompt: string;
   modelId?: number | null;
   model?: string;

@@ -10,6 +10,7 @@ from sqlalchemy import insert
 from sqlalchemy import text as sql_text
 
 from astron_console.accounts.models import User, UserProfile
+from astron_console.agents.models import Agent, AgentState, AgentVersion
 from astron_console.knowledge import clients, databases, files, storage
 from astron_console.knowledge.models import (
     Artifact,
@@ -24,6 +25,7 @@ from astron_console.knowledge.models import (
     Repo,
 )
 from astron_console.spaces.models import GroupVisibility
+from astron_console.workflows.models import Workflow, WorkflowVersion
 
 
 class ResourceTests(TestCase):
@@ -92,6 +94,45 @@ class ResourceTests(TestCase):
         self.assertEqual(
             self.post("/repo/update-repo", {"id": self.repo.pk, "name": "attack"}).status_code, 403
         )
+
+    def test_repo_delete_and_use_status_preserve_python_references(self):
+        for source in ("draft", "version", "workflow-version"):
+            with self.subTest(source=source):
+                repo = Repo.objects.create(
+                    name=source,
+                    user_id=self.user.pk,
+                    core_repo_id=f"core-{source}",
+                    tag="AIUI-RAG2",
+                )
+                agent = Agent.objects.create(uid=self.user.pk)
+                if source == "draft":
+                    AgentState.objects.create(agent_id=agent.pk, config={"repoIds": [repo.pk]})
+                elif source == "version":
+                    AgentVersion.objects.create(
+                        agent_id=agent.pk,
+                        definition={"repoIds": [repo.pk]},
+                        created_by=self.user.pk,
+                    )
+                else:
+                    workflow = Workflow.objects.create(
+                        uid=self.user.pk, app_id="app", flow_id="repo-flow", name="Saved", data="{}"
+                    )
+                    WorkflowVersion.objects.create(
+                        flow_id=workflow.flow_id,
+                        version_num="v1",
+                        data=json.dumps(
+                            {"nodes": [{"data": {"nodeParam": {"repoIds": [repo.pk]}}}]}
+                        ),
+                    )
+                usage = self.client.get("/repo/get-repo-use-status", {"id": repo.pk})
+                self.assertEqual(usage.status_code, 200, usage.content)
+                self.assertTrue(usage.json()["data"])
+                with patch("astron_console.knowledge.views.delete_document") as remove:
+                    result = self.client.delete(f"/repo/delete-repo?id={repo.pk}")
+                self.assertEqual(result.status_code, 400, result.content)
+                remove.assert_not_called()
+                repo.refresh_from_db()
+                self.assertFalse(repo.deleted)
 
     @patch(
         "astron_console.knowledge.clients.rag",
