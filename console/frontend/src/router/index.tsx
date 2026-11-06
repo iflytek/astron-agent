@@ -60,14 +60,6 @@ const routes = [
     ),
   },
   {
-    path: '/store/agent',
-    element: (
-      <Suspense fallback={<Loading />}>
-        <AgentMarket />
-      </Suspense>
-    ),
-  },
-  {
     path: '/',
     element: (
       <Suspense fallback={<Loading />}>
@@ -75,6 +67,14 @@ const routes = [
       </Suspense>
     ),
     children: [
+      {
+        path: '/store/agent',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <AgentMarket />
+          </Suspense>
+        ),
+      },
       {
         path: '/space/workflows',
         element: (
@@ -85,13 +85,13 @@ const routes = [
       },
       {
         index: true,
-        element: <Navigate to="/resource/knowledge" replace />,
+        element: <Navigate to="/store/agent" replace />,
       },
       {
         path: '/home',
         element: (
           <Suspense fallback={<Loading />}>
-            <Navigate to="/resource/knowledge" replace />
+            <Navigate to="/store/agent" replace />
           </Suspense>
         ),
       },

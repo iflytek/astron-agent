@@ -163,6 +163,14 @@ def check_references(table, column, identifier):
             raise ValidationError("资源仍被引用，不能删除")
 
 
+def check_repo_references(repo):
+    from astron_console.resources.references import ensure_definition_unreferenced
+
+    check_references("flow_repo_rel", "repo_id", repo.core_repo_id)
+    check_references("bot_repo_rel", "repo_id", repo.pk)
+    ensure_definition_unreferenced("repo", {repo.pk, repo.core_repo_id})
+
+
 def rag_params(repo, file):
     return {
         "ragType": repo.tag,
@@ -258,8 +266,7 @@ def repos(request, action):
         return [file_dump(x) for x in Document.objects.filter(repo_id=row.pk)]
     if action == "get-repo-use-status":
         try:
-            check_references("flow_repo_rel", "repo_id", row.core_repo_id)
-            check_references("bot_repo_rel", "repo_id", row.pk)
+            check_repo_references(row)
         except ValidationError:
             return True
         return False
@@ -313,8 +320,7 @@ def repos(request, action):
     elif action == "set-top":
         row.is_top = not row.is_top
     elif action == "delete-repo":
-        check_references("flow_repo_rel", "repo_id", row.core_repo_id)
-        check_references("bot_repo_rel", "repo_id", row.pk)
+        check_repo_references(row)
         for file in Document.objects.filter(repo_id=row.pk):
             delete_document(file, row)
         Directory.objects.filter(app_id=str(row.pk)).delete()

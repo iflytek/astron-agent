@@ -316,6 +316,14 @@ def item(request, pk):
         uid_field="user_id",
         deleted="deleted",
     )
+    from .references import ensure_definition_unreferenced
+
+    # The upstream DELETE removes all versions of this remote tool, so include
+    # every local version ID rather than only the selected card.
+    identifiers = {row.pk, row.tool_id}
+    if row.tool_id:
+        identifiers.update(Tool.objects.filter(tool_id=row.tool_id).values_list("pk", flat=True))
+    ensure_definition_unreferenced("tool", identifiers)
     if row.tool_id:
         tables = connection.introspection.table_names()
         for table in ("flow_tool_rel", "bot_tool_rel"):

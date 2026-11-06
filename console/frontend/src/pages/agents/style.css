@@ -34,7 +34,7 @@
 .agents-muted {
   color: #6f7182;
 }
-.agents-page button,
+.agents-page button:not([class*='ant-']),
 .agents-page .button {
   padding: 8px 14px;
   border: 1px solid #dce0ec;
@@ -47,11 +47,11 @@
   display: inline-block;
   text-decoration: none;
 }
-.agents-page button:disabled {
+.agents-page button:not([class*='ant-']):disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.agents-page button:hover:not(:disabled),
+.agents-page button:not([class*='ant-']):hover:not(:disabled),
 .agents-page .button:hover {
   border-color: #7363e8;
 }
@@ -63,9 +63,10 @@
 .agents-page .danger {
   color: #b73446;
 }
-.agents-page input:not([type='checkbox']),
-.agents-page textarea,
-.agents-page select {
+.agents-page
+  input:not([type='checkbox']):not([type='radio']):not([class*='ant-']),
+.agents-page textarea:not([class*='ant-']),
+.agents-page select:not([class*='ant-']) {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #dce0ec;
@@ -74,10 +75,10 @@
   box-sizing: border-box;
   font: inherit;
 }
-.agents-page textarea {
+.agents-page textarea:not([class*='ant-']) {
   resize: vertical;
 }
-.agents-page label {
+.agents-page label:not([class*='ant-']) {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -101,7 +102,7 @@
   justify-content: flex-start;
   margin: 18px 0;
 }
-.agents-toolbar input {
+.agents-toolbar input:not([class*='ant-']) {
   max-width: 360px;
 }
 .agents-actions {

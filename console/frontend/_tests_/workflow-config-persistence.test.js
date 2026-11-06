@@ -391,6 +391,7 @@ function workflowListUI(createTalkAgent) {
   const dependencies = {
     react: {
       useEffect: noop,
+      useRef: initial => ({ current: initial }),
       useState: initial => {
         const index = cursor++;
         if (!(index in states)) states[index] = initial;
@@ -408,8 +409,15 @@ function workflowListUI(createTalkAgent) {
       useNavigate: () => path => routes.push(path),
     },
     antd: {
+      Alert: 'Alert',
+      Dropdown: 'Dropdown',
+      Empty: 'Empty',
+      Spin: 'Spin',
       Button: 'Button',
-      Input: { Search: 'Search', TextArea: 'TextArea' },
+      Input: Object.assign(() => null, {
+        Search: 'Search',
+        TextArea: 'TextArea',
+      }),
       Modal: 'Modal',
       Pagination: 'Pagination',
       message: {},
@@ -422,7 +430,14 @@ function workflowListUI(createTalkAgent) {
     },
     '@/services/spark-common': { createTalkAgent },
     '@/components/workflow/utils': {},
-    '@/pages/agents/style.css': {},
+    '@/store/space-store': { default: () => ({}), __esModule: true },
+    '@/assets/imgs/workflow/flow-icon.png': 'workflow-icon',
+    '@/pages/agents/catalog.module.scss': {},
+    '@ant-design/icons': {
+      EllipsisOutlined: 'EllipsisOutlined',
+      PlusOutlined: 'PlusOutlined',
+      UploadOutlined: 'UploadOutlined',
+    },
   };
   const require = createRequire(import.meta.url);
   const code = ts.transpileModule(

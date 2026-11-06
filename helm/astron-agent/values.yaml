@@ -568,6 +568,8 @@ consoleHub:
     commonApikey: ""
     commonApiSecret: ""
     # Service URLs
+    # Empty uses the core-agent Service name and port from this release.
+    agentUrl: ""
     appUrl: "http://astron-agent-core-tenant:5052/v2/app"
     knowledgeUrl: "http://astron-agent-core-knowledge:20010/knowledge"
     toolUrl: "http://astron-agent-core-link:18888"

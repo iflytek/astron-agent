@@ -1,6 +1,16 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button, Input, Modal, Pagination, message } from 'antd';
+import {
+  Alert,
+  Button,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Pagination,
+  Spin,
+  message,
+} from 'antd';
 import http, { downloadFileWithHeaders } from '@/utils/http';
 import {
   listFlows,
@@ -15,7 +25,14 @@ import VirtualConfig, {
 import { createTalkAgent } from '@/services/spark-common';
 import type { FlowType } from '@/components/workflow/types';
 import { getFixedUrl } from '@/components/workflow/utils';
-import '@/pages/agents/style.css';
+import {
+  EllipsisOutlined,
+  PlusOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
+import useSpaceStore from '@/store/space-store';
+import workflowIcon from '@/assets/imgs/workflow/flow-icon.png';
+import styles from '@/pages/agents/catalog.module.scss';
 
 interface Template {
   id: string;
@@ -27,6 +44,10 @@ interface Template {
 
 export default function WorkflowList(): ReactElement {
   const navigate = useNavigate();
+  const { spaceId, enterpriseId } = useSpaceStore();
+  const importInput = useRef<HTMLInputElement>(null);
+  const submitting = useRef(false);
+  const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<FlowType[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [page, setPage] = useState(1);
@@ -42,6 +63,8 @@ export default function WorkflowList(): ReactElement {
   const [deleteTarget, setDeleteTarget] = useState<FlowType | null>(null);
   useEffect(() => {
     let ignore = false;
+    setLoading(true);
+    setItems([]);
     void listFlows({ page, pageSize: 20, search })
       .then(data => {
         if (!ignore) {
@@ -52,11 +75,14 @@ export default function WorkflowList(): ReactElement {
       })
       .catch(() => {
         if (!ignore) setError('无法读取工作流，请重试。');
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
       });
     return () => {
       ignore = true;
     };
-  }, [page, search, revision]);
+  }, [spaceId, enterpriseId, page, search, revision]);
   useEffect(() => {
     let ignore = false;
     void http
@@ -70,8 +96,10 @@ export default function WorkflowList(): ReactElement {
     return () => {
       ignore = true;
     };
-  }, [revision]);
+  }, [spaceId, enterpriseId, revision]);
   const action = async (task: () => Promise<unknown>): Promise<void> => {
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     try {
       await task();
@@ -79,6 +107,7 @@ export default function WorkflowList(): ReactElement {
     } catch {
       message.error('操作失败，请检查提示后重试。');
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };
@@ -88,174 +117,254 @@ export default function WorkflowList(): ReactElement {
     navigate(`/work_flow/${flow.maasId}/arrange?botId=${flow.botId}`);
   };
   return (
-    <main className="agents-page">
-      <header className="agents-header">
-        <div>
+    <main className={styles.page}>
+      <div className={styles.content}>
+        <header className={styles.header}>
           <h1>工作流</h1>
-          <p>管理画布、版本与运行，复用已发布的独立 Agent。</p>
+          <div className={styles.actions}>
+            <Button onClick={() => navigate('/management/release')}>
+              发布管理
+            </Button>
+            <Button onClick={() => setCreatingVirtual(true)}>
+              新建语音 / 虚拟人
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreating(true)}
+            >
+              新建工作流
+            </Button>
+          </div>
+        </header>
+        <div className={styles.toolbar}>
+          <span className={styles.count}>{total} 个工作流</span>
+          <div className={styles.actions}>
+            <Input.Search
+              className={styles.search}
+              aria-label="搜索工作流"
+              placeholder="搜索工作流"
+              onSearch={value => {
+                setSearch(value);
+                setPage(1);
+              }}
+              allowClear
+            />
+            <Button
+              icon={<UploadOutlined />}
+              disabled={busy}
+              onClick={() => importInput.current?.click()}
+            >
+              导入工作流
+            </Button>
+            <input
+              ref={importInput}
+              type="file"
+              accept=".yaml,.yml,.json"
+              hidden
+              disabled={busy}
+              onChange={event => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (!file) return;
+                const data = new FormData();
+                data.append('file', file);
+                void action(async () => {
+                  await workflowImport(data);
+                  message.success('工作流已导入，请在画布检查资源依赖。');
+                });
+              }}
+            />
+            <Button onClick={() => navigate('/resource/automation')}>
+              定时自动化
+            </Button>
+          </div>
         </div>
-        <Link to="/management/release">发布管理</Link>
-        <div className="agents-actions">
-          <Button onClick={() => setCreatingVirtual(true)}>
-            新建语音 / 虚拟人
-          </Button>
-          <Button type="primary" onClick={() => setCreating(true)}>
-            新建工作流
-          </Button>
-        </div>
-      </header>
-      <div className="agents-toolbar">
-        <Input.Search
-          aria-label="搜索工作流"
-          placeholder="搜索工作流"
-          onSearch={value => {
-            setSearch(value);
-            setPage(1);
-          }}
-          allowClear
-        />
-        <label className="button">
-          导入工作流
-          <input
-            type="file"
-            accept=".yaml,.yml,.json"
-            className="hidden"
-            disabled={busy}
-            onChange={event => {
-              const file = event.target.files?.[0];
-              event.target.value = '';
-              if (!file) return;
-              const data = new FormData();
-              data.append('file', file);
-              void action(async () => {
-                await workflowImport(data);
-                message.success('工作流已导入，请在画布检查资源依赖。');
-              });
-            }}
+        {error && (
+          <Alert
+            className={styles.notice}
+            type="error"
+            showIcon
+            message={error}
+            action={
+              <Button
+                size="small"
+                onClick={() => setRevision(value => value + 1)}
+              >
+                重试
+              </Button>
+            }
           />
-        </label>
-        <Link className="button" to="/resource/automation">
-          定时自动化
-        </Link>
-      </div>
-      {error && (
-        <p role="alert" className="agents-error">
-          {error}
-          <Button onClick={() => setRevision(value => value + 1)}>重试</Button>
-        </p>
-      )}
-      <div className="agents-grid">
-        {items.map(flow => (
-          <article className="agents-card" key={flow.id}>
-            <h2>{flow.name}</h2>
-            <p>{flow.description || '尚未填写描述'}</p>
-            <div className="agents-actions">
-              <Link className="button" to={`/work_flow/${flow.id}/arrange`}>
-                打开画布
-              </Link>
-              <Link className="button" to={`/work_flow/${flow.id}/overview`}>
-                运行统计
-              </Link>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void action(async () => {
-                    await copyFlowAPI(flow.id || '');
-                  })
-                }
-              >
-                复制
-              </Button>
-              <Button
-                onClick={() =>
-                  void downloadFileWithHeaders(
-                    getFixedUrl(`/workflow/export/${flow.id}`),
-                    `${flow.name}.yml`
-                  )
-                }
-              >
-                导出
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void action(async () => {
-                    await http.post('/workflow/bot/exportTemplate', {
-                      workflowId: flow.id,
-                    });
-                    message.success('模板已保存');
-                  })
-                }
-              >
-                保存为模板
-              </Button>
-              <Button danger onClick={() => setDeleteTarget(flow)}>
-                删除
-              </Button>
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void action(async () => {
-                    await http.post('/publish/workflows/bind', {
-                      workflowId: flow.id,
-                    });
-                    navigate('/management/release');
-                  })
-                }
-              >
-                发布与分享
-              </Button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {!items.length && !error && (
-        <p className="agents-empty">没有工作流，可以新建或从模板创建。</p>
-      )}
-      <Pagination
-        current={page}
-        total={total}
-        pageSize={20}
-        showSizeChanger={false}
-        onChange={setPage}
-      />
-      <h2 className="mt-8 mb-4 text-xl font-semibold">工作流模板</h2>
-      <div className="agents-grid">
-        {templates.map(template => (
-          <article className="agents-card" key={template.id}>
-            <h3>{template.title}</h3>
-            <p>{template.subtitle}</p>
-            <div className="agents-actions">
-              <Button
-                disabled={busy}
-                onClick={() =>
-                  void action(async () => {
-                    const flow = await http.post<unknown, FlowType>(
-                      '/workflow/bot/createFromTemplate',
-                      { templateId: template.templateId || template.id }
-                    );
-                    navigate(`/work_flow/${flow.id}/arrange`);
-                  })
-                }
-              >
-                从模板创建
-              </Button>
-              {template.deletable && (
-                <Button
-                  danger
-                  disabled={busy}
-                  onClick={() =>
-                    void action(() =>
-                      http.delete(`/workflow/bot/template/${template.id}`)
-                    )
-                  }
+        )}
+        <Spin spinning={loading}>
+          <div className={styles.grid}>
+            {items.map(flow => (
+              <article className={styles.card} key={flow.id}>
+                <Link
+                  className={styles.cardBody}
+                  to={`/work_flow/${flow.id}/arrange`}
                 >
-                  删除模板
-                </Button>
-              )}
-            </div>
-          </article>
-        ))}
+                  <img
+                    className={styles.avatar}
+                    src={flow.avatarIcon || workflowIcon}
+                    alt=""
+                  />
+                  <div className={styles.details}>
+                    <h2 title={flow.name}>{flow.name}</h2>
+                    <p title={flow.description}>
+                      {flow.description || '尚未填写描述'}
+                    </p>
+                  </div>
+                </Link>
+                <div className={styles.footer}>
+                  <span className={styles.tag}>工作流</span>
+                  <div className={styles.actions}>
+                    <Button
+                      onClick={() => navigate(`/work_flow/${flow.id}/arrange`)}
+                    >
+                      打开画布
+                    </Button>
+                    <Button
+                      disabled={busy}
+                      onClick={() =>
+                        void action(async () => {
+                          await http.post('/publish/workflows/bind', {
+                            workflowId: flow.id,
+                          });
+                          navigate('/management/release');
+                        })
+                      }
+                    >
+                      发布与分享
+                    </Button>
+                    <Dropdown
+                      trigger={['click']}
+                      disabled={busy}
+                      menu={{
+                        items: [
+                          {
+                            key: 'statistics',
+                            label: '运行统计',
+                            onClick: () =>
+                              navigate(`/work_flow/${flow.id}/overview`),
+                          },
+                          {
+                            key: 'copy',
+                            label: '复制',
+                            onClick: () =>
+                              void action(() => copyFlowAPI(flow.id || '')),
+                          },
+                          {
+                            key: 'export',
+                            label: '导出',
+                            onClick: () =>
+                              void action(async () =>
+                                downloadFileWithHeaders(
+                                  getFixedUrl(`/workflow/export/${flow.id}`),
+                                  `${flow.name}.yml`
+                                )
+                              ),
+                          },
+                          {
+                            key: 'template',
+                            label: '保存为模板',
+                            onClick: () =>
+                              void action(async () => {
+                                await http.post(
+                                  '/workflow/bot/exportTemplate',
+                                  { workflowId: flow.id }
+                                );
+                                message.success('模板已保存');
+                              }),
+                          },
+                          { type: 'divider' },
+                          {
+                            key: 'delete',
+                            label: '删除',
+                            danger: true,
+                            onClick: () => setDeleteTarget(flow),
+                          },
+                        ],
+                      }}
+                    >
+                      <Button
+                        aria-label={`${flow.name} 更多操作`}
+                        icon={<EllipsisOutlined />}
+                      />
+                    </Dropdown>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          {!loading && !items.length && !error && (
+            <Empty description="没有工作流，可以新建或从模板创建" />
+          )}
+        </Spin>
+        <Pagination
+          className={styles.pagination}
+          current={page}
+          total={total}
+          pageSize={20}
+          showSizeChanger={false}
+          onChange={setPage}
+        />
+        <h2 className={styles.sectionTitle}>工作流模板</h2>
+        <div className={styles.grid}>
+          {templates.map(template => (
+            <article className={styles.card} key={template.id}>
+              <div className={styles.cardBody}>
+                <img className={styles.avatar} src={workflowIcon} alt="" />
+                <div className={styles.details}>
+                  <h3 title={template.title}>{template.title}</h3>
+                  <p title={template.subtitle}>{template.subtitle}</p>
+                </div>
+              </div>
+              <div className={styles.footer}>
+                <span className={styles.tag}>模板</span>
+                <div className={styles.actions}>
+                  <Button
+                    disabled={busy}
+                    onClick={() =>
+                      void action(async () => {
+                        const flow = await http.post<unknown, FlowType>(
+                          '/workflow/bot/createFromTemplate',
+                          { templateId: template.templateId || template.id }
+                        );
+                        navigate(`/work_flow/${flow.id}/arrange`);
+                      })
+                    }
+                  >
+                    从模板创建
+                  </Button>
+                  {template.deletable && (
+                    <Button
+                      danger
+                      disabled={busy}
+                      onClick={() =>
+                        Modal.confirm({
+                          title: '删除工作流模板',
+                          content: `删除“${template.title}”？`,
+                          okText: '删除',
+                          cancelText: '取消',
+                          okButtonProps: { danger: true },
+                          onOk: () =>
+                            action(() =>
+                              http.delete(
+                                `/workflow/bot/template/${template.id}`
+                              )
+                            ),
+                        })
+                      }
+                    >
+                      删除模板
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
       {creatingVirtual && (
         <VirtualConfig
@@ -284,24 +393,26 @@ export default function WorkflowList(): ReactElement {
           })
         }
       >
-        <label>
-          名称
-          <Input
-            aria-label="工作流名称"
-            value={name}
-            maxLength={255}
-            onChange={event => setName(event.target.value)}
-          />
-        </label>
-        <label>
-          描述
-          <Input.TextArea
-            aria-label="工作流描述"
-            value={description}
-            maxLength={512}
-            onChange={event => setDescription(event.target.value)}
-          />
-        </label>
+        <div className={styles.form}>
+          <label>
+            名称
+            <Input
+              aria-label="工作流名称"
+              value={name}
+              maxLength={255}
+              onChange={event => setName(event.target.value)}
+            />
+          </label>
+          <label>
+            描述
+            <Input.TextArea
+              aria-label="工作流描述"
+              value={description}
+              maxLength={512}
+              onChange={event => setDescription(event.target.value)}
+            />
+          </label>
+        </div>
       </Modal>
       <Modal
         title="删除工作流"

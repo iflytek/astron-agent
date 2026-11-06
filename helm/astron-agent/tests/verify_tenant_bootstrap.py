@@ -661,11 +661,16 @@ def _verify_console_internal_hosts() -> None:
             "--set-string", "consoleHub.auth.allowedHosts=public.example.org\\,198.51.100.8",
             "--set-string", f"fullnameOverride={fullname}",
             "--set", "coreTenant.service.port=15052",
+            "--set", "coreAgent.service.port=17871",
         ))
         service_host = fullname + "-console-hub"
         _find_document(rendered, "Service", service_host)
         console = _find_document(rendered, "Deployment", service_host)
         _, environment = _main_container_environment(console)
+        agent_host = fullname + "-core-agent"
+        _find_document(rendered, "Service", agent_host)
+        if environment.get("AGENT_URL", {}).get("value") != f"http://{agent_host}:17871":
+            raise VerificationError("Console Agent URL must follow the actual Service name and port")
         tenant_host = fullname + "-core-tenant"
         _find_document(rendered, "Service", tenant_host)
         if environment.get("TENANT_URL", {}).get("value") != f"http://{tenant_host}:15052":
@@ -684,6 +689,15 @@ def _verify_console_internal_hosts() -> None:
             for key in keys:
                 if urlsplit(environment[key]["value"]).hostname != service_host:
                     raise VerificationError("internal caller URL is inconsistent with Console allowed hosts")
+
+    rendered = _render((
+        "--set-string", "consoleHub.env.agentUrl=https://agent.example.org/runtime",
+        "--set-string", "fullnameOverride=custom-release",
+    ))
+    console = _find_document(rendered, "Deployment", "custom-release-console-hub")
+    _, environment = _main_container_environment(console)
+    if environment.get("AGENT_URL", {}).get("value") != "https://agent.example.org/runtime":
+        raise VerificationError("explicit Console Agent URL must be preserved")
 
 
 def _verify_explicit_render() -> None:
