@@ -1,6 +1,6 @@
 # Deployment FAQ
 
-> The current Python Console migration delivers accounts only. Follow the [operating instructions](../console/backend/README.md) to preserve data and import existing users. UIDs remain unchanged; an operator issues password-reset links.
+> Python Console provides accounts, spaces, resources, Agents, workflows, and publishing. Follow the [operating instructions](../console/backend/README.md) to preserve data and import existing users. UIDs remain unchanged; an operator issues password-reset links.
 
 This document collects common deployment questions and practical troubleshooting paths for Astron Agent.
 
@@ -34,13 +34,13 @@ docker compose -f docker-compose.yaml pull
 
 - Back up important data before upgrading
 - Review whether configuration files need updates after the upgrade
-- Start the services only after confirming all environment variables are correct
+- Default Compose starts without `.env` edits, including server IP access; review only explicit overrides when upgrading
 
 ---
 
 ## 2. What If The Web Page Does Not Open After Deployment
 
-Check the application entry point, Console health and logs. Ensure both frontend and backend images are built from the migration branch, and verify database, Redis, host and cookie settings. This stage provides account pages only; failures in unmigrated business features do not mean user data was lost.
+Check the application entry point, Console health and logs. Ensure both frontend and backend images are built from the same release, and verify database, Redis, host and cookie settings. For a failing business page, inspect its Console response and the relevant core service logs; a failed request alone does not establish data loss.
 
 Preserve databases and volumes rather than reinstalling with a data wipe. See the [Python Console operating instructions](../console/backend/README.md) for importing existing users and issuing password-reset links.
 

@@ -1,7 +1,7 @@
-# 控制台部署与账号迁移
+# 外部 RPA 集成
 
-控制台已改为 Python 内部用户名/密码注册登录。统一使用 [部署指南](DEPLOYMENT_GUIDE.md) 和 [Python Console 运维说明](../../console/backend/README.md)，不再提供独立认证服务或旧的联合启动入口。
+Astron Agent 通过外部平台的 API Key 管理和执行 RPA 资源。Console 的部署与配置见[部署指南](DEPLOYMENT_GUIDE.md)。
 
-新用户通过 `/register` 注册；没有默认管理员密码。已有用户保留原 UID 和资源归属，由管理员核实身份后发放一次性重设密码链接。
+请单独部署 RPA 平台，使用该平台的账号获取 API Key，然后在 Console 中配置 RPA 资源，填写 API Key 和外部平台的任务信息。Console 与外部 RPA 平台分别登录；本项目不提供联合启动或统一登录。
 
-RPA 外部应用仍有独立身份依赖；新的 Console 登录不能直接替代它。当前迁移阶段暂不提供 Agent 与 RPA 的联合登录/启动，集成在发布与渠道阶段恢复。
+Console 注册和旧用户升级见[账号配置与迁移](DEPLOYMENT_GUIDE_WITH_AUTH.md)。

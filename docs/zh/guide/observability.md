@@ -75,11 +75,11 @@ Workflow 与 Agent 服务使用相同配置。
 
 ### Docker Compose
 
-创建本地部署环境文件并填写项目配置：
+仅启用可选 Langfuse 导出时，才需要创建本地环境文件并填写项目配置；默认 Compose 启动无需该文件。保留已有 `.env` 覆盖配置：
 
 ```bash
 cd docker/astronAgent
-cp .env.example .env
+cp -n .env.example .env
 ```
 
 ```dotenv

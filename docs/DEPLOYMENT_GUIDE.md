@@ -8,7 +8,7 @@ This guide will help you start all components of the astronAgent project in the 
 
 The astronAgent project consists of the following three main components:
 
-1. **Python Console** - Internal accounts and session authentication
+1. **Python Console** - Internal accounts, space authorization, resources, Agent/workflow configuration, and publishing; runs as `console-hub` in the main Compose stack, with no separate authentication service
 2. **RagFlow** - Knowledge base and document retrieval service (optional component, deploy as needed)
 3. **astronAgent** - Core business service cluster (required component)
 
@@ -26,9 +26,9 @@ The astronAgent project consists of the following three main components:
 - RAM >= 16 GB
 - Disk >= 50 GB
 
-### Step 1: Prepare internal account service
+### Step 1: Prepare Docker and preserve existing data
 
-Read the [Python Console operating instructions](../console/backend/README.md) first. Configure a persistent secret, database, Redis and public origin. Import existing users and issue password-reset links, preserving business tables and data volumes.
+Install Docker and Docker Compose. The default stack needs no `.env` file or environment edits. For upgrades, preserve business tables, data volumes, and existing credentials; see the [Python Console operating instructions](../console/backend/README.md) for account import and password reset.
 
 ### Step 2: Start RagFlow Knowledge Base Service (Optional)
 
@@ -59,44 +59,19 @@ docker compose up -d --build
 - Elasticsearch is used by default. To use opensearch or infinity, modify the DOC_ENGINE configuration in .env
 - GPU acceleration is supported, start with `docker-compose-gpu.yml`
 
-### Step 3: Configure Internal Accounts and Infrastructure
+### Step 3: Review optional access and integration settings
 
-Before starting astronAgent services, configure internal accounts, access addresses, and other infrastructure connection information.
+The default stack includes account authentication, database, Redis, and storage settings. Start it directly in `docker/astronAgent`; do not copy or edit `.env` for normal startup. Port 80 serves `http://localhost/` and `http://<server-ip>/`, including IPv4 and bracketed IPv6 addresses. Changing the optional `EXPOSE_NGINX_PORT` requires no matching origin setting.
 
-```bash
-# Navigate to astronAgent directory
-cd docker/astronAgent
+Console generates its signing key once in the `console_signing_secrets` volume and reuses it on restarts. An existing `CONSOLE_SECRET_KEY` is imported on the first upgrade; a conflict with the persisted key fails instead of silently rotating credentials. Preserve this volume with the deployment data.
 
-# Copy environment variable configuration
-cp .env.example .env
-```
+For a custom domain, optionally set `CONSOLE_ALLOWED_HOSTS`. API examples use the validated current request origin by default; image links use relative paths. `CONSOLE_PUBLIC_ORIGIN` is an optional fixed origin, required for WeChat OAuth callbacks. Password-reset commands normally print a relative `/reset-password#...` link to append to the current console address; use `--origin` to request a complete link without changing environment variables.
 
-The `.env` file is only used for startup, access addresses, authentication, database, Redis, object storage, and other infrastructure settings. Business capability accounts such as RAGFlow, iFLYTEK Open Platform, AI Ability Chat, Virtual Man, and Spark Knowledge Base are no longer configured in `.env`. Configure them in **Platform Account Management** after astronAgent starts.
+Django retains same-origin CSRF checks with an empty `CONSOLE_CSRF_TRUSTED_ORIGINS` by default. `CONSOLE_COOKIE_SECURE=auto` follows HTTP/HTTPS. For an additional HTTPS reverse proxy, configure only the direct trusted proxy in `CONSOLE_TRUSTED_PROXIES` and ensure it sets/overwrites the forwarded protocol header. Custom domains and HTTPS are optional deployment choices; see the [configuration reference](CONFIGURATION.md).
 
-#### 3.1 Configure Service Host Address
+Expose the application gateway to users. Bundled MinIO maintenance ports remain bound to host loopback; separate external storage access needs its own protected endpoint. RAGFlow and RPA are optional independent deployments. Business accounts for RAGFlow, iFLYTEK Open Platform, AI Ability Chat, Virtual Man, and Spark Knowledge Base are configured in **Platform Account Management** after startup.
 
-```bash
-# Navigate to astronAgent directory
-cd docker/astronAgent
-
-# Edit environment variable configuration
-vim .env
-```
-
-Configure the astronAgent service host address:
-
-```env
-HOST_BASE_ADDRESS=http://localhost
-```
-
-**Notes:**
-- If you use a domain name for access, replace `localhost` with your domain name
-- Expose only the Astron Agent application entry point (Nginx/Ingress) to users
-- Keep the bundled MinIO API and administrative console on their secure defaults: host loopback only with Docker Compose and `ClusterIP` with Helm. Expose either endpoint only for an explicit operational requirement and only behind independent authentication, TLS, and network-policy/firewall restrictions; never publish MinIO directly to the Internet
-
-#### 3.2 Internal account configuration
-
-Configuration and import procedures are maintained in the [Python Console operating instructions](../console/backend/README.md). Use a same-origin `/console-api/` proxy and secure cookies for public HTTPS deployments. New users visit `/register`; existing users contact an operator for password reset. No default `admin` password is provisioned.
+New users register at `/register`; no default administrator password is provisioned. Existing users retain their UID and receive operator-issued password-reset links.
 
 ### Step 4: Start astronAgent Core Services (Required Deployment Step)
 
@@ -111,6 +86,8 @@ cd docker/astronAgent
 # Start all services
 docker compose up -d --build
 ```
+
+After startup, open `http://localhost/` or `http://<server-ip>/` and register an account. No host, origin, or cookie environment edits are needed for this default HTTP entry point.
 
 #### 4.2 Configure Platform Account Management (Optional, configure business capabilities as needed)
 

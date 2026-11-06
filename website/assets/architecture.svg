@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900" role="img" aria-labelledby="title desc">
+<title id="title">Astron Agent architecture</title>
+<desc id="desc">React frontend accesses Django Console through the same-origin gateway. Console owns authentication, resources, releases and records; core services execute Agents and workflows over HTTP and SSE. Infrastructure supplies persistence, caching, files and execution logs.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="#60748c"/></marker></defs>
+<style>text{font-family:Arial,sans-serif;fill:#172c46}.title{font-size:30px;font-weight:700}.heading{font-size:21px;font-weight:700}.body{font-size:17px}.label{font-size:15px;fill:#425d78}.line{fill:none;stroke:#60748c;stroke-width:2;marker-end:url(#arrow)}</style>
+<rect width="1200" height="900" rx="20" fill="#f5f8fc"/>
+<text x="48" y="54" class="title">Astron Agent</text><text x="48" y="82" class="body">Management, execution, and supporting services</text>
+<rect x="48" y="110" width="420" height="90" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="68" y="142" class="heading">Console frontend</text>
+<text x="68" y="171" class="body">React · TypeScript · Visual workflow editor</text>
+<rect x="680" y="110" width="472" height="90" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="700" y="142" class="heading">Same-origin gateway</text>
+<text x="700" y="171" class="body">Nginx · /console-api/</text>
+<path d="M468 155 H680" class="line"/>
+<text x="510" y="141" class="label">HTTP / SSE</text>
+<rect x="48" y="258" width="1104" height="140" rx="12" fill="#eaf1ff" stroke="#cbd7e5"/>
+<text x="68" y="290" class="heading">Python Console · Django ASGI</text>
+<text x="68" y="319" class="body">Accounts &amp; sessions · Space permissions · Models, tools &amp; knowledge · Agent and workflow definitions</text>
+<text x="68" y="344" class="body">Immutable releases · Publishing &amp; API credentials · Conversations and execution records</text>
+<text x="68" y="369" class="body">Runtime configuration and scoped resource APIs for execution services</text>
+<path d="M916 200 V258" class="line"/>
+<path d="M350 398 V465" class="line"/>
+<text x="366" y="435" class="label">HTTP / SSE</text>
+<path d="M850 398 V465" class="line"/>
+<text x="866" y="435" class="label">HTTP / SSE</text>
+<rect x="48" y="465" width="520" height="110" rx="12" fill="#e9f7f2" stroke="#cbd7e5"/>
+<text x="68" y="497" class="heading">core/agent · FastAPI</text>
+<text x="68" y="526" class="body">Unified Deep Agents execution</text>
+<text x="68" y="551" class="body">Tool calls · Streaming output · Runtime context</text>
+<rect x="680" y="465" width="472" height="110" rx="12" fill="#e9f7f2" stroke="#cbd7e5"/>
+<text x="700" y="497" class="heading">core/workflow · FastAPI</text>
+<text x="700" y="526" class="body">DAG scheduling · Debugging · Run events</text>
+<text x="700" y="551" class="body">Agent nodes invoke core/agent</text>
+<path d="M680 520 H568" class="line"/>
+<text x="581" y="502" class="label">Agent node</text>
+<path d="M48 520 H24 V328 H48" class="line" stroke-dasharray="5 4"/>
+<text x="48" y="429" class="label">Dashed: runtime callbacks to Console</text>
+<rect x="48" y="628" width="1104" height="108" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="68" y="660" class="heading">Supporting services · Console and execution APIs</text>
+<text x="68" y="689" class="body">Knowledge: documents &amp; retrieval    |    Plugins: HTTP, MCP, AI tools &amp; external RPA</text>
+<text x="68" y="714" class="body">Database: tables &amp; SQL    |    Tenant: application credentials    |    External models &amp; optional Mem0</text>
+<path d="M350 575 V628" class="line"/>
+<path d="M850 575 V628" class="line"/>
+<rect x="48" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="68" y="817" class="heading">MySQL</text>
+<text x="68" y="846" class="body">Data · DB sessions</text>
+<rect x="331" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="351" y="817" class="heading">Redis</text>
+<text x="351" y="846" class="body">Cache · Limits · Events</text>
+<rect x="614" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="634" y="817" class="heading">MinIO</text>
+<text x="634" y="846" class="body">Files &amp; artifacts</text>
+<rect x="897" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="917" y="817" class="heading">Kafka</text>
+<text x="917" y="846" class="body">Execution logs</text>
+<text x="48" y="766" class="label">Console and core services use the infrastructure required by each domain.</text>
+</svg>

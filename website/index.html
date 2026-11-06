@@ -55,7 +55,7 @@
           </li>
           <li>
             <strong>多语言微服务</strong>
-            <span>覆盖前端、Java、Python、Go 核心能力</span>
+            <span>覆盖TypeScript、Python、Go 核心能力</span>
           </li>
         </ul>
       </div>
@@ -113,7 +113,7 @@
         </div>
         <div class="architecture-grid">
           <article class="media-card">
-            <img src="./assets/arch.png" alt="Astron Agent architecture diagram">
+            <img src="./assets/architecture.svg" alt="Astron Agent architecture diagram">
             <div>
               <h3>总体架构</h3>
               <p>控制台前后端、核心执行引擎与插件系统协同工作，形成端到端的智能体平台能力。</p>
@@ -123,7 +123,7 @@
             <img src="./assets/structure-zh.png" alt="Astron Agent structure diagram">
             <div>
               <h3>模块结构</h3>
-              <p>仓库涵盖 React + TypeScript、Java Spring Boot、Python FastAPI 与 Go 服务，支持模块化演进。</p>
+              <p>仓库涵盖 React + TypeScript、Python Django ASGI、Python FastAPI 与 Go 服务，支持模块化演进。</p>
             </div>
           </article>
         </div>
@@ -139,15 +139,14 @@
         </div>
         <div class="quickstart-grid">
           <article class="code-card">
-            <h3>1. 克隆并准备配置</h3>
+            <h3>1. 克隆仓库</h3>
             <pre><code>git clone https://github.com/iflytek/astron-agent.git
-cd astron-agent/docker/astronAgent
-cp .env.example .env</code></pre>
+cd astron-agent/docker/astronAgent</code></pre>
           </article>
           <article class="code-card">
             <h3>2. 启动服务</h3>
-            <pre><code>docker compose -f docker-compose.yaml up -d --build</code></pre>
-            <p>当前分支为 Python Console 分阶段迁移版本。启动前请按部署指南配置内部账号服务；新用户访问 `/register`，旧用户保留 UID 并由管理员发放重设密码链接。业务功能尚未全部恢复。</p>
+            <pre><code>docker compose up -d --build</code></pre>
+            <p>无需复制或编辑 .env，也无需填写环境变量。启动后访问 http://localhost/ 或 http://&lt;服务器IP&gt;/（默认端口 80），点击注册创建账号并登录。自定义域名、HTTPS 和外部服务按需配置。</p>
           </article>
         </div>
       </div>

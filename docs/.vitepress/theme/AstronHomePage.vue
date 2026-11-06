@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { useData, withBase } from "vitepress";
 
-import archImage from "../../imgs/arch.png";
+import archImage from "../../imgs/architecture.svg";
 import heroPreviewImage from "../../imgs/Astron_Readme.png";
 import structureEnImage from "../../imgs/structure.png";
 import structureZhImage from "../../imgs/structure-zh.png";
@@ -41,7 +41,7 @@ const zhContent = {
     },
     {
       title: "多语言微服务",
-      description: "覆盖前端、Java、Python、Go 核心能力"
+      description: "覆盖TypeScript、Python、Go 核心能力"
     }
   ],
   featureEyebrow: "Why Astron Agent",
@@ -86,7 +86,7 @@ const zhContent = {
     },
     {
       title: "模块结构",
-      description: "仓库涵盖 React + TypeScript、Java Spring Boot、Python FastAPI 与 Go 服务，支持模块化演进。",
+      description: "仓库涵盖 React + TypeScript、Python Django ASGI、Python FastAPI 与 Go 服务，支持模块化演进。",
       image: structureZhImage,
       alt: "Astron Agent structure diagram"
     }
@@ -182,7 +182,7 @@ const enContent = {
     },
     {
       title: "Polyglot Services",
-      description: "Covers core capabilities across frontend, Java, Python, and Go"
+      description: "Covers core capabilities across TypeScript, Python, and Go"
     }
   ],
   featureEyebrow: "Why Astron Agent",
@@ -228,7 +228,7 @@ const enContent = {
     },
     {
       title: "Repository Structure",
-      description: "The monorepo combines React + TypeScript, Java Spring Boot, Python FastAPI, and Go services in a modular layout.",
+      description: "The monorepo combines React + TypeScript, Python Django ASGI, Python FastAPI, and Go services in a modular layout.",
       image: structureEnImage,
       alt: "Astron Agent repository structure diagram"
     }

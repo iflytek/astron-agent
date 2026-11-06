@@ -48,6 +48,14 @@ Agent 调用工作流、工作流调用 Agent 是明确的执行依赖，后续�
 
 每项只验收本范围；测试使用独立环境，不将中间产物合并主分支或宣告全量发布。Compose、Helm、CI 按当前部署范围更新，最后一项确认所有业务、文档和 Java 构建依赖清理。
 
+## 默认 Compose 启动与访问地址
+
+调用链为浏览器 → Nginx 同源网关 → Django accounts/publishing/resources；Core 通过内部 console-hub 地址调用 Console。默认 Compose 直接启动，无需 `.env`。初始化任务 → console_signing_secrets 持久卷 → Console 只读 `/app/secrets/console/secret-key`：首次生成密钥或导入已有 CONSOLE_SECRET_KEY，重启复用，配置与文件冲突拒绝静默轮换，不改变已有用户或会话身份。
+
+默认主机策略接受合法 IPv4/IPv6 字面值、localhost 与内部 console-hub；显式 CONSOLE_ALLOWED_HOSTS 保持严格允许列表，自定义域名按需配置。CONSOLE_PUBLIC_ORIGIN 默认空，API 地址使用经过主机校验的当前请求 origin，图片为相对路径；CLI 重设默认相对链接，支持 --origin。公众号 OAuth 仍要求固定 HTTPS origin。默认 80 端口，可选映射端口变化不要求同步 origin。
+
+CSRF_TRUSTED_ORIGINS 默认空，Django 官方同源校验保持启用。Cookie Secure 默认 auto，按已验证协议区分 HTTP/HTTPS；仅 CONSOLE_TRUSTED_PROXIES 中的直接代理可提供协议头，网关必须设置/覆盖该头。不信任客户端自行提交的转发协议。此变更作用于 Console 与入口部署，不改 core/common、Kafka、Redis 数据或 MinIO 内容；外部 RAGFlow/RPA 仍按需独立部署。
+
 ## 01 影响评估
 
 影响：前端登录入口、资料、HTTP/SSE/上传身份传递；Console 账号表、user_info、会话；Redis 限流；Nginx、Compose、Helm、认证 CI。当前不改 core/common、Kafka、MinIO 内容、租户数据或核心服务鉴权。删除 Casdoor 容器定义不删除已有数据卷或数据库。尚未迁移的网关应用鉴权与资源内部接口应明确拒绝，不能开放绕过。

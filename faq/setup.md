@@ -20,7 +20,7 @@
 
 1. 检查日志: 执行 docker compose logs -f 查看 astron-agent-console-hub或nginx的报错。
 2. 等待启动: 服务启动需要时间，特别是第一次拉取镜像和初始化数据库时，请耐心等待。
-3. 配置检查: 确认 .env 中的 HOST_BASE_ADDRESS 配置正确（远程部署时应为公网IP/域名，而非localhost）。
+3. 访问检查：默认直接访问 `http://服务器IP/`，无需配置 IP 环境变量；确认入口端口可达、Nginx 与 Console 容器健康。
 
 ## 必须安装 Docker 吗？
 
@@ -43,13 +43,13 @@ docker compose up -d
 
 ## 启动时遇到 500 Internal Server Error？
 
-先查看 Console 日志与健康状态，检查数据库、Redis、密钥和公开 origin 配置。当前前后端必须由同一迁移分支构建；旧账号导入有冲突时按错误信息提供显式用户名映射。不要清空数据卷或重新初始化业务表。详见 [Python Console 运维说明](../console/backend/README.md)。
+先查看 Console 日志与健康状态，检查数据库、Redis 及凭据初始化容器是否正常。默认 Compose 自动生成并保存签名密钥；当前前后端须由同一版本构建。旧账号导入有冲突时按错误信息提供显式用户名映射。不要清空数据卷或重新初始化业务表。详见 [Python Console 运维说明](../console/backend/README.md)。
 
 ## 如何正确修改默认端口（80）？
 
 在 `.env` 文件中修改 `EXPOSE_NGINX_PORT` 等相关端口配置，然后重建容器生效（`docker compose down` 后 `docker compose up -d`）。
 
-修改访问端口后，同步更新内部账号的公开 origin、允许主机与代理配置，详见[配置与认证 FAQ](config.md)。
+默认 IP 访问会自动识别入口端口，无需同步设置 origin 或允许主机。若已显式固定域名/公开 origin，再按[配置与认证 FAQ](config.md)更新对应覆盖项。
 
 ## 为什么用了 `latest` 镜像却不是最新的？如何切换镜像版本？
 

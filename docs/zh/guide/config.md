@@ -32,11 +32,11 @@
 ## 推荐阅读
 
 - [配置文档](/zh/CONFIGURATION)
-- [带鉴权部署指南](/zh/DEPLOYMENT_GUIDE_WITH_AUTH)
+- [账号配置与迁移](/zh/DEPLOYMENT_GUIDE_WITH_AUTH)
 - [模块说明](/zh/PROJECT_MODULES)
 
 ## 配置建议
 
-1. 先完成最小可运行配置
+1. 默认 Compose 无需复制或编辑 `.env`，直接启动后通过 localhost 或服务器 IP 访问
 2. 再补充生产环境依赖和密钥管理
 3. 最后根据业务场景接入 MCP、RPA 和扩展模块

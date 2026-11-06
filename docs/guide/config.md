@@ -32,11 +32,11 @@ This page summarizes the most important configuration domains so you can quickly
 ## Recommended References
 
 - [Configuration Reference](/CONFIGURATION)
-- [Auth Deployment Guide](/DEPLOYMENT_GUIDE_WITH_AUTH)
+- [Account Setup and Migration](/DEPLOYMENT_GUIDE_WITH_AUTH)
 - [Project Modules](/PROJECT_MODULES)
 
 ## Suggested Order
 
-1. Finish the minimum runnable configuration
+1. Start the default Compose stack without copying or editing `.env`; localhost and server IP access work with the defaults
 2. Add production dependencies and secret management
 3. Extend MCP, RPA, and optional modules for your business scenario

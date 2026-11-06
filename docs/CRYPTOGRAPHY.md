@@ -13,7 +13,7 @@ external services.
 | Space invitations | Invitations are addressed to a UID and accepted by that authenticated user in a transaction. Console no longer uses encrypted invitation URLs. |
 | Model and resource credentials | Python Console preserves the existing database credential values and exposes masked management responses. Provider SDK calls and authorized internal endpoints receive credentials server-side. Browser submissions use the same-origin HTTPS/session/CSRF boundary; the old model RSA transmission protocol is removed. Existing API-key columns and platform JSON remain in their original storage format. |
 | Request signing | Python `hmac`/`hashlib` implement the standard HMAC-SHA-256 signing paths. |
-| Console passwords and sessions | Python Console uses Django Argon2 password hashing and database-backed sessions. Persistent `CONSOLE_SECRET_KEY` must be shared by replicas. Password-reset tokens expire and become invalid after successful reset. |
+| Console passwords and sessions | Python Console uses Django Argon2 password hashing and database-backed sessions. Compose generates the signing key once in `console_signing_secrets` and reuses it; replicas must share that persistent key. Password-reset tokens expire and become invalid after successful reset. |
 
 For account setup and legacy identity preservation, see [Python Console](../console/backend/README.md).
 

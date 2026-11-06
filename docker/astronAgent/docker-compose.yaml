@@ -11,6 +11,7 @@ services:
     container_name: astron-agent-internal-credentials-init
     user: "0:0"
     environment:
+      CONFIGURED_CONSOLE_SECRET_KEY: "${CONSOLE_SECRET_KEY:-}"
       CONFIGURED_WORKFLOW_INTERNAL_API_KEY: "${WORKFLOW_INTERNAL_API_KEY:-}"
       CONFIGURED_TENANT_KEY: "${TENANT_KEY:-}"
       CONFIGURED_TENANT_SECRET: "${TENANT_SECRET:-}"
@@ -104,6 +105,36 @@ services:
           chmod 0440 "$$directory/$$name"
         }
 
+        # Signing keys must survive restarts/upgrades byte-for-byte. Import an
+        # existing environment key only into an empty volume; never rotate it.
+        resolve_console_secret() {
+          file=/secrets/console/secret-key
+          configured="$$CONFIGURED_CONSOLE_SECRET_KEY"
+          if [ -e "$$file" ] || [ -L "$$file" ]; then
+            [ -f "$$file" ] && [ ! -L "$$file" ] || {
+              echo 'Console signing key must be a regular file.' >&2
+              exit 1
+            }
+            value="$$(cat "$$file")"
+            if [ -n "$$configured" ] && [ "$$configured" != "$$value" ]; then
+              echo 'Console signing key override conflicts with persisted value.' >&2
+              exit 1
+            fi
+          else
+            value="$$configured"
+            [ -n "$$value" ] || value="$$(generate_hex 48)"
+          fi
+          single_line="$$(printf '%s' "$$value" | tr -d '\r\n')"
+          [ "$${#value}" -ge 50 ] && [ "$$value" = "$$single_line" ] || {
+            echo 'Console signing key must contain at least 50 characters and no line breaks.' >&2
+            exit 1
+          }
+          printf '%s' "$$value"
+        }
+
+        console_secret="$$(resolve_console_secret)"
+        prepare_sandbox_token /secrets/console secret-key "$$console_secret"
+
         artifact_token="$$(resolve_sandbox_token /secrets/artifact/artifact-upload-token "$$CONFIGURED_ARTIFACT_TOKEN")"
         runtime_token="$$(resolve_sandbox_token /secrets/runtime/sandbox-runtime-credential-token "$$CONFIGURED_RUNTIME_TOKEN")"
         [ "$$artifact_token" != "$$runtime_token" ] || {
@@ -188,6 +219,7 @@ services:
         echo 'Internal credentials are initialized.'
     network_mode: none
     volumes:
+      - console_signing_secrets:/secrets/console
       - workflow_internal_secrets:/secrets/workflow
       - tenant_bootstrap_secrets:/secrets/tenant
       - artifact_upload_secrets:/secrets/artifact
@@ -242,9 +274,11 @@ services:
     networks:
       - astron-agent-network
     restart: always
-    command: redis-server ${REDIS_PASSWORD:+--requirepass} ${REDIS_PASSWORD}
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD-123}"]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ${REDIS_PASSWORD:+-a \"$REDIS_PASSWORD\"} ping | grep PONG"]
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-60}
@@ -418,9 +452,9 @@ services:
       SERVICE_PORT: "${CORE_TENANT_PORT:-5052}"
       SERVICE_LOCATION: "${SERVICE_LOCATION:-hf}"
       DATABASE_DB_TYPE: "${DATABASE_DB_TYPE:-mysql}"
-      DATABASE_USERNAME: "${DATABASE_USERNAME:-root}"
-      DATABASE_PASSWORD: "${DATABASE_PASSWORD:-root123}"
-      DATABASE_URL: "${DATABASE_URL:-(localhost:3306)/tenant}"
+      DATABASE_USERNAME: "${DATABASE_USERNAME:-${MYSQL_USER:-root}}"
+      DATABASE_PASSWORD: "${DATABASE_PASSWORD:-${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}}"
+      DATABASE_URL: "${DATABASE_URL:-(${MYSQL_HOST:-mysql}:${MYSQL_PORT:-3306})/tenant}"
       DATABASE_MAX_OPEN_CONNS: "${DATABASE_MAX_OPEN_CONNS:-5}"
       DATABASE_MAX_IDLE_CONNS: "${DATABASE_MAX_IDLE_CONNS:-5}"
       LOG_PATH: "${LOG_PATH:-log.txt}"
@@ -463,13 +497,13 @@ services:
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       MYSQL_DATABASE: "${DATABASE_MYSQL_DATABASE:-sparkdb_manager}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
-      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR:-}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -496,8 +530,8 @@ services:
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
       KAFKA_ENABLE: "${KAFKA_ENABLE:-0}"
       KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
-      XIAOWU_RPA_TASK_CREATE_URL: "${XIAOWU_RPA_TASK_CREATE_URL_INTERNAL:-${XIAOWU_RPA_TASK_CREATE_URL}}"
-      XIAOWU_RPA_TASK_QUERY_URL: "${XIAOWU_RPA_TASK_QUERY_URL_INTERNAL:-${XIAOWU_RPA_TASK_QUERY_URL}}"
+      XIAOWU_RPA_TASK_CREATE_URL: "${XIAOWU_RPA_TASK_CREATE_URL_INTERNAL:-${XIAOWU_RPA_TASK_CREATE_URL:-${RPA_URL:-https://newapi.iflyrpa.com}/api/rpa-openapi/workflows/execute-async}}"
+      XIAOWU_RPA_TASK_QUERY_URL: "${XIAOWU_RPA_TASK_QUERY_URL_INTERNAL:-${XIAOWU_RPA_TASK_QUERY_URL:-${RPA_URL:-https://newapi.iflyrpa.com}/api/rpa-openapi/executions}}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -523,12 +557,12 @@ services:
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       MYSQL_DB: "${LINK_MYSQL_DB:-spark-link}"
       REDIS_IS_CLUSTER: "${REDIS_IS_CLUSTER:-false}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
-      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR:-}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
       KAFKA_ENABLE: "${KAFKA_ENABLE:-0}"
@@ -559,21 +593,21 @@ services:
       OSS_ENDPOINT: "${OSS_ENDPOINT:-http://minio:${EXPOSE_MINIO_PORT:-18998}}"
       OSS_ACCESS_KEY_ID: "${OSS_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-minioadmin}}"
       OSS_ACCESS_KEY_SECRET: "${OSS_ACCESS_KEY_SECRET:-${MINIO_ROOT_PASSWORD:-minioadmin123}}"
-      OSS_BUCKET_NAME: "${OSS_BUCKET_NAME}"
+      OSS_BUCKET_NAME: "${OSS_BUCKET_NAME:-workflow}"
       OSS_BUCKET_CONSOLE: "${OSS_BUCKET_CONSOLE:-console-oss}"
       OSS_DOWNLOAD_HOST: "${OSS_REMOTE_ENDPOINT:-http://minio.localhost:${EXPOSE_MINIO_PORT:-18998}}"
       OSS_TTL: "${OSS_TTL:-157788000}"
       KAFKA_ENABLE: "${KAFKA_ENABLE:-0}"
       KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
-      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR:-}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
       REDIS_DATABASE: "${REDIS_DATABASE:-0}"
-      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-1}"
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
     depends_on:
       postgres:
@@ -604,14 +638,14 @@ services:
       SERVICE_RELOAD: "${SERVICE_RELOAD:-false}"
       SERVICE_WS_PING_INTERVAL: "${SERVICE_WS_PING_INTERVAL:-false}"
       SERVICE_WS_PING_TIMEOUT: "${SERVICE_WS_PING_TIMEOUT:-false}"
-      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR:-}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
       REDIS_EXPIRE: "${REDIS_EXPIRE:-3600}"
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       MYSQL_DB: "${AGENT_MYSQL_DB:-agent}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       LANGFUSE_ENABLED: "${LANGFUSE_ENABLED:-false}"
@@ -643,7 +677,7 @@ services:
       CHUNK_QUERY_URL: "${CHUNK_QUERY_URL:-http://core-knowledge:20010/knowledge/v1/chunk/query}"
       LIST_MCP_PLUGIN_URL: "${LIST_MCP_PLUGIN_URL:-http://core-link:18888/api/v1/mcp/tool_list}"
       RUN_MCP_PLUGIN_URL: "${RUN_MCP_PLUGIN_URL:-http://core-link:18888/api/v1/mcp/call_tool}"
-      APP_AUTH_HOST: "${APP_AUTH_HOST:-core-tenant}"
+      APP_AUTH_HOST: "${APP_AUTH_HOST:-core-tenant:${CORE_TENANT_PORT:-5052}}"
       APP_AUTH_PROT: "${APP_AUTH_PROT:-http}"
       APP_AUTH_API_KEY_FILE: "/app/secrets/tenant/tenant-key"
       APP_AUTH_SECRET_FILE: "/app/secrets/tenant/tenant-secret"
@@ -693,14 +727,14 @@ services:
     environment:
       SERVICE_PORT: "${CORE_KNOWLEDGE_PORT:-20010}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
-      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR:-}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-1}"
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
     depends_on:
       postgres:
@@ -744,13 +778,13 @@ services:
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       MYSQL_DB: "${WORKFLOW_MYSQL_DB:-workflow}"
       CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
-      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR}"
+      REDIS_CLUSTER_ADDR: "${REDIS_CLUSTER_ADDR:-}"
       REDIS_ADDR: "${REDIS_ADDR:-redis:6379}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-1}"
       REDIS_EXPIRE: "${REDIS_EXPIRE:-3600}"
       OTLP_ENDPOINT: "${OTLP_ENDPOINT:-127.0.0.1:4317}"
       OTLP_ENABLE: "${OTLP_ENABLE:-0}"
@@ -775,22 +809,22 @@ services:
       OSS_ENDPOINT: "${OSS_ENDPOINT:-http://minio:${EXPOSE_MINIO_PORT:-18998}}"
       OSS_ACCESS_KEY_ID: "${OSS_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-minioadmin}}"
       OSS_ACCESS_KEY_SECRET: "${OSS_ACCESS_KEY_SECRET:-${MINIO_ROOT_PASSWORD:-minioadmin123}}"
-      OSS_BUCKET_NAME: "${OSS_BUCKET_NAME}"
+      OSS_BUCKET_NAME: "${OSS_BUCKET_NAME:-workflow}"
       OSS_DOWNLOAD_HOST: "${OSS_REMOTE_ENDPOINT:-http://minio.localhost:${EXPOSE_MINIO_PORT:-18998}}"
       OSS_TTL: "${OSS_TTL:-157788000}"
       KAFKA_ENABLE: "${KAFKA_ENABLE:-0}"
       KAFKA_SERVERS: "${KAFKA_SERVERS:-kafka:29092}"
       KAFKA_TIMEOUT: "${KAFKA_TIMEOUT:-60}"
       KAFKA_TOPIC: "${WORKFLOW_KAFKA_TOPIC:-spark-agent-builder}"
-      KNOWLEDGE_BASE_URL: "${KNOWLEDGE_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT}}"
-      KNOWLEDGE_PRO_BASE_URL: "${KNOWLEDGE_PRO_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT}}"
-      PLUGIN_BASE_URL: "${PLUGIN_BASE_URL:-http://core-link:${CORE_LINK_PORT}}"
-      WORKFLOW_BASE_URL: "${WORKFLOW_BASE_URL:-http://core-workflow:${CORE_WORKFLOW_PORT}}"
-      APP_MANAGE_PLAT_BASE_URL: "${APP_MANAGE_PLAT_BASE_URL:-http://core-tenant:${CORE_TENANT_PORT}}"
-      AGENT_BASE_URL: "${AGENT_BASE_URL:-http://core-agent:${CORE_AGENT_PORT}}"
+      KNOWLEDGE_BASE_URL: "${KNOWLEDGE_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}}"
+      KNOWLEDGE_PRO_BASE_URL: "${KNOWLEDGE_PRO_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}}"
+      PLUGIN_BASE_URL: "${PLUGIN_BASE_URL:-http://core-link:${CORE_LINK_PORT:-18888}}"
+      WORKFLOW_BASE_URL: "${WORKFLOW_BASE_URL:-http://core-workflow:${CORE_WORKFLOW_PORT:-7880}}"
+      APP_MANAGE_PLAT_BASE_URL: "${APP_MANAGE_PLAT_BASE_URL:-http://core-tenant:${CORE_TENANT_PORT:-5052}}"
+      AGENT_BASE_URL: "${AGENT_BASE_URL:-http://core-agent:${CORE_AGENT_PORT:-17870}}"
       MODEL_RUNTIME_CONFIG_URL: "http://console-hub:8080/model/internal-runtime-config"
-      PGSQL_BASE_URL: "${PGSQL_BASE_URL:-http://core-database:${CORE_DATABASE_PORT}}"
-      RPA_BASE_URL: "${RPA_BASE_URL:-http://core-rpa:${CORE_RPA_PORT}}"
+      PGSQL_BASE_URL: "${PGSQL_BASE_URL:-http://core-database:${CORE_DATABASE_PORT:-7990}}"
+      RPA_BASE_URL: "${RPA_BASE_URL:-http://core-rpa:${CORE_RPA_PORT:-17198}}"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE: "/app/secrets/artifact/artifact-upload-token"
       SKILL_SANDBOX_ARTIFACT_UPLOAD_URL: "http://console-hub:8080/workflow/artifacts/internal-upload"
       SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE: "/app/secrets/runtime/sandbox-runtime-credential-token"
@@ -879,21 +913,21 @@ services:
       - "localhost:host-gateway"
     environment:
       CONSOLE_RUN_MIGRATIONS: "${CONSOLE_RUN_MIGRATIONS:-true}"
-      CONSOLE_SECRET_KEY: "${CONSOLE_SECRET_KEY:?Set a persistent random Console key of at least 50 characters}"
-      CONSOLE_ALLOWED_HOSTS: "${CONSOLE_ALLOWED_HOSTS:-localhost,127.0.0.1},console-hub"
-      CONSOLE_PUBLIC_ORIGIN: "${CONSOLE_PUBLIC_ORIGIN:-https://your.deployment.domain}"
+      CONSOLE_SECRET_KEY_FILE: "/app/secrets/console/secret-key"
+      CONSOLE_ALLOWED_HOSTS: "${CONSOLE_ALLOWED_HOSTS:-}"
+      CONSOLE_PUBLIC_ORIGIN: "${CONSOLE_PUBLIC_ORIGIN:-}"
       CONSOLE_CSRF_TRUSTED_ORIGINS: "${CONSOLE_CSRF_TRUSTED_ORIGINS:-}"
-      CONSOLE_COOKIE_SECURE: "${CONSOLE_COOKIE_SECURE:-true}"
+      CONSOLE_COOKIE_SECURE: "${CONSOLE_COOKIE_SECURE:-}"
       CONSOLE_TRUSTED_PROXIES: "${CONSOLE_TRUSTED_PROXIES:-}"
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       CONSOLE_MYSQL_DB: "${CONSOLE_MYSQL_DB:-astron_console}"
       MYSQL_USER: "${MYSQL_USER:-root}"
-      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-root123}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}"
       REDIS_HOST: "${REDIS_HOST:-redis}"
       REDIS_PORT: "${REDIS_PORT:-6379}"
-      REDIS_PASSWORD: "${REDIS_PASSWORD}"
-      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-0}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD-123}"
+      REDIS_DATABASE_CONSOLE: "${REDIS_DATABASE_CONSOLE:-1}"
       OSS_ENDPOINT: "${OSS_ENDPOINT:-http://minio:${EXPOSE_MINIO_PORT:-18998}}"
       OSS_REMOTE_ENDPOINT: "${OSS_REMOTE_ENDPOINT:-http://minio.localhost:${EXPOSE_MINIO_PORT:-18998}}"
       OSS_ACCESS_KEY_ID: "${OSS_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-minioadmin}}"
@@ -909,19 +943,19 @@ services:
       TENANT_SECRET_FILE: "/app/secrets/tenant/tenant-secret"
       TENANT_ID: "${TENANT_ID:-680ab54f}"
       MAAS_APP_ID: "${MAAS_APP_ID:-${TENANT_ID:-680ab54f}}"
-      APP_URL: "${APP_URL:-}"
-      KNOWLEDGE_URL: "${KNOWLEDGE_URL:-}"
-      TOOL_URL: "${TOOL_URL:-}"
-      AGENT_URL: "${AGENT_URL:-http://core-agent:${CORE_AGENT_PORT}}"
-      TOOL_RPA_URL: "${TOOL_RPA_URL:-}"
+      APP_URL: "${APP_URL:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app}"
+      KNOWLEDGE_URL: "${KNOWLEDGE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}/knowledge}"
+      TOOL_URL: "${TOOL_URL:-http://core-link:${CORE_LINK_PORT:-18888}}"
+      AGENT_URL: "${AGENT_URL:-http://core-agent:${CORE_AGENT_PORT:-17870}}"
+      TOOL_RPA_URL: "${TOOL_RPA_URL:-http://core-rpa:${CORE_RPA_PORT:-17198}}"
       WORKFLOW_URL: "${WORKFLOW_URL:-http://core-workflow:7880}"
-      SPARK_DB_URL: "${SPARK_DB_URL:-}"
+      SPARK_DB_URL: "${SPARK_DB_URL:-http://core-database:${CORE_DATABASE_PORT:-7990}}"
       SPARK_DB_TYPE: "${SPARK_DB_TYPE:-postgresql}"
       LOCAL_MODEL_URL: "${LOCAL_MODEL_URL:-}"
       RESOURCE_MCP_CATALOG_URL: "${RESOURCE_MCP_CATALOG_URL:-}"
       RESOURCE_MCP_AUTH_URL: "${RESOURCE_MCP_AUTH_URL:-}"
       RESOURCE_MCP_SHORT_URL: "${RESOURCE_MCP_SHORT_URL:-}"
-      RPA_URL: "${RPA_URL_INTERNAL:-${RPA_URL}}"
+      RPA_URL: "${RPA_URL_INTERNAL:-${RPA_URL:-https://newapi.iflyrpa.com}}"
       MAAS_WORKFLOW_VERSION: "${MAAS_WORKFLOW_VERSION:-}"
       MAAS_SYNCHRONIZE_WORK_FLOW: "${MAAS_SYNCHRONIZE_WORK_FLOW:-}"
       MAAS_PUBLISH: "${MAAS_PUBLISH:-}"
@@ -933,7 +967,6 @@ services:
       MAAS_MCP_REGISTER: "${MAAS_MCP_REGISTER:-}"
       MAAS_WORKFLOW_CONFIG: "${MAAS_WORKFLOW_CONFIG:-}"
       BOT_API_CBM_BASE_URL: "${BOT_API_CBM_BASE_URL:-}"
-      BOT_API_MAAS_BASE_URL: "${BOT_API_MAAS_BASE_URL:-}"
       TENANT_CREATE_APP: "${TENANT_CREATE_APP:-}"
       TENANT_GET_APP_DETAIL: "${TENANT_GET_APP_DETAIL:-}"
       TENANT_VERIFY_APP_AUTH: "${TENANT_VERIFY_APP_AUTH:-http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/key/verify}"
@@ -947,6 +980,7 @@ services:
       SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_TOTAL_SIZE_PER_WORKFLOW: "${SKILL_SANDBOX_ARTIFACT_MAX_ACTIVE_TOTAL_SIZE_PER_WORKFLOW:-1GB}"
       SKILL_SANDBOX_ARTIFACT_ALLOWED_EXTENSIONS: "${SKILL_SANDBOX_ARTIFACT_ALLOWED_EXTENSIONS:-txt,md,csv,json,pdf,png,jpg,jpeg,gif,webp,doc,docx,xls,xlsx,ppt,pptx,zip}"
     volumes:
+      - console_signing_secrets:/app/secrets/console:ro
       - artifact_upload_secrets:/app/secrets/artifact:ro
       - sandbox_runtime_credential_secrets:/app/secrets/runtime:ro
       - workflow_internal_secrets:/app/secrets/workflow:ro
@@ -1002,6 +1036,8 @@ volumes:
   artifact_upload_secrets:
     driver: local
   sandbox_runtime_credential_secrets:
+    driver: local
+  console_signing_secrets:
     driver: local
   workflow_internal_secrets:
     driver: local

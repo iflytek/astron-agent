@@ -21,19 +21,19 @@ Astron Agent is an enterprise-grade Agentic Workflow development platform. It in
 
 - `core/agent`
   - Python FastAPI service
-  - Responsible for the agent execution engine, Chat/CoT/CoT Process Agent, plugin invocation, and session context handling
+  - Responsible for unified Deep Agents execution for standalone Agents and workflow Agent nodes, tool invocation, and execution context
 - `core/workflow`
   - Python FastAPI service
-  - Responsible for workflow orchestration, execution, debugging, versioning, and event handling
+  - Responsible for workflow orchestration, execution, debugging, and execution events; Console owns release versions
 - `core/knowledge`
   - Python FastAPI service
   - Responsible for the knowledge base, document processing, vectorization, retrieval, and RAG integration
 - `core/memory`
   - Python module
-  - Responsible for conversation history, short-term and long-term memory, and session persistence
+  - Provides database, table, and SQL operations under `core/memory/database`; Console owns conversation history and optional Mem0 integration
 - `core/tenant`
   - Go service
-  - Responsible for multi-tenancy, space isolation, organization management, and resource quota management
+  - Responsible for application and API key management and verification; Console owns space membership and resource authorization
 - `core/plugin`
   - Plugin capability directory
   - Includes plugin services such as `aitools`, `rpa`, and `link`
@@ -54,8 +54,10 @@ Astron Agent is an enterprise-grade Agentic Workflow development platform. It in
 ## Typical Communication Flows
 
 - Frontend -> Console Backend: HTTP/REST, SSE
-- Console Backend -> Core Services: HTTP/REST
-- Core Services -> Core Services: Kafka event-driven communication
+- Console Backend -> Core Services: HTTP/REST, SSE
+- Workflow -> Agent / Knowledge / Plugins / Database: HTTP, SSE
+- Agent -> Console: internal configuration and resource APIs
+- Core Services -> Kafka: execution log reporting
 
 ## Important Notes
 

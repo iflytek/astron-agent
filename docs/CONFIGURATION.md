@@ -7,16 +7,14 @@ see [Cryptographic mechanisms and deployment limits](CRYPTOGRAPHY.md).
 
 ## Quick Start
 
-### Required Manual Configuration Fields
+### Default startup requires no environment edits
 
-Before deploying with Docker Compose, the following environment variables **must be manually configured**. For detailed configuration steps and instructions, please refer to the [Deployment Guide](https://github.com/iflytek/astron-agent/blob/main/docs/DEPLOYMENT_GUIDE.md).
+In `docker/astronAgent`, run `docker compose up -d --build` without copying or editing `.env`. Open `http://localhost/` or `http://<server-ip>/` on port 80. The defaults include internal accounts and bundled infrastructure; model providers and optional external capabilities are configured after startup.
 
-**Key Configuration Items Overview**:
+**Optional overrides and persistent credentials**:
 
-- **Python Console accounts**: see [configuration and migration](../console/backend/README.md).
-
-- **Host Address Configuration**:
-  - `HOST_BASE_ADDRESS` - Set to your server address or domain name
+- **Python Console accounts**: see [configuration and migration](../console/backend/README.md). The signing key is generated once and reused from the `console_signing_secrets` volume. Preserve that volume on upgrades.
+- **Custom domains and HTTPS**: configure only when needed; see the Console settings below. Server IP access and an optional `EXPOSE_NGINX_PORT` change require no fixed public origin.
 
 - **Deployment-internal authentication (no manual configuration)**:
   - Docker Compose generates and persists `WORKFLOW_INTERNAL_API_KEY`,
@@ -288,8 +286,12 @@ no manual configuration change is required. To explicitly disable Code nodes, se
 
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
-| HOST_BASE_ADDRESS | User Required | url | Host base address | http://localhost |
-| CONSOLE_DOMAIN | Required | url | Console domain address (defaults from HOST_BASE_ADDRESS and EXPOSE_NGINX_PORT) | ${HOST_BASE_ADDRESS}:${EXPOSE_NGINX_PORT} |
+| CONSOLE_SECRET_KEY | Auto-generated | secret | Generated once in console_signing_secrets; Console reads /app/secrets/console/secret-key. First upgrade imports an existing key; conflicts fail without rotating it. | generated and persisted |
+| CONSOLE_ALLOWED_HOSTS | Optional | string | Empty accepts IP literals, localhost and console-hub; custom domains require an explicit strict allowlist | empty |
+| CONSOLE_PUBLIC_ORIGIN | Optional | url origin | Empty uses the validated request origin for API URLs; image links are relative. WeChat OAuth requires a fixed HTTPS origin | empty |
+| CONSOLE_CSRF_TRUSTED_ORIGINS | Optional | string | Empty retains Django same-origin checks; specify full origins only for required cross-origin trust | empty |
+| CONSOLE_COOKIE_SECURE | Use Default | string | auto sets Secure for HTTPS, omits it for HTTP | auto |
+| CONSOLE_TRUSTED_PROXIES | Optional | string | Only configured direct proxy IPs/CIDRs may supply client/protocol headers; proxies must set/overwrite them | empty |
 | OSS_REMOTE_ENDPOINT | Required | url origin | Exact origin embedded in Console presigned URLs and trusted by Core Agent; the local default is reachable with the same signed Host from both the Docker host and Compose containers; remote clients require a separately protected TLS endpoint | http://minio.localhost:${EXPOSE_MINIO_PORT} |
 | OSS_BUCKET_CONSOLE | Required | string | Object storage bucket name used by Console | console-oss |
 | OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE | Required | int | Console presigned URL expiration time (seconds) | 600 |
@@ -338,7 +340,6 @@ no manual configuration change is required. To explicitly disable Code nodes, se
 | MAAS_MCP_REGISTER | Required | url | MaaS MCP register API address | http://127.0.0.1:8080/workflow/release |
 | MAAS_WORKFLOW_CONFIG | Required | url | MaaS workflow configuration API address | http://127.0.0.1:8080/workflow/get-flow-advanced-config |
 | BOT_API_CBM_BASE_URL | Required | url | Bot API CBM base address (supports ws/wss, note written as ws(s):// in env.example) | wss://spark-openapi.cn-huabei-1.xf-yun.com |
-| BOT_API_MAAS_BASE_URL | Required | url | Bot API MaaS base address (note written as http(s):// in env.example) | https://xingchen-api.xf-yun.com |
 | TENANT_CREATE_APP | Required | url | Tenant create application API address (port defaults from CORE_TENANT_PORT) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app |
 | TENANT_GET_APP_DETAIL | Required | url | Tenant get application details API address (port defaults from CORE_TENANT_PORT) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/details |
 

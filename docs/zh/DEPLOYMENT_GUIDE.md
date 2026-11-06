@@ -8,7 +8,7 @@
 
 astronAgent 项目包含以下三个主要组件：
 
-1. **Python Console** - 内部账号与会话认证
+1. **Python Console** - 内部账号、空间权限、资源、Agent/工作流配置与发布管理；作为主 Compose 的 `console-hub` 服务启动，无需单独认证服务
 2. **RagFlow** - 知识库和文档检索服务(非必要部署组件,根据需要部署)
 3. **astronAgent** - 核心业务服务集群(必要部署组件)
 
@@ -26,9 +26,9 @@ astronAgent 项目包含以下三个主要组件：
 - RAM >= 16 GB
 - Disk >= 50 GB
 
-### 第一步：准备内部账号服务
+### 第一步：准备 Docker 并保留已有数据
 
-先阅读 [Python Console 运维说明](../../console/backend/README.md)，配置持久密钥、数据库、Redis 与公开访问地址。旧用户必须导入并重设密码；保留所有业务表与数据卷。
+安装 Docker 和 Docker Compose。默认启动无需 `.env` 文件，也无需修改环境变量。升级时保留业务表、数据卷与既有凭据；旧账号导入与重设密码见 [Python Console 运维说明](../../console/backend/README.md)。
 
 ### 第二步：启动 RagFlow 知识库服务（可选）
 
@@ -59,44 +59,19 @@ docker compose up -d --build
 - 默认使用 Elasticsearch，如需使用 opensearch、infinity，请修改 .env 中的 DOC_ENGINE 配置
 - 支持GPU加速，使用 `docker-compose-gpu.yml` 启动
 
-### 第三步：配置内部账号和基础环境变量
+### 第三步：了解可选的访问与集成配置
 
-在启动 astronAgent 服务之前，配置内部账号、访问地址和其他基础设施连接信息。
+默认栈已提供账号认证、数据库、Redis 和存储配置。在 `docker/astronAgent` 直接启动即可，无需复制或编辑 `.env`。默认通过 80 端口访问 `http://localhost/` 或 `http://<服务器IP>/`，支持 IPv4 和带方括号的 IPv6 地址。可选修改 `EXPOSE_NGINX_PORT`，无需同步设置 origin。
 
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
+Console 签名密钥在首次启动时自动生成到 `console_signing_secrets` 卷，重启复用；首次升级导入已有 `CONSOLE_SECRET_KEY`，与持久文件冲突时明确失败，不静默轮换。保留该卷及业务数据卷。
 
-# 复制环境变量配置
-cp .env.example .env
-```
+自定义域名可按需设置 `CONSOLE_ALLOWED_HOSTS`。API 调用示例默认采用经过主机校验的当前请求 origin，图片链接使用相对路径。`CONSOLE_PUBLIC_ORIGIN` 是可选的固定公开地址，公众号 OAuth 回调仍需固定 HTTPS origin。密码重设命令默认输出相对 `/reset-password#...` 链接，追加到当前控制台地址即可；也可在执行时加 `--origin` 输出完整链接，无需修改环境变量。
 
-`.env` 文件只用于配置服务启动、访问地址、认证、数据库、Redis、对象存储等基础设施参数。RAGFlow、讯飞开放平台、AI Ability Chat、虚拟人能力、星火知识库等业务能力账号不再写入 `.env`，请在 astronAgent 启动后登录控制台，通过 **平台账号管理** 页面配置。
+`CONSOLE_CSRF_TRUSTED_ORIGINS` 默认留空，继续使用 Django 同源 CSRF 校验。`CONSOLE_COOKIE_SECURE=auto` 根据 HTTP/HTTPS 设置 Cookie。增加 HTTPS 反向代理时，通过 `CONSOLE_TRUSTED_PROXIES` 仅信任直接代理，并由该代理设置或覆盖转发协议头。自定义域名与 HTTPS 按需配置，详见[配置文档](CONFIGURATION.md)。
 
-#### 3.1 配置服务主机地址
+对用户公开应用网关。内置 MinIO 维护端口保持宿主机回环绑定，外部存储访问需独立受保护的端点。RAGFlow 和 RPA 按需独立部署；RAGFlow、讯飞开放平台、AI Ability Chat、虚拟人和星火知识库业务账号在启动后的 **平台账号管理** 页面配置。
 
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 编辑环境变量配置
-vim .env
-```
-
-配置 astronAgent 服务的主机地址：
-
-```env
-HOST_BASE_ADDRESS=http://localhost
-```
-
-**说明：**
-- 如果您使用域名访问，请将 `localhost` 替换为您的域名
-- 仅向用户公开 Astron Agent 的应用入口（Nginx/Ingress）
-- 内置 MinIO API 与管理控制台必须保持安全默认值：Docker Compose 仅绑定宿主机回环地址，Helm 使用 `ClusterIP`。只有存在明确运维需求，并配置独立认证、TLS 与网络策略/防火墙限制时，才可显式开放相应端点；禁止将 MinIO 直接发布到互联网
-
-#### 3.2 内部账号配置
-
-配置项与导入流程统一维护在 [Python Console 运维说明](../../console/backend/README.md)。启用同源 `/console-api/` 代理，公开 HTTPS 部署保持安全 Cookie 开启。新用户访问 `/register`，已有用户联系管理员重设密码；没有默认 `admin` 密码。
+新用户访问 `/register` 注册，没有默认管理员密码。已有用户保留 UID，由管理员核实身份后发放重设密码链接。
 
 ### 第四步：启动 astronAgent 核心服务（必要部署步骤）
 
@@ -111,6 +86,8 @@ cd docker/astronAgent
 # 启动所有服务
 docker compose up -d --build
 ```
+
+启动后访问 `http://localhost/` 或 `http://<服务器IP>/` 并注册账号。默认 HTTP 入口无需填写主机、origin 或 Cookie 环境变量。
 
 #### 4.2 配置平台账号管理（可选，按需配置业务能力）
 

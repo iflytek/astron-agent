@@ -4,16 +4,14 @@
 
 ## 快速开始
 
-### 必须手动配置的关键字段
+### 默认启动无需修改环境变量
 
-在使用 Docker Compose 部署之前，以下环境变量**必须手动配置**。详细的配置步骤和说明请参考 [部署指南](https://github.com/iflytek/astron-agent/blob/main/docs/zh/DEPLOYMENT_GUIDE.md)。
+在 `docker/astronAgent` 执行 `docker compose up -d --build`，无需复制或编辑 `.env`。默认通过 80 端口访问 `http://localhost/` 或 `http://<服务器IP>/`。内置账号和基础设施可直接使用，模型与可选外部能力在启动后按需配置。
 
-**关键配置项概览**：
+**可选覆盖与持久凭据**：
 
-- **Python Console 内部账号**：参见 [配置与迁移说明](../../console/backend/README.md).
-
-- **主机地址配置**:
-  - `HOST_BASE_ADDRESS` - 设置为您的服务器地址或域名
+- **Python Console 内部账号**：参见[配置与迁移说明](../../console/backend/README.md)。签名密钥首次自动生成并复用 `console_signing_secrets` 卷，升级保留此卷。
+- **自定义域名与 HTTPS**：仅按需配置，参见下方 Console 配置项。服务器 IP 访问或可选修改 `EXPOSE_NGINX_PORT` 均无需设置固定公开 origin。
 
 - **部署内部认证（无需手动配置）**：
   - `.env` 中 `WORKFLOW_INTERNAL_API_KEY`、`TENANT_KEY`、`TENANT_SECRET`
@@ -282,8 +280,12 @@
 
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
-| HOST_BASE_ADDRESS | 用户必填 | url | 主机基础地址 | http://localhost |
-| CONSOLE_DOMAIN | 必填 | url | Console 控制台域名地址(默认从 HOST_BASE_ADDRESS 和 EXPOSE_NGINX_PORT 组合) | ${HOST_BASE_ADDRESS}:${EXPOSE_NGINX_PORT} |
+| CONSOLE_SECRET_KEY | 自动生成 | secret | 首次生成到 console_signing_secrets，Console 读取 /app/secrets/console/secret-key；首次升级导入已有密钥，冲突拒绝静默轮换 | 自动生成并持久化 |
+| CONSOLE_ALLOWED_HOSTS | 可选 | string | 默认空，接受 IP 字面值、localhost 和 console-hub；自定义域名需显式严格允许列表 | 空 |
+| CONSOLE_PUBLIC_ORIGIN | 可选 | url origin | 默认空，API 地址采用验证后的请求 origin，图片为相对链接；公众号 OAuth 需固定 HTTPS origin | 空 |
+| CONSOLE_CSRF_TRUSTED_ORIGINS | 可选 | string | 默认空，保留 Django 同源校验；确需跨源信任时才填写完整 origin | 空 |
+| CONSOLE_COOKIE_SECURE | 使用默认 | string | auto 按协议设置，HTTPS 加 Secure，HTTP 不加 | auto |
+| CONSOLE_TRUSTED_PROXIES | 可选 | string | 仅信任配置的直接代理 IP/CIDR 提供客户端/协议头，代理必须设置或覆盖这些头 | 空 |
 | OSS_REMOTE_ENDPOINT | 必填 | URL origin | Console 预签名 URL 与 Core Agent 信任校验使用的精确 origin；本地默认值可用相同签名 Host 从 Docker 宿主机和 Compose 容器访问，远程客户端必须改为单独保护的 TLS 端点 | http://minio.localhost:${EXPOSE_MINIO_PORT} |
 | OSS_BUCKET_CONSOLE | 必填 | string | Console 使用的对象存储桶名称 | console-oss |
 | OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE | 必填 | int | Console 预签名 URL 过期时间(秒) | 600 |
@@ -332,7 +334,6 @@
 | MAAS_MCP_REGISTER | 必填 | url | MaaS MCP 注册接口地址 | http://127.0.0.1:8080/workflow/release |
 | MAAS_WORKFLOW_CONFIG | 必填 | url | MaaS 工作流配置接口地址 | http://127.0.0.1:8080/workflow/get-flow-advanced-config |
 | BOT_API_CBM_BASE_URL | 必填 | url | Bot API CBM 基础地址(支持 ws/wss,注意 env.example 中写作 ws(s)://) | wss://spark-openapi.cn-huabei-1.xf-yun.com |
-| BOT_API_MAAS_BASE_URL | 必填 | url | Bot API MaaS 基础地址(注意 env.example 中写作 http(s)://) | https://xingchen-api.xf-yun.com |
 | TENANT_CREATE_APP | 必填 | url | 租户创建应用接口地址(默认从 CORE_TENANT_PORT 获取端口) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app |
 | TENANT_GET_APP_DETAIL | 必填 | url | 租户获取应用详情接口地址(默认从 CORE_TENANT_PORT 获取端口) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/details |
 

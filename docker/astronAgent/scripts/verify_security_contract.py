@@ -41,6 +41,14 @@ WORKFLOW_PLACEHOLDER = "CHANGE_ME_WORKFLOW_INTERNAL_API_KEY"
 
 GENERATED_CREDENTIALS = (
     {
+        "volume": "console_signing_secrets",
+        "init_target": "/secrets/console",
+        "consumer_target": "/app/secrets/console",
+        "consumers": {
+            "console-hub": {"CONSOLE_SECRET_KEY_FILE": "/app/secrets/console/secret-key"},
+        },
+    },
+    {
         "volume": "workflow_internal_secrets",
         "init_target": "/secrets/workflow",
         "consumer_target": "/app/secrets/workflow",
@@ -103,6 +111,7 @@ FORBIDDEN_INLINE_CREDENTIALS = {
         "WORKFLOW_INTERNAL_API_KEY",
     ),
     "console-hub": (
+        "CONSOLE_SECRET_KEY",
         "TENANT_KEY",
         "TENANT_SECRET",
         "TENANT_INTERNAL_API_KEY",
@@ -196,6 +205,57 @@ def _render_compose(compose_file: Path, environment: Optional[Mapping[str, str]]
     if not isinstance(rendered, dict):
         raise GateError("Docker Compose config returned an unexpected JSON root")
     return rendered
+
+
+def validate_zero_configuration(compose_file: Path) -> None:
+    """Render without shell overrides or .env, then check connected defaults."""
+    command = list(_select_compose_command(compose_file))
+    clean_environment = {name: os.environ[name] for name in ("PATH", "HOME") if name in os.environ}
+    completed = subprocess.run(
+        command + ["--env-file", os.devnull, "-f", str(compose_file), "config", "--format", "json"],
+        cwd=str(compose_file.parent), env=clean_environment,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=False,
+    )
+    if completed.returncode or completed.stderr.strip():
+        raise GateError("bare Compose config failed or emitted configuration warnings")
+    config = json.loads(completed.stdout)
+    errors = validate_contract(config)
+    if errors:
+        raise GateError("bare Compose security contract failed")
+    services = config["services"]
+    hub = services["console-hub"]["environment"]
+    for name in ("CONSOLE_ALLOWED_HOSTS", "CONSOLE_PUBLIC_ORIGIN", "CONSOLE_CSRF_TRUSTED_ORIGINS", "CONSOLE_COOKIE_SECURE"):
+        if hub.get(name) != "":
+            raise GateError(f"bare Compose {name} must select automatic defaults")
+    expected_urls = {
+        "KNOWLEDGE_URL": "http://core-knowledge:20010/knowledge",
+        "TOOL_URL": "http://core-link:18888",
+        "SPARK_DB_URL": "http://core-database:7990",
+        "AGENT_URL": "http://core-agent:17870",
+        "TENANT_URL": "http://core-tenant:5052",
+    }
+    if any(hub.get(name) != value for name, value in expected_urls.items()):
+        raise GateError("bare Compose Console downstream URLs are incomplete")
+    if services["core-tenant"]["environment"]["DATABASE_URL"] != "(mysql:3306)/tenant":
+        raise GateError("bare Compose tenant database must use bundled MySQL")
+    if services["core-agent"]["environment"]["APP_AUTH_HOST"] != "core-tenant:5052":
+        raise GateError("bare Compose Agent authentication must use the tenant port")
+    redis_password = services["redis"]["environment"]["REDIS_PASSWORD"]
+    mysql_password = services["mysql"]["environment"]["MYSQL_ROOT_PASSWORD"]
+    for service in services.values():
+        environment = service.get("environment", {})
+        if "REDIS_PASSWORD" in environment and environment["REDIS_PASSWORD"] != redis_password:
+            raise GateError("bare Compose Redis client credentials disagree")
+        if "MYSQL_PASSWORD" in environment and environment["MYSQL_PASSWORD"] != mysql_password:
+            raise GateError("bare Compose MySQL client credentials disagree")
+        if "OSS_BUCKET_NAME" in environment and not environment["OSS_BUCKET_NAME"]:
+            raise GateError("bare Compose object-storage bucket is missing")
+        if "REDIS_DATABASE_CONSOLE" in environment and environment["REDIS_DATABASE_CONSOLE"] != "1":
+            raise GateError("bare Compose Console Redis database differs from .env.example")
+    workflow = services["core-workflow"]["environment"]
+    for name in ("KNOWLEDGE_BASE_URL", "PLUGIN_BASE_URL", "WORKFLOW_BASE_URL", "APP_MANAGE_PLAT_BASE_URL", "AGENT_BASE_URL", "PGSQL_BASE_URL", "RPA_BASE_URL"):
+        if not urlsplit(workflow[name]).port:
+            raise GateError("bare Compose workflow downstream port is missing")
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -350,6 +410,13 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
                         f"services.{service_name}.environment.{env_name}: missing or unexpected"
                     )
 
+    for service_name, service in services.items():
+        if service_name not in (INTERNAL_CREDENTIAL_INIT, "console-hub") and any(
+            mount.get("source") == "console_signing_secrets"
+            for mount in service.get("volumes", []) if isinstance(mount, dict)
+        ):
+            errors.append(f"services.{service_name}.volumes: Console signing key must remain private")
+
     for service_name in INTERNAL_CREDENTIAL_CONSUMERS:
         service = _mapping(services.get(service_name))
         environment = _mapping(service.get("environment"))
@@ -439,7 +506,11 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
             )
 
     hub = _mapping(services.get("console-hub"))
-    allowed_hosts = str(_mapping(hub.get("environment")).get("CONSOLE_ALLOWED_HOSTS", "")).split(",")
+    # Django settings always include internal service names; blank public hosts
+    # intentionally select automatic localhost/IP handling.
+    allowed_hosts = ["console-hub", "localhost", "127.0.0.1"] + str(
+        _mapping(hub.get("environment")).get("CONSOLE_ALLOWED_HOSTS", "")
+    ).split(",")
     for service_name in CONSUMERS:
         environment = _mapping(_mapping(services.get(service_name)).get("environment"))
         for name in (*INTERNAL_URLS, "MODEL_RUNTIME_CONFIG_URL"):
@@ -505,8 +576,6 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
     def missing_read_group(config: MutableMapping[str, Any], _marker: str) -> None:
         config["services"]["console-hub"].pop("group_add", None)
 
-    def missing_internal_host(config: MutableMapping[str, Any], _marker: str) -> None:
-        config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] = "public.example.org"
 
     def wrong_internal_url(config: MutableMapping[str, Any], marker: str) -> None:
         config["services"]["core-agent"]["environment"][
@@ -594,7 +663,19 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
             "true",
         ]
 
+    def writable_console_key(config: MutableMapping[str, Any], _marker: str) -> None:
+        _set_mount_mode(config, "console-hub", "/app/secrets/console", False)
+
+    def missing_console_key_file(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"].pop("CONSOLE_SECRET_KEY_FILE", None)
+
+    def inline_console_key(config: MutableMapping[str, Any], marker: str) -> None:
+        config["services"]["console-hub"]["environment"]["CONSOLE_SECRET_KEY"] = marker
+
     return (
+        ("writable-console-key", writable_console_key, "services.console-hub.volumes[/app/secrets/console].mode"),
+        ("missing-console-key-file", missing_console_key_file, "services.console-hub.environment.CONSOLE_SECRET_KEY_FILE"),
+        ("inline-console-key", inline_console_key, "services.console-hub.environment.CONSOLE_SECRET_KEY"),
         (
             "missing-console-workflow-key-file",
             missing_console_workflow_key,
@@ -605,7 +686,6 @@ def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any],
             missing_console_tenant_key,
             "services.console-hub.environment.TENANT_SECRET_FILE",
         ),
-        ("missing-internal-console-host", missing_internal_host, "services.console-hub.environment.CONSOLE_ALLOWED_HOSTS"),
         (
             "wrong-token-file-path",
             wrong_token_path,
@@ -752,6 +832,8 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
         script = script.replace("/secrets/tenant", str(tenant_directory))
         script = script.replace("/secrets/artifact", str(root / "artifact"))
         script = script.replace("/secrets/runtime", str(root / "runtime"))
+        script = script.replace("/secrets/console", str(root / "console"))
+        console_file = root / "console" / "secret-key"
         # Unprivileged host tests cover bytes/modes, not kernel ownership. The
         # Docker lifecycle below executes the unmodified chown as root and reads
         # the volume from UID/GID 10001; it is required in the Linux CI gate.
@@ -765,6 +847,7 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
                 cwd=temporary,
                 env={
                     **os.environ,
+                    "CONFIGURED_CONSOLE_SECRET_KEY": "",
                     "CONFIGURED_ARTIFACT_TOKEN": "",
                     "CONFIGURED_RUNTIME_TOKEN": "",
                     **environment,
@@ -873,6 +956,51 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
         if snapshot() != initial_snapshot:
             raise GateError("credential shell lifecycle did not reuse generated values")
 
+        def console_snapshot() -> bytes:
+            if (
+                console_file.stat().st_mode & 0o777 != 0o440
+                or console_file.parent.stat().st_mode & 0o777 != 0o750
+            ):
+                raise GateError("Console signing key permissions are incorrect")
+            value = console_file.read_bytes()
+            if len(value.strip()) < 50 or len(value.splitlines()) != 1:
+                raise GateError("Console signing key is malformed")
+            return value
+
+        first_console = console_snapshot()
+        run_initializer(empty_environment, True)
+        if console_snapshot() != first_console:
+            raise GateError("Console signing key changed on restart")
+        run_initializer({**empty_environment, "CONFIGURED_CONSOLE_SECRET_KEY": "X" * 64}, False)
+        if console_snapshot() != first_console:
+            raise GateError("conflicting Console override changed the signing key")
+        console_file.unlink()
+        # Import an existing deployment key, including punctuation used by Django.
+        existing_key = "existing-deployment-secret-!@#$%^&*()_+" * 2
+        override = {**empty_environment, "CONFIGURED_CONSOLE_SECRET_KEY": existing_key}
+        run_initializer(override, True)
+        imported_console = console_snapshot()
+        if imported_console != (existing_key + "\n").encode():
+            raise GateError("Console environment signing key was not imported")
+        run_initializer(override, True)
+        run_initializer(empty_environment, True)
+        if console_snapshot() != imported_console:
+            raise GateError("imported Console key changed after removing the override")
+        for invalid in ("short", "X" * 64 + "\nY"):
+            console_file.unlink(missing_ok=True)
+            run_initializer({**empty_environment, "CONFIGURED_CONSOLE_SECRET_KEY": invalid}, False)
+            if console_file.exists():
+                raise GateError("invalid Console signing key was persisted")
+        console_file.symlink_to(sandbox_files[0])
+        run_initializer(empty_environment, False)
+        console_file.unlink()
+        console_file.write_text("corrupt")
+        run_initializer(empty_environment, False)
+        if console_file.read_text() != "corrupt":
+            raise GateError("corrupt Console key was silently rotated")
+        console_file.unlink()
+        run_initializer(empty_environment, True)
+
         def sandbox_snapshot() -> Tuple[bytes, ...]:
             for path in sandbox_files:
                 if (
@@ -979,6 +1107,7 @@ def _credential_environment(
     workflow_key: str = "", tenant_key: str = "", tenant_secret: str = ""
 ) -> Mapping[str, str]:
     return {
+        "CONSOLE_SECRET_KEY": "",
         "WORKFLOW_INTERNAL_API_KEY": workflow_key,
         "TENANT_KEY": tenant_key,
         "TENANT_SECRET": tenant_secret,
@@ -1130,11 +1259,34 @@ done
                 raise GateError("sandbox credentials are not independent")
             return console.stdout
 
+        console_read = r"""
+[ "$(stat -c '%u:%g:%a' /secrets/console)" = '0:10001:750' ] || exit 54
+file=/secrets/console/secret-key
+[ "$(stat -c '%u:%g:%a' "$file")" = '0:10001:440' ] || exit 55
+[ -r "$file" ] && [ ! -w "$file" ] || exit 56
+[ "$(wc -c < "$file")" -ge 50 ] || exit 57
+sha256sum "$file" | cut -d ' ' -f 1
+"""
+        def console_snapshot() -> str:
+            completed = run_volume_script(console_read, "10001:10001")
+            if completed.returncode or not re.fullmatch(r"[0-9a-f]{64}\n", completed.stdout):
+                raise GateError("Console signing key must be readable only through its restricted group")
+            outsider = run_volume_script("test ! -r /secrets/console/secret-key", "20002:20002")
+            if outsider.returncode:
+                raise GateError("Console signing key is readable outside its group")
+            return completed.stdout
+
+        first_console = console_snapshot()
         first_sandbox = sandbox_snapshot()
         first_snapshot = snapshot()
         run_initializer(empty_environment, True)
         if snapshot() != first_snapshot:
             raise GateError("generated credentials were not reused on restart")
+        if console_snapshot() != first_console:
+            raise GateError("Console signing key changed on restart")
+        run_initializer({**empty_environment, "CONSOLE_SECRET_KEY": "X" * 64}, False)
+        if console_snapshot() != first_console:
+            raise GateError("Console conflicting override changed the signing key")
         if sandbox_snapshot() != first_sandbox:
             raise GateError("sandbox generated credentials changed on restart")
 
@@ -1254,6 +1406,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     try:
+        validate_zero_configuration(compose_file)
         config = _render_compose(compose_file)
         errors = validate_contract(config)
         if errors:
@@ -1263,8 +1416,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         run_negative_self_tests(config)
         public_hosts = "public.example.org,198.51.100.8"
         public_config = _render_compose(compose_file, {"CONSOLE_ALLOWED_HOSTS": public_hosts})
-        if public_config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] != public_hosts + ",console-hub":
-            raise GateError("configured public hosts were not preserved with the internal service host")
+        if public_config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] != public_hosts:
+            raise GateError("configured public hosts were not preserved")
         tenant_config = _render_compose(compose_file, {
             "CORE_TENANT_PORT": "15052", "TENANT_URL": "",
         })
@@ -1290,8 +1443,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     print(
         "security contract gate: PASS "
-        f"(5 services, 4 independent credential volumes, "
-        f"{len(_negative_cases())} negative cases, shell lifecycle exercised"
+        f"(5 services, 5 independent credential volumes, "
+        f"{len(_negative_cases())} negative cases, bare Compose, shell lifecycle exercised"
         + (
             ", credential lifecycle exercised"
             if args.exercise_credential_lifecycle

@@ -8,4 +8,5 @@ os.environ["CONSOLE_COOKIE_SECURE"] = "false"
 from .settings import *  # noqa: E402,F403
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
+CONSOLE_AUTO_ALLOWED_HOSTS = False
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
