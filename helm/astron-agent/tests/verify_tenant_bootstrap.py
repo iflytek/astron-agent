@@ -309,6 +309,15 @@ def _verify_docker_agent_proxy(source: str) -> None:
     locations = re.findall(
         r"location\s+(?:(\^~|=)\s+)?(/[^\s{]*)\s*\{([^{}]*)\}", source
     )
+    for _, prefix, block in locations:
+        if (
+            "proxy_pass http://console-hub:8080" in block
+            and prefix != "/_gateway_auth/workflow"
+            and "proxy_set_header Host $http_host;" not in block
+        ):
+            raise VerificationError(
+                "Docker Console proxy must preserve original Host including port: " + prefix
+            )
 
     def selected(uri: str) -> Tuple[str, str, str]:
         path = urlsplit(uri).path
@@ -356,7 +365,7 @@ def _verify_docker_agent_proxy(source: str) -> None:
             modifier, prefix, block = selected(uri)
             expected = (
                 "proxy_pass http://console-hub:8080/agents;",
-                "proxy_set_header Host $host;",
+                "proxy_set_header Host $http_host;",
                 "proxy_set_header X-Real-IP $remote_addr;",
                 "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
                 "proxy_set_header X-Forwarded-Proto $scheme;",
@@ -423,6 +432,20 @@ def _verify_docker_agent_proxy(source: str) -> None:
                 raise VerificationError(
                     "Docker internal console API is not denied before proxy/static routing"
                 )
+
+
+def _verify_docker_host_regressions(source: str) -> None:
+    # $host drops a published port such as :18888, causing same-origin CSRF
+    # checks and generated API URLs to disagree with the browser's address.
+    for replacement in ("proxy_set_header Host $host;", ""):
+        broken = source.replace("proxy_set_header Host $http_host;", replacement)
+        try:
+            _verify_docker_agent_proxy(broken)
+        except VerificationError as exc:
+            if "preserve original Host including port" not in str(exc):
+                raise
+        else:
+            raise VerificationError("Docker Host regression was not detected")
 
 
 def _verify_agent_ingress_routes(rendered: str) -> None:
@@ -962,9 +985,9 @@ def main() -> int:
         if lint.returncode != 0:
             raise VerificationError("Helm lint failed")
         _verify_lookup_and_seed_sources()
-        _verify_docker_agent_proxy(
-            (CHART.parent.parent / "docker/astronAgent/nginx/nginx.conf").read_text()
-        )
+        docker_nginx = (CHART.parent.parent / "docker/astronAgent/nginx/nginx.conf").read_text()
+        _verify_docker_agent_proxy(docker_nginx)
+        _verify_docker_host_regressions(docker_nginx)
         _verify_default_render()
         _verify_console_internal_hosts()
         _verify_sandbox_external_secrets()
@@ -987,7 +1010,8 @@ def main() -> int:
     print(
         "tenant bootstrap Helm gate: PASS "
         f"(10 positive modes, 4 tenant consumers, 3 workflow consumers, "
-        f"{negative_count} negative cases, Docker/Helm Agent SSE and internal-route contracts)"
+        f"{negative_count} negative cases, 2 Docker Host regressions, "
+        "Docker/Helm Agent SSE and internal-route contracts)"
     )
     return 0
 
