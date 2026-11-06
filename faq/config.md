@@ -10,11 +10,11 @@
 
 ## 登录循环、登录状态丢失或写请求返回 403？
 
-确认页面和 `/console-api/` 使用同一 origin，代理正确转发 Cookie。核对 `CONSOLE_PUBLIC_ORIGIN`、`CONSOLE_ALLOWED_HOSTS` 和 `CONSOLE_CSRF_TRUSTED_ORIGINS`。公开部署使用 HTTPS 和安全 Cookie；仅隔离 HTTP 验证设置 `CONSOLE_COOKIE_SECURE=false`。写请求必须携带当前 CSRF Token。
+确认页面和 `/console-api/` 使用同一 origin，代理保留 Host 及端口并正确转发 Cookie。默认 IP 访问无需填写地址变量，Cookie 随 HTTP/HTTPS 自动设置，写请求仍必须携带当前 CSRF Token。只有自定义域名、跨 origin 或额外 HTTPS 代理时，才需核对显式的允许主机、可信来源和代理配置；详见 [Console 运维说明](../console/backend/README.md)。
 
 ## 修改访问域名或端口后如何处理？
 
-同步更新上述 origin、主机与代理配置并重新部署。用户可能需要重新登录；不再配置 OAuth 回调地址。
+默认 IP 或端口变化不需要修改 Console 环境变量。使用自定义域名时配置 `CONSOLE_ALLOWED_HOSTS`；若已显式设置 `CONSOLE_PUBLIC_ORIGIN` 或可信来源，则同步更新这些覆盖项。切换访问主机后浏览器 Cookie 不共享，需要重新登录。
 
 ## 可以关闭注册或切换组织吗？
 

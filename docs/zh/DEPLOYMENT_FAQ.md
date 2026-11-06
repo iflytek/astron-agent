@@ -1,6 +1,6 @@
 ﻿# 部署常见问题 FAQ
 
-> 当前 Python Console 分阶段迁移只交付账号功能。升级前按 [运维说明](../../console/backend/README.md) 保留数据并导入旧用户；旧用户保留 UID，由管理员发放重设密码链接。
+> Python Console 提供账号、空间、资源、Agent、工作流和发布管理。升级前按 [运维说明](../../console/backend/README.md) 保留数据并导入旧用户；旧用户保留 UID，由管理员发放重设密码链接。
 
 本文档收集了 Astron Agent 部署过程中的常见问题和解决方案。
 
@@ -34,13 +34,13 @@ docker compose -f docker-compose.yaml pull
 
 - 升级前建议备份重要数据
 - 升级后请检查配置文件是否需要更新
-- 确保所有环境变量配置正确后再启动服务
+- 默认 Compose 及服务器 IP 访问无需修改 `.env`；升级时只需核对已有的显式覆盖配置
 
 ---
 
 ## 2. 部署后页面无法访问怎么办？
 
-先检查应用入口、Console 健康状态和日志，确认当前前后端镜像均由迁移分支构建，并核对数据库、Redis、域名与 Cookie 设置。当前阶段只支持账号页面；未迁移业务返回错误并不代表用户数据丢失。
+先检查应用入口、Console 健康状态和日志，确认当前前后端镜像均由同一版本构建，并核对数据库、Redis、域名与 Cookie 设置。若业务页面失败，检查对应 Console 接口及下游核心服务日志；不能仅凭请求失败认定数据丢失。
 
 保留数据库与数据卷，不执行清空数据的重装步骤。已有用户的导入与重设流程见 [Python Console 运维说明](../../console/backend/README.md)。
 
@@ -62,5 +62,5 @@ docker compose -f docker-compose.yaml pull
 
 ## 相关文档
 
-- [部署指南（带认证）](./DEPLOYMENT_GUIDE_WITH_AUTH.md)
-- [部署指南（不带认证）](./DEPLOYMENT_GUIDE.md)
+- [账号配置与迁移](./DEPLOYMENT_GUIDE_WITH_AUTH.md)
+- [完整部署指南](./DEPLOYMENT_GUIDE.md)

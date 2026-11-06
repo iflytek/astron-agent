@@ -4,12 +4,12 @@ import secrets
 from collections import defaultdict
 from datetime import timedelta
 
-from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
+from astron_console.accounts.deployment import public_origin
 from astron_console.agents.models import Agent, AgentFavorite, AgentRun
 from astron_console.http import api_endpoint
 from astron_console.resources.common import number, serialize, text, upstream_errors
@@ -223,7 +223,7 @@ def api_info(request):
         "appId": app.app_id,
         "appKey": app.app_key,
         "appSecret": app.app_secret,
-        "serviceUrl": settings.CONSOLE_PUBLIC_ORIGIN + path,
+        "serviceUrl": public_origin(request) + path,
         "flowId": publication.candidate.resource_id,
         "versionId": publication.candidate.version_id,
     }

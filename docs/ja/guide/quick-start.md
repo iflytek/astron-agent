@@ -1,6 +1,6 @@
 # クイックスタート
 
-> Python Console への段階的移行中です。起動前に [導入ガイド](/DEPLOYMENT_GUIDE) でアカウント設定を確認してください。新規ユーザーは `/register` で登録し、既存ユーザーは UID を維持して管理者発行のリンクからパスワードを再設定します。業務機能はまだすべて利用できる状態ではありません。
+> 新規ユーザーは `/register` で登録し、既存ユーザーは UID を維持して管理者発行のリンクからパスワードを再設定します。
 
 このページでは、初めて評価する方に向けた最短ルートをまとめています。まずはローカル環境で始め、必要に応じて完全なデプロイ・設定リファレンスへ進んでください。
 
@@ -12,25 +12,24 @@
 
 ## 2 ステップで起動
 
-### 1. リポジトリをクローンして環境変数を準備
+### 1. リポジトリをクローン
 
 ```bash
 git clone https://github.com/iflytek/astron-agent.git
 cd astron-agent/docker/astronAgent
-cp .env.example .env
 ```
 
-コピー後、モデル・データベース・オブジェクトストレージ・認証などの設定を必要に応じて記入します。
+既定の起動では `.env` のコピー・編集や環境変数の入力は不要です。モデルや外部サービスは起動後に必要に応じて設定してください。
 
 ### 2. サービスを起動
 
 ```bash
-docker compose -f docker-compose.yaml up -d --build
+docker compose up -d --build
 ```
 
 起動が完了すると、デフォルトのアクセス先は次のとおりです：
 
-- Astron Agent フロントエンド：`http://localhost/`
+- Astron Agent フロントエンド：ローカルは `http://localhost/`、リモートは `http://<server-ip>/`（既定ポート 80）。サーバー IP でのアクセスにも環境変数の変更は不要です。
 
 ## 推奨の読み進め方
 

@@ -90,11 +90,11 @@ continued.
 
 ### Docker Compose
 
-Create the local deployment environment file and set project-specific values:
+Only when enabling optional Langfuse export, create a local deployment environment file and set project-specific values. Default Compose startup does not require this file. Preserve any existing `.env` overrides:
 
 ```bash
 cd docker/astronAgent
-cp .env.example .env
+cp -n .env.example .env
 ```
 
 ```dotenv

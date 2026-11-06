@@ -16,6 +16,7 @@ class Command(BaseCommand):
         identity = parser.add_mutually_exclusive_group(required=True)
         identity.add_argument("--uid")
         identity.add_argument("--username", help="Original or current login username")
+        parser.add_argument("--origin", help="Optional public HTTP(S) origin for a complete link")
 
     def handle(self, *args, **options):
         uid = options.get("uid")
@@ -35,14 +36,18 @@ class Command(BaseCommand):
         user = User.objects.filter(pk=uid).first()
         if not user or not user.account_enabled:
             raise CommandError("Account does not exist or is disabled")
-        origin = urlsplit(settings.CONSOLE_PUBLIC_ORIGIN)
-        if (
+        public_origin = (options.get("origin") or settings.CONSOLE_PUBLIC_ORIGIN).rstrip("/")
+        origin = urlsplit(public_origin)
+        if public_origin and (
             origin.scheme not in {"http", "https"}
             or not origin.netloc
+            or origin.username
+            or origin.password
+            or origin.path
             or origin.query
             or origin.fragment
         ):
-            raise CommandError("CONSOLE_PUBLIC_ORIGIN must be an HTTP(S) origin")
+            raise CommandError("--origin / CONSOLE_PUBLIC_ORIGIN must be an HTTP(S) origin")
         query = urlencode(
             {
                 "uid": urlsafe_base64_encode(force_bytes(user.pk)),
@@ -50,6 +55,11 @@ class Command(BaseCommand):
             }
         )
         self.stdout.write(f"登录用户名：{user.username}")
-        self.stdout.write("打开以下链接设置新密码，然后使用上面的用户名登录（链接一小时内有效）：")
+        if public_origin:
+            self.stdout.write(
+                "打开以下链接设置新密码，然后使用上面的用户名登录（链接一小时内有效）："
+            )
+        else:
+            self.stdout.write("在控制台访问地址后追加以下路径设置密码（链接一小时内有效）：")
         # Fragment avoids including the bearer reset credential in HTTP access logs.
-        self.stdout.write(f"{settings.CONSOLE_PUBLIC_ORIGIN}/reset-password#{query}")
+        self.stdout.write(f"{public_origin}/reset-password#{query}")

@@ -55,8 +55,8 @@ export default defineConfig({
             items: [
               { text: "Deployment Overview", link: "/guide/deploy" },
               { text: "Full Deployment Guide", link: "/DEPLOYMENT_GUIDE" },
-              { text: "Auth Deployment Guide", link: "/DEPLOYMENT_GUIDE_WITH_AUTH" },
-              { text: "Auth + RPA Deployment Guide", link: "/DEPLOYMENT_GUIDE_WITH_AUTH_RPA" },
+              { text: "Account Setup and Migration", link: "/DEPLOYMENT_GUIDE_WITH_AUTH" },
+              { text: "External RPA Integration", link: "/DEPLOYMENT_GUIDE_WITH_AUTH_RPA" },
               { text: "Deployment FAQ", link: "/DEPLOYMENT_FAQ" }
             ]
           },
@@ -145,8 +145,8 @@ export default defineConfig({
             items: [
               { text: "部署总览", link: "/zh/guide/deploy" },
               { text: "标准部署指南", link: "/zh/DEPLOYMENT_GUIDE" },
-              { text: "鉴权部署指南", link: "/zh/DEPLOYMENT_GUIDE_WITH_AUTH" },
-              { text: "鉴权 + RPA 部署指南", link: "/zh/DEPLOYMENT_GUIDE_WITH_AUTH_RPA" },
+              { text: "账号配置与迁移", link: "/zh/DEPLOYMENT_GUIDE_WITH_AUTH" },
+              { text: "外部 RPA 集成", link: "/zh/DEPLOYMENT_GUIDE_WITH_AUTH_RPA" },
               { text: "部署 FAQ", link: "/zh/DEPLOYMENT_FAQ" }
             ]
           },

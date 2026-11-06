@@ -6,7 +6,7 @@
 
 ## Architecture Diagram
 
-![Astron Agent Architecture](./imgs/arch.png)
+![Astron Agent Architecture](./imgs/architecture.svg)
 
 ---
 
@@ -48,6 +48,8 @@
 - Model management and configuration APIs
 - File upload/download services
 - Data statistics and analytics
+- Immutable release snapshots, publication credentials, and execution records
+- Space membership and scoped resource authorization
 
 **Tech Stack**: Django 5.2, ASGI, Django ORM, session authentication and CSRF
 
@@ -66,9 +68,9 @@
 **Main Responsibilities**:
 - Agent core execution engine
 - Unified Deep Agents execution for independent Agents and workflow Agent nodes
-- Agent lifecycle management
+- Execute Agent configurations supplied by Console
 - Tool invocation and plugin integration
-- Session management and context persistence
+- Execution context, streaming output, and tool-call state
 
 **Tech Stack**: FastAPI, SQLAlchemy 2.0, Pydantic, OpenTelemetry
 
@@ -85,13 +87,13 @@
 **Main Responsibilities**:
 - Workflow orchestration and execution engine (Spark Flow)
 - Multi-step process automation
-- Workflow version management
-- Event-driven asynchronous processing
+- Execute workflow snapshots supplied by Console
+- DAG scheduling and streaming execution events
 - Visual workflow runtime debugging
 
 **Tech Stack**: FastAPI, SQLModel, SQLAlchemy 2.0, Kafka (event streaming), LangChain
 
-**Event Mechanism**: Event communication via Kafka Topic `workflow-events`
+**Execution path**: Console invokes the workflow service over HTTP/SSE; Agent nodes call `core/agent`. Kafka carries execution logs using the configured `KAFKA_TOPIC`.
 
 ---
 
@@ -110,7 +112,7 @@
 
 **Tech Stack**: FastAPI, RAGFlow SDK, OpenAI API, SQLModel, Redis
 
-**Event Mechanism**: Event communication via Kafka Topic `knowledge-events`
+**Invocation**: Console and execution services access document and retrieval APIs over HTTP.
 
 ---
 
@@ -121,9 +123,11 @@
 **Language**: Python
 
 **Main Responsibilities**:
-- Conversation history storage and retrieval
-- Context management (long-term and short-term memory)
-- Session data persistence
+- Database creation, deletion, and metadata management
+- Table schema operations (DDL)
+- Data queries and updates (DML) for workflow database nodes
+
+Console manages conversation history and integrates optional Mem0 long-term memory.
 
 **Tech Stack**: Python, database abstraction layer
 
@@ -136,10 +140,10 @@
 **Language**: Go
 
 **Main Responsibilities**:
-- Multi-tenant management
-- Space isolation and permission control
-- Organization structure management
-- Resource quota management
+- Application registration and management
+- Application API key creation, update, deletion, and verification
+
+Console owns space membership, roles, and resource authorization.
 
 **Tech Stack**: Go 1.23, Gin framework, MySQL
 
@@ -172,8 +176,8 @@
 
 **Main Responsibilities**:
 - RPA process automation
-- Process recording and playback
-- Automated script execution
+- Invoke configured external RPA tasks
+- Retrieve execution results
 - Integration with external RPA executors
 
 **Tech Stack**: FastAPI, RPA SDK
@@ -187,9 +191,9 @@
 **Language**: Python
 
 **Main Responsibilities**:
-- External link resource integration
-- URL content fetching and processing
-- Link validation and metadata extraction
+- HTTP tool definition and version management
+- HTTP tool execution and debugging
+- MCP tool discovery and invocation
 
 **Tech Stack**: FastAPI, HTTP Client
 
@@ -220,15 +224,12 @@
 ## Infrastructure Components (Data Mgmt & Messaging)
 
 ### Data Persistence
-- **MySQL**: Primary database for structured data storage
-- **Redis**: Cache service, session storage, event registry
+- **MySQL**: Console accounts, DB-backed sessions, configuration, releases, and execution records; service-specific structured data
+- **Redis**: Cache, rate limits, and execution event registry
 - **PostgreSQL**: Optional auxiliary database
 
 ### Message Queue
-- **Kafka**: Event streaming and inter-service communication
-  - Topic: `workflow-events` - Workflow events
-  - Topic: `knowledge-events` - Knowledge events
-  - Topic: `agent-events` - Agent events
+- **Kafka**: Execution log reporting. Topic names come from each service’s configuration (`KAFKA_TOPIC`); HTTP/SSE carries the main execution calls.
 
 ### Object Storage
 - **MinIO**: File storage service (PUT/GET operations)
@@ -262,7 +263,7 @@ UI Layer
 
 Console Backend Layer
     └── Console Backend (Python Django ASGI)
-         ↓ HTTP/REST
+         ↓ HTTP/REST/SSE
 
 Core Microservices Layer
     ├── Agent Service (Python FastAPI)
@@ -281,10 +282,9 @@ Common Services Layer
 
 Data & Messaging Layer
     ├── MySQL (Relational Database)
-    ├── Redis (Cache/Session)
+    ├── Redis (Cache/Events)
     ├── Kafka (Event Streaming)
     └── MinIO (Object Storage)
-         ↓
 
 External Services
     ├── LLM Providers (Large Language Models)
@@ -297,11 +297,12 @@ External Services
 | Communication Path | Protocol | Description |
 |-------------------|----------|-------------|
 | Frontend → Backend | HTTP/REST, SSE | REST API calls and server-sent events |
-| Backend → Core Services | HTTP/REST | RESTful API invocation |
-| Core Services ↔ Core Services | Kafka Topics | Asynchronous event-driven communication |
+| Backend → Core Services | HTTP/REST, SSE | Resource operations, execution requests, and streamed results |
+| Workflow → Agent / Knowledge / Plugins / Database | HTTP, SSE | Node execution and resource access |
+| Agent → Console | Internal HTTP APIs | Scoped runtime configuration and resource access |
 | Core Services → MySQL | MySQL drivers / SQLAlchemy | Data persistence |
-| Core Services → Redis | Redis Protocol | Cache read/write, session management |
-| Core Services → Kafka | Kafka Protocol | Publish/subscribe events |
+| Core Services → Redis | Redis Protocol | Cache and execution events |
+| Core Services → Kafka | Kafka Protocol | Execution log reporting |
 | Core Services → MinIO | MinIO API (PUT/GET) | File upload/download |
 | Plugins → External Services | HTTP/gRPC | External API calls |
 
@@ -312,12 +313,12 @@ External Services
 | Module | Dependencies | Dependents |
 |--------|-------------|------------|
 | **Console Frontend** | Console Backend | - |
-| **Console Backend** | Agent, Workflow, Knowledge, Tenant | Console Frontend |
+| **Console Backend** | Agent, Workflow, Knowledge, Tenant, Plugins, Database | Console Frontend; Agent runtime callbacks |
 | **Agent Service** | Common, Plugins (AI Tools/Link/RPA), Memory | Workflow, Console Backend |
 | **Workflow Service** | Common, Agent, Plugins | Console Backend |
 | **Knowledge Service** | Common, LLM Providers | Agent, Workflow, Console Backend |
-| **Memory DB Service** | Common | Agent |
-| **Tenant Service** | MySQL | All services (tenant context) |
+| **Memory DB Service** | Common | Console Backend, Workflow |
+| **Tenant Service** | MySQL | Application credential management and verification callers |
 | **Plugin: AI Tools** | Common, IFLYTEX API | Agent, Workflow |
 | **Plugin: RPA** | Common, RPA Executors | Agent, Workflow |
 | **Plugin: Link** | Common | Agent, Workflow |
@@ -364,7 +365,7 @@ External Services
 ### TypeScript Modules
 - **Code Style**: ESLint + Prettier
 - **Type Checking**: TypeScript strict mode
-- **Testing**: Jest + React Testing Library
+- **Testing**: Node.js test runner (`npm run test:unit`)
 
 ### Go Modules
 - **Code Style**: Go fmt
@@ -383,4 +384,4 @@ External Services
 ---
 
 **Document Version**: v1.0
-**Last Updated**: 2025-11-25
+**Last Updated**: 2026-11-06

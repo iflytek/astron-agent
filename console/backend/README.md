@@ -8,19 +8,27 @@
 
 对外由同源网关把 `/console-api/` 转发到本服务；Vite 开发/预览也提供该代理。没有单独的认证服务或浏览器令牌刷新。内部服务鉴权不等同于账号登录，在所有业务域持续保留。
 
-## 配置
+## 默认 Compose 启动
+
+在仓库的 `docker/astronAgent` 目录直接执行 `docker compose up -d --build`，无需复制或编辑 `.env`，无需手填环境变量。启动后访问 `http://localhost/` 或 `http://<服务器IP>/`，默认端口 80；IP 访问支持 IPv4 与带方括号的 IPv6。可选修改 `EXPOSE_NGINX_PORT`，无需同步 origin。
+
+签名密钥首次自动生成到 `console_signing_secrets` 卷，由 Console 从 `/app/secrets/console/secret-key` 只读加载；重启复用，升级保留此卷。已有 `CONSOLE_SECRET_KEY` 在首次升级时导入以保持会话，与持久文件冲突时拒绝启动，不静默更换密钥。多副本共享同一密钥。
+
+## 可选配置与自定义部署
+
+默认 Compose 已提供下列运行依赖。仅在自定义域名、HTTPS 代理、外部中间件或独立运行 Python 等场景按需覆盖。
 
 | 变量 | 用途 |
 |---|---|
-| `CONSOLE_SECRET_KEY` 或 `_FILE` | 必需，至少 50 字符的随机 Django 密钥；各实例共享且持久保存 |
-| `CONSOLE_ALLOWED_HOSTS` | 允许的公开主机名/IP，逗号分隔，无协议和端口；本机健康检查地址 localhost、127.0.0.1 始终保留 |
-| `CONSOLE_PUBLIC_ORIGIN` | 用户访问的完整 origin（含协议及非默认端口），用于重设链接、公开文件地址和 API 调用说明；反向代理后的内部地址不作为公开地址 |
-| `CONSOLE_CSRF_TRUSTED_ORIGINS` | HTTPS 网关的公开 origin，逗号分隔 |
-| `CONSOLE_COOKIE_SECURE` | 默认 true；仅本地/隔离 HTTP 验证设 false |
+| `CONSOLE_SECRET_KEY` 或 `_FILE` | Compose 自动生成并持久化；可选指定至少 50 字符的随机 Django 密钥；独立部署需提供，各实例共享 |
+| `CONSOLE_ALLOWED_HOSTS` | 默认接受 IP 字面值、localhost 和内部 console-hub；自定义域名按需填写，逗号分隔，无协议和端口。显式允许列表仍严格限制公网 Host |
+| `CONSOLE_PUBLIC_ORIGIN` | 默认空；API 地址按验证过的当前请求生成，图片链接为相对路径。可选固定公开 origin；公众号 OAuth 仍要求固定 HTTPS origin |
+| `CONSOLE_CSRF_TRUSTED_ORIGINS` | 默认空，使用 Django 同源 CSRF 校验；确需跨源信任时填完整 origin，逗号分隔 |
+| `CONSOLE_COOKIE_SECURE` | 默认 auto：HTTP Cookie 不加 Secure，HTTPS 加 Secure；可选显式覆盖 |
 | `MYSQL_HOST/PORT/USER/PASSWORD` | Console 数据库连接，密码支持 `_FILE` |
 | `CONSOLE_MYSQL_DB` | 默认 astron_console |
 | `CONSOLE_REDIS_URL` 或 `_FILE` | Redis 缓存/限流 URL；也支持现有 REDIS_HOST/PORT/PASSWORD 配置 |
-| `CONSOLE_TRUSTED_PROXIES` | 可信代理 IP/CIDR；仅这些来源允许使用代理覆写的 X-Real-IP |
+| `CONSOLE_TRUSTED_PROXIES` | 可信直接代理 IP/CIDR；仅这些来源允许使用代理覆写的 X-Real-IP 和请求协议头。网关须设置/覆盖协议头 |
 | `CONSOLE_USERNAME_MAP` | 可选，容器内旧 UID→登录名 JSON 映射文件路径 |
 | `CONSOLE_RUN_MIGRATIONS` | 默认 true，启动时迁移并导入；多副本部署由单个部署任务完成后设 false |
 
@@ -46,7 +54,7 @@ uv run python manage.py import_legacy_users
 uv run python manage.py issue_password_reset --username '原用户名'
 ```
 
-命令会显示迁移后的登录用户名和重设链接。打开链接设置一次新密码后，即可继续使用原账号及其资源；不读取或迁移 Casdoor 旧密码。Docker 部署可在 `docker/astronAgent` 目录执行：
+命令会显示迁移后的登录用户名和重设链接。默认链接为 `/reset-password#...`，追加到当前控制台地址即可；也可在命令中加 `--origin http://<服务器IP>`（非默认端口一并填写）输出完整链接，无需修改环境变量。打开链接设置一次新密码后，即可继续使用原账号及其资源；不读取或迁移 Casdoor 旧密码。Docker 部署可在 `docker/astronAgent` 目录执行：
 
 ```sh
 docker compose exec console-hub python manage.py issue_password_reset --username '原用户名'
@@ -68,9 +76,9 @@ uv run ruff format --check astron_console manage.py
 
 测试使用隔离 SQLite 和测试缓存；生产 MySQL/Redis 与浏览器验证需单独执行，不以 SQLite 测试替代。开发可设置 `CONSOLE_DATABASE_ENGINE=sqlite`、`CONSOLE_SQLITE_PATH` 指向临时数据库，配置独立 Redis 后运行 `uv run python manage.py runserver 127.0.0.1:8080`。前端 `npm run dev` 默认代理到本机 8080，可用 `CONSOLE_DEV_BACKEND` 指定其他地址。
 
-Compose 使用主 `docker/astronAgent/docker-compose.yaml`。RPA 资源管理和节点执行使用外部平台现有 API Key。外部 RPA 独立部署与登录；本仓库不再提供联合登录或联合部署配置，不修改外部 RPA 源码、镜像和数据。先配置上述密钥、域名和 Cookie 设置，再构建当前 Console/前端镜像。Helm 使用 `consoleHub.auth.existingSecret` 指向已有 Secret，键默认为 `secret-key`；多副本迁移先单独完成。移除 Casdoor 定义不执行数据库删除。
+Compose 使用主 `docker/astronAgent/docker-compose.yaml`。RPA 资源管理和节点执行使用外部平台现有 API Key。外部 RPA 独立部署与登录；本仓库不再提供联合登录或联合部署配置，不修改外部 RPA 源码、镜像和数据。默认 Compose 自动准备签名密钥并适配当前访问地址与 Cookie 协议，直接构建启动即可。Helm 使用 `consoleHub.auth.existingSecret` 指向已有 Secret，键默认为 `secret-key`；多副本迁移先单独完成。移除 Casdoor 定义不执行数据库删除。
 
-`CONSOLE_ALLOWED_HOSTS`（Helm 为 `consoleHub.auth.allowedHosts`）保留配置的公网主机列表。Compose 自动追加内部 `console-hub`，Helm 自动追加与 core 调用 URL 相同的实际 Service 名；无需把内部主机手写到公网配置，也不使用 `*` 放开 Host 校验。直接运行 Python 时，应在允许列表中明确填写实际调用主机名。
+`CONSOLE_ALLOWED_HOSTS` 留空时默认接受合法 IP 字面值、localhost 与内部 console-hub，不接受任意域名，也不以 `*` 放开 Host 校验。显式配置（Helm 为 `consoleHub.auth.allowedHosts`）后，公网访问严格遵循该列表；Compose 保留内部 console-hub，Helm 追加实际 Service 名。使用自定义域名时按需填写允许列表。默认 CSRF 同源保护保持启用；额外 HTTPS 反向代理必须覆盖协议头，并将其直接来源配置为可信代理。
 
 
 ## 空间与资源

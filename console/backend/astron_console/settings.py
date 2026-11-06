@@ -1,4 +1,4 @@
-"""Console settings. Production secrets and infrastructure are explicit."""
+"""Console settings with automatic IP access and optional deployment overrides."""
 
 import os
 from pathlib import Path
@@ -13,7 +13,10 @@ def secret(name):
     value = os.environ.get(name, "")
     filename = os.environ.get(f"{name}_FILE")
     if filename:
-        value = Path(filename).read_text().strip()
+        value = Path(filename).read_text()
+        # Compose writes one final newline. Preserve all bytes of an imported
+        # signing key, including intentional surrounding spaces from old envs.
+        value = value.removesuffix("\n") if name == "CONSOLE_SECRET_KEY" else value.strip()
     return value
 
 
@@ -21,10 +24,14 @@ SECRET_KEY = secret("CONSOLE_SECRET_KEY")
 if len(SECRET_KEY) < 50:
     raise ImproperlyConfigured("CONSOLE_SECRET_KEY must contain at least 50 characters")
 DEBUG = False
-# Container probes use loopback even when only the public hostname is configured.
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"] + [
+# Unconfigured installs accept IP literals, validated by DeploymentMiddleware.
+# A configured allowlist remains restrictive, including for IP addresses.
+CONSOLE_AUTO_ALLOWED_HOSTS = not os.environ.get("CONSOLE_ALLOWED_HOSTS", "").strip()
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "[::1]", "console-hub"] + [
     host.strip() for host in os.environ.get("CONSOLE_ALLOWED_HOSTS", "").split(",") if host.strip()
 ]
+if CONSOLE_AUTO_ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["*"]
 ROOT_URLCONF = "astron_console.urls"
 ASGI_APPLICATION = "astron_console.asgi.application"
 INSTALLED_APPS = [
@@ -41,6 +48,7 @@ INSTALLED_APPS = [
     "astron_console.channels",
 ]
 MIDDLEWARE = [
+    "astron_console.accounts.deployment.DeploymentMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -66,7 +74,11 @@ SESSION_COOKIE_NAME = "astron_session"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_AGE = 86400
-SESSION_COOKIE_SECURE = os.environ.get("CONSOLE_COOKIE_SECURE", "true").lower() == "true"
+cookie_policy = os.environ.get("CONSOLE_COOKIE_SECURE", "").strip().lower() or "auto"
+if cookie_policy not in {"auto", "true", "false"}:
+    raise ImproperlyConfigured("CONSOLE_COOKIE_SECURE must be auto, true, or false")
+CONSOLE_AUTO_COOKIE_SECURE = cookie_policy == "auto"
+SESSION_COOKIE_SECURE = cookie_policy == "true"
 CSRF_COOKIE_NAME = "astron_csrf"
 CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
 CSRF_COOKIE_HTTPONLY = False
@@ -78,8 +90,10 @@ CSRF_FAILURE_VIEW = "astron_console.accounts.views.csrf_failure"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "no-referrer"
 DATA_UPLOAD_MAX_MEMORY_SIZE = 64 * 1024
-CONSOLE_PUBLIC_ORIGIN = os.environ.get("CONSOLE_PUBLIC_ORIGIN", "http://localhost:3000").rstrip("/")
+CONSOLE_PUBLIC_ORIGIN = os.environ.get("CONSOLE_PUBLIC_ORIGIN", "").strip().rstrip("/")
 CONSOLE_TRUSTED_PROXIES = os.environ.get("CONSOLE_TRUSTED_PROXIES", "").split(",")
+# DeploymentMiddleware strips this header unless the immediate peer is trusted.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 WECHAT_COMPONENT_APPID = secret("WECHAT_COMPONENT_APPID")
 WECHAT_COMPONENT_SECRET = secret("WECHAT_COMPONENT_SECRET")
 WECHAT_TOKEN = secret("WECHAT_TOKEN")

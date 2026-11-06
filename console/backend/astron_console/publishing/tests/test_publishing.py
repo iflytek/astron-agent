@@ -162,7 +162,7 @@ class PublicationTests(TestCase):
         )
         result = services.submit(self.scope, self.bot.pk, "API", target_id="app")
         candidate = Publication.objects.get(pk=result["publicationId"]).candidate
-        for origin in ["http://console.example:18888", "https://console.example"]:
+        for origin in ["http://console.example:18888", "https://console.example", ""]:
             for kind, prefix in [("agent", "agent"), ("workflow", "workflow")]:
                 with self.subTest(origin=origin, kind=kind):
                     # Model a proxy that forwards only the internal host and HTTP scheme.
@@ -174,7 +174,7 @@ class PublicationTests(TestCase):
                     self.assertEqual(response.status_code, 200, response.content)
                     self.assertEqual(
                         response.json()["data"]["serviceUrl"],
-                        f"{origin}/{prefix}/v1/chat/completions",
+                        f"{origin or 'http://testserver'}/{prefix}/v1/chat/completions",
                     )
 
     def test_market_safe_projection_and_share_revocation(self):

@@ -67,7 +67,7 @@
 
 ### 方式一：Docker Compose（推荐快速体验）
 
-> 当前分支正在分阶段迁移 Python Console，仅交付内部账号。启动前阅读 [账号配置与旧用户迁移](../../console/backend/README.md)。新用户访问 `/register`；旧用户保留原 UID，由管理员发放重设密码链接。没有默认管理员密码。未迁移业务与 RPA 联合集成暂不可用。
+> 启动后访问控制台，点击注册创建账号并登录。详细配置见[部署指南](DEPLOYMENT_GUIDE.md)。
 
 ```bash
 # 克隆项目
@@ -76,19 +76,10 @@ git clone https://github.com/iflytek/astron-agent.git
 # 进入 astronAgent 目录
 cd astron-agent/docker/astronAgent
 
-# 复制环境变量配置
-cp .env.example .env
-
-# 环境变量配置
-vim .env
+docker compose up -d --build
 ```
 
-环境变量配置请参考文档：[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
-
-```bash
-# 构建并启动当前分支服务。
-docker compose -f docker-compose.yaml up -d --build
-```
+默认启动无需复制或编辑 `.env`，也无需填写任何环境变量。启动后访问 `http://localhost/`，远程访问使用 `http://<服务器IP>/`，默认端口为 80；点击注册创建账号并登录。自定义域名、HTTPS 和外部服务按需参阅[部署指南](DEPLOYMENT_GUIDE.md)。
 
 #### 📊 服务访问地址
 
@@ -110,7 +101,7 @@ docker compose -f docker-compose.yaml up -d --build
 
 ---
 
-> 📖 完整的部署说明和配置详情，请查看[部署指南](DEPLOYMENT_GUIDE_WITH_AUTH.md)
+> 📖 完整的部署说明和配置详情，请查看[部署指南](DEPLOYMENT_GUIDE.md)
 
 ## 📖 使用星辰Agent云服务
 

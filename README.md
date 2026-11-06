@@ -74,7 +74,7 @@ We offer two deployment methods to meet different scenarios:
 
 ### Option 1: Docker Compose (Recommended for Quick Start)
 
-> Python Console migration: this branch currently delivers internal accounts. Follow [account setup and legacy-user migration](console/backend/README.md) before startup. New users register at `/register`; existing users retain their UID and reset their password through an operator. No default administrator password is provided. Unmigrated business features and combined RPA integration are temporarily unavailable.
+> After startup, open the console and select **Register** to create an account, then sign in.
 
 ```bash
 # Clone the repository
@@ -83,18 +83,10 @@ git clone https://github.com/iflytek/astron-agent.git
 # Navigate to the Docker deployment directory
 cd astron-agent/docker/astronAgent
 
-# Copy environment configuration
-cp .env.example .env
-
-# Configure environment variables
-vim .env
+docker compose up -d --build
 ```
 
-For environment variable configuration, please refer to the documentation:[DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
-
-```bash
-docker compose -f docker-compose.yaml up -d --build
-```
+No `.env` file needs to be copied or edited, and no environment variables need to be set. Open `http://localhost/` locally, or `http://<server-ip>/` from another machine; the default port is 80. Register an account and sign in. Optional domain, HTTPS, and external-service settings are described in the [deployment guide](docs/DEPLOYMENT_GUIDE.md).
 
 #### 📊 Service Access Addresses
 

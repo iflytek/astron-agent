@@ -52,27 +52,19 @@ Astron Agent は、**エンタープライズグレードで商用利用可能**
 
 ### 方法1: Docker Compose（クイックスタートに推奨）
 
-> このブランチは Python Console への段階的な移行中で、現在はアカウント機能を提供します。起動前に [設定と既存ユーザーの移行](../../console/backend/README.md) を確認してください。新規ユーザーは `/register` で登録し、既存ユーザーは UID を維持して管理者発行のリンクからパスワードを再設定します。既定の管理者パスワードはありません。未移行の業務機能と RPA 統合は一時的に利用できません。
+> 起動後、`/register` で登録してログインしてください。既存ユーザーは UID を維持し、管理者発行のリンクでパスワードを再設定できます。
 
 ```bash
 # リポジトリをクローン
 git clone https://github.com/iflytek/astron-agent.git
 
 # Docker デプロイメントディレクトリに移動
-cd docker/astronAgent
+cd astron-agent/docker/astronAgent
 
-# 環境設定をコピー
-cp .env.example .env
-
-# 環境変数を設定
-vim .env
+docker compose up -d --build
 ```
 
-環境変数の設定については、ドキュメントを参照してください：[DEPLOYMENT_GUIDE.md](../DEPLOYMENT_GUIDE.md)
-
-```bash
-docker compose -f docker-compose.yaml up -d --build
-```
+既定の起動では `.env` のコピーや編集、環境変数の入力は不要です。ローカルでは `http://localhost/`、別の端末からは `http://<server-ip>/` にアクセスし、アカウントを登録してログインしてください。既定のポートは 80 です。独自ドメイン、HTTPS、外部サービスは必要に応じて[導入ガイド](../DEPLOYMENT_GUIDE.md)を参照してください。
 
 #### 📊 サービスアクセスアドレス
 
