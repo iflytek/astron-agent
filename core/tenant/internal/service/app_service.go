@@ -12,8 +12,38 @@ import (
 )
 
 type AppService struct {
-	appDao  *dao.AppDao
-	authDao *dao.AuthDao
+	appDao  appAppDao
+	authDao appAuthDao
+}
+
+type appAppDao interface {
+	BeginTx() (*sql.Tx, error)
+	Count(bool, *sql.Tx, ...dao.SqlOption) (int64, error)
+	Insert(*models.App, *sql.Tx) (int64, error)
+	Update([]dao.SqlOption, *sql.Tx, ...dao.SqlOption) (int64, error)
+	Delete(*sql.Tx, ...dao.SqlOption) (int64, error)
+	Select(...dao.SqlOption) ([]*models.App, error)
+	WithAppId(string) dao.SqlOption
+	WithAppIds(...string) dao.SqlOption
+	WithNotAppId(string) dao.SqlOption
+	WithDevId(int64) dao.SqlOption
+	WithName(string) dao.SqlOption
+	WithSetName(string) dao.SqlOption
+	WithDesc(string) dao.SqlOption
+	WithSource(string) dao.SqlOption
+	WithChannelId(string) dao.SqlOption
+	WithIsDisable(bool) dao.SqlOption
+	WithIsDelete(bool) dao.SqlOption
+	WithUpdateTime(string) dao.SqlOption
+}
+
+type appAuthDao interface {
+	Insert(*models.Auth, *sql.Tx) (int64, error)
+	Delete(*sql.Tx, ...dao.SqlOption) (int64, error)
+	Select(...dao.SqlOption) ([]*models.Auth, error)
+	WithAppId(string) dao.SqlOption
+	WithAppIds(...string) dao.SqlOption
+	WithIsDelete(bool) dao.SqlOption
 }
 
 func NewAppService(appDao *dao.AppDao, authDao *dao.AuthDao) (*AppService, error) {
@@ -252,7 +282,7 @@ func (biz *AppService) QueryDetails(query *AppQuery) ([]*AppDetailsData, error) 
 			Desc:      item.Desc,
 		}
 	}
-	authList, err := biz.authDao.Select(biz.authDao.WithAppIds(appIds...))
+	authList, err := biz.authDao.Select(biz.authDao.WithAppIds(appIds...), biz.authDao.WithIsDelete(false))
 	if err != nil {
 		log.Printf("query auth info error: %v", err)
 		return nil, NewBizErr(ErrCodeSystem, err.Error())
