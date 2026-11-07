@@ -1,8 +1,11 @@
 package dao
 
 import (
+	"bytes"
 	"database/sql"
+	"log"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -551,6 +554,55 @@ func TestAuthDao_Select_Structure(t *testing.T) {
 			t.Log("Select() without options unexpectedly succeeded (probably in a test environment)")
 		}
 	})
+}
+
+func TestAuthDao_QueriesDoNotLogCredentials(t *testing.T) {
+	const apiKey, apiSecret = "logged-api-key", "logged-api-secret"
+	authDao, err := NewAuthDao(&database.Database{})
+	if err != nil {
+		t.Fatalf("Failed to create AuthDao: %v", err)
+	}
+	options := []SqlOption{authDao.WithApiKey(apiKey), authDao.WithApiSecret(apiSecret)}
+
+	tests := []struct {
+		name    string
+		wantLog string
+		query   func()
+	}{
+		{
+			name:    "select",
+			wantLog: "select auth sql is",
+			query:   func() { _, _ = authDao.Select(options...) },
+		},
+		{
+			name:    "count",
+			wantLog: "count auth sql is",
+			query:   func() { _, _ = authDao.Count(false, nil, options...) },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output bytes.Buffer
+			previous := log.Writer()
+			log.SetOutput(&output)
+			t.Cleanup(func() { log.SetOutput(previous) })
+
+			func() {
+				// The query itself panics on the nil connection, after logging.
+				defer func() { _ = recover() }()
+				tt.query()
+			}()
+
+			logged := output.String()
+			if !strings.Contains(logged, tt.wantLog) {
+				t.Fatalf("Expected log to contain %q, got %q", tt.wantLog, logged)
+			}
+			if strings.Contains(logged, apiKey) || strings.Contains(logged, apiSecret) {
+				t.Fatalf("Expected log to omit credentials, got %q", logged)
+			}
+		})
+	}
 }
 
 func TestAuthDao_Integration_Structure(t *testing.T) {

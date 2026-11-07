@@ -119,7 +119,7 @@ func (dao *AuthDao) Delete(tx *sql.Tx, querySql ...SqlOption) (int64, error) {
 
 func (dao *AuthDao) Select(options ...SqlOption) ([]*models.Auth, error) {
 	finalSql, params := buildQuery(dao.selectSql, options...)
-	log.Printf("select auth sql is %s,param is %v", finalSql, params)
+	log.Printf("select auth sql is %s", finalSql)
 	rows, err := dao.db.GetMysql().Query(finalSql, params...)
 	if err != nil {
 		log.Printf("select auth error: %v", err)
@@ -151,7 +151,7 @@ func (dao *AuthDao) Count(isLock bool, tx *sql.Tx, options ...SqlOption) (int64,
 	if isLock {
 		finalSql = finalSql + " for update"
 	}
-	log.Printf("count auth sql is %s,param is %v", finalSql, params)
+	log.Printf("count auth sql is %s", finalSql)
 	if tx == nil {
 		rows, err := dao.db.GetMysql().Query(finalSql, params...)
 		if err != nil {
