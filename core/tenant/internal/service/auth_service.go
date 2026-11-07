@@ -109,7 +109,10 @@ func (biz *AuthService) DeleteApiKey(appId string, apiKey string) (err error) {
 		err = NewBizErr(AppIdNotExist, "request app_id not found")
 		return err
 	}
-	rowNum, err := biz.authDao.Delete(tx, biz.authDao.WithApiKey(apiKey), biz.authDao.WithIsDelete(false))
+	rowNum, err := biz.authDao.Delete(tx,
+		biz.authDao.WithAppId(appId),
+		biz.authDao.WithApiKey(apiKey),
+		biz.authDao.WithIsDelete(false))
 	if err != nil {
 		return err
 	}
