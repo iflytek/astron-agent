@@ -125,6 +125,45 @@ class TestTaskMonitoring:
         )
 
     @pytest.mark.asyncio
+    async def test_task_monitoring_keeps_access_token_out_of_telemetry(
+        self, mock_dependencies: Dict[str, Any]
+    ) -> None:
+        """Test the access token reaches the RPA API but no log, span or trace."""
+        # Arrange
+        mocks = mock_dependencies
+        access_token = "secret-access-token"
+        mocks["create_task"].return_value = "test-task-id"
+        mocks["query_task_status"].return_value = (
+            ErrorCode.SUCCESS.code,
+            ErrorCode.SUCCESS.message,
+            {"result": "completed"},
+        )
+
+        # Act
+        with patch("plugin.rpa.service.xiaowu.process.logger") as mock_logger:
+            async for _ in task_monitoring(
+                sid="test-sid",
+                access_token=access_token,
+                project_id="test-project",
+                version=None,
+                phone_number=None,
+                exec_position="EXECUTOR",
+                params={"key": "value"},
+            ):
+                pass
+
+        # Assert
+        assert mocks["create_task"].call_args.kwargs["access_token"] == access_token
+        mocks["query_task_status"].assert_called_once_with(access_token, "test-task-id")
+
+        trace_req = mocks["setup_span_and_trace"].call_args.kwargs["req"]
+        metrics_req = mocks["setup_logging_and_metrics"].call_args.kwargs["req"]
+        assert "project_id:test-project" in trace_req
+        assert access_token not in trace_req
+        assert access_token not in metrics_req
+        assert access_token not in str(mock_logger.mock_calls)
+
+    @pytest.mark.asyncio
     async def test_task_monitoring_create_task_error(
         self, mock_dependencies: Dict[str, Any]
     ) -> None:
