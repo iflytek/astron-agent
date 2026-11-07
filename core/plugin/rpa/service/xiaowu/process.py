@@ -43,7 +43,7 @@ async def task_monitoring(
         f"exec_position: {exec_position}, params: {params}"
     )
     req = (
-        f"sid:{sid}, access_token:{access_token}, project_id:{project_id}, "
+        f"sid:{sid}, project_id:{project_id}, "
         f"version: {version}, phone_number: {phone_number}, "
         f"exec_position:{exec_position}, params:{params}"
     )
