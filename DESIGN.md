@@ -29,9 +29,9 @@ typography:
     letterSpacing: "-0.025em"
   title:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
-    fontSize: "20px"
+    fontSize: "16px"
     fontWeight: 600
-    lineHeight: "28px"
+    lineHeight: "22px"
     letterSpacing: "-0.02em"
   body:
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif"
@@ -54,12 +54,12 @@ spacing:
   compact: "8px"
   action-gap: "10px"
   control: "12px"
-  identity: "14px"
+  identity: "10px"
   body: "16px"
   mobile-gutter: "18px"
   section: "20px"
-  grid: "22px"
-  card-inline: "24px"
+  grid: "16px"
+  card-inline: "16px"
   page: "28px"
 components:
   button-primary:
@@ -100,7 +100,7 @@ components:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.card}"
-    padding: "22px 24px 0"
+    padding: "16px 16px 0"
   catalog-tab-active:
     textColor: "{colors.primary}"
     height: "44px"
@@ -119,7 +119,7 @@ components:
 **Key Characteristics:**
 - 银蓝导航、白色工作面、电蓝交互强调。
 - 空间上下文清楚，主要动作和次要操作分层。
-- 大卡片用名称、用途、资源和底部动作组成稳定阅读顺序。
+- 紧凑卡片用名称、用途、资源、元数据和底部动作组成稳定阅读顺序。
 - 窄屏保留任务信息，导航切换为抽屉。
 
 ## Colors
@@ -158,8 +158,8 @@ components:
 ### Hierarchy
 
 - **Headline**：页面标题（28px / 36px，650，字距 -0.025em）；移动端字号收至 26px。
-- **Title**：卡片标题（20px / 28px，600，字距 -0.02em）；移动端 Agent 标题收至 18px。桌面单行省略，移动端允许换行；工作流标题沿用当前单行规则。
-- **Body**：界面正文（14px / 1.5）；卡片用途说明采用较松行距（23px），最多两行。
+- **Title**：卡片标题（16px / 22px，600，字距 -0.02em）；桌面最多两行，移动端 Agent 和工作流标题完整换行。模板标题保留两行限制。
+- **Body**：界面正文（14px / 1.5）；卡片用途说明采用紧凑字号与行距（13px / 20px），最多两行。工作流模板区标题为 20px、600。
 - **Label**：类型标签（12px / 20px）；资源徽标行距为 19px，时间与计数使用等宽数字。
 - 路径和计数采用 13px；品牌字标采用 18px、700，不扩展为通用页面标题。
 
@@ -169,11 +169,11 @@ components:
 
 外壳使用可滚动工作面和固定导航分区。全局模块栏宽 76px，上下文栏宽 196px，合计 272px；折叠后只保留模块栏。顶部路径栏高 64px。上下文栏内团队与空间选择器在页面链接之前，维持作用域可见。
 
-目录内容最大宽度为 1600px，桌面内边距为 28px。标题与创建动作在上，随后是 44px 页签行、搜索与筛选工具行、卡片网格。网格使用两列等分宽度，间距 22px；视口宽度 ≤1100px 切换为单列，即窄桌面与平板也会单列。该列数是目录模式，不约束其他任务页面。
+目录内容最大宽度为 1600px，桌面内边距为 28px。标题与创建动作在上，随后是 44px 页签行、搜索与筛选工具行、卡片网格。网格默认四列等分宽度，间距 16px，在 1440px 桌面呈现每行四张适中卡片；视口宽度 ≤1359px 时三列、≤1099px 时两列、≤600px 时单列。该列数是目录模式，不约束其他任务页面。
 
 视口宽度 ≤760px 时，桌面双层侧栏由 56px 顶栏及左侧抽屉替代；抽屉宽 292px，内部保持原有导航顺序。路径栏收至 46px，内容内边距为纵向 22px、横向 18px，搜索可伸展，操作可换行。工作流页主要创建动作独占一行，其余标题动作双列排列。
 
-间距以可读分组为准：紧凑控制用 5–10px，身份与正文分组用 14–16px，页面与卡片分区用 20–28px；不硬凑单一倍数网格。视口高度 ≤740px 时模块行与品牌区压缩，导航仍可滚动。
+间距以可读分组为准：紧凑控制用 5–10px，卡片身份间距 10px、内容分组 12px、内边距与网格间距 16px，页面分区用 20–28px；不硬凑单一倍数网格。视口高度 ≤740px 时模块行与品牌区压缩，导航仍可滚动。
 
 ## Elevation & Depth
 
@@ -187,7 +187,7 @@ components:
 
 ## Shapes
 
-采用轻柔而清楚的圆角层级：资源徽标 5px、上下文导航 6px、按钮和输入控件 7px、模块选项 8px、资源头像 10px、大卡片 14px。账户头像是圆形。边界通常为 1px 实线；页签选中线为 2px。图标使用现有 Ant Design 线性图标，保留品牌与资源图片，不用文字字符充当图标。
+采用轻柔而清楚的圆角层级：资源徽标 5px、上下文导航 6px、按钮和输入控件 7px、模块选项 8px、资源头像 10px、目录卡片 14px。账户头像是圆形。边界通常为 1px 实线；页签选中线为 2px。图标使用现有 Ant Design 线性图标，保留品牌与资源图片，不用文字字符充当图标。
 
 ## Components
 
@@ -205,7 +205,7 @@ components:
 
 ### Cards / Containers
 
-大卡片具有 14px 圆角、白底和细边界，最小高度 266px，桌面内边距为 22px 24px 0，移动端为 20px 16px 0。名称与 44px 资源头像先出现，随后是两行用途、可换行的资源徽标和底部动作。底部分隔线、时间与操作维持统一对齐。悬停和内部焦点仅改变边框。更多操作和收藏使用真实可操作控件，避免把整个容器伪装为按钮。
+紧凑目录卡片具有 14px 圆角、白底和细边界，最小高度 236px，内边距为 16px 16px 0。名称与 36px 资源头像先出现，随后是两行用途、可换行的资源徽标和底部区域。底部以细线分隔，纵向排列元数据行和右对齐动作行，内边距为 8px 0 10px，两行相隔 4px；元数据行最小高 28px，包含时间、收藏和更多操作，避免挤占名称宽度。收藏和更多按钮均为 28px 方形控件；工作流没有收藏，模板保留自身操作。悬停和内部焦点仅改变边框，避免把整个容器伪装为按钮。
 
 ### Navigation
 
@@ -220,7 +220,7 @@ components:
 ### Do:
 
 - **Do** 使用已定义的电蓝与银白层级区分动作、导航和内容。
-- **Do** 在桌面目录使用两列大卡片，在现有窄屏断点切换单列。
+- **Do** 在常规桌面目录使用约四列紧凑卡片，按三列、两列、单列断点逐级收拢。
 - **Do** 保留名称、用途、真实资源与底部动作的阅读顺序。
 - **Do** 为键盘操作提供可见焦点，并遵循减少动态效果设置。
 - **Do** 分别呈现加载、空内容、搜索无结果和请求失败，并提供下一步操作。
@@ -230,6 +230,6 @@ components:
 - **Don't** 引入深色侧栏或深色工作面。
 - **Don't** 给目录卡片添加悬停位移、放大或装饰性投影。
 - **Don't** 用装饰徽标、虚构统计或空状态替代真实配置和请求失败。
-- **Don't** 把双列目录构图强制推广到所有编辑器和资源表单。
+- **Don't** 把四列目录构图强制推广到所有编辑器和资源表单。
 
 <!-- Source scope: console/frontend/src/styles/console.scss; console/frontend/src/main.tsx; console/frontend/src/components/resource-navigation/index.module.scss and index.tsx; console/frontend/src/pages/agents/catalog.module.scss and list.tsx; console/frontend/src/pages/workflow/list.tsx. Legacy purple helper styles and the Helvetica button override in styles/antd.scss are not canonized. -->

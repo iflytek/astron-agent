@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-09T07:41:02.913045Z",
+  "generatedAt": "2026-11-09T08:00:48.240545Z",
   "title": "Design System: Astron Agent Console",
   "extensions": {
     "colorMeta": {
@@ -282,11 +282,11 @@
       },
       "title": {
         "displayName": "卡片标题",
-        "purpose": "卡片名称；移动端 Agent 名称收至 18px。"
+        "purpose": "卡片名称采用 16px / 22px，桌面最多两行，移动端 Agent 和工作流标题完整换行；模板保持两行。"
       },
       "body": {
         "displayName": "界面正文",
-        "purpose": "说明和任务内容；卡片说明行距 23px。"
+        "purpose": "界面正文为 14px / 1.5；卡片用途说明为 13px / 20px，最多两行。"
       },
       "label": {
         "displayName": "辅助标签",
@@ -309,8 +309,18 @@
     ],
     "breakpoints": [
       {
+        "name": "catalog-three-columns",
+        "value": "1359px",
+        "purpose": "max-width：目录由四列切换三列。"
+      },
+      {
+        "name": "catalog-two-columns",
+        "value": "1099px",
+        "purpose": "max-width：目录切换两列。"
+      },
+      {
         "name": "catalog-single-column",
-        "value": "1100px",
+        "value": "600px",
         "purpose": "max-width：目录切换单列。"
       },
       {
@@ -378,9 +388,9 @@
       "name": "Resource card",
       "kind": "card",
       "refersTo": "resource-card",
-      "description": "名称、用途、资源和底部动作组成目录单元。",
-      "html": "<article class=\"ds-card\"><a class=\"ds-card-title\" href=\"#edit\">客户支持 Agent</a><span class=\"ds-card-type\">独立 Agent</span><p class=\"ds-card-description\">连接模型与知识库，处理客户支持任务。</p><div class=\"ds-card-resources\"><span class=\"ds-card-chip\">已配置模型</span></div><footer class=\"ds-card-footer\"><span>独立 Agent</span><a href=\"#edit\">编辑与调试</a></footer></article>",
-      "css": ".ds-card{display:flex;flex-direction:column;min-height:266px;padding:22px 24px 0;border:1px solid var(--console-line);border-radius:14px;background:#fff;color:var(--console-ink);font:14px/1.5 var(--console-font);transition:border-color .18s ease-out}.ds-card:hover,.ds-card:focus-within{border-color:#8aa5f5}.ds-card-title{color:inherit;text-decoration:none;font-size:20px;line-height:28px;font-weight:600;letter-spacing:-.02em}.ds-card-title:hover{color:var(--console-primary)}.ds-card-type{color:var(--console-muted);font-size:12px;line-height:20px}.ds-card-description{margin:16px 0 14px;min-height:46px;color:#526580;line-height:23px}.ds-card-resources{margin-bottom:20px}.ds-card-chip{display:inline-flex;padding:3px 8px;background:#f2f5fb;color:#52688c;border-radius:5px;font-size:12px;line-height:19px}.ds-card-footer{margin-top:auto;min-height:54px;padding:12px 0;border-top:1px solid #e8edf5;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--console-muted);font-size:12px}.ds-card-footer a{font-size:13px;font-weight:500;color:#3159d9;text-decoration:none}.ds-card-footer a:hover{text-decoration:underline;text-underline-offset:4px}.ds-card a:focus-visible{outline:2px solid var(--console-primary);outline-offset:3px;}@media(prefers-reduced-motion:reduce){.ds-card{transition:none}}"
+      "description": "紧凑目录单元：身份、用途、资源、元数据与独立动作行。",
+      "html": "<article class=\"ds-card\"><a class=\"ds-card-title\" href=\"#edit\">客户支持 Agent</a><span class=\"ds-card-type\">独立 Agent</span><p class=\"ds-card-description\">连接模型与知识库，处理客户支持任务。</p><div class=\"ds-card-resources\"><span class=\"ds-card-chip\">已配置模型</span></div><footer class=\"ds-card-footer\"><div class=\"ds-card-meta\"><span>独立 Agent</span><div class=\"ds-card-menus\"><button class=\"ds-card-menu\" aria-label=\"收藏客户支持 Agent\" aria-pressed=\"false\"><svg viewBox=\"64 64 896 896\" width=\"14\" height=\"14\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M908.1 353.1l-253.9-36.9L540.7 86.1c-3.1-6.3-8.2-11.4-14.5-14.5-15.8-7.8-35-1.3-42.9 14.5L369.8 316.2l-253.9 36.9c-7 1-13.4 4.3-18.3 9.3a32.05 32.05 0 00.6 45.3l183.7 179.1-43.4 252.9a31.95 31.95 0 0046.4 33.7L512 754l227.1 119.4c6.2 3.3 13.4 4.4 20.3 3.2 17.4-3 29.1-19.5 26.1-36.9l-43.4-252.9 183.7-179.1c5-4.9 8.3-11.3 9.3-18.3 2.7-17.5-9.5-33.7-27-36.3zM664.8 561.6l36.1 210.3L512 672.7 323.1 772l36.1-210.3-152.8-149L417.6 382 512 190.7 606.4 382l211.2 30.7-152.8 148.9z\"/></svg></button><button class=\"ds-card-menu\" aria-label=\"客户支持 Agent 更多操作\"><svg viewBox=\"64 64 896 896\" width=\"14\" height=\"14\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M176 511a56 56 0 10112 0 56 56 0 10-112 0zm280 0a56 56 0 10112 0 56 56 0 10-112 0zm280 0a56 56 0 10112 0 56 56 0 10-112 0z\"/></svg></button></div></div><div class=\"ds-card-actions\"><a href=\"#edit\">编辑与调试</a><a href=\"#chat\">开始对话</a></div></footer></article>",
+      "css": ".ds-card{display:flex;flex-direction:column;min-height:236px;padding:16px 16px 0;border:1px solid var(--console-line);border-radius:14px;background:#fff;color:var(--console-ink);font:14px/1.5 var(--console-font);transition:border-color .18s ease-out}.ds-card:hover,.ds-card:focus-within{border-color:#8aa5f5}.ds-card-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;color:inherit;text-decoration:none;font-size:16px;line-height:22px;font-weight:600;letter-spacing:-.02em}.ds-card-title:hover{color:var(--console-primary)}.ds-card-type{color:var(--console-muted);font-size:12px;line-height:20px}.ds-card-description{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;margin:12px 0;min-height:40px;color:#526580;font-size:13px;line-height:20px}.ds-card-resources{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}.ds-card-chip{display:inline-flex;padding:3px 8px;background:#f2f5fb;color:#52688c;border-radius:5px;font-size:12px;line-height:19px}.ds-card-footer{margin-top:auto;min-height:54px;padding:8px 0 10px;border-top:1px solid #e8edf5;display:flex;flex-direction:column;align-items:stretch;gap:4px;color:var(--console-muted);font-size:12px}.ds-card-meta{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:28px;font-variant-numeric:tabular-nums}.ds-card-menus{display:flex;gap:2px}.ds-card-menu{display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--console-muted);cursor:pointer}.ds-card-menu:hover{color:var(--console-primary)}.ds-card-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:12px}.ds-card-actions a{font-size:13px;font-weight:500;color:#3159d9;text-decoration:none}.ds-card-actions a:hover{text-decoration:underline;text-underline-offset:4px}.ds-card a:focus-visible,.ds-card-menu:focus-visible{outline:2px solid var(--console-primary);outline-offset:3px}@media(max-width:760px){.ds-card-title{display:block;overflow:visible}.ds-card-menus{gap:0}.ds-card-actions{gap:14px}}@media(prefers-reduced-motion:reduce){.ds-card{transition:none}}"
     },
     {
       "name": "Catalog tab",
@@ -397,7 +407,7 @@
     "keyCharacteristics": [
       "银蓝导航、白色工作面、电蓝交互强调。",
       "空间上下文清楚，主要动作和次要操作分层。",
-      "大卡片用名称、用途、资源和底部动作组成稳定阅读顺序。",
+      "紧凑卡片用名称、用途、资源、元数据和底部动作组成稳定阅读顺序。",
       "窄屏保留任务信息，导航切换为抽屉。"
     ],
     "rules": [
@@ -419,7 +429,7 @@
     ],
     "dos": [
       "Do 使用已定义的电蓝与银白层级区分动作、导航和内容。",
-      "Do 在桌面目录使用两列大卡片，在现有窄屏断点切换单列。",
+      "Do 在常规桌面目录使用约四列紧凑卡片，按三列、两列、单列断点逐级收拢。",
       "Do 保留名称、用途、真实资源与底部动作的阅读顺序。",
       "Do 为键盘操作提供可见焦点，并遵循减少动态效果设置。",
       "Do 分别呈现加载、空内容、搜索无结果和请求失败，并提供下一步操作。"
@@ -428,7 +438,7 @@
       "Don't 引入深色侧栏或深色工作面。",
       "Don't 给目录卡片添加悬停位移、放大或装饰性投影。",
       "Don't 用装饰徽标、虚构统计或空状态替代真实配置和请求失败。",
-      "Don't 把双列目录构图强制推广到所有编辑器和资源表单。"
+      "Don't 把四列目录构图强制推广到所有编辑器和资源表单。"
     ]
   }
 }

@@ -82,15 +82,15 @@
 }
 .grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 .card {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 266px;
-  padding: 22px 24px 0;
+  min-height: 236px;
+  padding: 16px 16px 0;
   border: 1px solid var(--console-line);
   border-radius: 14px;
   background: #fff;
@@ -114,7 +114,7 @@
 .cardBody {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
   flex: 1;
   color: inherit;
@@ -123,6 +123,9 @@
   }
 }
 .avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
   object-fit: cover;
   border-radius: 10px;
 }
@@ -131,11 +134,13 @@
   min-width: 0;
   h2,
   h3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 20px;
-    line-height: 28px;
+    overflow-wrap: anywhere;
+    font-size: 16px;
+    line-height: 22px;
     font-weight: 600;
     letter-spacing: -0.02em;
     margin: 0 0 3px;
@@ -149,10 +154,12 @@
 .cardMenus {
   display: flex;
   flex: none;
+  gap: 2px;
   :global(.ant-btn) {
-    width: 30px;
+    width: 28px;
     padding: 0;
-    height: 32px;
+    height: 28px;
+    border: 0;
     color: var(--console-muted);
   }
   :global(.anticon-star) {
@@ -166,17 +173,17 @@
   overflow: hidden;
   overflow-wrap: anywhere;
   color: #526580;
-  font-size: 14px;
-  line-height: 23px;
-  min-height: 46px;
-  margin: 16px 0 14px;
+  font-size: 13px;
+  line-height: 20px;
+  min-height: 40px;
+  margin: 12px 0;
 }
 .resources {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 20px;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 .resourceLabel {
   color: var(--console-muted);
@@ -198,13 +205,20 @@
   }
 }
 .footer {
-  justify-content: space-between;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   margin-top: auto;
   min-height: 54px;
   border-top: 1px solid #e8edf5;
-  gap: 10px;
-  padding: 12px 0;
+  gap: 4px;
+  padding: 8px 0 10px;
+}
+.cardMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 28px;
 }
 .updated {
   min-width: 0;
@@ -216,8 +230,9 @@
 .cardActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
+  gap: 12px;
   align-items: center;
+  justify-content: flex-end;
   a {
     font-size: 13px;
     color: #3159d9;
@@ -264,7 +279,17 @@
     gap: 8px;
   }
 }
-@media (max-width: 1100px) {
+@media (max-width: 1359px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1099px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
   .grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -288,12 +313,6 @@
   }
   .search {
     width: 100%;
-  }
-  .card {
-    padding: 20px 16px 0;
-  }
-  .details h2 {
-    font-size: 18px;
   }
   .cardMenus {
     gap: 0;
@@ -345,15 +364,12 @@
 
 @media (max-width: 760px) {
   .details h2 {
-    white-space: normal;
+    display: block;
     overflow: visible;
     overflow-wrap: anywhere;
   }
   .cardTop {
     align-items: flex-start;
-  }
-  .cardMenus {
-    padding-top: 4px;
   }
   .searchActions {
     flex-wrap: nowrap;

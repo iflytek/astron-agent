@@ -23,6 +23,7 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const spaceName = useSpaceStore(state => state.spaceName);
+  const enterpriseId = useSpaceStore(state => state.enterpriseId);
   const isCatalog = ['/space/agent', '/space/workflows'].includes(
     location.pathname
   );
@@ -117,7 +118,10 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
           {isCatalog && (
             <div className="console-breadcrumb">
               <div>
-                <span>{spaceName || '我的个人资源'}</span>
+                <span>
+                  {spaceName ||
+                    (enterpriseId ? '请选择团队空间' : '我的个人资源')}
+                </span>
                 <span>/</span>
                 <strong>应用构建</strong>
               </div>
