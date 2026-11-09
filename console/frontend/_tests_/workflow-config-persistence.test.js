@@ -8,6 +8,7 @@ import { normalizeWorkflowResponse } from '../src/services/workflow-response.ts'
 import { workflowExecutionView } from '../src/components/workflow/store/workflow-execution-view.ts';
 import { avatarHarness, tick } from './helpers/avatar-lifecycle-harness.js';
 import { readConfigObject } from '../src/components/workflow/drawer/chat-debugger/chat-state.ts';
+import { formatCatalogUpdatedAt } from '../src/pages/agents/catalog-utils.ts';
 
 const source = readFileSync(
   new URL(
@@ -434,6 +435,7 @@ function workflowListUI(createTalkAgent) {
     '@/store/space-store': { default: () => ({}), __esModule: true },
     '@/assets/imgs/workflow/flow-icon.png': 'workflow-icon',
     '@/pages/agents/catalog.module.scss': {},
+    '@/pages/agents/catalog-utils': { formatCatalogUpdatedAt },
     '@ant-design/icons': {
       EllipsisOutlined: 'EllipsisOutlined',
       PlusOutlined: 'PlusOutlined',
