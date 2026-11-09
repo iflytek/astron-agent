@@ -50,7 +50,7 @@ const useChatStore = create<ChatStoreType>((set, get) => ({
     handleRunDebugger({ nodes, edges, get, set, inputs, regen }),
   clearData: (setOpen): void => clearData(setOpen, get),
   handleEnterKey: (e): void => handleEnterKey(e, get, set),
-  handleStopConversation: (): void => handleStopConversation(get),
+  handleStopConversation: (): void => handleStopConversation(get, set),
   deleteAllChat: (): void => deleteAllChat(get),
   canRunDebugger: (): boolean => canRunDebugger(get),
   setWsMessageStatus: (status: string): void => setWsMessageStatus(status, set),

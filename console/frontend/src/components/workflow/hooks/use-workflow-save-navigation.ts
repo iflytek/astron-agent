@@ -5,7 +5,11 @@ import useUserStore from '@/store/user-store';
 import useFlowsManager from '../store/use-flows-manager';
 
 /** Route transitions share the same barrier as version saves and debug runs. */
-export function useWorkflowSaveNavigation(): void {
+export function useWorkflowSaveNavigation(hasActiveRun = false): {
+  blocked: boolean;
+  proceed: () => void;
+  reset: () => void;
+} {
   const currentFlow = useFlowsManager(state => state.currentFlow);
   const flushCurrentFlow = useFlowsManager(state => state.flushCurrentFlow);
   const request = useRef<string>();
@@ -13,11 +17,11 @@ export function useWorkflowSaveNavigation(): void {
     ({ currentLocation, nextLocation }) =>
       !!currentFlow &&
       useUserStore.getState().getIsLogin() &&
-      useFlowsManager.getState().hasUnsavedCurrentFlow() &&
+      (hasActiveRun || useFlowsManager.getState().hasUnsavedCurrentFlow()) &&
       (currentLocation.pathname !== nextLocation.pathname ||
         currentLocation.search !== nextLocation.search)
   );
-  useEffect(() => {
+  const proceed = (): void => {
     if (blocker.state !== 'blocked') {
       request.current = undefined;
       return;
@@ -36,7 +40,10 @@ export function useWorkflowSaveNavigation(): void {
         blocker.reset();
         request.current = undefined;
       });
-  }, [blocker, flushCurrentFlow]);
+  };
+  useEffect(() => {
+    if (!hasActiveRun) proceed();
+  }, [blocker, flushCurrentFlow, hasActiveRun]);
   useEffect(
     () => () => {
       request.current = undefined;
@@ -48,9 +55,17 @@ export function useWorkflowSaveNavigation(): void {
     // standard unsaved-changes guard rather than launching an untracked write.
     if (!useUserStore.getState().getIsLogin()) return;
     const state = useFlowsManager.getState();
-    if (state.hasUnsavedCurrentFlow()) {
+    if (hasActiveRun || state.hasUnsavedCurrentFlow()) {
       event.preventDefault();
       event.returnValue = '';
     }
   });
+  return {
+    blocked: blocker.state === 'blocked',
+    proceed,
+    reset: () => {
+      request.current = undefined;
+      if (blocker.state === 'blocked') blocker.reset();
+    },
+  };
 }

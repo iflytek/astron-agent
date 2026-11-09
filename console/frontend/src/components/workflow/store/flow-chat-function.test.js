@@ -106,7 +106,11 @@ function harness({ stop, history, build } = {}) {
     runStatus: 'running',
     debuggering: true,
   };
-  const set = change => Object.assign(state, change);
+  const updates = [];
+  const set = change => {
+    updates.push(change);
+    Object.assign(state, change);
+  };
   const get = () => state;
   state.setChatList = change => {
     state.chatList = change(state.chatList);
@@ -126,6 +130,7 @@ function harness({ stop, history, build } = {}) {
   };
   state.setSuggestProblem = () => {};
   state.handleSaveDialogue = () => actions.handleSaveDialogue(get, set);
+  state.handleStopConversation = () => actions.handleStopConversation(get, set);
   return {
     actions,
     state,
@@ -134,6 +139,7 @@ function harness({ stop, history, build } = {}) {
     ui,
     flow,
     errors,
+    updates,
     hasRequest: () => Boolean(request),
     requestUrl: () => requestUrl,
     close: value => {
@@ -157,6 +163,8 @@ test('drawer stop retains connection and panel while pending and after rejection
   const pending = deferred();
   const h = harness({ stop: () => pending.promise });
   h.actions.clearData(h.close, h.get);
+  assert.equal(h.state.runStatus, 'stopping');
+  assert.ok(h.updates.some(update => update.runStatus === 'stopping'));
   assert.equal(h.ui.open, true);
   assert.equal(h.ui.status, 'running');
   assert.equal(h.ui.disabled, true);
@@ -164,6 +172,7 @@ test('drawer stop retains connection and panel while pending and after rejection
   pending.reject(new Error('permission rejected'));
   await tick();
   assert.equal(h.state.runStatus, 'running');
+  assert.ok(h.updates.some(update => update.runStatus === 'running'));
   assert.equal(h.state.controllerRef.signal.aborted, false);
   assert.equal(h.errors.length, 1);
 });
@@ -180,14 +189,34 @@ test('paused drawer stop sends cancellation before clearing paused state', async
   h.state.debuggering = false;
   h.state.runStatus = 'paused';
   h.state.interruptChat = { ...h.state.interruptChat, interrupt: true };
+  h.state.startNodeParams = [{ name: 'query', type: 'string' }];
+  h.state.userInput = 'continue';
+  assert.equal(h.actions.canRunDebugger(h.get), true);
   h.actions.clearData(h.close, h.get);
   assert.equal(calls, 1);
   assert.equal(h.state.interruptChat.interrupt, true);
   assert.equal(h.state.controllerRef.signal.aborted, false);
+  const controller = h.state.controllerRef;
+  assert.equal(h.actions.canRunDebugger(h.get), false);
+  h.actions.handleResumeChat('continue', h.get, h.set);
+  assert.equal(h.state.controllerRef, controller);
+  assert.equal(h.hasRequest(), false);
   pending.resolve({ status: 'cancelled' });
   await tick();
   assert.equal(h.state.controllerRef.signal.aborted, true);
   assert.equal(h.state.interruptChat.interrupt, false);
+  assert.equal(h.ui.status, 'cancelled');
+  assert.equal(h.state.stopRequested, false);
+  assert.equal(h.actions.canRunDebugger(h.get), true);
+});
+
+test('stop racing with completion keeps the successful result', async () => {
+  const h = harness({ stop: async () => ({ status: 'completed' }) });
+  h.actions.clearData(h.close, h.get);
+  await tick();
+  assert.ok(h.updates.some(update => update.runStatus === 'completed'));
+  assert.equal(h.state.stopRequested, false);
+  assert.equal(h.ui.status, 'success');
 });
 
 test('late same-version history cannot clear a newly resumed execution', async () => {
@@ -276,6 +305,29 @@ test('retry retains its original run ID while resetting the active execution', a
   assert.equal(h.requestUrl(), '/workflow/runs/old-run/retry');
 });
 
+test('a failed build after stopping restores retry eligibility', async () => {
+  const building = deferred();
+  const h = harness({ build: () => building.promise });
+  h.state.startNodeParams = [{ name: 'query', type: 'string' }];
+  h.state.userInput = 'retry';
+  h.actions.handleRunDebugger({
+    nodes: [],
+    edges: [],
+    get: h.get,
+    set: h.set,
+    inputs: [],
+  });
+  h.actions.clearData(h.close, h.get);
+  assert.equal(h.state.stopRequested, true);
+  building.reject(new Error('build unavailable'));
+  await tick();
+  assert.equal(h.state.stopRequested, false);
+  assert.equal(h.state.runStatus, 'failed');
+  assert.equal(h.state.debuggering, false);
+  assert.equal(h.ui.status, 'failed');
+  assert.equal(h.actions.canRunDebugger(h.get), true);
+});
+
 test('real variable-mode node frames append JSON once and mark node success', () => {
   const h = harness();
   h.flow.nodes = [
@@ -309,7 +361,13 @@ test('real variable-mode node frames append JSON once and mark node success', ()
 });
 
 test('run-end retains authoritative elapsed seconds after terminal handling', () => {
-  for (const status of ['completed', 'cancelled', 'paused']) {
+  for (const status of [
+    'completed',
+    'cancelled',
+    'interrupted',
+    'failed',
+    'paused',
+  ]) {
     const h = harness();
     h.actions.handleResumeChat('continue', h.get, h.set);
     h.frame({ runId: 'old-run', status, durationMs: 4180 }, 'run-end');
@@ -321,7 +379,7 @@ test('run-end retains authoritative elapsed seconds after terminal handling', ()
         ? 'running'
         : status === 'completed'
           ? 'success'
-          : 'failed'
+          : status
     );
   }
 });

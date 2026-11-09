@@ -298,7 +298,7 @@ test('historical graph and config cannot be written by debug/navigation flush', 
   assert.deepEqual(h.writes, []);
 });
 
-function navigation(h, loggedIn = true) {
+function navigation(h, loggedIn = true, hasActiveRun = false) {
   const effects = [],
     errors = [];
   const flags = { proceeded: false, reset: false, loggedIn };
@@ -339,9 +339,35 @@ function navigation(h, loggedIn = true) {
       '../store/flow-manager-function': h.manager,
     }
   );
-  hook.useWorkflowSaveNavigation();
-  return { flags, effects, errors, shouldBlock, hardLeave };
+  const control = hook.useWorkflowSaveNavigation(hasActiveRun);
+  return { flags, effects, errors, shouldBlock, hardLeave, control };
 }
+
+test('active run navigation waits for explicit confirmation even with a saved graph', async () => {
+  const h = harness();
+  const nav = navigation(h, true, true);
+  assert.equal(h.state.hasUnsavedCurrentFlow(), false);
+  assert.equal(
+    nav.shouldBlock({
+      currentLocation: { pathname: '/work_flow/42' },
+      nextLocation: { pathname: '/space/workflows' },
+    }),
+    true
+  );
+  nav.effects[0]();
+  await tick();
+  assert.equal(nav.flags.proceeded, false);
+  let prevented = false;
+  nav.hardLeave({
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(prevented, true);
+  nav.control.proceed();
+  await tick();
+  assert.equal(nav.flags.proceeded, true);
+});
 
 test('publish navigation waits on the same actual queue; failures keep the current page', async () => {
   for (const fail of [false, true]) {
@@ -363,6 +389,22 @@ test('publish navigation waits on the same actual queue; failures keep the curre
     assert.equal(nav.errors.length, Number(fail));
     h.manager.resetCurrentFlowSave();
   }
+});
+
+test('cancelling a confirmed run departure invalidates its pending save navigation', async () => {
+  const gate = deferred();
+  const h = harness(async () => gate.promise);
+  h.saveConfig({ prologue: { prologueText: 'pending' } });
+  const nav = navigation(h, true, true);
+  nav.control.proceed();
+  await tick();
+  nav.control.reset();
+  gate.resolve();
+  await tick();
+  await tick();
+  assert.equal(nav.flags.reset, true);
+  assert.equal(nav.flags.proceeded, false);
+  assert.equal(nav.errors.length, 0);
 });
 
 test('logout and authentication redirects bypass unsaved-page guards', () => {

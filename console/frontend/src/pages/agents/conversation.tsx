@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal } from 'antd';
+import { Modal, Skeleton } from 'antd';
+import {
+  PaperClipOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons';
 import MarkdownRender from '@/components/markdown-render';
 import { downloadFileWithHeaders } from '@/utils/http';
 import {
@@ -29,7 +34,7 @@ function Attachment({ agentId, file }: { agentId: number; file: AgentFile }) {
   if (!isFileAvailable(file))
     return (
       <span className="agents-muted">
-        📎 {file.name}（历史附件不可下载，请重新上传）
+        <PaperClipOutlined /> {file.name}（历史附件不可下载，请重新上传）
       </span>
     );
   return (
@@ -41,7 +46,7 @@ function Attachment({ agentId, file }: { agentId: number; file: AgentFile }) {
         )
       }
     >
-      {file.direction === 'output' ? '下载生成文件：' : '📎 '}
+      {file.direction === 'output' ? '下载生成文件：' : <PaperClipOutlined />}
       {file.name}
     </button>
   );
@@ -145,10 +150,12 @@ function SessionMessages({
   agent,
   session,
   onChanged,
+  onGuardChange,
 }: {
   agent: AgentDefinition;
   session: AgentSession;
   onChanged: () => void;
+  onGuardChange: (reason: string) => void;
 }) {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [question, setQuestion] = useState('');
@@ -157,6 +164,9 @@ function SessionMessages({
   const [stopping, setStopping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyRevision, setHistoryRevision] = useState(0);
   const [files, setFiles] = useState<
     Array<{ id: string; name: string; size: number }>
   >([]);
@@ -168,26 +178,57 @@ function SessionMessages({
 
   useEffect(() => {
     alive.current = true;
+    let active = true;
+    setLoading(true);
+    setHistoryError('');
     getAgentMessages(agent.id, session.id)
       .then(result => {
-        if (alive.current) setRuns(result);
+        if (active) {
+          setRuns(result);
+          setHistoryError('');
+          setHistoryLoaded(true);
+        }
       })
       .catch(reason => {
-        if (alive.current) setError(errorText(reason));
+        if (active) setHistoryError(errorText(reason));
       })
       .finally(() => {
-        if (alive.current) setLoading(false);
+        if (active) setLoading(false);
       });
     return () => {
+      active = false;
       alive.current = false;
       stream.current?.abort();
     };
-  }, [agent.id, session.id]);
+  }, [agent.id, session.id, historyRevision]);
+
+  const running = runs.some(run => run.status === 'running');
+  useEffect(() => {
+    onGuardChange(
+      busy || stopping || running
+        ? '离开会断开当前运行的反馈连接；服务端运行状态可在历史中重新读取。'
+        : question.trim() || files.length || uploading
+          ? '当前消息或附件尚未发送，离开后会丢失。'
+          : ''
+    );
+    return () => onGuardChange('');
+  }, [
+    busy,
+    stopping,
+    running,
+    question,
+    files.length,
+    uploading,
+    onGuardChange,
+  ]);
 
   const refresh = async () => {
     const result = await getAgentMessages(agent.id, session.id);
     if (alive.current) {
       setRuns(result);
+      setHistoryError('');
+      setHistoryLoaded(true);
+      setError('');
       onChanged();
     }
   };
@@ -198,6 +239,8 @@ function SessionMessages({
       stopping ||
       uploading ||
       loading ||
+      !historyLoaded ||
+      running ||
       (!previous && !question.trim())
     )
       return;
@@ -270,6 +313,8 @@ function SessionMessages({
           )
         );
         setError(message);
+        // A disconnected stream is not proof that the server has stopped.
+        setHistoryLoaded(false);
       }
     } finally {
       sending.current = false;
@@ -280,7 +325,12 @@ function SessionMessages({
   };
 
   const stop = async () => {
-    if (!runId.current || stopping) return;
+    const targetId =
+      runs.find(
+        run => run.status === 'running' && !run.id.startsWith('pending-')
+      )?.id || (sending.current ? runId.current : '');
+    if (!targetId || stopping) return;
+    runId.current = targetId;
     setStopping(true);
     setError('');
     try {
@@ -332,7 +382,7 @@ function SessionMessages({
       <div className="agents-toolbar">
         <h2>{session.title || '新会话'}</h2>
         <button
-          disabled={busy || stopping}
+          disabled={busy || stopping || loading}
           onClick={() =>
             void refresh().catch(reason => setError(errorText(reason)))
           }
@@ -341,8 +391,20 @@ function SessionMessages({
         </button>
       </div>
       <div className="agents-message-list" aria-live="polite">
-        {loading && <p>正在读取历史…</p>}
-        {!loading && !runs.length && (
+        {loading && <Skeleton active paragraph={{ rows: 4 }} />}
+        {historyError && (
+          <div role="alert" className="agents-error agents-error-action">
+            <span>历史读取失败：{historyError}</span>
+            <button
+              type="button"
+              disabled={busy || stopping || loading}
+              onClick={() => setHistoryRevision(value => value + 1)}
+            >
+              重试读取历史
+            </button>
+          </div>
+        )}
+        {!loading && !historyError && !runs.length && (
           <p className="agents-empty">
             发送消息开始{session.kind === 'debug' ? '调试' : '聊天'}。
           </p>
@@ -387,19 +449,36 @@ function SessionMessages({
               {!run.answer && run.status !== 'running' && (
                 <p className="agents-muted">本次执行未生成文本回答。</p>
               )}
-              <button
-                disabled={busy || stopping || loading}
-                onClick={() => void send(run)}
-              >
-                {needsFileUpload(run) ? '重新上传文件后再回答' : '重新回答'}
-              </button>
+              {run.status === 'running' && !busy ? (
+                <p className="agents-muted">
+                  运行状态尚未结束。可刷新历史或停止运行后继续。
+                </p>
+              ) : (
+                <button
+                  disabled={
+                    busy || stopping || loading || running || !historyLoaded
+                  }
+                  onClick={() => void send(run)}
+                >
+                  {needsFileUpload(run) ? '重新上传文件后再回答' : '重新回答'}
+                </button>
+              )}
             </div>
           </article>
         ))}
       </div>
       {error && (
-        <div role="alert" className="agents-error">
-          {error}
+        <div role="alert" className="agents-error agents-error-action">
+          <span>{error}</span>
+          <button
+            type="button"
+            disabled={busy || stopping || loading}
+            onClick={() =>
+              void refresh().catch(reason => setError(errorText(reason)))
+            }
+          >
+            重试
+          </button>
         </div>
       )}
       <form
@@ -428,13 +507,14 @@ function SessionMessages({
                 <button
                   type="button"
                   aria-label={`移除 ${file.name}`}
+                  disabled={busy || stopping || uploading}
                   onClick={() =>
                     setFiles(current =>
                       current.filter(item => item.id !== file.id)
                     )
                   }
                 >
-                  ×
+                  <CloseOutlined />
                 </button>
               </span>
             ))}
@@ -461,11 +541,18 @@ function SessionMessages({
               </button>
             </>
           )}
-          {busy || stopping ? (
+          {busy || stopping || running ? (
             <button
               className="danger"
               type="button"
-              disabled={stopping || !runId.current}
+              disabled={
+                stopping ||
+                (!runId.current &&
+                  !runs.some(
+                    run =>
+                      run.status === 'running' && !run.id.startsWith('pending-')
+                  ))
+              }
               onClick={() => void stop()}
             >
               {stopping ? '正在停止…' : '停止生成'}
@@ -474,7 +561,13 @@ function SessionMessages({
             <button
               className="primary"
               type="submit"
-              disabled={loading || uploading || !question.trim()}
+              disabled={
+                loading ||
+                !historyLoaded ||
+                uploading ||
+                running ||
+                !question.trim()
+              }
             >
               发送
             </button>
@@ -488,21 +581,28 @@ function SessionMessages({
 export default function Conversation({
   agent,
   kind,
+  onGuardChange,
 }: {
   agent: AgentDefinition;
   kind: AgentKind;
+  onGuardChange: (reason: string) => void;
 }) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
   const [selected, setSelected] = useState<AgentSession | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AgentSession | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [sessionGuard, setSessionGuard] = useState('');
+  const [pendingChange, setPendingChange] = useState<(() => void) | null>(null);
   const submitting = useRef(false);
   const [revision, setRevision] = useState(0);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
     let active = true;
+    setLoading(true);
+    setError('');
     listAgentSessions(agent.id, kind)
       .then(result => {
         if (active) {
@@ -512,12 +612,23 @@ export default function Conversation({
       })
       .catch(reason => {
         if (active) setError(errorText(reason));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
       alive.current = false;
     };
   }, [agent.id, kind, revision]);
+  useEffect(() => {
+    onGuardChange(sessionGuard);
+    return () => onGuardChange('');
+  }, [onGuardChange, sessionGuard]);
+  const requestChange = (action: () => void) => {
+    if (sessionGuard) setPendingChange(() => action);
+    else action();
+  };
   const create = async () => {
     if (submitting.current) return;
     submitting.current = true;
@@ -560,17 +671,29 @@ export default function Conversation({
       <aside className="agents-session-list">
         <button
           className="primary"
-          disabled={busy}
-          onClick={() => void create()}
+          disabled={busy || loading}
+          onClick={() => requestChange(() => void create())}
         >
           新建{kind === 'debug' ? '调试' : '聊天'}会话
         </button>
+        <h3>会话历史</h3>
+        {loading && <Skeleton active paragraph={{ rows: 3 }} />}
+        {!loading && !error && !sessions.length && (
+          <p className="agents-muted">还没有会话，点击上方按钮开始。</p>
+        )}
         {sessions.map(session => (
           <div
             className={`agents-session ${selected?.id === session.id ? 'selected' : ''}`}
             key={session.id}
           >
-            <button onClick={() => setSelected(session)}>
+            <button
+              disabled={busy}
+              aria-current={selected?.id === session.id ? 'true' : undefined}
+              onClick={() => {
+                if (selected?.id !== session.id)
+                  requestChange(() => setSelected(session));
+              }}
+            >
               {session.title || '未命名会话'}
               <small>{session.updatedAt}</small>
             </button>
@@ -582,15 +705,22 @@ export default function Conversation({
                 setDeleteTarget(session);
               }}
             >
-              ×
+              <DeleteOutlined />
             </button>
           </div>
         ))}
       </aside>
       <div className="agents-chat-main">
         {error && (
-          <div role="alert" className="agents-error">
-            {error}
+          <div role="alert" className="agents-error agents-error-action">
+            <span>{error}</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setRevision(value => value + 1)}
+            >
+              重试读取会话
+            </button>
           </div>
         )}
         {selected ? (
@@ -599,13 +729,31 @@ export default function Conversation({
             agent={agent}
             session={selected}
             onChanged={() => setRevision(value => value + 1)}
+            onGuardChange={setSessionGuard}
           />
         ) : (
-          <div className="agents-empty">
-            创建或选择一个会话。调试与聊天的历史分别保存。
-          </div>
+          !loading &&
+          !error && (
+            <div className="agents-empty">
+              创建或选择一个会话。调试与聊天的历史分别保存。
+            </div>
+          )
         )}
       </div>
+      <Modal
+        title="离开当前会话？"
+        open={pendingChange !== null}
+        okText="继续切换"
+        cancelText="留在会话"
+        onCancel={() => setPendingChange(null)}
+        onOk={() => {
+          const action = pendingChange;
+          setPendingChange(null);
+          action?.();
+        }}
+      >
+        <p>{sessionGuard}</p>
+      </Modal>
       <Modal
         title={kind === 'debug' ? '删除调试会话' : '删除聊天会话'}
         open={deleteTarget !== null}
@@ -628,6 +776,9 @@ export default function Conversation({
           删除 Agent“{agent.botName}”的{kind === 'debug' ? '调试' : '聊天'}会话“
           {deleteTarget?.title || '未命名会话'}”？
         </p>
+        {deleteTarget?.id === selected?.id && sessionGuard && (
+          <p>{sessionGuard}</p>
+        )}
         {error && (
           <p role="alert" className="agents-error">
             {error}

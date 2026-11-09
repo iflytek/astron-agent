@@ -129,20 +129,13 @@ const MessageDivider = ({
   t,
 }: Pick<ChatContext, 'chat' | 't'>): React.ReactElement => {
   return (
-    <div key={chat.id} className="flex items-center justify-center gap-3">
-      <img
-        src={icons.startNewConversationLeft}
-        className="w-[151px] h-[7px]"
-        alt=""
-      />
-      <span className="text-[#6356EA] font-medium">
+    <div
+      key={chat.id}
+      className="workflow-message-divider flex items-center justify-center gap-3"
+    >
+      <span className="font-medium">
         {t('workflow.nodes.chatDebugger.startNewConversation')}
       </span>
-      <img
-        src={icons.startNewConversationRight}
-        className="w-[151px] h-[7px]"
-        alt=""
-      />
     </div>
   );
 };
@@ -156,7 +149,7 @@ const MessageAsk = ({
       <div className="flex items-center gap-4">
         <img src={icons.chatUser} className="w-9 h-9" alt="" />
       </div>
-      <div className="w-fit min-w-[50px] bg-[#6356EA] p-3 flex flex-col gap-2.5 rounded-xl overflow-hidden">
+      <div className="w-fit min-w-[50px] bg-[#315ff4] p-3 flex flex-col gap-2.5 rounded-xl overflow-hidden">
         {chat?.inputs?.map((input, index) => (
           <div key={index}>
             {renderInputElement(chat as ChatListItemExtended, input)}

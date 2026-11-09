@@ -1,5 +1,7 @@
 import React, { useMemo, useCallback, memo } from 'react';
-import { Drawer, message } from 'antd';
+import { Button, Drawer, message } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
+import { useAuthoringDrawerStyle } from '../../hooks/use-authoring-drawer-style';
 import { useTranslation } from 'react-i18next';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
@@ -26,10 +28,11 @@ const BlockHeader = ({
     style={{ borderRadius: '8px 8px 0 0' }}
   >
     <span className="font-medium">{title}</span>
-    <img
-      src={icons.resultCopy}
-      className="w-4 h-4 cursor-pointer"
-      alt=""
+    <Button
+      type="text"
+      size="small"
+      aria-label={`复制${title}`}
+      icon={<CopyOutlined />}
       onClick={onCopy}
     />
   </div>
@@ -98,6 +101,7 @@ const AnswerBlock = ({
 );
 
 function FlowChatResult(): React.ReactElement {
+  const rootStyle = useAuthoringDrawerStyle();
   const { t } = useTranslation();
   const nodes = useFlowStore(state => state.nodes);
   const flowChatResultOpen = useFlowsManager(state => state.flowChatResultOpen);
@@ -137,17 +141,21 @@ function FlowChatResult(): React.ReactElement {
 
   return (
     <Drawer
-      rootClassName="operation-result-container"
+      rootClassName="workflow-authoring-drawer operation-result-container"
       placement="right"
       open={flowChatResultOpen}
       mask={false}
+      rootStyle={rootStyle}
+      title="运行结果"
+      onClose={() => setFlowChatResultOpen(false)}
     >
       <div className="p-5 pr-0 w-full h-full flex flex-col">
         <div className="flex items-center justify-between pr-5">
           <span className="font-semibold text-lg">
             {t('workflow.nodes.flowChatResult.runResult')}
           </span>
-          <div
+          <Button
+            type="text"
             className="flex items-center gap-2.5 cursor-pointer"
             onClick={() => setFlowChatResultOpen(false)}
           >
@@ -159,7 +167,7 @@ function FlowChatResult(): React.ReactElement {
               className="w-[14px] h-[14px]"
               alt=""
             />
-          </div>
+          </Button>
         </div>
 
         {flowResult?.status ? (

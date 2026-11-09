@@ -1,13 +1,15 @@
-import React, { useMemo, useState, useEffect, memo } from 'react';
-import { Drawer } from 'antd';
+import React, { useMemo, memo } from 'react';
+import { Button, Drawer } from 'antd';
+import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useAuthoringDrawerStyle } from '../../hooks/use-authoring-drawer-style';
 import { useTranslation } from 'react-i18next';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
+import useChatStore from '@/components/workflow/store/use-chat-store';
 import { ChatDebuggerContent } from '../chat-debugger';
 
 // 类型导入
 import {
   OperationResultProps,
-  DrawerStyle,
   PositionData,
 } from '@/components/workflow/types';
 
@@ -32,25 +34,7 @@ function OperationResult({
   );
   const nodes = currentStore(state => state.nodes);
   const moveToPosition = currentStore(state => state.moveToPosition);
-  const [drawerStyle, setDrawerStyle] = useState<DrawerStyle>({
-    height: (window?.innerHeight ?? 0) - 80,
-    top: 80,
-    right: 0,
-    zIndex: 998,
-  });
-
-  useEffect(() => {
-    const handleAdjustmentDrawerStyle = (): void => {
-      setDrawerStyle({
-        ...drawerStyle,
-        height: (window?.innerHeight ?? 0) - 80,
-        top: 80,
-      });
-    };
-    window.addEventListener('resize', handleAdjustmentDrawerStyle);
-    return (): void =>
-      window.removeEventListener('resize', handleAdjustmentDrawerStyle);
-  }, [drawerStyle]);
+  const drawerStyle = useAuthoringDrawerStyle();
 
   const handleMoveToPosition = useMemoizedFn((id: string): void => {
     const currentNode = nodes.find(node => node.id === id);
@@ -95,23 +79,26 @@ function OperationResult({
 
   return (
     <Drawer
-      rootClassName="operation-result-container"
+      rootClassName="workflow-authoring-drawer operation-result-container"
       placement="right"
       rootStyle={drawerStyle}
       open={open}
       mask={false}
       destroyOnClose
+      title={showErrorNodesDrawer ? '工作流检查' : '运行调试'}
+      onClose={() => {
+        if (showErrorNodesDrawer) setOpen(false);
+        else useChatStore.getState().clearData(setOpen);
+      }}
     >
       {showErrorNodesDrawer && (
         <>
           <div className="flex justify-end px-5 mt-2">
-            <img
-              src={icons.close}
-              className="w-3 h-3 cursor-pointer"
-              alt=""
-              onClick={() => {
-                setOpen(false);
-              }}
+            <Button
+              type="text"
+              aria-label="关闭工作流检查"
+              icon={<CloseOutlined />}
+              onClick={() => setOpen(false)}
             />
           </div>
           <div className="mt-4 flex items-center justify-between px-5">
@@ -121,21 +108,20 @@ function OperationResult({
                 {t('workflow.nodes.operationResult.errorNodes')}
               </span>
             </div>
-            <div
-              className="flex items-center gap-2 cursor-pointer"
+            <Button
+              type="link"
+              icon={<ReloadOutlined />}
               onClick={() => checkFlow()}
             >
-              <img src={icons.restart} className="w-3 h-3" alt="" />
-              <span className="text-[#6356EA]">
-                {t('workflow.nodes.operationResult.rerun')}
-              </span>
-            </div>
+              <span>{t('workflow.nodes.operationResult.rerun')}</span>
+            </Button>
           </div>
           <div className="px-5">
             {errNodes.map(node => (
-              <div
+              <button
+                type="button"
                 key={node.id}
-                className="border border-[#E0E3E7] p-4 mt-4 rounded-lg cursor-pointer"
+                className="workflow-error-node w-full text-left border border-[#E0E3E7] p-4 mt-4 rounded-lg cursor-pointer"
                 onClick={() => handleClickErrorNode(node.id)}
               >
                 <div className="flex items-center  gap-5">
@@ -173,7 +159,7 @@ function OperationResult({
                     </div>
                   </div>
                 ))}
-              </div>
+              </button>
             ))}
           </div>
         </>

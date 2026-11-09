@@ -90,9 +90,10 @@ const ChatFooter = ({
   userInput,
 }: ChatFooterProps): React.ReactElement | null => {
   const canRunDebugger = useChatStore(state => state.canRunDebugger);
+  const stopRequested = useChatStore(state => state.stopRequested);
   const canRunChat = useMemo(
     () => canRunDebugger(),
-    [debuggering, startNodeParams]
+    [debuggering, startNodeParams, stopRequested, interruptChat, userInput]
   );
   if (!trialRun) return null;
   return (
@@ -101,6 +102,7 @@ const ChatFooter = ({
         <Button
           type="text"
           className="origin-btn px-[26px]"
+          disabled={stopRequested}
           onClick={() => setDeleteAllModal(true)}
         >
           {t('workflow.nodes.chatDebugger.clearDialogue')}
@@ -112,11 +114,15 @@ const ChatFooter = ({
         <Button
           type="text"
           className="origin-btn px-[24px]"
+          disabled={stopRequested}
+          loading={stopRequested}
           onClick={() => clearData()}
         >
-          {debuggering || interruptChat.interrupt
-            ? '停止运行'
-            : t('common.cancel')}
+          {stopRequested
+            ? '正在停止运行…'
+            : debuggering || interruptChat.interrupt
+              ? '停止运行'
+              : t('common.cancel')}
         </Button>
         <Button
           type="primary"

@@ -4,7 +4,7 @@ import type {
 } from '@/components/workflow/types/domain';
 import { cloneDeep } from 'lodash';
 import React, { useState, memo, useMemo } from 'react';
-import { Tooltip } from 'antd';
+import { Button, Tooltip } from 'antd';
 import { useTranslation } from 'react-i18next';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
@@ -50,12 +50,23 @@ const NodeList: React.FC<NodeListProps> = ({
   const setWillAddNode = useFlowsManager(state => state.setWillAddNode);
   const reactFlowInstance = currentStore(state => state.reactFlowInstance);
 
-  const [openNodeList, setOpenNodeList] = useState<boolean>(true);
+  const [openNodeList, setOpenNodeList] = useState<boolean>(
+    () => window.innerWidth > 760
+  );
   const [openNodeDetail, setOpenNodeDetail] = useState<boolean>(false);
   const [currentNodeId, setCurrentNodeId] = useState<string>('');
 
   const handleDragStart = (item: WorkflowNodeTemplate): void => {
     setWillAddNode(cloneDeep(item));
+  };
+  const addNode = (item: WorkflowNodeTemplate): void => {
+    if (canvasesDisabled || !reactFlowInstance) return;
+    const template = cloneDeep(item);
+    setWillAddNode(template);
+    handleAddNode(
+      template,
+      generateRandomPosition(reactFlowInstance.getViewport())
+    );
   };
 
   const handleCloseNodeTemplate = (): void => {
@@ -72,7 +83,7 @@ const NodeList: React.FC<NodeListProps> = ({
       {filterNodeList.length > 0 &&
         (openNodeList ? (
           <div
-            className="h-full overflow-hidden"
+            className="workflow-node-palette h-full overflow-hidden"
             style={{
               width: openNodeList ? '16%' : 0,
               minWidth: '240px',
@@ -84,7 +95,10 @@ const NodeList: React.FC<NodeListProps> = ({
                   <div className="text-lg">
                     {t('workflow.nodeList.selectNode')}
                   </div>
-                  <div
+                  <Button
+                    type="text"
+                    size="small"
+                    aria-label="收起节点库"
                     className="w-[22px] h-[22px] flex items-center justify-center bg-[#fff] shadow-sm rounded-md cursor-pointer"
                     onClick={() => setOpenNodeList(false)}
                   >
@@ -93,7 +107,7 @@ const NodeList: React.FC<NodeListProps> = ({
                       className="w-[10px] h-[10px]"
                       alt=""
                     />
-                  </div>
+                  </Button>
                 </div>
                 <div className="flex-1 pr-2 overflow-hidden">
                   <div className="pr-2 h-full flex flex-col gap-1.5 overflow-auto">
@@ -135,10 +149,14 @@ const NodeList: React.FC<NodeListProps> = ({
                                   </div>
                                 }
                               >
-                                <div
-                                  draggable
+                                <button
+                                  type="button"
+                                  aria-label={`添加${item.aliasName}节点`}
+                                  disabled={canvasesDisabled}
+                                  draggable={!canvasesDisabled}
                                   onDragStart={() => handleDragStart(item)}
-                                  className="w-full cursor-pointer bg-[#ffffff] py-3 px-3.5 hover:shadow-md group"
+                                  onClick={() => addNode(item)}
+                                  className="workflow-node-template w-full cursor-pointer bg-[#ffffff] py-3 px-3.5 group"
                                   style={{
                                     borderRadius: 10,
                                     cursor: canvasesDisabled
@@ -158,28 +176,15 @@ const NodeList: React.FC<NodeListProps> = ({
                                     <span className="flex-1 text-base font-medium">
                                       {item.aliasName}
                                     </span>
-                                    <div
-                                      className="w-5 h-5 rounded-sm items-center justify-center cursor-pointer hover:bg-[#efefef] group-hover:flex hidden"
-                                      onClick={() => {
-                                        if (!reactFlowInstance) return;
-                                        const template = cloneDeep(item);
-                                        setWillAddNode(template);
-                                        handleAddNode(
-                                          template,
-                                          generateRandomPosition(
-                                            reactFlowInstance.getViewport()
-                                          )
-                                        );
-                                      }}
-                                    >
+                                    <span className="w-5 h-5 flex items-center justify-center">
                                       <img
                                         src={nodeListAdd}
                                         className="w-3 h-3"
                                         alt=""
                                       />
-                                    </div>
+                                    </span>
                                   </div>
-                                </div>
+                                </button>
                               </Tooltip>
                             ) : null
                           )}
@@ -199,14 +204,17 @@ const NodeList: React.FC<NodeListProps> = ({
           </div>
         ) : (
           <div
-            className="fixed left-0 top-[80px] bg-[#EBEFF4] border border-[#DFE4ED] mt-5"
+            className="workflow-node-palette-toggle fixed left-0 top-[80px] bg-[#EBEFF4] border border-[#DFE4ED] mt-5"
             style={{
               borderRadius: '0 21px 21px 0',
               padding: '10px 17px 10px 28px',
               zIndex: 998,
             }}
           >
-            <div
+            <Button
+              type="text"
+              size="small"
+              aria-label="展开节点库"
               className="w-[22px] h-[22px] flex items-center justify-center bg-[#fff] shadow-sm rounded-md cursor-pointer"
               onClick={() => setOpenNodeList(true)}
             >
@@ -215,7 +223,7 @@ const NodeList: React.FC<NodeListProps> = ({
                 className="w-[10px] h-[10px]"
                 alt=""
               />
-            </div>
+            </Button>
           </div>
         ))}
     </>

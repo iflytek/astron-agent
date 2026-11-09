@@ -1,21 +1,17 @@
-import React, { useMemo, useEffect, useState } from 'react';
-import { Drawer } from 'antd';
+import React, { useMemo, useEffect } from 'react';
+import { Button, Drawer } from 'antd';
+import { CloseOutlined } from '@ant-design/icons';
+import { useAuthoringDrawerStyle } from '../../hooks/use-authoring-drawer-style';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useMemoizedFn } from 'ahooks';
 import NodeOperation from '@/components/workflow/nodes/components/node-operation';
 import { Label } from '@/components/workflow/nodes/node-common';
-import cloneDeep from 'lodash/cloneDeep';
 import { nodeTypeComponentMap } from '@/components/workflow/constant';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 
 // 类型导入
-import { RootStyle } from '@/components/workflow/types';
 
 // 从统一的图标管理中导入
-import { Icons } from '@/components/workflow/icons';
-
-// 获取 Node Detail 模块的图标
-const icons = Icons.nodeDetail;
 
 function index(): React.ReactElement {
   const nodeInfoEditDrawerlInfo = useFlowsManager(
@@ -29,25 +25,9 @@ function index(): React.ReactElement {
     state => state.setUpdateNodeInputData
   );
   const nodes = currentStore(state => state.nodes);
-  const [rootStyle, setRootStyle] = useState<RootStyle>({
-    height: (window?.innerHeight ?? 0) - 80,
-    top: 80,
-    right: 0,
-  });
-
-  useEffect(() => {
-    const handleResize = (): void => {
-      setRootStyle({
-        height: (window?.innerHeight ?? 0) - 80,
-        top: 80,
-        right: 0,
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return (): void => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  const rootStyle = useAuthoringDrawerStyle();
+  const close = (): void =>
+    setNodeInfoEditDrawerlInfo({ open: false, nodeId: '' });
 
   const nodeInfo = useMemo(() => {
     return nodes?.find(item => item?.id === nodeInfoEditDrawerlInfo.nodeId);
@@ -81,13 +61,15 @@ function index(): React.ReactElement {
 
   return (
     <Drawer
-      rootClassName={`advanced-configuration-container node-info-edit-container ${
+      rootClassName={`workflow-authoring-drawer advanced-configuration-container node-info-edit-container ${
         isCodeNode ? 'code-node-edit-container' : ''
       }`}
       placement="right"
       open={nodeInfoEditDrawerlInfo?.open}
       rootStyle={rootStyle}
       mask={false}
+      title="节点配置"
+      onClose={close}
     >
       <div className="w-full p-[14px] pb-[6px] sticky top-0 bg-white z-10">
         <div className="w-full flex items-center gap-3 justify-between">
@@ -111,19 +93,11 @@ function index(): React.ReactElement {
                 labelInput="labelInput1"
               />
             )}
-            <img
-              src={icons.close}
-              className="w-3 h-3 cursor-pointer"
-              alt=""
-              onClick={(e: React.MouseEvent<HTMLImageElement>) => {
-                e.stopPropagation();
-                setNodeInfoEditDrawerlInfo(
-                  cloneDeep({
-                    open: false,
-                    nodeId: '',
-                  })
-                );
-              }}
+            <Button
+              type="text"
+              aria-label="关闭节点配置"
+              icon={<CloseOutlined />}
+              onClick={close}
             />
           </div>
         </div>
