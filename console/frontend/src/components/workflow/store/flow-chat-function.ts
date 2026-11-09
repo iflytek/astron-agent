@@ -600,7 +600,7 @@ const handleMessage = (
           : item
       )
     );
-    if (get().stopRequested && runId) handleStopConversation(get);
+    if (get().stopRequested && runId) get().handleStopConversation();
     return;
   }
   if (e.event === 'run-end') {
@@ -622,6 +622,19 @@ const handleMessage = (
         },
         get
       );
+    }
+    if (frame.status !== 'paused') {
+      set({ stopRequested: false });
+      const manager = useFlowsManager.getState();
+      manager.setFlowResult({
+        ...manager.flowResult,
+        status:
+          frame.status === 'completed'
+            ? 'success'
+            : frame.status === 'cancelled' || frame.status === 'interrupted'
+              ? frame.status
+              : 'failed',
+      });
     }
     if (
       typeof frame.durationMs === 'number' &&
@@ -741,6 +754,7 @@ const handleResumeChat = (
   get: ChatGetter,
   set: ChatSetter
 ): void => {
+  if (get().stopRequested || get().runStatus === 'stopping') return;
   historyGeneration += 1;
   const currentFlow = useFlowsManager.getState().currentFlow;
   const nodes = useFlowStore.getState().nodes;
@@ -955,7 +969,7 @@ const handleRunDebugger = ({
   ready
     .then(() => {
       if (get().stopRequested) {
-        finishStopConversation(get, 'cancelled');
+        finishStopConversation(get, set, 'cancelled');
         return;
       }
       setCanPublish(true);
@@ -985,7 +999,7 @@ const handleRunDebugger = ({
       });
     })
     .catch(() => {
-      get().setDebuggering(false);
+      set({ debuggering: false, stopRequested: false, runStatus: 'failed' });
       setCanvasesDisabled(false);
       setShowNodeList(true);
       setFlowResult({ status: 'failed', timeCost: '', totalTokens: '' });
@@ -997,7 +1011,7 @@ const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
     get().interruptChat.interrupt ||
     get().runStatus === 'stopping'
   ) {
-    handleStopConversation(get);
+    get().handleStopConversation();
     return;
   }
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
@@ -1013,6 +1027,7 @@ const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
 };
 
 const canRunDebugger = (get: ChatGetter): boolean => {
+  if (get().stopRequested || get().runStatus === 'stopping') return false;
   if (!get().debuggering && get().interruptChat?.type === 'option')
     return false;
   if (
@@ -1145,16 +1160,23 @@ const resetNodesAndEdges = (
   };
 };
 
-const finishStopConversation = (get: ChatGetter, status: string): void => {
+const finishStopConversation = (
+  get: ChatGetter,
+  set: ChatSetter,
+  status: string
+): void => {
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
   get().chatIdRef = uuid().replace(/-/g, '');
-  get().setDebuggering(false);
-  get().wsMessageStatus = 'end';
-  get().runStatus = status;
+  set({
+    debuggering: false,
+    stopRequested: false,
+    wsMessageStatus: 'end',
+    runStatus: status,
+  });
   get().setChatList(chatList => [
     ...chatList,
     {
@@ -1177,14 +1199,14 @@ const finishStopConversation = (get: ChatGetter, status: string): void => {
     }))
   );
   setFlowResult({
-    status: '',
+    status: status === 'completed' ? 'success' : status,
     timeCost: '',
     totalTokens: '',
   });
 };
 
-const handleStopConversation = (get: ChatGetter): void => {
-  get().stopRequested = true;
+const handleStopConversation = (get: ChatGetter, set: ChatSetter): void => {
+  set({ stopRequested: true });
   const runId = get().runId;
   // A stop before the first run frame waits for the authoritative run ID.
   if (!runId || get().runStatus === 'stopping') return;
@@ -1194,16 +1216,15 @@ const handleStopConversation = (get: ChatGetter): void => {
   const isCurrent = (): boolean =>
     get().controllerRef === controller &&
     useFlowsManager.getState().currentFlow?.id === flowId;
-  get().runStatus = 'stopping';
+  set({ runStatus: 'stopping' });
   void stopWorkflowSse({
     requestStop: () => stopWorkflowRun(runId),
     controller,
     isCurrent,
-    onStopped: result => finishStopConversation(get, result.status),
+    onStopped: result => finishStopConversation(get, set, result.status),
   }).catch(() => {
     if (!isCurrent()) return;
-    get().stopRequested = false;
-    get().runStatus = previousStatus;
+    set({ stopRequested: false, runStatus: previousStatus });
     message.error('停止请求失败，请重试');
   });
 };

@@ -19,6 +19,9 @@ export default function WorkflowActions(): ReactElement {
   const setWorkflowTracePanelOpen = useFlowsManager(
     state => state.setWorkflowTracePanelOpen
   );
+  const setFlowChatResultOpen = useFlowsManager(
+    state => state.setFlowChatResultOpen
+  );
   const { handleDebugger } = useFlowCommon();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
@@ -43,7 +46,7 @@ export default function WorkflowActions(): ReactElement {
     }
   };
   return (
-    <div className="flex items-center gap-3">
+    <div className="workflow-toolbar-actions flex items-center gap-3">
       <Button
         onClick={() =>
           void downloadFileWithHeaders(
@@ -59,6 +62,7 @@ export default function WorkflowActions(): ReactElement {
         <Button onClick={() => setAdvancedConfiguration(true)}>高级配置</Button>
       )}
       <Button onClick={() => setWorkflowTracePanelOpen(true)}>运行追踪</Button>
+      <Button onClick={() => setFlowChatResultOpen(true)}>运行结果</Button>
       <Button onClick={() => void handleDebugger()}>调试</Button>
       {!historyVersion && (
         <Button type="primary" onClick={() => setOpen(true)}>
