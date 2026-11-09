@@ -1,18 +1,27 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { Select } from 'antd';
+import { Badge, Drawer, Select } from 'antd';
+import {
+  ApartmentOutlined,
+  AppstoreOutlined,
+  BellOutlined,
+  BookOutlined,
+  DatabaseOutlined,
+  FolderOutlined,
+  MenuFoldOutlined,
+  MenuOutlined,
+  MenuUnfoldOutlined,
+  RobotOutlined,
+  SettingOutlined,
+  TeamOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import useUserStore from '@/store/user-store';
 import NoticeModal from '@/components/sidebar/notice-modal';
-import SidebarLogo from '@/components/sidebar/sidebar-logo';
-import IconEntry from '@/components/sidebar/icon-entry';
 import { getMessageCountApi } from '@/services/notification';
-import { createMenuList } from '@/constants';
-import collapseIcon from '@/assets/imgs/sidebar/collapseGray.svg';
-import workflowIcon from '@/assets/imgs/sidebar/icon_nav_flow_normal.png';
-import workflowActiveIcon from '@/assets/imgs/sidebar/icon_nav_flow_normal_active.png';
-import avatar from '@/assets/imgs/sidebar/avator.png';
+import logo from '@/assets/imgs/sidebar/agentLog.svg';
 import styles from './index.module.scss';
 
 interface SpaceOption {
@@ -43,16 +52,8 @@ export default function ResourceNavigation(): ReactElement {
   const [notices, setNotices] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
-  const [showResources, setShowResources] = useState(
-    pathname.startsWith('/resource/')
-  );
-  const [showManagement, setShowManagement] = useState(false);
-  const resourceActive = pathname.startsWith('/resource/');
-  const groups = createMenuList();
-
-  useEffect(() => {
-    if (pathname.startsWith('/resource/')) setShowResources(true);
-  }, [pathname]);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => setMobileOpen(false), [pathname]);
 
   useEffect((): (() => void) => {
     let ignore = false;
@@ -127,206 +128,303 @@ export default function ResourceNavigation(): ReactElement {
     window.location.assign(`/enterprise/${value}/space`);
   };
 
-  const renderLink = (item: {
-    path: string;
-    subTitle: string;
-    icon: string;
-    iconAct: string;
-  }): ReactElement => (
+  const section = pathname.startsWith('/resource/')
+    ? 'resources'
+    : pathname.startsWith('/store/') || pathname === '/home'
+      ? 'market'
+      : pathname.startsWith('/management/model')
+        ? 'models'
+        : pathname.startsWith('/management/release')
+          ? 'publishing'
+          : pathname.startsWith('/management/') ||
+              pathname.startsWith('/enterprise/') ||
+              pathname === '/space' ||
+              pathname.startsWith('/space/invitations') ||
+              pathname.startsWith('/space/space-detail/') ||
+              pathname.startsWith('/team/')
+            ? 'management'
+            : 'build';
+  const modules = [
+    {
+      id: 'build',
+      label: '构建',
+      path: '/space/agent',
+      icon: <RobotOutlined />,
+    },
+    {
+      id: 'resources',
+      label: '资源',
+      path: '/resource/knowledge',
+      icon: <FolderOutlined />,
+    },
+    {
+      id: 'publishing',
+      label: '发布',
+      path: '/management/release',
+      icon: <UploadOutlined />,
+    },
+    {
+      id: 'models',
+      label: '模型',
+      path: '/management/model',
+      icon: <DatabaseOutlined />,
+    },
+    {
+      id: 'market',
+      label: '市场',
+      path: '/store/agent',
+      icon: <AppstoreOutlined />,
+    },
+    {
+      id: 'management',
+      label: '管理',
+      path: '/space',
+      icon: <SettingOutlined />,
+    },
+  ];
+  const managementLinks: Array<[string, string]> = [
+    ['/space', '空间管理'],
+    ['/space/invitations', '邀请'],
+    [
+      enterpriseId ? `/enterprise/${enterpriseId}/space` : '/team/create/2',
+      '团队管理',
+    ],
+    ['/team/create/2', '新建团队'],
+    ['/management/app', '应用管理'],
+    ['/management/platform-account', '平台账户'],
+  ];
+  const link = (
+    path: string,
+    label: string,
+    icon?: ReactElement
+  ): ReactElement => (
     <NavLink
-      key={item.path}
-      to={item.path}
-      title={item.subTitle}
+      key={`${path}-${label}`}
+      to={path}
+      end={path === '/space'}
       className={({ isActive }) =>
-        `${styles.item} ${isActive ? styles.active : ''}`
+        `${styles.item} ${isActive || (path === '/space' && pathname.startsWith('/space/space-detail/')) ? styles.active : ''}`
       }
     >
-      {({ isActive }) => (
-        <>
-          <img src={isActive ? item.iconAct : item.icon} alt="" />
-          {!collapsed && <span>{item.subTitle}</span>}
-        </>
-      )}
+      {icon}
+      {label}
     </NavLink>
   );
-
-  return (
-    <aside
-      className={`${styles.navigation} ${collapsed ? styles.collapsed : ''}`}
+  const navigation = (mobile = false): ReactElement => (
+    <div
+      className={`${styles.navigation} ${!mobile && collapsed ? styles.collapsed : ''}`}
     >
-      <button
-        type="button"
-        className={styles.collapse}
-        aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
-        aria-expanded={!collapsed}
-        onClick={() => setCollapsed(value => !value)}
-      >
-        <img src={collapseIcon} alt="" />
-      </button>
-      <div className={styles.brand}>
-        <SidebarLogo isCollapsed={collapsed} />
-      </div>
-      <div className={styles.scroll}>
-        <nav aria-label="市场">
-          {groups[0]?.tabs.map(item =>
-            renderLink({
-              ...item,
-              path: item.path === '/home' ? '/store/agent' : item.path,
-            })
-          )}
+      <aside className={styles.rail} aria-label="全局导航">
+        <Link
+          to="/space/agent"
+          className={styles.logo}
+          aria-label="Astron Agent 首页"
+        >
+          <img src={logo} alt="" />
+        </Link>
+        <nav className={styles.modules}>
+          {modules.map(module => (
+            <Link
+              key={module.id}
+              to={module.path}
+              title={module.label}
+              aria-current={section === module.id ? 'page' : undefined}
+              className={`${styles.module} ${section === module.id ? styles.selected : ''}`}
+            >
+              {module.icon}
+              <span>{module.label}</span>
+            </Link>
+          ))}
         </nav>
-        {!collapsed && (
-          <div className={styles.scope}>
-            <label htmlFor="navigation-team">团队</label>
-            <Select
-              id="navigation-team"
-              aria-label="团队"
-              value={String(enterpriseId || '')}
-              onChange={selectTeam}
-              options={[
-                { value: '', label: '个人' },
-                ...teams.map(team => ({
-                  value: String(team.id),
-                  label: team.name,
-                })),
-              ]}
-            />
-            <label htmlFor="navigation-space">当前空间</label>
-            <Select
-              id="navigation-space"
-              aria-label="当前空间"
-              placeholder="请选择空间"
-              value={spaceId ? String(spaceId) : enterpriseId ? undefined : ''}
-              onChange={selectSpace}
-              options={[
-                ...(!enterpriseId
-                  ? [{ value: '', label: '我的个人资源' }]
-                  : []),
-                ...spaces
-                  .filter(
-                    space =>
-                      String(space.enterpriseId || '') ===
-                      String(enterpriseId || '')
-                  )
-                  .map(space => ({
-                    value: String(space.id),
-                    label: space.name,
-                  })),
-              ]}
-            />
-          </div>
-        )}
-        {error && !collapsed && (
-          <p role="alert" className={styles.error}>
-            {error}
-          </p>
-        )}
-        <nav aria-label="工作空间" className={styles.workspace}>
-          {groups[1]?.tabs.map(item =>
-            item.activeTab === 'resource' ? (
-              <div key={item.path}>
-                <button
-                  type="button"
-                  title={item.subTitle}
-                  className={`${styles.item} ${resourceActive ? styles.active : ''}`}
-                  aria-expanded={showResources}
-                  onClick={() => {
-                    setCollapsed(false);
-                    setShowResources(value => !value);
-                  }}
-                >
-                  <img src={resourceActive ? item.iconAct : item.icon} alt="" />
-                  {!collapsed && (
-                    <>
-                      <span>{item.subTitle}</span>
-                      <span aria-hidden="true">⌄</span>
-                    </>
-                  )}
-                </button>
-                {!collapsed && showResources && (
-                  <div className={styles.submenu}>
-                    {resources.map(([path, label]) => (
-                      <NavLink
-                        key={path}
-                        to={path}
-                        className={({ isActive }) =>
-                          isActive ? styles.active : ''
-                        }
-                      >
-                        {label}
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : item.activeTab === 'agent' ? (
-              <div key={item.path}>
-                {renderLink(item)}
-                {renderLink({
-                  path: '/space/workflows',
-                  subTitle: '工作流',
-                  icon: workflowIcon,
-                  iconAct: workflowActiveIcon,
-                })}
-              </div>
-            ) : (
-              renderLink(item)
-            )
+        <div className={styles.railBottom}>
+          {!mobile && (
+            <button
+              type="button"
+              className={styles.railButton}
+              aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(value => !value)}
+            >
+              {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            </button>
           )}
           <button
             type="button"
-            title="空间与团队"
-            className={styles.item}
-            aria-expanded={showManagement}
-            onClick={() => {
-              setCollapsed(false);
-              setShowManagement(value => !value);
-            }}
+            className={styles.railButton}
+            aria-label={`消息${unreadCount ? `，${unreadCount} 条未读` : ''}`}
+            onClick={() => setNotices(true)}
           >
-            <img src={avatar} alt="" />
-            {!collapsed && (
-              <>
-                <span>空间与团队</span>
-                <span aria-hidden="true">⌄</span>
-              </>
-            )}
+            <Badge dot={unreadCount > 0}>
+              <BellOutlined />
+            </Badge>
           </button>
-          {!collapsed && showManagement && (
-            <div className={styles.submenu}>
-              <NavLink to="/space" end>
-                空间管理
-              </NavLink>
-              <NavLink to="/space/invitations">邀请</NavLink>
-              <NavLink
-                to={
-                  enterpriseId
-                    ? `/enterprise/${enterpriseId}/space`
-                    : '/team/create/2'
+          <Link
+            to="/account"
+            className={styles.account}
+            title={user.nickname || user.username || '我的账号'}
+            aria-label="我的账号"
+          >
+            {user.avatar ? (
+              <img src={user.avatar} alt="" />
+            ) : (
+              <span>
+                {(user.nickname || user.username || '我').slice(0, 1)}
+              </span>
+            )}
+          </Link>
+        </div>
+      </aside>
+      {(mobile || !collapsed) && (
+        <aside className={styles.context} aria-label="空间导航">
+          <Link to="/space/agent" className={styles.wordmark}>
+            Astron Agent
+          </Link>
+          <div className={styles.scroll}>
+            <div className={styles.scope}>
+              <label htmlFor={mobile ? 'mobile-team' : 'navigation-team'}>
+                团队
+              </label>
+              <Select
+                id={mobile ? 'mobile-team' : 'navigation-team'}
+                aria-label="团队"
+                value={String(enterpriseId || '')}
+                onChange={selectTeam}
+                options={[
+                  { value: '', label: '个人' },
+                  ...teams.map(team => ({
+                    value: String(team.id),
+                    label: team.name,
+                  })),
+                ]}
+              />
+              <label htmlFor={mobile ? 'mobile-space' : 'navigation-space'}>
+                当前空间
+              </label>
+              <Select
+                id={mobile ? 'mobile-space' : 'navigation-space'}
+                aria-label="当前空间"
+                placeholder="请选择空间"
+                value={
+                  spaceId ? String(spaceId) : enterpriseId ? undefined : ''
                 }
-              >
-                团队管理
-              </NavLink>
-              <NavLink to="/team/create/2">新建团队</NavLink>
+                onChange={selectSpace}
+                options={[
+                  ...(!enterpriseId
+                    ? [{ value: '', label: '我的个人资源' }]
+                    : []),
+                  ...spaces
+                    .filter(
+                      space =>
+                        String(space.enterpriseId || '') ===
+                        String(enterpriseId || '')
+                    )
+                    .map(space => ({
+                      value: String(space.id),
+                      label: space.name,
+                    })),
+                ]}
+              />
             </div>
-          )}
-        </nav>
-      </div>
-      <div className={styles.footer}>
-        <IconEntry
-          isCollapsed={collapsed}
-          onMessageClick={() => setNotices(true)}
-          unreadCount={unreadCount}
-        />
-        <Link to="/account" className={styles.account} title="我的账号">
-          <img src={user.avatar || avatar} alt="" />
-          {!collapsed && (
-            <>
-              <span>{user.nickname || user.username || '我的账号'}</span>
-              <span aria-hidden="true">⌄</span>
-            </>
-          )}
+            {error && (
+              <p role="alert" className={styles.error}>
+                {error}
+              </p>
+            )}
+            <nav
+              onClick={event => {
+                if (mobile && (event.target as HTMLElement).closest('a'))
+                  setMobileOpen(false);
+              }}
+              aria-label={modules.find(module => module.id === section)?.label}
+              className={styles.contextNav}
+            >
+              {section === 'build' && (
+                <>
+                  <p className={styles.groupLabel}>应用构建</p>
+                  {link('/space/agent', 'Agent', <RobotOutlined />)}
+                  {link('/space/workflows', '工作流', <ApartmentOutlined />)}
+                  <div className={styles.divider} />
+                  <p className={styles.groupLabel}>空间资源</p>
+                  {link('/resource/knowledge', '资源管理', <FolderOutlined />)}
+                  {link('/management/model', '模型管理', <DatabaseOutlined />)}
+                </>
+              )}
+              {section === 'resources' && (
+                <>
+                  <p className={styles.groupLabel}>资源管理</p>
+                  {resources.map(([path, label]) => link(path, label))}
+                </>
+              )}
+              {section === 'market' && (
+                <>
+                  <p className={styles.groupLabel}>发现与复用</p>
+                  {link('/store/agent', 'Agent 市场', <RobotOutlined />)}
+                  {link('/store/plugin', '工具市场', <AppstoreOutlined />)}
+                </>
+              )}
+              {section === 'publishing' && (
+                <>
+                  <p className={styles.groupLabel}>发布管理</p>
+                  {link('/management/release', '应用发布', <UploadOutlined />)}
+                  {link('/management/app', '应用管理', <AppstoreOutlined />)}
+                </>
+              )}
+              {section === 'models' && (
+                <>
+                  <p className={styles.groupLabel}>模型管理</p>
+                  {link('/management/model', '模型管理', <DatabaseOutlined />)}
+                </>
+              )}
+              {section === 'management' && (
+                <>
+                  <p className={styles.groupLabel}>空间与团队</p>
+                  {managementLinks.map(([path, label]) =>
+                    link(path, label, <TeamOutlined />)
+                  )}
+                </>
+              )}
+            </nav>
+          </div>
+          <a
+            className={styles.documentation}
+            href="https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <BookOutlined />
+            开发文档
+          </a>
+        </aside>
+      )}
+    </div>
+  );
+  return (
+    <>
+      <div className={styles.desktop}>{navigation()}</div>
+      <div className={styles.mobileBar}>
+        <button
+          type="button"
+          aria-label="打开导航"
+          onClick={() => setMobileOpen(true)}
+        >
+          <MenuOutlined />
+        </button>
+        <Link to="/space/agent">Astron Agent</Link>
+        <Link to="/account" aria-label="我的账号">
+          <SettingOutlined />
         </Link>
       </div>
+      <Drawer
+        title="工作空间"
+        placement="left"
+        width={292}
+        open={mobileOpen}
+        onClose={() => setMobileOpen(false)}
+        destroyOnClose
+        styles={{ body: { padding: 0 } }}
+      >
+        {mobileOpen && navigation(true)}
+      </Drawer>
       <NoticeModal
         open={notices}
         onClose={() => setNotices(false)}
@@ -336,6 +434,6 @@ export default function ResourceNavigation(): ReactElement {
             .catch(() => undefined);
         }}
       />
-    </aside>
+    </>
   );
 }
