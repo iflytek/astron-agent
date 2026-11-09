@@ -18,13 +18,29 @@ import './styles/classes.scss';
 import './styles/antd.scss';
 import './styles/flow.scss';
 import './styles/ui.scss';
+import './styles/console.scss';
 import 'reactflow/dist/style.css';
 import 'katex/dist/katex.min.css';
 
 const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
-    <ConfigProvider locale={i18n.language === 'zh' ? zhCN : en_GB}>
+    <ConfigProvider
+      locale={i18n.language === 'zh' ? zhCN : en_GB}
+      theme={{
+        token: {
+          colorPrimary: '#315ff4',
+          colorText: '#18243d',
+          colorTextSecondary: '#607089',
+          colorBorder: '#dfe6f1',
+          colorBgContainer: '#ffffff',
+          borderRadius: 7,
+          controlHeight: 38,
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
+        },
+      }}
+    >
       <App />
     </ConfigProvider>
   );

@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import CrashErrorComponent from '@/components/crash-error-component';
 import ResourceNavigation from '@/components/resource-navigation';
 import Header from '@/components/header';
+import useSpaceStore from '@/store/space-store';
 
 const hasHeaderList = [
   'knowledge',
@@ -21,6 +22,10 @@ interface BasicLayoutProps {
 const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const spaceName = useSpaceStore(state => state.spaceName);
+  const isCatalog = ['/space/agent', '/space/workflows'].includes(
+    location.pathname
+  );
 
   // 如果没有显式传入 showHeader，则使用原来的逻辑判断
   const shouldShowHeader =
@@ -105,10 +110,26 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
       }}
       FallbackComponent={CrashErrorComponent}
     >
-      <div className="flex h-full w-full overflow-hidden global-background">
+      <div className="console-shell">
         <ResourceNavigation />
 
-        <div className="flex-1 flex flex-col overflow-hidden page-container-UI">
+        <div className="console-main">
+          {isCatalog && (
+            <div className="console-breadcrumb">
+              <div>
+                <span>{spaceName || '我的个人资源'}</span>
+                <span>/</span>
+                <strong>应用构建</strong>
+              </div>
+              <a
+                href="https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html"
+                target="_blank"
+                rel="noreferrer"
+              >
+                使用文档
+              </a>
+            </div>
+          )}
           {shouldShowHeader && (
             <Header onSearch={handleSearch} onCreate={handleCreate} />
           )}

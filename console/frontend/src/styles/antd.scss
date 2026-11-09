@@ -22,17 +22,17 @@
 
 .ant-btn-primary {
   color: #fff;
-  background: #6356ea !important;
+  background: var(--console-primary, #315ff4) !important;
 }
 
 .ant-btn-primary:disabled {
   opacity: 0.5;
   color: #fff;
-  background: #6356ea;
+  background: var(--console-primary, #315ff4);
 }
 
 .ant-btn-default:not(:disabled):not(.ant-btn-disabled):hover {
-  border-color: #6356ea;
+  border-color: var(--console-primary, #315ff4);
 }
 
 .origin-btn {

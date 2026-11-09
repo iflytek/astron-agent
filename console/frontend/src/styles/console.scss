@@ -1,0 +1,116 @@
+:root {
+  --console-primary: #315ff4;
+  --console-primary-hover: #244ed6;
+  --console-ink: #18243d;
+  --console-muted: #607089;
+  --console-line: #dfe6f1;
+  --console-canvas: #f1f5fc;
+  --console-rail: #edf2fb;
+  --console-context: #f6f8fd;
+  --console-font:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+}
+.console-shell {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--console-canvas);
+  font-family: var(--console-font);
+  color: var(--console-ink);
+  ::selection {
+    background: #d9e4ff;
+    color: #182c62;
+  }
+  input,
+  textarea {
+    caret-color: var(--console-primary);
+  }
+  :focus-visible {
+    outline: 2px solid var(--console-primary);
+    outline-offset: 3px;
+  }
+  .ant-btn {
+    border-radius: 7px;
+    font-weight: 500;
+    box-shadow: none;
+  }
+  .ant-btn-primary {
+    background: var(--console-primary) !important;
+    border-color: var(--console-primary);
+  }
+  .ant-btn-primary:not(:disabled):hover {
+    background: var(--console-primary-hover) !important;
+  }
+  .ant-btn-default:not(:disabled):hover {
+    border-color: var(--console-primary);
+    color: var(--console-primary);
+  }
+}
+.console-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.console-breadcrumb {
+  flex: none;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--console-line);
+  background: #fff;
+  font-size: 13px;
+  color: var(--console-muted);
+  div {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  span:first-child {
+    max-width: 30ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  strong {
+    font-weight: 500;
+    color: var(--console-ink);
+    white-space: nowrap;
+  }
+  a {
+    color: var(--console-muted);
+  }
+}
+@media (max-width: 760px) {
+  .console-shell {
+    flex-direction: column;
+  }
+  .console-breadcrumb {
+    height: 46px;
+    padding: 0 18px;
+    a {
+      display: none;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-shell *,
+  .console-shell *::before,
+  .console-shell *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}
+
+.console-main .page-container-inner-UI {
+  width: 86%;
+  max-width: 1425px;
+  margin: 0 auto;
+  padding: 20px 0;
+}
