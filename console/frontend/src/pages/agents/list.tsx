@@ -302,8 +302,8 @@ export default function AgentList(): ReactElement {
                   >
                     <Image
                       preview={false}
-                      width={44}
-                      height={44}
+                      width={36}
+                      height={36}
                       wrapperStyle={{ flexShrink: 0 }}
                       className={styles.avatar}
                       src={agent.avatar || botIcon}
@@ -315,54 +315,6 @@ export default function AgentList(): ReactElement {
                       <span className={styles.tag}>独立 Agent</span>
                     </div>
                   </Link>
-                  <div className={styles.actions}>
-                    <Button
-                      type="text"
-                      aria-label={
-                        agent.favorite
-                          ? `取消收藏 ${agent.botName}`
-                          : `收藏 ${agent.botName}`
-                      }
-                      aria-pressed={!!agent.favorite}
-                      title={agent.favorite ? '取消收藏' : '收藏'}
-                      icon={agent.favorite ? <StarFilled /> : <StarOutlined />}
-                      disabled={busy}
-                      onClick={() =>
-                        void action(() =>
-                          favoriteAgent(agent.id, !agent.favorite)
-                        )
-                      }
-                    />
-                    <Dropdown
-                      trigger={['click']}
-                      disabled={busy}
-                      menu={{
-                        items: [
-                          {
-                            key: 'edit',
-                            label: '编辑与调试',
-                            onClick: () =>
-                              navigate(`/space/config/${agent.id}/base`),
-                          },
-                          {
-                            key: 'delete',
-                            label: '删除',
-                            danger: true,
-                            onClick: (): void => {
-                              setActionError('');
-                              setDeleteTarget(agent);
-                            },
-                          },
-                        ],
-                      }}
-                    >
-                      <Button
-                        type="text"
-                        aria-label={`${agent.botName} 更多操作`}
-                        icon={<EllipsisOutlined />}
-                      />
-                    </Dropdown>
-                  </div>
                 </div>
                 <p className={styles.description} title={agent.botDesc}>
                   {agent.botDesc ||
@@ -370,9 +322,61 @@ export default function AgentList(): ReactElement {
                 </p>
                 <ResourceSummary agent={agent} />
                 <div className={styles.footer}>
-                  <span className={styles.updated}>
-                    {formatCatalogUpdatedAt(agent.updatedAt) || '独立 Agent'}
-                  </span>
+                  <div className={styles.cardMeta}>
+                    <span className={styles.updated}>
+                      {formatCatalogUpdatedAt(agent.updatedAt) || '独立 Agent'}
+                    </span>
+                    <div className={styles.cardMenus}>
+                      <Button
+                        type="text"
+                        aria-label={
+                          agent.favorite
+                            ? `取消收藏 ${agent.botName}`
+                            : `收藏 ${agent.botName}`
+                        }
+                        aria-pressed={!!agent.favorite}
+                        title={agent.favorite ? '取消收藏' : '收藏'}
+                        icon={
+                          agent.favorite ? <StarFilled /> : <StarOutlined />
+                        }
+                        disabled={busy}
+                        onClick={() =>
+                          void action(() =>
+                            favoriteAgent(agent.id, !agent.favorite)
+                          )
+                        }
+                      />
+                      <Dropdown
+                        trigger={['click']}
+                        disabled={busy}
+                        menu={{
+                          items: [
+                            {
+                              key: 'edit',
+                              label: '编辑与调试',
+                              onClick: () =>
+                                navigate(`/space/config/${agent.id}/base`),
+                            },
+                            {
+                              key: 'delete',
+                              label: '删除',
+                              danger: true,
+                              onClick: (): void => {
+                                setActionError('');
+                                setDeleteTarget(agent);
+                              },
+                            },
+                          ],
+                        }}
+                      >
+                        <Button
+                          type="text"
+                          aria-label={`${agent.botName} 更多操作`}
+                          icon={<EllipsisOutlined />}
+                        />
+                      </Dropdown>
+                    </div>
+                  </div>
                   <div className={styles.cardActions}>
                     <Link to={`/space/config/${agent.id}/base`}>
                       编辑与调试

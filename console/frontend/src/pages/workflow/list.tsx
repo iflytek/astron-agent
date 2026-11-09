@@ -260,8 +260,8 @@ export default function WorkflowList(): ReactElement {
                   >
                     <Image
                       preview={false}
-                      width={44}
-                      height={44}
+                      width={36}
+                      height={36}
                       wrapperStyle={{ flexShrink: 0 }}
                       className={styles.avatar}
                       src={flow.avatarIcon || workflowIcon}
@@ -273,60 +273,6 @@ export default function WorkflowList(): ReactElement {
                       <span className={styles.tag}>工作流</span>
                     </div>
                   </Link>
-                  <Dropdown
-                    trigger={['click']}
-                    disabled={busy}
-                    menu={{
-                      items: [
-                        {
-                          key: 'statistics',
-                          label: '运行统计',
-                          onClick: () =>
-                            navigate(`/work_flow/${flow.id}/overview`),
-                        },
-                        {
-                          key: 'copy',
-                          label: '复制',
-                          onClick: () =>
-                            void action(() => copyFlowAPI(flow.id || '')),
-                        },
-                        {
-                          key: 'export',
-                          label: '导出',
-                          onClick: () =>
-                            void action(async () =>
-                              downloadFileWithHeaders(
-                                getFixedUrl(`/workflow/export/${flow.id}`),
-                                `${flow.name}.yml`
-                              )
-                            ),
-                        },
-                        {
-                          key: 'template',
-                          label: '保存为模板',
-                          onClick: () =>
-                            void action(async () => {
-                              await http.post('/workflow/bot/exportTemplate', {
-                                workflowId: flow.id,
-                              });
-                              message.success('模板已保存');
-                            }),
-                        },
-                        { type: 'divider' },
-                        {
-                          key: 'delete',
-                          label: '删除',
-                          danger: true,
-                          onClick: () => setDeleteTarget(flow),
-                        },
-                      ],
-                    }}
-                  >
-                    <Button
-                      aria-label={`${flow.name} 更多操作`}
-                      icon={<EllipsisOutlined />}
-                    />
-                  </Dropdown>
                 </div>
                 <p className={styles.description} title={flow.description}>
                   {flow.description || '尚未填写描述，可在画布中完善任务用途。'}
@@ -337,11 +283,72 @@ export default function WorkflowList(): ReactElement {
                   </span>
                 </div>
                 <div className={styles.footer}>
-                  <span className={styles.updated}>
-                    {formatCatalogUpdatedAt(
-                      flow.updateTime || flow.updated_at
-                    ) || '工作流'}
-                  </span>
+                  <div className={styles.cardMeta}>
+                    <span className={styles.updated}>
+                      {formatCatalogUpdatedAt(
+                        flow.updateTime || flow.updated_at
+                      ) || '工作流'}
+                    </span>
+                    <div className={styles.cardMenus}>
+                      <Dropdown
+                        trigger={['click']}
+                        disabled={busy}
+                        menu={{
+                          items: [
+                            {
+                              key: 'statistics',
+                              label: '运行统计',
+                              onClick: () =>
+                                navigate(`/work_flow/${flow.id}/overview`),
+                            },
+                            {
+                              key: 'copy',
+                              label: '复制',
+                              onClick: () =>
+                                void action(() => copyFlowAPI(flow.id || '')),
+                            },
+                            {
+                              key: 'export',
+                              label: '导出',
+                              onClick: () =>
+                                void action(async () =>
+                                  downloadFileWithHeaders(
+                                    getFixedUrl(`/workflow/export/${flow.id}`),
+                                    `${flow.name}.yml`
+                                  )
+                                ),
+                            },
+                            {
+                              key: 'template',
+                              label: '保存为模板',
+                              onClick: () =>
+                                void action(async () => {
+                                  await http.post(
+                                    '/workflow/bot/exportTemplate',
+                                    {
+                                      workflowId: flow.id,
+                                    }
+                                  );
+                                  message.success('模板已保存');
+                                }),
+                            },
+                            { type: 'divider' },
+                            {
+                              key: 'delete',
+                              label: '删除',
+                              danger: true,
+                              onClick: () => setDeleteTarget(flow),
+                            },
+                          ],
+                        }}
+                      >
+                        <Button
+                          aria-label={`${flow.name} 更多操作`}
+                          icon={<EllipsisOutlined />}
+                        />
+                      </Dropdown>
+                    </div>
+                  </div>
                   <div className={styles.cardActions}>
                     <Button
                       type="text"
