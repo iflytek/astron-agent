@@ -683,15 +683,19 @@ const handleMessage = (
     handleFlowStop(data, get);
   }
 };
-const handleRunningNodeStatus = (): void => {
+const handleRunningNodeStatus = (completed = false): void => {
   const setNodes = useFlowStore.getState().setNodes;
   setNodes(nodes => {
     nodes.forEach(node => {
       if (node?.data?.status === 'running') {
-        (node.data.debuggerResult ??= {}).cancelReason = i18n.t(
-          'workflow.nodes.chatDebugger.workflowTerminated'
-        );
-        node.data.status = 'cancel';
+        if (!completed) {
+          (node.data.debuggerResult ??= {}).cancelReason = i18n.t(
+            'workflow.nodes.chatDebugger.workflowTerminated'
+          );
+        }
+        // A completed run can beat its final node frame; clear the pending
+        // indicator without inventing a node result or claiming cancellation.
+        node.data.status = completed ? '' : 'cancel';
       }
     });
     return cloneDeep(nodes);
@@ -726,7 +730,7 @@ const handleMessageEnd = (
   );
   !historyVersion && setCanvasesDisabled(false);
   get().setInterruptChat({ ...initInterruptChat });
-  handleRunningNodeStatus();
+  handleRunningNodeStatus(data.code === 0);
 };
 const createActiveWorkflowSseLifecycle = (
   controller: AbortController,
@@ -1203,6 +1207,7 @@ const finishStopConversation = (
     timeCost: '',
     totalTokens: '',
   });
+  handleRunningNodeStatus(status === 'completed');
 };
 
 const handleStopConversation = (get: ChatGetter, set: ChatSetter): void => {
