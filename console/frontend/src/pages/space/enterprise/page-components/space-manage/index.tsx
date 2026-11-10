@@ -1,9 +1,6 @@
-import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Input, message } from 'antd';
-import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import classNames from 'classnames';
+import { Alert, Button } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { useDebounceFn } from 'ahooks';
 import SpaceButton from '@/components/button-group/space-button';
 
@@ -21,56 +18,52 @@ import { useEnterprise } from '@/hooks/use-enterprise';
 import { SpaceItem } from '@/types/space';
 
 const SpaceManage: React.FC = () => {
-  const navigate = useNavigate();
   const activeTabRef = useRef<string>('all');
   const [searchValue, setSearchValue] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
   const [spaceList, setSpaceList] = useState<SpaceItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const sequence = useRef(0);
+  const searchRef = useRef('');
   const { getJoinedEnterpriseList } = useEnterprise();
 
-  const queryFnMap: Record<string, (params?: any) => Promise<SpaceItem[]>> = {
-    all: getAllCorporateList,
-    my: getJoinedCorporateList,
-  };
-
-  useEffect(() => {
-    // 初始化数据
-    querySpaceList();
-  }, []);
-
-  const querySpaceList = useCallback(async (name?: string) => {
+  const querySpaceList = useCallback(async (name = searchRef.current) => {
+    const current = ++sequence.current;
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      const res: SpaceItem[] | undefined = await queryFnMap[
-        activeTabRef.current as keyof typeof queryFnMap
-      ]?.({ name });
-      console.log(
-        res,
-        `========== getSpaceList(${activeTabRef.current}) ==========`
-      );
-      setSpaceList(res || []);
-    } catch (err: any) {
-      console.log(err, '========== getSpaceList error ==========');
-      shouldShowRequestError(err) &&
-        message.error(err?.msg || err?.desc || '查询失败');
+      const query =
+        activeTabRef.current === 'all'
+          ? getAllCorporateList
+          : getJoinedCorporateList;
+      const result = await query({ name });
+      if (current === sequence.current) setSpaceList(result || []);
+    } catch (reason) {
+      if (current === sequence.current) setError('无法读取空间列表，请重试。');
     } finally {
-      setLoading(false);
+      if (current === sequence.current) setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    void querySpaceList();
+    return () => {
+      sequence.current += 1;
+    };
+  }, [querySpaceList]);
+
   const handleTabChange = (key: string) => {
     activeTabRef.current = key;
+    searchRef.current = '';
     setSearchValue('');
-    querySpaceList();
+    void querySpaceList('');
   };
 
   // 使用 useDebounceFn 优化搜索
   const { run: debouncedSearch } = useDebounceFn(
     (value: string) => {
-      setSearchValue(value);
-      console.log('搜索关键词:', value);
-      querySpaceList(value);
+      if (value === searchRef.current) void querySpaceList(value);
     },
     {
       wait: 500,
@@ -80,6 +73,7 @@ const SpaceManage: React.FC = () => {
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
+      searchRef.current = value;
       setSearchValue(value);
       debouncedSearch(value);
     },
@@ -111,6 +105,7 @@ const SpaceManage: React.FC = () => {
     <div className={styles.enterpriseManage}>
       <div className={styles.header}>
         <h1 className={styles.title}>空间管理</h1>
+        <p className={styles.description}>管理团队中的共享空间及协作范围。</p>
       </div>
 
       <div className={styles.content}>
@@ -154,14 +149,29 @@ const SpaceManage: React.FC = () => {
         </div>
 
         <div className={styles.listContainer}>
-          <SpaceList
-            minCardWidth={440}
-            staticSize={false}
-            dataSource={spaceList}
-            loading={loading}
-            activeTab={activeTabRef.current}
-            refresh={querySpaceList}
-          />
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              action={
+                <Button onClick={() => void querySpaceList()}>重试</Button>
+              }
+            />
+          )}
+          {!error && (
+            <SpaceList
+              emptyText={
+                searchValue ? '没有匹配的空间，请调整搜索条件。' : undefined
+              }
+              minCardWidth={440}
+              staticSize={false}
+              dataSource={spaceList}
+              loading={loading}
+              activeTab={activeTabRef.current}
+              refresh={querySpaceList}
+            />
+          )}
         </div>
       </div>
 

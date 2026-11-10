@@ -1,19 +1,19 @@
 .spaceCard {
   width: 100%;
-  height: 280px;
+  min-height: 248px;
   display: flex;
   flex-direction: column;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid #d3dbf8;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #dfe6f1;
 
   &.personal {
-    width: 460px;
-    border: none !important;
+    width: 100%;
+    border: 1px solid var(--console-line);
   }
 
   &.team {
-    width: 440px;
+    width: 100%;
   }
 
   :global {
@@ -42,18 +42,18 @@
     flex: 1;
     text-align: center;
     margin-bottom: 20px;
-    font-family: PingFang-Sim;
+    font-family: var(--console-font);
 
     .titleContainer {
       display: grid;
-      grid-template-columns: 1fr auto 1fr;
+      grid-template-columns: minmax(0, 1fr) auto;
       align-items: center;
       gap: 8px;
       margin-bottom: 12px;
 
       .spaceTitle {
-        font-size: 20px;
-        font-weight: 500;
+        font-size: 16px;
+        font-weight: 600;
         line-height: 26px;
         letter-spacing: normal;
         color: #000000;
@@ -69,7 +69,7 @@
       line-height: 23px;
       text-align: center;
       letter-spacing: normal;
-      color: #7f7f7f;
+      color: #607089;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -85,7 +85,7 @@
       align-items: center;
       margin-bottom: 12px;
       font-size: 12px;
-      color: #999;
+      color: #607089;
 
       .authorInfo,
       .memberInfo {
@@ -101,8 +101,8 @@
         .author,
         .memberCount {
           font-size: 12px;
-          color: #7f7f7f;
-          font-family: PingFang-Sim;
+          color: #607089;
+          font-family: var(--console-font);
           font-size: 12px;
         }
 
@@ -111,7 +111,7 @@
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
-          font-weight: 500;
+          font-weight: 600;
         }
       }
 
@@ -132,7 +132,7 @@
       height: 36px;
       display: flex;
       gap: 8px;
-      opacity: 0;
+      opacity: 1;
     }
   }
 
@@ -140,5 +140,36 @@
     .manageBtnContainer {
       opacity: 1;
     }
+  }
+}
+
+.spaceCard {
+  border: 1px solid var(--console-line);
+  transition: border-color 0.18s ease-out;
+  &:hover,
+  &:focus-within {
+    border-color: #8aa5f5;
+  }
+  .cardBody {
+    min-width: 0;
+  }
+  .cardBody .titleContainer {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .cardBody .titleContainer .spaceTitle {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    color: var(--console-ink);
+  }
+  .cardBody .spaceDescription {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    color: var(--console-muted);
+  }
+  .cardFooter {
+    border-top: 1px solid #e8edf5;
+    padding-top: 12px;
   }
 }

@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from 'react';
-import { Button, Input, Modal, Space, message } from 'antd';
+import { Alert, Button, Input, Modal, Space, message } from 'antd';
 import http from '@/utils/http';
+import { errorText } from '@/pages/agents/errors';
 
 export default function WechatBinding({
   botId,
@@ -9,9 +10,11 @@ export default function WechatBinding({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const [appid, setAppid] = useState('');
+  const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const authorize = async (): Promise<void> => {
     setBusy(true);
+    setError('');
     try {
       const result = await http.post<never, { authUrl: string }>(
         '/api/wx/auth-url',
@@ -24,20 +27,21 @@ export default function WechatBinding({
       )
         throw new Error('授权地址无效');
       window.location.assign(target.href);
-    } catch {
-      // The shared HTTP boundary displays the server's concrete validation error.
+    } catch (reason) {
+      setError(errorText(reason));
     } finally {
       setBusy(false);
     }
   };
   const revoke = async (): Promise<void> => {
     setBusy(true);
+    setError('');
     try {
       await http.delete('/api/wx/binding', { data: { appid } });
       message.success('微信发布已撤销');
       setOpen(false);
-    } catch {
-      // Preserve the form for a corrected account identifier.
+    } catch (reason) {
+      setError(errorText(reason));
     } finally {
       setBusy(false);
     }
@@ -52,12 +56,17 @@ export default function WechatBinding({
         footer={null}
       >
         <p>授权成功后发布当前完整版本。授权期间继续使用原已发布版本。</p>
+        {error && (
+          <Alert type="error" showIcon message={error} className="my-4" />
+        )}
+        <label htmlFor={`wechat-appid-${botId}`}>公众号 AppID</label>
         <Input
+          id={`wechat-appid-${botId}`}
           value={appid}
           onChange={event => setAppid(event.target.value)}
           placeholder="公众号 AppID"
         />
-        <Space className="mt-4">
+        <Space className="mt-4" wrap>
           <Button
             type="primary"
             disabled={!appid.trim()}

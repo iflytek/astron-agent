@@ -4,9 +4,10 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   KeyboardEvent,
 } from 'react';
-import { Modal, Input, Checkbox, Button, Select, Avatar, message } from 'antd';
+import { Alert, Modal, Button, message } from 'antd';
 import { useDebounceFn } from 'ahooks';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -54,11 +55,20 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
     const [selectedUsers, setSelectedUsers] = useState<SelectedUser[]>([]);
     const [userList, setUserList] = useState<User[]>(initialUsers);
     const [loading, setLoading] = useState<boolean>(false);
+    const sequence = useRef(0);
+    const isOpen = useRef(open);
+    isOpen.current = open;
+    const [searchError, setSearchError] = useState('');
     const [maxMembers, setMaxMembers] = useState<number>(48);
 
     useEffect(() => {
+      sequence.current += 1;
+      setSearchError('');
+      setLoading(false);
       if (open) {
-        updateMaxMembers();
+        void updateMaxMembers().catch(() =>
+          message.error('无法读取成员限制，请关闭后重试。')
+        );
         setSearchValue('');
         setLastSearchedValue('');
       } else {
@@ -69,6 +79,9 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
         setAllChecked(false);
         setUserList([]);
       }
+      return () => {
+        sequence.current += 1;
+      };
     }, [open]);
 
     const updateMaxMembers = useCallback(async () => {
@@ -79,6 +92,9 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
     // 搜索用户接口调用
     const searchUsers = useCallback(
       async (searchKeyword: string) => {
+        const current = ++sequence.current;
+        const isCurrent = () => current === sequence.current && isOpen.current;
+        setSearchError('');
         // 移除对空字符串的检查，允许空搜索
         setLoading(true);
         setLastSearchedValue(searchKeyword.trim());
@@ -94,17 +110,16 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
             { username: searchKeyword },
             inviteType
           );
+          if (!isCurrent()) return;
           const users = (res || []).map(user => ({
             ...user,
             avatar: user.avatar || creatorImg,
           }));
           setUserList(users);
         } catch (error: any) {
-          shouldShowRequestError(error) &&
-            message.error(error?.msg || error?.desc);
-          setUserList([]);
+          if (isCurrent()) setSearchError('搜索用户失败，请重试。');
         } finally {
-          setLoading(false);
+          if (isCurrent()) setLoading(false);
         }
       },
       [inviteType]
@@ -331,7 +346,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
                 placeholder={t('space.searchUsername')}
                 value={searchValue}
                 onChange={handleSearch}
-                onKeyPress={handleKeyPress}
+                onSearch={value => void searchUsers(value)}
                 className={styles.searchInput}
               />
             </div>
@@ -351,7 +366,18 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
               )}
 
               <div className={styles.userList}>
-                {loading ? (
+                {searchError ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={searchError}
+                    action={
+                      <Button onClick={() => void searchUsers(searchValue)}>
+                        重试
+                      </Button>
+                    }
+                  />
+                ) : loading ? (
                   <div className={styles.emptyState}>
                     <span className={styles.emptyText}>
                       {t('space.searching')}

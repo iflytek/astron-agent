@@ -49,6 +49,8 @@ export default function CreateApplication({
       onCancel={() => !busy && onClose()}
       onOk={() => void submit()}
       confirmLoading={busy}
+      okText="创建应用"
+      cancelText="取消"
       cancelButtonProps={{ disabled: busy }}
       maskClosable={false}
     >

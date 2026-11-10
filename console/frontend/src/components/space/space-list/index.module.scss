@@ -1,37 +1,15 @@
 .loading {
-  height: 100%;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  min-height: 220px;
+  display: grid;
+  place-items: center;
 }
-
 .spaceList {
-  max-height: 100%;
-  overflow-y: auto;
-
-  &.static {
-    display: flex;
-    gap: 25px;
-    flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  align-items: stretch;
+  gap: 16px;
+  padding-bottom: 16px;
+  > * {
+    min-width: 0;
   }
-
-  .spaceCol {
-    display: flex;
-
-    >div {
-      width: 100% !important;
-    }
-  }
-
-  .emptyState {
-    .emptyContent {
-      text-align: center;
-
-      p {
-        margin: 0;
-        font-size: 16px;
-      }
-    }
-  }
-} 
+}

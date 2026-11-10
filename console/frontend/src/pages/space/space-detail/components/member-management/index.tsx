@@ -196,6 +196,7 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
 
         return (
           <Select
+            aria-label={`${record.nickname || record.uid} 的角色`}
             value={role}
             onChange={value => handleRoleChange(record.uid, value)}
             className={styles.roleSelect}

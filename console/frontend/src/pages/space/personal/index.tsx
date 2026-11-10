@@ -1,8 +1,6 @@
-import { shouldShowRequestError } from '@/utils/http-error';
-import React, { useEffect, useState, useCallback } from 'react';
-import { Button, message } from 'antd';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Alert, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
 import { useDebounceFn } from 'ahooks';
 import eventBus from '@/utils/event-bus';
 import SpaceSearch from '@/components/space/space-search';
@@ -23,58 +21,57 @@ interface SpaceItem {
   ownerName: string;
   memberCount: number;
   status?: string;
+  userRole?: number;
 }
 
 const SpaceManage: React.FC = () => {
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>('all');
   const [searchValue, setSearchValue] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
-  const [spaceList, setSpaceList] = useState<SpaceItem[]>([]); //show space list
-  const [mySpaceList, setMySpaceList] = useState<SpaceItem[]>([]); //my created space list
-  const [allSpaceList, setAllSpaceList] = useState<SpaceItem[]>([]); //all space list
-  const [loading, setLoading] = useState<boolean>(false);
+  const [allSpaceList, setAllSpaceList] = useState<SpaceItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const sequence = useRef(0);
+  const searchRef = useRef('');
   const { t } = useTranslation();
-  //get all space list
-  const getSpaceList = (name?: string) => {
-    getAllSpace(name)
-      .then((res: any) => {
-        setAllSpaceList(res);
-        const mySpaces = res.filter((space: any) => space.userRole === 1);
-        setMySpaceList(mySpaces);
-        if (activeTab === 'all') {
-          setSpaceList(res);
-        } else {
-          setSpaceList(mySpaces);
-        }
-      })
-      .catch((err: any) => {
-        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
-      });
-  };
+  const spaceList =
+    activeTab === 'all'
+      ? allSpaceList
+      : allSpaceList.filter(space => space.userRole === 1);
+  const getSpaceList = useCallback(
+    async (name = searchRef.current) => {
+      const current = ++sequence.current;
+      setLoading(true);
+      setError('');
+      try {
+        const result = await getAllSpace(name);
+        if (current === sequence.current)
+          setAllSpaceList(result as unknown as SpaceItem[]);
+      } catch (reason) {
+        if (current === sequence.current) setError(t('space.queryFailed'));
+      } finally {
+        if (current === sequence.current) setLoading(false);
+      }
+    },
+    [t]
+  );
 
   useEffect(() => {
-    getSpaceList();
+    void getSpaceList();
     eventBus.on('spaceList', getSpaceList);
     return () => {
+      sequence.current += 1;
       eventBus.off('spaceList', getSpaceList);
     };
-  }, []);
+  }, [getSpaceList]);
 
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    if (key === 'all') {
-      setSpaceList(allSpaceList);
-    } else {
-      setSpaceList(mySpaceList);
-    }
-  };
+  const handleTabChange = (key: string) => setActiveTab(key);
 
   // use debounce to optimize search
   const { run: debouncedSearch } = useDebounceFn(
     (value: string) => {
-      setSearchValue(value);
-      getSpaceList(value);
+      searchRef.current = value;
+      void getSpaceList(value);
     },
     {
       wait: 500,
@@ -84,6 +81,8 @@ const SpaceManage: React.FC = () => {
   const handleSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
+      setSearchValue(value);
+      searchRef.current = value;
       debouncedSearch(value);
     },
     [debouncedSearch]
@@ -108,6 +107,9 @@ const SpaceManage: React.FC = () => {
     <div className={styles.enterpriseManage}>
       <div className={styles.header}>
         <h1 className={styles.title}>{t('space.spaceManagement')}</h1>
+        <p className={styles.description}>
+          管理个人与共享空间，在明确的空间范围内协作。
+        </p>
       </div>
 
       <div className={styles.content}>
@@ -135,6 +137,7 @@ const SpaceManage: React.FC = () => {
               {t('space.createSpace')}
             </Button>
             <SpaceSearch
+              value={searchValue}
               placeholder={t('space.pleaseEnterSpaceName')}
               onChange={handleSearch}
               onSearch={handleSearchSubmit}
@@ -143,13 +146,30 @@ const SpaceManage: React.FC = () => {
         </div>
 
         <div className={styles.listContainer}>
-          <SpaceList
-            staticSize={false}
-            dataSource={spaceList}
-            loading={loading}
-            activeTab={activeTab}
-            prefix={activeTab === 'all' ? <PersonalSpaceCard /> : null}
-          />
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              action={<Button onClick={() => void getSpaceList()}>重试</Button>}
+            />
+          )}
+          {!error && (
+            <SpaceList
+              staticSize={false}
+              dataSource={spaceList}
+              loading={loading}
+              activeTab={activeTab}
+              emptyText={
+                searchValue ? '没有匹配的空间，请调整搜索条件。' : undefined
+              }
+              prefix={
+                !searchValue && activeTab === 'all' ? (
+                  <PersonalSpaceCard />
+                ) : null
+              }
+            />
+          )}
         </div>
       </div>
 

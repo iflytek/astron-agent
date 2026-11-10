@@ -154,7 +154,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         ),
       },
       {
-        title: t('common.username'),
+        title: t('space.role'),
         dataIndex: 'role',
         key: 'role',
         width: 120,
@@ -171,6 +171,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
 
           return (
             <Select
+              aria-label={`${record.nickname || record.uid} 的角色`}
               value={role}
               onChange={value => handleRoleChange(record.uid, value)}
               style={{ width: '100px' }}
@@ -186,7 +187,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         },
       },
       {
-        title: t('common.username'),
+        title: t('space.joinTime'),
         dataIndex: 'createTime',
         key: 'createTime',
         width: 180,

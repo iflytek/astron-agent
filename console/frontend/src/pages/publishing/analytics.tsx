@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
+import { Alert, Button, Spin } from 'antd';
+import styles from './index.module.scss';
 import http from '@/utils/http';
 import { errorText } from '@/pages/agents/errors';
 
@@ -38,8 +40,12 @@ export default function Analytics({ botId }: { botId: number }): ReactElement {
   const [versionPage, setVersionPage] = useState(1);
   const [versionTotal, setVersionTotal] = useState(0);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setError('');
     const base = `/publish/bots/${botId}`;
     void Promise.all([
       http.get<unknown, Summary>(`${base}/summary`),
@@ -66,111 +72,137 @@ export default function Analytics({ botId }: { botId: number }): ReactElement {
       })
       .catch(reason => {
         if (active) setError(errorText(reason));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [botId, page, versionPage]);
+  }, [botId, page, versionPage, revision]);
   return (
-    <section className="agents-panel">
+    <section>
       <h2>使用分析与版本</h2>
       {error && (
-        <p role="alert" className="agents-error">
-          {error}
-        </p>
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={
+            <Button onClick={() => setRevision(value => value + 1)}>
+              重试
+            </Button>
+          }
+        />
       )}
-      {summary && (
+      {loading && (
+        <div role="status">
+          <Spin /> 正在读取分析与版本…
+        </div>
+      )}
+      {!loading && !error && (
         <>
-          <p>
-            会话 {summary.totalChats} · 用户 {summary.totalUsers} · 新记录完成{' '}
-            {summary.completedChats} · 失败 {summary.failedChats}
-          </p>
-          <p>
-            已记录 Token：{summary.totalTokens}
-            {!summary.usageComplete && '（部分运行未返回用量）'}
-          </p>
+          {summary && (
+            <>
+              <p>
+                会话 {summary.totalChats} · 用户 {summary.totalUsers} ·
+                新记录完成 {summary.completedChats} · 失败 {summary.failedChats}
+              </p>
+              <p>
+                已记录 Token：{summary.totalTokens}
+                {!summary.usageComplete && '（部分运行未返回用量）'}
+              </p>
+            </>
+          )}
+          <h3>最近七天</h3>
+          {!days.length && <p>暂无用量记录。</p>}
+          <div className={styles.table}>
+            <table>
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>会话</th>
+                  <th>用户</th>
+                  <th>已记录 Token</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map(day => (
+                  <tr key={day.date}>
+                    <td>{day.date}</td>
+                    <td>{day.totalChats}</td>
+                    <td>{day.totalUsers}</td>
+                    <td>{day.totalTokens}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3>运行记录</h3>
+          {!traces.length && <p>暂无运行记录。</p>}
+          <div className={styles.table}>
+            <table>
+              <thead>
+                <tr>
+                  <th>运行</th>
+                  <th>版本</th>
+                  <th>状态</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                {traces.map(run => (
+                  <tr key={run.id}>
+                    <td>{run.id}</td>
+                    <td>{run.versionId ?? '草稿'}</td>
+                    <td>{run.status}</td>
+                    <td>{run.createdTime}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className={styles.pagination}>
+            <Button
+              disabled={page === 1}
+              onClick={() => setPage(value => value - 1)}
+            >
+              上一页
+            </Button>
+            <span>{page}</span>
+            <Button
+              disabled={page * 20 >= total}
+              onClick={() => setPage(value => value + 1)}
+            >
+              下一页
+            </Button>
+          </div>
+          <h3>发布快照</h3>
+          {!versions.length && <p>暂无发布快照。</p>}
+          <ul className={styles.versionList}>
+            {versions.map(version => (
+              <li key={version.id}>
+                版本 {version.versionId} · {version.createdTime}
+              </li>
+            ))}
+          </ul>
+          <div className={styles.pagination}>
+            <Button
+              disabled={versionPage === 1}
+              onClick={() => setVersionPage(value => value - 1)}
+            >
+              上一页版本
+            </Button>
+            <span>{versionPage}</span>
+            <Button
+              disabled={versionPage * 20 >= versionTotal}
+              onClick={() => setVersionPage(value => value + 1)}
+            >
+              下一页版本
+            </Button>
+          </div>
         </>
       )}
-      <h3>最近七天</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>日期</th>
-            <th>会话</th>
-            <th>用户</th>
-            <th>已记录 Token</th>
-          </tr>
-        </thead>
-        <tbody>
-          {days.map(day => (
-            <tr key={day.date}>
-              <td>{day.date}</td>
-              <td>{day.totalChats}</td>
-              <td>{day.totalUsers}</td>
-              <td>{day.totalTokens}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <h3>运行记录</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>运行</th>
-            <th>版本</th>
-            <th>状态</th>
-            <th>时间</th>
-          </tr>
-        </thead>
-        <tbody>
-          {traces.map(run => (
-            <tr key={run.id}>
-              <td>{run.id}</td>
-              <td>{run.versionId ?? '草稿'}</td>
-              <td>{run.status}</td>
-              <td>{run.createdTime}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="agents-actions">
-        <button
-          disabled={page === 1}
-          onClick={() => setPage(value => value - 1)}
-        >
-          上一页
-        </button>
-        <span>{page}</span>
-        <button
-          disabled={page * 20 >= total}
-          onClick={() => setPage(value => value + 1)}
-        >
-          下一页
-        </button>
-      </div>
-      <h3>发布快照</h3>
-      <ul>
-        {versions.map(version => (
-          <li key={version.id}>
-            版本 {version.versionId} · {version.createdTime}
-          </li>
-        ))}
-      </ul>
-      <div className="agents-actions">
-        <button
-          disabled={versionPage === 1}
-          onClick={() => setVersionPage(value => value - 1)}
-        >
-          上一页版本
-        </button>
-        <span>{versionPage}</span>
-        <button
-          disabled={versionPage * 20 >= versionTotal}
-          onClick={() => setVersionPage(value => value + 1)}
-        >
-          下一页版本
-        </button>
-      </div>
     </section>
   );
 }

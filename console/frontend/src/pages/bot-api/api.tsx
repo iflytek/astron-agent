@@ -12,7 +12,7 @@ import useSpaceStore from '@/store/space-store';
 import { errorText } from '@/pages/agents/errors';
 import CreateApplication from './components/create-application';
 import Credential from './components/credential';
-import '@/pages/agents/style.css';
+import styles from './api.module.scss';
 
 export default function BotApi(): ReactElement {
   const [search] = useSearchParams();
@@ -81,7 +81,7 @@ export default function BotApi(): ReactElement {
   };
 
   return (
-    <main className="agents-page">
+    <main className={styles.page}>
       <header className="agents-header">
         <div>
           <h1>发布为 API</h1>
@@ -92,7 +92,23 @@ export default function BotApi(): ReactElement {
         </Link>
       </header>
       {error && (
-        <Alert type="error" showIcon message={error} className="mb-4" />
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          className="mb-4"
+          action={
+            botId && (
+              <Button
+                size="small"
+                disabled={loading}
+                onClick={() => setRevision(value => value + 1)}
+              >
+                重试
+              </Button>
+            )
+          }
+        />
       )}
       {notice && (
         <Alert type="success" showIcon message={notice} className="mb-4" />
@@ -162,7 +178,7 @@ export default function BotApi(): ReactElement {
             </Descriptions.Item>
           </Descriptions>
         ) : (
-          !loading && <p>尚未绑定应用，或发布尚未通过审批。</p>
+          !loading && !error && <p>尚未绑定应用，或发布尚未通过审批。</p>
         )}
       </section>
       <ApiInstructions

@@ -1,6 +1,6 @@
 import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { Select, message } from 'antd';
+import { Alert, Button, Select, message } from 'antd';
 import { useParams } from 'react-router-dom';
 import { useDebounceFn } from 'ahooks';
 
@@ -381,6 +381,7 @@ const renderMembersTabAction = (
 ): React.JSX.Element => (
   <div key={TAB_KEYS.MEMBERS} className={styles.tabActions}>
     <Select
+      aria-label={t('space.selectRole')}
       value={memberFilter.filterValue}
       onChange={searchHandlers.handleMemberRoleFilterChange}
       className={styles.filterSelect}
@@ -410,6 +411,7 @@ const renderApplyTabAction = (
 ): React.JSX.Element => (
   <div key={TAB_KEYS.APPLY} className={styles.tabActions}>
     <Select
+      aria-label={t('space.selectStatus')}
       value={applyFilter.filterValue}
       onChange={searchHandlers.handleApplyStatusFilterChange}
       className={styles.filterSelect}
@@ -439,6 +441,7 @@ const renderInvitationTabAction = (
 ): React.JSX.Element => (
   <div key={TAB_KEYS.INVITATIONS} className={styles.tabActions}>
     <Select
+      aria-label={t('space.selectStatus')}
       value={invitationFilter.filterValue}
       onChange={searchHandlers.handleInvitationStatusFilterChange}
       className={styles.filterSelect}
@@ -531,7 +534,7 @@ const SpaceDetail: React.FC = () => {
   const invitationManagementRef = useRef<InvitationManagementRef>(null);
 
   // 使用自定义 Hooks
-  const { spaceInfo, loading, loadSpaceInfo } = useSpaceInfo(spaceId);
+  const { spaceInfo, loading, error, loadSpaceInfo } = useSpaceInfo(spaceId);
 
   const {
     memberFilter,
@@ -632,7 +635,16 @@ const SpaceDetail: React.FC = () => {
 
   // 如果没有空间信息，返回空内容
   if (!spaceInfo) {
-    return <div className={styles.spaceDetail}></div>;
+    return (
+      <div className={styles.spaceDetail}>
+        <Alert
+          type="error"
+          showIcon
+          message={error || '无法读取此空间。'}
+          action={<Button onClick={() => void loadSpaceInfo()}>重试</Button>}
+        />
+      </div>
+    );
   }
 
   return (

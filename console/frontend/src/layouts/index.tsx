@@ -29,6 +29,21 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
   );
   const isResource = location.pathname.startsWith('/resource/');
   const isModel = location.pathname.startsWith('/management/model');
+  const managementLabel = location.pathname.startsWith('/management/release')
+    ? '发布管理'
+    : location.pathname.startsWith('/management/platform-account')
+      ? '平台账号'
+      : location.pathname.startsWith('/management/app') ||
+          location.pathname.startsWith('/management/bot-api')
+        ? '应用管理'
+        : location.pathname.startsWith('/store/agent')
+          ? 'Agent 市场'
+          : location.pathname === '/space' ||
+              location.pathname.startsWith('/space/space-detail') ||
+              location.pathname.startsWith('/space/invitations') ||
+              location.pathname.startsWith('/enterprise/')
+            ? '空间与团队'
+            : '';
 
   // 如果没有显式传入 showHeader，则使用原来的逻辑判断
   const shouldShowHeader =
@@ -117,7 +132,7 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
         <ResourceNavigation />
 
         <div className="console-main">
-          {(isCatalog || isResource || isModel) && (
+          {(isCatalog || isResource || isModel || managementLabel) && (
             <div className="console-breadcrumb">
               <div>
                 <span>
@@ -126,7 +141,12 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
                 </span>
                 <span>/</span>
                 <strong>
-                  {isResource ? '资源管理' : isModel ? '模型管理' : '应用构建'}
+                  {managementLabel ||
+                    (isResource
+                      ? '资源管理'
+                      : isModel
+                        ? '模型管理'
+                        : '应用构建')}
                 </strong>
               </div>
               <a

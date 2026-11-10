@@ -28,6 +28,8 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [user, setUser] = useState<User>();
+  const [loading, setLoading] = useState(mode === 'account');
+  const [revision, setRevision] = useState(0);
   const [resetParams] = useState(
     () => new URLSearchParams(window.location.hash.slice(1))
   );
@@ -38,6 +40,8 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
     }
     if (mode !== 'account') return;
     let ignore = false;
+    setLoading(true);
+    setError('');
     accountRequest<User>('/user-info/me')
       .then(value => {
         if (!ignore) setUser(value);
@@ -52,11 +56,14 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
             reason instanceof Error ? reason.message : '无法读取账号资料'
           );
         }
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
       });
     return () => {
       ignore = true;
     };
-  }, [mode]);
+  }, [mode, revision]);
 
   const run = async (action: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -120,14 +127,38 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
 
   return (
     <main className={styles.page}>
-      <section className={styles.card}>
+      <section
+        className={`${styles.card} ${mode === 'account' ? styles.accountCard : ''}`}
+      >
         <a className={styles.brand} href="/">
           Astron Agent
         </a>
         <h1>{titles[mode]}</h1>
+        <p className={styles.intro}>
+          {mode === 'login'
+            ? '登录后，在同一工作空间构建、调试和发布。'
+            : mode === 'account'
+              ? '管理个人资料与登录安全。'
+              : mode === 'register'
+                ? '创建账号，开始使用 Astron Agent。'
+                : '使用管理员提供的重设链接设置密码。'}
+        </p>
         {error && (
           <p className={styles.error} role="alert">
             {error}
+            {mode === 'account' && !user && (
+              <button
+                type="button"
+                onClick={() => setRevision(value => value + 1)}
+              >
+                重新加载
+              </button>
+            )}
+          </p>
+        )}
+        {mode === 'account' && loading && (
+          <p role="status" className={styles.hint}>
+            正在加载账号资料…
           </p>
         )}
         {notice && (
@@ -207,67 +238,77 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
         {mode === 'account' && user && (
           <>
             <p className={styles.hint}>登录账号：{user.username}</p>
-            <form key={user.uid} onSubmit={submitProfile}>
-              <label>
-                昵称
-                <input
-                  name="nickname"
-                  defaultValue={user.nickname}
-                  maxLength={255}
-                />
-              </label>
-              <label>
-                头像地址
-                <input
-                  name="avatar"
-                  type="url"
-                  defaultValue={user.avatar}
-                  maxLength={512}
-                  placeholder="https://…"
-                />
-              </label>
-              <button type="submit" disabled={busy}>
-                保存资料
-              </button>
-            </form>
-            <h2>修改密码</h2>
-            <form onSubmit={submitPassword}>
-              <label>
-                原密码
-                <input
-                  name="oldPassword"
-                  type="password"
-                  autoComplete="current-password"
-                  maxLength={1024}
-                  required
-                />
-              </label>
-              <label>
-                新密码
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={12}
-                  maxLength={1024}
-                  required
-                />
-              </label>
-              <label>
-                确认新密码
-                <input
-                  name="passwordConfirm"
-                  type="password"
-                  autoComplete="new-password"
-                  minLength={12}
-                  maxLength={1024}
-                  required
-                />
-              </label>
-              <button type="submit" disabled={busy}>
-                修改密码
-              </button>
-            </form>
+            <div className={styles.accountForms}>
+              <section>
+                <h2>个人资料</h2>
+                <form key={user.uid} onSubmit={submitProfile}>
+                  <label>
+                    昵称
+                    <input
+                      name="nickname"
+                      defaultValue={user.nickname}
+                      maxLength={255}
+                    />
+                  </label>
+                  <label>
+                    头像地址
+                    <input
+                      name="avatar"
+                      type="url"
+                      defaultValue={user.avatar}
+                      maxLength={512}
+                      placeholder="https://…"
+                    />
+                  </label>
+                  <button type="submit" disabled={busy}>
+                    保存资料
+                  </button>
+                </form>
+              </section>
+              <section>
+                <h2>修改密码</h2>
+                <p className={styles.hint}>
+                  至少 12 位，避免常见密码或只使用数字。
+                </p>
+                <form onSubmit={submitPassword}>
+                  <label>
+                    原密码
+                    <input
+                      name="oldPassword"
+                      type="password"
+                      autoComplete="current-password"
+                      maxLength={1024}
+                      required
+                    />
+                  </label>
+                  <label>
+                    新密码
+                    <input
+                      name="password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={12}
+                      maxLength={1024}
+                      required
+                    />
+                  </label>
+                  <label>
+                    确认新密码
+                    <input
+                      name="passwordConfirm"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={12}
+                      maxLength={1024}
+                      required
+                    />
+                  </label>
+                  <button type="submit" disabled={busy}>
+                    修改密码
+                  </button>
+                </form>
+              </section>
+            </div>
             <div className={styles.links}>
               <a href="/home">进入控制台</a>
               <button

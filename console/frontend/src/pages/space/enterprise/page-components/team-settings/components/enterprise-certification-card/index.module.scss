@@ -6,7 +6,7 @@
   padding-left: 180px;
   gap: 16px;
   border-radius: 16px;
-  background: #F2F5FE;
+  background: #f2f5fe;
 
   .bgImg {
     position: absolute;
@@ -48,11 +48,11 @@
       font-family: 苹方;
       font-weight: 500;
       font-size: 16px;
-      font-variation-settings: "opsz" auto;
+      font-variation-settings: 'opsz' auto;
 
       .upgradeBtn {
         height: 20px;
-        color: #6356EA;
+        color: #315ff4;
         font-family: 苹方;
         font-size: 14px;
         font-weight: 500;
@@ -77,15 +77,14 @@
         font-weight: normal;
         line-height: 21px;
         letter-spacing: normal;
-        color: #7F7F7F;
+        color: #607089;
 
         .dot {
           margin-right: 8px;
-          color: #6B23FF;
+          color: #6b23ff;
         }
       }
     }
-
 
     .statusSection {
       .statusBadge {
@@ -103,7 +102,7 @@
   // 不同状态的样式
   &.not_certified {
     border-color: #ffe7d6;
-    
+
     .cardIcon {
       background: #fff7f0;
     }
@@ -119,11 +118,11 @@
         gap: 5px;
       }
     }
-    
+
     .cardIcon {
       background: #f0f9ff;
     }
-    
+
     .statusSection .statusBadge {
       background: #f6ffed;
       color: #52c41a;
@@ -140,16 +139,16 @@
   justify-content: center;
   padding: 0 10px;
   border-radius: 8px;
-  background: #FFFFFF;
+  background: #ffffff;
   box-sizing: border-box;
-  border: 1px solid #D3DBF8;
+  border: 1px solid #dfe6f1;
   font-family: 苹方;
   font-size: 14px;
   font-weight: normal;
   line-height: normal;
   text-align: center;
   letter-spacing: normal;
-  color: #333333;
+  color: #18243d;
   cursor: pointer;
 
   &:hover {

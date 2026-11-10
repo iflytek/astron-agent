@@ -7,7 +7,7 @@
 
   .settingCard {
     border-radius: 10px;
-    border: 1px solid #E4EAFF;;
+    border: 1px solid #dfe6f1;
 
     :global {
       .ant-card-body {
@@ -34,7 +34,7 @@
       font-weight: 500;
       line-height: 16px;
       letter-spacing: normal;
-      color: #1F1F1F;
+      color: #18243d;
     }
 
     .settingDescription {
@@ -44,7 +44,7 @@
       font-weight: normal;
       line-height: 16px;
       letter-spacing: normal;
-      color: #7F7F7F;
+      color: #607089;
     }
   }
 
@@ -62,7 +62,7 @@
     padding: 0 16px;
     font-weight: 500;
     flex-shrink: 0;
-    background-color: #F74E43 !important;
+    background-color: #f74e43 !important;
   }
 }
 
@@ -80,4 +80,4 @@
       width: 100%;
     }
   }
-} 
+}

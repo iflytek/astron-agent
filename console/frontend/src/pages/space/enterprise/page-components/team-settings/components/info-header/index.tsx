@@ -7,7 +7,6 @@ import { ModuleType, OperationType } from '@/types/permission';
 import styles from './index.module.scss';
 
 import creator from '@/assets/imgs/space/creator.png';
-import defaultUploadIcon from '@/assets/imgs/space/upload.png';
 import yes from '@/assets/imgs/personal-center/yes.svg';
 import no from '@/assets/imgs/personal-center/no.svg';
 import useEnterpriseStore from '@/store/enterprise-store';
@@ -27,7 +26,6 @@ const InfoHeader = () => {
   const { getJoinedEnterpriseList } = useEnterprise();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [reUploadImg, setReUploadImg] = useState(false);
   const [triggerChild, setTriggerChild] = useState(false);
   const [inputWidth, setInputWidth] = useState(200); // 默认宽度
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -96,25 +94,14 @@ const InfoHeader = () => {
   return (
     <div className={styles.infoHeader} ref={infoContentRef}>
       <div className={styles.teamAvatar}>
-        {reUploadImg && (
-          <div
-            className={styles.up_hover_btn}
-            onMouseLeave={() => setReUploadImg(false)}
-            onClick={() => setTriggerChild(true)}
-          >
-            <img
-              className={styles.up_hover_icon}
-              src={defaultUploadIcon}
-              onClick={() => setReUploadImg(false)}
-              alt=""
-            />
-          </div>
-        )}
-        <img
-          src={avatarUrl}
-          alt="团队头像"
-          onMouseEnter={() => setReUploadImg(true)}
-        />
+        <button
+          type="button"
+          className={styles.avatarAction}
+          aria-label="更换团队头像"
+          onClick={() => setTriggerChild(true)}
+        >
+          <img src={avatarUrl} alt="团队头像" />
+        </button>
       </div>
 
       <div className={styles.teamInfo}>
@@ -150,12 +137,14 @@ const InfoHeader = () => {
                   type="text"
                   icon={<img src={no} alt="" />}
                   onClick={handleCancel}
+                  aria-label="取消修改名称"
                   className={styles.cancelBtn}
                 />
                 <Button
                   type="text"
                   icon={<img src={yes} alt="" />}
                   onClick={handleConfirm}
+                  aria-label="保存团队名称"
                   className={styles.confirmBtn}
                 />
               </div>
@@ -180,6 +169,7 @@ const InfoHeader = () => {
                 config={{
                   key: 'edit',
                   text: '',
+                  tooltip: '修改团队名称',
                   icon: <EditOutlined />,
                   type: 'text',
                   size: 'small',

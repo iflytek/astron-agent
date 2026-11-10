@@ -1,0 +1,67 @@
+.page {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px;
+  background: #fff;
+  color: var(--console-ink);
+  :global(.agents-header) {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 28px;
+    line-height: 36px;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+  }
+  h2 {
+    margin: 0 0 16px;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  p {
+    color: var(--console-muted);
+    line-height: 1.7;
+  }
+  a {
+    color: var(--console-primary);
+  }
+  :global(.button) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid var(--console-line);
+    border-radius: 7px;
+  }
+  :global(.agents-panel) {
+    padding: 20px;
+    border: 1px solid var(--console-line);
+    border-radius: 14px;
+    margin-top: 20px;
+  }
+  :global(.ant-descriptions-item-content) {
+    overflow-wrap: anywhere;
+  }
+  pre {
+    max-width: 100%;
+    font-size: 13px;
+  }
+}
+@media (max-width: 760px) {
+  .page {
+    padding: 22px 18px;
+    h1 {
+      font-size: 26px;
+    }
+    :global(.agents-panel) {
+      padding: 16px;
+    }
+  }
+}

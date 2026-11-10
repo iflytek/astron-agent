@@ -6,7 +6,7 @@ import React, {
   useImperativeHandle,
   useRef,
 } from 'react';
-import { Table, message } from 'antd';
+import { Alert, Button, Table } from 'antd';
 import { useTranslation } from 'react-i18next';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import ButtonGroup, { ButtonConfig } from '@/components/button-group';
@@ -123,7 +123,7 @@ const SpaceTable = forwardRef(function SpaceTable<
     className,
     scroll = {
       scrollToFirstRowOnChange: true,
-      y: 'max(120px, calc(100% - 60px))',
+      x: 'max-content',
     },
     extraParams = {},
     onSuccess,
@@ -135,6 +135,14 @@ const SpaceTable = forwardRef(function SpaceTable<
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const isMounted = useRef(false);
+  const sequence = useRef(0);
+  const [error, setError] = useState('');
+  const [loadedParams, setLoadedParams] = useState(() =>
+    initLoad ? '' : JSON.stringify(extraParams)
+  );
+  const paramsKey = JSON.stringify(extraParams);
+  const currentParams = useRef(paramsKey);
+  currentParams.current = paramsKey;
   const [pagination, setPagination] = useState<PaginationConfig>({
     current: 1,
     pageSize: 10,
@@ -151,6 +159,11 @@ const SpaceTable = forwardRef(function SpaceTable<
   // 加载数据
   const loadData = useCallback(
     async (paginationParams?: { current: number; pageSize: number }) => {
+      const current = ++sequence.current;
+      const requestKey = JSON.stringify(extraParams);
+      const isCurrent = () =>
+        current === sequence.current && requestKey === currentParams.current;
+      setError('');
       if (externalLoading !== undefined) {
         // 如果外部控制loading状态，则不设置内部loading
       } else {
@@ -165,6 +178,7 @@ const SpaceTable = forwardRef(function SpaceTable<
         };
 
         const result = await queryData(params);
+        if (!isCurrent()) return;
         if (result.success !== false) {
           setData(result.data);
           setPagination(prev => ({
@@ -178,9 +192,17 @@ const SpaceTable = forwardRef(function SpaceTable<
           throw new Error(t('space.queryFailed'));
         }
       } catch (error) {
-        onError?.(error);
+        if (isCurrent()) {
+          setError(t('space.queryFailed'));
+          setData([]);
+          setPagination(previous => ({ ...previous, total: 0 }));
+          onError?.(error);
+        }
       } finally {
-        setLoading(false);
+        if (isCurrent()) {
+          setLoadedParams(requestKey);
+          setLoading(false);
+        }
       }
     },
     [
@@ -197,8 +219,11 @@ const SpaceTable = forwardRef(function SpaceTable<
   useEffect(() => {
     // 当 initLoad 为 true 加载数据
     if (initLoad) {
-      loadData();
+      void loadData();
     }
+    return () => {
+      sequence.current += 1;
+    };
   }, [initLoad]);
 
   useEffect(() => {
@@ -264,24 +289,43 @@ const SpaceTable = forwardRef(function SpaceTable<
   ];
 
   return (
-    <div className={styles.spaceTable} style={{ height: '100%' }}>
-      <div className={styles.tableContainer} style={{ height: '100%' }}>
+    <div className={styles.spaceTable}>
+      {error && (
+        <Alert
+          showIcon
+          type="error"
+          message={error}
+          action={<Button onClick={() => void loadData()}>重试</Button>}
+        />
+      )}
+      <div className={styles.tableContainer}>
         <Table<T>
-          style={{ height: '100%' }}
-          className={`xingchen-table space ${styles.table} ${className || ''}`}
+          className={`${styles.table} ${className || ''}`}
           columns={finalColumns}
-          dataSource={data}
+          dataSource={loadedParams === paramsKey ? data : []}
           rowKey={rowKey}
-          loading={loading}
+          loading={externalLoading ?? (loading || loadedParams !== paramsKey)}
           pagination={{
             ...pagination,
             onChange: handlePaginationChange,
             className: styles.pagination,
           }}
-          scroll={scroll}
+          scroll={{ x: 'max-content', ...scroll }}
           locale={{
+            emptyText: error ? (
+              '加载失败，请重试。'
+            ) : loading ? (
+              '正在加载…'
+            ) : (
+              <Empty
+                text={
+                  extraParams.searchValue
+                    ? '没有匹配的结果，请调整筛选条件。'
+                    : undefined
+                }
+              />
+            ),
             ...locale,
-            emptyText: <Empty />,
           }}
           {...restProps}
         />

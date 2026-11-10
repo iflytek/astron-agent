@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Alert, Button, Table } from 'antd';
+import { Alert, Button, Empty, Table } from 'antd';
 import Credential from './components/credential';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
@@ -36,14 +36,10 @@ export default function AppListPage(): ReactElement {
   }, [revision]);
 
   return (
-    <main className={`${styles.appListPage} page-container-inner-UI`}>
-      <div className={styles.title}>
+    <main className={styles.appListPage}>
+      <header className={styles.title}>
         <h1 className={styles.aff}>{t('sidebar.appManagement')}</h1>
-      </div>
-      <p>应用密钥用于调用已绑定的 Agent 和工作流。请仅在服务端保存密钥。</p>
-      {error && <Alert type="error" message={error} className="my-4" />}
-      <div className={styles.tableArea}>
-        <div className={`${styles.tableOperation} gap-3`}>
+        <div className={styles.tableOperation}>
           <Button
             onClick={() => setRevision(value => value + 1)}
             disabled={loading}
@@ -54,11 +50,39 @@ export default function AppListPage(): ReactElement {
             {t('botApi.createApp')}
           </Button>
         </div>
+      </header>
+      <p>应用密钥用于调用已绑定的 Agent 和工作流。请仅在服务端保存密钥。</p>
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          className="mb-5"
+          action={
+            <Button
+              size="small"
+              onClick={() => setRevision(value => value + 1)}
+            >
+              重试
+            </Button>
+          }
+        />
+      )}
+      <div className={styles.tableArea}>
         <Table<UserApp>
           loading={loading}
           dataSource={apps}
           rowKey="appId"
           pagination={false}
+          locale={{
+            emptyText: loading ? (
+              '正在加载应用…'
+            ) : error ? (
+              '应用未能加载，请重试。'
+            ) : (
+              <Empty description="暂无应用，创建应用后即可绑定发布版本。" />
+            ),
+          }}
           scroll={{ x: 1000 }}
           columns={[
             { title: t('appManage.appId'), dataIndex: 'appId' },

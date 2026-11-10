@@ -1,30 +1,39 @@
 .page {
   min-height: 100vh;
-  padding: 48px 20px;
+  padding: 48px 24px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  background: #f6f7fb;
-  color: #202336;
+  background: var(--console-canvas, #f1f5fc);
+  color: var(--console-ink, #18243d);
+  font-family: var(--console-font, system-ui, sans-serif);
+  ::selection {
+    background: #d9e4ff;
+    color: #182c62;
+  }
+  :focus-visible {
+    outline: 2px solid #315ff4;
+    outline-offset: 3px;
+  }
 }
-
 .card {
   width: 100%;
-  max-width: 440px;
+  max-width: 464px;
   padding: 36px;
   background: white;
-  border: 1px solid #e8eaf1;
-  border-radius: 20px;
-  box-shadow: 0 12px 40px #22275008;
-
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
   h1 {
-    font-size: 25px;
-    margin: 28px 0;
-    font-weight: 600;
+    font-size: 28px;
+    line-height: 36px;
+    margin: 28px 0 8px;
+    font-weight: 650;
+    letter-spacing: -0.025em;
   }
   h2 {
     font-size: 18px;
-    margin: 30px 0 18px;
+    margin: 0 0 18px;
+    font-weight: 600;
   }
   label {
     display: block;
@@ -35,20 +44,27 @@
     display: block;
     width: 100%;
     margin-top: 8px;
-    padding: 12px;
-    border: 1px solid #cbd0df;
-    border-radius: 8px;
+    padding: 10px 12px;
+    min-height: 42px;
+    border: 1px solid #d0daea;
+    border-radius: 7px;
+    caret-color: #315ff4;
     &:focus {
-      outline: 2px solid #b9acf7;
-      border-color: #7152d9;
+      outline: 2px solid #315ff4;
+      outline-offset: 2px;
+      border-color: #315ff4;
     }
   }
   button {
-    padding: 12px 18px;
-    border-radius: 8px;
+    min-height: 40px;
+    padding: 9px 18px;
+    border-radius: 7px;
     color: white;
-    background: #6350c7;
+    background: #315ff4;
     cursor: pointer;
+    &:hover:not(:disabled) {
+      background: #244ed6;
+    }
     &:disabled {
       opacity: 0.6;
       cursor: wait;
@@ -56,30 +72,43 @@
   }
   form > button {
     width: 100%;
+    margin-top: 6px;
   }
   a {
-    color: #6350c7;
+    color: #3159d9;
+    text-underline-offset: 3px;
   }
 }
-
 .brand {
   font-weight: 700;
   font-size: 18px;
 }
+.intro {
+  color: #607089;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 0 0 24px;
+}
 .hint {
-  color: #666b7e;
+  color: #607089;
   font-size: 13px;
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 .error,
 .notice {
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 7px;
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 .error {
   color: #9f263a;
   background: #fff0f2;
+  button {
+    display: block;
+    margin-top: 10px;
+  }
 }
 .notice {
   color: #226544;
@@ -92,10 +121,47 @@
   span {
     display: block;
     margin-top: 18px;
-    color: #666b7e;
+    color: #607089;
     font-size: 13px;
   }
-  button {
-    float: right;
+  &:is(div) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 20px;
+    border-top: 1px solid #e8edf5;
+  }
+}
+.accountCard {
+  max-width: 900px;
+}
+.accountForms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 36px;
+  margin-top: 24px;
+  section {
+    min-width: 0;
+  }
+}
+@media (max-width: 600px) {
+  .page {
+    padding: 22px 18px;
+  }
+  .card {
+    padding: 24px 20px;
+    h1 {
+      font-size: 26px;
+    }
+  }
+  .accountForms {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    section + section {
+      border-top: 1px solid #e8edf5;
+      padding-top: 24px;
+    }
   }
 }
