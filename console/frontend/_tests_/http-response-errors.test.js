@@ -20,7 +20,7 @@ function loadModule(path, dependencies) {
     compilerOptions: {
       target: ts.ScriptTarget.ES2020,
       module: ts.ModuleKind.CommonJS,
-      jsx: ts.JsxEmit.React,
+      jsx: ts.JsxEmit.ReactJSX,
       esModuleInterop: true,
     },
     fileName: filename,
@@ -188,12 +188,13 @@ test('knowledge create handles HTTP rejection, keeps modal open and clears loadi
   const navigation = [];
   const modalUpdates = [];
   const loadingUpdates = [];
+  const errorUpdates = [];
   let finish;
   const finished = new Promise(resolve => {
     finish = resolve;
   });
   let stateIndex = 0;
-  const form = { getFieldsValue: () => ({ name: 'loop02-kb' }) };
+  const form = { validateFields: async () => ({ name: 'loop02-kb' }) };
   const Form = Object.assign(() => null, {
     Item: () => null,
     useForm: () => [form],
@@ -210,17 +211,18 @@ test('knowledge create handles HTTP rejection, keeps modal open and clears loadi
           return [
             initial,
             value => {
-              if (index === 3) {
+              if (index === 1) {
                 loadingUpdates.push(value);
                 if (!value) finish();
               }
+              if (index === 2) errorUpdates.push(value);
             },
           ];
         },
       },
       'react-router-dom': { useNavigate: () => path => navigation.push(path) },
       'react-i18next': { useTranslation: () => ({ t: key => key }) },
-      antd: { Button: 'button', Form, Input, message },
+      antd: { Modal: 'modal', Alert: 'alert', Form, Input, message },
       '@/services/knowledge': {
         createKnowledgeAPI: params =>
           http.post(`${server.url}/repo/create-repo`, params),
@@ -233,19 +235,14 @@ test('knowledge create handles HTTP rejection, keeps modal open and clears loadi
   const tree = CreateModal({
     setCreateModal: value => modalUpdates.push(value),
   });
-  function findSubmit(node) {
-    if (!React.isValidElement(node)) return undefined;
-    if (node.type === 'button' && node.props.type === 'primary') return node;
-    return React.Children.toArray(node.props.children)
-      .map(findSubmit)
-      .find(Boolean);
-  }
-  findSubmit(tree).props.onClick();
+  assert.equal(tree.type, 'modal');
+  tree.props.onOk();
   await finished;
   // Give unhandled rejections a full turn to surface; node:test fails them.
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(messages, ['资源服务拒绝请求']);
   assert.deepEqual(loadingUpdates, [true, false]);
+  assert.deepEqual(errorUpdates, ['', '创建失败，请重试。']);
   assert.deepEqual(modalUpdates, []);
   assert.deepEqual(navigation, []);
   assert.deepEqual(JSON.parse(server.received[0].body), {

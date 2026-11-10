@@ -95,6 +95,7 @@ function fixture(respond) {
       filterType: 1,
       models: [],
       checkedLeaves: [],
+      error: '',
     },
     modelRequest: { current: null },
     actions: {},
@@ -104,6 +105,7 @@ function fixture(respond) {
     'ShelfOffModels',
     'CategoryList',
     'Loading',
+    'Error',
     'CreateModal',
     'DeleteModal',
     'CurrentEditModel',
@@ -215,9 +217,7 @@ test('initialization and save/delete refresh entrances all load complete lists',
   await settle();
   assert.deepEqual(f.context.state.models, all);
   assert.equal(f.calls.length, 3);
-  assert.ok(
-    f.calls.every(c => c.params.name === 'legacy' && c.params.filter === 1)
-  );
+  assert.ok(f.calls.every(c => c.params.name === '' && c.params.filter === 1));
   const operations = f.operations().render();
   for (const refresh of [
     operations.refreshModels,
@@ -225,12 +225,14 @@ test('initialization and save/delete refresh entrances all load complete lists',
     operations.handleModelDeleteSuccess,
   ]) {
     f.calls.length = 0;
+    f.context.state.error = 'previous failure';
     await refresh();
     await settle();
     assert.deepEqual(f.context.state.models, all);
     assert.equal(f.calls.length, 3);
     assert.ok(f.calls.every(c => c.params.type === 2 && c.params.filter === 1));
     assert.equal(f.context.state.loading, false);
+    assert.equal(f.context.state.error, '');
   }
 });
 
@@ -245,18 +247,21 @@ test('failed refresh retains last complete list and reports local/network error'
   assert.equal(f.context.state.models, previous);
   assert.deepEqual(f.messages, ['network unavailable']);
   assert.equal(f.context.state.loading, false);
+  assert.equal(f.context.state.error, 'network unavailable');
 });
 
-test('failed initialization clears stale results without publishing page one or duplicating HTTP feedback', async () => {
+test('failed initialization retains the complete list without publishing page one or duplicating HTTP feedback', async () => {
   const f = fixture(params => {
     if (params.page === 2)
       throw { code: 502, message: 'already reported by interceptor' };
     return pageData(models(205), params);
   });
-  f.context.state.models = models(2);
+  const previous = models(2);
+  f.context.state.models = previous;
   f.initializer().render();
   await settle();
-  assert.deepEqual(f.context.state.models, []);
+  assert.equal(f.context.state.models, previous);
+  assert.equal(f.context.state.error, '模型列表加载失败');
   assert.deepEqual(f.messages, []);
   assert.equal(f.context.state.loading, false);
 });
