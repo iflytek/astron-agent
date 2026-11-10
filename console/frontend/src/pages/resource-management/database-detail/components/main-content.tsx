@@ -93,9 +93,9 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#fff] rounded-2xl border-b border-[#F1F1F1] p-6 min-w-0">
+    <div className="flex-1 flex flex-col h-full min-h-[400px] bg-white rounded-[14px] border border-[#dfe6f1] p-5 min-w-0">
       {/* 头部控制区 */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div className={styles.segmentedWrapper}>
           <Segmented
             value={dataType}
@@ -151,7 +151,7 @@ const MainContentBody: React.FC = () => {
 
   if (!currentSheet) {
     return (
-      <div className="flex-1 flex items-center justify-center text-[#B2B2B2] text-[14px]">
+      <div className="flex-1 flex items-center justify-center text-[#607089] text-[14px]">
         {t('database.noData')}
       </div>
     );
@@ -169,7 +169,7 @@ const MainContentBody: React.FC = () => {
 
   if (!testDataSource.length && !testTableLoading) {
     return (
-      <div className="flex items-center justify-center flex-1 text-sm text-[#B2B2B2]">
+      <div className="flex items-center justify-center flex-1 text-sm text-[#607089]">
         {t('database.noData')}
       </div>
     );
@@ -186,8 +186,8 @@ const MainContentBody: React.FC = () => {
         type={dataType}
         updateTestData={refreshCurrentTableData}
       />
-      <div className="relative flex items-center justify-center px-6 h-[80px]">
-        <div className="text-[#979797] text-sm pt-4 absolute left-0">
+      <div className="flex items-center justify-between gap-3 flex-wrap py-5">
+        <div className="text-[#607089] text-sm">
           {t('database.totalDataItems', { total: pagination.total })}
         </div>
         <Pagination

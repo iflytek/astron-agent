@@ -1,0 +1,226 @@
+.page {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px;
+  color: var(--console-ink, #18243d);
+  background: var(--console-surface, #fff);
+  :global(button),
+  :global(a),
+  :global(input),
+  :global(textarea) {
+    &:focus-visible {
+      outline: 2px solid #315ff4;
+      outline-offset: 3px;
+    }
+  }
+  :global(input),
+  :global(textarea) {
+    caret-color: #315ff4;
+  }
+  ::selection {
+    color: #18243d;
+    background: #e7eeff;
+  }
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  > div {
+    min-width: 0;
+  }
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 36px;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    overflow-wrap: anywhere;
+  }
+  p {
+    margin: 8px 0 0;
+    color: #607089;
+    line-height: 1.5;
+    max-width: 72ch;
+  }
+  > :global(.ant-btn) {
+    flex-shrink: 0;
+  }
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+  align-items: center;
+  > :global(.ant-input-affix-wrapper) {
+    width: 300px;
+    max-width: 100%;
+  }
+}
+.results {
+  margin-top: 20px;
+  min-width: 0;
+  :global(.ant-empty) {
+    padding: 64px 16px;
+  }
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.skeleton {
+  padding: 20px;
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+}
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  padding: 24px 28px;
+  overflow: auto;
+  color: #18243d;
+  background: #f6f8fd;
+}
+.detailBody {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+.panel {
+  padding: 20px;
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+  background: white;
+  min-width: 0;
+}
+.detailHeader {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-bottom: 1px solid #dfe6f1;
+  background: #fff;
+  h1 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 160px;
+  max-width: 420px;
+  > :global(.ant-select) {
+    min-width: 0;
+    flex: 1;
+  }
+}
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  a {
+    padding: 9px 12px;
+    color: #607089;
+    border-bottom: 2px solid transparent;
+  }
+  a[aria-current='page'] {
+    color: #315ff4;
+    border-color: #315ff4;
+    font-weight: 600;
+  }
+}
+.databaseWorkspace {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+  min-height: 400px;
+  min-width: 0;
+}
+.databaseSidebar {
+  width: 280px;
+  flex-shrink: 0;
+  min-height: 360px;
+}
+.databaseMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 400px;
+}
+@media (max-width: 1359px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1099px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .databaseWorkspace {
+    flex-direction: column;
+  }
+  .databaseSidebar {
+    width: 100%;
+    min-height: 250px;
+    max-height: 360px;
+  }
+}
+@media (max-width: 600px) {
+  .page,
+  .detail {
+    padding: 22px 18px;
+  }
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .heading {
+    flex-direction: column;
+  }
+  .heading h1 {
+    font-size: 26px;
+  }
+  .toolbar > :global(.ant-input-affix-wrapper) {
+    width: 100%;
+  }
+  .detailHeader {
+    padding: 14px;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .identity {
+    max-width: 100%;
+  }
+}
+
+.page {
+  :global(input::placeholder),
+  :global(textarea::placeholder),
+  :global(.ant-select-selection-placeholder) {
+    color: #607089;
+    opacity: 1;
+  }
+}

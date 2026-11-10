@@ -1,0 +1,240 @@
+.page {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px;
+  color: #18243d;
+  background: #fff;
+  :global(button:focus-visible),
+  :global(a:focus-visible) {
+    outline: 2px solid #315ff4;
+    outline-offset: 3px;
+  }
+}
+.inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  min-width: 0;
+}
+.header {
+  margin-bottom: 24px;
+}
+.heading,
+.toolbar,
+.tabs,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.heading {
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.heading h1 {
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 36px;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+.hint {
+  color: #607089;
+  font-size: 14px;
+  line-height: 22px;
+  margin: 8px 0 0;
+  max-width: 72ch;
+}
+.tabs {
+  border-bottom: 1px solid #dfe6f1;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.tabs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 2px solid transparent;
+  color: #607089;
+}
+.tabs a[aria-current='page'] {
+  color: #315ff4;
+  border-color: #315ff4;
+  font-weight: 600;
+}
+.toolbar {
+  justify-content: space-between;
+}
+.search {
+  width: 300px;
+  max-width: 100%;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.provider {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+  padding: 16px;
+  min-height: 236px;
+  background: #fff;
+}
+.provider:hover,
+.provider:focus-within {
+  border-color: #8aa5f5;
+}
+.providerIdentity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.providerIdentity img {
+  height: 36px;
+  width: 36px;
+  object-fit: contain;
+}
+.provider h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+}
+.provider small {
+  color: #607089;
+  font-size: 12px;
+}
+.provider p {
+  margin: 16px 0;
+  color: #526580;
+  font-size: 13px;
+  line-height: 20px;
+  flex: 1;
+}
+.providerFooter {
+  border-top: 1px solid #e8edf5;
+  padding-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+.providerFilter {
+  min-width: 180px;
+}
+.feedback {
+  margin: 20px 0;
+}
+.detail {
+  margin-top: 20px;
+  min-width: 0;
+}
+.detailIdentity {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.detailIdentity h1 {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 650;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.detailTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.tag {
+  padding: 3px 8px;
+  background: #f2f5fb;
+  color: #52688c;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.detailDescription {
+  margin: 20px 0;
+  color: #526580;
+  max-width: 75ch;
+  overflow-wrap: anywhere;
+}
+.section {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #dfe6f1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.section h2 {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.definition {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px 20px;
+}
+.definition dt {
+  color: #607089;
+}
+.definition dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1359px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1099px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .page {
+    padding: 22px 18px;
+  }
+  .heading h1,
+  .detailIdentity h1 {
+    font-size: 26px;
+  }
+  .toolbar {
+    align-items: stretch;
+  }
+  .search {
+    width: 100%;
+  }
+  .toolbar > .actions {
+    width: 100%;
+  }
+  .definition {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .definition dd {
+    margin-bottom: 10px;
+  }
+}
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.page {
+  :global(input::placeholder),
+  :global(textarea::placeholder),
+  :global(.ant-select-selection-placeholder) {
+    color: #607089;
+    opacity: 1;
+  }
+}

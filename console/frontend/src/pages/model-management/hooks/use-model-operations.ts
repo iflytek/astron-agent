@@ -51,6 +51,7 @@ export const useModelOperations = (
     ownedRequest.current = controller;
     try {
       actions.setLoading(true);
+      actions.setError('');
 
       const records = await getAllModels(
         {
@@ -70,6 +71,9 @@ export const useModelOperations = (
       actions.setShelfOffModels(willBeRemoved);
     } catch (error) {
       if (controller.signal.aborted) return;
+      actions.setError(
+        error instanceof Error ? error.message : '模型列表加载失败'
+      );
       // HTTP/business errors are already displayed by the shared interceptor.
       if (shouldShowRequestError(error)) {
         message.error(

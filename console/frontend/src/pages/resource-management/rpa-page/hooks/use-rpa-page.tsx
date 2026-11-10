@@ -1,81 +1,65 @@
 import { getRpaList } from '@/services/rpa';
 import { RpaDetailFormInfo, RpaInfo } from '@/types/rpa';
-import { useRequest, useDebounceFn } from 'ahooks';
-import React, { useState, useEffect, useCallback } from 'react';
+import {
+  type RefObject,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from 'react';
 
 export const useRpaPage = (
-  modalFormRef: React.RefObject<{
-    showModal: (values?: RpaDetailFormInfo) => void;
-  }>
-): {
-  handleSearchRpas: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  isHovered: boolean | null;
-  setIsHovered: React.Dispatch<React.SetStateAction<boolean | null>>;
-  rpas: RpaInfo[];
-  refresh: () => void;
-  searchValue: string;
-} => {
-  const [isHovered, setIsHovered] = useState<boolean | null>(null);
+  modalFormRef: RefObject<{ showModal: (values?: RpaDetailFormInfo) => void }>
+) => {
   const [searchValue, setSearchValue] = useState('');
-
-  const { data, refresh } = useRequest(
-    () =>
-      getRpaList({
-        name: searchValue?.trim(),
-      }),
-    {
-      refreshDeps: [searchValue],
-    }
-  );
-
-  const { run: handleSearchRpas } = useDebounceFn(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      setSearchValue(value);
-    },
-    { wait: 500 }
-  );
-
-  const handleCreateRPA = useCallback(() => {
-    modalFormRef.current?.showModal(undefined);
-  }, [modalFormRef.current]);
-
-  // 监听Header组件的搜索事件
+  const [rpas, setRpas] = useState<RpaInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const sequence = useRef(0);
+  const refresh = useCallback((): void => setRevision(value => value + 1), []);
   useEffect(() => {
-    const handleHeaderSearch = (event: CustomEvent) => {
-      const { value, type } = event.detail;
+    const id = ++sequence.current;
+    setLoading(true);
+    setError('');
+    void getRpaList({ name: searchValue.trim() })
+      .then(data => {
+        if (id === sequence.current) setRpas(data || []);
+      })
+      .catch(failure => {
+        if (id === sequence.current)
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : 'RPA 加载失败，请重试。'
+          );
+      })
+      .finally(() => {
+        if (id === sequence.current) setLoading(false);
+      });
+    return () => {
+      sequence.current += 1;
+    };
+  }, [searchValue, revision]);
+  const search = (value: string): void => {
+    setRpas([]);
+    setSearchValue(value);
+  };
+  useEffect(() => {
+    const onSearch = (event: Event): void => {
+      const { type, value } = (event as CustomEvent).detail;
       if (type === 'rpa') {
+        setRpas([]);
         setSearchValue(value);
       }
     };
-
-    const headerCreate = (event: CustomEvent) => {
-      handleCreateRPA();
-    };
-
-    window.addEventListener(
-      'headerSearch',
-      handleHeaderSearch as EventListener
-    );
-    window.addEventListener('headerCreateRPA', headerCreate as EventListener);
+    const onCreate = (): void => modalFormRef.current?.showModal();
+    window.addEventListener('headerSearch', onSearch);
+    window.addEventListener('headerCreateRPA', onCreate);
     return () => {
-      window.removeEventListener(
-        'headerSearch',
-        handleHeaderSearch as EventListener
-      );
-      window.removeEventListener(
-        'headerCreateRPA',
-        headerCreate as EventListener
-      );
+      window.removeEventListener('headerSearch', onSearch);
+      window.removeEventListener('headerCreateRPA', onCreate);
     };
-  }, [handleSearchRpas, handleCreateRPA]);
-
-  return {
-    handleSearchRpas,
-    isHovered,
-    setIsHovered,
-    rpas: data || [],
-    refresh,
-    searchValue,
-  };
+  }, [modalFormRef]);
+  return { rpas, loading, error, refresh, searchValue, search };
 };

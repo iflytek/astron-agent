@@ -1,5 +1,6 @@
 import React, { useState, FC } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { resourceStyles as styles } from '../knowledge-page/resource-surface';
 import UploadHeader from './components/upload-header';
 import ImportData from './components/import-data';
 import DataClean from './components/data-clean';
@@ -57,7 +58,7 @@ const UploadPage: FC = () => {
     setSaveLoading,
   });
   return (
-    <div className="flex flex-col w-full h-full gap-6 px-6">
+    <div className={styles.detail}>
       <UploadHeader
         tag={tag}
         parentId={parentId || ''}
@@ -75,8 +76,8 @@ const UploadPage: FC = () => {
         newSaveDisabled={newSaveDisabled}
         saveLoading={saveLoading}
       />
-      <div className="flex flex-1 w-full pb-6 overflow-hidden">
-        <div className="w-full h-full border border-[#E2E8FF] bg-[#fff] rounded-3xl p-6 flex flex-col overflow-hidden">
+      <div className="flex flex-1 w-full min-h-[460px] min-w-0">
+        <div className="w-full h-full min-h-[460px] border border-[#dfe6f1] bg-white rounded-[14px] p-4 flex flex-col overflow-auto">
           {step === 1 && (
             <ImportData
               tag={tag}

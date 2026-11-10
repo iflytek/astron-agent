@@ -1,4 +1,12 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { Alert, Button, Dropdown, Empty, Input, Skeleton, Tag } from 'antd';
+import {
+  DownOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import './style.css';
@@ -66,15 +74,36 @@ export default function ResourceTools({
   const [result, setResult] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState('');
+  const [catalogError, setCatalogError] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const scopeEpoch = useRef(0);
+  const detailRef = useRef<HTMLElement>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const base = `/resources/${mode}`;
 
   useEffect(() => {
-    let active = true;
+    scopeEpoch.current += 1;
     setSelected(null);
     setEditing(false);
+    setResult('');
     setError('');
+    setDebugInput(mode === 'tools' ? '{"query": {}}' : '{}');
+    return () => {
+      scopeEpoch.current += 1;
+    };
+  }, [mode, market, spaceId, enterpriseId]);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setListError('');
+    setItems([]);
     void http
       .get<never, { records: Resource[]; total: number }>(base, {
         params: { name: query, market, page, pageSize: 20 },
@@ -86,8 +115,20 @@ export default function ResourceTools({
         }
       })
       .catch((err: Error) => {
-        if (active) setError(err.message);
+        if (active) setListError(err.message || '资源列表加载失败');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
+    return () => {
+      active = false;
+    };
+  }, [base, market, query, page, revision, spaceId, enterpriseId]);
+
+  useEffect(() => {
+    let active = true;
+    setCatalog([]);
+    setCatalogError('');
     if (mode === 'mcp') {
       void http
         .get<never, Catalog[]>('/resources/mcp/catalog')
@@ -95,26 +136,52 @@ export default function ResourceTools({
           if (active) setCatalog(data);
         })
         .catch((err: Error) => {
-          if (active) setError(err.message);
+          if (active) setCatalogError(err.message || '内置目录加载失败');
         });
     }
     return () => {
       active = false;
     };
-  }, [base, mode, market, query, page, revision, spaceId, enterpriseId]);
+  }, [mode, revision, spaceId, enterpriseId]);
+
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.scrollIntoView({ block: 'nearest' });
+      errorRef.current?.focus();
+    }
+  }, [error]);
 
   const run = async (action: () => Promise<void>): Promise<void> => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     setError('');
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '操作失败');
+      setError(
+        err instanceof SyntaxError
+          ? 'JSON 格式无效，请检查后重试。'
+          : err instanceof Error
+            ? err.message
+            : '操作失败，请重试'
+      );
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
-  const edit = (row: Resource | null): void => {
+  const canReplaceEditor = (): boolean =>
+    !editing || window.confirm('放弃当前编辑，打开其他资源？');
+  const focusEditor = (): void => {
+    window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+      detailRef.current?.focus();
+    });
+  };
+  const edit = (row: Resource | null): boolean => {
+    if (busyRef.current || !canReplaceEditor()) return false;
+    setError('');
     setSelected(row);
     setEditing(true);
     setName(row?.name || '');
@@ -125,16 +192,23 @@ export default function ResourceTools({
     setServerUrl('');
     setParameters(pretty(row?.parameters || {}));
     setResult('');
+    focusEditor();
+    return true;
   };
   const select = (row: Resource): void => {
+    if (!canReplaceEditor()) return;
+    const epoch = scopeEpoch.current;
     void run(async () => {
       const current = await http.get<never, Resource>(`${base}/${row.id}`);
+      if (epoch !== scopeEpoch.current) return;
       setSelected(current);
       setEditing(false);
       setResult(pretty(current));
+      focusEditor();
     });
   };
   const save = (draft: boolean): void => {
+    if (!formRef.current?.reportValidity()) return;
     void run(async () => {
       const payload =
         mode === 'tools'
@@ -148,6 +222,8 @@ export default function ResourceTools({
       if (selected) await http.put(`${base}/${selected.id}`, payload);
       else await http.post(base, payload);
       setEditing(false);
+      setSelected(null);
+      setResult(draft ? '草稿已保存。' : '资源已保存。');
       setRevision(value => value + 1);
     });
   };
@@ -155,6 +231,12 @@ export default function ResourceTools({
     if (!window.confirm(`删除“${row.name || row.id}”？`)) return;
     void run(async () => {
       await http.delete(`${base}/${row.id}`);
+      if (selected?.id === row.id) {
+        setSelected(null);
+        setEditing(false);
+        setResult('');
+      }
+      if (items.length === 1 && page > 1) setPage(value => value - 1);
       setRevision(value => value + 1);
     });
   };
@@ -193,13 +275,20 @@ export default function ResourceTools({
           </p>
         </div>
         {!market && (
-          <button onClick={() => edit(null)}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={busy}
+            onClick={() => edit(null)}
+          >
             新建{mode === 'mcp' ? '服务' : '工具'}
-          </button>
+          </Button>
         )}
       </header>
       <div className="resource-tools-toolbar">
-        <input
+        <Input
+          allowClear
+          prefix={<SearchOutlined />}
           aria-label="搜索资源"
           placeholder="搜索名称"
           value={query}
@@ -208,19 +297,39 @@ export default function ResourceTools({
             setPage(1);
           }}
         />
-        <button onClick={() => setRevision(value => value + 1)}>刷新</button>
+        <Button
+          icon={<ReloadOutlined />}
+          loading={loading}
+          onClick={() => setRevision(value => value + 1)}
+        >
+          刷新
+        </Button>
         {mode === 'tools' && !market && (
-          <label className="resource-tools-import">
-            导入 JSON
+          <div>
+            <Button
+              icon={<UploadOutlined />}
+              disabled={busy}
+              onClick={() => fileRef.current?.click()}
+            >
+              导入 JSON
+            </Button>
             <input
+              ref={fileRef}
+              hidden
               type="file"
               accept="application/json,.json"
               onChange={event => {
                 const file = event.target.files?.[0];
                 if (!file) return;
+                event.target.value = '';
+                if (!canReplaceEditor()) return;
                 void run(async () => {
                   const imported = JSON.parse(await file.text()) as Resource;
-                  edit(null);
+                  setSelected(null);
+                  setEditing(true);
+                  setServerUrl('');
+                  setResult('');
+                  focusEditor();
                   setName(imported.name || '');
                   setDescription(imported.description || '');
                   setSchema(pretty(imported.schema || imported));
@@ -228,118 +337,206 @@ export default function ResourceTools({
                 });
               }}
             />
-          </label>
+          </div>
         )}
       </div>
-      {error && (
-        <p role="alert" className="resource-tools-error">
-          {error}
-        </p>
+      {listError && (
+        <Alert
+          type="error"
+          showIcon
+          message="无法加载资源"
+          description={listError}
+          action={
+            <Button onClick={() => setRevision(value => value + 1)}>
+              重试
+            </Button>
+          }
+        />
+      )}
+      {catalogError && (
+        <Alert
+          type="error"
+          showIcon
+          message="无法加载内置 MCP 目录"
+          description={catalogError}
+          action={
+            <Button onClick={() => setRevision(value => value + 1)}>
+              重试
+            </Button>
+          }
+        />
       )}
       <div className="resource-tools-layout">
-        <section>
-          {items.length === 0 && <p>当前范围暂无资源。</p>}
-          {items.map(row => (
-            <article key={row.id}>
-              <h2>
-                <button onClick={() => select(row)}>
-                  {row.name || `MCP ${row.id}`}
-                </button>
-              </h2>
-              <p>{row.description || row.content}</p>
-              <small>
-                {row.version}
-                {row.status === 0 ? ' · 草稿' : ''}
-              </small>
-              <div className="resource-tools-actions">
-                {!market && (
-                  <>
-                    <button disabled={busy} onClick={() => edit(row)}>
-                      编辑
-                    </button>
-                    <button disabled={busy} onClick={() => remove(row)}>
-                      删除
-                    </button>
-                  </>
-                )}
-                {mode === 'tools' && (
-                  <>
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        void run(async () => {
-                          await http.post(`${base}/${row.id}/favorite`, {
-                            favorite: true,
-                          });
-                          setResult('已收藏');
-                        });
-                      }}
-                    >
-                      收藏
-                    </button>
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        void run(async () => {
-                          await http.post(`${base}/${row.id}/favorite`, {
-                            favorite: false,
-                          });
-                          setResult('已取消收藏');
-                        });
-                      }}
-                    >
-                      取消收藏
-                    </button>
-                    {!market && (
-                      <button
+        <section aria-label="资源列表" aria-busy={loading}>
+          {loading && (
+            <div className="resource-tools-loading">
+              <Skeleton active />
+              <Skeleton active />
+            </div>
+          )}
+          {!loading && !listError && items.length === 0 && (
+            <Empty
+              description={
+                query ? '没有匹配的资源，请调整搜索词。' : '当前范围暂无资源。'
+              }
+            >
+              {query ? (
+                <Button
+                  onClick={() => {
+                    setQuery('');
+                    setPage(1);
+                  }}
+                >
+                  清除搜索
+                </Button>
+              ) : (
+                !market && (
+                  <Button
+                    type="primary"
+                    disabled={busy}
+                    onClick={() => edit(null)}
+                  >
+                    新建{mode === 'mcp' ? '服务' : '工具'}
+                  </Button>
+                )
+              )}
+            </Empty>
+          )}
+          {!loading &&
+            items.map(row => (
+              <article
+                key={row.id}
+                className={
+                  selected?.id === row.id ? 'resource-tools-selected' : ''
+                }
+              >
+                <h2>
+                  <Button
+                    type="link"
+                    disabled={busy}
+                    title={row.name}
+                    onClick={() => select(row)}
+                  >
+                    {row.name || `MCP ${row.id}`}
+                  </Button>
+                </h2>
+                <p>{row.description || row.content}</p>
+                <div className="resource-tools-meta">
+                  {row.version && <Tag>{row.version}</Tag>}
+                  {row.status === 0 && <Tag>草稿</Tag>}
+                </div>
+                <div className="resource-tools-actions">
+                  {!market && (
+                    <>
+                      <Button disabled={busy} onClick={() => edit(row)}>
+                        编辑
+                      </Button>
+                      <Button
+                        danger
                         disabled={busy}
-                        onClick={() => {
-                          void run(async () => {
-                            await http.post(`${base}/${row.id}/publish`, {
-                              public: !row.isPublic,
+                        onClick={() => remove(row)}
+                      >
+                        删除
+                      </Button>
+                    </>
+                  )}
+                  {mode === 'tools' && (
+                    <>
+                      <Dropdown
+                        disabled={busy}
+                        trigger={['click']}
+                        menu={{
+                          items: [
+                            { key: 'add', label: '加入收藏' },
+                            { key: 'remove', label: '移出收藏' },
+                          ],
+                          onClick: ({ key }) => {
+                            void run(async () => {
+                              await http.post(`${base}/${row.id}/favorite`, {
+                                favorite: key === 'add',
+                              });
+                              setResult(
+                                key === 'add' ? '已收藏' : '已取消收藏'
+                              );
                             });
-                            setRevision(value => value + 1);
-                          });
+                          },
                         }}
                       >
-                        {row.isPublic ? '移出市场' : '加入市场'}
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
-            </article>
-          ))}
+                        <Button disabled={busy}>
+                          收藏管理 <DownOutlined />
+                        </Button>
+                      </Dropdown>
+                      {!market && (
+                        <Button
+                          disabled={busy}
+                          onClick={() => {
+                            void run(async () => {
+                              await http.post(`${base}/${row.id}/publish`, {
+                                public: !row.isPublic,
+                              });
+                              setRevision(value => value + 1);
+                            });
+                          }}
+                        >
+                          {row.isPublic ? '移出市场' : '加入市场'}
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </article>
+            ))}
           <div className="resource-tools-actions">
-            <button
-              disabled={page === 1}
+            <Button
+              disabled={loading || page === 1}
               onClick={() => setPage(value => value - 1)}
             >
               上一页
-            </button>
+            </Button>
             <span>
               {page} / {Math.max(1, Math.ceil(total / 20))}
             </span>
-            <button
-              disabled={page * 20 >= total}
+            <Button
+              disabled={loading || page * 20 >= total}
               onClick={() => setPage(value => value + 1)}
             >
               下一页
-            </button>
+            </Button>
           </div>
         </section>
-        <section className="resource-tools-editor">
+        <section
+          ref={detailRef}
+          tabIndex={-1}
+          aria-label="资源详情与配置"
+          className="resource-tools-editor"
+        >
+          {error && (
+            <div ref={errorRef} tabIndex={-1}>
+              <Alert
+                type="error"
+                showIcon
+                message="操作未完成"
+                description={error}
+              />
+            </div>
+          )}
           {editing ? (
             <form
+              ref={formRef}
               onSubmit={event => {
                 event.preventDefault();
                 save(false);
               }}
             >
-              <h2>{selected ? '编辑' : '新建'}</h2>
+              <h2>
+                {selected
+                  ? `编辑 ${selected.name}`
+                  : `新建${mode === 'mcp' ? '服务' : '工具'}`}
+              </h2>
               <label>
                 名称
-                <input
+                <Input
+                  disabled={busy}
                   required
                   maxLength={mode === 'tools' ? 64 : 255}
                   value={name}
@@ -348,7 +545,8 @@ export default function ResourceTools({
               </label>
               <label>
                 说明
-                <textarea
+                <Input.TextArea
+                  disabled={busy}
                   required
                   value={description}
                   onChange={event => setDescription(event.target.value)}
@@ -358,7 +556,8 @@ export default function ResourceTools({
                 <>
                   <label>
                     版本
-                    <input
+                    <Input
+                      disabled={busy}
                       required
                       value={version}
                       onChange={event => setVersion(event.target.value)}
@@ -366,7 +565,8 @@ export default function ResourceTools({
                   </label>
                   <label>
                     OpenAPI 3 文档
-                    <textarea
+                    <Input.TextArea
+                      disabled={busy}
                       className="resource-tools-code"
                       required
                       spellCheck={false}
@@ -379,7 +579,8 @@ export default function ResourceTools({
                 <>
                   <label>
                     服务 URL
-                    <input
+                    <Input
+                      disabled={busy}
                       type="url"
                       required={!selected}
                       placeholder={
@@ -391,7 +592,8 @@ export default function ResourceTools({
                   </label>
                   <label>
                     环境参数
-                    <textarea
+                    <Input.TextArea
+                      disabled={busy}
                       spellCheck={false}
                       value={parameters}
                       onChange={event => setParameters(event.target.value)}
@@ -403,21 +605,30 @@ export default function ResourceTools({
                 </>
               )}
               <div className="resource-tools-actions">
-                <button disabled={busy} type="submit">
+                <Button loading={busy} type="primary" htmlType="submit">
                   {busy ? '处理中…' : '验证并保存'}
-                </button>
+                </Button>
                 {mode === 'tools' && (
-                  <button
+                  <Button
                     disabled={busy}
-                    type="button"
+                    htmlType="button"
                     onClick={() => save(true)}
                   >
                     保存草稿
-                  </button>
+                  </Button>
                 )}
-                <button type="button" onClick={() => setEditing(false)}>
+                <Button
+                  disabled={busy}
+                  htmlType="button"
+                  onClick={() => {
+                    if (canReplaceEditor()) {
+                      setEditing(false);
+                      setError('');
+                    }
+                  }}
+                >
                   取消
-                </button>
+                </Button>
               </div>
             </form>
           ) : selected ? (
@@ -426,7 +637,8 @@ export default function ResourceTools({
               {mode === 'mcp' && (
                 <label>
                   工具名称
-                  <input
+                  <Input
+                    disabled={busy}
                     value={debugName}
                     onChange={event => setDebugName(event.target.value)}
                   />
@@ -436,7 +648,8 @@ export default function ResourceTools({
                 {mode === 'tools'
                   ? '请求参数（path/query/header/body）'
                   : '工具参数'}
-                <textarea
+                <Input.TextArea
+                  disabled={busy}
                   className="resource-tools-code"
                   value={debugInput}
                   spellCheck={false}
@@ -444,7 +657,7 @@ export default function ResourceTools({
                 />
               </label>
               <div className="resource-tools-actions">
-                <button
+                <Button
                   disabled={busy}
                   onClick={() => {
                     void run(async () => {
@@ -467,11 +680,11 @@ export default function ResourceTools({
                   }}
                 >
                   运行调试
-                </button>
+                </Button>
                 {mode === 'tools' && (
                   <>
-                    <button onClick={exportTool}>导出</button>
-                    <button
+                    <Button onClick={exportTool}>导出</Button>
+                    <Button
                       disabled={busy}
                       onClick={() => {
                         void run(async () => {
@@ -484,15 +697,23 @@ export default function ResourceTools({
                       }}
                     >
                       查看版本
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
             </div>
           ) : (
-            <p>选择资源查看详情，或新建资源。</p>
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="选择资源查看详情，或新建资源。"
+            />
           )}
-          {result && <pre>{result}</pre>}
+          {result && (
+            <div className="resource-tools-result">
+              <h3>操作结果</h3>
+              <pre tabIndex={0}>{result}</pre>
+            </div>
+          )}
         </section>
       </div>
       {mode === 'mcp' && catalog.length > 0 && (
@@ -503,16 +724,17 @@ export default function ResourceTools({
               <article key={item.id}>
                 <h3>{item.name}</h3>
                 <p>{item.brief}</p>
-                <button
+                <Button
+                  disabled={busy}
                   onClick={() => {
-                    edit(null);
+                    if (!edit(null)) return;
                     setName(item.name);
                     setDescription(item.brief);
                     setServerUrl(item.server);
                   }}
                 >
                   添加连接
-                </button>
+                </Button>
               </article>
             ))}
           </div>

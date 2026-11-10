@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Spin, Popconfirm } from 'antd';
+import { Spin, Popconfirm, Button } from 'antd';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import classNames from 'classnames';
@@ -28,7 +28,7 @@ const DatabaseSidebar: React.FC = () => {
   const handleEditDatabase = (): void => openModal('createDatabase');
 
   return (
-    <div className="w-[28%] flex-none h-full p-6 bg-[#fff] rounded-2xl flex flex-col">
+    <div className="w-full h-full p-5 bg-white border border-[#dfe6f1] rounded-[14px] flex flex-col min-w-0">
       {/* 数据库信息头部 */}
       <DatabaseHeader
         dbDetailData={dbDetailData}
@@ -68,13 +68,10 @@ const DatabaseHeader: React.FC<DatabaseHeaderProps> = memo(
         >
           {dbDetailData?.name}
         </div>
-        <div
-          className="text-[#6356EA] text-sm flex items-center gap-2 cursor-pointer"
-          onClick={onEditDatabase}
-        >
+        <Button type="link" onClick={onEditDatabase}>
           <img src={databaseEditIcon} className="w-[14px] h-[14px]" alt="" />
           <span>{t('database.edit')}</span>
-        </div>
+        </Button>
       </div>
     );
   }
@@ -124,20 +121,22 @@ const TableList: React.FC<TableListProps> = memo(
               <div
                 key={index}
                 className={classNames(
-                  'flex items-center min-w-max w-full gap-1.5 h-12 px-3 py-3.5 text-gray-500 border border-blue-100 rounded-lg bg-white cursor-pointer hover:border-blue-600',
+                  'flex items-center min-w-0 w-full gap-1.5 px-3 py-3 text-[#607089] border border-[#dfe6f1] rounded-lg bg-white',
                   {
                     'border-blue-600 bg-blue-50':
                       currentSheet && item.id === currentSheet.id,
                   }
                 )}
-                onClick={(): void => handleSelectSheet(item)}
               >
-                <div
-                  className="flex-1 w-0 truncate text-[14px]"
+                <button
+                  type="button"
+                  className="flex-1 min-w-0 text-left break-words text-sm"
                   title={item.name}
+                  aria-pressed={currentSheet?.id === item.id}
+                  onClick={() => handleSelectSheet(item)}
                 >
                   {item.name}
-                </div>
+                </button>
                 <div className="flex-none flex items-center gap-[14px]">
                   <div className="text-[12px]">
                     {dayjs(item.createTime).format('YYYY-MM-DD HH:mm')}
@@ -148,10 +147,17 @@ const TableList: React.FC<TableListProps> = memo(
                     okText={t('database.confirm')}
                     cancelText={t('database.cancel')}
                   >
-                    <img
-                      src={deleteIcon}
-                      className="w-[14px] h-[14px]"
-                      alt=""
+                    <Button
+                      type="text"
+                      danger
+                      aria-label={`删除数据表 ${item.name}`}
+                      icon={
+                        <img
+                          src={deleteIcon}
+                          className="w-[14px] h-[14px]"
+                          alt=""
+                        />
+                      }
                     />
                   </Popconfirm>
                 </div>
@@ -164,14 +170,14 @@ const TableList: React.FC<TableListProps> = memo(
           </div>
         )}
         <div className="w-full pt-6">
-          <div
-            className="w-full rounded-lg border border-[#6356EA] py-1 text-center text-[#6356EA] text-sm cursor-pointer"
-            onClick={(): void =>
-              navigate(`/resource/database/${dbDetailData?.id}/add`)
+          <Button
+            block
+            onClick={() =>
+              navigate(`/resource/database/${dbDetailData.id}/add`)
             }
           >
             {t('database.addDataTable')}
-          </div>
+          </Button>
         </div>
       </Spin>
     );

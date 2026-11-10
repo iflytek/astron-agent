@@ -3,10 +3,10 @@ import {
   ModelInfo,
   LLMSource,
   ShelfStatus,
-  ModelType,
   ModelCreateType,
 } from '@/types/model';
 import React from 'react';
+import styles from '../../model-workspace.module.scss';
 import i18next from 'i18next';
 import { getModelProviderLabel } from '../../utils/provider';
 
@@ -20,12 +20,6 @@ interface ModelInfoDisplayProps {
 }
 
 // 辅助函数
-const getShelfStatusStyle = (shelfStatus?: number): string => {
-  if (shelfStatus === ShelfStatus.WAIT_OFF_SHELF) return '#F74E43';
-  if (shelfStatus === ShelfStatus.OFF_SHELF) return '#7F7F7F';
-  return 'transparent';
-};
-
 const getShelfStatusText = (shelfStatus?: number): string => {
   if (shelfStatus === ShelfStatus.WAIT_OFF_SHELF)
     return i18next.t('model.toBeOffShelf');
@@ -65,28 +59,6 @@ const renderModelIcon = (
   );
 };
 
-const renderTags = (
-  tags: string[],
-  bgColor: string,
-  textStyle?: React.CSSProperties
-): React.JSX.Element => {
-  return (
-    <>
-      {tags
-        .filter(name => name !== i18next.t('model.other'))
-        .map(name => (
-          <span
-            key={name}
-            className={`px-1.5 py-0.5 text-xs rounded-sm ${bgColor} opacity-60`}
-            style={textStyle}
-          >
-            {name}
-          </span>
-        ))}
-    </>
-  );
-};
-
 const ModelInfoDisplay: React.FC<ModelInfoDisplayProps> = ({
   modelDetail,
   modelIcon,
@@ -102,60 +74,41 @@ const ModelInfoDisplay: React.FC<ModelInfoDisplayProps> = ({
 
   return (
     <>
-      <div className="flex justify-between items-start">
-        <div className="flex items-start gap-[26px]">
-          {renderModelIcon(modelDetail, modelIcon)}
-          <div className="flex flex-col justify-between h-[72px]">
-            <div className="flex items-center space-x-2 mt-3">
-              <span className="font-semibold text-gray-900 truncate">
-                {modelDetail?.name}
+      <div className={styles.detailIdentity}>
+        {renderModelIcon(modelDetail, modelIcon)}
+        <div className="min-w-0 flex-1">
+          <h1>{modelDetail?.name}</h1>
+          <div className={styles.detailTags}>
+            {modelDetail?.type === ModelCreateType.LOCAL && (
+              <span className={styles.tag}>本地模型</span>
+            )}
+            {providerLabel && (
+              <span className={styles.tag}>{providerLabel}</span>
+            )}
+            {[...modelCategoryTags, ...modelScenarioTags]
+              .filter(name => name !== t('model.other'))
+              .map(name => (
+                <span key={name} className={styles.tag}>
+                  {name}
+                </span>
+              ))}
+            {getShelfStatusText(modelDetail?.shelfStatus) && (
+              <span className={styles.tag}>
+                {getShelfStatusText(modelDetail?.shelfStatus)}
               </span>
-              {modelDetail?.type === ModelCreateType.LOCAL && (
-                <span className="font-normal text-[#FF9602] text-[12px] truncate">
-                  本地选择模型
-                </span>
-              )}
-              {modelDetail?.shelfStatus !== undefined && (
-                <span
-                  className="shrink-0 px-2 py-0.5 text-xs text-white rounded-full whitespace-nowrap"
-                  style={{
-                    backgroundColor: getShelfStatusStyle(
-                      modelDetail.shelfStatus
-                    ),
-                  }}
-                >
-                  {getShelfStatusText(modelDetail.shelfStatus)}
-                </span>
-              )}
-            </div>
-
-            <p className="text-sm text-gray-500 flex flex-wrap gap-x-2 gap-2">
-              {providerLabel && (
-                <span className="px-1.5 py-0.5 text-xs rounded-sm bg-[#E4EAFF] opacity-60">
-                  {providerLabel}
-                </span>
-              )}
-              {renderTags(modelCategoryTags, 'bg-[#E4EAFF]', {
-                color: '#000000',
-              })}
-              {renderTags(modelScenarioTags, 'bg-[#E8E8EA]', {
-                color: '#000000',
-              })}
+            )}
+          </div>
+          {modelDetail?.updateTime && (
+            <p className={styles.hint}>
+              {t('model.updatedAt')} {modelDetail.updateTime}
             </p>
-          </div>
+          )}
         </div>
-        {modelDetail?.updateTime && (
-          <div className="flex items-center gap-2.5 text-desc">
-            <div>
-              {t('model.updatedAt')} {modelDetail?.updateTime}
-            </div>
-          </div>
-        )}
       </div>
-      <div className="text-desc mt-3 text-sm">{modelDetail?.desc}</div>
-      <div className="text-desc mt-3 text-sm">
-        {bottomTexts?.join('\u00A0\u00A0\u00A0\u00A0\u00A0')}
-      </div>
+      <p className={styles.detailDescription}>{modelDetail?.desc}</p>
+      {bottomTexts.length > 0 && (
+        <p className={styles.hint}>{bottomTexts.join(' · ')}</p>
+      )}
     </>
   );
 };

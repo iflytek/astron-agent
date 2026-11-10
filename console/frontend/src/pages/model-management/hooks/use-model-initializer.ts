@@ -89,11 +89,12 @@ export const useModelInitializer = (
     const loadData = async (): Promise<void> => {
       try {
         actions.setLoading(true);
+        actions.setError('');
 
         const records = await getAllModels(
           {
             type: modelType,
-            name: state.searchInput || '',
+            name: '',
             filter: modelType === 2 ? state.filterType : 0,
           },
           controller.signal
@@ -121,11 +122,9 @@ export const useModelInitializer = (
             error instanceof Error ? error.message : '模型列表加载失败'
           );
         }
-        actions.setModels([]);
-        actions.setShelfOffModels([]);
-        if (modelType === 1) {
-          actions.setCategoryList([]);
-        }
+        actions.setError(
+          error instanceof Error ? error.message : '模型列表加载失败'
+        );
       } finally {
         if (!controller.signal.aborted) actions.setLoading(false);
       }

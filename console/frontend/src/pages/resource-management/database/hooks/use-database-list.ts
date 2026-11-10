@@ -1,129 +1,84 @@
-import { shouldShowRequestError } from '@/utils/http-error';
-import {
-  useState,
-  useCallback,
-  Dispatch,
-  SetStateAction,
-  RefObject,
-  MutableRefObject,
-} from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { pageList, create } from '@/services/database';
 import { DatabaseItem, CreateDbParams } from '@/types/database';
-import { useInfiniteScroll } from './use-infinite-scroll';
-import { message } from 'antd';
-import { ResponseBusinessError } from '@/types/global';
 
-type createDatabaseOk = (createParams: CreateDbParams) => void;
-
-interface UseDatabaseListReturn {
-  // 状态
-  dataSource: DatabaseItem[];
-  hasMore: boolean;
-  searchValue: string;
-  pagination: {
-    pageNum: number;
-    pageSize: number;
-  };
-
-  // 方法
-  getList: () => void;
-  handleLoadMore: () => void;
-  createDatabaseOk: createDatabaseOk;
-  setSearchValue: Dispatch<SetStateAction<string>>;
-  setPagination: Dispatch<
-    SetStateAction<{ pageNum: number; pageSize: number }>
-  >;
-
-  // 无限滚动相关
-  loader: RefObject<HTMLDivElement>;
-  loadingRef: MutableRefObject<boolean>;
-}
-
-// 数据库列表 hook
-export const useDatabaseList = (): UseDatabaseListReturn => {
-  const [hasMore, setHasMore] = useState(false); // 是否还有更多数据
-  const [pagination, setPagination] = useState({
-    pageNum: 1,
-    pageSize: 20,
-  }); // 分页信息
-  const [dataSource, setDataSource] = useState<DatabaseItem[]>([]); // 数据库列表
-  const [searchValue, setSearchValue] = useState(''); // 搜索内容
-
-  // 无限滚动回调函数
-  const handleLoadMore = useCallback((): void => {
-    setPagination(pagination => ({
-      ...pagination,
-      pageNum: pagination?.pageNum + 1,
-    }));
-  }, []);
-
-  const { targetRef: loader, loading: loadingRef } = useInfiniteScroll(
-    handleLoadMore,
-    hasMore
-  );
-
-  // 获取数据库列表
-  const getList = useCallback((): void => {
-    loadingRef.current = true;
-    const params = {
-      pageNum: pagination?.pageNum,
-      pageSize: pagination?.pageSize,
-      search: searchValue,
-    };
-    pageList(params)
-      .then(data => {
-        const newData = data?.records || [];
-        setDataSource(preDataSource => {
-          if (pagination?.pageNum === 1) {
-            return [...newData];
-          } else {
-            return [...preDataSource, ...newData];
-          }
-        });
-        if (20 * pagination?.pageNum < data.total) {
-          setHasMore(true);
-        } else {
-          setHasMore(false);
+export const useDatabaseList = () => {
+  const [hasMore, setHasMore] = useState(false);
+  const [dataSource, setDataSource] = useState<DatabaseItem[]>([]);
+  const [searchValue, setSearchValue] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const requestId = useRef(0);
+  const page = useRef(1);
+  const query = useRef('');
+  const loadingRef = useRef(false);
+  const fetchPage = useCallback(
+    async (pageNum: number, search: string): Promise<void> => {
+      const id = ++requestId.current;
+      loadingRef.current = true;
+      setLoading(true);
+      setError('');
+      try {
+        const data = await pageList({ pageNum, pageSize: 20, search });
+        if (id !== requestId.current) return;
+        setDataSource(previous =>
+          pageNum === 1
+            ? data.records || []
+            : [...previous, ...(data.records || [])]
+        );
+        page.current = pageNum;
+        setHasMore(pageNum * 20 < data.total);
+      } catch (failure) {
+        if (id === requestId.current)
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : '数据库加载失败，请重试。'
+          );
+      } finally {
+        if (id === requestId.current) {
+          setLoading(false);
+          loadingRef.current = false;
         }
-      })
-      .finally(() => {
-        loadingRef.current = false;
-      })
-      .catch((e: ResponseBusinessError) => {
-        shouldShowRequestError(e) && message.error(e?.message);
-      });
-  }, [pagination, searchValue, loadingRef]);
-
-  // 创建数据库
-  const createDatabaseOk = useCallback(
-    (createParams: CreateDbParams): void => {
-      create(createParams)
-        .then(() => {
-          getList();
-        })
-        .catch((error: ResponseBusinessError) => {
-          shouldShowRequestError(error) && message.error(error?.message);
-        });
+      }
     },
-    [getList]
+    []
   );
-
+  const getList = useCallback((): void => {
+    void fetchPage(1, query.current);
+  }, [fetchPage]);
+  const search = useCallback(
+    (value: string): void => {
+      query.current = value;
+      setSearchValue(value);
+      setDataSource([]);
+      void fetchPage(1, value);
+    },
+    [fetchPage]
+  );
+  const handleLoadMore = (): void => {
+    if (!loadingRef.current && hasMore)
+      void fetchPage(page.current + 1, query.current);
+  };
+  const createDatabaseOk = async (params: CreateDbParams): Promise<void> => {
+    await create(params);
+    getList();
+  };
+  useEffect(() => {
+    getList();
+    return () => {
+      requestId.current += 1;
+    };
+  }, [getList]);
   return {
-    // 状态
     dataSource,
     hasMore,
     searchValue,
-    pagination,
-
-    // 方法
+    loading,
+    error,
     getList,
+    search,
     handleLoadMore,
     createDatabaseOk,
-    setSearchValue,
-    setPagination,
-
-    // 无限滚动相关
-    loader,
-    loadingRef,
   };
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Button, Input, Form } from 'antd';
+import { Modal, Button, Input, Form, Alert } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { DatabaseItem } from '@/types/database';
 
@@ -16,24 +16,29 @@ const CreateDatabase = (props: {
   const { open, handleOk, handleCancel, type, info = {} } = props;
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const onSave = (): void => {
-    form.validateFields().then(async values => {
-      try {
-        setLoading(true);
-        if (type == 'edit') {
-          await handleOk({
-            ...info,
-            ...values,
-          });
-        } else {
-          await handleOk(values);
-        }
-        handleCancel();
-      } finally {
-        setLoading(false);
+  const onSave = async (): Promise<void> => {
+    if (loading) return;
+    try {
+      const values = await form.validateFields();
+      setLoading(true);
+      setError('');
+      await handleOk(type === 'edit' ? { ...info, ...values } : values);
+      handleCancel();
+    } catch (failure) {
+      if (
+        !(failure && typeof failure === 'object' && 'errorFields' in failure)
+      ) {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : '保存失败，请检查配置后重试。'
+        );
       }
-    });
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -50,6 +55,7 @@ const CreateDatabase = (props: {
       className="w-[76px]"
       autoInsertSpace={false}
       onClick={handleCancel}
+      disabled={loading}
     >
       {t('database.cancel')}
     </Button>,
@@ -59,7 +65,7 @@ const CreateDatabase = (props: {
       autoInsertSpace={false}
       type="primary"
       loading={loading}
-      onClick={onSave}
+      onClick={() => void onSave()}
     >
       {t('database.confirm')}
     </Button>,
@@ -87,6 +93,9 @@ const CreateDatabase = (props: {
       centered
     >
       <div className="pt-[24px]">
+        {error && (
+          <Alert type="error" showIcon message={error} className="mb-4" />
+        )}
         <Form layout="vertical" form={form} name="control-hooks">
           <Form.Item
             label={t('database.databaseName')}

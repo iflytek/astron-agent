@@ -1,19 +1,19 @@
-import React, { memo, useRef } from 'react';
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import back from '@/assets/imgs/common/back.png';
 import { useNavigate } from 'react-router-dom';
-import { Spin, Table } from 'antd';
+import { Alert, Button, Empty, Skeleton, Table } from 'antd';
+import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { ColumnsType } from 'antd/es/table';
 import { useRpaDetail } from './hooks/use-rpa-detail';
-
 import { RpaRobot } from '@/types/rpa';
 import dayjs from 'dayjs';
 import { ModalDetail } from '@/components/workflow/modal/modal-detail';
 import { ModalRpaRun } from '@/components/workflow/modal/modal-rpa-run';
-
+import { resourceStyles as styles } from '../knowledge-page/resource-surface';
 export const RpaDetail = () => {
   const { t } = useTranslation();
-  const { rpaDetail, loading } = useRpaDetail();
+  const navigate = useNavigate();
+  const { rpaDetail, loading, error, refresh } = useRpaDetail();
   const modalDetailRef = useRef<{ showModal: (values?: RpaRobot) => void }>(
     null
   );
@@ -24,133 +24,114 @@ export const RpaDetail = () => {
     {
       title: t('rpa.robotName'),
       dataIndex: 'name',
-      width: 200,
-      ellipsis: true,
-      render: (_, record) => {
-        return (
-          <div className="flex items-center">
-            <img
-              src={record.icon}
-              className="w-[28px] h-[28px] rounded-lg"
-              alt=""
-            />
-            <div className="flex-1 pl-[12px] truncate max-w-[166px]">
-              {record.name}
-            </div>
-          </div>
-        );
-      },
+      width: 220,
+      render: (_, record) => (
+        <div className="flex items-center gap-3">
+          <img src={record.icon} className="w-7 h-7 rounded-lg" alt="" />
+          <span className="break-words">{record.name}</span>
+        </div>
+      ),
     },
-    {
-      title: t('rpa.description'),
-      dataIndex: 'description',
-    },
+    { title: t('rpa.description'), dataIndex: 'description', width: 320 },
     {
       title: t('rpa.parameters'),
-      dataIndex: 'parameters',
-      width: 80,
-      render: (_, record) => {
-        return (
-          <div
-            className="text-[#6356EA] cursor-pointer"
-            onClick={() => modalDetailRef.current?.showModal(record)}
-          >
-            {t('rpa.detail')}
-          </div>
-        );
-      },
+      width: 100,
+      render: (_, record) => (
+        <Button
+          type="link"
+          onClick={() => modalDetailRef.current?.showModal(record)}
+        >
+          {t('rpa.detail')}
+        </Button>
+      ),
     },
     {
       title: t('rpa.operation'),
-      dataIndex: 'operation',
-      width: 80,
-      render: (_, record) => {
-        return (
-          <div
-            className="text-[#275EFF] cursor-pointer"
-            onClick={() =>
-              modalRpaRunRef.current?.showModal({
-                ...record,
-                assistantId: rpaDetail?.id,
-              })
-            }
-          >
-            {t('rpa.run')}
-          </div>
-        );
-      },
+      width: 100,
+      render: (_, record) => (
+        <Button
+          type="link"
+          onClick={() =>
+            modalRpaRunRef.current?.showModal({
+              ...record,
+              assistantId: rpaDetail?.id,
+            })
+          }
+        >
+          {t('rpa.run')}
+        </Button>
+      ),
     },
   ];
   return (
-    <div className="w-full h-full  flex flex-col">
-      <BackButton className="px-6" />
+    <main className={styles.detail}>
+      <div className="flex justify-between gap-3 flex-wrap">
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate('/resource/rpa')}
+        >
+          返回 RPA
+        </Button>
+        <Button icon={<ReloadOutlined />} loading={loading} onClick={refresh}>
+          刷新
+        </Button>
+      </div>
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={<Button onClick={refresh}>重试</Button>}
+        />
+      )}
       {loading ? (
-        <div className="flex justify-center items-center mx-6 flex-1  my-[24px] bg-[#fff] rounded-2xl px-[24px] py-[24px]">
-          <Spin />
-        </div>
+        <Skeleton active />
       ) : (
-        <div className="flex flex-col mx-6 flex-1  my-[24px] bg-[#fff] rounded-2xl px-[24px] py-[24px]">
-          <div className="w-full flex justify-between items-center">
-            <div className="flex">
-              <img
-                className="w-[62px] h-[62px]"
-                src={rpaDetail?.icon}
-                alt="rpa"
-              />
-              <div className="pl-[24px]">
-                <div className="text-2xl font-medium">
-                  {rpaDetail?.assistantName}
-                </div>
-                <div className="text-sm text-[#7F7F7F] pt-[12px]">
-                  {rpaDetail?.userName}
-                </div>
+        rpaDetail && (
+          <section className={styles.panel}>
+            <header className={styles.heading}>
+              <div>
+                <h1>{rpaDetail.assistantName}</h1>
+                <p>{rpaDetail.userName}</p>
               </div>
-            </div>
-            <div className="text-sm text-[#7F7F7F] pb-[16px]">
-              {t('rpa.updateTime')}
-              {dayjs(rpaDetail?.updateTime).format('YYYY-MM-DD HH:mm:ss')}
-            </div>
-          </div>
-          <div className="w-full text-[#7F7F7F]  pt-[12px] ">
-            {rpaDetail?.remarks}
-          </div>
-          <div className="w-full pt-[32px] pb-[12px]">
-            {t('rpa.robotResourceList')}
-          </div>
-          <div className="h-[400px]">
+              {rpaDetail.icon && (
+                <img
+                  src={rpaDetail.icon}
+                  className="w-12 h-12 rounded-lg"
+                  alt=""
+                />
+              )}
+            </header>
+            <p className="text-[#526580] break-words mb-4">
+              {rpaDetail.remarks || '暂无说明'}
+            </p>
+            {rpaDetail.updateTime && (
+              <p className="text-sm text-[#607089] mb-6">
+                {t('rpa.updateTime')}{' '}
+                {dayjs(rpaDetail.updateTime).format('YYYY-MM-DD HH:mm:ss')}
+              </p>
+            )}
+            <h2 className="font-semibold text-base mb-4">
+              {t('rpa.robotResourceList')}
+            </h2>
             <Table
-              dataSource={rpaDetail?.robots}
-              className="document-table"
+              dataSource={rpaDetail.robots}
               columns={columns}
               rowKey="project_id"
-              style={{ overflow: 'auto' }}
+              scroll={{ x: 740 }}
               pagination={false}
-            ></Table>
-          </div>
-        </div>
+              locale={{
+                emptyText: (
+                  <Empty description="暂无机器人资源，可刷新获取最新数据。" />
+                ),
+              }}
+            />
+          </section>
+        )
       )}
       <ModalDetail ref={modalDetailRef} />
       <ModalRpaRun ref={modalRpaRunRef} />
-    </div>
+    </main>
   );
 };
-
-const BackButton: React.FC<{ className?: string }> = memo(({ className }) => {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-
-  const handleBack = (): void => navigate(-1);
-
-  return (
-    <button
-      className={`flex items-center gap-2 mt-6 cursor-pointer hover:opacity-80 transition-opacity ${className}`}
-      onClick={handleBack}
-      type="button"
-    >
-      <img src={back} className="w-[18px] h-[18px]" alt="back" />
-      <div className="mr-1 font-medium text-4">{t('rpa.back')}</div>
-    </button>
-  );
-});
-
 export default RpaDetail;
