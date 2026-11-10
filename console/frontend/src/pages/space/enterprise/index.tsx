@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { Spin } from 'antd';
+import { Alert, Button, Spin } from 'antd';
 import classNames from 'classnames';
 import styles from './index.module.scss';
 import EnterpriseSpaceLayout from './base-layout';
@@ -22,9 +22,11 @@ export default function Index() {
   const identity = JSON.stringify([uid, enterpriseId]);
   const [loadedId, setLoadedId] = useState('');
   const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     let ignore = false;
     setError('');
+    setLoadedId('');
     useUserStore.getState().clearUserRole();
     useEnterpriseStore.getState().clearEnterpriseData();
     if (!uid || !enterpriseId) return;
@@ -72,9 +74,23 @@ export default function Index() {
     return () => {
       ignore = true;
     };
-  }, [uid, enterpriseId, identity]);
+  }, [uid, enterpriseId, identity, revision]);
   if (!uid || loadedId !== identity) return <Spin />;
-  if (error) return <p role="alert">{error}</p>;
+  if (error)
+    return (
+      <div className={styles.feedback}>
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={
+            <Button onClick={() => setRevision(value => value + 1)}>
+              重试
+            </Button>
+          }
+        />
+      </div>
+    );
   return (
     <div
       className={classNames('h-full overflow-hidden', styles.enterpriseSpace)}

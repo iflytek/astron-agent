@@ -143,7 +143,9 @@ const SpaceTab: React.FC<SpaceTabProps> = ({
       <div className={styles.tabHeader}>
         <div className={styles.tabList}>
           {filteredOptions.map(option => (
-            <div
+            <button
+              type="button"
+              aria-pressed={option.key === activeKey}
               key={option.key}
               className={classNames(
                 styles.tabItem,
@@ -152,7 +154,7 @@ const SpaceTab: React.FC<SpaceTabProps> = ({
               onClick={() => handleTabClick(option.key)}
             >
               <span className={styles.tabLabel}>{option.label}</span>
-            </div>
+            </button>
           ))}
         </div>
 

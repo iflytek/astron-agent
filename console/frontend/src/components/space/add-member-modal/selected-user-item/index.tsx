@@ -44,6 +44,7 @@ const SelectedUserItem: React.FC<SelectedUserItemProps> = React.memo(
         />
         <span className={styles.username}>{user.username}</span>
         <Select
+          aria-label={`${user.username || user.nickname || user.uid} 的角色`}
           value={`${user.role}`}
           onChange={handleRoleChangeCallback}
           className={styles.roleSelect}
@@ -58,6 +59,7 @@ const SelectedUserItem: React.FC<SelectedUserItemProps> = React.memo(
             ))}
         </Select>
         <Button
+          aria-label={`移除 ${user.username || user.nickname || user.uid}`}
           type="text"
           icon={<CloseOutlined />}
           onClick={handleRemoveCallback}

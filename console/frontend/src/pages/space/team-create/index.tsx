@@ -13,7 +13,6 @@ import { defaultEnterpriseAvatar } from '@/constants/config';
 import agentLogoText from '@/assets/imgs/sidebar/agentLogoText.svg';
 import agentLogoTextEn from '@/assets/imgs/sidebar/agentLogoTextEn.svg';
 import creatorImg from '@/assets/imgs/space/creator.svg';
-import defaultUploadIcon from '@/assets/imgs/space/upload.png';
 import { useTranslation } from 'react-i18next';
 
 const TeamCreate: React.FC = () => {
@@ -25,7 +24,6 @@ const TeamCreate: React.FC = () => {
   const [teamName, setTeamName] = useState('');
   const [loading, setLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState(defaultEnterpriseAvatar);
-  const [reUploadImg, setReUploadImg] = useState(false);
   const [triggerChild, setTriggerChild] = useState(false);
   const { type } = useParams();
   const { t, i18n } = useTranslation();
@@ -93,7 +91,7 @@ const TeamCreate: React.FC = () => {
       {/* Logo */}
       <div className={styles.logo}>
         <img
-          src={isEnglish ? agentLogoText : agentLogoTextEn}
+          src={isEnglish ? agentLogoTextEn : agentLogoText}
           alt="Logo"
           className={styles.logoImage}
         />
@@ -102,9 +100,9 @@ const TeamCreate: React.FC = () => {
       {/* 主要内容 */}
       <div className={styles.content}>
         {/* 标题 */}
-        <div className={styles.title}>
-          {t('space.teamEditionAlreadyEffective', { enterpriseType })}
-        </div>
+        <h1 className={styles.title}>
+          {t('space.create', { enterpriseType })}
+        </h1>
 
         {/* 用户信息 */}
         <div className={styles.userInfo}>
@@ -128,35 +126,29 @@ const TeamCreate: React.FC = () => {
           {/* 团队图标 */}
           <div className={styles.teamIcon}>
             <div className={styles.iconPlaceholder}>
-              {reUploadImg && (
-                <div
-                  className={styles.upHoverBtn}
-                  onMouseLeave={() => setReUploadImg(false)}
-                  onClick={() => setTriggerChild(true)}
-                >
-                  <img
-                    className={styles.upHoverIcon}
-                    src={defaultUploadIcon}
-                    alt={t('space.upload')}
-                  />
-                </div>
-              )}
               <img
                 src={logoUrl}
                 alt={t('space.avatar')}
                 className={styles.avatarImg}
-                onMouseEnter={() => setReUploadImg(true)}
               />
             </div>
+            <button
+              className={styles.uploadButton}
+              type="button"
+              onClick={() => setTriggerChild(true)}
+            >
+              {t('space.upload')}
+            </button>
           </div>
 
           {/* 表单字段 */}
           <div className={styles.formFields}>
             <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>
+              <label className={styles.fieldLabel} htmlFor="team-name">
                 {t('space.name', { enterpriseType })}
               </label>
               <Input
+                id="team-name"
                 value={teamName}
                 onChange={e => setTeamName(e.target.value)}
                 placeholder={textConfig.emptyTip}

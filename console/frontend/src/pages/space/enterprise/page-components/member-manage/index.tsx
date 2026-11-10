@@ -235,8 +235,9 @@ const MemberManage: React.FC = () => {
       } = config;
 
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className={styles.tabActions}>
           <Select
+            aria-label={filterPlaceholder}
             value={filterValue}
             onChange={onFilterChange}
             style={{ width: 120 }}

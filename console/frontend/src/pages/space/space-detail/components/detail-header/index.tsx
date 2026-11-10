@@ -106,7 +106,13 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
   return (
     <div className={styles.detailHeader}>
       <div className={styles.back}>
-        <img src={BackIcon} alt="back" onClick={() => goToSpaceManagement()} />
+        <button
+          type="button"
+          aria-label="返回空间管理"
+          onClick={() => goToSpaceManagement()}
+        >
+          <img src={BackIcon} alt="" />
+        </button>
       </div>
       <div className={styles.spaceInfo}>
         <div className={styles.avatarContainer}>

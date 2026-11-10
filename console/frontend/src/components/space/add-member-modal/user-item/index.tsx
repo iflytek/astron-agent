@@ -71,6 +71,7 @@ const UserItem: React.FC<UserItemProps> = React.memo(
       <div className={userItemClassName} onClick={handleUserItemClick}>
         <div data-checkbox>
           <CusCheckBox
+            label={`选择 ${user.username || user.nickname || user.uid}`}
             checked={isUserSelected(user.uid)}
             disabled={checkboxDisabled}
             onChange={handleCheckboxChange}

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { Alert, Button, Spin } from 'antd';
+import styles from './index.module.scss';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import http, { getLanguageCode, downloadFileWithHeaders } from '@/utils/http';
 import { fetchSseWithContext } from '@/utils/sse-request';
@@ -49,6 +51,11 @@ export default function PublishedChat() {
   const stopRequested = useRef(false);
   const generation = useRef(0);
   const [revision, setRevision] = useState(0);
+  const [detailRevision, setDetailRevision] = useState(0);
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [detailError, setDetailError] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
   useEffect(() => {
     let active = true;
     generation.current += 1;
@@ -56,6 +63,9 @@ export default function PublishedChat() {
     runId.current = '';
     sessionId.current = '';
     setDetail(null);
+    setDetailLoading(true);
+    setDetailError('');
+    setError('');
     setHistory([]);
     setAnswer('');
     setStatus('');
@@ -72,15 +82,20 @@ export default function PublishedChat() {
         }
       })
       .catch(reason => {
-        if (active) setError(errorText(reason));
+        if (active) setDetailError(errorText(reason));
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false);
       });
     return () => {
       active = false;
       controller.current?.abort();
     };
-  }, [botId, shareKey, spaceId]);
+  }, [botId, shareKey, spaceId, detailRevision]);
   useEffect(() => {
     let active = true;
+    setHistoryLoading(true);
+    setHistoryError('');
     http
       .get<unknown, History[]>(`/published/${botId}/history`, {
         params: { shareKey },
@@ -89,12 +104,15 @@ export default function PublishedChat() {
         if (active) setHistory(data);
       })
       .catch(reason => {
-        if (active) setError(errorText(reason));
+        if (active) setHistoryError(errorText(reason));
+      })
+      .finally(() => {
+        if (active) setHistoryLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [botId, shareKey, spaceId, revision]);
+  }, [botId, shareKey, spaceId, revision, detailRevision]);
   const stop = async () => {
     const currentGeneration = generation.current;
     stopRequested.current = true;
@@ -224,7 +242,7 @@ export default function PublishedChat() {
     }
   };
   return (
-    <main className="agents-page">
+    <main className={`agents-page ${styles.chat}`}>
       <header className="agents-header">
         <div>
           <h1>{detail?.name || '已发布 Agent'}</h1>
@@ -237,43 +255,78 @@ export default function PublishedChat() {
           {error}
         </p>
       )}
+      {detailError && (
+        <Alert
+          type="error"
+          showIcon
+          message="无法打开已发布版本"
+          description={detailError}
+          action={
+            <Button onClick={() => setDetailRevision(value => value + 1)}>
+              重试
+            </Button>
+          }
+        />
+      )}
+      {detailLoading && (
+        <p role="status">
+          <Spin /> 正在读取已发布版本…
+        </p>
+      )}
       {detail?.prologue && <p>{detail.prologue}</p>}
       <section className="agents-panel">
         <h2>我的会话历史</h2>
-        {history.map(item => (
-          <article key={item.id}>
-            <p>
-              <strong>提问：</strong>
-              {typeof item.question === 'string'
-                ? item.question
-                : JSON.stringify(item.question)}
-            </p>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{item.answer}</p>
-            <small>{item.status}</small>
-            {item.files?.map(file => (
-              <button
-                key={file.id}
-                onClick={() =>
-                  downloadFileWithHeaders(file.downloadUrl, file.name)
-                }
-              >
-                {file.name}
-              </button>
-            ))}
-            {item.status === 'paused' && (
-              <button
-                disabled={busy}
-                onClick={() => {
-                  runId.current = item.id;
-                  setStatus('paused');
-                  setAnswer(item.answer);
-                }}
-              >
-                继续此运行
-              </button>
-            )}
-          </article>
-        ))}
+        {historyLoading && <p role="status">正在读取会话历史…</p>}
+        {historyError && (
+          <Alert
+            type="error"
+            showIcon
+            message={historyError}
+            action={
+              <Button onClick={() => setRevision(value => value + 1)}>
+                重试
+              </Button>
+            }
+          />
+        )}
+        {!historyLoading && !historyError && !history.length && (
+          <p>暂无会话历史。发送消息后，可在这里查看运行记录。</p>
+        )}
+        {!historyLoading &&
+          history.map(item => (
+            <article key={item.id}>
+              <p>
+                <strong>提问：</strong>
+                {typeof item.question === 'string'
+                  ? item.question
+                  : JSON.stringify(item.question)}
+              </p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>{item.answer}</p>
+              <small>{item.status}</small>
+              {item.files?.map(file => (
+                <button
+                  key={file.id}
+                  onClick={() =>
+                    downloadFileWithHeaders(file.downloadUrl, file.name)
+                  }
+                >
+                  {file.name}
+                </button>
+              ))}
+              {item.status === 'paused' && (
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    runId.current = item.id;
+                    setStatus('paused');
+                    setAnswer(item.answer);
+                  }}
+                >
+                  继续此运行
+                </button>
+              )}
+            </article>
+          ))}
       </section>
       <form
         className="agents-panel"

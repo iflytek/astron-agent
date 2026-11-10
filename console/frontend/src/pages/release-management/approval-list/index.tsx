@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Button,
   Drawer,
   Input,
@@ -19,6 +20,7 @@ import {
   rejectPublishApproval,
 } from '@/services/release-management';
 
+import { errorText } from '@/pages/agents/errors';
 import styles from './index.module.scss';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -48,12 +50,21 @@ const formatJson = (value?: string): string => {
 
 const ApprovalList: React.FC = () => {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [approvals, setApprovals] = useState<PublishApproval[]>([]);
   const [detail, setDetail] = useState<PublishApproval | null>(null);
   const [pageInfo, setPageInfo] = useState({ page: 1, size: 10 });
   const [total, setTotal] = useState(0);
   const [status, setStatus] = useState<string | undefined>('PENDING');
+  const [error, setError] = useState('');
+  const requestId = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [resourceId, setResourceId] = useState('');
 
   const canReviewApproval = useCallback(
@@ -67,7 +78,9 @@ const ApprovalList: React.FC = () => {
   );
 
   const loadApprovals = useCallback(() => {
+    const currentRequest = ++requestId.current;
     setLoading(true);
+    setError('');
     getPublishApprovals({
       page: pageInfo.page,
       size: pageInfo.size,
@@ -75,19 +88,23 @@ const ApprovalList: React.FC = () => {
       resourceId: resourceId || undefined,
     })
       .then(res => {
+        if (currentRequest !== requestId.current) return;
         setApprovals(res?.records ?? []);
         setTotal(res?.total ?? 0);
       })
       .catch(err => {
-        err?.msg && message.error(err.msg);
+        if (currentRequest === requestId.current) setError(errorText(err));
       })
       .finally(() => {
-        setLoading(false);
+        if (currentRequest === requestId.current) setLoading(false);
       });
   }, [pageInfo.page, pageInfo.size, resourceId, status]);
 
   useEffect(() => {
     loadApprovals();
+    return () => {
+      requestId.current += 1;
+    };
   }, [loadApprovals]);
 
   const openReviewModal = (
@@ -114,6 +131,7 @@ const ApprovalList: React.FC = () => {
       okText: t('releaseManagement.confirm'),
       cancelText: t('releaseModal.cancel'),
       onOk: async () => {
+        if (!mounted.current) return;
         if (action === 'approve') {
           await approvePublishApproval(approval.id, reviewComment);
           message.success(t('releaseManagement.approveSuccess'));
@@ -133,6 +151,7 @@ const ApprovalList: React.FC = () => {
       okText: t('releaseManagement.confirm'),
       cancelText: t('releaseModal.cancel'),
       onOk: async () => {
+        if (!mounted.current) return;
         await cancelPublishApproval(approval.id);
         message.success(t('releaseManagement.cancelApprovalSuccess'));
         setDetail(null);
@@ -190,23 +209,29 @@ const ApprovalList: React.FC = () => {
       width: 220,
       render: (_: unknown, record: PublishApproval) => (
         <span className={styles.actions}>
-          <span onClick={() => setDetail(record)}>
+          <Button type="link" onClick={() => setDetail(record)}>
             {t('releaseManagement.detail')}
-          </span>
+          </Button>
           {canReviewApproval(record) && record.approvalStatus === 'PENDING' && (
             <>
-              <span onClick={() => openReviewModal(record, 'approve')}>
+              <Button
+                type="link"
+                onClick={() => openReviewModal(record, 'approve')}
+              >
                 {t('releaseManagement.approve')}
-              </span>
-              <span onClick={() => openReviewModal(record, 'reject')}>
+              </Button>
+              <Button
+                type="link"
+                onClick={() => openReviewModal(record, 'reject')}
+              >
                 {t('releaseManagement.reject')}
-              </span>
+              </Button>
             </>
           )}
           {canCancelApproval(record) && record.approvalStatus === 'PENDING' && (
-            <span onClick={() => cancelApproval(record)}>
+            <Button type="link" onClick={() => cancelApproval(record)}>
               {t('releaseManagement.cancelApprovalShort')}
-            </span>
+            </Button>
           )}
         </span>
       ),
@@ -219,6 +244,7 @@ const ApprovalList: React.FC = () => {
         <div className={styles.filters}>
           <Select
             allowClear
+            aria-label={t('releaseManagement.status')}
             value={status}
             placeholder={t('releaseManagement.status')}
             style={{ width: 160 }}
@@ -253,7 +279,11 @@ const ApprovalList: React.FC = () => {
             allowClear
             value={resourceId}
             placeholder={t('releaseManagement.agentId')}
-            onChange={event => setResourceId(event.target.value)}
+            aria-label={t('releaseManagement.agentId')}
+            onChange={event => {
+              setResourceId(event.target.value);
+              setPageInfo(pre => ({ ...pre, page: 1 }));
+            }}
             onSearch={() => setPageInfo(pre => ({ ...pre, page: 1 }))}
             style={{ width: 220 }}
           />
@@ -263,7 +293,19 @@ const ApprovalList: React.FC = () => {
         </Button>
       </div>
 
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={<Button onClick={loadApprovals}>重试</Button>}
+        />
+      )}
       <Table
+        scroll={{ x: 1100 }}
+        locale={{
+          emptyText: error ? '审批列表未能加载' : '暂无符合条件的审批',
+        }}
         className={approvals.length === 0 ? styles.noData : ''}
         loading={loading}
         dataSource={approvals}
@@ -285,7 +327,7 @@ const ApprovalList: React.FC = () => {
       />
 
       <Drawer
-        width={560}
+        width="min(560px, 100vw)"
         open={Boolean(detail)}
         title={t('releaseManagement.approvalDetail')}
         extra={
@@ -293,18 +335,24 @@ const ApprovalList: React.FC = () => {
             <span className={styles.actions}>
               {canReviewApproval(detail) && (
                 <>
-                  <span onClick={() => openReviewModal(detail, 'approve')}>
+                  <Button
+                    type="link"
+                    onClick={() => openReviewModal(detail, 'approve')}
+                  >
                     {t('releaseManagement.approve')}
-                  </span>
-                  <span onClick={() => openReviewModal(detail, 'reject')}>
+                  </Button>
+                  <Button
+                    type="link"
+                    onClick={() => openReviewModal(detail, 'reject')}
+                  >
                     {t('releaseManagement.reject')}
-                  </span>
+                  </Button>
                 </>
               )}
               {canCancelApproval(detail) && (
-                <span onClick={() => cancelApproval(detail)}>
+                <Button type="link" onClick={() => cancelApproval(detail)}>
                   {t('releaseManagement.cancelApprovalShort')}
-                </span>
+                </Button>
               )}
             </span>
           )

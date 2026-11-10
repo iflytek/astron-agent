@@ -1,0 +1,101 @@
+.page {
+  width: 100%;
+  height: 100%;
+  padding: 28px;
+  overflow: auto;
+  background: #fff;
+  color: var(--console-ink);
+  :global(.ant-alert) {
+    margin-bottom: 16px;
+  }
+  :global(.ant-empty) {
+    padding: 80px 0;
+  }
+  :global(.ant-empty-description) {
+    color: #607089;
+  }
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+  h1 {
+    margin: 0;
+    font-size: 28px;
+    line-height: 36px;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+  }
+  p {
+    margin: 8px 0 0;
+    color: var(--console-muted);
+  }
+  a {
+    color: var(--console-primary);
+    padding: 10px 0;
+  }
+}
+.loading {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+}
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item {
+  padding: 24px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid var(--console-line);
+  &:first-child {
+    padding-top: 0;
+  }
+}
+.identity {
+  min-width: 0;
+  p {
+    margin: 6px 0 0;
+    color: var(--console-muted);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+}
+.name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+@media (max-width: 760px) {
+  .page {
+    padding: 22px 18px;
+  }
+  .header h1 {
+    font-size: 26px;
+  }
+  .item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+}

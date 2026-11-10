@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { message } from 'antd';
 import useUserStore from '@/store/user-store';
 import useSpaceStore from '@/store/space-store';
 import { SpaceType, RoleType } from '@/types/permission';
 import { roleToRoleType } from '@/pages/space/config';
 import { getSpaceDetail, visitSpace } from '@/services/space';
-import { shouldShowRequestError } from '@/utils/http-error';
 
 export interface SpaceInfo {
   id: string;
@@ -23,6 +21,7 @@ export interface SpaceInfo {
 interface UseSpaceInfoReturn {
   spaceInfo: SpaceInfo | null;
   loading: boolean;
+  error: string;
   loadSpaceInfo: () => Promise<void>;
 }
 
@@ -34,11 +33,13 @@ export const useSpaceInfo = (
   const [loadedFor, setLoadedFor] = useState('');
   const [loading, setLoading] = useState(true);
   const sequence = useRef(0);
+  const [error, setError] = useState('');
   const identity = JSON.stringify([uid, spaceId]);
   const loadSpaceInfo = useCallback(async (): Promise<void> => {
     const current = ++sequence.current;
     useUserStore.getState().clearUserRole();
     setSpaceInfo(null);
+    setError('');
     if (!uid || !spaceId) return;
     useSpaceStore.getState().setSpaceStore({
       spaceId,
@@ -80,8 +81,7 @@ export const useSpaceInfo = (
       if (isCurrent()) {
         setSpaceInfo(null);
         useUserStore.getState().clearUserRole();
-        shouldShowRequestError(error) &&
-          message.error('无法读取此空间，或您已没有访问权限。');
+        setError('无法读取此空间，或您已没有访问权限。');
       }
     } finally {
       if (isCurrent()) {
@@ -100,6 +100,7 @@ export const useSpaceInfo = (
   return {
     spaceInfo: current ? spaceInfo : null,
     loading: loading || !current,
+    error,
     loadSpaceInfo,
   };
 };
