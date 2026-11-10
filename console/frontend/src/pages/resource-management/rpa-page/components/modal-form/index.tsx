@@ -3,7 +3,16 @@ import useAntModal from '@/hooks/use-ant-modal';
 import { createRpa, getRpaSourceList, updateRpa } from '@/services/rpa';
 import { RpaDetailFormInfo, RpaInfo } from '@/types/rpa';
 import { useRequest } from 'ahooks';
-import { Button, Form, Input, message, Modal, Select, Space } from 'antd';
+import {
+  Alert,
+  Button,
+  Form,
+  Input,
+  message,
+  Modal,
+  Select,
+  Space,
+} from 'antd';
 import { useTranslation } from 'react-i18next';
 
 export const ModalForm = forwardRef<
@@ -15,6 +24,8 @@ export const ModalForm = forwardRef<
   const { t } = useTranslation();
   const [form] = Form.useForm();
   const [type, setType] = useState<'create' | 'edit'>('create');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const { showModal, commonAntModalProps, open, closeModal } = useAntModal();
   const { data: rpaSourceList } = useRequest(
     open ? getRpaSourceList : () => [] as unknown as Promise<RpaInfo[]>,
@@ -24,6 +35,8 @@ export const ModalForm = forwardRef<
   );
   useImperativeHandle(ref, () => ({
     showModal: values => {
+      setSaveError('');
+      form.resetFields();
       if (values) {
         setType('edit');
         form.setFieldsValue(values);
@@ -37,33 +50,43 @@ export const ModalForm = forwardRef<
     closeModal();
     form.resetFields();
   };
-  const handleSave = async () => {
-    const { platformId, assistantName, icon, id, remarks, ...values } =
-      await form.validateFields();
-
-    (type === 'create'
-      ? createRpa({ fields: values, platformId, assistantName, icon, remarks })
-      : updateRpa(id, {
+  const handleSave = async (): Promise<void> => {
+    if (saving) return;
+    try {
+      const { platformId, assistantName, icon, id, remarks, ...values } =
+        await form.validateFields();
+      setSaving(true);
+      setSaveError('');
+      if (type === 'create')
+        await createRpa({
+          fields: values,
+          platformId,
+          assistantName,
+          icon,
+          remarks,
+        });
+      else
+        await updateRpa(id, {
           fields: values,
           assistantName,
           icon,
           platformId,
           remarks,
           replaceFields: true,
-        })
-    )
-      .then(() => {
-        message.success(
-          type === 'create'
-            ? t('rpa.createRpaSuccess')
-            : t('rpa.editRpaSuccess')
+        });
+      message.success(
+        type === 'create' ? t('rpa.createRpaSuccess') : t('rpa.editRpaSuccess')
+      );
+      handleReset();
+      refresh();
+    } catch (failure) {
+      if (!(failure && typeof failure === 'object' && 'errorFields' in failure))
+        setSaveError(
+          failure instanceof Error ? failure.message : '保存失败，请重试。'
         );
-        refresh?.();
-      })
-      .finally(() => {
-        handleReset();
-        refresh?.();
-      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -72,9 +95,14 @@ export const ModalForm = forwardRef<
         {...commonAntModalProps}
         footer={null}
         title={type === 'create' ? t('rpa.createRpa') : t('rpa.editRpa')}
-        onCancel={handleReset}
+        onCancel={() => {
+          if (!saving) handleReset();
+        }}
       >
         <div className="pt-[24px]">
+          {saveError && (
+            <Alert type="error" showIcon message={saveError} className="mb-4" />
+          )}
           <Form.Item name="id" label="id" hidden>
             <Input />
           </Form.Item>
@@ -162,8 +190,14 @@ export const ModalForm = forwardRef<
           </Form.Item>
           <div className="w-full flex justify-end">
             <Space>
-              <Button onClick={() => handleReset()}>{t('rpa.cancel')}</Button>
-              <Button type="primary" onClick={handleSave}>
+              <Button disabled={saving} onClick={() => handleReset()}>
+                {t('rpa.cancel')}
+              </Button>
+              <Button
+                type="primary"
+                loading={saving}
+                onClick={() => void handleSave()}
+              >
                 {t('rpa.save')}
               </Button>
             </Space>

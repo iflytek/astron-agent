@@ -1,5 +1,5 @@
 import React, { Suspense, JSX } from 'react';
-import { Spin } from 'antd';
+import { Skeleton } from 'antd';
 import { Routes, Route } from 'react-router-dom';
 
 const KnowledgePage = React.lazy(() => import('./knowledge-page'));
@@ -19,11 +19,15 @@ const SandboxPage = React.lazy(() => import('./sandbox-page'));
 
 function ResourceManagement(): JSX.Element {
   return (
-    <div className="w-full h-full overflow-hidden">
+    <div className="w-full min-h-0 flex-1 overflow-hidden flex flex-col">
       <Suspense
         fallback={
-          <div className="flex items-center justify-center w-full h-full">
-            <Spin />
+          <div
+            className="w-full p-7"
+            role="status"
+            aria-label="正在加载资源页面"
+          >
+            <Skeleton active />
           </div>
         }
       >

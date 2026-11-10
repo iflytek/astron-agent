@@ -1,5 +1,13 @@
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  Alert,
   Button,
   Drawer,
   Empty,
@@ -26,7 +34,6 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import SiderContainer from '@/components/sider-container';
 import { getFlowInputsInfo, listFlows } from '@/services/flow';
 import { getVersionList } from '@/services/common';
 import {
@@ -41,7 +48,6 @@ import {
 } from '@/services/automation';
 import type {
   AutomationRunStatus,
-  PageData,
   WorkflowAutomationRun,
   WorkflowAutomationTask,
   WorkflowAutomationTaskPayload,
@@ -112,7 +118,8 @@ const parseJsonObject = (value?: string): Record<string, any> => {
     return {};
   }
   const parsed: unknown = JSON.parse(value);
-  return isRecord(parsed) ? parsed : {};
+  if (!isRecord(parsed)) throw new SyntaxError('输入参数必须是 JSON 对象');
+  return parsed;
 };
 
 const getInputKey = (schema: WorkflowInputSchema, index: number): string =>
@@ -160,7 +167,27 @@ const AutomationPage: FC = () => {
     Array<{ value: string; label: string }>
   >([]);
   const [inputSchemas, setInputSchemas] = useState<WorkflowInputSchema[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [taskError, setTaskError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [runsError, setRunsError] = useState('');
+  const [workflowError, setWorkflowError] = useState('');
+  const [configError, setConfigError] = useState('');
+  const [configLoading, setConfigLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  const busyTaskIds = useRef(new Set<number>());
+  const submitPending = useRef(false);
+  const currentList = useRef({
+    page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+    keyword: '',
+  });
+  const taskRequest = useRef(0);
+  const workflowRequest = useRef(0);
+  const configRequest = useRef(0);
+  const runsRequest = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [runsLoading, setRunsLoading] = useState(false);
@@ -188,34 +215,44 @@ const AutomationPage: FC = () => {
       pageSize = pagination.pageSize,
       keyword = search
     ): Promise<void> => {
+      const request = ++taskRequest.current;
+      currentList.current = { page, pageSize, keyword };
       setLoading(true);
+      setTaskError('');
       try {
         const data = await getAutomationTasks({
           current: page,
           pageSize,
           search: keyword || undefined,
         });
+        if (request !== taskRequest.current) return;
         setTasks(data.pageData || []);
         setPagination({
           current: data.page || page,
           pageSize: data.pageSize || pageSize,
           total: data.totalCount || 0,
         });
+      } catch {
+        if (request === taskRequest.current)
+          setTaskError('无法加载自动化任务，请重试。');
       } finally {
-        setLoading(false);
+        if (request === taskRequest.current) setLoading(false);
       }
     },
     [pagination.current, pagination.pageSize, search]
   );
 
   const fetchWorkflows = useCallback(async (keyword = ''): Promise<void> => {
+    const request = ++workflowRequest.current;
     setWorkflowLoading(true);
+    setWorkflowError('');
     try {
       const data = await listFlows({
         current: 1,
         pageSize: 100,
         search: keyword,
       });
+      if (request !== workflowRequest.current) return;
       setWorkflows(
         data.pageData.flatMap(item =>
           typeof item.name === 'string' && typeof item.flowId === 'string'
@@ -223,8 +260,11 @@ const AutomationPage: FC = () => {
             : []
         )
       );
+    } catch {
+      if (request === workflowRequest.current)
+        setWorkflowError('无法读取工作流列表，请重试。');
     } finally {
-      setWorkflowLoading(false);
+      if (request === workflowRequest.current) setWorkflowLoading(false);
     }
   }, []);
 
@@ -234,11 +274,15 @@ const AutomationPage: FC = () => {
       inputParams: Record<string, any> = {},
       version?: string
     ): Promise<void> => {
+      const request = ++configRequest.current;
+      setConfigLoading(true);
+      setConfigError('');
       try {
         const [raw, versions] = await Promise.all([
           getFlowInputsInfo(flowId, version),
           getVersionList({ flowId, current: 1, size: 100 }),
         ]);
+        if (request !== configRequest.current) return;
         setVersionOptions(
           versions.records.map(version => ({
             value: version.versionNum,
@@ -253,16 +297,18 @@ const AutomationPage: FC = () => {
         });
         setInputMode(schemas.length > 0 ? 'form' : 'json');
       } catch {
-        setInputSchemas([]);
-        setInputMode('json');
+        if (request === configRequest.current)
+          setConfigError('无法读取工作流版本和输入配置，请重试。');
+      } finally {
+        if (request === configRequest.current) setConfigLoading(false);
       }
     },
     [form]
   );
 
   useEffect(() => {
-    fetchTasks();
-    fetchWorkflows();
+    void fetchTasks();
+    void fetchWorkflows();
   }, []);
 
   useEffect(() => {
@@ -298,6 +344,11 @@ const AutomationPage: FC = () => {
   );
 
   const openCreateDrawer = (): void => {
+    configRequest.current += 1;
+    setConfigLoading(false);
+    setConfigError('');
+    setFormError('');
+    setVersionOptions([]);
     setSelectedTask(null);
     setInputSchemas([]);
     setPreviewTimes([]);
@@ -314,7 +365,14 @@ const AutomationPage: FC = () => {
   };
 
   const openEditDrawer = (record: WorkflowAutomationTask): void => {
-    const inputParams = parseJsonObject(record.inputParams);
+    let inputParams: Record<string, any>;
+    try {
+      inputParams = parseJsonObject(record.inputParams);
+    } catch {
+      setActionError('任务输入参数无法解析，请检查原任务配置。');
+      return;
+    }
+    setFormError('');
     setSelectedTask(record);
     setPreviewTimes([]);
     setInputMode('json');
@@ -330,6 +388,20 @@ const AutomationPage: FC = () => {
     });
     setDrawerOpen(true);
     void loadWorkflowInputs(record.flowId, inputParams, record.version);
+  };
+
+  const retryWorkflowInputs = (): void => {
+    const flowId = form.getFieldValue('flowId');
+    if (!flowId) return;
+    try {
+      void loadWorkflowInputs(
+        flowId,
+        parseJsonObject(form.getFieldValue('inputParamsJson')),
+        form.getFieldValue('version')
+      );
+    } catch {
+      setFormError('输入参数必须是合法 JSON 对象，请检查后重试。');
+    }
   };
 
   const handleWorkflowChange = (flowId: string): void => {
@@ -351,14 +423,27 @@ const AutomationPage: FC = () => {
   };
 
   const handlePreviewCron = async (): Promise<void> => {
+    if (previewLoading) return;
     const cronExpression = form.getFieldValue('cronExpression');
     const timezone = form.getFieldValue('timezone') || DEFAULT_TIMEZONE;
     if (!cronExpression) {
       message.warning('请先填写 Cron 表达式');
       return;
     }
-    const times = await previewAutomationCron({ cronExpression, timezone });
-    setPreviewTimes(times);
+    setPreviewLoading(true);
+    setFormError('');
+    try {
+      const times = await previewAutomationCron({ cronExpression, timezone });
+      if (
+        form.getFieldValue('cronExpression') === cronExpression &&
+        (form.getFieldValue('timezone') || DEFAULT_TIMEZONE) === timezone
+      )
+        setPreviewTimes(times);
+    } catch {
+      setFormError('无法预览执行时间，请检查 Cron 和时区后重试。');
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const buildPayload = (
@@ -398,6 +483,10 @@ const AutomationPage: FC = () => {
   };
 
   const handleSubmit = async (): Promise<void> => {
+    if (submitPending.current || configLoading || configError) return;
+    submitPending.current = true;
+    setSubmitting(true);
+    setFormError('');
     try {
       const values = await form.validateFields();
       const payload = buildPayload(values);
@@ -413,10 +502,38 @@ const AutomationPage: FC = () => {
       void fetchTasks(1, pagination.pageSize);
     } catch (error) {
       if (error instanceof SyntaxError) {
-        message.error('输入参数必须是合法 JSON');
+        setFormError('输入参数必须是合法 JSON 对象，请检查后重试。');
+      } else if (
+        !(error && typeof error === 'object' && 'errorFields' in error)
+      ) {
+        setFormError('保存任务失败，当前输入已保留，请重试。');
       }
     } finally {
+      submitPending.current = false;
       setSubmitting(false);
+    }
+  };
+
+  const runTaskAction = async (
+    record: WorkflowAutomationTask,
+    action: () => Promise<unknown>,
+    successText: string,
+    refreshPage?: number
+  ): Promise<void> => {
+    if (busyTaskIds.current.has(record.id)) return;
+    busyTaskIds.current.add(record.id);
+    setBusyIds(new Set(busyTaskIds.current));
+    setActionError('');
+    try {
+      await action();
+      message.success(successText);
+      const { page, pageSize, keyword } = currentList.current;
+      await fetchTasks(refreshPage ?? page, pageSize, keyword);
+    } catch {
+      setActionError('任务操作失败，请重试。');
+    } finally {
+      busyTaskIds.current.delete(record.id);
+      setBusyIds(new Set(busyTaskIds.current));
     }
   };
 
@@ -424,17 +541,21 @@ const AutomationPage: FC = () => {
     record: WorkflowAutomationTask,
     enabled: boolean
   ): Promise<void> => {
-    await setAutomationEnabled(record.id, enabled);
-    message.success(enabled ? '任务已启用' : '任务已停用');
-    void fetchTasks();
+    await runTaskAction(
+      record,
+      () => setAutomationEnabled(record.id, enabled),
+      enabled ? '任务已启用' : '任务已停用'
+    );
   };
 
   const handleRunNow = async (
     record: WorkflowAutomationTask
   ): Promise<void> => {
-    await runAutomationNow(record.id);
-    message.success('已触发执行');
-    void fetchTasks();
+    await runTaskAction(
+      record,
+      () => runAutomationNow(record.id),
+      '已触发执行'
+    );
   };
 
   const handleDelete = (record: WorkflowAutomationTask): void => {
@@ -445,9 +566,12 @@ const AutomationPage: FC = () => {
       okButtonProps: { danger: true },
       cancelText: '取消',
       onOk: async () => {
-        await deleteAutomationTask(record.id);
-        message.success('任务已删除');
-        void fetchTasks(1, pagination.pageSize);
+        await runTaskAction(
+          record,
+          () => deleteAutomationTask(record.id),
+          '任务已删除',
+          1
+        );
       },
     });
   };
@@ -457,6 +581,9 @@ const AutomationPage: FC = () => {
     page = 1,
     pageSize = DEFAULT_PAGE_SIZE
   ): Promise<void> => {
+    const request = ++runsRequest.current;
+    setRunsError('');
+    setRuns([]);
     setSelectedTask(record);
     setHistoryOpen(true);
     setRunsLoading(true);
@@ -465,14 +592,18 @@ const AutomationPage: FC = () => {
         current: page,
         pageSize,
       });
+      if (request !== runsRequest.current) return;
       setRuns(data.pageData || []);
       setRunsPagination({
         current: data.page || page,
         pageSize: data.pageSize || pageSize,
         total: data.totalCount || 0,
       });
+    } catch {
+      if (request === runsRequest.current)
+        setRunsError('无法加载执行历史，请重试。');
     } finally {
-      setRunsLoading(false);
+      if (request === runsRequest.current) setRunsLoading(false);
     }
   };
 
@@ -521,6 +652,8 @@ const AutomationPage: FC = () => {
       width: 110,
       render: (value: boolean, record) => (
         <Switch
+          aria-label={`启用任务 ${record.taskName}`}
+          loading={busyIds.has(record.id)}
           size="small"
           checked={value}
           checkedChildren="启用"
@@ -564,7 +697,6 @@ const AutomationPage: FC = () => {
     {
       title: '操作',
       key: 'action',
-      fixed: 'right',
       width: 220,
       render: (_, record) => (
         <Space size={4}>
@@ -572,6 +704,8 @@ const AutomationPage: FC = () => {
             <Button
               size="small"
               icon={<PlayCircleOutlined />}
+              aria-label={`立即执行任务 ${record.taskName}`}
+              disabled={busyIds.has(record.id)}
               onClick={() => void handleRunNow(record)}
             />
           </Tooltip>
@@ -579,6 +713,8 @@ const AutomationPage: FC = () => {
             <Button
               size="small"
               icon={<HistoryOutlined />}
+              aria-label={`执行历史任务 ${record.taskName}`}
+              disabled={busyIds.has(record.id)}
               onClick={() => void openRunsDrawer(record)}
             />
           </Tooltip>
@@ -586,6 +722,8 @@ const AutomationPage: FC = () => {
             <Button
               size="small"
               icon={<EditOutlined />}
+              aria-label={`编辑任务 ${record.taskName}`}
+              disabled={busyIds.has(record.id)}
               onClick={() => openEditDrawer(record)}
             />
           </Tooltip>
@@ -594,6 +732,8 @@ const AutomationPage: FC = () => {
               size="small"
               danger
               icon={<DeleteOutlined />}
+              aria-label={`删除任务 ${record.taskName}`}
+              disabled={busyIds.has(record.id)}
               onClick={() => handleDelete(record)}
             />
           </Tooltip>
@@ -722,70 +862,132 @@ const AutomationPage: FC = () => {
 
   return (
     <div className={styles.page}>
-      <SiderContainer
-        rightContent={
-          <div className={styles.content}>
-            <div className={styles.toolbar}>
-              <div>
-                <Text strong>自动化任务</Text>
-                <Text type="secondary" className={styles.toolbarHint}>
-                  仅调度已发布工作流，输入参数会随任务保存。
-                </Text>
-              </div>
-              <Space>
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={() => void fetchTasks()}
-                >
-                  刷新
-                </Button>
-                <Button
-                  type="primary"
-                  icon={<ClockCircleOutlined />}
-                  onClick={openCreateDrawer}
-                >
-                  新建任务
-                </Button>
-              </Space>
-            </div>
-
-            <Table
-              rowKey="id"
-              size="middle"
-              loading={loading}
-              columns={columns}
-              dataSource={tasks}
-              scroll={{ x: 1200 }}
-              locale={{ emptyText: <Empty description="暂无自动化任务" /> }}
-              pagination={{
-                current: pagination.current,
-                pageSize: pagination.pageSize,
-                total: pagination.total,
-                showSizeChanger: true,
-                showTotal: total => `共 ${total} 条`,
-              }}
-              onChange={(next: TablePaginationConfig) => {
-                const current = next.current || 1;
-                const pageSize = next.pageSize || DEFAULT_PAGE_SIZE;
-                void fetchTasks(current, pageSize);
-              }}
-            />
+      <div className={styles.content}>
+        <div className={styles.toolbar}>
+          <div>
+            <h1 className={styles.pageTitle}>定时自动化</h1>
+            <p className={styles.toolbarHint}>
+              管理工作流的执行周期、输入参数与运行历史。
+            </p>
           </div>
-        }
-      />
+          <Space wrap>
+            <Button
+              loading={loading}
+              icon={<ReloadOutlined />}
+              onClick={() => void fetchTasks()}
+            >
+              刷新
+            </Button>
+            <Button
+              type="primary"
+              icon={<ClockCircleOutlined />}
+              onClick={openCreateDrawer}
+            >
+              新建任务
+            </Button>
+          </Space>
+        </div>
+
+        <div className={styles.searchRow}>
+          <Input.Search
+            aria-label="搜索自动化任务"
+            placeholder="搜索任务名称"
+            value={search}
+            allowClear
+            onChange={event => {
+              setSearch(event.target.value);
+              if (!event.target.value)
+                void fetchTasks(1, pagination.pageSize, '');
+            }}
+            onSearch={value => void fetchTasks(1, pagination.pageSize, value)}
+          />
+        </div>
+        {taskError && (
+          <Alert
+            type="error"
+            showIcon
+            message={taskError}
+            action={
+              <Button loading={loading} onClick={() => void fetchTasks()}>
+                重试
+              </Button>
+            }
+            className={styles.feedback}
+          />
+        )}
+        {actionError && (
+          <Alert
+            type="error"
+            showIcon
+            message={actionError}
+            closable
+            onClose={() => setActionError('')}
+            className={styles.feedback}
+          />
+        )}
+        <Table
+          rowKey="id"
+          size="middle"
+          loading={loading}
+          columns={columns}
+          dataSource={tasks}
+          scroll={{ x: 1200 }}
+          locale={{
+            emptyText: taskError ? (
+              '列表未加载'
+            ) : (
+              <Empty
+                description={
+                  search
+                    ? '未找到匹配任务，请调整搜索词。'
+                    : '暂无自动化任务，创建任务后即可按计划执行。'
+                }
+              />
+            ),
+          }}
+          pagination={{
+            current: pagination.current,
+            pageSize: pagination.pageSize,
+            total: pagination.total,
+            showSizeChanger: true,
+            showTotal: total => `共 ${total} 条`,
+          }}
+          onChange={(next: TablePaginationConfig) => {
+            const current = next.current || 1;
+            const pageSize = next.pageSize || DEFAULT_PAGE_SIZE;
+            void fetchTasks(current, pageSize);
+          }}
+        />
+      </div>
 
       <Drawer
         title={selectedTask ? '编辑自动化任务' : '新建自动化任务'}
         open={drawerOpen}
         width="min(760px, 100vw)"
         destroyOnClose
-        onClose={() => setDrawerOpen(false)}
+        closable={!submitting}
+        maskClosable={!submitting}
+        onClose={() => {
+          if (!submitting) {
+            configRequest.current += 1;
+            setDrawerOpen(false);
+          }
+        }}
         extra={
           <Space>
-            <Button onClick={() => setDrawerOpen(false)}>取消</Button>
+            <Button
+              disabled={submitting}
+              onClick={() => {
+                configRequest.current += 1;
+                setDrawerOpen(false);
+              }}
+            >
+              取消
+            </Button>
             <Button
               type="primary"
               loading={submitting}
+              disabled={configLoading || Boolean(configError)}
               onClick={() => void handleSubmit()}
             >
               保存
@@ -793,7 +995,49 @@ const AutomationPage: FC = () => {
           </Space>
         }
       >
-        <Form layout="vertical" form={form} requiredMark={false}>
+        {formError && (
+          <Alert
+            type="error"
+            showIcon
+            message={formError}
+            className={styles.feedback}
+          />
+        )}
+        {workflowError && (
+          <Alert
+            type="error"
+            showIcon
+            message={workflowError}
+            action={
+              <Button
+                loading={workflowLoading}
+                onClick={() => void fetchWorkflows()}
+              >
+                重试
+              </Button>
+            }
+            className={styles.feedback}
+          />
+        )}
+        {configError && (
+          <Alert
+            type="error"
+            showIcon
+            message={configError}
+            action={
+              <Button loading={configLoading} onClick={retryWorkflowInputs}>
+                重试
+              </Button>
+            }
+            className={styles.feedback}
+          />
+        )}
+        <Form
+          layout="vertical"
+          form={form}
+          requiredMark={false}
+          disabled={submitting || configLoading}
+        >
           <div className={styles.formSection}>
             <div className={styles.sectionTitle}>基础信息</div>
             <Form.Item
@@ -824,6 +1068,8 @@ const AutomationPage: FC = () => {
               rules={[{ required: true, message: '请选择已保存版本' }]}
             >
               <Select
+                loading={configLoading}
+                disabled={configLoading || submitting}
                 options={versionOptions}
                 placeholder="请先在画布保存版本"
                 onChange={(version: string) => {
@@ -856,7 +1102,10 @@ const AutomationPage: FC = () => {
             <Form.Item name="enabled" label="启用状态" valuePropName="checked">
               <Switch checkedChildren="启用" unCheckedChildren="停用" />
             </Form.Item>
-            <Button onClick={() => void handlePreviewCron()}>
+            <Button
+              loading={previewLoading}
+              onClick={() => void handlePreviewCron()}
+            >
               预览未来 5 次
             </Button>
             {previewTimes.length > 0 && (
@@ -872,6 +1121,7 @@ const AutomationPage: FC = () => {
             <div className={styles.inputHeader}>
               <div className={styles.sectionTitle}>输入参数</div>
               <Select
+                aria-label="输入参数编辑方式"
                 size="small"
                 value={inputMode}
                 onChange={setInputMode}
@@ -894,9 +1144,42 @@ const AutomationPage: FC = () => {
         title={selectedTask ? `执行历史：${selectedTask.taskName}` : '执行历史'}
         open={historyOpen}
         width="min(860px, 100vw)"
-        onClose={() => setHistoryOpen(false)}
+        onClose={() => {
+          runsRequest.current += 1;
+          setHistoryOpen(false);
+        }}
       >
+        {runsError && (
+          <Alert
+            type="error"
+            showIcon
+            message={runsError}
+            action={
+              <Button
+                loading={runsLoading}
+                onClick={() => {
+                  if (selectedTask)
+                    void openRunsDrawer(
+                      selectedTask,
+                      runsPagination.current,
+                      runsPagination.pageSize
+                    );
+                }}
+              >
+                重试
+              </Button>
+            }
+            className={styles.feedback}
+          />
+        )}
         <Table
+          locale={{
+            emptyText: runsError ? (
+              '历史未加载'
+            ) : (
+              <Empty description="暂无执行历史" />
+            ),
+          }}
           rowKey="id"
           size="small"
           loading={runsLoading}

@@ -1,6 +1,6 @@
 import React, { FC } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Input, Button, Table, Pagination } from 'antd';
+import { Alert, Input, Button, Table, Pagination } from 'antd';
 import {
   AddFolder,
   DeleteFile,
@@ -70,6 +70,8 @@ const DocumentPage: FC<{
     handleInputChange,
     searchData,
     getFiles,
+    error,
+    retryLoad,
   } = useDocumentPage({ tag, repoId, pid });
   const { columns } = useColumns({
     run,
@@ -86,7 +88,7 @@ const DocumentPage: FC<{
   return (
     <div
       className="w-full h-full flex flex-col p-6 pb-2 bg-[#fff] border border-[#E2E8FF] overflow-hidden"
-      style={{ borderRadius: 24 }}
+      style={{ borderRadius: 14 }}
     >
       {addFolderModal && (
         <AddFolder
@@ -125,15 +127,28 @@ const DocumentPage: FC<{
           getFiles={getFiles}
         />
       )}
-      <div className="w-full flex pb-5 border-b border-[#E2E8FF]">
-        <h2 className="text-2xl font-semibold text-second">
+      <div className="w-full flex flex-wrap gap-2 pb-5 border-b border-[#dfe6f1]">
+        <h2 className="text-xl font-semibold text-second">
           {t('knowledge.documents')}
         </h2>
         <p className="mt-2 ml-2 font-medium desc-color">
           {t('knowledge.documentsDescription')}
         </p>
       </div>
-      {!loading && parentId === -1 && dataResource.length === 0 ? (
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={<Button onClick={retryLoad}>重试</Button>}
+          className="mt-4"
+        />
+      )}
+      {!loading &&
+      !error &&
+      !searchValue &&
+      parentId === -1 &&
+      dataResource.length === 0 ? (
         <div className="flex justify-center items-center mt-[72px]">
           <div
             className="flex flex-col items-center py-8 w-[766px] min-h-[238px] rounded-3xl"
@@ -228,8 +243,8 @@ export const DocumentPageContent: FC<{
   const navigate = useNavigate();
   return (
     <>
-      <div className="flex items-center justify-between my-4">
-        <div className="flex items-center">
+      <div className="flex items-center justify-between flex-wrap gap-3 my-4">
+        <div className="flex items-center flex-wrap gap-3 min-w-0">
           {directoryTree.length > 0 && (
             <div className="flex mr-4">
               <img
@@ -239,13 +254,14 @@ export const DocumentPageContent: FC<{
               />
               {directoryTree.map((item, index) => (
                 <span key={index} className="flex items-center">
-                  <span
+                  <button
+                    type="button"
                     title={item.name}
-                    className="max-w-[100px] text-overflow cursor-pointer"
+                    className="max-w-[100px] text-overflow text-[#315ff4]"
                     onClick={() => setParentId(item.parentId as number)}
                   >
                     {item.name}
-                  </span>
+                  </button>
                   {index !== directoryTree.length - 1 && <span>/</span>}
                 </span>
               ))}
@@ -262,7 +278,8 @@ export const DocumentPageContent: FC<{
               alt=""
             />
             <Input
-              className="global-input w-[320px] pl-10"
+              className="global-input w-full max-w-[320px] pl-10"
+              aria-label="搜索文档"
               placeholder={t('knowledge.pleaseEnter')}
               value={searchValue}
               onChange={handleInputChange}
@@ -270,9 +287,10 @@ export const DocumentPageContent: FC<{
           </div>
         </div>
 
-        <div className="flex items-center">
+        <div className="flex items-center flex-wrap gap-2">
           {tag !== 'SparkDesk-RAG' && (
-            <span
+            <button
+              type="button"
               className="border border-[#D7DFE9] bg-[#fff] flex items-center px-4 py-2 cursor-pointer h-10"
               style={{ borderRadius: 10 }}
               onClick={() => {
@@ -284,7 +302,7 @@ export const DocumentPageContent: FC<{
               <span className="ml-2 text-sm text-second">
                 {t('knowledge.addFolder')}
               </span>
-            </span>
+            </button>
           )}
           <Button
             type="primary"
@@ -327,16 +345,35 @@ export const DocumentPageContent: FC<{
                 dataSource={searchValue ? searchData : dataResource}
                 columns={columns}
                 className="h-full document-table"
-                onRow={rowProps}
+                onRow={record => ({
+                  ...rowProps(record),
+                  tabIndex: tag !== 'SparkDesk-RAG' ? 0 : undefined,
+                  onKeyDown: event => {
+                    if (
+                      event.target === event.currentTarget &&
+                      (event.key === 'Enter' || event.key === ' ')
+                    ) {
+                      event.preventDefault();
+                      const row = rowProps(record);
+                      if ('onClick' in row) row.onClick?.();
+                    }
+                  },
+                })}
                 pagination={false}
                 rowKey={record => record.id}
                 loading={loading}
+                scroll={{ x: 760 }}
+                locale={{
+                  emptyText: searchValue
+                    ? '未找到匹配文档，请调整搜索词。'
+                    : '暂无文档',
+                }}
               />
             </div>
           </div>
           {!searchValue && (
-            <div className="flex items-center justify-center h-[80px] px-6 relative">
-              <div className="text-[#979797] text-sm pt-4 absolute left-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap py-4">
+              <div className="text-[#607089] text-sm">
                 {t('effectEvaluation.totalDataItems', {
                   count: pagination?.total,
                 })}

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Alert,
   Button,
@@ -20,6 +26,7 @@ import {
   GlobalOutlined,
   LockOutlined,
   SettingOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
 import {
   getSkillSandboxConfig,
@@ -79,6 +86,7 @@ interface ConfigModalProps {
   testing: boolean;
   lastTestText: string;
   lastTestMessage?: string;
+  actionError?: string;
   statusTag: React.ReactNode;
   onCancel: () => void;
   onSave: () => Promise<void>;
@@ -101,31 +109,26 @@ function ProviderCard({
   };
 
   return (
-    <Card
-      loading={loading && isE2b}
-      hoverable={isE2b}
-      className="rounded-lg border-[#e2e8ff]"
-      onClick={isE2b ? onConfigure : undefined}
-    >
+    <Card loading={loading && isE2b} className={styles.providerCard}>
       <div className="flex min-h-[190px] flex-col justify-between">
         <div>
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#eef1ff] text-[20px] text-[#6554f2]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-[#e7eeff] text-[20px] text-[#315ff4]">
                 {provider.icon}
               </div>
               <div>
-                <div className="text-[16px] font-medium text-[#222529]">
+                <div className="text-[16px] font-medium text-[#18243d]">
                   {provider.name}
                 </div>
-                <div className="mt-1 text-[12px] text-[#8a8f9d]">
+                <div className="mt-1 text-[12px] text-[#607089]">
                   {isE2b ? lastTestText : '待接入'}
                 </div>
               </div>
             </div>
             {isE2b ? statusTag : <Tag color="default">待接入</Tag>}
           </div>
-          <p className="m-0 text-[13px] leading-6 text-[#676773]">
+          <p className="m-0 text-[13px] leading-6 text-[#607089]">
             {provider.description}
           </p>
         </div>
@@ -151,6 +154,7 @@ function SandboxConfigModal({
   testing,
   lastTestText,
   lastTestMessage,
+  actionError,
   statusTag,
   onCancel,
   onSave,
@@ -162,29 +166,41 @@ function SandboxConfigModal({
       open={open}
       width={680}
       destroyOnClose
-      onCancel={onCancel}
+      onCancel={saving || testing ? undefined : onCancel}
+      closable={!saving && !testing}
+      maskClosable={!saving && !testing}
       footer={[
         <Button
           key="test"
           icon={<ExperimentOutlined />}
           loading={testing}
+          disabled={saving || loading}
           onClick={onTest}
         >
           测试配置
         </Button>,
-        <Button key="cancel" onClick={onCancel}>
+        <Button key="cancel" disabled={saving || testing} onClick={onCancel}>
           取消
         </Button>,
-        <Button key="save" type="primary" loading={saving} onClick={onSave}>
+        <Button
+          key="save"
+          type="primary"
+          loading={saving}
+          disabled={testing || loading}
+          onClick={onSave}
+        >
           保存配置
         </Button>,
       ]}
     >
+      {actionError && (
+        <Alert type="error" showIcon message={actionError} className="mb-5" />
+      )}
       <Form
         form={form}
         layout="vertical"
         initialValues={DEFAULT_CONFIG}
-        disabled={loading}
+        disabled={loading || saving || testing}
       >
         <Alert
           type="info"
@@ -262,7 +278,7 @@ function SandboxConfigModal({
         </div>
 
         {lastTestMessage && (
-          <div className="mb-5 rounded-md bg-[#f7f8fc] px-4 py-3 text-[13px] leading-5 text-[#676773]">
+          <div className="mb-5 rounded-md bg-[#f7f8fc] px-4 py-3 text-[13px] leading-5 text-[#607089]">
             {lastTestMessage}
           </div>
         )}
@@ -278,8 +294,12 @@ function SandboxConfigModal({
 
 function SandboxPage(): React.ReactElement {
   const [form] = Form.useForm<SkillSandboxConfig>();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [saving, setSaving] = useState(false);
+  const pendingAction = useRef(false);
   const [testing, setTesting] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [loadedConfig, setLoadedConfig] =
@@ -287,18 +307,22 @@ function SandboxPage(): React.ReactElement {
 
   const loadConfig = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await getSkillSandboxConfig();
       const nextConfig = { ...DEFAULT_CONFIG, ...data, provider: 'e2b' };
       setLoadedConfig(nextConfig);
       form.setFieldsValue(nextConfig);
+      setLoaded(true);
+    } catch {
+      setError('无法加载沙箱配置，请重试。');
     } finally {
       setLoading(false);
     }
   }, [form]);
 
   useEffect(() => {
-    loadConfig();
+    void loadConfig();
   }, [loadConfig]);
 
   const normalizeSubmitConfig = useCallback(
@@ -317,29 +341,42 @@ function SandboxPage(): React.ReactElement {
   );
 
   const openE2bModal = (): void => {
+    if (!loaded || loading) return;
     form.setFieldsValue(loadedConfig);
+    setActionError('');
     setModalOpen(true);
   };
 
   const handleSave = async (): Promise<void> => {
-    const values = await form.validateFields();
+    if (pendingAction.current) return;
+    pendingAction.current = true;
     setSaving(true);
+    setActionError('');
     try {
+      const values = await form.validateFields();
       const data = await saveSkillSandboxConfig(normalizeSubmitConfig(values));
       const nextConfig = { ...DEFAULT_CONFIG, ...data, provider: 'e2b' };
       setLoadedConfig(nextConfig);
       form.setFieldsValue(nextConfig);
       setModalOpen(false);
       message.success('脚本沙箱配置已保存');
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('保存沙箱配置失败，输入已保留，请重试。');
+      }
     } finally {
+      pendingAction.current = false;
       setSaving(false);
     }
   };
 
   const handleTest = async (): Promise<void> => {
-    const values = await form.validateFields();
+    if (pendingAction.current) return;
+    pendingAction.current = true;
     setTesting(true);
+    setActionError('');
     try {
+      const values = await form.validateFields();
       const data = await testSkillSandboxConfig(normalizeSubmitConfig(values));
       const nextConfig = { ...DEFAULT_CONFIG, ...data, provider: 'e2b' };
       setLoadedConfig(nextConfig);
@@ -349,7 +386,12 @@ function SandboxPage(): React.ReactElement {
       } else {
         message.warning(data.lastTestMessage || '脚本沙箱配置未通过测试');
       }
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('测试沙箱配置失败，输入已保留，请重试。');
+      }
     } finally {
+      pendingAction.current = false;
       setTesting(false);
     }
   };
@@ -372,18 +414,39 @@ function SandboxPage(): React.ReactElement {
   );
 
   return (
-    <div className="h-full overflow-auto bg-[#f7f8fc] px-8 py-6">
-      <div className="mx-auto max-w-[1160px]">
-        <div className="mb-5">
-          <h1 className="m-0 text-[20px] font-medium text-[#222529]">
-            脚本沙箱
-          </h1>
-          <p className="mt-2 mb-0 max-w-[720px] text-[13px] leading-5 text-[#676773]">
-            统一配置第三方脚本沙箱。启用后，Agent 节点的 Skill
-            脚本和工作流代码节点都会在隔离沙箱中执行，并自动归档执行过程中生成的文件。
-          </p>
-        </div>
+    <div className={styles.page}>
+      <div className={styles.content}>
+        <header className={styles.pageHeader}>
+          <div>
+            <h1>脚本沙箱</h1>
+            <p className="mt-2 mb-0 max-w-[720px] text-[13px] leading-5 text-[#607089]">
+              统一配置第三方脚本沙箱。启用后，Agent 节点的 Skill
+              脚本和工作流代码节点都会在隔离沙箱中执行，并自动归档执行过程中生成的文件。
+            </p>
+          </div>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            disabled={modalOpen}
+            onClick={() => void loadConfig()}
+          >
+            刷新
+          </Button>
+        </header>
 
+        {error && (
+          <Alert
+            className="mb-5"
+            type="error"
+            showIcon
+            message={error}
+            action={
+              <Button loading={loading} onClick={() => void loadConfig()}>
+                重试
+              </Button>
+            }
+          />
+        )}
         <Alert
           type="info"
           showIcon
@@ -391,18 +454,20 @@ function SandboxPage(): React.ReactElement {
           message="关闭 E2B 时，工作流代码节点默认使用内置 LangChain/Pyodide 隔离执行器，无需额外配置；Agent Skill 脚本需要启用并配置 E2B。显式将 CODE_EXEC_TYPE 设为 disabled 时，代码节点会被禁用。"
         />
 
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {PROVIDERS.map(provider => (
-            <ProviderCard
-              key={provider.key}
-              provider={provider}
-              loading={loading}
-              lastTestText={lastTestText}
-              statusTag={e2bStatusTag}
-              onConfigure={openE2bModal}
-            />
-          ))}
-        </div>
+        {(loaded || loading) && (
+          <div className={styles.providerGrid}>
+            {PROVIDERS.map(provider => (
+              <ProviderCard
+                key={provider.key}
+                provider={provider}
+                loading={loading || !loaded}
+                lastTestText={lastTestText}
+                statusTag={e2bStatusTag}
+                onConfigure={openE2bModal}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <SandboxConfigModal
@@ -412,6 +477,7 @@ function SandboxPage(): React.ReactElement {
         saving={saving}
         testing={testing}
         lastTestText={lastTestText}
+        actionError={actionError}
         lastTestMessage={loadedConfig.lastTestMessage}
         statusTag={e2bStatusTag}
         onCancel={() => setModalOpen(false)}

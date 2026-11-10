@@ -31,7 +31,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   if (dataType === 1) return null;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center flex-wrap gap-2">
       <Button
         onClick={onAddData}
         type="default"

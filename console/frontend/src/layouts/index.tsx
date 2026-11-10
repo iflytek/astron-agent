@@ -27,6 +27,8 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
   const isCatalog = ['/space/agent', '/space/workflows'].includes(
     location.pathname
   );
+  const isResource = location.pathname.startsWith('/resource/');
+  const isModel = location.pathname.startsWith('/management/model');
 
   // 如果没有显式传入 showHeader，则使用原来的逻辑判断
   const shouldShowHeader =
@@ -115,7 +117,7 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
         <ResourceNavigation />
 
         <div className="console-main">
-          {isCatalog && (
+          {(isCatalog || isResource || isModel) && (
             <div className="console-breadcrumb">
               <div>
                 <span>
@@ -123,7 +125,9 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
                     (enterpriseId ? '请选择团队空间' : '我的个人资源')}
                 </span>
                 <span>/</span>
-                <strong>应用构建</strong>
+                <strong>
+                  {isResource ? '资源管理' : isModel ? '模型管理' : '应用构建'}
+                </strong>
               </div>
               <a
                 href="https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html"
@@ -134,7 +138,7 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
               </a>
             </div>
           )}
-          {shouldShowHeader && (
+          {shouldShowHeader && !isResource && (
             <Header onSearch={handleSearch} onCreate={handleCreate} />
           )}
           <Outlet />

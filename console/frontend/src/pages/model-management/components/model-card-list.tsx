@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, JSX } from 'react';
 import { useTranslation } from 'react-i18next';
 import { message } from 'antd';
 import ModelCard from './model-card';
+import styles from '../model-workspace.module.scss';
 import { CreateModal } from './modal-component';
 import { getCategoryTree } from '@/services/model';
 import { ModelInfo, CategoryNode } from '@/types/model';
@@ -61,7 +62,7 @@ function ModelCardList({
   return (
     <div>
       {/* 卡片网格 */}
-      <div className={`grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3`}>
+      <div className={styles.grid}>
         {/* 普通模型卡片 */}
         {renderList.map(model => (
           <ModelCard

@@ -1,8 +1,7 @@
-import { shouldShowRequestError } from '@/utils/http-error';
 import React, { memo, useEffect, useState, useMemo } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { message } from 'antd';
+import { Alert, Button, Skeleton } from 'antd';
+import styles from '../model-workspace.module.scss';
 import { getModelDetail } from '@/services/model';
 import dayjs from 'dayjs';
 import ModelDetailHeader from './components/model-detail-header';
@@ -16,7 +15,6 @@ import {
 } from '@/types/model';
 
 import { v4 as uuid } from 'uuid';
-import { ResponseBusinessError } from '@/types/global';
 
 // 辅助函数
 function collectNames(nodes: CategoryNode[] = []): string[] {
@@ -51,13 +49,15 @@ const maskKey = (key = ''): string =>
     : `${key.slice(0, 4)}******${key.slice(-4)}`;
 
 function index(): React.JSX.Element {
-  const { t } = useTranslation();
   const { state } = useLocation();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const llmSource = searchParams.get('llmSource');
   const modelIcon = searchParams.get('modelIcon');
   const [modelDetail, setModelDetail] = useState<ModelInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
 
   /* 控制提示框是否已手动关闭 */
   const [closed, setClosed] = useState(false);
@@ -69,6 +69,11 @@ function index(): React.JSX.Element {
   const [modelParams, setModelParams] = useState<ModelConfigParam[]>([]);
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    setModelDetail(null);
+    setModelParams([]);
     const params = {
       modelId: id ? parseInt(id, 10) : undefined,
       llmSource: llmSource ? parseInt(llmSource, 10) : undefined,
@@ -76,6 +81,8 @@ function index(): React.JSX.Element {
 
     getModelDetail(params)
       .then(data => {
+        if (!active) return;
+        if (!data) throw new Error('未找到该模型');
         if (data) {
           setModelDetail({
             ...data,
@@ -86,20 +93,29 @@ function index(): React.JSX.Element {
 
           if (data?.llmSource === LLMSource.CUSTOM) {
             setModelParams(
-              JSON.parse(data?.config)?.map((item: ModelConfigParam) => ({
-                ...item,
-                id: uuid(),
-                min: item?.constraintContent?.[0]?.name,
-                max: item?.constraintContent?.[1]?.name,
-              }))
+              (data.config ? JSON.parse(data.config) : [])?.map(
+                (item: ModelConfigParam) => ({
+                  ...item,
+                  id: uuid(),
+                  min: item?.constraintContent?.[0]?.name,
+                  max: item?.constraintContent?.[1]?.name,
+                })
+              )
             );
           }
         }
       })
-      .catch((error: ResponseBusinessError) => {
-        shouldShowRequestError(error) && message.error(error.message);
+      .catch((error: unknown) => {
+        if (active)
+          setError(error instanceof Error ? error.message : '模型详情加载失败');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
-  }, []);
+    return (): void => {
+      active = false;
+    };
+  }, [id, llmSource, revision]);
 
   const modelCategoryTags = useMemo(() => {
     const tags: string[] = [];
@@ -136,38 +152,50 @@ function index(): React.JSX.Element {
   }, [modelDetail, model]);
 
   return (
-    <div className="w-full h-full overflow-hidden flex flex-col pb-6">
-      <ModelDetailHeader
-        modelDetail={modelDetail}
-        closed={closed}
-        setClosed={setClosed}
-        formatDate={formatDate}
-      />
-      <div className="flex-1 overflow-auto">
-        <div
-          className="w-full h-full mx-auto bg-[#FFFFFF] rounded-2xl p-6"
-          style={{
-            width: '85%',
-          }}
-        >
-          <ModelInfoDisplay
-            modelDetail={modelDetail}
-            modelIcon={modelIcon}
-            modelCategoryTags={modelCategoryTags}
-            modelScenarioTags={modelScenarioTags}
-            bottomTexts={bottomTexts}
-            llmSource={llmSource}
+    <div className={styles.page}>
+      <div className={styles.inner}>
+        <ModelDetailHeader
+          modelDetail={modelDetail}
+          closed={closed}
+          setClosed={setClosed}
+          formatDate={formatDate}
+        />
+        {loading ? (
+          <Skeleton active paragraph={{ rows: 8 }} />
+        ) : error ? (
+          <Alert
+            className={styles.feedback}
+            type="error"
+            showIcon
+            message="模型详情加载失败"
+            description={error}
+            action={
+              <Button onClick={() => setRevision(value => value + 1)}>
+                重试
+              </Button>
+            }
           />
+        ) : (
+          <div className={styles.detail}>
+            <ModelInfoDisplay
+              modelDetail={modelDetail}
+              modelIcon={modelIcon}
+              modelCategoryTags={modelCategoryTags}
+              modelScenarioTags={modelScenarioTags}
+              bottomTexts={bottomTexts}
+              llmSource={llmSource}
+            />
 
-          <ModelConfigSection
-            modelDetail={modelDetail}
-            llmSource={llmSource}
-            modelParams={modelParams}
-            setModelParams={setModelParams}
-            checkNameConventions={checkNameConventions}
-            maskKey={maskKey}
-          />
-        </div>
+            <ModelConfigSection
+              modelDetail={modelDetail}
+              llmSource={llmSource}
+              modelParams={modelParams}
+              setModelParams={setModelParams}
+              checkNameConventions={checkNameConventions}
+              maskKey={maskKey}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
