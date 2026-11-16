@@ -317,3 +317,335 @@
     }
   }
 }
+
+// Publishing uses a compact comparison surface; market and chat retain their layouts.
+.tabs {
+  padding-bottom: 0;
+  gap: 24px;
+  button:not(:global(.ant-btn)) {
+    appearance: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    padding: 14px 2px;
+    color: #526580;
+    cursor: pointer;
+    font: inherit;
+    &[aria-current='page'] {
+      color: #315ff4;
+      border-bottom-color: #315ff4;
+      font-weight: 600;
+    }
+    &:hover {
+      color: #315ff4;
+    }
+  }
+  > :last-child {
+    margin-left: auto;
+  }
+}
+.catalogToolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  > :global(.ant-input-affix-wrapper) {
+    width: 320px;
+  }
+  > :global(.ant-select) {
+    width: 140px;
+  }
+}
+.resultCount {
+  margin-left: auto;
+  color: #607089;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.releaseTable {
+  overflow-x: auto;
+  border: 1px solid #dfe6f1;
+  border-radius: 12px;
+  background: #fff;
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  th {
+    background: #f6f8fd;
+    color: #526580;
+    font-weight: 500;
+    font-size: 12px;
+  }
+  th,
+  td {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e8edf5;
+  }
+  th:first-child {
+    width: 38%;
+  }
+  th:nth-child(2) {
+    width: 100px;
+  }
+  th:last-child,
+  td:last-child {
+    text-align: right;
+    white-space: nowrap;
+  }
+  tr:last-child td {
+    border-bottom: 0;
+  }
+  tbody tr:hover {
+    background: #fafbff;
+  }
+  .description {
+    margin: 5px 0 0 26px;
+    color: #607089;
+    font-size: 13px;
+    max-width: 52ch;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+}
+.objectLink {
+  border: 0;
+  padding: 0;
+  background: none;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  text-align: left;
+  color: #18243d;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  > :global(.anticon) {
+    color: #607089;
+  }
+  > span:last-child {
+    overflow-wrap: anywhere;
+  }
+  &:hover {
+    color: #315ff4;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+.kind {
+  font-size: 12px;
+  color: #526580;
+  white-space: nowrap;
+}
+.channelSummary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  :global(.ant-tag) {
+    margin: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  span span {
+    font-variant-numeric: tabular-nums;
+  }
+  small {
+    font-size: 11px;
+  }
+}
+.releaseDrawer {
+  color: #18243d;
+  font: 14px/1.5 var(--console-font, sans-serif);
+  :global(.ant-drawer-header) {
+    padding: 20px 24px;
+  }
+  :global(.ant-drawer-title) {
+    font-size: 20px;
+    overflow-wrap: anywhere;
+  }
+  :global(.ant-drawer-body) {
+    padding: 0 24px 28px;
+    scrollbar-color: #c5d2e9 transparent;
+  }
+  :focus-visible {
+    outline: 2px solid #315ff4;
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: #e7eeff;
+    color: #18243d;
+  }
+  input {
+    caret-color: #315ff4;
+  }
+  p {
+    margin: 8px 0 16px;
+    color: #526580;
+    overflow-wrap: anywhere;
+  }
+  h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 8px;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 24px 0 12px;
+  }
+  :global(.ant-alert) {
+    margin-block: 16px;
+  }
+}
+.objectHeading {
+  padding: 20px 0 16px;
+  > :global(.ant-btn) {
+    padding-left: 0;
+    height: auto;
+  }
+}
+.detailTabs {
+  display: flex;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #dfe6f1;
+  margin-bottom: 24px;
+}
+.detailSection {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e8edf5;
+  &:last-child {
+    margin-bottom: 0;
+    border-bottom: 0;
+  }
+  .actions {
+    margin-top: 16px;
+  }
+}
+.publishForm {
+  border: 0;
+  padding: 0;
+  margin: 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  :global(.ant-select) {
+    width: 100%;
+    font-weight: 400;
+  }
+  p {
+    margin: 0;
+  }
+}
+.formFooter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+.versionPager {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #607089;
+  font-size: 12px;
+}
+.channelList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid #e8edf5;
+  }
+  li:last-child {
+    border-bottom: 0;
+  }
+  li > div {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+  }
+  strong {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  span,
+  small {
+    color: #526580;
+    font-variant-numeric: tabular-nums;
+  }
+  small {
+    flex-basis: 100%;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+}
+.share {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.emptyActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+@media (max-width: 760px) {
+  .catalogToolbar {
+    flex-wrap: wrap;
+    > :global(.ant-input-affix-wrapper) {
+      width: 100%;
+    }
+  }
+  .releaseTable {
+    th,
+    td {
+      padding: 14px 12px;
+    }
+    table {
+      min-width: 620px;
+    }
+    th:first-child {
+      min-width: 220px;
+    }
+  }
+  .tabs {
+    gap: 16px;
+    > :last-child {
+      margin-left: 0;
+    }
+  }
+  .releaseDrawer {
+    :global(.ant-drawer-body) {
+      padding-inline: 18px;
+    }
+    :global(.ant-drawer-header) {
+      padding-inline: 18px;
+    }
+  }
+  .share {
+    flex-wrap: wrap;
+  }
+}

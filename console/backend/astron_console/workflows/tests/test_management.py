@@ -43,6 +43,48 @@ class ManagementTests(TransactionTestCase):
             url, json.dumps(payload), content_type="application/json"
         )
 
+    def test_publication_and_pending_approval_versions_cannot_be_deleted(self):
+        from astron_console.publishing.models import Approval, Publication, PublicationCandidate
+
+        for pending in (False, True):
+            with self.subTest(pending=pending):
+                version = WorkflowVersion.objects.create(
+                    flow_id=self.workflow.flow_id,
+                    version_num=f"protected-{pending}",
+                    data=self.workflow.data,
+                )
+                candidate = PublicationCandidate.objects.create(
+                    bot_id=1,
+                    resource_kind="workflow",
+                    resource_id=self.workflow.flow_id,
+                    version_id=version.pk,
+                    definition={"graph": json.loads(version.data)},
+                    owner_uid=self.user.pk,
+                    created_by=self.user.pk,
+                )
+                if pending:
+                    Approval.objects.create(
+                        resource_id="1",
+                        publish_type="MARKET",
+                        target_hash="pending",
+                        requester_uid=self.user.pk,
+                        candidate=candidate,
+                    )
+                else:
+                    Publication.objects.create(bot_id=1, channel="MARKET", candidate=candidate)
+                response = self.write("delete", "/workflow/version", {"id": version.pk})
+                self.assertEqual(response.status_code, 400, response.content)
+                version.refresh_from_db()
+                self.assertEqual(version.is_deleted, 0)
+        unused = WorkflowVersion.objects.create(
+            flow_id=self.workflow.flow_id,
+            version_num="unused",
+            data=self.workflow.data,
+        )
+        self.assertEqual(
+            self.write("delete", "/workflow/version", {"id": unused.pk}).status_code, 200
+        )
+
     def test_blank_creation_has_no_edges_but_clone_and_template_keep_them(self):
         graph = json.loads(self.workflow.data)
         self.assertEqual(len(graph["nodes"]), 2)

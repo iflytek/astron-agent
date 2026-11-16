@@ -276,6 +276,22 @@ class ChannelTests(TestCase):
             execute.assert_not_called()
         self.assertEqual(WebhookEvent.objects.get(pk=event.pk).status, "failed")
 
+    def test_revoke_restores_remaining_channel_version_pointer(self):
+        auth, publication = self.bind()
+        market = services.activate(publication.candidate, "MARKET")
+        self.bot.prompt = "wechat-only new version"
+        self.bot.save()
+        newer = services.create_candidate(self.scope, self.bot.pk)
+        services.activate(newer, "WECHAT", target_id=auth.appid)
+        self.assertEqual(
+            AgentState.objects.get(agent_id=self.bot.pk).published_version_id, newer.version_id
+        )
+        wechat.revoke(auth.appid)
+        self.assertEqual(
+            AgentState.objects.get(agent_id=self.bot.pk).published_version_id,
+            market.candidate.version_id,
+        )
+
     def test_job_subject_and_unknown_send_are_not_replayed(self):
         self.bind()
         self.push(self.text_message())

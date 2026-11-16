@@ -273,7 +273,14 @@ def versions(request):
         ).first()
         if version is None:
             raise Http404
-        get_workflow(scope, version.flow_id, WRITE)
+        workflow = get_workflow(scope, version.flow_id, WRITE)
+        Workflow.objects.select_for_update().get(pk=workflow.pk)
+        from astron_console.publishing.models import PublicationCandidate
+
+        if PublicationCandidate.objects.filter(
+            resource_kind="workflow", resource_id=version.flow_id, version_id=version.pk
+        ).exists():
+            raise ValidationError("该版本已用于发布或审批，不能删除；请保留发布快照")
         WorkflowVersion.objects.filter(pk=version.pk).update(deleted=2, is_deleted=1)
         return None
     row = get_workflow(scope, payload.get("flowId"), READ if request.method == "GET" else WRITE)

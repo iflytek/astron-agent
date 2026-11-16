@@ -277,14 +277,18 @@ def auth_callback(request):
 
 @transaction.atomic
 def revoke(appid):
-    from astron_console.agents.models import AgentState
+    from astron_console.agents.models import Agent
     from astron_console.publishing.models import Publication
-    from astron_console.workflows.models import Workflow
+    from astron_console.publishing.services import refresh_release_state
 
     bindings = list(WechatBinding.objects.filter(appid=appid, status=1))
-    publications = list(
-        Publication.objects.filter(channel="WECHAT", target_id=appid).select_related("candidate")
+    bot_ids = set(
+        Publication.objects.filter(channel="WECHAT", target_id=appid).values_list(
+            "bot_id", flat=True
+        )
     )
+    # Publication activation/offline share the Agent lock, including remote revocation.
+    bots = list(Agent.objects.select_for_update().filter(pk__in=bot_ids).order_by("pk"))
     WechatBinding.objects.filter(appid=appid).update(status=2, update_time=timezone.now())
     WechatAuthorization.objects.filter(appid=appid).update(
         status="revoked", updated_at=timezone.now()
@@ -292,16 +296,8 @@ def revoke(appid):
     Publication.objects.filter(channel="WECHAT", target_id=appid).update(active=False)
     for row in bindings:
         WechatRecord.objects.create(bot_id=row.bot_id, appid=appid, auth_type=2)
-        if not Publication.objects.filter(bot_id=row.bot_id, active=True).exists():
-            AgentState.objects.filter(agent_id=row.bot_id).update(published_version_id=None)
-            for publication in publications:
-                if (
-                    publication.bot_id == row.bot_id
-                    and publication.candidate.resource_kind == "workflow"
-                ):
-                    Workflow.objects.filter(flow_id=publication.candidate.resource_id).update(
-                        status=0
-                    )
+    for bot in bots:
+        refresh_release_state(bot)
 
 
 @api_endpoint(["GET", "DELETE"])

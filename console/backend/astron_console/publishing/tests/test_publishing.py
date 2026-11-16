@@ -202,6 +202,54 @@ class PublicationTests(TestCase):
                 tenant.create_app("owner", "new", "description", "idempotency-key")
             self.assertEqual(call.call_count, 1)
 
+    def test_api_offline_requires_exact_target_and_restores_remaining_version(self):
+        from astron_console.agents.definitions import resolve_version
+        from astron_console.publishing.models import BotAPI
+
+        market = services.submit(self.scope, self.bot.pk, "MARKET")
+        for app_id in ("app-a", "app-b"):
+            App.objects.create(uid="owner", app_id=app_id, app_name=app_id)
+            services.submit(self.scope, self.bot.pk, "API", target_id=app_id)
+        self.assertEqual(BotAPI.objects.filter(bot_id=self.bot.pk).count(), 2)
+        with self.assertRaises(ValidationError):
+            services.offline(self.scope, self.bot.pk, "API")
+        self.assertEqual(Publication.objects.filter(channel="API", active=True).count(), 2)
+        services.offline(self.scope, self.bot.pk, "API", "app-a")
+        self.assertTrue(Publication.objects.get(channel="API", target_id="app-b").active)
+        services.offline(self.scope, self.bot.pk, "API", "app-b")
+        self.assertEqual(resolve_version(self.scope, self.bot.pk)["versionId"], market["versionId"])
+        with self.assertRaises(ValidationError):
+            services.submit(self.scope, self.bot.pk, "MARKET", target_id="app-a")
+
+    @patch("astron_console.publishing.services.validate_graph")
+    def test_workflow_renaming_affects_only_new_publication_and_state_restores(self, validate):
+        from astron_console.workflows.management_views import create_workflow
+
+        workflow = create_workflow(self.scope, {"name": "original workflow"})
+        bot = services.bind_workflow(self.scope, workflow.pk)
+        first = services.submit(self.scope, bot.pk, "MARKET")
+        workflow.name = "renamed workflow"
+        workflow.description = "new description"
+        graph = json.loads(workflow.data)
+        graph["nodes"][0]["data"]["label"] = "new start"
+        workflow.data = json.dumps(graph)
+        workflow.save()
+        services.bind_workflow(self.scope, workflow.pk)
+        bot.refresh_from_db()
+        self.assertEqual(bot.bot_name, workflow.name)
+        App.objects.create(uid="owner", app_id="workflow-app", app_name="workflow")
+        second = services.submit(self.scope, bot.pk, "API", target_id="workflow-app")
+        first_pub = Publication.objects.get(pk=first["publicationId"])
+        second_pub = Publication.objects.get(pk=second["publicationId"])
+        self.assertEqual(first_pub.candidate.definition["botName"], "original workflow")
+        self.assertEqual(second_pub.candidate.definition["botName"], workflow.name)
+        self.assertEqual(second_pub.candidate.definition["botDesc"], workflow.description)
+        services.offline(self.scope, bot.pk, "API", "workflow-app")
+        workflow.refresh_from_db()
+        self.assertEqual(
+            json.loads(workflow.published_data), first_pub.candidate.definition["graph"]
+        )
+
 
 class AdoptionTests(TransactionTestCase):
     def test_readoption_retains_original_keys_unknown_columns_and_no_duplicate_seed(self):

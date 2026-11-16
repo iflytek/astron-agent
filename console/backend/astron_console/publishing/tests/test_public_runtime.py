@@ -50,6 +50,89 @@ class PublicExecutionTests(TestCase):
             self.publication, self.viewer.pk, {"message": "hello"}, **kwargs
         )
 
+    @patch("astron_console.publishing.services.validate_graph")
+    def test_publication_pins_agent_and_nested_workflow_before_first_run(self, validate):
+        from astron_console.workflows.models import Workflow
+        from astron_console.workflows.protocol import starter_graph
+
+        child_graph = starter_graph()
+        child = Workflow.objects.create(
+            uid=self.owner.pk,
+            app_id="app",
+            flow_id="child",
+            name="child",
+            data=json.dumps(child_graph),
+        )
+        graph = starter_graph()
+        graph["nodes"].extend(
+            [
+                {"id": "agent::fixed", "data": {"nodeParam": {"agentId": self.bot.pk}}},
+                {"id": "flow::fixed", "data": {"nodeParam": {"flowId": child.flow_id}}},
+            ]
+        )
+        workflow = Workflow.objects.create(
+            uid=self.owner.pk,
+            app_id="app",
+            flow_id="parent",
+            name="parent",
+            data=json.dumps(graph),
+        )
+        bot = services.bind_workflow(self.scope, workflow.pk)
+        result = services.submit(self.scope, bot.pk, "MARKET")
+        publication = Publication.objects.get(pk=result["publicationId"])
+        old_version = self.publication.candidate.version_id
+        self.bot.prompt = "unrelated later publication"
+        self.bot.save()
+        services.submit(self.scope, self.bot.pk, "MARKET")
+        child.data = json.dumps(starter_graph())
+        child.save()
+        services.validate_candidate(publication.candidate)
+        run, grant, _ = public_runtime.prepare_public(publication, self.viewer.pk, {"inputs": {}})
+        self.assertEqual(run.resolved_agents["agent::fixed"]["versionId"], old_version)
+        snapshots = ExecutionContext.objects.get(pk=grant.root_id).snapshots
+        self.assertEqual(snapshots["workflows"][child.flow_id]["graph"], child_graph)
+
+    def test_published_agent_pins_workflow_tools_and_legacy_candidates_remain_readable(self):
+        from astron_console.publishing.models import PublicationCandidate
+        from astron_console.workflows.models import Workflow
+        from astron_console.workflows.protocol import starter_graph
+
+        graph = starter_graph()
+        child = Workflow.objects.create(
+            uid=self.owner.pk,
+            app_id="app",
+            flow_id="tool-flow",
+            name="tool",
+            data=json.dumps(graph),
+        )
+        self.bot.workflows = json.dumps([child.flow_id])
+        self.bot.save()
+        result = services.submit(self.scope, self.bot.pk, "MARKET")
+        publication = Publication.objects.get(pk=result["publicationId"])
+        child.data = json.dumps(starter_graph())
+        child.save()
+        _, grant, _ = public_runtime.prepare_public(
+            publication, self.viewer.pk, {"message": "hello"}
+        )
+        snapshots = ExecutionContext.objects.get(pk=grant.root_id).snapshots
+        self.assertEqual(snapshots["workflows"][child.flow_id]["graph"], graph)
+        # Old persisted candidates cannot be given a fabricated historical snapshot.
+        definition = dict(publication.candidate.definition)
+        definition.pop("executionSnapshots")
+        PublicationCandidate.objects.filter(pk=publication.candidate_id).update(
+            definition=definition
+        )
+        publication = services.require_publication(bot_id=self.bot.pk)
+        _, legacy_grant, _ = public_runtime.prepare_public(
+            publication, self.viewer.pk, {"message": "legacy"}
+        )
+        self.assertEqual(
+            ExecutionContext.objects.get(pk=legacy_grant.root_id).snapshots["workflows"][
+                child.flow_id
+            ]["graph"],
+            json.loads(child.data),
+        )
+
     def test_caller_identity_is_separate_and_owner_memory_unavailable(self):
         run, grant, data = self.prepared()
         payload, _, subject_scope = data

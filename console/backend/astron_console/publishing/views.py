@@ -5,16 +5,16 @@ from collections import defaultdict
 from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.http import Http404
 from django.utils import timezone
 
 from astron_console.accounts.deployment import public_origin
-from astron_console.agents.models import Agent, AgentFavorite, AgentRun
+from astron_console.agents.models import Agent, AgentFavorite, AgentRun, AgentVersion
 from astron_console.http import api_endpoint
 from astron_console.resources.common import number, serialize, text, upstream_errors
 from astron_console.spaces.permissions import resolve_scope, scope_queryset
-from astron_console.workflows.models import WorkflowRun
+from astron_console.workflows.models import Workflow, WorkflowRun, WorkflowVersion
 
 from . import services, tenant
 from .models import (
@@ -25,6 +25,7 @@ from .models import (
     LegacyMarket,
     Publication,
     ShareRecord,
+    WorkflowBot,
 )
 
 
@@ -82,11 +83,20 @@ def bot_data(bot):
             "source", "reason"
         )
     )
+    workflow = None
+    if bot.version != 1:
+        binding = WorkflowBot.objects.filter(bot_id=bot.pk).first()
+        workflow = Workflow.objects.filter(
+            flow_id=binding.flow_id if binding else bot.maas_bot_id, deleted=False
+        ).first()
     return {
         "legacyPublicationIssues": issues,
         "botId": bot.pk,
-        "botName": bot.bot_name,
-        "botDesc": bot.bot_desc,
+        "botName": workflow.name if workflow else bot.bot_name,
+        "botDesc": workflow.description if workflow else bot.bot_desc,
+        "resourceKind": "workflow" if bot.version != 1 else "agent",
+        "resourceId": workflow.flow_id if workflow else str(bot.pk),
+        "workflowId": workflow.pk if workflow else None,
         "avatar": bot.avatar,
         "version": bot.version,
         "botType": bot.bot_type,
@@ -98,9 +108,19 @@ def bot_data(bot):
                 "channel": row.channel,
                 "versionId": row.candidate.version_id,
                 "targetId": row.target_id,
+                "updatedTime": row.update_time,
+                "hasFrozenDependencies": "executionSnapshots" in row.candidate.definition,
             }
             for row in publications
         ],
+        "pendingApprovals": list(
+            Approval.objects.filter(
+                resource_id=str(bot.pk),
+                space_id=bot.space_id,
+                deleted=0,
+                approval_status="PENDING",
+            ).values("id", "publish_type", "target_id")
+        ),
         "legacyPublicationNeedsReview": bool(legacy and legacy.bot_status and not publications),
     }
 
@@ -114,6 +134,49 @@ def bots(request, bot_id=None):
     search = request.GET.get("search") or request.GET.get("name")
     if search:
         query = query.filter(bot_name__icontains=search)
+    if request.GET.get("includeWorkflows") == "true":
+        # Read-only union: opening the catalog must not create workflow bindings.
+        agents = query.filter(version=1)
+        workflows = scope_queryset(Workflow.objects.filter(deleted=False), scope)
+        if search:
+            workflows = workflows.filter(name__icontains=search)
+        kind = request.GET.get("resourceKind")
+        if kind == "agent":
+            workflows = workflows.none()
+        elif kind == "workflow":
+            agents = agents.none()
+        identities = (
+            agents.annotate(resource_kind=models.Value("agent"))
+            .values_list("id", "create_time", "resource_kind")
+            .union(
+                workflows.annotate(resource_kind=models.Value("workflow")).values_list(
+                    "id", "create_time", "resource_kind"
+                )
+            )
+            .order_by("-create_time", "-id")
+        )
+
+        def resource_data(identity):
+            key, _, resource_kind = identity
+            if resource_kind == "agent":
+                return bot_data(Agent.objects.get(pk=key))
+            workflow = workflows.get(pk=key)
+            binding = WorkflowBot.objects.filter(flow_id=workflow.flow_id).first()
+            bot = Agent.objects.filter(pk=binding.bot_id, is_delete=0).first() if binding else None
+            if bot:
+                return bot_data(bot)
+            return {
+                "botId": None,
+                "botName": workflow.name,
+                "botDesc": workflow.description,
+                "resourceKind": "workflow",
+                "resourceId": workflow.flow_id,
+                "workflowId": workflow.pk,
+                "publications": [],
+                "pendingApprovals": [],
+            }
+
+        return paginated(identities, request.GET, resource_data)
     return paginated(query.order_by("-id"), request.GET, bot_data)
 
 
@@ -150,10 +213,29 @@ def prepare(request, bot_id):
     channel = request.GET.get("type", "MARKET").upper()
     if channel not in {"MARKET", "API", "INTERNAL"}:
         raise ValidationError("该渠道需要独立授权或尚不支持")
+    if bot.version == 1:
+        versions = AgentVersion.objects.filter(agent_id=bot.pk).order_by("-id")
+        serializer = lambda row: {  # noqa: E731
+            "id": row.pk,
+            "name": f"版本 {row.pk}",
+            "createdTime": row.create_time,
+        }
+    else:
+        workflow = services.workflow_for_bot(resolve_scope(request), bot)
+        versions = WorkflowVersion.objects.filter(
+            flow_id=workflow.flow_id, is_deleted=0, deleted=1
+        ).order_by("-id")
+        serializer = lambda row: {  # noqa: E731
+            "id": row.pk,
+            "name": row.name or row.version_num,
+            "createdTime": row.created_time,
+        }
     return {
         "type": channel,
         "botId": bot.pk,
         "botName": bot.bot_name,
+        "requiresApproval": services.requires_approval(resolve_scope(request)),
+        "versions": paginated(versions, request.GET, serializer),
         "apps": [
             serialize(row, exclude=("app_key", "app_secret"))
             for row in App.objects.filter(uid=request.user.pk, is_delete=0)
