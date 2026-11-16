@@ -48,7 +48,14 @@ const formatJson = (value?: string): string => {
   }
 };
 
-const ApprovalList: React.FC = () => {
+interface ApprovalListProps {
+  /** Approval records are scoped to a team space. Personal scope has no approval queue. */
+  spaceId?: string;
+  spaceType?: string;
+}
+
+const ApprovalList: React.FC<ApprovalListProps> = ({ spaceId, spaceType }) => {
+  const canLoadApprovals = spaceType === 'team' && Boolean(spaceId);
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [approvals, setApprovals] = useState<PublishApproval[]>([]);
@@ -78,6 +85,7 @@ const ApprovalList: React.FC = () => {
   );
 
   const loadApprovals = useCallback(() => {
+    if (!canLoadApprovals) return;
     const currentRequest = ++requestId.current;
     setLoading(true);
     setError('');
@@ -98,14 +106,25 @@ const ApprovalList: React.FC = () => {
       .finally(() => {
         if (currentRequest === requestId.current) setLoading(false);
       });
-  }, [pageInfo.page, pageInfo.size, resourceId, status]);
+  }, [
+    canLoadApprovals,
+    pageInfo.page,
+    pageInfo.size,
+    resourceId,
+    spaceId,
+    status,
+  ]);
 
   useEffect(() => {
+    if (!canLoadApprovals) {
+      setLoading(false);
+      return;
+    }
     loadApprovals();
     return () => {
       requestId.current += 1;
     };
-  }, [loadApprovals]);
+  }, [canLoadApprovals, loadApprovals]);
 
   const openReviewModal = (
     approval: PublishApproval,
@@ -159,6 +178,19 @@ const ApprovalList: React.FC = () => {
       },
     });
   };
+
+  if (!canLoadApprovals) {
+    return (
+      <div className={styles.approvalPage}>
+        <Alert
+          type="info"
+          showIcon
+          message="发布审批仅适用于团队空间"
+          description="切换到团队空间后，可查看和处理发布审批申请。个人空间中的发布会直接生效。"
+        />
+      </div>
+    );
+  }
 
   const columns = [
     {
