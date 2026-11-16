@@ -524,7 +524,7 @@ function ReleaseDetails({
 }
 
 function PublishingCatalog() {
-  const { spaceId, enterpriseId } = useSpaceStore();
+  const { spaceId, enterpriseId, spaceType } = useSpaceStore();
   const [bots, setBots] = useState<Bot[]>([]);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -615,7 +615,7 @@ function PublishingCatalog() {
         </Button>
       </nav>
       {tab === 'approvals' ? (
-        <ApprovalList key={scopeKey} />
+        <ApprovalList key={scopeKey} spaceId={spaceId} spaceType={spaceType} />
       ) : (
         <>
           <div className={styles.catalogToolbar}>
