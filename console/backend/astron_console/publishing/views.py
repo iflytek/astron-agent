@@ -97,7 +97,7 @@ def bot_data(bot):
         "resourceKind": "workflow" if bot.version != 1 else "agent",
         "resourceId": workflow.flow_id if workflow else str(bot.pk),
         "workflowId": workflow.pk if workflow else None,
-        "avatar": bot.avatar,
+        "avatar": workflow.avatar_icon if workflow else bot.avatar,
         "version": bot.version,
         "botType": bot.bot_type,
         "botStatus": 1 if publications else 0,
