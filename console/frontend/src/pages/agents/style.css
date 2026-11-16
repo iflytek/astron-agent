@@ -669,6 +669,229 @@
   color: var(--agents-primary);
 }
 
+/* Dify-inspired authoring workspace: configuration stays visible beside the
+   saved-configuration debugger while the surrounding app chrome remains light. */
+.agent-studio {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  padding: 22px 24px 28px;
+}
+
+.agent-studio > * {
+  flex-shrink: 0;
+  width: min(1480px, 100%);
+}
+
+.agent-studio .agents-header {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.agent-studio h1 {
+  font-size: 22px;
+  line-height: 30px;
+}
+
+.agent-studio .agents-context-bar {
+  margin-bottom: 8px;
+}
+
+.agent-studio .agents-tabs {
+  margin-bottom: 12px;
+}
+
+.agent-studio-workspace {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(360px, 0.86fr) minmax(360px, 1.14fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.agent-studio-workspace > .agents-definition-panel,
+.agent-studio-preview {
+  min-height: 0;
+  margin-bottom: 0;
+}
+
+.agent-studio-workspace > .agents-definition-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px 22px 0;
+}
+
+.agent-studio .agents-definition-fields {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.agent-studio .agents-save-bar {
+  flex: none;
+  margin-top: 12px;
+}
+
+.agent-studio-preview {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 18px;
+  border: 1px solid var(--agents-line);
+  border-radius: 12px;
+  background: #fbfcff;
+}
+
+.agent-studio-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 14px;
+  border-bottom: 1px solid var(--agents-line);
+}
+
+.agent-studio-preview-header h2 {
+  margin: 0;
+}
+
+.agent-studio-preview-header p {
+  margin: 4px 0 0;
+  color: var(--agents-muted);
+}
+
+.agent-studio-preview .agents-chat-layout {
+  flex: 1;
+  min-height: 0;
+  margin-top: 14px;
+}
+
+.agent-studio-preview .agents-message-list {
+  min-height: 0;
+  max-height: none;
+}
+
+.agent-studio-draft-hint {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid #e7bd74;
+  border-radius: 7px;
+  color: #8a5c0b;
+  background: #fff7e6;
+  font-size: 12px;
+}
+
+.agent-studio-disclosure {
+  margin-top: 18px;
+  border-top: 1px solid var(--agents-line);
+  padding-top: 14px;
+}
+
+.agent-studio-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: var(--agents-ink);
+  font-weight: 650;
+}
+
+.agent-studio-disclosure summary span {
+  color: var(--agents-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.agent-studio-disclosure-body {
+  margin-top: 14px;
+}
+
+.agent-preview-toolbar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.agent-preview-toolbar button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--agents-line);
+  border-radius: 7px;
+  color: var(--agents-ink);
+  background: #fff;
+}
+
+.agents-chat-embedded .agents-session-list {
+  flex-basis: auto;
+  max-height: 220px;
+  margin-bottom: 10px;
+}
+
+.agents-chat-embedded .agents-session-list[hidden] {
+  display: none;
+}
+
+.agents-chat-embedded {
+  flex-direction: column;
+}
+
+.agents-chat-embedded .agents-chat-main {
+  min-height: 0;
+}
+
+.agents-chat-embedded .agents-chat-main > .agents-empty {
+  margin: auto;
+  max-width: 48ch;
+}
+
+.agent-studio .agents-resource-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.agents-chat-embedded .agents-conversation {
+  min-height: 0;
+}
+
+.agent-preview-empty-icon {
+  margin-bottom: 10px;
+  color: var(--agents-primary);
+  font-size: 28px;
+}
+
+@media (max-width: 900px) {
+  .agent-studio {
+    display: block;
+    height: auto;
+  }
+
+  .agent-studio-workspace {
+    display: flex;
+    min-height: 0;
+    height: auto;
+    flex-direction: column;
+  }
+
+  .agent-studio .agents-definition-fields {
+    overflow: visible;
+    flex: auto;
+    padding-right: 0;
+  }
+
+  .agent-studio-preview {
+    min-height: 620px;
+  }
+}
+
 @media (max-width: 800px) {
   .agents-page {
     padding: 22px 18px;
@@ -728,6 +951,14 @@
 
   .agents-panel {
     padding: 16px;
+  }
+
+  .agent-studio {
+    padding: 18px;
+  }
+
+  .agent-studio-workspace > .agents-definition-panel {
+    max-height: none;
   }
 }
 

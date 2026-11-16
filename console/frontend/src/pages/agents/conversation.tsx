@@ -4,6 +4,9 @@ import {
   PaperClipOutlined,
   CloseOutlined,
   DeleteOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import MarkdownRender from '@/components/markdown-render';
 import { downloadFileWithHeaders } from '@/utils/http';
@@ -582,12 +585,15 @@ export default function Conversation({
   agent,
   kind,
   onGuardChange,
+  embedded = false,
 }: {
   agent: AgentDefinition;
   kind: AgentKind;
+  embedded?: boolean;
   onGuardChange: (reason: string) => void;
 }) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const [selected, setSelected] = useState<AgentSession | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AgentSession | null>(null);
   const [error, setError] = useState('');
@@ -667,8 +673,29 @@ export default function Conversation({
     }
   };
   return (
-    <div className="agents-chat-layout">
-      <aside className="agents-session-list">
+    <div
+      className={`agents-chat-layout${embedded ? ' agents-chat-embedded' : ''}`}
+    >
+      {embedded && (
+        <div className="agent-preview-toolbar">
+          <button
+            type="button"
+            aria-expanded={showHistory}
+            onClick={() => setShowHistory(value => !value)}
+          >
+            <HistoryOutlined /> 会话历史
+            {sessions.length ? ` (${sessions.length})` : ''}
+          </button>
+          <button
+            type="button"
+            disabled={busy || loading}
+            onClick={() => requestChange(() => void create())}
+          >
+            <PlusOutlined /> 新建会话
+          </button>
+        </div>
+      )}
+      <aside className="agents-session-list" hidden={embedded && !showHistory}>
         <button
           className="primary"
           disabled={busy || loading}
@@ -735,7 +762,22 @@ export default function Conversation({
           !loading &&
           !error && (
             <div className="agents-empty">
-              创建或选择一个会话。调试与聊天的历史分别保存。
+              {embedded ? (
+                <>
+                  <ExperimentOutlined className="agent-preview-empty-icon" />
+                  <h3>开始调试你的 Agent</h3>
+                  <p>创建会话，测试提示词、工具调用与知识检索。</p>
+                  <button
+                    className="primary"
+                    disabled={busy || loading}
+                    onClick={() => requestChange(() => void create())}
+                  >
+                    <PlusOutlined /> 新建调试会话
+                  </button>
+                </>
+              ) : (
+                '创建或选择一个会话。调试与聊天的历史分别保存。'
+              )}
             </div>
           )
         )}

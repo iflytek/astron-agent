@@ -375,5 +375,5 @@ def starter_graph():
                 },
             },
         ],
-        "edges": [{"id": str(uuid.uuid4()), "source": start, "target": end}],
+        "edges": [],
     }

@@ -35,7 +35,7 @@ import {
   ApartmentOutlined,
 } from '@ant-design/icons';
 import useSpaceStore from '@/store/space-store';
-import workflowIcon from '@/assets/imgs/workflow/flow-icon.png';
+import workflowIcon from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import styles from '@/pages/agents/catalog.module.scss';
 import { formatCatalogUpdatedAt } from '@/pages/agents/catalog-utils';
 
@@ -255,8 +255,9 @@ export default function WorkflowList(): ReactElement {
               <article className={styles.card} key={flow.id}>
                 <div className={styles.cardTop}>
                   <Link
-                    className={styles.cardBody}
+                    className={`${styles.cardBody} ${styles.cardLink}`}
                     to={`/work_flow/${flow.id}/arrange`}
+                    aria-label={`编辑与调试 ${flow.name}`}
                   >
                     <Image
                       preview={false}

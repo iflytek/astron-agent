@@ -1,5 +1,10 @@
 import { useState, type ReactElement } from 'react';
-import { Button, Input, Modal, message } from 'antd';
+import { Button, Dropdown, Input, Modal, message } from 'antd';
+import {
+  EllipsisOutlined,
+  PlayCircleOutlined,
+  HistoryOutlined,
+} from '@ant-design/icons';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
 import { downloadFileWithHeaders } from '@/utils/http';
@@ -47,23 +52,61 @@ export default function WorkflowActions(): ReactElement {
   };
   return (
     <div className="workflow-toolbar-actions flex items-center gap-3">
-      <Button
-        onClick={() =>
-          void downloadFileWithHeaders(
-            getFixedUrl(`/workflow/export/${currentFlow?.id}`),
-            `${currentFlow?.name}.yml`
-          )
-        }
+      <Dropdown
+        trigger={['click']}
+        placement="bottomRight"
+        menu={{
+          items: [
+            {
+              key: 'result',
+              label: '运行结果',
+              onClick: () => setFlowChatResultOpen(true),
+            },
+            {
+              key: 'trace',
+              label: '运行追踪',
+              onClick: () => setWorkflowTracePanelOpen(true),
+            },
+            ...(!historyVersion
+              ? [
+                  {
+                    key: 'advanced',
+                    label: '高级配置',
+                    onClick: () => setAdvancedConfiguration(true),
+                  },
+                ]
+              : []),
+            { type: 'divider' as const },
+            {
+              key: 'export',
+              label: '导出工作流',
+              onClick: () =>
+                void downloadFileWithHeaders(
+                  getFixedUrl(`/workflow/export/${currentFlow?.id}`),
+                  `${currentFlow?.name}.yml`
+                ),
+            },
+          ],
+        }}
       >
-        导出
+        <Button
+          aria-label="更多工作流操作"
+          title="更多工作流操作"
+          icon={<EllipsisOutlined />}
+        />
+      </Dropdown>
+      <Button
+        aria-label="版本历史"
+        title="版本历史"
+        icon={<HistoryOutlined />}
+        onClick={() => setVersionManagement(true)}
+      />
+      <Button
+        icon={<PlayCircleOutlined />}
+        onClick={() => void handleDebugger()}
+      >
+        测试运行
       </Button>
-      <Button onClick={() => setVersionManagement(true)}>版本历史</Button>
-      {!historyVersion && (
-        <Button onClick={() => setAdvancedConfiguration(true)}>高级配置</Button>
-      )}
-      <Button onClick={() => setWorkflowTracePanelOpen(true)}>运行追踪</Button>
-      <Button onClick={() => setFlowChatResultOpen(true)}>运行结果</Button>
-      <Button onClick={() => void handleDebugger()}>调试</Button>
       {!historyVersion && (
         <Button type="primary" onClick={() => setOpen(true)}>
           保存版本

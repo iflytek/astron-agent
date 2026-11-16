@@ -86,6 +86,7 @@
   gap: 16px;
 }
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -98,6 +99,23 @@
   &:hover,
   &:focus-within {
     border-color: #8aa5f5;
+  }
+}
+.cardLink {
+  // The title link covers the card while sibling actions retain their own targets.
+  &::after {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 14px;
+    content: '';
+  }
+  &:focus-visible {
+    outline: none;
+    &::after {
+      outline: 2px solid var(--console-primary);
+      outline-offset: 3px;
+    }
   }
 }
 .cardTop {
@@ -156,6 +174,8 @@
   flex: none;
   gap: 2px;
   :global(.ant-btn) {
+    position: relative;
+    z-index: 2;
     width: 28px;
     padding: 0;
     height: 28px;
@@ -234,6 +254,8 @@
   align-items: center;
   justify-content: flex-end;
   a {
+    position: relative;
+    z-index: 2;
     font-size: 13px;
     color: #3159d9;
     font-weight: 500;
@@ -243,6 +265,8 @@
     text-underline-offset: 4px;
   }
   :global(.ant-btn) {
+    position: relative;
+    z-index: 2;
     color: #3159d9;
     border: 0;
     height: 30px;
