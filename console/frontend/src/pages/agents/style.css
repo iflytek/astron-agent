@@ -872,6 +872,24 @@
   .agent-studio {
     display: block;
     height: auto;
+    padding-bottom: calc(128px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: 128px;
+  }
+
+  .agent-studio .agents-save-bar {
+    position: fixed;
+    inset: auto 18px calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 20;
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--agents-line);
+    border-radius: 12px;
+  }
+
+  .agent-studio .agents-save-bar .agents-muted {
+    flex: 1;
+    min-width: 150px;
+    font-size: 12px;
   }
 
   .agent-studio-workspace {
@@ -954,7 +972,7 @@
   }
 
   .agent-studio {
-    padding: 18px;
+    padding: 18px 18px calc(128px + env(safe-area-inset-bottom, 0px));
   }
 
   .agent-studio-workspace > .agents-definition-panel {
