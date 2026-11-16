@@ -34,6 +34,20 @@ logger = logging.getLogger(__name__)
 CHANNELS = {"MARKET", "API", "INTERNAL", "WECHAT"}
 
 
+def publication_target(channel, target_id):
+    channel = str(channel).upper()
+    if channel not in CHANNELS:
+        raise ValidationError("不支持此发布渠道")
+    if not isinstance(target_id, str) or len(target_id) > 255:
+        raise ValidationError("发布目标无效")
+    if channel in {"API", "WECHAT"}:
+        if not target_id.strip():
+            raise ValidationError("请选择发布目标应用")
+    elif target_id:
+        raise ValidationError("此发布渠道不接受目标应用")
+    return channel, target_id
+
+
 def get_bot(scope, bot_id, permission=READ):
     bot = Agent.objects.filter(pk=number(bot_id), is_delete=0).first()
     if bot is None:
@@ -94,7 +108,6 @@ def _snapshot_candidate(scope, bot_id, version_id=None):
         if version_id is None:
             graph = freeze_graph(scope, workflow.data)
             to_protocol(graph, workflow, scope)
-            freeze_dependencies(scope, workflow=workflow, graph=graph)
             version = WorkflowVersion.objects.create(
                 flow_id=workflow.flow_id,
                 version_num="v" + secrets.token_hex(8),
@@ -115,13 +128,12 @@ def _snapshot_candidate(scope, bot_id, version_id=None):
                 raise Http404
             graph = freeze_graph(scope, version.data)
             to_protocol(graph, workflow, scope)
-            freeze_dependencies(scope, workflow=workflow, graph=graph)
         config = {
             "graph": graph,
             "advancedConfig": clean_config(parsed(version.advanced_config)),
-            "botName": bot.bot_name or "",
-            "botDesc": bot.bot_desc or "",
-            "avatar": bot.avatar or "",
+            "botName": workflow.name or "",
+            "botDesc": workflow.description or "",
+            "avatar": workflow.avatar_icon or "",
             "botType": bot.bot_type,
             "prologue": bot.prologue or "",
         }
@@ -133,6 +145,12 @@ def _snapshot_candidate(scope, bot_id, version_id=None):
         if media:
             config["talkAgentConfig"] = clean_config(media)
         kind, resource_id = "workflow", str(workflow.flow_id)
+    config = dict(config)
+    config["executionSnapshots"] = (
+        freeze_dependencies(scope, agent_config=config)
+        if kind == "agent"
+        else freeze_dependencies(scope, workflow=workflow, graph=graph)
+    )
     return PublicationCandidate.objects.create(
         bot_id=bot.pk,
         resource_kind=kind,
@@ -164,7 +182,10 @@ def validate_candidate(candidate):
     bot = get_bot(scope, candidate.bot_id)
     if candidate.resource_kind == "agent":
         version = AgentVersion.objects.filter(pk=candidate.version_id, agent_id=bot.pk).first()
-        if version is None or version.definition != candidate.definition:
+        definition = {
+            key: value for key, value in candidate.definition.items() if key != "executionSnapshots"
+        }
+        if version is None or version.definition != definition:
             raise ValidationError("发布快照已失效")
         validate_resources(scope, candidate.definition)
     else:
@@ -178,8 +199,25 @@ def validate_candidate(candidate):
         )
         if version is None:
             raise ValidationError("发布工作流版本已失效")
-        # Fixed Agent versions are validated by the runtime, not re-selected here.
+        # Validate the published graph; frozen dependency versions are checked below.
         to_protocol(candidate.definition["graph"], workflow, scope)
+    snapshots = candidate.definition.get("executionSnapshots")
+    if snapshots is not None:
+        # Retain the published dependency choices while rechecking current authority.
+        if not isinstance(snapshots, dict) or not all(
+            isinstance(snapshots.get(key), dict) for key in ("agents", "workflows")
+        ):
+            raise ValidationError("发布依赖快照无效")
+        freeze_dependencies(
+            scope,
+            workflow=workflow if candidate.resource_kind == "workflow" else None,
+            graph=candidate.definition.get("graph"),
+            agent_config=candidate.definition if candidate.resource_kind == "agent" else None,
+            previous=snapshots,
+        )
+        for flow_id, fixed in snapshots["workflows"].items():
+            dependency = get_workflow(scope, flow_id, EXECUTE)
+            to_protocol(fixed["graph"], dependency, scope)
     return scope
 
 
@@ -190,9 +228,7 @@ def activate(candidate, channel, target_id=""):
 
 @transaction.atomic
 def _activate(candidate, channel, target_id=""):
-    channel = channel.upper()
-    if channel not in CHANNELS:
-        raise ValidationError("不支持此发布渠道")
+    channel, target_id = publication_target(channel, target_id)
     Agent.objects.select_for_update().get(pk=candidate.bot_id)
     validate_candidate(candidate)
     if channel == "API":
@@ -216,6 +252,7 @@ def _activate(candidate, channel, target_id=""):
     if channel == "API":
         BotAPI.objects.update_or_create(
             assistant_id=candidate.resource_id,
+            app_id=target_id,
             defaults={
                 "uid": candidate.created_by,
                 "bot_id": candidate.bot_id,
@@ -243,9 +280,7 @@ def _activate(candidate, channel, target_id=""):
 
 
 def submit(scope, bot_id, channel, *, target_id="", version_id=None, reason=""):
-    channel = channel.upper()
-    if channel not in CHANNELS:
-        raise ValidationError("不支持此发布渠道")
+    channel, target_id = publication_target(channel, target_id)
     if not isinstance(reason, str) or len(reason) > 512:
         raise ValidationError("申请理由过长")
     bot = get_bot(scope, bot_id, WRITE)
@@ -329,21 +364,44 @@ def _submit_candidate(scope, candidate, channel, target_id, reason):
 
 @transaction.atomic
 def offline(scope, bot_id, channel, target_id=""):
+    channel, target_id = publication_target(channel, target_id)
     bot = get_bot(scope, bot_id, WRITE)
     Agent.objects.select_for_update().get(pk=bot.pk)
     assert_direct_publish(scope)
-    query = Publication.objects.filter(bot_id=bot.pk, channel=channel.upper(), active=True)
-    if target_id:
-        query = query.filter(target_id=target_id)
+    query = Publication.objects.filter(
+        bot_id=bot.pk, channel=channel, target_id=target_id, active=True
+    )
     if not query.exists():
         raise ValidationError("该渠道尚未发布")
     query.update(active=False, update_time=timezone.now())
-    if not Publication.objects.filter(bot_id=bot.pk, active=True).exists():
-        AgentState.objects.filter(agent_id=bot.pk).update(published_version_id=None)
-        if bot.version != 1:
-            workflow = workflow_for_bot(scope, bot)
-            Workflow.objects.filter(pk=workflow.pk).update(status=0)
+    refresh_release_state(bot)
+    logger.info("Publication offline bot_id=%s channel=%s target_id=%s", bot.pk, channel, target_id)
     return {"status": "OFFLINE"}
+
+
+def refresh_release_state(bot):
+    """Keep the legacy latest-release projection consistent with remaining channels."""
+    remaining = (
+        Publication.objects.filter(bot_id=bot.pk, active=True)
+        .select_related("candidate")
+        .order_by("-update_time", "-id")
+        .first()
+    )
+    if bot.version == 1:
+        AgentState.objects.filter(agent_id=bot.pk).update(
+            published_version_id=remaining.candidate.version_id if remaining else None
+        )
+    else:
+        binding = WorkflowBot.objects.filter(bot_id=bot.pk).order_by("id").first()
+        flow_id = binding.flow_id if binding else bot.maas_bot_id
+        Workflow.objects.filter(flow_id=flow_id).update(
+            status=1 if remaining else 0,
+            published_data=(
+                json.dumps(remaining.candidate.definition["graph"], ensure_ascii=False)
+                if remaining
+                else None
+            ),
+        )
 
 
 def require_publication(
@@ -409,7 +467,12 @@ def bind_workflow(scope, workflow_id):
     workflow = Workflow.objects.select_for_update().get(pk=workflow.pk)
     binding = WorkflowBot.objects.filter(flow_id=workflow.flow_id).order_by("id").first()
     if binding:
-        return get_bot(scope, binding.bot_id, WRITE)
+        bot = get_bot(scope, binding.bot_id, WRITE)
+        bot.bot_name = workflow.name[:48]
+        bot.bot_desc = (workflow.description or "")[:255]
+        bot.avatar = workflow.avatar_icon or ""
+        bot.save(update_fields=["bot_name", "bot_desc", "avatar"])
+        return bot
     bot = Agent.objects.create(
         uid=workflow.uid,
         space_id=workflow.space_id,

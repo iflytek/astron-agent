@@ -136,8 +136,8 @@ def freeze_dependencies(scope, *, workflow=None, graph=None, agent_config=None, 
     return snapshots
 
 
-def register_agent_root(run, agent, scope, config):
-    snapshots = freeze_dependencies(scope, agent_config=config)
+def register_agent_root(run, agent, scope, config, *, execution_snapshots=None):
+    snapshots = freeze_dependencies(scope, agent_config=config, previous=execution_snapshots)
     context = ExecutionContext.objects.create(
         id=run.pk,
         uid=scope.uid,

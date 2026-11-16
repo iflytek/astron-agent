@@ -63,6 +63,7 @@ def prepare_run(
     graph=None,
     kind="workflow",
     version_id=None,
+    execution_snapshots=None,
 ):
     scope = active_scope(scope.uid, scope.space_id)
     workflow = get_workflow(scope, workflow.flow_id, EXECUTE)
@@ -77,7 +78,7 @@ def prepare_run(
         old_root = ExecutionContext.objects.get(pk=retry_of.context_id)
         previous = old_root.snapshots
     else:
-        previous = None
+        previous = execution_snapshots
     if parent_context:
         root_id, parent_id, chain = parent_context
         root = checked_root(root_id)

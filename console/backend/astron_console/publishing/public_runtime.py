@@ -127,6 +127,7 @@ def prepare_public(
             graph=candidate.definition["graph"],
             version_id=candidate.version_id,
             kind="published",
+            execution_snapshots=candidate.definition.get("executionSnapshots"),
         )
         grant = new_grant(
             publication,
@@ -191,7 +192,9 @@ def prepare_public(
     )
     session.active_run_id = run.pk
     session.save(update_fields=["active_run_id"])
-    context = register_agent_root(run, agent, scope, config)
+    context = register_agent_root(
+        run, agent, scope, config, execution_snapshots=config.get("executionSnapshots")
+    )
     grant = new_grant(
         publication,
         run.pk,
