@@ -433,7 +433,7 @@ function workflowListUI(createTalkAgent) {
     '@/services/spark-common': { createTalkAgent },
     '@/components/workflow/utils': {},
     '@/store/space-store': { default: () => ({}), __esModule: true },
-    '@/assets/imgs/workflow/flow-icon.png': 'workflow-icon',
+    '@/assets/imgs/avatars/agent-workflow-avatar.svg': 'workflow-icon',
     '@/pages/agents/catalog.module.scss': {},
     '@/pages/agents/catalog-utils': { formatCatalogUpdatedAt },
     '@ant-design/icons': {

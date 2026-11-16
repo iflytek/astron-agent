@@ -255,10 +255,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
           onSubmit={handleEditSumbit}
         />
       )}
-      <div
-        className="workflow-header w-full h-[80px] bg-[#fff] border-b border-[#e2e8ff] flex justify-between px-6 py-5"
-        style={{ borderRadius: '0px 0px 24px 24px' }}
-      >
+      <div className="workflow-header">
         {/* 左侧返回 + 名称 */}
         <div className="relative flex items-center flex-1 gap-2">
           <button
@@ -269,12 +266,12 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
           >
             <img src={arrowLeft} className="w-[28px]" alt="" />
           </button>
-          <div className="relative flex items-center gap-4">
+          <div className="workflow-identity relative flex items-center gap-3">
             {currentFlow?.avatarIcon &&
             failedAvatar !== currentFlow.avatarIcon ? (
               <img
                 src={currentFlow.avatarIcon}
-                className="w-[39px] h-[39px]"
+                className="workflow-avatar"
                 alt=""
                 onError={() => setFailedAvatar(currentFlow.avatarIcon)}
               />
@@ -333,6 +330,21 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
                   </p>
                   {historyVersion == false && (
                     <div className="workflow-save-state text-[14px] text-[#9E9E9E] rounded-sm flex items-center jusity-center">
+                      <span
+                        className="workflow-space-label"
+                        title={
+                          spaceName ||
+                          (spaceType === 'personal'
+                            ? '我的个人资源'
+                            : '当前空间')
+                        }
+                      >
+                        {spaceName ||
+                          (spaceType === 'personal'
+                            ? '我的个人资源'
+                            : '当前空间')}
+                      </span>
+                      <span aria-hidden>·</span>
                       {isLoading
                         ? '正在保存草稿…'
                         : unsaved
@@ -377,9 +389,14 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
         )}
 
         {/* 右侧操作按钮 */}
-        <div className="flex justify-end flex-1">{children}</div>
+        <div className="workflow-header-actions">{children}</div>
       </div>
-      <div className="workflow-space-context">
+      <div
+        className="workflow-space-context"
+        title={
+          spaceName || (spaceType === 'personal' ? '我的个人资源' : '当前空间')
+        }
+      >
         {spaceName || (spaceType === 'personal' ? '我的个人资源' : '当前空间')}{' '}
         / 工作流编排
       </div>

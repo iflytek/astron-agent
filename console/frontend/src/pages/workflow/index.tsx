@@ -185,7 +185,7 @@ const Index = (): React.ReactElement => {
       {!historyVersion && <MultipleCanvasesTip />}
       <Spin spinning={loadingModels} wrapperClassName="flow-spin-wrapper">
         <div className="w-full h-full">
-          <div className="workflow-canvas-workspace flex items-start w-full h-full px-6">
+          <div className="workflow-canvas-workspace flex items-start w-full h-full">
             {showNodeList && <NodeList />}
             <FlowContainer zoom={zoom} setZoom={setZoom} />
           </div>

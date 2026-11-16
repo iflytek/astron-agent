@@ -581,7 +581,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     else setTab(nextTab);
   };
   return (
-    <main className="agents-page">
+    <main className={`agents-page${mode === 'edit' ? ' agent-studio' : ''}`}>
       <header className="agents-header">
         <div>
           <button
@@ -679,36 +679,26 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                   ['memory', '长期记忆'],
                 ]
               : [
-                  ['definition', '定义'],
-                  ['debug', '调试'],
+                  ['definition', '配置与调试'],
                   ['memory', '长期记忆'],
                   ['versions', '版本快照'],
                 ]
             ).map(([key, title]) => ({ key: key!, label: title }))}
           />
           {tab === 'definition' && draft && (
-            <form
-              className="agents-panel agents-definition-panel"
-              onSubmit={event => {
-                event.preventDefault();
-                void save();
-              }}
-            >
-              <fieldset disabled={busy} className="agents-definition-fields">
-                <div className="agents-section-heading">
-                  <h2>基础配置</h2>
-                  <p>定义 Agent 的身份、模型和行为指令。</p>
-                </div>
-                <div className="agents-form-row">
-                  <label>
-                    名称
-                    <input
-                      required
-                      maxLength={48}
-                      value={draft.botName}
-                      onChange={e => patch({ botName: e.target.value })}
-                    />
-                  </label>
+            <div className="agent-studio-workspace">
+              <form
+                className="agents-panel agents-definition-panel"
+                onSubmit={event => {
+                  event.preventDefault();
+                  void save();
+                }}
+              >
+                <fieldset disabled={busy} className="agents-definition-fields">
+                  <div className="agents-section-heading">
+                    <h2>配置</h2>
+                    <p>调整模型、指令与可使用的资源。</p>
+                  </div>
                   <label>
                     模型
                     <select
@@ -733,283 +723,335 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       ))}
                     </select>
                   </label>
-                </div>
-                <label>
-                  描述
-                  <textarea
-                    maxLength={255}
-                    value={draft.botDesc || ''}
-                    onChange={e => patch({ botDesc: e.target.value })}
-                    rows={2}
-                  />
-                </label>
-                <label>
-                  系统指令
-                  <textarea
-                    maxLength={2048}
-                    value={draft.prompt || ''}
-                    onChange={e => patch({ prompt: e.target.value })}
-                    rows={9}
-                  />
-                </label>
-                <div className="agents-form-row">
-                  <label className="inline">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(draft.supportContext)}
-                      onChange={e =>
-                        patch({ supportContext: e.target.checked })
-                      }
-                    />
-                    多轮上下文
-                  </label>
-                  <label className="inline">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(draft.supportUpload)}
-                      onChange={e => patch({ supportUpload: e.target.checked })}
-                    />
-                    文件输入
-                  </label>
                   <label>
-                    最大工具决策轮数
-                    <input
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={draft.maxLoopCount || 5}
-                      onChange={e =>
-                        patch({ maxLoopCount: Number(e.target.value) })
-                      }
-                    />
-                  </label>
-                </div>
-                {draft.promptType === 1 && (
-                  <fieldset>
-                    <legend>结构化提示词</legend>
-                    {draft.promptSections?.map((section, index) => (
-                      <label key={index}>
-                        {section.key}
-                        <textarea
-                          value={section.value}
-                          maxLength={4000}
-                          onChange={e =>
-                            patch({
-                              promptSections: draft.promptSections?.map(
-                                (row, i) =>
-                                  i === index
-                                    ? { ...row, value: e.target.value }
-                                    : row
-                              ),
-                            })
-                          }
-                        />
-                      </label>
-                    ))}
-                  </fieldset>
-                )}
-                <fieldset>
-                  <legend>人格配置</legend>
-                  <label className="inline">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(draft.personality?.enabled)}
-                      onChange={e =>
-                        patch({
-                          personality: {
-                            ...draft.personality,
-                            enabled: e.target.checked,
-                          },
-                        })
-                      }
-                    />
-                    启用人格
-                  </label>
-                  <label>
-                    人格描述
+                    提示词
                     <textarea
-                      maxLength={1000}
-                      value={draft.personality?.personality || ''}
-                      onChange={e =>
-                        patch({
-                          personality: {
-                            ...draft.personality,
-                            personality: e.target.value,
-                          },
-                        })
-                      }
+                      placeholder="定义 Agent 的身份、任务、行为和回答方式…"
+                      maxLength={2048}
+                      value={draft.prompt || ''}
+                      onChange={e => patch({ prompt: e.target.value })}
+                      rows={10}
                     />
                   </label>
-                  <label>
-                    场景
-                    <select
-                      value={draft.personality?.sceneType || ''}
-                      onChange={e =>
-                        patch({
-                          personality: {
-                            ...draft.personality,
-                            sceneType: Number(e.target.value) || undefined,
-                          },
-                        })
-                      }
-                    >
-                      <option value="">通用</option>
-                      <option value="1">陪伴</option>
-                      <option value="2">陪练</option>
-                    </select>
-                  </label>
-                  <label>
-                    场景说明
-                    <textarea
-                      maxLength={1000}
-                      value={draft.personality?.sceneInfo || ''}
-                      onChange={e =>
-                        patch({
-                          personality: {
-                            ...draft.personality,
-                            sceneInfo: e.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </label>
-                </fieldset>
-                <div className="agents-section-heading">
-                  <h2>关联资源</h2>
-                  <p>配置可调用的工具、知识库、Skill 和 MCP 服务。</p>
-                </div>
-                {resourceError ? (
-                  <Alert
-                    type="error"
-                    showIcon
-                    message="资源列表读取失败，已有绑定保持不变。"
-                    description={resourceError}
-                    action={
-                      <Button
-                        onClick={() => setResourceRevision(value => value + 1)}
-                      >
-                        重试
-                      </Button>
-                    }
-                  />
-                ) : (
-                  !resources && <Skeleton active paragraph={{ rows: 2 }} />
-                )}
-                {resources && (
-                  <div className="agents-resource-grid">
-                    <ResourceSelect
-                      disabled={busy}
-                      title="插件工具"
-                      value={draft.tools || []}
-                      options={resources.tools}
-                      onChange={tools => {
-                        patch({ tools });
-                        setToolsChanged(true);
-                      }}
-                    />
-                    <ResourceSelect
-                      disabled={busy}
-                      title="工作流工具"
-                      value={draft.workflows || []}
-                      options={resources.workflows || []}
-                      onChange={workflows => {
-                        patch({ workflows });
-                        setWorkflowsChanged(true);
-                      }}
-                    />
-                    <ResourceSelect
-                      disabled={busy}
-                      title="知识库"
-                      value={draft.repoIds || []}
-                      options={resources.repos}
-                      onChange={repoIds => {
-                        patch({ repoIds });
-                        setKnowledgeChanged(true);
-                      }}
-                    />
-                    <ResourceSelect
-                      disabled={busy}
-                      title="Skill"
-                      value={draft.skills || []}
-                      options={resources.skills}
-                      onChange={skills => {
-                        patch({ skills });
-                        setSkillsChanged(true);
-                      }}
-                    />
-                    <ResourceSelect
-                      disabled={busy}
-                      title="MCP 服务"
-                      value={draft.mcpServerIds || []}
-                      options={resources.mcp}
-                      onChange={mcpServerIds => {
-                        patch({ mcpServerIds });
-                        setMcpChanged(true);
-                      }}
-                    />
+                  <div className="agents-section-heading">
+                    <h2>关联资源</h2>
+                    <p>配置可调用的工具、知识库、Skill 和 MCP 服务。</p>
                   </div>
-                )}
-                {!!draft.legacyDatasetIds?.length && knowledgeChanged && (
-                  <p className="agents-notice">
-                    保存后将以当前知识库选择替换旧知识关联。
-                  </p>
-                )}
-                {(!!draft.configuredMcpCount ||
-                  !!draft.mcpServerIds.length ||
-                  mcpChanged) && (
-                  <div>
-                    {!!draft.configuredMcpCount && !mcpChanged && (
-                      <p className="agents-muted">
-                        当前保留 {draft.configuredMcpCount} 个旧 MCP
-                        绑定。重新选择 MCP
-                        服务并保存会替换这些绑定；修改其他字段会保留它们。
-                      </p>
-                    )}
-                    {mcpChanged && (
-                      <p role="status" className="agents-notice">
-                        {draft.mcpServerIds.length
-                          ? '保存后将仅使用当前选择的 MCP 服务，不再使用旧绑定。'
-                          : '保存后将清除全部 MCP 运行绑定，不再调用旧 MCP 服务。'}
-                      </p>
-                    )}
-                    <div className="agents-actions">
-                      <button
-                        type="button"
+                  {resourceError ? (
+                    <Alert
+                      type="error"
+                      showIcon
+                      message="资源列表读取失败，已有绑定保持不变。"
+                      description={resourceError}
+                      action={
+                        <Button
+                          onClick={() =>
+                            setResourceRevision(value => value + 1)
+                          }
+                        >
+                          重试
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    !resources && <Skeleton active paragraph={{ rows: 2 }} />
+                  )}
+                  {resources && (
+                    <div className="agents-resource-grid">
+                      <ResourceSelect
                         disabled={busy}
-                        onClick={() => {
-                          patch({ mcpServerIds: [] });
+                        title="插件工具"
+                        value={draft.tools || []}
+                        options={resources.tools}
+                        onChange={tools => {
+                          patch({ tools });
+                          setToolsChanged(true);
+                        }}
+                      />
+                      <ResourceSelect
+                        disabled={busy}
+                        title="工作流工具"
+                        value={draft.workflows || []}
+                        options={resources.workflows || []}
+                        onChange={workflows => {
+                          patch({ workflows });
+                          setWorkflowsChanged(true);
+                        }}
+                      />
+                      <ResourceSelect
+                        disabled={busy}
+                        title="知识库"
+                        value={draft.repoIds || []}
+                        options={resources.repos}
+                        onChange={repoIds => {
+                          patch({ repoIds });
+                          setKnowledgeChanged(true);
+                        }}
+                      />
+                      <ResourceSelect
+                        disabled={busy}
+                        title="Skill"
+                        value={draft.skills || []}
+                        options={resources.skills}
+                        onChange={skills => {
+                          patch({ skills });
+                          setSkillsChanged(true);
+                        }}
+                      />
+                      <ResourceSelect
+                        disabled={busy}
+                        title="MCP 服务"
+                        value={draft.mcpServerIds || []}
+                        options={resources.mcp}
+                        onChange={mcpServerIds => {
+                          patch({ mcpServerIds });
                           setMcpChanged(true);
                         }}
-                      >
-                        清除全部 MCP 绑定
-                      </button>
+                      />
+                    </div>
+                  )}
+                  {!!draft.legacyDatasetIds?.length && knowledgeChanged && (
+                    <p className="agents-notice">
+                      保存后将以当前知识库选择替换旧知识关联。
+                    </p>
+                  )}
+                  {(!!draft.configuredMcpCount ||
+                    !!draft.mcpServerIds.length ||
+                    mcpChanged) && (
+                    <div>
+                      {!!draft.configuredMcpCount && !mcpChanged && (
+                        <p className="agents-muted">
+                          当前保留 {draft.configuredMcpCount} 个旧 MCP
+                          绑定。重新选择 MCP
+                          服务并保存会替换这些绑定；修改其他字段会保留它们。
+                        </p>
+                      )}
                       {mcpChanged && (
+                        <p role="status" className="agents-notice">
+                          {draft.mcpServerIds.length
+                            ? '保存后将仅使用当前选择的 MCP 服务，不再使用旧绑定。'
+                            : '保存后将清除全部 MCP 运行绑定，不再调用旧 MCP 服务。'}
+                        </p>
+                      )}
+                      <div className="agents-actions">
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => {
-                            patch({ mcpServerIds: agent.mcpServerIds });
-                            setMcpChanged(false);
+                            patch({ mcpServerIds: [] });
+                            setMcpChanged(true);
                           }}
                         >
-                          撤销 MCP 修改
+                          清除全部 MCP 绑定
                         </button>
-                      )}
+                        {mcpChanged && (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => {
+                              patch({ mcpServerIds: agent.mcpServerIds });
+                              setMcpChanged(false);
+                            }}
+                          >
+                            撤销 MCP 修改
+                          </button>
+                        )}
+                      </div>
                     </div>
+                  )}
+                  <details className="agent-studio-disclosure">
+                    <summary>
+                      基本信息<span>名称与描述</span>
+                    </summary>
+                    <div className="agent-studio-disclosure-body">
+                      <label>
+                        名称
+                        <input
+                          required
+                          maxLength={48}
+                          value={draft.botName}
+                          onChange={e => patch({ botName: e.target.value })}
+                        />
+                      </label>
+                      <label>
+                        描述
+                        <textarea
+                          maxLength={255}
+                          value={draft.botDesc || ''}
+                          onChange={e => patch({ botDesc: e.target.value })}
+                          rows={2}
+                        />
+                      </label>
+                    </div>
+                  </details>
+                  <details className="agent-studio-disclosure">
+                    <summary>
+                      高级设置<span>上下文、文件输入与人格</span>
+                    </summary>
+                    <div className="agent-studio-disclosure-body">
+                      <div className="agents-form-row">
+                        <label className="inline">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(draft.supportContext)}
+                            onChange={e =>
+                              patch({ supportContext: e.target.checked })
+                            }
+                          />
+                          多轮上下文
+                        </label>
+                        <label className="inline">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(draft.supportUpload)}
+                            onChange={e =>
+                              patch({ supportUpload: e.target.checked })
+                            }
+                          />
+                          文件输入
+                        </label>
+                        <label>
+                          最大工具决策轮数
+                          <input
+                            type="number"
+                            min={1}
+                            max={50}
+                            value={draft.maxLoopCount || 5}
+                            onChange={e =>
+                              patch({ maxLoopCount: Number(e.target.value) })
+                            }
+                          />
+                        </label>
+                      </div>
+                      {draft.promptType === 1 && (
+                        <fieldset>
+                          <legend>结构化提示词</legend>
+                          {draft.promptSections?.map((section, index) => (
+                            <label key={index}>
+                              {section.key}
+                              <textarea
+                                value={section.value}
+                                maxLength={4000}
+                                onChange={e =>
+                                  patch({
+                                    promptSections: draft.promptSections?.map(
+                                      (row, i) =>
+                                        i === index
+                                          ? { ...row, value: e.target.value }
+                                          : row
+                                    ),
+                                  })
+                                }
+                              />
+                            </label>
+                          ))}
+                        </fieldset>
+                      )}
+                      <fieldset>
+                        <legend>人格配置</legend>
+                        <label className="inline">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(draft.personality?.enabled)}
+                            onChange={e =>
+                              patch({
+                                personality: {
+                                  ...draft.personality,
+                                  enabled: e.target.checked,
+                                },
+                              })
+                            }
+                          />
+                          启用人格
+                        </label>
+                        <label>
+                          人格描述
+                          <textarea
+                            maxLength={1000}
+                            value={draft.personality?.personality || ''}
+                            onChange={e =>
+                              patch({
+                                personality: {
+                                  ...draft.personality,
+                                  personality: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                        <label>
+                          场景
+                          <select
+                            value={draft.personality?.sceneType || ''}
+                            onChange={e =>
+                              patch({
+                                personality: {
+                                  ...draft.personality,
+                                  sceneType:
+                                    Number(e.target.value) || undefined,
+                                },
+                              })
+                            }
+                          >
+                            <option value="">通用</option>
+                            <option value="1">陪伴</option>
+                            <option value="2">陪练</option>
+                          </select>
+                        </label>
+                        <label>
+                          场景说明
+                          <textarea
+                            maxLength={1000}
+                            value={draft.personality?.sceneInfo || ''}
+                            onChange={e =>
+                              patch({
+                                personality: {
+                                  ...draft.personality,
+                                  sceneInfo: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </label>
+                      </fieldset>
+                    </div>
+                  </details>
+                </fieldset>
+                <div className="agents-actions agents-save-bar">
+                  <button className="primary" disabled={busy} type="submit">
+                    {busy ? '保存中…' : '保存草稿'}
+                  </button>
+                  <span className="agents-muted">
+                    {isDirty
+                      ? '保存后再开始调试，避免运行旧配置。'
+                      : '当前草稿已保存。'}
+                  </span>
+                </div>
+              </form>
+              <section
+                className="agent-studio-preview"
+                aria-label="Agent 调试预览"
+              >
+                <header className="agent-studio-preview-header">
+                  <div>
+                    <h2>调试预览</h2>
+                    <p>测试对话，查看回答与执行过程。</p>
                   </div>
+                  <span className="agents-status">已保存配置</span>
+                </header>
+                {isDirty && (
+                  <p role="status" className="agent-studio-draft-hint">
+                    左侧有未保存的修改，当前调试仍使用上次保存的配置。
+                  </p>
                 )}
-              </fieldset>
-              <div className="agents-actions agents-save-bar">
-                <button className="primary" disabled={busy} type="submit">
-                  {busy ? '保存中…' : '保存草稿'}
-                </button>
-                <span className="agents-muted">
-                  {isDirty
-                    ? '保存后再开始调试，避免运行旧配置。'
-                    : '当前草稿已保存。'}
-                </span>
-              </div>
-            </form>
+                <Conversation
+                  agent={agent}
+                  kind="debug"
+                  embedded
+                  onGuardChange={setContentGuard}
+                />
+              </section>
+            </div>
           )}
           {(tab === 'chat' || tab === 'debug') && (
             <Conversation

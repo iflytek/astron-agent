@@ -43,6 +43,36 @@ class ManagementTests(TransactionTestCase):
             url, json.dumps(payload), content_type="application/json"
         )
 
+    def test_blank_creation_has_no_edges_but_clone_and_template_keep_them(self):
+        graph = json.loads(self.workflow.data)
+        self.assertEqual(len(graph["nodes"]), 2)
+        self.assertEqual(graph["edges"], [])
+        graph["edges"] = [
+            {
+                "id": "existing-link",
+                "source": graph["nodes"][0]["id"],
+                "target": graph["nodes"][1]["id"],
+            }
+        ]
+        saved = self.write("put", "/workflow", {"id": self.workflow.pk, "data": graph})
+        self.assertEqual(saved.status_code, 200, saved.content)
+        cloned = self.client.get(f"/workflow/clone?id={self.workflow.pk}")
+        self.assertEqual(cloned.status_code, 200, cloned.content)
+        self.assertEqual(json.loads(cloned.json()["data"]["data"])["edges"], graph["edges"])
+        exported = self.write(
+            "post", "/workflow/bot/exportTemplate", {"workflowId": self.workflow.pk}
+        )
+        self.assertEqual(exported.status_code, 200, exported.content)
+        created = self.write(
+            "post",
+            "/workflow/bot/createFromTemplate",
+            {
+                "templateId": exported.json()["data"]["id"],
+            },
+        )
+        self.assertEqual(created.status_code, 200, created.content)
+        self.assertEqual(json.loads(created.json()["data"]["data"])["edges"], graph["edges"])
+
     def test_crud_versions_restore_keep_identity_and_old_snapshot(self):
         result = self.client.get(f"/workflow?id={self.workflow.pk}")
         self.assertEqual(result.status_code, 200, result.content)
@@ -258,7 +288,14 @@ class ManagementTests(TransactionTestCase):
 
     def test_graph_mapping_retains_branch_retry_and_variable_shapes(self):
         graph = starter_graph()
-        graph["edges"][0]["sourceHandle"] = "branch_one_of::yes"
+        graph["edges"] = [
+            {
+                "id": "branch-link",
+                "source": graph["nodes"][0]["id"],
+                "target": graph["nodes"][1]["id"],
+                "sourceHandle": "branch_one_of::yes",
+            }
+        ]
         graph["nodes"][1]["data"]["retryConfig"] = {"customOutput": '{"output":"fallback"}'}
         protocol = to_protocol(graph, self.workflow, self.scope)
         self.assertEqual(
@@ -291,7 +328,13 @@ class ManagementTests(TransactionTestCase):
         graph = starter_graph()
         graph["nodes"][1]["id"] = "spark-llm::model"
         graph["nodes"][1]["data"]["nodeParam"] = {"modelId": model.pk}
-        graph["edges"][0]["target"] = "spark-llm::model"
+        graph["edges"] = [
+            {
+                "id": "model-link",
+                "source": graph["nodes"][0]["id"],
+                "target": "spark-llm::model",
+            }
+        ]
         from django.core.exceptions import PermissionDenied
 
         with self.assertRaises(PermissionDenied):

@@ -5,6 +5,7 @@ import type {
 import { cloneDeep } from 'lodash';
 import React, { useState, memo, useMemo } from 'react';
 import { Button, Tooltip } from 'antd';
+import { PlusOutlined, CloseOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
@@ -17,8 +18,6 @@ import {
 } from '@/components/workflow/types/drawer/chat-debugger';
 
 import nodeListAdd from '@/assets/imgs/workflow/node-list-add.png';
-import nodelistCloseIcon from '@/assets/imgs/workflow/nodelist-close-icon.png';
-import nodelistOpenIcon from '@/assets/imgs/workflow/nodelist-open-icon.png';
 import arrowRightIcon from '@/assets/imgs/common/arrowRight.png';
 
 // ========= 类型 =========
@@ -50,9 +49,7 @@ const NodeList: React.FC<NodeListProps> = ({
   const setWillAddNode = useFlowsManager(state => state.setWillAddNode);
   const reactFlowInstance = currentStore(state => state.reactFlowInstance);
 
-  const [openNodeList, setOpenNodeList] = useState<boolean>(
-    () => window.innerWidth > 760
-  );
+  const [openNodeList, setOpenNodeList] = useState(false);
   const [openNodeDetail, setOpenNodeDetail] = useState<boolean>(false);
   const [currentNodeId, setCurrentNodeId] = useState<string>('');
 
@@ -82,13 +79,7 @@ const NodeList: React.FC<NodeListProps> = ({
     <>
       {filterNodeList.length > 0 &&
         (openNodeList ? (
-          <div
-            className="workflow-node-palette h-full overflow-hidden"
-            style={{
-              width: openNodeList ? '16%' : 0,
-              minWidth: '240px',
-            }}
-          >
+          <div className="workflow-node-palette h-full overflow-hidden">
             <div className="h-full pt-6 pb-12 text-[#333] flex flex-col gap-2 transition-all">
               <div className="flex flex-col w-full h-full gap-2 px-4 py-5 pr-0 rounded-2xl flow-node-list bg-[#e7eefe]">
                 <div className="flex items-center justify-between pr-4">
@@ -102,11 +93,7 @@ const NodeList: React.FC<NodeListProps> = ({
                     className="w-[22px] h-[22px] flex items-center justify-center bg-[#fff] shadow-sm rounded-md cursor-pointer"
                     onClick={() => setOpenNodeList(false)}
                   >
-                    <img
-                      src={nodelistCloseIcon}
-                      className="w-[10px] h-[10px]"
-                      alt=""
-                    />
+                    <CloseOutlined />
                   </Button>
                 </div>
                 <div className="flex-1 pr-2 overflow-hidden">
@@ -203,26 +190,14 @@ const NodeList: React.FC<NodeListProps> = ({
             )}
           </div>
         ) : (
-          <div
-            className="workflow-node-palette-toggle fixed left-0 top-[80px] bg-[#EBEFF4] border border-[#DFE4ED] mt-5"
-            style={{
-              borderRadius: '0 21px 21px 0',
-              padding: '10px 17px 10px 28px',
-              zIndex: 998,
-            }}
-          >
+          <div className="workflow-node-palette-toggle">
             <Button
-              type="text"
-              size="small"
               aria-label="展开节点库"
-              className="w-[22px] h-[22px] flex items-center justify-center bg-[#fff] shadow-sm rounded-md cursor-pointer"
+              aria-expanded={false}
+              icon={<PlusOutlined />}
               onClick={() => setOpenNodeList(true)}
             >
-              <img
-                src={nodelistOpenIcon}
-                className="w-[10px] h-[10px]"
-                alt=""
-              />
+              添加节点
             </Button>
           </div>
         ))}

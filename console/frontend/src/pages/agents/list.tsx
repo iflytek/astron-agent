@@ -32,7 +32,7 @@ import {
   listAgents,
   type AgentDefinition,
 } from '@/services/agents';
-import botIcon from '@/assets/imgs/main/bot-no.png';
+import botIcon from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import styles from './catalog.module.scss';
 import { errorText } from './errors';
 import { formatCatalogUpdatedAt } from './catalog-utils';
@@ -297,8 +297,9 @@ export default function AgentList(): ReactElement {
               <article className={styles.card} key={agent.id}>
                 <div className={styles.cardTop}>
                   <Link
-                    className={styles.cardBody}
+                    className={`${styles.cardBody} ${styles.cardLink}`}
                     to={`/space/config/${agent.id}/base`}
+                    aria-label={`编辑与调试 ${agent.botName}`}
                   >
                     <Image
                       preview={false}
