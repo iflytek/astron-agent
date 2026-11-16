@@ -281,6 +281,9 @@ def revoke(appid):
     from astron_console.publishing.models import Publication
     from astron_console.publishing.services import refresh_release_state
 
+    # Authorization callbacks lock this row before activating the Agent. Revocation
+    # must use the same order, including a callback completing during reauthorization.
+    WechatAuthorization.objects.select_for_update().filter(appid=appid).first()
     bindings = list(WechatBinding.objects.filter(appid=appid, status=1))
     bot_ids = set(
         Publication.objects.filter(channel="WECHAT", target_id=appid).values_list(

@@ -230,13 +230,16 @@ class PublicationTests(TestCase):
         first = services.submit(self.scope, bot.pk, "MARKET")
         workflow.name = "renamed workflow"
         workflow.description = "new description"
+        workflow.avatar_icon = "updated-avatar.png"
         graph = json.loads(workflow.data)
         graph["nodes"][0]["data"]["label"] = "new start"
         workflow.data = json.dumps(graph)
         workflow.save()
         services.bind_workflow(self.scope, workflow.pk)
-        bot.refresh_from_db()
-        self.assertEqual(bot.bot_name, workflow.name)
+        response = self.client.get(f"/publish/bots/{bot.pk}")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["botName"], workflow.name)
+        self.assertEqual(response.json()["data"]["avatar"], workflow.avatar_icon)
         App.objects.create(uid="owner", app_id="workflow-app", app_name="workflow")
         second = services.submit(self.scope, bot.pk, "API", target_id="workflow-app")
         first_pub = Publication.objects.get(pk=first["publicationId"])
@@ -244,6 +247,7 @@ class PublicationTests(TestCase):
         self.assertEqual(first_pub.candidate.definition["botName"], "original workflow")
         self.assertEqual(second_pub.candidate.definition["botName"], workflow.name)
         self.assertEqual(second_pub.candidate.definition["botDesc"], workflow.description)
+        self.assertEqual(second_pub.candidate.definition["avatar"], workflow.avatar_icon)
         services.offline(self.scope, bot.pk, "API", "workflow-app")
         workflow.refresh_from_db()
         self.assertEqual(

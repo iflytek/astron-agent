@@ -467,12 +467,9 @@ def bind_workflow(scope, workflow_id):
     workflow = Workflow.objects.select_for_update().get(pk=workflow.pk)
     binding = WorkflowBot.objects.filter(flow_id=workflow.flow_id).order_by("id").first()
     if binding:
-        bot = get_bot(scope, binding.bot_id, WRITE)
-        bot.bot_name = workflow.name[:48]
-        bot.bot_desc = (workflow.description or "")[:255]
-        bot.avatar = workflow.avatar_icon or ""
-        bot.save(update_fields=["bot_name", "bot_desc", "avatar"])
-        return bot
+        # Existing identity lookup must not take an Agent write lock while holding
+        # Workflow: candidate creation and activation lock Agent before Workflow.
+        return get_bot(scope, binding.bot_id, WRITE)
     bot = Agent.objects.create(
         uid=workflow.uid,
         space_id=workflow.space_id,
