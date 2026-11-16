@@ -383,7 +383,7 @@ function SessionMessages({
   return (
     <section className="agents-conversation">
       <div className="agents-toolbar">
-        <h2>{session.title || '新会话'}</h2>
+        <h2 title={session.title || '新会话'}>{session.title || '新会话'}</h2>
         <button
           disabled={busy || stopping || loading}
           onClick={() =>
