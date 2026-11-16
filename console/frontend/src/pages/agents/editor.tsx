@@ -29,6 +29,7 @@ import {
   type AgentMemoryItem,
 } from '@/services/agents';
 import Conversation from './conversation';
+import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
 import { errorText } from './errors';
 import './style.css';
 
@@ -580,6 +581,20 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     if (nextTab !== tab && contentGuard) setPendingTab(nextTab);
     else setTab(nextTab);
   };
+  const saveVersion = async (): Promise<void> => {
+    if (busy || isDirty || versionsLoading || !agent) return;
+    setBusy(true);
+    setError('');
+    try {
+      const version = await createAgentVersion(id);
+      setVersions(current => [version, ...current]);
+      setNotice('版本快照已创建。');
+    } catch (reason) {
+      setError(errorText(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <main className={`agents-page${mode === 'edit' ? ' agent-studio' : ''}`}>
       <header className="agents-header">
@@ -605,6 +620,23 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           </div>
         </div>
         <div className="agents-actions">
+          {mode === 'edit' && agent && (
+            <EditorPublishMenu
+              target={{ kind: 'agent', id }}
+              name={agent.botName}
+              disabled={busy || isDirty || !!agent.legacyDatasetIds?.length}
+              saveVersionDisabled={versionsLoading}
+              disabledReason={
+                isDirty
+                  ? '请先保存左侧草稿，再发布或保存版本。'
+                  : agent.legacyDatasetIds?.length
+                    ? '请先重新关联知识库并保存。'
+                    : undefined
+              }
+              onSaveVersion={() => void saveVersion()}
+              onPublishingChange={setBusy}
+            />
+          )}
           {mode === 'chat' ? (
             <button
               className="button"
@@ -1072,22 +1104,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
             <section className="agents-panel">
               <h2>不可变版本快照</h2>
               <p>快照保存已保存的草稿内容，创建后不可修改。</p>
-              <button
-                disabled={busy || isDirty || versionsLoading}
-                onClick={() => {
-                  setBusy(true);
-                  setError('');
-                  void createAgentVersion(id)
-                    .then(version => {
-                      setVersions(current => [version, ...current]);
-                      setNotice('版本快照已创建。');
-                    })
-                    .catch(reason => setError(errorText(reason)))
-                    .finally(() => setBusy(false));
-                }}
-              >
-                {busy ? '创建中…' : '创建版本快照'}
-              </button>
+              <p>通过右上角“发布”菜单保存版本。</p>
               {versionsError && (
                 <Alert
                   type="error"

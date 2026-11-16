@@ -13,7 +13,6 @@ import {
 import {
   ApiOutlined,
   ApartmentOutlined,
-  ArrowRightOutlined,
   DatabaseOutlined,
   EllipsisOutlined,
   FileTextOutlined,
@@ -377,14 +376,6 @@ export default function AgentList(): ReactElement {
                         />
                       </Dropdown>
                     </div>
-                  </div>
-                  <div className={styles.cardActions}>
-                    <Link to={`/space/config/${agent.id}/base`}>
-                      编辑与调试
-                    </Link>
-                    <Link to={`/space/bot/${agent.id}/chat`}>
-                      开始对话 <ArrowRightOutlined />
-                    </Link>
                   </div>
                 </div>
               </article>

@@ -73,21 +73,7 @@ const useFlowContainerEffect = ({
   const edges = useFlowStore(state => state.edges);
   const canPublishSetNot = useFlowsManager(state => state.canPublishSetNot);
   const nodes = useFlowStore(state => state.nodes);
-  const reactFlowInstance = useFlowStore(state => state.reactFlowInstance);
-  const setZoom = useFlowStore(state => state.setZoom);
   const position = useRef({ x: 0, y: 0 });
-  const isMounted = useRef(false);
-
-  useEffect(() => {
-    if (!isMounted.current && nodes?.length > 0) {
-      reactFlowInstance?.fitView();
-      const zoom = reactFlowInstance?.getViewport()?.zoom
-        ? Math.round(reactFlowInstance?.getViewport()?.zoom * 100)
-        : 80;
-      setZoom(zoom);
-      isMounted.current = true;
-    }
-  }, [nodes, reactFlowInstance]);
 
   const handleDelete = useCallback(() => {
     if (!lastSelection) return;
@@ -200,13 +186,8 @@ function Index({ zoom, setZoom }: IndexProps): React.ReactElement {
   const handleFlowInit = useCallback(
     (instance: ReactFlowInstance): void => {
       setReactFlowInstance(instance);
-      instance.fitView();
-      const zoomLevel = instance.getViewport()?.zoom
-        ? Math.round(instance.getViewport().zoom * 100)
-        : 80;
-      setZoom(zoomLevel);
     },
-    [setReactFlowInstance, setZoom]
+    [setReactFlowInstance]
   );
 
   // =========================
@@ -289,6 +270,8 @@ function Index({ zoom, setZoom }: IndexProps): React.ReactElement {
         <SelectNode lastSelection={lastSelection} />
       ) : null}
       <ReactFlow
+        fitView
+        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         minZoom={0.1}
         maxZoom={2}
         onMove={(_, viewport) => {

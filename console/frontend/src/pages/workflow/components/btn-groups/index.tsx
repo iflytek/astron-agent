@@ -10,6 +10,7 @@ import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
 import { downloadFileWithHeaders } from '@/utils/http';
 import http from '@/utils/http';
 import { getFixedUrl } from '@/components/workflow/utils';
+import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
 
 export default function WorkflowActions(): ReactElement {
   const currentFlow = useFlowsManager(state => state.currentFlow);
@@ -108,9 +109,13 @@ export default function WorkflowActions(): ReactElement {
         测试运行
       </Button>
       {!historyVersion && (
-        <Button type="primary" onClick={() => setOpen(true)}>
-          保存版本
-        </Button>
+        <EditorPublishMenu
+          target={{ kind: 'workflow', id: currentFlow?.id || '' }}
+          name={currentFlow?.name || '工作流'}
+          disabled={!currentFlow?.id || saving}
+          beforePublish={flushCurrentFlow}
+          onSaveVersion={() => setOpen(true)}
+        />
       )}
       <Modal
         title="保存工作流版本"

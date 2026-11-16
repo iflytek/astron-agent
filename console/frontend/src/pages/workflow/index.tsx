@@ -187,7 +187,7 @@ const Index = (): React.ReactElement => {
         <div className="w-full h-full">
           <div className="workflow-canvas-workspace flex items-start w-full h-full">
             {showNodeList && <NodeList />}
-            <FlowContainer zoom={zoom} setZoom={setZoom} />
+            <FlowContainer key={id} zoom={zoom} setZoom={setZoom} />
           </div>
         </div>
       </Spin>
