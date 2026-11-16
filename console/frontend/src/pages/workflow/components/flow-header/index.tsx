@@ -11,7 +11,7 @@ import dayjs from 'dayjs';
 import { isJSON } from '@/utils';
 import { saveFlowAPI } from '@/services/flow';
 import { Button } from 'antd';
-import { ApartmentOutlined } from '@ant-design/icons';
+import workflowAvatar from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 
 import arrowLeft from '@/assets/imgs/knowledge/workflow-back.png';
 import flowEditIcon from '@/assets/imgs/workflow/flow-edit-icon.png';
@@ -267,20 +267,21 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
             <img src={arrowLeft} className="w-[28px]" alt="" />
           </button>
           <div className="workflow-identity relative flex items-center gap-3">
-            {currentFlow?.avatarIcon &&
-            failedAvatar !== currentFlow.avatarIcon ? (
-              <img
-                src={currentFlow.avatarIcon}
-                className="workflow-avatar"
-                alt=""
-                onError={() => setFailedAvatar(currentFlow.avatarIcon)}
-              />
-            ) : (
-              <ApartmentOutlined
-                className="workflow-identity-icon"
-                aria-hidden
-              />
-            )}
+            <img
+              src={
+                currentFlow?.avatarIcon &&
+                failedAvatar !== currentFlow.avatarIcon
+                  ? currentFlow.avatarIcon
+                  : workflowAvatar
+              }
+              className="workflow-avatar"
+              alt=""
+              onError={() => {
+                if (currentFlow?.avatarIcon) {
+                  setFailedAvatar(currentFlow.avatarIcon);
+                }
+              }}
+            />
             <div className="flex flex-col h-full">
               <div className="workflow-title flex items-center gap-1 text-center">
                 <span className="font-medium" title={currentFlow?.name}>

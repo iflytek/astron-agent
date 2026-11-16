@@ -31,7 +31,6 @@ import {
   PlusOutlined,
   UploadOutlined,
   ReloadOutlined,
-  ArrowRightOutlined,
   ApartmentOutlined,
 } from '@ant-design/icons';
 import useSpaceStore from '@/store/space-store';
@@ -349,28 +348,6 @@ export default function WorkflowList(): ReactElement {
                         />
                       </Dropdown>
                     </div>
-                  </div>
-                  <div className={styles.cardActions}>
-                    <Button
-                      type="text"
-                      onClick={() => navigate(`/work_flow/${flow.id}/arrange`)}
-                    >
-                      打开画布
-                    </Button>
-                    <Button
-                      type="link"
-                      disabled={busy}
-                      onClick={() =>
-                        void action(async () => {
-                          await http.post('/publish/workflows/bind', {
-                            workflowId: flow.id,
-                          });
-                          navigate('/management/release');
-                        })
-                      }
-                    >
-                      发布与分享 <ArrowRightOutlined />
-                    </Button>
                   </div>
                 </div>
               </article>

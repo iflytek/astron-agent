@@ -118,7 +118,17 @@ export function appendVariableAggregationNodeTemplate(
     )
   );
   if (hasNode) {
-    return nodeTemplate;
+    return nodeTemplate.map(category => ({
+      ...category,
+      nodes: category.nodes?.map((node: any) =>
+        node?.idType === VARIABLE_AGGREGATION_NODE_TYPE
+          ? {
+              ...node,
+              data: { ...node.data, icon: variableAggregationIcon },
+            }
+          : node
+      ),
+    }));
   }
 
   const template = buildVariableAggregationNodeTemplate();
