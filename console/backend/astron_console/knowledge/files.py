@@ -17,7 +17,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
 from django.db.models import Sum
-from django.http import Http404, HttpResponseRedirect
+from django.http import Http404, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from astron_console.http import api_endpoint
@@ -674,10 +674,13 @@ def image_content(request, owner, upload_id, name):
     elif owner != "user-" + hashlib.sha256(str(request.user.pk).encode()).hexdigest()[:24]:
         raise PermissionDenied()
     name = filename(name)
-    if name.rsplit(".", 1)[-1].lower() not in ("png", "jpg", "jpeg"):
+    ext = name.rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg"):
         raise Http404()
-    result = HttpResponseRedirect(
-        storage.download("images/" + owner + "/" + upload_id + "/" + name)
-    )
+    # Keep authenticated image reads same-origin; public storage endpoints may
+    # be private-network addresses. Uploads on this path are limited to 10MB.
+    content = storage.read("images/" + owner + "/" + upload_id + "/" + name)
+    result = HttpResponse(content, content_type="image/png" if ext == "png" else "image/jpeg")
     result["Cache-Control"] = "private, no-store"
+    result["X-Content-Type-Options"] = "nosniff"
     return result
