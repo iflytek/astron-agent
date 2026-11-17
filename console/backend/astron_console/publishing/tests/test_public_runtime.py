@@ -50,6 +50,40 @@ class PublicExecutionTests(TestCase):
             self.publication, self.viewer.pk, {"message": "hello"}, **kwargs
         )
 
+    def test_old_public_snapshot_has_context_and_no_personality_without_rewriting(self):
+        from astron_console.agents.models import AgentVersion
+        from astron_console.publishing.models import PublicationCandidate
+
+        stored = {
+            **self.publication.candidate.definition,
+            "supportContext": False,
+            "supportUpload": False,
+            "personality": {"enabled": True, "personality": "retired public persona"},
+        }
+        AgentVersion.objects.filter(pk=self.publication.candidate.version_id).update(
+            definition={key: value for key, value in stored.items() if key != "executionSnapshots"}
+        )
+        PublicationCandidate.objects.filter(pk=self.publication.candidate_id).update(
+            definition=stored
+        )
+        self.publication.refresh_from_db()
+        first, grant, _ = self.prepared()
+        first.status, first.answer = "completed", "earlier answer"
+        first.save()
+        AgentSession.objects.filter(pk=first.session_id).update(active_run_id=None)
+        run, _, (payload, _, _) = public_runtime.prepare_public(
+            self.publication,
+            self.viewer.pk,
+            {"message": "follow up", "sessionId": grant.session_id},
+        )
+        self.assertEqual(payload["messages"][1]["content"], "earlier answer")
+        self.assertTrue(run.definition["supportContext"])
+        self.assertTrue(run.definition["supportUpload"])
+        self.assertNotIn("personality", run.definition)
+        self.assertNotIn("retired public persona", str(payload["instruction"]))
+        self.publication.candidate.refresh_from_db()
+        self.assertEqual(self.publication.candidate.definition, stored)
+
     @patch("astron_console.publishing.services.validate_graph")
     def test_publication_pins_agent_and_nested_workflow_before_first_run(self, validate):
         from astron_console.workflows.models import Workflow

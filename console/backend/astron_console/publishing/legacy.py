@@ -7,7 +7,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import Http404
 
-from astron_console.agents.models import Agent, AgentState, AgentVersion, Personality
+from astron_console.agents.models import Agent, AgentState, AgentVersion
 from astron_console.workflows.models import Workflow, WorkflowVersion
 from astron_console.workflows.protocol import clean_config, normalize_graph
 from astron_console.workflows.validation import WorkflowValidationUnavailable
@@ -53,7 +53,6 @@ def recorded_definition(bot, market, channel):
                 model_id = matches[0].pk
         if not model_id:
             raise ValidationError("旧发布模型不能唯一映射到已有授权模型，原配置已保留")
-        personality = Personality.objects.filter(bot_id=bot.pk, config_type=1, deleted=0).first()
         config = {
             "id": bot.pk,
             "botName": market.bot_name or "",
@@ -67,8 +66,8 @@ def recorded_definition(bot, market, channel):
             "inputExample": "",
             "modelId": model_id,
             "model": market.model or "",
-            "supportContext": bool(market.support_context),
-            "supportUpload": False,
+            "supportContext": True,
+            "supportUpload": True,
             "tools": [],
             "skills": [],
             "mcpServerIds": [],
@@ -77,14 +76,6 @@ def recorded_definition(bot, market, channel):
             "legacyDatasetIds": [],
             "workflows": [],
             "maxLoopCount": 5,
-            "personality": {
-                "enabled": bool(personality.enabled),
-                "personality": personality.personality or "",
-                "sceneType": personality.scene_type,
-                "sceneInfo": personality.scene_info or "",
-            }
-            if personality
-            else {"enabled": False, "personality": "", "sceneInfo": ""},
         }
         version = AgentVersion.objects.create(
             agent_id=bot.pk, definition=config, created_by=market.uid or bot.uid

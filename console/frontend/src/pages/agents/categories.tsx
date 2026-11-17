@@ -78,17 +78,20 @@ export function CategorySelect({
   value,
   onChange,
   filter = false,
+  disabled = false,
   className,
 }: {
   categories: CatalogCategories;
   value: number | string | null | undefined;
   onChange: (value: number | string | null) => void;
   filter?: boolean;
+  disabled?: boolean;
   className?: string;
 }): ReactElement {
   return (
     <Select
       className={className}
+      disabled={disabled}
       aria-label={filter ? '按分类筛选' : '分类'}
       placeholder={filter ? '全部分类' : '未分类'}
       allowClear

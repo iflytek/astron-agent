@@ -6,9 +6,9 @@ from django.test import TestCase, override_settings
 from django.urls import include, path
 
 from astron_console.accounts.models import User, UserProfile
-from astron_console.agents.models import Agent, AgentFile
+from astron_console.agents.models import Agent, AgentFile, AgentVersion
 from astron_console.publishing import public_runtime, services
-from astron_console.publishing.models import Publication, ShareRecord
+from astron_console.publishing.models import Publication, PublicationCandidate, ShareRecord
 from astron_console.publishing.public_files import authorize_inputs
 from astron_console.resources.models import Model
 from astron_console.spaces.permissions import ResourceScope
@@ -46,6 +46,16 @@ class PublicFileTests(TestCase):
 
     @patch("astron_console.knowledge.storage.put")
     def test_caller_input_survives_republish_but_never_transfers_ownership(self, put):
+        # Simulate a retained immutable snapshot created before uploads became standard.
+        stored = {**self.publication.candidate.definition, "supportUpload": False}
+        AgentVersion.objects.filter(pk=self.publication.candidate.version_id).update(
+            definition={key: value for key, value in stored.items() if key != "executionSnapshots"}
+        )
+        PublicationCandidate.objects.filter(pk=self.publication.candidate_id).update(
+            definition=stored
+        )
+        self.publication.refresh_from_db()
+        self.assertTrue(public_runtime.public_data(self.publication)["supportUpload"])
         response = self.client.post(
             f"/published/{self.bot.pk}/files",
             {"file": SimpleUploadedFile("data.txt", b"user private content")},
@@ -54,6 +64,9 @@ class PublicFileTests(TestCase):
         file_id = response.json()["data"]["fileId"]
         row = AgentFile.objects.get(pk=file_id)
         self.assertEqual(row.uid, "caller")
+        self.assertEqual(authorize_inputs(self.publication, "caller", None, [file_id]), [row])
+        self.publication.candidate.refresh_from_db()
+        self.assertEqual(self.publication.candidate.definition, stored)
         services.submit(self.scope, self.bot.pk, "MARKET")
         self.publication.refresh_from_db()
         self.assertEqual(

@@ -136,6 +136,7 @@ class DefinitionTests(TransactionTestCase):
         self.assertIn("secret", self.agent.mcp_server_urls)
 
     def test_personality_favorite_and_soft_delete_preserve_business_rows(self):
+        Personality.objects.create(bot_id=self.agent.pk, personality="kind", enabled=1)
         response = self.write(
             "put",
             f"/agents/{self.agent.pk}",
@@ -148,8 +149,8 @@ class DefinitionTests(TransactionTestCase):
                 }
             },
         )
-        self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(definition(self.agent)["personality"]["personality"], "kind")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertNotIn("personality", definition(self.agent))
         self.assertEqual(Personality.objects.get(bot_id=self.agent.pk).config_type, 0)
         self.write("post", f"/agents/{self.agent.pk}/favorite", {"favorite": True})
         self.assertTrue(self.client.get(f"/agents/{self.agent.pk}").json()["data"]["favorite"])
@@ -158,6 +159,41 @@ class DefinitionTests(TransactionTestCase):
         self.assertEqual(self.agent.uid, "original-uid")
         self.assertEqual(self.agent.is_delete, 1)
         self.assertTrue(Personality.objects.filter(bot_id=self.agent.pk).exists())
+
+    def test_capabilities_always_enabled_and_max_loop_range_preserved(self):
+        Agent.objects.filter(pk=self.agent.pk).update(support_context=0, support_upload=0)
+        data = self.client.get(f"/agents/{self.agent.pk}").json()["data"]
+        self.assertTrue(data["supportContext"])
+        self.assertTrue(data["supportUpload"])
+        for payload in [{"supportContext": False, "supportUpload": False}, {"botName": "saved"}]:
+            response = self.write("put", f"/agents/{self.agent.pk}", payload)
+            self.assertEqual(response.status_code, 200, response.content)
+            self.agent.refresh_from_db()
+            self.assertEqual((self.agent.support_context, self.agent.support_upload), (1, 1))
+        for key in ["supportContext", "supportUpload"]:
+            self.assertEqual(
+                self.write("put", f"/agents/{self.agent.pk}", {key: "false"}).status_code, 400
+            )
+        for value in [1, 50, 0, 51]:
+            response = self.write("put", f"/agents/{self.agent.pk}", {"maxLoopCount": value})
+            self.assertEqual(response.status_code, 200 if value in (1, 50) else 400)
+
+    def test_old_snapshot_effective_definition_does_not_rewrite_history(self):
+        stored = {
+            **definition(self.agent),
+            "supportContext": False,
+            "supportUpload": False,
+            "personality": {"enabled": True, "personality": "old persona"},
+        }
+        row = AgentVersion.objects.create(
+            agent_id=self.agent.pk, definition=stored, created_by=self.user.pk
+        )
+        resolved = resolve_version(ResourceScope(self.user.pk, None, None), self.agent.pk, row.pk)
+        self.assertTrue(resolved["definition"]["supportContext"])
+        self.assertTrue(resolved["definition"]["supportUpload"])
+        self.assertNotIn("personality", resolved["definition"])
+        row.refresh_from_db()
+        self.assertEqual(row.definition, stored)
 
     def test_adoption_repeated_preserves_unknown_columns_and_ids(self):
         migration = importlib.import_module("astron_console.agents.migrations.0001_definitions")

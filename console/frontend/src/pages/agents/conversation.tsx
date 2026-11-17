@@ -7,16 +7,17 @@ import {
   DeleteOutlined,
   HistoryOutlined,
   PlusOutlined,
-  RobotOutlined,
   UserOutlined,
   ArrowUpOutlined,
   StopOutlined,
   ReloadOutlined,
   CopyOutlined,
   CheckOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import MarkdownRender from '@/components/markdown-render';
 import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
+import agentDebugIcon from '@/assets/imgs/avatars/agent-debug-robot-icon.svg';
 import { downloadFileWithHeaders } from '@/utils/http';
 import {
   createAgentSession,
@@ -127,6 +128,7 @@ function KnowledgeReferences({ references }: { references: unknown }) {
 }
 
 export function EventDetails({ events }: { events: AgentRun['events'] }) {
+  if (!events?.length) return null;
   return (
     <div className="agents-events">
       {(events || []).map((event, index) => {
@@ -141,12 +143,7 @@ export function EventDetails({ events }: { events: AgentRun['events'] }) {
             </p>
           );
         if (event.type === 'tool')
-          return (
-            <details key={index}>
-              <summary>工具调用与结果</summary>
-              <pre>{JSON.stringify(data, null, 2)}</pre>
-            </details>
-          );
+          return <ToolCallDetails key={index} data={data} />;
         if (event.type === 'knowledge')
           return (
             <KnowledgeReferences key={index} references={data.references} />
@@ -157,22 +154,84 @@ export function EventDetails({ events }: { events: AgentRun['events'] }) {
   );
 }
 
-export function RunEvents({ events }: { events: AgentRun['events'] }) {
-  const details = (events || []).filter(
-    event => event.type === 'tool' || event.type === 'knowledge'
+function formatToolValue(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      return value;
+    }
+  }
+  return JSON.stringify(value, null, 2);
+}
+
+function ToolCallDetails({ data }: { data: Record<string, unknown> }) {
+  const tool =
+    data.function && typeof data.function === 'object'
+      ? (data.function as Record<string, unknown>)
+      : data;
+  const name =
+    typeof tool.name === 'string' && tool.name.trim()
+      ? tool.name
+      : '未命名工具';
+  const request = formatToolValue(tool.arguments);
+  const response = formatToolValue(tool.response ?? data.result);
+  return (
+    <details className="agent-tool-call">
+      <summary className="agent-tool-name">{name}</summary>
+      <div className="agent-tool-exchange agent-tool-request">
+        <h4>REQUEST</h4>
+        {request === null ? (
+          <p className="agents-muted">此记录未保存请求参数。</p>
+        ) : (
+          <pre>{request}</pre>
+        )}
+      </div>
+      <div className="agent-tool-exchange agent-tool-response">
+        <h4>RESPONSE</h4>
+        {response === null ? (
+          <p className="agents-muted">此记录未保存返回结果。</p>
+        ) : (
+          <pre>{response}</pre>
+        )}
+      </div>
+    </details>
   );
+}
+
+export function RunEvents({ run }: { run: AgentRun }) {
+  const events = run.events || [];
+  const tools = events.filter(event => event.type === 'tool');
   return (
     <>
-      <EventDetails
-        events={(events || []).filter(event => event.type === 'error')}
-      />
-      {details.length > 0 && (
-        <details className="agent-execution-details">
-          <summary>查看执行过程</summary>
-          <EventDetails events={details} />
+      <EventDetails events={events.filter(event => event.type === 'error')} />
+      {tools.length > 0 && (
+        <details className="agent-tool-trace">
+          <summary className="agent-run-progress">
+            {run.status === 'running' && (
+              <LoadingOutlined spin aria-hidden="true" />
+            )}
+            Thinking
+          </summary>
+          <EventDetails events={tools} />
         </details>
       )}
+      <EventDetails
+        events={events.filter(event => event.type === 'knowledge')}
+      />
     </>
+  );
+}
+
+export function hasVisibleRunOutput(run: AgentRun): boolean {
+  return Boolean(
+    run.answer ||
+      run.status !== 'running' ||
+      run.files?.some(file => file.direction === 'output') ||
+      run.events?.some(event =>
+        ['tool', 'knowledge', 'error'].includes(String(event.type))
+      )
   );
 }
 
@@ -181,11 +240,15 @@ function SessionMessages({
   session,
   onChanged,
   onGuardChange,
+  refreshRevision,
+  onRefreshStateChange,
 }: {
   agent: AgentDefinition;
   session: AgentSession;
   onChanged: () => void;
   onGuardChange: (reason: string) => void;
+  refreshRevision: number;
+  onRefreshStateChange: (disabled: boolean) => void;
 }) {
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [question, setQuestion] = useState('');
@@ -238,7 +301,11 @@ function SessionMessages({
       alive.current = false;
       stream.current?.abort();
     };
-  }, [agent.id, session.id, historyRevision]);
+  }, [agent.id, session.id, historyRevision, refreshRevision]);
+
+  useEffect(() => {
+    onRefreshStateChange(busy || stopping || loading);
+  }, [busy, stopping, loading, onRefreshStateChange]);
 
   const running = runs.some(run => run.status === 'running');
   useEffect(() => {
@@ -418,22 +485,6 @@ function SessionMessages({
 
   return (
     <section className="agents-conversation">
-      <div className="agents-toolbar agent-session-toolbar">
-        <span title={session.title || '新会话'}>
-          {session.title || '新会话'}
-        </span>
-        <Button
-          type="text"
-          size="small"
-          icon={<ReloadOutlined />}
-          aria-label="刷新历史"
-          title="刷新历史"
-          disabled={busy || stopping || loading}
-          onClick={() =>
-            void refresh().catch(reason => setError(errorText(reason)))
-          }
-        />
-      </div>
       <div
         className="agents-message-list"
         aria-live="polite"
@@ -486,99 +537,101 @@ function SessionMessages({
                 <UserOutlined />
               </span>
             </div>
-            <div className="agents-answer-row">
-              <img className="agent-message-avatar" src={agentAvatar} alt="" />
-              <div className="agents-answer-content">
-                <div className="agents-answer">
-                  <div className="agents-answer-meta">
-                    <strong className="agent-sr-only">{agent.botName}</strong>
-                    {run.status !== 'completed' && (
-                      <span className={`agents-status ${run.status}`}>
-                        {statusText[run.status] || run.status}
-                      </span>
-                    )}
-                  </div>
-                  {run.reasoning && (
-                    <details>
-                      <summary>思考过程</summary>
+            {(hasVisibleRunOutput(run) || !busy) && (
+              <div className="agents-answer-row">
+                <img
+                  className="agent-message-avatar"
+                  src={agentAvatar}
+                  alt=""
+                />
+                <div className="agents-answer-content">
+                  <div className="agents-answer">
+                    <div className="agents-answer-meta">
+                      <strong className="agent-sr-only">{agent.botName}</strong>
+                      {run.status !== 'completed' &&
+                        run.status !== 'running' && (
+                          <span className={`agents-status ${run.status}`}>
+                            {statusText[run.status] || run.status}
+                          </span>
+                        )}
+                    </div>
+                    <RunEvents run={run} />
+                    {run.answer && (
                       <MarkdownRender
-                        content={run.reasoning}
+                        content={run.answer}
                         isSending={busy && index === runs.length - 1}
                       />
-                    </details>
-                  )}
-                  {run.answer && (
-                    <MarkdownRender
-                      content={run.answer}
-                      isSending={busy && index === runs.length - 1}
-                    />
-                  )}
-                  <RunEvents events={run.events} />
-                  {run.files
-                    ?.filter(file => file.direction === 'output')
-                    .map(file => (
-                      <Attachment
-                        key={file.id}
-                        agentId={agent.id}
-                        file={file}
+                    )}
+                    {run.files
+                      ?.filter(file => file.direction === 'output')
+                      .map(file => (
+                        <Attachment
+                          key={file.id}
+                          agentId={agent.id}
+                          file={file}
+                        />
+                      ))}
+                    {!run.answer && run.status !== 'running' && (
+                      <p className="agents-muted">本次执行未生成文本回答。</p>
+                    )}
+                    {run.status === 'running' && !busy && (
+                      <p className="agents-muted">
+                        运行尚未结束，可在会话历史中刷新，或停止生成。
+                      </p>
+                    )}
+                  </div>
+                  <div className="agent-answer-actions">
+                    {run.answer && (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={
+                          copiedId === run.id ? (
+                            <CheckOutlined />
+                          ) : (
+                            <CopyOutlined />
+                          )
+                        }
+                        aria-label={
+                          copiedId === run.id ? '已复制回答' : '复制回答'
+                        }
+                        title={copiedId === run.id ? '已复制' : '复制回答'}
+                        onClick={() => {
+                          if (copy(run.answer, { format: 'text/plain' }))
+                            setCopiedId(run.id);
+                          else setError('无法复制，请选择回答文本后复制。');
+                        }}
                       />
-                    ))}
-                  {!run.answer && run.status !== 'running' && (
-                    <p className="agents-muted">本次执行未生成文本回答。</p>
-                  )}
-                  {run.status === 'running' && !busy && (
-                    <p className="agents-muted">
-                      运行尚未结束，可刷新历史或停止生成。
-                    </p>
-                  )}
-                </div>
-                <div className="agent-answer-actions">
-                  {run.answer && (
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={
-                        copiedId === run.id ? (
-                          <CheckOutlined />
-                        ) : (
-                          <CopyOutlined />
-                        )
-                      }
-                      aria-label={
-                        copiedId === run.id ? '已复制回答' : '复制回答'
-                      }
-                      title={copiedId === run.id ? '已复制' : '复制回答'}
-                      onClick={() => {
-                        if (copy(run.answer, { format: 'text/plain' }))
-                          setCopiedId(run.id);
-                        else setError('无法复制，请选择回答文本后复制。');
-                      }}
-                    />
-                  )}
-                  {run.status !== 'running' && (
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<ReloadOutlined />}
-                      aria-label={
-                        needsFileUpload(run)
-                          ? '重新上传文件后再回答'
-                          : '重新回答'
-                      }
-                      title={
-                        needsFileUpload(run)
-                          ? '重新上传文件后再回答'
-                          : '重新回答'
-                      }
-                      disabled={
-                        busy || stopping || loading || running || !historyLoaded
-                      }
-                      onClick={() => void send(run)}
-                    />
-                  )}
+                    )}
+                    {run.status !== 'running' && (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<ReloadOutlined />}
+                        aria-label={
+                          needsFileUpload(run)
+                            ? '重新上传文件后再回答'
+                            : '重新回答'
+                        }
+                        title={
+                          needsFileUpload(run)
+                            ? '重新上传文件后再回答'
+                            : '重新回答'
+                        }
+                        disabled={
+                          busy ||
+                          stopping ||
+                          loading ||
+                          running ||
+                          !historyLoaded
+                        }
+                        onClick={() => void send(run)}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </article>
         ))}
       </div>
@@ -650,28 +703,24 @@ function SessionMessages({
           </div>
         )}
         <div className="agents-actions agent-composer-actions">
-          {Boolean(agent.supportUpload) && (
-            <>
-              <input
-                ref={fileInput}
-                className="agents-file-input"
-                type="file"
-                accept=".txt,.md,.csv,.json,.pdf,.docx"
-                multiple
-                disabled={busy || stopping || uploading}
-                onChange={event => void upload(event.target.files)}
-              />
-              <Button
-                type="text"
-                icon={<PaperClipOutlined />}
-                aria-label="添加文件"
-                title="添加文件"
-                loading={uploading}
-                disabled={busy || stopping || uploading}
-                onClick={() => fileInput.current?.click()}
-              />
-            </>
-          )}
+          <input
+            ref={fileInput}
+            className="agents-file-input"
+            type="file"
+            accept=".txt,.md,.csv,.json,.pdf,.docx"
+            multiple
+            disabled={busy || stopping || uploading}
+            onChange={event => void upload(event.target.files)}
+          />
+          <Button
+            type="text"
+            icon={<PaperClipOutlined />}
+            aria-label="添加文件"
+            title="添加文件"
+            loading={uploading}
+            disabled={busy || stopping || uploading}
+            onClick={() => fileInput.current?.click()}
+          />
           {busy || stopping || running ? (
             <button
               className="danger"
@@ -736,6 +785,8 @@ export default function Conversation({
   const [pendingChange, setPendingChange] = useState<(() => void) | null>(null);
   const submitting = useRef(false);
   const [revision, setRevision] = useState(0);
+  const [messageRevision, setMessageRevision] = useState(0);
+  const [refreshDisabled, setRefreshDisabled] = useState(true);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -815,7 +866,9 @@ export default function Conversation({
           {standalone && (
             <img className="agent-chat-avatar" src={agentAvatar} alt="" />
           )}
-          {!standalone && <RobotOutlined />}
+          {!standalone && (
+            <img className="agent-debug-icon" src={agentDebugIcon} alt="" />
+          )}
           <h2 title={agent.botName}>
             {standalone ? agent.botName : '调试与预览'}
           </h2>
@@ -846,6 +899,22 @@ export default function Conversation({
         rootClassName="agent-history-drawer"
       >
         <aside className="agents-session-list">
+          <div className="agent-history-actions">
+            <Button
+              type="text"
+              size="small"
+              icon={<ReloadOutlined />}
+              disabled={
+                busy || loading || (Boolean(selected) && refreshDisabled)
+              }
+              onClick={() => {
+                setRevision(value => value + 1);
+                setMessageRevision(value => value + 1);
+              }}
+            >
+              刷新历史
+            </Button>
+          </div>
           {error && (
             <Alert
               type="error"
@@ -868,7 +937,6 @@ export default function Conversation({
           >
             新建{kind === 'debug' ? '调试' : '聊天'}会话
           </button>
-          <h3>会话历史</h3>
           {loading && <Skeleton active paragraph={{ rows: 3 }} />}
           {!loading && !error && !sessions.length && (
             <p className="agents-muted">还没有会话，点击上方按钮开始。</p>
@@ -927,6 +995,8 @@ export default function Conversation({
             session={selected}
             onChanged={() => setRevision(value => value + 1)}
             onGuardChange={setSessionGuard}
+            refreshRevision={messageRevision}
+            onRefreshStateChange={setRefreshDisabled}
           />
         ) : (
           !loading &&

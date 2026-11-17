@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from asgiref.sync import async_to_sync, sync_to_async
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TransactionTestCase, override_settings
+from django.test import RequestFactory, TransactionTestCase, override_settings
 from django.urls import include, path
 
 from astron_console.accounts.models import User, UserProfile
@@ -331,6 +331,49 @@ class ConversationTests(TransactionTestCase):
         self.assertEqual(
             self.client.get(f"/agents/{self.agent.pk}/files/{file.pk}").status_code, 403
         )
+
+    def test_draft_and_old_release_keep_history_and_files_without_personality(self):
+        from astron_console.agents.definitions import definition
+        from astron_console.agents.models import AgentVersion, Personality
+
+        Agent.objects.filter(pk=self.agent.pk).update(support_context=0, support_upload=0)
+        Personality.objects.create(bot_id=self.agent.pk, personality="retired persona")
+        self.agent.refresh_from_db()
+        with patch("astron_console.agents.files.storage.put"):
+            response = self.client.post(
+                f"/agents/{self.agent.pk}/files",
+                {"file": SimpleUploadedFile("facts.txt", b"always available")},
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        file_id = response.json()["data"]["id"]
+        stored = {
+            **definition(self.agent),
+            "supportContext": False,
+            "supportUpload": False,
+            "personality": {"enabled": True, "personality": "retired persona"},
+        }
+        version = AgentVersion.objects.create(
+            agent_id=self.agent.pk, definition=stored, created_by=self.owner.pk
+        )
+        for version_id in (None, version.pk):
+            session = AgentSession.objects.create(agent_id=self.agent.pk, uid=self.owner.pk)
+            AgentRun.objects.create(
+                session=session, question="first turn", answer="previous answer", status="completed"
+            )
+            request = RequestFactory().post("/")
+            request.user = self.owner
+            request.payload = {"message": "next turn", "files": [file_id]}
+            if version_id:
+                request.payload["versionId"] = version_id
+            run, payload, _, _ = conversations.prepare(request, self.agent.pk, session.pk)
+            self.assertEqual(payload["messages"][1]["content"], "previous answer")
+            self.assertIn("always available", payload["messages"][-1]["content"])
+            self.assertNotIn("retired persona", str(payload["instruction"]))
+            self.assertTrue(run.definition["supportContext"])
+            self.assertTrue(run.definition["supportUpload"])
+            self.assertNotIn("personality", run.definition)
+        version.refresh_from_db()
+        self.assertEqual(version.definition, stored)
 
     def test_prepare_rejects_spoofed_config_and_other_user_file(self):
         url = f"/agents/{self.agent.pk}/sessions/{self.session.pk}/stream"

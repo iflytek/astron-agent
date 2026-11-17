@@ -14,14 +14,8 @@ export interface AgentDefinition {
   prompt: string;
   modelId?: number | null;
   model?: string;
-  supportContext: boolean;
-  supportUpload: boolean;
-  personality: {
-    enabled: boolean;
-    personality?: string;
-    sceneInfo?: string;
-    sceneType?: number;
-  };
+  readonly supportContext: boolean;
+  readonly supportUpload: boolean;
   tools: number[];
   skills: number[];
   mcpServerIds: number[];
