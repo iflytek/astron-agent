@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Modal, Select, Skeleton, Tabs } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { Alert, Button, Modal, Select, Skeleton } from 'antd';
+import {
+  ArrowLeftOutlined,
+  MessageOutlined,
+  SettingOutlined,
+  HistoryOutlined,
+  BulbOutlined,
+  CheckOutlined,
+} from '@ant-design/icons';
+import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import {
   Link,
   useNavigate,
@@ -361,31 +369,76 @@ function ResourceSelect({
   onChange: (value: number[]) => void;
   disabled?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const descriptions: Record<string, string> = {
+    插件工具: '让 Agent 搜索信息或执行操作',
+    工作流工具: '将已有工作流作为工具使用',
+    知识库: '连接 Agent 回答问题时可检索的知识',
+    Skill: '添加 Agent 可复用的专业技能',
+    'MCP 服务': '连接外部应用与服务',
+  };
   return (
-    <label>
-      {title}
-      <Select
-        aria-label={title}
-        mode="multiple"
-        disabled={disabled}
-        allowClear
-        optionFilterProp="label"
-        value={value}
-        placeholder={`选择${title}`}
-        onChange={onChange}
-        options={[
-          ...options.map(option => ({ value: option.id, label: option.name })),
-          ...value
-            .filter(id => !options.some(option => option.id === id))
-            .map(id => ({
-              value: id,
-              label: `已关联资源 #${id}（当前不可选）`,
+    <section className="agent-resource-section">
+      <div className="agent-resource-heading">
+        <h3>
+          {title}
+          {value.length > 0 && <span>{value.length}</span>}
+        </h3>
+        <Button
+          type="text"
+          size="small"
+          disabled={disabled}
+          onClick={() => setExpanded(current => !current)}
+          aria-expanded={expanded}
+        >
+          {expanded ? '收起' : value.length ? '管理' : '添加'}
+        </Button>
+      </div>
+      {expanded ? (
+        <Select
+          aria-label={title}
+          mode="multiple"
+          disabled={disabled}
+          allowClear
+          optionFilterProp="label"
+          value={value}
+          placeholder={`选择${title}`}
+          onChange={onChange}
+          options={[
+            ...options.map(option => ({
+              value: option.id,
+              label: option.name,
             })),
-        ]}
-        notFoundContent="没有可选资源"
-      />
-      <small>搜索资源名称，可选择多个。</small>
-    </label>
+            ...value
+              .filter(id => !options.some(option => option.id === id))
+              .map(id => ({
+                value: id,
+                label: `已关联资源 #${id}（当前不可选）`,
+              })),
+          ]}
+          notFoundContent="当前没有可选资源"
+        />
+      ) : value.length ? (
+        <div className="agent-resource-selected">
+          {value.map(id => (
+            <span key={id}>
+              {options.find(option => option.id === id)?.name ||
+                `已关联资源 #${id}`}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="agent-resource-empty"
+          disabled={disabled}
+          onClick={() => setExpanded(true)}
+        >
+          <span>未添加{title === 'Skill' ? '技能' : title}</span>
+          <small>{descriptions[title]}</small>
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -413,8 +466,6 @@ const agentDraftSnapshot = (value: AgentDefinition | null) =>
 
 function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
   const navigate = useNavigate();
-  const spaceName = useSpaceStore(state => state.spaceName);
-  const spaceType = useSpaceStore(state => state.spaceType);
   const [agent, setAgent] = useState<AgentDefinition | null>(null);
   const [draft, setDraft] = useState<AgentDefinition | null>(null);
   const categories = useCatalogCategories();
@@ -438,6 +489,9 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
   const [contentGuard, setContentGuard] = useState('');
   const [pendingTab, setPendingTab] = useState<string | null>(null);
   const saving = useRef(false);
+  const [mobilePanel, setMobilePanel] = useState<'configuration' | 'preview'>(
+    'configuration'
+  );
   const isDirty = useMemo(
     () =>
       mode === 'edit' &&
@@ -574,7 +628,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       setToolsChanged(false);
       setSkillsChanged(false);
       setMcpChanged(false);
-      setNotice('草稿已保存，后续调试和聊天使用此配置。');
+      setNotice('配置已应用。');
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -603,10 +657,11 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       setBusy(false);
     }
   };
-  return (
-    <main className={`agents-page${mode === 'edit' ? ' agent-studio' : ''}`}>
-      <header className="agents-header">
-        <div>
+
+  if (mode === 'chat') {
+    return (
+      <main className="agents-page agent-chat-page">
+        <header className="agent-chat-page-header">
           <button
             className="agents-back-link"
             type="button"
@@ -614,21 +669,133 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           >
             <ArrowLeftOutlined /> Agent 列表
           </button>
-          <div className="agents-title-row">
-            <div>
-              <h1>{agent?.botName || 'Agent'}</h1>
-            </div>
-            {agent && (
-              <span
-                className={`agents-draft-state${isDirty ? ' is-dirty' : ''}`}
-              >
-                {isDirty ? '未保存修改' : '已同步'}
-              </span>
-            )}
+          <div className="agent-chat-page-actions">
+            <button
+              className="button"
+              type="button"
+              onClick={() => requestNavigation(`/space/config/${id}/base`)}
+            >
+              编辑 Agent
+            </button>
           </div>
+        </header>
+        {error && (
+          <div className="agents-error agents-error-action" role="alert">
+            <span>{error}</span>
+            <button
+              type="button"
+              onClick={() => setLoadRevision(value => value + 1)}
+            >
+              重新读取 Agent
+            </button>
+          </div>
+        )}
+        {loading && <Skeleton active paragraph={{ rows: 6 }} />}
+        {agent && (
+          <section className="agent-chat-surface" aria-label="Agent 对话">
+            <Conversation
+              agent={agent}
+              kind="chat"
+              standalone
+              onGuardChange={setContentGuard}
+            />
+          </section>
+        )}
+        <Modal
+          title="有未完成的对话"
+          open={blocker.state === 'blocked'}
+          okText="放弃并离开"
+          cancelText="继续对话"
+          okButtonProps={{ danger: true }}
+          onOk={() => {
+            if (blocker.state === 'blocked') blocker.proceed();
+          }}
+          onCancel={() => {
+            if (blocker.state === 'blocked') blocker.reset();
+          }}
+        >
+          <p>
+            {contentGuard || '当前对话尚未完成，离开后可能丢失输入或运行反馈。'}
+          </p>
+        </Modal>
+      </main>
+    );
+  }
+
+  const discard = () => {
+    setDraft(agent);
+    setKnowledgeChanged(false);
+    setWorkflowsChanged(false);
+    setToolsChanged(false);
+    setSkillsChanged(false);
+    setMcpChanged(false);
+    setError('');
+    setNotice('');
+  };
+  return (
+    <main className={`agents-page agent-studio mobile-${mobilePanel}`}>
+      <nav className="agent-workspace-rail" aria-label="Agent 工作区">
+        <Button
+          type="text"
+          icon={<ArrowLeftOutlined />}
+          aria-label="返回 Agent 列表"
+          title="返回 Agent 列表"
+          onClick={() => requestNavigation('/space/agent')}
+        />
+        <img src={agentAvatar} alt="" className="agent-rail-avatar" />
+        {[
+          { key: 'definition', label: '配置与调试', icon: <SettingOutlined /> },
+          { key: 'memory', label: '长期记忆', icon: <BulbOutlined /> },
+          { key: 'versions', label: '版本记录', icon: <HistoryOutlined /> },
+        ].map(item => (
+          <Button
+            key={item.key}
+            type="text"
+            icon={item.icon}
+            title={item.label}
+            aria-label={item.label}
+            aria-current={tab === item.key ? 'page' : undefined}
+            className={tab === item.key ? 'is-active' : ''}
+            onClick={() => changeTab(item.key)}
+          />
+        ))}
+        <Button
+          type="text"
+          className="agent-rail-chat"
+          icon={<MessageOutlined />}
+          aria-label="打开对话"
+          title="打开对话"
+          onClick={() => requestNavigation(`/space/bot/${id}/chat`)}
+        />
+      </nav>
+      <header className="agents-header agent-workspace-header">
+        <div className="agent-workspace-identity">
+          <img src={agentAvatar} alt="" />
+          <h1 title={agent?.botName}>{agent?.botName || 'Agent'}</h1>
+          {agent && (
+            <span
+              className={`agent-sync-label${isDirty ? ' is-dirty' : ''}`}
+              role="status"
+            >
+              {isDirty ? (
+                '有未应用修改'
+              ) : (
+                <>
+                  <CheckOutlined /> 已保存
+                </>
+              )}
+            </span>
+          )}
         </div>
         <div className="agents-actions">
-          {mode === 'edit' && agent && (
+          <Button
+            className="agent-open-chat"
+            onClick={() => requestNavigation(`/space/bot/${id}/chat`)}
+            icon={<MessageOutlined />}
+          >
+            打开对话
+          </Button>
+          {agent && (
             <EditorPublishMenu
               target={{ kind: 'agent', id }}
               name={agent.botName}
@@ -636,7 +803,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
               saveVersionDisabled={versionsLoading}
               disabledReason={
                 isDirty
-                  ? '请先保存左侧草稿，再发布或保存版本。'
+                  ? '请先应用配置，再发布或保存版本。'
                   : agent.legacyDatasetIds?.length
                     ? '请先重新关联知识库并保存。'
                     : undefined
@@ -644,23 +811,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
               onSaveVersion={() => void saveVersion()}
               onPublishingChange={setBusy}
             />
-          )}
-          {mode === 'chat' ? (
-            <button
-              className="button"
-              type="button"
-              onClick={() => requestNavigation(`/space/config/${id}/base`)}
-            >
-              编辑与调试
-            </button>
-          ) : (
-            <button
-              className="button"
-              type="button"
-              onClick={() => requestNavigation(`/space/bot/${id}/chat`)}
-            >
-              开始聊天
-            </button>
           )}
         </div>
       </header>
@@ -700,31 +850,22 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
               }
             />
           )}
-          <div className="agents-context-bar">
-            <span>
-              {spaceName ||
-                (spaceType === 'personal' ? '我的个人资源' : '当前空间')}{' '}
-              / {mode === 'chat' ? '对话工作区' : '配置工作区'}
-            </span>
-            <span className="agents-context-divider">/</span>
-            <span>{agent.botDesc || '为 Agent 配置行为、资源和运行方式'}</span>
-          </div>
-          <Tabs
-            className="agents-tabs"
-            activeKey={tab}
-            onChange={changeTab}
-            items={(mode === 'chat'
-              ? [
-                  ['chat', '聊天'],
-                  ['memory', '长期记忆'],
-                ]
-              : [
-                  ['definition', '配置与调试'],
-                  ['memory', '长期记忆'],
-                  ['versions', '版本快照'],
-                ]
-            ).map(([key, title]) => ({ key: key!, label: title }))}
-          />
+          {tab === 'definition' && (
+            <div className="agent-mobile-switch" aria-label="切换工作面">
+              <Button
+                type={mobilePanel === 'configuration' ? 'primary' : 'text'}
+                onClick={() => setMobilePanel('configuration')}
+              >
+                配置
+              </Button>
+              <Button
+                type={mobilePanel === 'preview' ? 'primary' : 'text'}
+                onClick={() => setMobilePanel('preview')}
+              >
+                调试对话
+              </Button>
+            </div>
+          )}
           {tab === 'definition' && draft && (
             <div className="agent-studio-workspace">
               <form
@@ -735,11 +876,13 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                 }}
               >
                 <fieldset disabled={busy} className="agents-definition-fields">
-                  <div className="agents-section-heading">
-                    <h2>配置</h2>
-                    <p>调整模型、指令与可使用的资源。</p>
+                  <div className="agents-section-heading agent-config-intro">
+                    <h2>
+                      配置 <span>构建模式</span>
+                    </h2>
+                    <p>设定 Agent 的行为，在右侧对话中测试效果。</p>
                   </div>
-                  <label>
+                  <label className="agent-model-field">
                     模型
                     <select
                       required
@@ -763,8 +906,10 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       ))}
                     </select>
                   </label>
-                  <label>
-                    提示词
+                  <label className="agent-prompt-field">
+                    <span>
+                      提示词 <small>告诉 Agent 如何帮助用户</small>
+                    </span>
                     <textarea
                       placeholder="定义 Agent 的身份、任务、行为和回答方式…"
                       maxLength={2048}
@@ -773,10 +918,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       rows={10}
                     />
                   </label>
-                  <div className="agents-section-heading">
-                    <h2>关联资源</h2>
-                    <p>配置可调用的工具、知识库、Skill 和 MCP 服务。</p>
-                  </div>
+
                   {resourceError ? (
                     <Alert
                       type="error"
@@ -1073,27 +1215,31 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                   </details>
                 </fieldset>
                 <div className="agents-actions agents-save-bar">
-                  <button className="primary" disabled={busy} type="submit">
-                    {busy ? '保存中…' : '保存草稿'}
-                  </button>
-                  <span className="agents-muted">
-                    {isDirty
-                      ? '保存后再开始调试，避免运行旧配置。'
-                      : '当前草稿已保存。'}
+                  <span className="agent-save-status" role="status">
+                    {isDirty ? '待应用的修改' : '配置已保存'}
+                    <small>
+                      {isDirty ? '应用后，新消息使用最新配置' : '可以开始调试'}
+                    </small>
                   </span>
+                  {isDirty && (
+                    <Button disabled={busy} onClick={discard}>
+                      放弃
+                    </Button>
+                  )}
+                  <Button
+                    type="primary"
+                    disabled={!isDirty}
+                    loading={busy}
+                    htmlType="submit"
+                  >
+                    应用
+                  </Button>
                 </div>
               </form>
               <section
                 className="agent-studio-preview"
                 aria-label="Agent 调试预览"
               >
-                <header className="agent-studio-preview-header">
-                  <div>
-                    <h2>调试预览</h2>
-                    <p>测试对话，查看回答与执行过程。</p>
-                  </div>
-                  <span className="agents-status">已保存配置</span>
-                </header>
                 {isDirty && (
                   <p role="status" className="agent-studio-draft-hint">
                     左侧有未保存的修改，当前调试仍使用上次保存的配置。
@@ -1108,14 +1254,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
               </section>
             </div>
           )}
-          {(tab === 'chat' || tab === 'debug') && (
-            <Conversation
-              key={tab}
-              agent={agent}
-              kind={tab}
-              onGuardChange={setContentGuard}
-            />
-          )}
+
           {tab === 'memory' && (
             <Memory
               agentId={id}

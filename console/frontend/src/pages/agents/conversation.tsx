@@ -1,14 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
-import { Modal, Skeleton } from 'antd';
+import copy from 'copy-to-clipboard';
+import { Alert, Button, Drawer, Modal, Skeleton } from 'antd';
 import {
   PaperClipOutlined,
   CloseOutlined,
   DeleteOutlined,
   HistoryOutlined,
   PlusOutlined,
-  ExperimentOutlined,
+  RobotOutlined,
+  UserOutlined,
+  ArrowUpOutlined,
+  StopOutlined,
+  ReloadOutlined,
+  CopyOutlined,
+  CheckOutlined,
 } from '@ant-design/icons';
 import MarkdownRender from '@/components/markdown-render';
+import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import { downloadFileWithHeaders } from '@/utils/http';
 import {
   createAgentSession,
@@ -134,7 +142,7 @@ export function EventDetails({ events }: { events: AgentRun['events'] }) {
           );
         if (event.type === 'tool')
           return (
-            <details key={index} open>
+            <details key={index}>
               <summary>工具调用与结果</summary>
               <pre>{JSON.stringify(data, null, 2)}</pre>
             </details>
@@ -146,6 +154,25 @@ export function EventDetails({ events }: { events: AgentRun['events'] }) {
         return null;
       })}
     </div>
+  );
+}
+
+export function RunEvents({ events }: { events: AgentRun['events'] }) {
+  const details = (events || []).filter(
+    event => event.type === 'tool' || event.type === 'knowledge'
+  );
+  return (
+    <>
+      <EventDetails
+        events={(events || []).filter(event => event.type === 'error')}
+      />
+      {details.length > 0 && (
+        <details className="agent-execution-details">
+          <summary>查看执行过程</summary>
+          <EventDetails events={details} />
+        </details>
+      )}
+    </>
   );
 }
 
@@ -178,6 +205,14 @@ function SessionMessages({
   const alive = useRef(true);
   const sending = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const messageList = useRef<HTMLDivElement>(null);
+  const followsLatest = useRef(true);
+  const [copiedId, setCopiedId] = useState('');
+  useEffect(() => {
+    if (followsLatest.current && messageList.current) {
+      messageList.current.scrollTop = messageList.current.scrollHeight;
+    }
+  }, [runs, loading]);
 
   useEffect(() => {
     alive.current = true;
@@ -276,6 +311,7 @@ function SessionMessages({
     setRuns(current => [...current, attempt]);
     setQuestion('');
     setFiles([]);
+    followsLatest.current = true;
     const apply = (event: RunEvent) => {
       attempt = reduceRun(attempt, event);
       if (alive.current)
@@ -382,18 +418,33 @@ function SessionMessages({
 
   return (
     <section className="agents-conversation">
-      <div className="agents-toolbar">
-        <h2 title={session.title || '新会话'}>{session.title || '新会话'}</h2>
-        <button
+      <div className="agents-toolbar agent-session-toolbar">
+        <span title={session.title || '新会话'}>
+          {session.title || '新会话'}
+        </span>
+        <Button
+          type="text"
+          size="small"
+          icon={<ReloadOutlined />}
+          aria-label="刷新历史"
+          title="刷新历史"
           disabled={busy || stopping || loading}
           onClick={() =>
             void refresh().catch(reason => setError(errorText(reason)))
           }
-        >
-          刷新历史
-        </button>
+        />
       </div>
-      <div className="agents-message-list" aria-live="polite">
+      <div
+        className="agents-message-list"
+        aria-live="polite"
+        ref={messageList}
+        onScroll={event => {
+          const element = event.currentTarget;
+          followsLatest.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight <
+            80;
+        }}
+      >
         {loading && <Skeleton active paragraph={{ rows: 4 }} />}
         {historyError && (
           <div role="alert" className="agents-error agents-error-action">
@@ -408,64 +459,125 @@ function SessionMessages({
           </div>
         )}
         {!loading && !historyError && !runs.length && (
-          <p className="agents-empty">
-            发送消息开始{session.kind === 'debug' ? '调试' : '聊天'}。
-          </p>
+          <div className="agents-empty agent-conversation-welcome">
+            <img src={agentAvatar} alt="" />
+            <h3>今天有什么可以帮你？</h3>
+            <p>
+              {session.kind === 'debug'
+                ? '发送消息，看看 Agent 的表现。'
+                : agent.botDesc || '从一个问题或任务开始。'}
+            </p>
+          </div>
         )}
         {runs.map((run, index) => (
           <article className="agents-run" key={run.id}>
-            <div className="agents-question">
-              <span>你</span>
-              <p>{run.question}</p>
-              {inputFiles(run).map(file => (
-                <Attachment key={file.id} agentId={agent.id} file={file} />
-              ))}
-            </div>
-            <div className="agents-answer">
-              <div className="agents-answer-meta">
-                <strong>{agent.botName}</strong>
-                <span className={`agents-status ${run.status}`}>
-                  {statusText[run.status] || run.status}
-                </span>
-              </div>
-              {run.reasoning && (
-                <details>
-                  <summary>思考过程</summary>
-                  <MarkdownRender
-                    content={run.reasoning}
-                    isSending={busy && index === runs.length - 1}
-                  />
-                </details>
-              )}
-              {run.answer && (
-                <MarkdownRender
-                  content={run.answer}
-                  isSending={busy && index === runs.length - 1}
-                />
-              )}
-              <EventDetails events={run.events} />
-              {run.files
-                ?.filter(file => file.direction === 'output')
-                .map(file => (
+            <div className="agents-question-row">
+              <div className="agents-question">
+                <span className="agent-sr-only">你</span>
+                <p>{run.question}</p>
+                {inputFiles(run).map(file => (
                   <Attachment key={file.id} agentId={agent.id} file={file} />
                 ))}
-              {!run.answer && run.status !== 'running' && (
-                <p className="agents-muted">本次执行未生成文本回答。</p>
-              )}
-              {run.status === 'running' && !busy ? (
-                <p className="agents-muted">
-                  运行状态尚未结束。可刷新历史或停止运行后继续。
-                </p>
-              ) : (
-                <button
-                  disabled={
-                    busy || stopping || loading || running || !historyLoaded
-                  }
-                  onClick={() => void send(run)}
-                >
-                  {needsFileUpload(run) ? '重新上传文件后再回答' : '重新回答'}
-                </button>
-              )}
+              </div>
+              <span
+                className="agent-message-avatar agent-user-avatar"
+                aria-hidden="true"
+              >
+                <UserOutlined />
+              </span>
+            </div>
+            <div className="agents-answer-row">
+              <img className="agent-message-avatar" src={agentAvatar} alt="" />
+              <div className="agents-answer-content">
+                <div className="agents-answer">
+                  <div className="agents-answer-meta">
+                    <strong className="agent-sr-only">{agent.botName}</strong>
+                    {run.status !== 'completed' && (
+                      <span className={`agents-status ${run.status}`}>
+                        {statusText[run.status] || run.status}
+                      </span>
+                    )}
+                  </div>
+                  {run.reasoning && (
+                    <details>
+                      <summary>思考过程</summary>
+                      <MarkdownRender
+                        content={run.reasoning}
+                        isSending={busy && index === runs.length - 1}
+                      />
+                    </details>
+                  )}
+                  {run.answer && (
+                    <MarkdownRender
+                      content={run.answer}
+                      isSending={busy && index === runs.length - 1}
+                    />
+                  )}
+                  <RunEvents events={run.events} />
+                  {run.files
+                    ?.filter(file => file.direction === 'output')
+                    .map(file => (
+                      <Attachment
+                        key={file.id}
+                        agentId={agent.id}
+                        file={file}
+                      />
+                    ))}
+                  {!run.answer && run.status !== 'running' && (
+                    <p className="agents-muted">本次执行未生成文本回答。</p>
+                  )}
+                  {run.status === 'running' && !busy && (
+                    <p className="agents-muted">
+                      运行尚未结束，可刷新历史或停止生成。
+                    </p>
+                  )}
+                </div>
+                <div className="agent-answer-actions">
+                  {run.answer && (
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={
+                        copiedId === run.id ? (
+                          <CheckOutlined />
+                        ) : (
+                          <CopyOutlined />
+                        )
+                      }
+                      aria-label={
+                        copiedId === run.id ? '已复制回答' : '复制回答'
+                      }
+                      title={copiedId === run.id ? '已复制' : '复制回答'}
+                      onClick={() => {
+                        if (copy(run.answer, { format: 'text/plain' }))
+                          setCopiedId(run.id);
+                        else setError('无法复制，请选择回答文本后复制。');
+                      }}
+                    />
+                  )}
+                  {run.status !== 'running' && (
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<ReloadOutlined />}
+                      aria-label={
+                        needsFileUpload(run)
+                          ? '重新上传文件后再回答'
+                          : '重新回答'
+                      }
+                      title={
+                        needsFileUpload(run)
+                          ? '重新上传文件后再回答'
+                          : '重新回答'
+                      }
+                      disabled={
+                        busy || stopping || loading || running || !historyLoaded
+                      }
+                      onClick={() => void send(run)}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </article>
         ))}
@@ -491,15 +603,29 @@ function SessionMessages({
           void send();
         }}
       >
-        <label>
-          消息
+        <label className="agent-message-input">
+          <span className="agent-sr-only">消息</span>
           <textarea
             aria-label={session.kind === 'debug' ? '调试消息' : '聊天消息'}
             value={question}
             disabled={busy || stopping || loading}
             onChange={event => setQuestion(event.target.value)}
-            placeholder="输入消息…"
-            rows={3}
+            placeholder={
+              session.kind === 'debug'
+                ? '发送消息，测试你的 Agent…'
+                : '发送消息…'
+            }
+            rows={2}
+            onKeyDown={event => {
+              if (
+                event.key === 'Enter' &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing
+              ) {
+                event.preventDefault();
+                void send();
+              }
+            }}
           />
         </label>
         {!!files.length && (
@@ -523,7 +649,7 @@ function SessionMessages({
             ))}
           </div>
         )}
-        <div className="agents-actions">
+        <div className="agents-actions agent-composer-actions">
           {Boolean(agent.supportUpload) && (
             <>
               <input
@@ -535,13 +661,15 @@ function SessionMessages({
                 disabled={busy || stopping || uploading}
                 onChange={event => void upload(event.target.files)}
               />
-              <button
-                type="button"
+              <Button
+                type="text"
+                icon={<PaperClipOutlined />}
+                aria-label="添加文件"
+                title="添加文件"
+                loading={uploading}
                 disabled={busy || stopping || uploading}
                 onClick={() => fileInput.current?.click()}
-              >
-                {uploading ? '上传中…' : '添加文件'}
-              </button>
+              />
             </>
           )}
           {busy || stopping || running ? (
@@ -558,11 +686,14 @@ function SessionMessages({
               }
               onClick={() => void stop()}
             >
-              {stopping ? '正在停止…' : '停止生成'}
+              <StopOutlined />{' '}
+              <span>{stopping ? '正在停止…' : '停止生成'}</span>
             </button>
           ) : (
             <button
-              className="primary"
+              className="primary agent-send-button"
+              aria-label="发送消息"
+              title="发送消息"
               type="submit"
               disabled={
                 loading ||
@@ -572,7 +703,7 @@ function SessionMessages({
                 !question.trim()
               }
             >
-              发送
+              <ArrowUpOutlined />
             </button>
           )}
         </div>
@@ -586,10 +717,12 @@ export default function Conversation({
   kind,
   onGuardChange,
   embedded = false,
+  standalone = false,
 }: {
   agent: AgentDefinition;
   kind: AgentKind;
   embedded?: boolean;
+  standalone?: boolean;
   onGuardChange: (reason: string) => void;
 }) {
   const [sessions, setSessions] = useState<AgentSession[]>([]);
@@ -645,6 +778,7 @@ export default function Conversation({
       if (alive.current) {
         setSessions(current => [session, ...current]);
         setSelected(session);
+        setShowHistory(false);
       }
     } catch (reason) {
       if (alive.current) setError(errorText(reason));
@@ -674,70 +808,106 @@ export default function Conversation({
   };
   return (
     <div
-      className={`agents-chat-layout${embedded ? ' agents-chat-embedded' : ''}`}
+      className={`agents-chat-layout${embedded ? ' agents-chat-embedded' : ''}${standalone ? ' agents-chat-standalone' : ''}`}
     >
-      {embedded && (
-        <div className="agent-preview-toolbar">
-          <button
-            type="button"
-            aria-expanded={showHistory}
-            onClick={() => setShowHistory(value => !value)}
-          >
-            <HistoryOutlined /> 会话历史
-            {sessions.length ? ` (${sessions.length})` : ''}
-          </button>
-          <button
-            type="button"
-            disabled={busy || loading}
-            onClick={() => requestChange(() => void create())}
-          >
-            <PlusOutlined /> 新建会话
-          </button>
+      <div className="agent-preview-toolbar">
+        <div className="agent-chat-identity">
+          {standalone && (
+            <img className="agent-chat-avatar" src={agentAvatar} alt="" />
+          )}
+          {!standalone && <RobotOutlined />}
+          <h2 title={agent.botName}>
+            {standalone ? agent.botName : '调试与预览'}
+          </h2>
         </div>
-      )}
-      <aside className="agents-session-list" hidden={embedded && !showHistory}>
-        <button
-          className="primary"
+        <Button
+          type="text"
+          icon={<HistoryOutlined />}
+          aria-label="会话历史"
+          title="会话历史"
+          aria-expanded={showHistory}
+          onClick={() => setShowHistory(value => !value)}
+        />
+        <Button
+          type="text"
+          icon={<PlusOutlined />}
           disabled={busy || loading}
           onClick={() => requestChange(() => void create())}
         >
-          新建{kind === 'debug' ? '调试' : '聊天'}会话
-        </button>
-        <h3>会话历史</h3>
-        {loading && <Skeleton active paragraph={{ rows: 3 }} />}
-        {!loading && !error && !sessions.length && (
-          <p className="agents-muted">还没有会话，点击上方按钮开始。</p>
-        )}
-        {sessions.map(session => (
-          <div
-            className={`agents-session ${selected?.id === session.id ? 'selected' : ''}`}
-            key={session.id}
+          新对话
+        </Button>
+      </div>
+      <Drawer
+        title="会话历史"
+        placement="right"
+        width={320}
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        rootClassName="agent-history-drawer"
+      >
+        <aside className="agents-session-list">
+          {error && (
+            <Alert
+              type="error"
+              showIcon
+              message={error}
+              action={
+                <Button
+                  disabled={busy || loading}
+                  onClick={() => setRevision(value => value + 1)}
+                >
+                  重试读取会话
+                </Button>
+              }
+            />
+          )}
+          <button
+            className="primary"
+            disabled={busy || loading}
+            onClick={() => requestChange(() => void create())}
           >
-            <button
-              disabled={busy}
-              aria-current={selected?.id === session.id ? 'true' : undefined}
-              onClick={() => {
-                if (selected?.id !== session.id)
-                  requestChange(() => setSelected(session));
-              }}
+            新建{kind === 'debug' ? '调试' : '聊天'}会话
+          </button>
+          <h3>会话历史</h3>
+          {loading && <Skeleton active paragraph={{ rows: 3 }} />}
+          {!loading && !error && !sessions.length && (
+            <p className="agents-muted">还没有会话，点击上方按钮开始。</p>
+          )}
+          {sessions.map(session => (
+            <div
+              className={`agents-session ${selected?.id === session.id ? 'selected' : ''}`}
+              key={session.id}
             >
-              {session.title || '未命名会话'}
-              <small>{session.updatedAt}</small>
-            </button>
-            <button
-              aria-label={`删除会话 ${session.title}`}
-              disabled={busy}
-              onClick={() => {
-                setError('');
-                setDeleteTarget(session);
-              }}
-            >
-              <DeleteOutlined />
-            </button>
-          </div>
-        ))}
-      </aside>
+              <button
+                disabled={busy}
+                aria-current={selected?.id === session.id ? 'true' : undefined}
+                onClick={() => {
+                  if (selected?.id !== session.id)
+                    requestChange(() => {
+                      setSelected(session);
+                      setShowHistory(false);
+                    });
+                }}
+              >
+                {session.title || '未命名会话'}
+                <small>{session.updatedAt}</small>
+              </button>
+              <button
+                aria-label={`删除会话 ${session.title}`}
+                disabled={busy}
+                onClick={() => {
+                  setError('');
+                  setDeleteTarget(session);
+                }}
+              >
+                <DeleteOutlined />
+              </button>
+            </div>
+          ))}
+        </aside>
+      </Drawer>
       <div className="agents-chat-main">
+        {loading && !selected && <Skeleton active paragraph={{ rows: 4 }} />}
         {error && (
           <div role="alert" className="agents-error agents-error-action">
             <span>{error}</span>
@@ -762,17 +932,30 @@ export default function Conversation({
           !loading &&
           !error && (
             <div className="agents-empty">
-              {embedded ? (
+              {embedded || standalone ? (
                 <>
-                  <ExperimentOutlined className="agent-preview-empty-icon" />
-                  <h3>开始调试你的 Agent</h3>
-                  <p>创建会话，测试提示词、工具调用与知识检索。</p>
+                  <img
+                    src={agentAvatar}
+                    alt=""
+                    className="agent-preview-empty-avatar"
+                  />
+                  <h3>
+                    {kind === 'debug'
+                      ? '开始调试你的 Agent'
+                      : '开始与 Agent 对话'}
+                  </h3>
+                  <p>
+                    {kind === 'debug'
+                      ? '创建会话，测试提示词、工具调用与知识检索。'
+                      : '发送一条消息，开始使用这个 Agent。'}
+                  </p>
                   <button
                     className="primary"
                     disabled={busy || loading}
                     onClick={() => requestChange(() => void create())}
                   >
-                    <PlusOutlined /> 新建调试会话
+                    <PlusOutlined /> 新建{kind === 'debug' ? '调试' : '聊天'}
+                    会话
                   </button>
                 </>
               ) : (

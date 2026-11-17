@@ -276,3 +276,25 @@ test('malformed stored knowledge references display an error rather than empty s
   assert.match(markup, /知识引用格式无效/);
   assert.doesNotMatch(markup, /个片段|<details/);
 });
+
+test('run failures stay visible when tool and knowledge details are collapsed', () => {
+  const { RunEvents } = load('pages/agents/conversation.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+  });
+  const markup = renderToStaticMarkup(
+    React.createElement(RunEvents, {
+      events: [
+        { type: 'tool', data: { name: 'search' } },
+        { type: 'knowledge', data: { references: [] } },
+        { type: 'error', data: { message: '知识检索服务暂时不可用' } },
+      ],
+    })
+  );
+  const alertPosition = markup.indexOf('role="alert"');
+  const detailsPosition = markup.indexOf('<details');
+  assert.ok(alertPosition >= 0 && alertPosition < detailsPosition);
+  assert.equal(markup.split('知识检索服务暂时不可用').length - 1, 1);
+  assert.match(markup, /查看执行过程/);
+  assert.doesNotMatch(markup, /<details[^>]*\bopen[\s>]/);
+});
