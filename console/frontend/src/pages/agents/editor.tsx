@@ -851,15 +851,21 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
             />
           )}
           {tab === 'definition' && (
-            <div className="agent-mobile-switch" aria-label="切换工作面">
+            <div
+              className="agent-mobile-switch"
+              role="group"
+              aria-label="切换工作面"
+            >
               <Button
                 type={mobilePanel === 'configuration' ? 'primary' : 'text'}
+                aria-pressed={mobilePanel === 'configuration'}
                 onClick={() => setMobilePanel('configuration')}
               >
                 配置
               </Button>
               <Button
                 type={mobilePanel === 'preview' ? 'primary' : 'text'}
+                aria-pressed={mobilePanel === 'preview'}
                 onClick={() => setMobilePanel('preview')}
               >
                 调试对话
