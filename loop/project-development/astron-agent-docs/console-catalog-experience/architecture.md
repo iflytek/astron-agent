@@ -13,4 +13,13 @@
 
 ## 影响评估
 
-外壳路径栏删除影响采用 BasicLayout 的页面，但作用域仍在侧栏可见，编辑器独立头部保持业务上下文。目录共享样式修改需同时验收 Agent、工作流和市场。新增收藏表需要 Django 迁移；用户 ID 与工作流 ID 唯一约束保证幂等，权限继续由现有查询边界决定。无共享基础设施、认证或执行服务变更。
+外壳路径栏删除影响采用 BasicLayout 的页面，但作用域仍在侧栏可见，编辑器独立头部保持业务上下文。目录共享样式修改需同时验收 Agent、工作流和市场。新增收藏表需要 Django 迁移；用户 ID 与工作流 ID 唯一约束保证幂等，权限继续由现有查询边界决定。不修改 Kafka、Redis、MinIO、认证或执行服务。
+
+
+### 网关图片路由
+
+头像上传返回 `/console-api/image/content/.../<filename>`，浏览器读取头像的完整依赖方向为前端图片请求 → Compose Nginx 网关 → Console Django 图片接口 → 既有对象存储读取。带 `.png`、`.svg` 等扩展名的 API 路径必须留在后端 API 路由中，不能被前端静态资源正则捕获。
+
+通用 `/console-api/` 前缀使用 `^~`，仅阻止其匹配请求继续进入静态扩展名正则。已核对同一 server 中全部 locations：`=` 精确路径仍首先命中，`/console-api/agents/`、`/console-api/published/`、`/console-api/workflow/` 等更长 `^~` 前缀继续保留 SSE 设置，内部服务 deny 前缀仍因最长前缀优先而拒绝公开访问。公开 Agent/工作流精确 API 的 auth_request 及其他 `/agent/v1/`、`/workflow/v1/` 拒绝边界不变。
+
+通用 API 的 proxy_pass 去除 `/console-api/` 前缀、Host 与转发头、同源 session/CSRF 行为和超时保持原配置；API 文件响应不继承前端的公共一年缓存，非 API 静态路径继续使用既有缓存。此变更不修改 MinIO 配置、图片鉴权、认证中间件或共享 SDK。回归必须通过真实 Nginx 发送带扩展名的 API、静态、专用 SSE、精确集合及内部 deny 请求，验证上游路径、转发头、缓存与拒绝边界。
