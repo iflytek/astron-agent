@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, Button, Image, Input, Spin } from 'antd';
-import { StarOutlined, StarFilled, TagOutlined } from '@ant-design/icons';
+import {
+  StarOutlined,
+  StarFilled,
+  TagOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import http from '@/utils/http';
 import { errorText } from '@/pages/agents/errors';
-import { getAgentType } from '@/services/agent-square';
-import type { BotType } from '@/types/agent-square';
+import {
+  CategoryError,
+  CategorySelect,
+  categoryLabel,
+  useCatalogCategories,
+} from '@/pages/agents/categories';
 import botIcon from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import workflowIcon from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import styles from '@/pages/agents/catalog.module.scss';
@@ -93,7 +102,10 @@ function MarketCard({
 }
 export default function Market(): ReactElement {
   const [items, setItems] = useState<Item[]>([]);
-  const [categories, setCategories] = useState<BotType[]>([]);
+  const categories = useCatalogCategories();
+  const [category, setCategory] = useState<number | string | null>(null);
+  const [favorite, setFavorite] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -107,18 +119,20 @@ export default function Market(): ReactElement {
     let active = true;
     setLoading(true);
     setError('');
-    Promise.all([
-      http.get<unknown, { records: Item[]; total: number }>(
+    http
+      .get<unknown, { records: Item[]; total: number }>(
         '/home-page/agent-square/get-bot-page-by-type',
-        { params: { search, page, size: 20 } }
-      ),
-      getAgentType(),
-    ])
-      .then(([data, types]) => {
+        { params: { search, type: category, favorite, page, size: 20 } }
+      )
+      .then(data => {
         if (active) {
+          const lastPage = Math.max(1, Math.ceil(data.total / 20));
+          if (page > lastPage) {
+            setPage(lastPage);
+            return;
+          }
           setItems(data.records);
           setTotal(data.total);
-          setCategories(types);
         }
       })
       .catch(reason => {
@@ -130,7 +144,7 @@ export default function Market(): ReactElement {
     return (): void => {
       active = false;
     };
-  }, [search, page, revision]);
+  }, [search, category, favorite, page, revision]);
   const toggleFavorite = async (item: Item): Promise<void> => {
     if (submitting.current) return;
     submitting.current = true;
@@ -148,12 +162,22 @@ export default function Market(): ReactElement {
             : row
         )
       );
+      // Recount and refill the current page after removing a favorite.
+      setRevision(value => value + 1);
     } catch (reason) {
       setActionError(errorText(reason));
     } finally {
       submitting.current = false;
       setBusy(null);
     }
+  };
+  const filtered = Boolean(search || category !== null || favorite);
+  const clearFilters = (): void => {
+    setSearchInput('');
+    setSearch('');
+    setCategory(null);
+    setFavorite(false);
+    setPage(1);
   };
   return (
     <main className={styles.page}>
@@ -166,21 +190,74 @@ export default function Market(): ReactElement {
           <Button href="/management/release">管理我的发布</Button>
         </header>
         <div className={styles.toolbar}>
-          <Input
-            aria-label="搜索市场"
-            placeholder="搜索名称"
-            allowClear
-            className={styles.search}
-            value={search}
-            onChange={event => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-          />
+          <div className={styles.actions}>
+            <Input.Search
+              aria-label="搜索市场"
+              placeholder="搜索名称"
+              allowClear
+              className={styles.search}
+              value={searchInput}
+              onChange={event => {
+                setSearchInput(event.target.value);
+                if (!event.target.value) {
+                  setSearch('');
+                  setPage(1);
+                }
+              }}
+              onSearch={value => {
+                setSearch(value.trim());
+                setPage(1);
+              }}
+            />
+            <CategorySelect
+              categories={categories}
+              value={category}
+              filter
+              className={styles.categoryFilter}
+              onChange={value => {
+                setCategory(value);
+                setPage(1);
+              }}
+            />
+            <div
+              className={styles.filters}
+              role="group"
+              aria-label="市场收藏筛选"
+            >
+              <Button
+                type={!favorite ? 'text' : 'default'}
+                aria-pressed={!favorite}
+                onClick={() => {
+                  setFavorite(false);
+                  setPage(1);
+                }}
+              >
+                全部
+              </Button>
+              <Button
+                type={favorite ? 'text' : 'default'}
+                aria-pressed={favorite}
+                onClick={() => {
+                  setFavorite(true);
+                  setPage(1);
+                }}
+              >
+                仅收藏
+              </Button>
+            </div>
+            <Button
+              icon={<ReloadOutlined />}
+              aria-label="刷新市场"
+              title="刷新市场"
+              disabled={loading}
+              onClick={() => setRevision(value => value + 1)}
+            />
+          </div>
           {!loading && !error && (
             <span className={styles.count}>{total} 个发布</span>
           )}
         </div>
+        {categories.error && <CategoryError retry={categories.retry} />}
         {actionError && (
           <Alert
             className={styles.notice}
@@ -216,10 +293,7 @@ export default function Market(): ReactElement {
                   <MarketCard
                     key={item.botId}
                     item={item}
-                    category={
-                      categories.find(row => row.typeKey === item.botType)
-                        ?.typeName
-                    }
+                    category={categoryLabel(item.botType, categories.options)}
                     busy={busy}
                     onFavorite={toggleFavorite}
                   />
@@ -227,14 +301,14 @@ export default function Market(): ReactElement {
               </div>
               {!items.length && (
                 <section className={styles.state}>
-                  <h2>{search ? '没有匹配的发布' : '市场暂无发布'}</h2>
+                  <h2>{filtered ? '没有匹配的发布' : '市场暂无发布'}</h2>
                   <p>
-                    {search
-                      ? '试试其他名称，或清除搜索条件。'
+                    {filtered
+                      ? '试试其他名称或分类，或清除筛选条件。'
                       : '发布 Agent 到市场后，即可在这里使用。'}
                   </p>
-                  {search ? (
-                    <Button onClick={() => setSearch('')}>清除搜索</Button>
+                  {filtered ? (
+                    <Button onClick={clearFilters}>清除筛选</Button>
                   ) : (
                     <Button href="/management/release">前往发布管理</Button>
                   )}
