@@ -5,7 +5,7 @@ from unittest.mock import patch
 from django.test import TestCase, override_settings
 
 from astron_console.accounts.models import User, UserProfile
-from astron_console.agents.models import Agent, AgentVersion
+from astron_console.agents.models import Agent, AgentFavorite, AgentVersion
 from astron_console.publishing import services
 from astron_console.publishing.models import App, Publication, PublicationCandidate, WorkflowBot
 from astron_console.publishing.views import projection
@@ -26,6 +26,110 @@ class CatalogTests(TestCase):
         self.workflow = create_workflow(
             self.scope, {"name": "Workflow beta", "avatarIcon": "workflow-avatar.svg"}
         )
+
+    def market_fixture(self, name, kind="agent", definition=None, **publication_fields):
+        bot = Agent.objects.create(
+            uid=self.user.pk, bot_name=name, version=1 if kind == "agent" else 3
+        )
+        candidate = PublicationCandidate.objects.create(
+            bot_id=bot.pk,
+            resource_kind=kind,
+            resource_id=str(bot.pk),
+            version_id=1,
+            definition={"botName": name, **(definition or {})},
+            owner_uid=self.user.pk,
+            created_by=self.user.pk,
+        )
+        Publication.objects.create(
+            bot_id=bot.pk, candidate=candidate, channel="MARKET", **publication_fields
+        )
+        return bot
+
+    def market_data(self, payload, method="get"):
+        response = getattr(self.client, method)(
+            "/home-page/agent-square/get-bot-page-by-type",
+            payload,
+            **({"content_type": "application/json"} if method == "post" else {}),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        return response.json()["data"]
+
+    def test_market_uncategorized_and_legacy_defaults_match_projection(self):
+        agent_default = self.market_fixture("legacy Agent")
+        agent_null = self.market_fixture("uncategorized Agent", definition={"botType": None})
+        agent_classified = self.market_fixture("classified Agent", definition={"botType": 7})
+        workflow_legacy = self.market_fixture("legacy workflow", "workflow", {"botType": 7})
+        workflow_null = self.market_fixture(
+            "uncategorized workflow", "workflow", {"workflowCategory": None}
+        )
+        workflow_classified = self.market_fixture(
+            "classified workflow", "workflow", {"workflowCategory": 7}
+        )
+        expected = {
+            "uncategorized": {agent_null.pk, workflow_legacy.pk, workflow_null.pk},
+            1: {agent_default.pk},
+            7: {agent_classified.pk, workflow_classified.pk},
+        }
+        for method in ("get", "post"):
+            for category, ids in expected.items():
+                with self.subTest(method=method, category=category):
+                    data = self.market_data({"type": category}, method)
+                    self.assertEqual(data["total"], len(ids))
+                    self.assertEqual({row["botId"] for row in data["records"]}, ids)
+                    for row in data["records"]:
+                        self.assertEqual(
+                            row["botType"], None if category == "uncategorized" else category
+                        )
+
+    def test_market_filters_intersect_before_pagination_and_remain_user_scoped(self):
+        first = self.market_fixture("match first", definition={"botType": 7})
+        second = self.market_fixture("match second", "workflow", {"workflowCategory": 7})
+        other_user = self.market_fixture("match other-user", definition={"botType": 7})
+        wrong_name = self.market_fixture("different name", definition={"botType": 7})
+        wrong_category = self.market_fixture("match other category", definition={"botType": 8})
+        for bot in (first, second, wrong_name, wrong_category):
+            AgentFavorite.objects.create(uid=self.user.pk, bot_id=bot.pk)
+        AgentFavorite.objects.create(uid="different-user", bot_id=other_user.pk)
+        # Duplicate historical favorite rows must not multiply publications.
+        AgentFavorite.objects.create(uid=self.user.pk, bot_id=first.pk)
+        for method in ("get", "post"):
+            ids = []
+            for page in (1, 2):
+                data = self.market_data(
+                    {"search": "match", "type": 7, "favorite": True, "size": 1, "page": page},
+                    method,
+                )
+                self.assertEqual(data["total"], 2)
+                self.assertEqual(data["totalPages"], 2)
+                self.assertEqual(len(data["records"]), 1)
+                self.assertTrue(data["records"][0]["isFavorite"])
+                ids.append(data["records"][0]["botId"])
+            self.assertEqual(set(ids), {first.pk, second.pk})
+        AgentFavorite.objects.filter(uid=self.user.pk, bot_id=second.pk).delete()
+        data = self.market_data({"search": "match", "type": 7, "favorite": "true"})
+        self.assertEqual([row["botId"] for row in data["records"]], [first.pk])
+        self.assertEqual(
+            self.market_data({"search": "match", "type": 7, "favorite": "false"})["total"], 3
+        )
+
+    def test_market_favorite_does_not_expose_inactive_deleted_or_other_channels(self):
+        visible = self.market_fixture("visible", definition={"botType": None})
+        inactive = self.market_fixture("inactive", active=False)
+        deleted = self.market_fixture("deleted")
+        deleted.is_delete = 1
+        deleted.save()
+        non_market = self.market_fixture("non-market")
+        Publication.objects.filter(bot_id=non_market.pk).update(channel="API")
+        for bot in (visible, inactive, deleted, non_market):
+            AgentFavorite.objects.create(uid=self.user.pk, bot_id=bot.pk)
+        data = self.market_data({"type": "uncategorized", "favorite": "1"})
+        self.assertEqual(data["total"], 1)
+        self.assertEqual(data["records"][0]["botId"], visible.pk)
+        self.assertEqual(self.market_data({"favorite": "true"})["total"], 1)
+        self.client.logout()
+        for method in ("get", "post"):
+            self.assertEqual(self.market_data({"favorite": True}, method)["total"], 0)
+            self.assertEqual(self.market_data({"favorite": False}, method)["total"], 1)
 
     def test_unbound_workflow_is_listed_without_creating_bot(self):
         before = Agent.objects.count()

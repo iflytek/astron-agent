@@ -426,15 +426,38 @@ def market(request):
     search = payload.get("search") or payload.get("botName")
     if search:
         query = query.filter(candidate__definition__botName__icontains=search)
-    if payload.get("type"):
-        category = number(payload["type"])
+    category = payload.get("type")
+    if category == "uncategorized":
         query = query.filter(
-            models.Q(candidate__resource_kind="agent", candidate__definition__botType=category)
+            models.Q(candidate__resource_kind="agent", candidate__definition__botType=None)
+            | (
+                models.Q(candidate__resource_kind="workflow")
+                & (
+                    models.Q(candidate__definition__workflowCategory=None)
+                    | models.Q(candidate__definition__workflowCategory__isnull=True)
+                )
+            )
+        )
+    elif category:
+        category = number(category)
+        agent_category = models.Q(candidate__definition__botType=category)
+        if category == 1:
+            # Legacy Agent snapshots default to type 1 in the market projection.
+            agent_category |= models.Q(candidate__definition__botType__isnull=True)
+        query = query.filter(
+            (models.Q(candidate__resource_kind="agent") & agent_category)
             | models.Q(
                 candidate__resource_kind="workflow",
                 candidate__definition__workflowCategory=category,
             )
         )
+    if str(payload.get("favorite", "")).lower() in {"true", "1"}:
+        if request.user.is_authenticated:
+            query = query.filter(
+                bot_id__in=AgentFavorite.objects.filter(uid=request.user.pk).values("bot_id")
+            )
+        else:
+            query = query.none()
     return paginated(
         query.order_by("-update_time"),
         payload,
