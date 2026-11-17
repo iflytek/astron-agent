@@ -134,7 +134,10 @@ def _snapshot_candidate(scope, bot_id, version_id=None):
             "botName": workflow.name or "",
             "botDesc": workflow.description or "",
             "avatar": workflow.avatar_icon or "",
-            "botType": bot.bot_type,
+            "botType": workflow.category,
+            # A dedicated key distinguishes trusted workflow metadata from old
+            # publication proxies whose default bot_type was unrelated to category.
+            "workflowCategory": workflow.category,
             "prologue": bot.prologue or "",
         }
         from astron_console.channels.workflow_media import freeze_version, read_version

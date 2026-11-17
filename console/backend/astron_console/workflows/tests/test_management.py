@@ -13,11 +13,12 @@ from astron_console.accounts.models import User, UserProfile
 from astron_console.resources.models import ConfigInfo, Model
 from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.automation import claim_due, claim_pending, enqueue, next_fire
-from astron_console.workflows.management_views import create_workflow
+from astron_console.workflows.management_views import LIST, create_workflow
 from astron_console.workflows.models import (
     AutomationRun,
     AutomationTask,
     Workflow,
+    WorkflowFavorite,
     WorkflowTemplate,
     WorkflowVersion,
 )
@@ -42,6 +43,76 @@ class ManagementTests(TransactionTestCase):
         return getattr(self.client, method)(
             url, json.dumps(payload), content_type="application/json"
         )
+
+    def test_favorites_are_idempotent_persistent_and_user_scoped(self):
+        url = f"/workflow/{self.workflow.pk}/favorite"
+        for _ in range(2):
+            response = self.write("post", url, {"favorite": True})
+            self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(WorkflowFavorite.objects.filter(workflow_id=self.workflow.pk).count(), 1)
+        listing = self.client.get("/workflow/list", {"favorite": "true"}).json()["data"]
+        self.assertEqual(listing["totalCount"], 1)
+        self.assertTrue(listing["pageData"][0]["favorite"])
+        self.client.force_login(self.other)
+        self.assertEqual(self.write("post", url, {"favorite": True}).status_code, 403)
+        self.assertEqual(
+            self.client.get("/workflow/list", {"favorite": "true"}).json()["data"]["totalCount"], 0
+        )
+        self.client.force_login(self.user)
+        self.assertEqual(self.write("post", url, {"favorite": False}).status_code, 200)
+        self.assertFalse(WorkflowFavorite.objects.exists())
+        self.assertFalse(
+            self.client.get("/workflow/list").json()["data"]["pageData"][0]["favorite"]
+        )
+        self.assertEqual(self.write("post", url, {"favorite": "false"}).status_code, 400)
+        self.workflow.deleted = True
+        self.workflow.save()
+        self.assertEqual(self.write("post", url, {"favorite": True}).status_code, 404)
+
+    def test_favorite_respects_space_scope_and_read_permission(self):
+        from astron_console.spaces.models import Space, SpaceMember, SpacePermission
+        from astron_console.workflows.authorization import READ
+
+        space = Space.objects.create(uid=self.user.pk, name="catalog")
+        SpaceMember.objects.create(uid=self.other.pk, space_id=space.pk, role=3)
+        SpaceMember.objects.create(uid=self.user.pk, space_id=space.pk, role=1)
+        SpacePermission.objects.update_or_create(permission_key=READ, defaults={"member": True})
+        SpacePermission.objects.update_or_create(permission_key=LIST, defaults={"member": True})
+        self.workflow.space_id = space.pk
+        self.workflow.save()
+        self.client.force_login(self.other)
+        url = f"/workflow/{self.workflow.pk}/favorite"
+        self.assertEqual(self.write("post", url, {"favorite": True}).status_code, 403)
+        response = self.client.post(
+            url,
+            json.dumps({"favorite": True}),
+            content_type="application/json",
+            HTTP_SPACE_ID=str(space.pk),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            self.client.get("/workflow/list", {"favorite": "true"}).json()["data"]["totalCount"], 0
+        )
+        rows = self.client.get(
+            "/workflow/list", {"favorite": "true"}, HTTP_SPACE_ID=str(space.pk)
+        ).json()["data"]
+        self.assertEqual(rows["totalCount"], 1)
+        self.assertTrue(rows["pageData"][0]["favorite"])
+        self.client.force_login(self.user)
+        rows = self.client.get("/workflow/list", HTTP_SPACE_ID=str(space.pk)).json()["data"][
+            "pageData"
+        ]
+        self.assertFalse(rows[0]["favorite"])
+
+    def test_category_save_and_filter_include_uncategorized(self):
+        response = self.write("put", "/workflow", {"id": self.workflow.pk, "category": 7})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["category"], 7)
+        create_workflow(self.scope, {"name": "uncategorized"})
+        for category, expected_name in [(7, "workflow"), ("uncategorized", "uncategorized")]:
+            rows = self.client.get("/workflow/list", {"category": category}).json()["data"]
+            self.assertEqual(rows["totalCount"], 1)
+            self.assertEqual(rows["pageData"][0]["name"], expected_name)
 
     def test_publication_and_pending_approval_versions_cannot_be_deleted(self):
         from astron_console.publishing.models import Approval, Publication, PublicationCandidate

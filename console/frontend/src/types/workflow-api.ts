@@ -16,6 +16,8 @@ export interface WorkflowListParams {
   page?: number;
   pageSize?: number;
   search?: string;
+  favorite?: boolean;
+  category?: number | string | null;
   status?: number;
   flowId?: string;
 }

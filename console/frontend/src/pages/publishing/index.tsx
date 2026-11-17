@@ -4,9 +4,9 @@ import {
   SearchOutlined,
   ReloadOutlined,
   ArrowRightOutlined,
-  DeploymentUnitOutlined,
-  RobotOutlined,
 } from '@ant-design/icons';
+import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
+import workflowAvatar from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import WechatBinding from '@/components/channels/wechat-binding';
@@ -29,6 +29,7 @@ interface Bot {
   resourceKind: 'agent' | 'workflow';
   resourceId: string;
   workflowId?: number;
+  avatar?: string;
   publications: Publication[];
   pendingApprovals: { id: number; publish_type: string; target_id: string }[];
   legacyPublicationNeedsReview?: boolean;
@@ -716,11 +717,28 @@ function PublishingCatalog() {
                             className={styles.objectLink}
                             onClick={() => setSelected(bot)}
                           >
-                            {bot.resourceKind === 'workflow' ? (
-                              <DeploymentUnitOutlined />
-                            ) : (
-                              <RobotOutlined />
-                            )}
+                            <img
+                              className={styles.objectAvatar}
+                              src={
+                                bot.avatar ||
+                                (bot.resourceKind === 'workflow'
+                                  ? workflowAvatar
+                                  : agentAvatar)
+                              }
+                              alt=""
+                              onError={event => {
+                                const fallback =
+                                  bot.resourceKind === 'workflow'
+                                    ? workflowAvatar
+                                    : agentAvatar;
+                                if (
+                                  event.currentTarget.getAttribute('src') !==
+                                  fallback
+                                ) {
+                                  event.currentTarget.src = fallback;
+                                }
+                              }}
+                            />
                             <span>{bot.botName || '未命名'}</span>
                           </button>
                           <p className={styles.description}>

@@ -3,7 +3,7 @@
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 28px;
+  padding: 20px 28px;
   color: var(--console-ink);
   background: #fff;
 }
@@ -17,12 +17,22 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 20px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
+}
+.resource-tools header > div:first-child {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.resource-tools header p {
+  margin: 0;
 }
 .resource-tools h1 {
   margin: 0;
-  font-size: 28px;
-  line-height: 36px;
+  font-size: 22px;
+  line-height: 30px;
   font-weight: 650;
   letter-spacing: -0.025em;
 }
@@ -52,8 +62,8 @@
   flex-wrap: wrap;
 }
 .resource-tools-toolbar {
-  padding-bottom: 20px;
-  margin-bottom: 20px;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
   border-bottom: 1px solid var(--console-line);
 }
 .resource-tools-toolbar > .ant-input-affix-wrapper {
@@ -201,13 +211,13 @@
 }
 @media (max-width: 600px) {
   .resource-tools {
-    padding: 22px 18px;
+    padding: 16px 18px;
   }
   .resource-tools header {
     flex-wrap: wrap;
   }
   .resource-tools h1 {
-    font-size: 26px;
+    font-size: 22px;
   }
   .resource-tools header > .ant-btn {
     width: 100%;

@@ -58,7 +58,7 @@ def official_data(row):
         modelId=row.id,
         enabled=row.shelf_status == 0,
         apiKey="",
-        icon="",
+        icon=row.user_avatar or "",
         tag=[],
         categoryTree=category_tree(row.id),
         status=1,

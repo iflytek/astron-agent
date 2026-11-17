@@ -35,6 +35,26 @@ class DefinitionTests(TransactionTestCase):
             path, json.dumps(data), content_type="application/json", **kwargs
         )
 
+    def test_category_round_trip_filter_and_existing_value_preservation(self):
+        response = self.write("put", f"/agents/{self.agent.pk}", {"botType": 7})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["botType"], 7)
+        response = self.write("put", f"/agents/{self.agent.pk}", {"botName": "renamed"})
+        self.assertEqual(response.json()["data"]["botType"], 7)
+        for category, expected in [(7, 1), (8, 0), ("uncategorized", 0)]:
+            rows = self.client.get("/agents", {"category": category}).json()["data"]
+            self.assertEqual(rows["total"], expected)
+        response = self.write("put", f"/agents/{self.agent.pk}", {"botType": None})
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIsNone(response.json()["data"]["botType"])
+        self.assertEqual(
+            self.client.get("/agents", {"category": "uncategorized"}).json()["data"]["total"], 1
+        )
+        for invalid in [True, 0, -1, "not-a-category", 32768]:
+            self.assertEqual(
+                self.write("put", f"/agents/{self.agent.pk}", {"botType": invalid}).status_code, 400
+            )
+
     def test_immutable_snapshot_and_draft_independence(self):
         response = self.write("post", f"/agents/{self.agent.pk}/versions", {})
         self.assertEqual(response.status_code, 200, response.content)

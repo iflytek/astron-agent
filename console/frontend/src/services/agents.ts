@@ -9,6 +9,7 @@ export interface AgentDefinition {
   id: number;
   botName: string;
   botDesc: string;
+  botType?: number | null;
   avatar?: string;
   prompt: string;
   modelId?: number | null;
@@ -127,12 +128,14 @@ export interface AgentStreamHandlers {
 export const listAgents = (params?: {
   search?: string;
   favorite?: boolean;
+  category?: number | string | null;
   page?: number;
   pageSize?: number;
 }) =>
   http.get<unknown, { records: AgentDefinition[]; total: number }>('/agents', {
     params: {
       name: params?.search,
+      category: params?.category || undefined,
       favorite: params?.favorite || undefined,
       page: params?.page,
       pageSize: params?.pageSize,

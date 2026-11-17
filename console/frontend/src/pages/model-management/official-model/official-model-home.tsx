@@ -8,15 +8,7 @@ import { ModelProvider, useModelContext } from '../context/model-context';
 import { ModelProviderType } from '@/types/model';
 import { getModelProviderLabel } from '../utils/provider';
 import { getSpecificProviderOptions } from '../utils/provider-group';
-import chatgptIcon from '@/assets/imgs/modelManage/providers/custom/chatgpt.svg';
-import anthropicIcon from '@/assets/imgs/modelManage/providers/custom/anthropic.svg';
-import googleIcon from '@/assets/imgs/modelManage/providers/custom/google.svg';
-import deepseekIcon from '@/assets/imgs/modelManage/providers/custom/deepseek.svg';
-import minimaxIcon from '@/assets/imgs/modelManage/providers/custom/minimax.svg';
-import zhipuIcon from '@/assets/imgs/modelManage/providers/custom/zhipu.svg';
-import qwenIcon from '@/assets/imgs/modelManage/providers/custom/qwen.svg';
-import moonshotIcon from '@/assets/imgs/modelManage/providers/custom/moonshot.svg';
-import doubaoIcon from '@/assets/imgs/modelManage/providers/custom/doubao.svg';
+import { officialProviderCatalog } from '../utils/official-provider-catalog';
 
 interface OfficialProviderCard {
   provider: ModelProviderType;
@@ -29,22 +21,9 @@ interface OfficialProviderCard {
 const ProviderLogoGlyph: React.FC<{ provider: ModelProviderType }> = ({
   provider,
 }) => {
-  const imageLogoMap: Record<ModelProviderType, string> = {
-    [ModelProviderType.CHATGPT]: chatgptIcon,
-    [ModelProviderType.OPENAI]: chatgptIcon,
-    [ModelProviderType.ANTHROPIC]: anthropicIcon,
-    [ModelProviderType.DEEPSEEK]: deepseekIcon,
-    [ModelProviderType.GOOGLE]: googleIcon,
-    [ModelProviderType.MINIMAX]: minimaxIcon,
-    [ModelProviderType.ZHIPU]: zhipuIcon,
-    [ModelProviderType.QWEN]: qwenIcon,
-    [ModelProviderType.MOONSHOT]: moonshotIcon,
-    [ModelProviderType.DOUBAO]: doubaoIcon,
-  };
-
   return (
     <img
-      src={imageLogoMap[provider]}
+      src={officialProviderCatalog[provider].icon}
       alt={getModelProviderLabel(provider)}
       className="h-8 w-8 object-contain"
     />
@@ -71,64 +50,63 @@ const OfficialModelContent: React.FC = () => {
         title: 'ChatGPT',
         subtitle: 'GPT-4o / GPT-4.1',
         description: t('model.providerCardChatGPTDesc'),
-        endpoint: 'https://api.openai.com/v1',
+        endpoint: officialProviderCatalog[ModelProviderType.CHATGPT].endpoint,
       },
       {
         provider: ModelProviderType.ANTHROPIC,
         title: 'Claude',
         subtitle: 'Sonnet / Opus',
         description: t('model.providerCardAnthropicDesc'),
-        endpoint: 'https://api.anthropic.com',
+        endpoint: officialProviderCatalog[ModelProviderType.ANTHROPIC].endpoint,
       },
       {
         provider: ModelProviderType.GOOGLE,
         title: 'Gemini',
         subtitle: '2.5 Flash / 2.5 Pro',
         description: t('model.providerCardGoogleDesc'),
-        endpoint: 'https://generativelanguage.googleapis.com',
+        endpoint: officialProviderCatalog[ModelProviderType.GOOGLE].endpoint,
       },
       {
         provider: ModelProviderType.MINIMAX,
         title: 'MiniMax',
         subtitle: 'MiniMax-M3 / MiniMax-M2.7',
         description: t('model.providerCardMiniMaxDesc'),
-        endpoint: 'https://api.minimaxi.com/v1',
+        endpoint: officialProviderCatalog[ModelProviderType.MINIMAX].endpoint,
       },
       {
         provider: ModelProviderType.ZHIPU,
         title: 'Zhipu AI',
         subtitle: 'GLM-4.5 / GLM-4-Flash',
         description: t('model.providerCardZhipuDesc'),
-        endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+        endpoint: officialProviderCatalog[ModelProviderType.ZHIPU].endpoint,
       },
       {
         provider: ModelProviderType.QWEN,
         title: 'Qwen',
         subtitle: 'Qwen-Max / Qwen-Plus',
         description: t('model.providerCardQwenDesc'),
-        endpoint:
-          'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+        endpoint: officialProviderCatalog[ModelProviderType.QWEN].endpoint,
       },
       {
         provider: ModelProviderType.MOONSHOT,
         title: 'Moonshot',
         subtitle: 'moonshot-v1',
         description: t('model.providerCardMoonshotDesc'),
-        endpoint: 'https://api.moonshot.cn/v1',
+        endpoint: officialProviderCatalog[ModelProviderType.MOONSHOT].endpoint,
       },
       {
         provider: ModelProviderType.DOUBAO,
         title: 'Doubao',
         subtitle: 'Doubao-Pro / Doubao-Lite',
         description: t('model.providerCardDoubaoDesc'),
-        endpoint: 'https://ark.cn-beijing.volces.com/api/v3',
+        endpoint: officialProviderCatalog[ModelProviderType.DOUBAO].endpoint,
       },
       {
         provider: ModelProviderType.DEEPSEEK,
         title: 'DeepSeek',
         subtitle: 'V3 / R1',
         description: t('model.providerCardDeepSeekDesc'),
-        endpoint: 'https://api.deepseek.com/v1',
+        endpoint: officialProviderCatalog[ModelProviderType.DEEPSEEK].endpoint,
       },
     ],
     [t]

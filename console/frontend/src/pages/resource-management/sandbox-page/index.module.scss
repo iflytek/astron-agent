@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   padding: 16px;
   border: 1px solid #dfe6f1;
   border-radius: 8px;
@@ -52,7 +52,7 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
-  padding: 28px;
+  padding: 20px 28px;
   color: #18243d;
   background: #fff;
 }
@@ -66,19 +66,19 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 20px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 .pageHeader h1 {
   margin: 0;
-  font-size: 28px;
-  line-height: 36px;
+  font-size: 22px;
+  line-height: 30px;
   font-weight: 650;
   letter-spacing: -0.025em;
 }
 .pageHeader p {
   max-width: 72ch;
   color: #607089;
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   font-size: 14px;
   line-height: 1.6;
 }
@@ -107,13 +107,13 @@
 }
 @media (max-width: 760px) {
   .page {
-    padding: 22px 18px;
+    padding: 16px 18px;
   }
   .pageHeader {
     flex-wrap: wrap;
   }
   .pageHeader h1 {
-    font-size: 26px;
+    font-size: 22px;
   }
 }
 

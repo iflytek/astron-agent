@@ -55,48 +55,9 @@
   flex-direction: column;
   overflow: hidden;
 }
-.console-breadcrumb {
-  flex: none;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 28px;
-  border-bottom: 1px solid var(--console-line);
-  background: #fff;
-  font-size: 13px;
-  color: var(--console-muted);
-  div {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-  }
-  span:first-child {
-    max-width: 30ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  strong {
-    font-weight: 500;
-    color: var(--console-ink);
-    white-space: nowrap;
-  }
-  a {
-    color: var(--console-muted);
-  }
-}
 @media (max-width: 760px) {
   .console-shell {
     flex-direction: column;
-  }
-  .console-breadcrumb {
-    height: 46px;
-    padding: 0 18px;
-    a {
-      display: none;
-    }
   }
 }
 @media (prefers-reduced-motion: reduce) {

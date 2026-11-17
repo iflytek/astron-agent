@@ -46,6 +46,12 @@ export async function listFlows(
   return { ...page, pageData: page.pageData.map(normalizeWorkflowResponse) };
 }
 
+export const favoriteWorkflow = (
+  id: number | string,
+  favorite: boolean
+): Promise<{ favorite: boolean }> =>
+  http.post(`/workflow/${id}/favorite`, { favorite });
+
 export async function getFlowInputsInfo(
   flowId: string,
   version?: string

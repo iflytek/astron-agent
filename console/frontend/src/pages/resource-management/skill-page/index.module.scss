@@ -3,8 +3,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 28px;
+  gap: 12px;
+  padding: 20px 28px;
   background: #fff;
   color: #18243d;
 }
@@ -18,13 +18,13 @@
 }
 .pageHeader h1 {
   margin: 0;
-  font-size: 28px;
-  line-height: 36px;
+  font-size: 22px;
+  line-height: 30px;
   font-weight: 650;
   letter-spacing: -0.025em;
 }
 .pageHeader p {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   color: #607089;
   line-height: 1.6;
 }
@@ -245,10 +245,10 @@
 }
 @media (max-width: 760px) {
   .page {
-    padding: 22px 18px;
+    padding: 16px 18px;
   }
   .pageHeader h1 {
-    font-size: 26px;
+    font-size: 22px;
   }
   .shell {
     display: flex;

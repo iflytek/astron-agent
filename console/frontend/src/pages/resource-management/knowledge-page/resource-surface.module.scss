@@ -3,7 +3,7 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
-  padding: 28px;
+  padding: 20px 28px;
   color: var(--console-ink, #18243d);
   background: var(--console-surface, #fff);
   :global(button),
@@ -29,20 +29,24 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
   > div {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     min-width: 0;
   }
   h1 {
     margin: 0;
-    font-size: 28px;
-    line-height: 36px;
+    font-size: 22px;
+    line-height: 30px;
     font-weight: 650;
     letter-spacing: -0.025em;
     overflow-wrap: anywhere;
   }
   p {
-    margin: 8px 0 0;
+    margin: 0;
     color: #607089;
     line-height: 1.5;
     max-width: 72ch;
@@ -55,7 +59,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   align-items: center;
   > :global(.ant-input-affix-wrapper) {
     width: 300px;
@@ -189,7 +193,9 @@
   }
 }
 @media (max-width: 600px) {
-  .page,
+  .page {
+    padding: 16px 18px;
+  }
   .detail {
     padding: 22px 18px;
   }
@@ -200,7 +206,7 @@
     flex-direction: column;
   }
   .heading h1 {
-    font-size: 26px;
+    font-size: 22px;
   }
   .toolbar > :global(.ant-input-affix-wrapper) {
     width: 100%;

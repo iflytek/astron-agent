@@ -81,6 +81,7 @@ def definition(agent, *, public_scope=None):
         "id": agent.pk,
         "botName": agent.bot_name or "",
         "botDesc": agent.bot_desc or "",
+        "botType": agent.bot_type,
         "avatar": agent.avatar or "",
         "prompt": agent.prompt or "",
         "promptType": agent.prompt_type,
@@ -184,6 +185,7 @@ def save_definition(agent, scope, payload):
     allowed = {
         "botName",
         "botDesc",
+        "botType",
         "avatar",
         "prompt",
         "modelId",
@@ -223,6 +225,11 @@ def save_definition(agent, scope, payload):
             config[key] = value
     if not agent.bot_name:
         raise ValidationError("请输入Agent名称")
+    if "botType" in payload:
+        agent.bot_type = (
+            number(payload["botType"], maximum=32767) if payload["botType"] is not None else None
+        )
+        config["botType"] = agent.bot_type
     if "modelId" in payload:
         agent.model_id = number(payload["modelId"]) if payload["modelId"] is not None else None
         config["modelId"] = agent.model_id
@@ -318,6 +325,10 @@ def collection(request):
         query = scope_queryset(Agent.objects.filter(is_delete=0, version=1), scope)
         if request.GET.get("name"):
             query = query.filter(bot_name__icontains=request.GET["name"])
+        if request.GET.get("category") == "uncategorized":
+            query = query.filter(bot_type__isnull=True)
+        elif request.GET.get("category"):
+            query = query.filter(bot_type=number(request.GET["category"]))
         if request.GET.get("favorite") == "true":
             query = query.filter(
                 pk__in=AgentFavorite.objects.filter(uid=scope.uid).values("bot_id")

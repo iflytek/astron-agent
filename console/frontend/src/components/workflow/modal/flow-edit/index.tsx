@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Input, Button, Select, message } from 'antd';
+import { Input, Button, Image, Select, message } from 'antd';
+import workflowAvatar from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import { useTranslation } from 'react-i18next';
 import { saveFlowAPI } from '@/services/flow';
 import { shouldShowRequestError } from '@/utils/http-error';
@@ -41,13 +42,22 @@ const EditFlowForm = ({
             <span>{t('workflow.nodes.flowModal.workflowName')}</span>
           </div>
           <div className="flex items-center mt-1.5">
-            <div
-              className={`w-10 h-10 flex justify-center items-center rounded-lg mr-3 cursor-pointer`}
-              style={{
-                background: `url(${tempFlow.avatarIcon}) no-repeat center / cover`,
-              }}
+            <button
+              type="button"
+              aria-label="更换工作流图标"
+              className="w-10 h-10 flex-shrink-0 flex justify-center items-center rounded-lg mr-3 cursor-pointer"
+              style={{ backgroundColor: tempFlow.color || undefined }}
               onClick={() => setShowModal(true)}
-            ></div>
+            >
+              <Image
+                preview={false}
+                width={40}
+                height={40}
+                src={tempFlow.avatarIcon || workflowAvatar}
+                fallback={workflowAvatar}
+                alt="工作流图标"
+              />
+            </button>
             <Input
               value={tempFlow?.name}
               maxLength={20}
