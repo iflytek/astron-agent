@@ -23,3 +23,11 @@
 通用 `/console-api/` 前缀使用 `^~`，仅阻止其匹配请求继续进入静态扩展名正则。已核对同一 server 中全部 locations：`=` 精确路径仍首先命中，`/console-api/agents/`、`/console-api/published/`、`/console-api/workflow/` 等更长 `^~` 前缀继续保留 SSE 设置，内部服务 deny 前缀仍因最长前缀优先而拒绝公开访问。公开 Agent/工作流精确 API 的 auth_request 及其他 `/agent/v1/`、`/workflow/v1/` 拒绝边界不变。
 
 通用 API 的 proxy_pass 去除 `/console-api/` 前缀、Host 与转发头、同源 session/CSRF 行为和超时保持原配置；API 文件响应不继承前端的公共一年缓存，非 API 静态路径继续使用既有缓存。此变更不修改 MinIO 配置、图片鉴权、认证中间件或共享 SDK。回归必须通过真实 Nginx 发送带扩展名的 API、静态、专用 SSE、精确集合及内部 deny 请求，验证上游路径、转发头、缓存与拒绝边界。
+
+### 同源图片内容与对象存储边界
+
+`image_upload` 继续向既有 Console bucket 的 `images/<owner>/<upload_id>/<name>` 写入 PNG/JPEG，返回持久化的同源 `/console-api/image/content/...` 地址。图片 GET 先使用原有 session 用户及用户/空间归属检查，再由 Console 的 `knowledge.storage.read` 通过官方 MinIO SDK 和内部 `OSS_ENDPOINT` 读取原 key，直接返回 `HttpResponse` 图片字节；浏览器无需连接 `OSS_REMOTE_ENDPOINT` 或接收存储签名 URL。
+
+影响限于图片内容接口。`storage.read` 已负责关闭与释放 SDK 连接，本次复用而不改写共享存储模块；文档、Skill、产物及其他通用下载仍沿用既有签名下载逻辑，MinIO 主机、凭据、bucket/key、策略和认证中间件均不变。个人图片与空间图片继续分别验证所有者和当前空间成员关系，未授权请求在读取对象前拒绝。
+
+头像上传现有限制为 10MB，选择已有 SDK 内存读取加二进制响应，避免新增 SDK、同步流式响应适配或中转缓存。代价是 Console 每次请求承担一次至多上传上限大小的对象读取及内存占用；保持 `Cache-Control: private, no-store`，每次读取重新鉴权，空间成员移除后不能靠缓存继续访问。响应使用 PNG/JPEG MIME 与 `nosniff`，不输出对象存储端点、签名查询或凭据；存储错误沿用现有安全错误映射。

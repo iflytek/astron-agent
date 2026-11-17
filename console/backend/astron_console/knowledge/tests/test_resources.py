@@ -387,9 +387,10 @@ class ResourceTests(TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(put.call_count, 1)
 
-    @patch("astron_console.knowledge.storage.download", return_value="https://storage/signed")
+    @patch("astron_console.knowledge.storage.download")
+    @patch("astron_console.knowledge.storage.read", return_value=b"\x89PNG\r\n\x1a\ncontent")
     @patch("astron_console.knowledge.storage.put")
-    def test_image_uses_stable_scoped_authenticated_url(self, put, download):
+    def test_image_uses_stable_scoped_authenticated_binary_url(self, put, read, download):
         from urllib.parse import urlsplit
 
         response = self.client.post(
@@ -399,12 +400,100 @@ class ResourceTests(TestCase):
         location = response.json()["data"]["downloadLink"]
         self.assertNotIn("signed", location)
         path = urlsplit(location).path.removeprefix("/console-api")
-        self.assertEqual(self.client.get(path).status_code, 302)
+        image = self.client.get(path)
+        self.assertEqual(image.status_code, 200)
+        self.assertEqual(image.content, b"\x89PNG\r\n\x1a\ncontent")
+        self.assertEqual(image["Content-Type"], "image/png")
+        self.assertEqual(image["Cache-Control"], "private, no-store")
+        self.assertEqual(image["X-Content-Type-Options"], "nosniff")
+        self.assertNotIn("Location", image.headers)
+        read.assert_called_once_with(response.json()["data"]["s3Key"])
         self.client.force_login(self.other)
         self.assertEqual(self.client.get(path).status_code, 403)
         self.assertEqual(Client().get(path).status_code, 401)
-        download.assert_called_once()
+        self.assertEqual(read.call_count, 1)
+        download.assert_not_called()
         put.assert_called_once()
+
+    @override_settings(
+        OSS_ENDPOINT="http://minio-internal.invalid:9000",
+        OSS_REMOTE_ENDPOINT="http://minio-browser-unreachable.invalid:18998",
+        OSS_ACCESS_KEY_ID="image-access-key-marker",
+        OSS_ACCESS_KEY_SECRET="image-secret-key-marker",
+        OSS_BUCKET_CONSOLE="existing-images",
+    )
+    @patch("astron_console.knowledge.storage.Minio")
+    def test_jpeg_image_uses_internal_sdk_and_releases_connection(self, sdk):
+        import hashlib
+
+        owner = "user-" + hashlib.sha256(str(self.user.pk).encode()).hexdigest()[:24]
+        upload_id = "1" * 32
+        stream = sdk.return_value.get_object.return_value
+        stream.read.return_value = b"\xff\xd8\xffjpeg-content"
+        image = self.client.get(f"/image/content/{owner}/{upload_id}/photo.jpeg")
+        self.assertEqual(image.status_code, 200)
+        self.assertEqual(image.content, b"\xff\xd8\xffjpeg-content")
+        self.assertEqual(image["Content-Type"], "image/jpeg")
+        self.assertNotIn("Location", image.headers)
+        sdk.assert_called_once_with(
+            "minio-internal.invalid:9000",
+            access_key="image-access-key-marker",
+            secret_key="image-secret-key-marker",
+            secure=False,
+            region="us-east-1",
+        )
+        sdk.return_value.get_object.assert_called_once_with(
+            "existing-images", f"images/{owner}/{upload_id}/photo.jpeg"
+        )
+        sdk.return_value.presigned_get_object.assert_not_called()
+        stream.close.assert_called_once()
+        stream.release_conn.assert_called_once()
+        self.assertNotIn(b"image-secret-key-marker", image.content)
+        self.assertNotIn("image-secret-key-marker", str(image.headers))
+        self.assertNotIn("minio-", str(image.headers))
+
+    @patch("astron_console.knowledge.storage.read", return_value=b"\x89PNG\r\n\x1a\ncontent")
+    @patch("astron_console.knowledge.storage.put")
+    def test_space_image_denies_nonmembers_and_removed_members_before_read(self, put, read):
+        from urllib.parse import urlsplit
+
+        from astron_console.spaces.models import Space, SpaceMember
+
+        space = Space.objects.create(uid=self.user.pk, name="images")
+        SpaceMember.objects.create(uid=self.user.pk, space_id=space.pk, role=1)
+        response = self.client.post(
+            "/image/upload",
+            {"file": SimpleUploadedFile("space.png", b"\x89PNG\r\n\x1a\ncontent")},
+            HTTP_SPACE_ID=str(space.pk),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        path = urlsplit(response.json()["data"]["downloadLink"]).path.removeprefix("/console-api")
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(path).status_code, 403)
+        read.assert_not_called()
+        member = SpaceMember.objects.create(uid=self.other.pk, space_id=space.pk, role=3)
+        image = self.client.get(path)
+        self.assertEqual(image.status_code, 200)
+        self.assertEqual(image["Cache-Control"], "private, no-store")
+        member.delete()
+        self.assertEqual(self.client.get(path).status_code, 403)
+        read.assert_called_once_with(response.json()["data"]["s3Key"])
+
+    @patch("astron_console.knowledge.storage.client")
+    def test_image_storage_failure_hides_internal_endpoint_and_credentials(self, client):
+        import hashlib
+
+        owner = "user-" + hashlib.sha256(str(self.user.pk).encode()).hexdigest()[:24]
+        client.return_value.get_object.side_effect = OSError(
+            "http://private-minio/?key=private-key"
+        )
+        response = self.client.get(f"/image/content/{owner}/{'1' * 32}/icon.png")
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json()["message"], "文件读取失败")
+        self.assertNotIn(b"private-minio", response.content)
+        self.assertNotIn(b"private-key", response.content)
+        self.assertNotIn("Location", response.headers)
+        client.assert_called_once_with()
 
     @patch("astron_console.knowledge.clients.rag")
     @patch("astron_console.knowledge.clients.database")
