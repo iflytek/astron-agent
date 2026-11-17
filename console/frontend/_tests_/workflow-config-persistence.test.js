@@ -436,6 +436,17 @@ function workflowListUI(createTalkAgent) {
     '@/assets/imgs/avatars/agent-workflow-avatar.svg': 'workflow-icon',
     '@/pages/agents/catalog.module.scss': {},
     '@/pages/agents/catalog-utils': { formatCatalogUpdatedAt },
+    '@/pages/agents/categories': {
+      CategoryError: 'CategoryError',
+      CategorySelect: 'CategorySelect',
+      categoryLabel: () => '未分类',
+      useCatalogCategories: () => ({
+        options: [],
+        loading: false,
+        error: false,
+        retry: noop,
+      }),
+    },
     '@ant-design/icons': {
       EllipsisOutlined: 'EllipsisOutlined',
       PlusOutlined: 'PlusOutlined',
