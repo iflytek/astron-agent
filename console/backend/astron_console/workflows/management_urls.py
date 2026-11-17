@@ -6,6 +6,7 @@ from . import management_views as views
 urlpatterns = [
     path("workflow", views.collection),
     path("workflow/list", views.listing),
+    path("workflow/<int:workflow_id>/favorite", views.favorite),
     path("workflow/clone", views.clone),
     path("workflow/build", views.build),
     path("workflow/node-template", views.node_templates),

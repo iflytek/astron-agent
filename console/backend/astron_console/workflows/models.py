@@ -64,6 +64,18 @@ class Workflow(models.Model):
         db_table = "workflow"
 
 
+class WorkflowFavorite(models.Model):
+    uid = models.CharField(max_length=128)
+    workflow_id = models.BigIntegerField()
+    create_time = models.DateTimeField(default=django_timezone.now)
+
+    class Meta:
+        db_table = "console_workflow_favorite"
+        constraints = [
+            models.UniqueConstraint(fields=["uid", "workflow_id"], name="unique_workflow_favorite")
+        ]
+
+
 class WorkflowVersion(models.Model):
     name = models.CharField(max_length=100, null=True)
     version_num = models.CharField(max_length=100)

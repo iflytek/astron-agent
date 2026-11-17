@@ -31,6 +31,7 @@ import i18next from 'i18next';
 import styles from './model-card.module.scss';
 import classNames from 'classnames';
 import { getModelProviderLabel } from '../utils/provider';
+import { defaultModelAvatar, getModelAvatar } from '../utils/model-avatar';
 // 重新发布模型函数
 const republishModel = async (
   model: ModelInfo,
@@ -135,24 +136,20 @@ function ModelCardHeader({
   return (
     <div className={styles.identity}>
       <div className={`flex items-center ${styles.modelCardHeader}`}>
-        {model?.llmSource === LLMSource.CUSTOM ? (
-          <span
-            className={styles.icon}
-            style={{
-              background: model.color
-                ? model.color
-                : `url(${model.icon}) no-repeat center / cover`,
+        <div className={styles.icon}>
+          <img
+            src={getModelAvatar(model)}
+            alt=""
+            className="w-9 h-9 object-contain"
+            onError={event => {
+              if (
+                event.currentTarget.getAttribute('src') !== defaultModelAvatar
+              ) {
+                event.currentTarget.src = defaultModelAvatar;
+              }
             }}
-          >
-            {model.color && (
-              <img src={model.icon} className="w-[28px] h-[28px]" alt="" />
-            )}
-          </span>
-        ) : (
-          <div className={styles.icon}>
-            <img src={model.icon} alt="" className="w-9 h-9" />
-          </div>
-        )}
+          />
+        </div>
         <div className={styles.identityText}>
           <span className={styles.modelCardTitle}>{model.name}</span>
           <StatusTag status={model.shelfStatus} />
@@ -387,7 +384,7 @@ function ModelCard({
 
   const handleUse = (): void => {
     navigate(
-      `/management/model/detail/${model.id}?llmSource=${model.llmSource}&modelIcon=${model.icon}`,
+      `/management/model/detail/${model.id}?llmSource=${model.llmSource}`,
       { state: { model, bottomTexts } }
     );
   };

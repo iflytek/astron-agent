@@ -19,6 +19,7 @@ import {
   deleteFlowAPI,
   copyFlowAPI,
   workflowImport,
+  favoriteWorkflow,
 } from '@/services/flow';
 import VirtualConfig, {
   type FormValues,
@@ -32,11 +33,19 @@ import {
   UploadOutlined,
   ReloadOutlined,
   ApartmentOutlined,
+  StarFilled,
+  StarOutlined,
 } from '@ant-design/icons';
 import useSpaceStore from '@/store/space-store';
 import workflowIcon from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import styles from '@/pages/agents/catalog.module.scss';
 import { formatCatalogUpdatedAt } from '@/pages/agents/catalog-utils';
+import {
+  CategoryError,
+  CategorySelect,
+  categoryLabel,
+  useCatalogCategories,
+} from '@/pages/agents/categories';
 
 interface Template {
   id: string;
@@ -57,6 +66,10 @@ export default function WorkflowList(): ReactElement {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
+  const [favorite, setFavorite] = useState(false);
+  const categories = useCatalogCategories();
+  const [category, setCategory] = useState<number | string | null>(null);
+  const [createCategory, setCreateCategory] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [templateLoading, setTemplateLoading] = useState(true);
   const [templateError, setTemplateError] = useState('');
@@ -74,7 +87,13 @@ export default function WorkflowList(): ReactElement {
     setLoading(true);
     setError('');
     setItems([]);
-    void listFlows({ page, pageSize: 20, search })
+    void listFlows({
+      page,
+      pageSize: 20,
+      search,
+      favorite: favorite || undefined,
+      category,
+    })
       .then(data => {
         if (!ignore) {
           const lastPage = Math.max(1, Math.ceil(data.totalCount / 20));
@@ -96,7 +115,7 @@ export default function WorkflowList(): ReactElement {
     return (): void => {
       ignore = true;
     };
-  }, [spaceId, enterpriseId, page, search, revision]);
+  }, [spaceId, enterpriseId, page, search, favorite, category, revision]);
   useEffect(() => {
     let ignore = false;
     setTemplateLoading(true);
@@ -190,6 +209,42 @@ export default function WorkflowList(): ReactElement {
               }}
               allowClear
             />
+            <CategorySelect
+              categories={categories}
+              value={category}
+              filter
+              className={styles.categoryFilter}
+              onChange={value => {
+                setCategory(value);
+                setPage(1);
+              }}
+            />
+            <div
+              className={styles.filters}
+              role="group"
+              aria-label="工作流收藏筛选"
+            >
+              <Button
+                type={!favorite ? 'text' : 'default'}
+                aria-pressed={!favorite}
+                onClick={() => {
+                  setFavorite(false);
+                  setPage(1);
+                }}
+              >
+                全部
+              </Button>
+              <Button
+                type={favorite ? 'text' : 'default'}
+                aria-pressed={favorite}
+                onClick={() => {
+                  setFavorite(true);
+                  setPage(1);
+                }}
+              >
+                仅收藏
+              </Button>
+            </div>
             <Button
               aria-label="刷新工作流"
               title="刷新工作流"
@@ -232,6 +287,7 @@ export default function WorkflowList(): ReactElement {
             </Button>
           </div>
         </div>
+        {categories.error && <CategoryError retry={categories.retry} />}
         {error && (
           <Alert
             className={styles.notice}
@@ -270,7 +326,10 @@ export default function WorkflowList(): ReactElement {
                     />
                     <div className={styles.details}>
                       <h2 title={flow.name}>{flow.name}</h2>
-                      <span className={styles.tag}>工作流</span>
+                      <span className={styles.tag}>
+                        工作流 ·{' '}
+                        {categoryLabel(flow.category, categories.options)}
+                      </span>
                     </div>
                   </Link>
                 </div>
@@ -290,6 +349,19 @@ export default function WorkflowList(): ReactElement {
                       ) || '工作流'}
                     </span>
                     <div className={styles.cardMenus}>
+                      <Button
+                        type="text"
+                        aria-label={`${flow.favorite ? '取消收藏' : '收藏'} ${flow.name}`}
+                        aria-pressed={!!flow.favorite}
+                        title={flow.favorite ? '取消收藏' : '收藏'}
+                        icon={flow.favorite ? <StarFilled /> : <StarOutlined />}
+                        disabled={busy}
+                        onClick={() =>
+                          void action(() =>
+                            favoriteWorkflow(flow.id || '', !flow.favorite)
+                          )
+                        }
+                      />
                       <Dropdown
                         trigger={['click']}
                         disabled={busy}
@@ -364,20 +436,24 @@ export default function WorkflowList(): ReactElement {
             <div className={styles.state}>
               <Empty
                 description={
-                  search
+                  search || category
                     ? '未找到匹配的工作流'
-                    : '还没有工作流，创建一个开始编排任务'
+                    : favorite
+                      ? '还没有收藏的工作流'
+                      : '还没有工作流，创建一个开始编排任务'
                 }
               >
-                {search ? (
+                {search || favorite || category ? (
                   <Button
                     onClick={() => {
                       setSearch('');
                       setSearchInput('');
+                      setFavorite(false);
+                      setCategory(null);
                       setPage(1);
                     }}
                   >
-                    清除搜索
+                    清除筛选
                   </Button>
                 ) : (
                   <Button
@@ -523,6 +599,7 @@ export default function WorkflowList(): ReactElement {
             const flow = (await createFlowAPI({
               name: name.trim(),
               description,
+              category: createCategory,
             })) as FlowType;
             setCreating(false);
             navigate(`/work_flow/${flow.id}/arrange`);
@@ -530,6 +607,16 @@ export default function WorkflowList(): ReactElement {
         }
       >
         <div className={styles.form}>
+          <label>
+            分类
+            <CategorySelect
+              categories={categories}
+              value={createCategory}
+              onChange={value =>
+                setCreateCategory(value === null ? null : Number(value))
+              }
+            />
+          </label>
           <label>
             名称
             <Input

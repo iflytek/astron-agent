@@ -9,6 +9,7 @@ import React from 'react';
 import styles from '../../model-workspace.module.scss';
 import i18next from 'i18next';
 import { getModelProviderLabel } from '../../utils/provider';
+import { defaultModelAvatar, getModelAvatar } from '../../utils/model-avatar';
 
 interface ModelInfoDisplayProps {
   modelDetail: ModelInfo | null;
@@ -27,33 +28,18 @@ const getShelfStatusText = (shelfStatus?: number): string => {
   return '';
 };
 
-const renderModelIcon = (
-  modelDetail: ModelInfo | null,
-  modelIcon: string | null
-): React.JSX.Element => {
-  if (modelDetail?.llmSource === LLMSource.CUSTOM) {
-    return (
-      <span
-        className="w-[72px] h-[72px] flex items-center justify-center rounded-lg"
-        style={{
-          background: modelDetail.color
-            ? modelDetail.color
-            : `url(${modelDetail.icon}) no-repeat center / cover`,
-        }}
-      >
-        {modelDetail.color && (
-          <img src={modelDetail.icon} className="w-[48px] h-[48px]" alt="" />
-        )}
-      </span>
-    );
-  }
-
+const renderModelIcon = (modelDetail: ModelInfo | null): React.JSX.Element => {
   return (
     <div className="w-[72px] h-[72px] flex justify-center items-center rounded-lg flex-shrink-0 border border-[#E2E8FF]">
       <img
-        src={modelDetail?.icon || modelIcon || ''}
+        src={getModelAvatar(modelDetail)}
         alt=""
-        className="w-[72px] h-[72px]"
+        className="w-[72px] h-[72px] object-contain"
+        onError={event => {
+          if (event.currentTarget.getAttribute('src') !== defaultModelAvatar) {
+            event.currentTarget.src = defaultModelAvatar;
+          }
+        }}
       />
     </div>
   );
@@ -61,7 +47,6 @@ const renderModelIcon = (
 
 const ModelInfoDisplay: React.FC<ModelInfoDisplayProps> = ({
   modelDetail,
-  modelIcon,
   modelCategoryTags,
   modelScenarioTags,
   bottomTexts,
@@ -75,7 +60,7 @@ const ModelInfoDisplay: React.FC<ModelInfoDisplayProps> = ({
   return (
     <>
       <div className={styles.detailIdentity}>
-        {renderModelIcon(modelDetail, modelIcon)}
+        {renderModelIcon(modelDetail)}
         <div className="min-w-0 flex-1">
           <h1>{modelDetail?.name}</h1>
           <div className={styles.detailTags}>

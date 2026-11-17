@@ -7,7 +7,7 @@ import secrets
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Exists, OuterRef, Q
 from django.http import Http404
 from django.utils import timezone
 
@@ -17,7 +17,7 @@ from astron_console.resources.models import ConfigInfo
 from astron_console.spaces.permissions import require_resource_access, scope_queryset
 
 from .authorization import READ, get_workflow
-from .models import Workflow, WorkflowDialog, WorkflowVersion
+from .models import Workflow, WorkflowDialog, WorkflowFavorite, WorkflowVersion
 from .protocol import clean_config, iter_nodes, normalize_graph, starter_graph
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,8 @@ def workflow_data(row):
     result["ext"] = clean_config(parsed(row.ext))
     result["advancedConfig"] = clean_config(parsed(row.advanced_config))
     result["flowConfig"] = json.dumps(read_draft(row), ensure_ascii=False)
+    if hasattr(row, "favorite"):
+        result["favorite"] = row.favorite
     return result
 
 
@@ -173,6 +175,15 @@ def listing(request):
             Q(flow_id__in=WorkflowVersion.objects.filter(deleted=1, is_deleted=0).values("flow_id"))
             | (Q(published_data__isnull=False) & ~Q(published_data=""))
         )
+    if payload.get("category") == "uncategorized":
+        query = query.filter(category__isnull=True)
+    elif payload.get("category"):
+        query = query.filter(category=number(payload["category"]))
+    query = query.annotate(
+        favorite=Exists(WorkflowFavorite.objects.filter(uid=scope.uid, workflow_id=OuterRef("pk")))
+    )
+    if payload.get("favorite") == "true":
+        query = query.filter(favorite=True)
     total = query.count()
     return {
         "page": current,
@@ -214,6 +225,24 @@ def collection(request):
         update_fields(row, request.payload, scope)
         row.save()
     return workflow_data(row)
+
+
+@api_endpoint(["POST"])
+@transaction.atomic
+def favorite(request, workflow_id):
+    scope = scope_for(request, READ)
+    row = get_by_id(scope, workflow_id)
+    enabled = request.payload.get("favorite", True)
+    if not isinstance(enabled, bool):
+        raise ValidationError("favorite必须为布尔值")
+    if enabled:
+        WorkflowFavorite.objects.get_or_create(uid=scope.uid, workflow_id=row.pk)
+    else:
+        WorkflowFavorite.objects.filter(uid=scope.uid, workflow_id=row.pk).delete()
+    logger.info(
+        "Workflow favorite updated workflow_id=%s uid=%s enabled=%s", row.pk, scope.uid, enabled
+    )
+    return {"favorite": enabled}
 
 
 @api_endpoint(["GET", "POST"])

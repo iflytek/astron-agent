@@ -2,7 +2,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 28px;
+  padding: 20px 28px;
   background: var(--console-canvas, #f1f5fc);
   color: var(--console-ink, #18243d);
   font: 14px/1.5 var(--console-font, sans-serif);
@@ -13,8 +13,8 @@
   }
   h1 {
     margin: 0;
-    font-size: 28px;
-    line-height: 36px;
+    font-size: 22px;
+    line-height: 30px;
     font-weight: 650;
     letter-spacing: -0.025em;
   }
@@ -61,7 +61,16 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
+  > div:first-child {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    p {
+      margin: 0;
+    }
+  }
 }
 .actions {
   display: flex;
@@ -75,15 +84,15 @@
   flex-wrap: wrap;
   gap: 8px;
   border-bottom: 1px solid #dfe6f1;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
 }
 .toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   label {
     display: flex;
     align-items: center;
@@ -254,9 +263,9 @@
 }
 @media (max-width: 760px) {
   .page {
-    padding: 22px 18px;
+    padding: 16px 18px;
     h1 {
-      font-size: 26px;
+      font-size: 22px;
     }
   }
   .header,
@@ -401,7 +410,7 @@
     background: #fafbff;
   }
   .description {
-    margin: 5px 0 0 26px;
+    margin: 5px 0 0 46px;
     color: #607089;
     font-size: 13px;
     max-width: 52ch;
@@ -416,7 +425,7 @@
   padding: 0;
   background: none;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   text-align: left;
   color: #18243d;
@@ -434,6 +443,13 @@
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+}
+.objectAvatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  object-fit: contain;
+  border-radius: 10px;
 }
 .kind {
   font-size: 12px;

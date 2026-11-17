@@ -56,6 +56,7 @@ export type FlowType = {
   status: number;
   color: string;
   category?: string | number | null;
+  favorite?: boolean;
   edgeType: string;
   evalSetId?: string;
   evalPageFirstTime?: boolean;

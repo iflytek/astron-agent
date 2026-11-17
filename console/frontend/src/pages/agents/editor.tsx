@@ -32,6 +32,11 @@ import Conversation from './conversation';
 import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
 import { errorText } from './errors';
 import './style.css';
+import {
+  CategoryError,
+  CategorySelect,
+  useCatalogCategories,
+} from './categories';
 
 function Memory({
   agentId,
@@ -389,6 +394,7 @@ const agentDraftSnapshot = (value: AgentDefinition | null) =>
     ? JSON.stringify({
         botName: value.botName,
         botDesc: value.botDesc,
+        botType: value.botType,
         prompt: value.prompt,
         modelId: value.modelId,
         supportContext: value.supportContext,
@@ -411,6 +417,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
   const spaceType = useSpaceStore(state => state.spaceType);
   const [agent, setAgent] = useState<AgentDefinition | null>(null);
   const [draft, setDraft] = useState<AgentDefinition | null>(null);
+  const categories = useCatalogCategories();
   const [knowledgeChanged, setKnowledgeChanged] = useState(false);
   const [workflowsChanged, setWorkflowsChanged] = useState(false);
   const [toolsChanged, setToolsChanged] = useState(false);
@@ -542,6 +549,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       const saved = await updateAgent(id, {
         botName: draft.botName,
         botDesc: draft.botDesc,
+        botType: draft.botType,
         prompt: draft.prompt,
         modelId: draft.modelId,
         supportContext: draft.supportContext,
@@ -893,7 +901,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                   )}
                   <details className="agent-studio-disclosure">
                     <summary>
-                      基本信息<span>名称与描述</span>
+                      基本信息<span>名称、分类与描述</span>
                     </summary>
                     <div className="agent-studio-disclosure-body">
                       <label>
@@ -905,6 +913,21 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                           onChange={e => patch({ botName: e.target.value })}
                         />
                       </label>
+                      <label>
+                        分类
+                        <CategorySelect
+                          categories={categories}
+                          value={draft.botType}
+                          onChange={value =>
+                            patch({
+                              botType: value === null ? null : Number(value),
+                            })
+                          }
+                        />
+                      </label>
+                      {categories.error && (
+                        <CategoryError retry={categories.retry} />
+                      )}
                       <label>
                         描述
                         <textarea

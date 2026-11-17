@@ -168,11 +168,12 @@ class ResourceTests(TransactionTestCase):
         result = self.write("post", "/api/model/list", {"type": 2})
         self.assertEqual(result.status_code, 200, result.content)
         self.assertEqual(result.json()["data"]["total"], 1)
-        official = OfficialModel.objects.create(name="Official")
+        official = OfficialModel.objects.create(name="Official", user_avatar="official-logo.svg")
         for model_filter in (0, 1, 2):
             result = self.write("post", "/api/model/list", {"type": 1, "filter": model_filter})
             self.assertEqual(result.status_code, 200, result.content)
             self.assertEqual([row["id"] for row in result.json()["data"]["records"]], [official.pk])
+            self.assertEqual(result.json()["data"]["records"][0]["icon"], "official-logo.svg")
 
     def test_cross_personal_access_denied_before_probe(self):
         self.client.force_login(self.other)
@@ -237,6 +238,30 @@ class ResourceTests(TransactionTestCase):
         self.assertEqual(probe.call_args.args[2], "retained-secret")
         self.model.refresh_from_db()
         self.assertEqual((self.model.uid, self.model.api_key), ("legacy-owner", "retained-secret"))
+
+    def test_official_supplier_endpoint_survives_personal_list_and_detail(self):
+        endpoint = "https://api.deepseek.com/v1/chat/completions"
+        payload = {
+            **self.model_payload(),
+            "provider": "deepseek",
+            "endpoint": "https://api.deepseek.com/v1",
+        }
+        with patch("astron_console.resources.clients.probe_model", return_value=endpoint) as probe:
+            saved = self.write("post", "/api/model", payload)
+        self.assertEqual(saved.status_code, 200, saved.content)
+        self.assertEqual(probe.call_args.args[0], "openai")
+        listing = self.write("post", "/api/model/list", {"type": 2})
+        detail = self.client.get("/api/model/detail", {"modelId": self.model.pk, "llmSource": 0})
+        self.assertEqual(listing.status_code, 200, listing.content)
+        self.assertEqual(detail.status_code, 200, detail.content)
+        for data in [
+            saved.json()["data"],
+            listing.json()["data"]["records"][0],
+            detail.json()["data"],
+        ]:
+            self.assertEqual(data["llmSource"], 0)
+            self.assertEqual(data["provider"], "openai")
+            self.assertEqual(data["url"], endpoint)
 
     def test_model_delete_requires_write_verb(self):
         self.assertEqual(

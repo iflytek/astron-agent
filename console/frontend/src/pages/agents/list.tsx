@@ -34,6 +34,12 @@ import {
 import botIcon from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import styles from './catalog.module.scss';
 import { errorText } from './errors';
+import {
+  CategoryError,
+  CategorySelect,
+  categoryLabel,
+  useCatalogCategories,
+} from './categories';
 import { formatCatalogUpdatedAt } from './catalog-utils';
 
 function ResourceSummary({ agent }: { agent: AgentDefinition }): ReactElement {
@@ -100,6 +106,9 @@ export default function AgentList(): ReactElement {
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [favorite, setFavorite] = useState(false);
+  const categories = useCatalogCategories();
+  const [category, setCategory] = useState<number | string | null>(null);
+  const [createCategory, setCreateCategory] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -120,7 +129,7 @@ export default function AgentList(): ReactElement {
     setError('');
     setItems([]);
     setLoading(true);
-    listAgents({ search, favorite, page, pageSize: 20 })
+    listAgents({ search, favorite, category, page, pageSize: 20 })
       .then(data => {
         if (active) {
           const lastPage = Math.max(1, Math.ceil(data.total / 20));
@@ -141,7 +150,7 @@ export default function AgentList(): ReactElement {
     return (): void => {
       active = false;
     };
-  }, [spaceId, enterpriseId, page, search, favorite, revision]);
+  }, [spaceId, enterpriseId, page, search, favorite, category, revision]);
 
   const action = async (operation: () => Promise<unknown>): Promise<void> => {
     if (submitting.current) return;
@@ -164,6 +173,7 @@ export default function AgentList(): ReactElement {
       const row = await createAgent({
         botName: name.trim(),
         botDesc: description,
+        botType: createCategory,
         prompt: '',
         supportContext: true,
         supportUpload: true,
@@ -179,6 +189,7 @@ export default function AgentList(): ReactElement {
     setSearch('');
     setSearchInput('');
     setFavorite(false);
+    setCategory(null);
     setPage(1);
   };
 
@@ -227,6 +238,16 @@ export default function AgentList(): ReactElement {
                 setPage(1);
               }}
             />
+            <CategorySelect
+              categories={categories}
+              value={category}
+              filter
+              className={styles.categoryFilter}
+              onChange={value => {
+                setCategory(value);
+                setPage(1);
+              }}
+            />
             <div
               className={styles.filters}
               role="group"
@@ -265,6 +286,7 @@ export default function AgentList(): ReactElement {
             <span className={styles.count}>{total} 个 Agent</span>
           )}
         </div>
+        {categories.error && <CategoryError retry={categories.retry} />}
         {error && (
           <Alert
             className={styles.notice}
@@ -312,7 +334,10 @@ export default function AgentList(): ReactElement {
                     />
                     <div className={styles.details}>
                       <h2 title={agent.botName}>{agent.botName}</h2>
-                      <span className={styles.tag}>独立 Agent</span>
+                      <span className={styles.tag}>
+                        Agent ·{' '}
+                        {categoryLabel(agent.botType, categories.options)}
+                      </span>
                     </div>
                   </Link>
                 </div>
@@ -392,14 +417,14 @@ export default function AgentList(): ReactElement {
             <div className={styles.state}>
               <Empty
                 description={
-                  search
+                  search || category
                     ? '未找到匹配的 Agent'
                     : favorite
                       ? '还没有收藏的 Agent'
                       : '还没有 Agent，创建一个开始配置与调试'
                 }
               >
-                {search || favorite ? (
+                {search || favorite || category ? (
                   <Button onClick={clearFilters}>清除筛选</Button>
                 ) : (
                   <Button
@@ -462,6 +487,16 @@ export default function AgentList(): ReactElement {
               maxLength={255}
               value={description}
               onChange={event => setDescription(event.target.value)}
+            />
+          </label>
+          <label>
+            分类
+            <CategorySelect
+              categories={categories}
+              value={createCategory}
+              onChange={value =>
+                setCreateCategory(value === null ? null : Number(value))
+              }
             />
           </label>
           {actionError && <Alert type="error" message={actionError} />}

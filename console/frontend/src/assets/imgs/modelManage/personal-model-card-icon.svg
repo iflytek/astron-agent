@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" role="img" aria-label="个人配置模型">
+  <rect width="44" height="44" rx="12" fill="#FEEAD4"/>
+  <path d="M10 6.4c.35 2 .95 2.6 2.95 2.95-2 .35-2.6.95-2.95 2.95-.35-2-.95-2.6-2.95-2.95 2-.35 2.6-.95 2.95-2.95Z" fill="#E6993D"/>
+  <g stroke="#55478D" stroke-width="1.4" stroke-linejoin="round">
+    <path d="m9.6 24.9 9.8-5.6a2.2 2.2 0 0 1 2.2 0l9.8 5.6a1.45 1.45 0 0 1 0 2.5L21.6 33a2.2 2.2 0 0 1-2.2 0l-9.8-5.6a1.45 1.45 0 0 1 0-2.5Z" fill="#9480CF"/>
+    <path d="m9.6 20.2 9.8-5.6a2.2 2.2 0 0 1 2.2 0l9.8 5.6a1.45 1.45 0 0 1 0 2.5l-9.8 5.6a2.2 2.2 0 0 1-2.2 0l-9.8-5.6a1.45 1.45 0 0 1 0-2.5Z" fill="#AD9BDF"/>
+    <path d="m9.6 15.5 9.8-5.6a2.2 2.2 0 0 1 2.2 0l9.8 5.6a1.45 1.45 0 0 1 0 2.5l-9.8 5.6a2.2 2.2 0 0 1-2.2 0L9.6 18a1.45 1.45 0 0 1 0-2.5Z" fill="#CDC1F4"/>
+  </g>
+  <path d="m13.3 15.7 4.8-2.75" fill="none" stroke="#FFF" stroke-opacity=".85" stroke-width="1.35" stroke-linecap="round"/>
+</svg>

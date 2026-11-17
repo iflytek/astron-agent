@@ -2,7 +2,7 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
-  padding: 28px;
+  padding: 20px 28px;
   color: #18243d;
   background: #fff;
   :global(button:focus-visible),
@@ -17,7 +17,7 @@
   min-width: 0;
 }
 .header {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 .heading,
 .toolbar,
@@ -30,12 +30,18 @@
 }
 .heading {
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+}
+.heading > div {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
 }
 .heading h1 {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 650;
-  line-height: 36px;
+  line-height: 30px;
   letter-spacing: -0.025em;
   margin: 0;
 }
@@ -43,18 +49,18 @@
   color: #607089;
   font-size: 14px;
   line-height: 22px;
-  margin: 8px 0 0;
+  margin: 0;
   max-width: 72ch;
 }
 .tabs {
   border-bottom: 1px solid #dfe6f1;
   gap: 24px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 .tabs a {
   display: inline-flex;
   align-items: center;
-  min-height: 44px;
+  min-height: 36px;
   border-bottom: 2px solid transparent;
   color: #607089;
 }
@@ -201,11 +207,11 @@
 }
 @media (max-width: 760px) {
   .page {
-    padding: 22px 18px;
+    padding: 16px 18px;
   }
   .heading h1,
   .detailIdentity h1 {
-    font-size: 26px;
+    font-size: 22px;
   }
   .toolbar {
     align-items: stretch;

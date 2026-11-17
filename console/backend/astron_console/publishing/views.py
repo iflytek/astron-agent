@@ -60,7 +60,11 @@ def projection(publication, uid=None):
         "botDesc": config.get("botDesc", ""),
         "agentDesc": config.get("botDesc", ""),
         "avatar": config.get("avatar", ""),
-        "botType": config.get("botType", 1),
+        "botType": (
+            config.get("workflowCategory")
+            if candidate.resource_kind == "workflow"
+            else config.get("botType", 1)
+        ),
         "version": 1 if candidate.resource_kind == "agent" else 3,
         "versionId": candidate.version_id,
         "publicationId": publication.pk,
@@ -172,6 +176,7 @@ def bots(request, bot_id=None):
                 "resourceKind": "workflow",
                 "resourceId": workflow.flow_id,
                 "workflowId": workflow.pk,
+                "avatar": workflow.avatar_icon or "",
                 "publications": [],
                 "pendingApprovals": [],
             }
@@ -422,7 +427,14 @@ def market(request):
     if search:
         query = query.filter(candidate__definition__botName__icontains=search)
     if payload.get("type"):
-        query = query.filter(candidate__definition__botType=number(payload["type"]))
+        category = number(payload["type"])
+        query = query.filter(
+            models.Q(candidate__resource_kind="agent", candidate__definition__botType=category)
+            | models.Q(
+                candidate__resource_kind="workflow",
+                candidate__definition__workflowCategory=category,
+            )
+        )
     return paginated(
         query.order_by("-update_time"),
         payload,
