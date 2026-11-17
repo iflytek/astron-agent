@@ -185,10 +185,6 @@ def prompt_for(config):
         if config.get("promptType") == 1 and sections
         else config.get("prompt", "")
     )
-    personality = config.get("personality") or {}
-    if personality.get("enabled"):
-        prompt += "\n人格：" + personality.get("personality", "")
-        prompt += "\n场景：" + personality.get("sceneInfo", "")
     return prompt
 
 
@@ -220,8 +216,6 @@ def prepare(request, agent_id, session_id):
     if not isinstance(ids, list) or len(ids) > 10 or any(not isinstance(i, str) for i in ids):
         raise ValidationError("文件引用无效")
     ids = list(dict.fromkeys(ids))
-    if ids and not config.get("supportUpload"):
-        raise ValidationError("此Agent未启用文件输入")
     uploads = list(
         AgentFile.objects.filter(
             pk__in=ids, agent_id=agent.pk, uid=scope.uid, space_id=scope.space_id, direction="input"
@@ -232,7 +226,7 @@ def prepare(request, agent_id, session_id):
     content = input_content(question, uploads)
     if len(content) > 200000:
         raise ValidationError("本次输入总长度超过200000字符")
-    history = history_for(session, target) if config.get("supportContext") else []
+    history = history_for(session, target)
     with transaction.atomic():
         session = AgentSession.objects.select_for_update().get(pk=session.pk)
         recover_interrupted(session)

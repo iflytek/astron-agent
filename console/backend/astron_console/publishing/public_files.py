@@ -58,10 +58,8 @@ def upload(request, bot_id):
     from .public_runtime import browser_publication
 
     publication, share_id = browser_publication(request, bot_id)
-    if publication.candidate.resource_kind != "agent" or not publication.candidate.definition.get(
-        "supportUpload"
-    ):
-        raise ValidationError("此已发布Agent未启用文件输入")
+    if publication.candidate.resource_kind != "agent":
+        raise ValidationError("此发布类型不支持Agent文件输入")
     caller = resolve_scope(request)
     agent = Agent.objects.get(pk=bot_id, is_delete=0)
     try:
@@ -91,8 +89,8 @@ def authorize_inputs(publication, caller_uid, caller_space_id, file_ids):
         or any(not isinstance(item, str) for item in file_ids)
     ):
         raise ValidationError("文件列表无效，最多10个文件")
-    if file_ids and not publication.candidate.definition.get("supportUpload"):
-        raise ValidationError("此已发布Agent未启用文件输入")
+    if file_ids and publication.candidate.resource_kind != "agent":
+        raise ValidationError("此发布类型不支持Agent文件输入")
     rows = []
     for identifier in dict.fromkeys(file_ids):
         grant = (

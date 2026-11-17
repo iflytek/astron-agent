@@ -19,7 +19,6 @@ from .models import (
     AgentFavorite,
     AgentState,
     AgentVersion,
-    Personality,
     PromptSection,
 )
 
@@ -46,14 +45,16 @@ def get_agent(request, agent_id, permission=READ):
     return get_scoped_agent(scope, agent_id, permission), scope
 
 
+def effective_definition(config):
+    """Apply current Agent capabilities without rewriting immutable release history."""
+    result = {**config, "supportContext": True, "supportUpload": True}
+    result.pop("personality", None)
+    return result
+
+
 def definition(agent, *, public_scope=None):
     state = AgentState.objects.filter(agent_id=agent.pk).first()
     extra = state.config if state else {}
-    personality = (
-        Personality.objects.filter(bot_id=agent.pk, config_type=0, deleted=0)
-        .order_by("-update_time", "-id")
-        .first()
-    )
     sections = list(PromptSection.objects.filter(bot_id=agent.pk).order_by("id"))
     # MAAS runtime used dataset_index as Repo.pk. dataset_id belongs to the
     # legacy dataset metadata and must never accidentally select a same-number Repo.
@@ -90,16 +91,8 @@ def definition(agent, *, public_scope=None):
         "inputExample": agent.input_example or "",
         "modelId": agent.model_id,
         "model": agent.model or "",
-        "supportContext": bool(agent.support_context),
-        "supportUpload": bool(agent.support_upload),
-        "personality": {
-            "enabled": bool(personality.enabled),
-            "personality": personality.personality or "",
-            "sceneType": personality.scene_type,
-            "sceneInfo": personality.scene_info or "",
-        }
-        if personality
-        else {"enabled": False, "personality": "", "sceneInfo": ""},
+        "supportContext": True,
+        "supportUpload": True,
         "tools": parsed(agent.tools, []),
         "skills": parsed(agent.skills, []),
         "mcpServerUrls": [] if "mcpServerIds" in extra else parsed(agent.mcp_server_urls, []),
@@ -194,7 +187,6 @@ def save_definition(agent, scope, payload):
         "supportUpload",
         "prologue",
         "inputExample",
-        "personality",
         "tools",
         "skills",
         "mcpServerIds",
@@ -235,9 +227,9 @@ def save_definition(agent, scope, payload):
         config["modelId"] = agent.model_id
     for key, field in [("supportContext", "support_context"), ("supportUpload", "support_upload")]:
         if key in payload:
-            value = boolean(payload, key, False)
-            setattr(agent, field, int(value))
-            config[key] = value
+            # Retain validation for older clients; these capabilities are always available.
+            boolean(payload, key, True)
+        setattr(agent, field, 1)
     for key, field in [("tools", "tools"), ("skills", "skills")]:
         if key in payload:
             value = refs(payload, key)
@@ -273,19 +265,6 @@ def save_definition(agent, scope, payload):
                 }
             )
         config["promptSections"] = sections
-    if "personality" in payload:
-        value = payload["personality"]
-        if not isinstance(value, dict):
-            raise ValidationError("人格配置无效")
-        scene_type = value.get("sceneType")
-        if scene_type is not None and (isinstance(scene_type, bool) or scene_type not in (1, 2)):
-            raise ValidationError("人格场景类型无效")
-        config["personality"] = {
-            "enabled": boolean(value, "enabled", False),
-            "personality": text(value, "personality", limit=1000),
-            "sceneType": scene_type,
-            "sceneInfo": text(value, "sceneInfo", limit=1000),
-        }
     # Drafts may be saved before model selection, but every selected reference is authorized.
     validate_resources(scope, config)
     agent.update_time = timezone.now()
@@ -300,17 +279,6 @@ def save_definition(agent, scope, payload):
                 for s in config["promptSections"]
             ]
         )
-    if "personality" in payload:
-        p = config["personality"]
-        row = Personality.objects.filter(bot_id=agent.pk, config_type=0, deleted=0).first()
-        row = row or Personality(bot_id=agent.pk)
-        row.personality, row.scene_type, row.scene_info = (
-            p["personality"],
-            p["sceneType"],
-            p["sceneInfo"],
-        )
-        row.enabled, row.update_time = int(p["enabled"]), timezone.now()
-        row.save()
     logger.info(
         "Agent definition saved agent_id=%s uid=%s revision=%s", agent.pk, scope.uid, state.revision
     )
@@ -431,5 +399,6 @@ def resolve_version(scope, agent_id, version_id=None):
     row = AgentVersion.objects.filter(pk=number(version_id), agent_id=agent.pk).first()
     if row is None:
         raise Http404
-    validate_resources(scope, row.definition)
-    return {"agentId": agent.pk, "versionId": row.pk, "definition": row.definition}
+    config = effective_definition(row.definition)
+    validate_resources(scope, config)
+    return {"agentId": agent.pk, "versionId": row.pk, "definition": config}

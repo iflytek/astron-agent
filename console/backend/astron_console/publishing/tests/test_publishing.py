@@ -395,7 +395,7 @@ class GatewayAndWorkflowTests(PublicationTests):
 
 @override_settings(ROOT_URLCONF=__name__)
 class LegacyPromptTests(TestCase):
-    def test_market_snapshot_preserves_published_prompt_model_and_market_personality(self):
+    def test_market_snapshot_preserves_published_prompt_model_without_personality(self):
         from astron_console.agents.models import AgentVersion, Personality
         from astron_console.publishing.legacy import adopt_legacy, recorded_definition
         from astron_console.publishing.models import LegacyMarket
@@ -429,7 +429,9 @@ class LegacyPromptTests(TestCase):
         self.assertEqual(AgentState.objects.get(agent_id=bot.pk).published_version_id, internal.pk)
         definition = Publication.objects.get().candidate.definition
         self.assertEqual(definition["prompt"], market.prompt)
-        self.assertEqual(definition["personality"]["personality"], "published personality")
+        self.assertNotIn("personality", definition)
         self.assertTrue(definition["supportContext"])
+        self.assertTrue(definition["supportUpload"])
+        self.assertEqual(Personality.objects.filter(bot_id=bot.pk).count(), 2)
         self.assertEqual(Agent.objects.get(pk=bot.pk).prompt, "unpublished prompt")
         self.assertIsNotNone(AgentState.objects.get(agent_id=bot.pk).published_version_id)

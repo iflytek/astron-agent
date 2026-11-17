@@ -104,6 +104,37 @@ class RuntimeTests(TransactionTestCase):
         new = prepare_run(self.scope, self.workflow, {})
         self.assertEqual(new.resolved_agents["agent::one"]["versionId"], second_version.pk)
 
+    def test_old_agent_node_release_does_not_inject_personality(self):
+        stored = {
+            "modelId": self.model.pk,
+            "prompt": "published instructions",
+            "supportContext": False,
+            "supportUpload": False,
+            "personality": {"enabled": True, "personality": "retired persona"},
+        }
+        version = AgentVersion.objects.create(
+            agent_id=self.agent.pk, created_by=self.user.pk, definition=stored
+        )
+        self.state.published_version_id = version.pk
+        self.state.save()
+        run = prepare_run(self.scope, self.workflow, {})
+        claim_run(run)
+        response = self.post(
+            "/workflow/internal/agent-runtime",
+            {"runId": run.pk, "nodeId": "agent::one", "query": "hello"},
+            internal=True,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["data"]["instruction"]["answer"], "published instructions")
+        from astron_console.agents.definitions import resolve_version
+
+        config = resolve_version(self.scope, self.agent.pk, version.pk)["definition"]
+        self.assertTrue(config["supportContext"])
+        self.assertTrue(config["supportUpload"])
+        self.assertNotIn("personality", config)
+        version.refresh_from_db()
+        self.assertEqual(version.definition, stored)
+
     def test_canvas_catalog_uses_scoped_models_and_never_exposes_credentials(self):
         Model.objects.create(uid="another-owner", name="private", enable=True)
         result = self.client.get("/workflow/models?nodeType=agent")

@@ -110,8 +110,6 @@ def store_file(upload, agent, scope, *, direction="input", run_id=None):
 @upstream_errors
 def upload(request, agent_id):
     agent, scope = get_agent(request, agent_id)
-    if not agent.support_upload:
-        raise ValidationError("此Agent未启用文件输入")
     try:
         row = store_file(request.FILES.get("file"), agent, scope)
     except ResourceServiceError:

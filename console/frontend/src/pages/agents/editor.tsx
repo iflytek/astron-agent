@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Button, Modal, Select, Skeleton } from 'antd';
+import {
+  Alert,
+  Button,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Skeleton,
+  Slider,
+  Switch,
+  message,
+} from 'antd';
 import {
   ArrowLeftOutlined,
   MessageOutlined,
@@ -7,6 +18,10 @@ import {
   HistoryOutlined,
   BulbOutlined,
   CheckOutlined,
+  EditOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import {
@@ -39,6 +54,7 @@ import {
 import Conversation from './conversation';
 import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
 import { errorText } from './errors';
+import { versionModel, versionPrompt } from './version-summary';
 import './style.css';
 import {
   CategoryError,
@@ -130,183 +146,235 @@ function Memory({
     }
   };
   return (
-    <section className="agents-panel">
-      <h2>长期记忆</h2>
-      <p>
-        记忆按当前空间、用户和 Agent
-        保存，版本变化不会分割记忆。聊天与调试会话历史分别保存。
-      </p>
-      {error && (
-        <p className="agents-error" role="alert">
-          {error}
-        </p>
-      )}
-      {!config &&
-        (error ? (
-          <Button
-            onClick={() => {
-              setError('');
-              setConfigRevision(value => value + 1);
-            }}
-          >
-            重新读取记忆配置
-          </Button>
-        ) : (
-          <Skeleton active />
-        ))}
-      {config && (
-        <form
-          onSubmit={event => {
-            event.preventDefault();
-            void action(async () => {
-              const saved = await saveAgentMemoryConfig(agentId, {
-                provider: config.provider,
-                enabled: config.enabled,
-                autoSearch: config.autoSearch,
-                searchTopK: config.searchTopK,
-                minScore: config.minScore,
-                ...(apiKey ? { apiKey } : {}),
-              });
-              setConfig(saved);
-              setSavedConfig(JSON.stringify(saved));
-              setApiKey('');
-            });
-          }}
-        >
-          <label className="inline">
-            <input
-              type="checkbox"
-              disabled={busy}
-              checked={config.enabled}
-              onChange={e =>
-                setConfig({ ...config, enabled: e.target.checked })
-              }
-            />
-            启用 Mem0
-          </label>
-          <label>
-            Mem0 API Key{' '}
-            {config.hasApiKey && <small>（已配置，留空保留）</small>}
-            <input
-              type="password"
-              disabled={busy}
-              autoComplete="new-password"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-            />
-          </label>
-          <label className="inline">
-            <input
-              type="checkbox"
-              disabled={busy}
-              checked={config.autoSearch}
-              onChange={e =>
-                setConfig({ ...config, autoSearch: e.target.checked })
-              }
-            />
-            对话前检索记忆
-          </label>
-          <div className="agents-form-row">
-            <label>
-              检索数量
-              <input
-                type="number"
-                disabled={busy}
-                min={1}
-                max={20}
-                value={config.searchTopK}
-                onChange={e =>
-                  setConfig({ ...config, searchTopK: Number(e.target.value) })
-                }
-              />
-            </label>
-            <label>
-              最低相关分数
-              <input
-                type="number"
-                disabled={busy}
-                min={0}
-                max={1}
-                step={0.01}
-                value={config.minScore}
-                onChange={e =>
-                  setConfig({ ...config, minScore: Number(e.target.value) })
-                }
-              />
-            </label>
-          </div>
-          <button disabled={busy} type="submit">
-            保存记忆配置
-          </button>
-        </form>
-      )}
-      <form
-        onSubmit={e => {
-          e.preventDefault();
-          void action(async () => {
-            await addAgentMemory(agentId, memory);
-            setMemory('');
-          });
-        }}
-      >
-        <label>
-          添加个人偏好
-          <textarea
-            required
-            disabled={busy}
-            value={memory}
-            onChange={e => setMemory(e.target.value)}
-          />
-        </label>
-        <button disabled={busy || !memory.trim()} type="submit">
-          保存偏好
-        </button>
-      </form>
-      <div className="agents-toolbar">
-        <h3>已保存记忆</h3>
-        <button disabled={busy} onClick={() => setRevision(value => value + 1)}>
-          刷新
-        </button>
-        <button
-          className="danger"
-          disabled={busy || !items.length}
-          onClick={() => {
-            setError('');
-            setDeleteTarget({ kind: 'all' });
-          }}
-        >
-          清空记忆
-        </button>
-      </div>
-      {itemsError && (
-        <Alert
-          type="error"
-          message={itemsError}
-          action={
-            <Button onClick={() => setRevision(value => value + 1)}>
-              重试读取记忆
-            </Button>
-          }
-        />
-      )}
-      {loadingItems && <Skeleton active />}
-      {items.map(item => (
-        <div className="agents-memory" key={item.id}>
-          <p>{item.memory}</p>
-          <button
-            disabled={busy}
-            onClick={() => {
-              setError('');
-              setDeleteTarget({ kind: 'one', item });
-            }}
-          >
-            删除
-          </button>
+    <section className="agents-panel agent-memory-page">
+      <div className="agent-page-heading">
+        <div>
+          <h2>长期记忆</h2>
+          <p>让 Agent 在未来的对话中记住你的偏好。</p>
         </div>
-      ))}
-      {!loadingItems && !itemsError && !items.length && (
-        <p className="agents-muted">暂无记忆</p>
-      )}
+        <span className="agent-scope-note">仅当前空间、用户与 Agent 可用</span>
+      </div>
+      {error && <Alert type="error" showIcon message={error} />}
+      <div className="agent-memory-layout">
+        <section className="agent-memory-settings" aria-label="记忆设置">
+          <h3>记忆设置</h3>
+          {!config &&
+            (error ? (
+              <Button
+                onClick={() => {
+                  setError('');
+                  setConfigRevision(value => value + 1);
+                }}
+              >
+                重新读取配置
+              </Button>
+            ) : (
+              <Skeleton active />
+            ))}
+          {config && (
+            <form
+              onSubmit={event => {
+                event.preventDefault();
+                void action(async () => {
+                  const saved = await saveAgentMemoryConfig(agentId, {
+                    provider: config.provider,
+                    enabled: config.enabled,
+                    autoSearch: config.autoSearch,
+                    searchTopK: config.searchTopK,
+                    minScore: config.minScore,
+                    ...(apiKey ? { apiKey } : {}),
+                  });
+                  setConfig(saved);
+                  setSavedConfig(JSON.stringify(saved));
+                  setApiKey('');
+                });
+              }}
+            >
+              <div className="agent-setting-row">
+                <div>
+                  <label htmlFor="agent-memory-enabled">长期记忆</label>
+                  <p>通过 Mem0 保存和检索偏好</p>
+                </div>
+                <Switch
+                  id="agent-memory-enabled"
+                  checked={config.enabled}
+                  disabled={busy}
+                  onChange={enabled => setConfig({ ...config, enabled })}
+                />
+              </div>
+              <label className="agent-memory-key">
+                Mem0 API Key
+                <Input.Password
+                  disabled={busy}
+                  autoComplete="new-password"
+                  value={apiKey}
+                  placeholder={
+                    config.hasApiKey ? '已配置，留空保留' : '输入 API Key'
+                  }
+                  onChange={event => setApiKey(event.target.value)}
+                />
+                <small>
+                  {config.hasApiKey
+                    ? '密钥已安全保存；仅在更换时填写。'
+                    : '配置后即可连接记忆服务。'}
+                </small>
+              </label>
+              <div className="agent-setting-row">
+                <div>
+                  <label htmlFor="agent-memory-search">自动检索</label>
+                  <p>回复前查找相关记忆</p>
+                </div>
+                <Switch
+                  id="agent-memory-search"
+                  checked={config.autoSearch}
+                  disabled={busy}
+                  onChange={autoSearch => setConfig({ ...config, autoSearch })}
+                />
+              </div>
+              <div className="agent-memory-retrieval">
+                <label>
+                  检索数量
+                  <InputNumber
+                    min={1}
+                    max={20}
+                    precision={0}
+                    value={config.searchTopK}
+                    disabled={busy}
+                    onChange={value => {
+                      if (value !== null)
+                        setConfig({ ...config, searchTopK: value });
+                    }}
+                  />
+                </label>
+                <label>
+                  最低相关分数
+                  <InputNumber
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={config.minScore}
+                    disabled={busy}
+                    onChange={value => {
+                      if (value !== null)
+                        setConfig({ ...config, minScore: value });
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="agent-memory-save">
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={busy}
+                  disabled={JSON.stringify(config) === savedConfig && !apiKey}
+                >
+                  保存设置
+                </Button>
+              </div>
+            </form>
+          )}
+        </section>
+        <section className="agent-memory-library" aria-label="个人记忆">
+          <form
+            className="agent-memory-add"
+            onSubmit={event => {
+              event.preventDefault();
+              void action(async () => {
+                await addAgentMemory(agentId, memory);
+                setMemory('');
+              });
+            }}
+          >
+            <label htmlFor="agent-new-memory">添加个人偏好</label>
+            <Input.TextArea
+              id="agent-new-memory"
+              disabled={busy}
+              value={memory}
+              autoSize={{ minRows: 3, maxRows: 6 }}
+              placeholder="例如：回答时优先使用简洁中文。"
+              onChange={event => setMemory(event.target.value)}
+            />
+            <div>
+              <Button
+                htmlType="submit"
+                icon={<PlusOutlined />}
+                disabled={busy || !memory.trim()}
+              >
+                添加记忆
+              </Button>
+            </div>
+          </form>
+          <div className="agent-memory-list-heading">
+            <h3>
+              已保存记忆 <span>{items.length}</span>
+            </h3>
+            <div>
+              <Button
+                type="text"
+                icon={<ReloadOutlined />}
+                disabled={busy || loadingItems}
+                onClick={() => setRevision(value => value + 1)}
+              >
+                刷新
+              </Button>
+              <Button
+                type="text"
+                danger
+                disabled={busy || !items.length || loadingItems || !!itemsError}
+                onClick={() => {
+                  setError('');
+                  setDeleteTarget({ kind: 'all' });
+                }}
+              >
+                清空
+              </Button>
+            </div>
+          </div>
+          {itemsError && (
+            <Alert
+              type="error"
+              showIcon
+              message={itemsError}
+              action={
+                <Button onClick={() => setRevision(value => value + 1)}>
+                  重试
+                </Button>
+              }
+            />
+          )}
+          {loadingItems ? (
+            <Skeleton active />
+          ) : (
+            !itemsError &&
+            (items.length ? (
+              <div className="agent-memory-list">
+                {items.map(item => (
+                  <div className="agent-memory-item" key={item.id}>
+                    <p>{item.memory}</p>
+                    <Button
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      aria-label="删除这条记忆"
+                      title="删除记忆"
+                      disabled={busy}
+                      onClick={() => {
+                        setError('');
+                        setDeleteTarget({ kind: 'one', item });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="agent-page-empty">
+                <BulbOutlined />
+                <h3>还没有保存记忆</h3>
+                <p>添加常用偏好，让之后的回答更贴合你的习惯。</p>
+              </div>
+            ))
+          )}
+        </section>
+      </div>
       <Modal
         title={
           deleteTarget?.kind === 'all' ? '清空长期记忆' : '删除一条长期记忆'
@@ -450,9 +518,6 @@ const agentDraftSnapshot = (value: AgentDefinition | null) =>
         botType: value.botType,
         prompt: value.prompt,
         modelId: value.modelId,
-        supportContext: value.supportContext,
-        supportUpload: value.supportUpload,
-        personality: value.personality,
         tools: value.tools || [],
         skills: value.skills || [],
         mcpServerIds: value.mcpServerIds || [],
@@ -478,7 +543,12 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
   const [tab, setTab] = useState(mode === 'chat' ? 'chat' : 'definition');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
+  const [messageApi, messageHolder] = message.useMessage();
+  const [metadata, setMetadata] = useState<Pick<
+    AgentDefinition,
+    'botName' | 'botDesc' | 'botType'
+  > | null>(null);
+  const [metadataError, setMetadataError] = useState('');
   const [versions, setVersions] = useState<Array<Record<string, unknown>>>([]);
   const [loadRevision, setLoadRevision] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -512,10 +582,16 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       mcpChanged,
     ]
   );
+  const metadataDirty =
+    !!metadata &&
+    !!agent &&
+    (metadata.botName !== agent.botName ||
+      metadata.botDesc !== agent.botDesc ||
+      metadata.botType !== agent.botType);
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       useUserStore.getState().getIsLogin() &&
-      (isDirty || !!contentGuard) &&
+      (isDirty || metadataDirty || !!contentGuard) &&
       (currentLocation.pathname !== nextLocation.pathname ||
         currentLocation.search !== nextLocation.search)
   );
@@ -582,7 +658,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     };
   }, [id, tab, versionsRevision]);
   useEffect(() => {
-    if (!isDirty && !contentGuard) return;
+    if (!isDirty && !metadataDirty && !contentGuard) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!useUserStore.getState().getIsLogin()) return;
       event.preventDefault();
@@ -590,7 +666,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isDirty, contentGuard]);
+  }, [isDirty, metadataDirty, contentGuard]);
   const patch = (value: Partial<AgentDefinition>) =>
     setDraft(current => (current ? { ...current, ...value } : current));
   const save = async () => {
@@ -598,7 +674,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     saving.current = true;
     setBusy(true);
     setError('');
-    setNotice('');
     try {
       const saved = await updateAgent(id, {
         botName: draft.botName,
@@ -606,9 +681,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
         botType: draft.botType,
         prompt: draft.prompt,
         modelId: draft.modelId,
-        supportContext: draft.supportContext,
-        supportUpload: draft.supportUpload,
-        personality: draft.personality,
         ...buildAgentResourceUpdate(draft, {
           tools: toolsChanged,
           skills: skillsChanged,
@@ -628,9 +700,41 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       setToolsChanged(false);
       setSkillsChanged(false);
       setMcpChanged(false);
-      setNotice('配置已应用。');
     } catch (reason) {
       setError(errorText(reason));
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  };
+  const saveMetadata = async () => {
+    if (!metadata || !agent || saving.current || !metadata.botName.trim())
+      return;
+    saving.current = true;
+    setBusy(true);
+    setMetadataError('');
+    try {
+      const saved = await updateAgent(id, {
+        ...metadata,
+        botName: metadata.botName.trim(),
+        revision: agent.revision,
+      });
+      setAgent(saved);
+      // Preserve configuration edits while advancing their revision baseline.
+      setDraft(current =>
+        current
+          ? {
+              ...current,
+              botName: saved.botName,
+              botDesc: saved.botDesc,
+              botType: saved.botType,
+              revision: saved.revision,
+            }
+          : saved
+      );
+      setMetadata(null);
+    } catch (reason) {
+      setMetadataError(errorText(reason));
     } finally {
       saving.current = false;
       setBusy(false);
@@ -650,7 +754,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     try {
       const version = await createAgentVersion(id);
       setVersions(current => [version, ...current]);
-      setNotice('版本快照已创建。');
+      void messageApi.success('版本快照已创建');
     } catch (reason) {
       setError(errorText(reason));
     } finally {
@@ -730,7 +834,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     setSkillsChanged(false);
     setMcpChanged(false);
     setError('');
-    setNotice('');
   };
   return (
     <main className={`agents-page agent-studio mobile-${mobilePanel}`}>
@@ -770,8 +873,26 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
       </nav>
       <header className="agents-header agent-workspace-header">
         <div className="agent-workspace-identity">
-          <img src={agentAvatar} alt="" />
-          <h1 title={agent?.botName}>{agent?.botName || 'Agent'}</h1>
+          <button
+            type="button"
+            className="agent-identity-edit"
+            aria-label="编辑 Agent 基本信息"
+            title="编辑基本信息"
+            disabled={!agent || busy}
+            onClick={() => {
+              if (!agent) return;
+              setMetadataError('');
+              setMetadata({
+                botName: agent.botName,
+                botDesc: agent.botDesc,
+                botType: agent.botType,
+              });
+            }}
+          >
+            <img src={agent?.avatar || agentAvatar} alt="" />
+            <h1 title={agent?.botName}>{agent?.botName || 'Agent'}</h1>
+            <EditOutlined />
+          </button>
           {agent && (
             <span
               className={`agent-sync-label${isDirty ? ' is-dirty' : ''}`}
@@ -825,11 +946,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           个旧知识数据集关联，尚未迁移，暂时无法运行或创建版本快照。请在定义中重新选择知识库并保存。修改名称等其他字段会保留旧关联。
         </p>
       )}
-      {notice && (
-        <p role="status" className="agents-notice">
-          {notice}
-        </p>
-      )}
+      {messageHolder}
       {loading && <Skeleton active paragraph={{ rows: 6 }} />}
       {!agent && error && (
         <Button onClick={() => setLoadRevision(value => value + 1)}>
@@ -890,28 +1007,60 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                   </div>
                   <label className="agent-model-field">
                     模型
-                    <select
-                      required
-                      value={draft.modelId || ''}
-                      onChange={e => patch({ modelId: Number(e.target.value) })}
-                    >
-                      <option value="">请选择模型</option>
-                      {draft.modelId &&
+                    <Select
+                      aria-label="模型"
+                      className="agent-model-picker"
+                      disabled={busy}
+                      value={draft.modelId || undefined}
+                      placeholder="请选择模型"
+                      onChange={modelId => patch({ modelId })}
+                      options={[
+                        ...(draft.modelId &&
                         !resources?.models.some(
                           model => model.id === draft.modelId
-                        ) && (
-                          <option value={draft.modelId}>
-                            {draft.model || `当前模型 #${draft.modelId}`}
-                          </option>
-                        )}
-                      {resources?.models.map(model => (
-                        <option key={model.id} value={model.id}>
-                          {model.name}
-                          {model.provider ? ` · ${model.provider}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                        )
+                          ? [
+                              {
+                                value: draft.modelId,
+                                label:
+                                  draft.model || `当前模型 #${draft.modelId}`,
+                              },
+                            ]
+                          : []),
+                        ...(resources?.models.map(model => ({
+                          value: model.id,
+                          label: `${model.name}${model.provider ? ` · ${model.provider}` : ''}`,
+                        })) || []),
+                      ]}
+                    />
                   </label>
+                  <div className="agent-loop-setting">
+                    <div className="agent-loop-heading">
+                      <label htmlFor="agent-tool-loop-count">
+                        最大工具决策轮数
+                      </label>
+                      <InputNumber
+                        id="agent-tool-loop-count"
+                        min={1}
+                        max={50}
+                        precision={0}
+                        value={draft.maxLoopCount || 5}
+                        disabled={busy}
+                        onChange={value => {
+                          if (value !== null) patch({ maxLoopCount: value });
+                        }}
+                      />
+                    </div>
+                    <Slider
+                      aria-label="最大工具决策轮数"
+                      min={1}
+                      max={50}
+                      value={draft.maxLoopCount || 5}
+                      disabled={busy}
+                      onChange={value => patch({ maxLoopCount: value })}
+                    />
+                    <p>限制单次回答中调用工具的决策轮数。</p>
+                  </div>
                   <label className="agent-prompt-field">
                     <span>
                       提示词 <small>告诉 Agent 如何帮助用户</small>
@@ -925,6 +1074,31 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                     />
                   </label>
 
+                  {draft.promptType === 1 && (
+                    <div className="agent-structured-prompts">
+                      <h3>结构化提示词</h3>
+                      {draft.promptSections?.map((section, index) => (
+                        <label key={index}>
+                          {section.key}
+                          <Input.TextArea
+                            value={section.value}
+                            maxLength={4000}
+                            autoSize={{ minRows: 2, maxRows: 8 }}
+                            onChange={event =>
+                              patch({
+                                promptSections: draft.promptSections?.map(
+                                  (row, i) =>
+                                    i === index
+                                      ? { ...row, value: event.target.value }
+                                      : row
+                                ),
+                              })
+                            }
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
                   {resourceError ? (
                     <Alert
                       type="error"
@@ -1003,222 +1177,22 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       保存后将以当前知识库选择替换旧知识关联。
                     </p>
                   )}
-                  {(!!draft.configuredMcpCount ||
-                    !!draft.mcpServerIds.length ||
-                    mcpChanged) && (
-                    <div>
-                      {!!draft.configuredMcpCount && !mcpChanged && (
-                        <p className="agents-muted">
-                          当前保留 {draft.configuredMcpCount} 个旧 MCP
-                          绑定。重新选择 MCP
-                          服务并保存会替换这些绑定；修改其他字段会保留它们。
-                        </p>
-                      )}
-                      {mcpChanged && (
-                        <p role="status" className="agents-notice">
-                          {draft.mcpServerIds.length
-                            ? '保存后将仅使用当前选择的 MCP 服务，不再使用旧绑定。'
-                            : '保存后将清除全部 MCP 运行绑定，不再调用旧 MCP 服务。'}
-                        </p>
-                      )}
-                      <div className="agents-actions">
-                        <button
-                          type="button"
-                          disabled={busy}
-                          onClick={() => {
-                            patch({ mcpServerIds: [] });
-                            setMcpChanged(true);
-                          }}
-                        >
-                          清除全部 MCP 绑定
-                        </button>
-                        {mcpChanged && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => {
-                              patch({ mcpServerIds: agent.mcpServerIds });
-                              setMcpChanged(false);
-                            }}
-                          >
-                            撤销 MCP 修改
-                          </button>
-                        )}
-                      </div>
+                  {!!draft.configuredMcpCount && !mcpChanged && (
+                    <div className="agent-legacy-mcp">
+                      <span>保留 {draft.configuredMcpCount} 个旧 MCP 绑定</span>
+                      <Button
+                        type="text"
+                        size="small"
+                        disabled={busy}
+                        onClick={() => {
+                          patch({ mcpServerIds: [] });
+                          setMcpChanged(true);
+                        }}
+                      >
+                        移除旧绑定
+                      </Button>
                     </div>
                   )}
-                  <details className="agent-studio-disclosure">
-                    <summary>
-                      基本信息<span>名称、分类与描述</span>
-                    </summary>
-                    <div className="agent-studio-disclosure-body">
-                      <label>
-                        名称
-                        <input
-                          required
-                          maxLength={48}
-                          value={draft.botName}
-                          onChange={e => patch({ botName: e.target.value })}
-                        />
-                      </label>
-                      <label>
-                        分类
-                        <CategorySelect
-                          categories={categories}
-                          value={draft.botType}
-                          onChange={value =>
-                            patch({
-                              botType: value === null ? null : Number(value),
-                            })
-                          }
-                        />
-                      </label>
-                      {categories.error && (
-                        <CategoryError retry={categories.retry} />
-                      )}
-                      <label>
-                        描述
-                        <textarea
-                          maxLength={255}
-                          value={draft.botDesc || ''}
-                          onChange={e => patch({ botDesc: e.target.value })}
-                          rows={2}
-                        />
-                      </label>
-                    </div>
-                  </details>
-                  <details className="agent-studio-disclosure">
-                    <summary>
-                      高级设置<span>上下文、文件输入与人格</span>
-                    </summary>
-                    <div className="agent-studio-disclosure-body">
-                      <div className="agents-form-row">
-                        <label className="inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(draft.supportContext)}
-                            onChange={e =>
-                              patch({ supportContext: e.target.checked })
-                            }
-                          />
-                          多轮上下文
-                        </label>
-                        <label className="inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(draft.supportUpload)}
-                            onChange={e =>
-                              patch({ supportUpload: e.target.checked })
-                            }
-                          />
-                          文件输入
-                        </label>
-                        <label>
-                          最大工具决策轮数
-                          <input
-                            type="number"
-                            min={1}
-                            max={50}
-                            value={draft.maxLoopCount || 5}
-                            onChange={e =>
-                              patch({ maxLoopCount: Number(e.target.value) })
-                            }
-                          />
-                        </label>
-                      </div>
-                      {draft.promptType === 1 && (
-                        <fieldset>
-                          <legend>结构化提示词</legend>
-                          {draft.promptSections?.map((section, index) => (
-                            <label key={index}>
-                              {section.key}
-                              <textarea
-                                value={section.value}
-                                maxLength={4000}
-                                onChange={e =>
-                                  patch({
-                                    promptSections: draft.promptSections?.map(
-                                      (row, i) =>
-                                        i === index
-                                          ? { ...row, value: e.target.value }
-                                          : row
-                                    ),
-                                  })
-                                }
-                              />
-                            </label>
-                          ))}
-                        </fieldset>
-                      )}
-                      <fieldset>
-                        <legend>人格配置</legend>
-                        <label className="inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(draft.personality?.enabled)}
-                            onChange={e =>
-                              patch({
-                                personality: {
-                                  ...draft.personality,
-                                  enabled: e.target.checked,
-                                },
-                              })
-                            }
-                          />
-                          启用人格
-                        </label>
-                        <label>
-                          人格描述
-                          <textarea
-                            maxLength={1000}
-                            value={draft.personality?.personality || ''}
-                            onChange={e =>
-                              patch({
-                                personality: {
-                                  ...draft.personality,
-                                  personality: e.target.value,
-                                },
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          场景
-                          <select
-                            value={draft.personality?.sceneType || ''}
-                            onChange={e =>
-                              patch({
-                                personality: {
-                                  ...draft.personality,
-                                  sceneType:
-                                    Number(e.target.value) || undefined,
-                                },
-                              })
-                            }
-                          >
-                            <option value="">通用</option>
-                            <option value="1">陪伴</option>
-                            <option value="2">陪练</option>
-                          </select>
-                        </label>
-                        <label>
-                          场景说明
-                          <textarea
-                            maxLength={1000}
-                            value={draft.personality?.sceneInfo || ''}
-                            onChange={e =>
-                              patch({
-                                personality: {
-                                  ...draft.personality,
-                                  sceneInfo: e.target.value,
-                                },
-                              })
-                            }
-                          />
-                        </label>
-                      </fieldset>
-                    </div>
-                  </details>
                 </fieldset>
                 <div className="agents-actions agents-save-bar">
                   <span className="agent-save-status" role="status">
@@ -1269,10 +1243,25 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
             />
           )}
           {tab === 'versions' && (
-            <section className="agents-panel">
-              <h2>不可变版本快照</h2>
-              <p>快照保存已保存的草稿内容，创建后不可修改。</p>
-              <p>通过右上角“发布”菜单保存版本。</p>
+            <section className="agents-panel agent-versions-page">
+              <div className="agent-page-heading">
+                <div>
+                  <h2>版本快照</h2>
+                  <p>保存某一刻的配置，用于稳定引用和发布。</p>
+                </div>
+                <Button
+                  icon={<PlusOutlined />}
+                  disabled={
+                    busy ||
+                    isDirty ||
+                    versionsLoading ||
+                    !!agent.legacyDatasetIds?.length
+                  }
+                  onClick={() => void saveVersion()}
+                >
+                  创建快照
+                </Button>
+              </div>
               {versionsError && (
                 <Alert
                   type="error"
@@ -1290,41 +1279,194 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
               {versionsLoading ? (
                 <Skeleton active />
               ) : versions.length ? (
-                versions.map((version, index) => (
-                  <details key={String(version.id || index)}>
-                    <summary>
-                      版本{' '}
-                      {String(version.id || version.versionId || index + 1)}
-                    </summary>
-                    <button
-                      disabled={busy}
-                      onClick={() => {
-                        setBusy(true);
-                        setError('');
-                        void publishAgentVersion(id, Number(version.id))
-                          .then(result =>
-                            setNotice(
-                              result.approvalRequired
-                                ? '已提交发布审批，审批通过后新运行生效。'
-                                : `已将版本 ${version.id} 设为工作流引用版本，新运行生效。`
-                            )
-                          )
-                          .catch(reason => setError(errorText(reason)))
-                          .finally(() => setBusy(false));
-                      }}
-                    >
-                      用于工作流引用
-                    </button>
-                    <pre>{JSON.stringify(version, null, 2)}</pre>
-                  </details>
-                ))
+                <div className="agent-version-list">
+                  {versions.map((version, index) => {
+                    const definition = (version.definition ||
+                      {}) as Partial<AgentDefinition>;
+                    const current =
+                      Number(version.id) === agent.publishedVersionId;
+                    const created = version.createTime
+                      ? new Date(String(version.createTime))
+                      : null;
+                    const date =
+                      created && !Number.isNaN(created.getTime())
+                        ? created.toLocaleString('zh-CN', { hour12: false })
+                        : '创建时间未知';
+                    return (
+                      <details
+                        className="agent-version-row"
+                        key={String(version.id || index)}
+                      >
+                        <summary>
+                          <div>
+                            <strong>
+                              版本 #{String(version.id || index + 1)}
+                            </strong>
+                            {current && (
+                              <span className="agent-version-current">
+                                工作流引用中
+                              </span>
+                            )}
+                            <small>{date}</small>
+                          </div>
+                          <span className="agent-version-model">
+                            {versionModel(definition, resources?.models)}
+                          </span>
+                        </summary>
+                        <div className="agent-version-content">
+                          <div className="agent-version-description">
+                            <h3>{definition.botName || agent.botName}</h3>
+                            <p>{definition.botDesc || '暂无描述'}</p>
+                          </div>
+                          <dl>
+                            <div>
+                              <dt>工具决策轮数</dt>
+                              <dd>{definition.maxLoopCount || 5}</dd>
+                            </div>
+                            <div>
+                              <dt>关联资源</dt>
+                              <dd>
+                                {(definition.tools?.length || 0) +
+                                  (definition.skills?.length || 0) +
+                                  (definition.mcpServerIds?.length || 0) +
+                                  (definition.repoIds?.length || 0) +
+                                  (definition.workflows?.length || 0)}{' '}
+                                项
+                              </dd>
+                            </div>
+                          </dl>
+                          <h4>提示词</h4>
+                          <p className="agent-version-prompt">
+                            {versionPrompt(definition) || '未设置提示词'}
+                          </p>
+                          <Button
+                            disabled={busy || current}
+                            onClick={() => {
+                              setBusy(true);
+                              setError('');
+                              void publishAgentVersion(id, Number(version.id))
+                                .then(async result => {
+                                  void messageApi.success(
+                                    result.approvalRequired
+                                      ? '已提交发布审批'
+                                      : `已将版本 ${version.id} 设为工作流引用版本`
+                                  );
+                                  const latest = await getAgent(id);
+                                  setAgent(previous =>
+                                    previous
+                                      ? {
+                                          ...previous,
+                                          publishedVersionId:
+                                            latest.publishedVersionId,
+                                        }
+                                      : previous
+                                  );
+                                })
+                                .catch(reason => setError(errorText(reason)))
+                                .finally(() => setBusy(false));
+                            }}
+                          >
+                            {current ? '当前引用版本' : '用于工作流引用'}
+                          </Button>
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
               ) : (
-                !versionsError && <p>暂无版本快照。保存配置后创建首个快照。</p>
+                !versionsError && (
+                  <div className="agent-page-empty">
+                    <HistoryOutlined />
+                    <h3>还没有版本快照</h3>
+                    <p>应用配置后，创建首个快照以保留当前版本。</p>
+                  </div>
+                )
               )}
             </section>
           )}
         </>
       )}
+      <Modal
+        title="编辑基本信息"
+        open={metadata !== null}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={busy}
+        closable={!busy}
+        keyboard={!busy}
+        maskClosable={!busy}
+        okButtonProps={{ disabled: !metadata?.botName.trim() }}
+        cancelButtonProps={{ disabled: busy }}
+        onCancel={() => {
+          if (!saving.current) setMetadata(null);
+        }}
+        onOk={() => void saveMetadata()}
+      >
+        {metadata && (
+          <div className="agent-metadata-form">
+            <label>
+              名称
+              <Input
+                autoFocus
+                maxLength={48}
+                value={metadata.botName}
+                disabled={busy}
+                onChange={event =>
+                  setMetadata({ ...metadata, botName: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              分类
+              <CategorySelect
+                categories={{
+                  ...categories,
+                  options:
+                    metadata.botType != null &&
+                    !categories.options.some(
+                      option => option.value === metadata.botType
+                    )
+                      ? [
+                          ...categories.options,
+                          {
+                            value: metadata.botType,
+                            label:
+                              categories.loading || categories.error
+                                ? '原分类（暂未加载）'
+                                : '原分类（已不可用）',
+                          },
+                        ]
+                      : categories.options,
+                }}
+                value={metadata.botType}
+                disabled={busy}
+                onChange={value =>
+                  setMetadata({
+                    ...metadata,
+                    botType: value === null ? null : Number(value),
+                  })
+                }
+              />
+            </label>
+            {categories.error && <CategoryError retry={categories.retry} />}
+            <label>
+              描述
+              <Input.TextArea
+                maxLength={255}
+                autoSize={{ minRows: 3, maxRows: 6 }}
+                value={metadata.botDesc || ''}
+                disabled={busy}
+                onChange={event =>
+                  setMetadata({ ...metadata, botDesc: event.target.value })
+                }
+              />
+            </label>
+            {metadataError && (
+              <Alert type="error" showIcon message={metadataError} />
+            )}
+          </div>
+        )}
+      </Modal>
       <Modal
         title="切换工作区？"
         open={pendingTab !== null}
@@ -1351,7 +1493,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           if (blocker.state === 'blocked') blocker.reset();
         }}
       >
-        {isDirty && (
+        {(isDirty || metadataDirty) && (
           <p>离开后当前 Agent 草稿会丢失。继续编辑可保留这些修改。</p>
         )}
         {contentGuard && <p>{contentGuard}</p>}

@@ -277,24 +277,146 @@ test('malformed stored knowledge references display an error rather than empty s
   assert.doesNotMatch(markup, /个片段|<details/);
 });
 
-test('run failures stay visible when tool and knowledge details are collapsed', () => {
+function runEventsHarness() {
   const { RunEvents } = load('pages/agents/conversation.tsx', {
     react: React,
     'react/jsx-runtime': jsxRuntime,
+    '@ant-design/icons': {
+      LoadingOutlined: ({ spin }) =>
+        React.createElement('span', { 'data-loading': String(spin) }),
+    },
   });
-  const markup = renderToStaticMarkup(
-    React.createElement(RunEvents, {
-      events: [
-        { type: 'tool', data: { name: 'search' } },
-        { type: 'knowledge', data: { references: [] } },
-        { type: 'error', data: { message: '知识检索服务暂时不可用' } },
-      ],
-    })
+  return run => renderToStaticMarkup(React.createElement(RunEvents, { run }));
+}
+
+const toolEvent = () => ({
+  type: 'tool',
+  data: {
+    index: 0,
+    type: 'tool',
+    reason: 'Internal tool-selection reasoning must stay hidden.',
+    function: {
+      name: 'run_command',
+      arguments: JSON.stringify({ script: 'date +%Y-%m-%d' }),
+      response: JSON.stringify({ output: '2026-11-17', exit_code: 0 }),
+    },
+  },
+});
+
+test('tool traces show real names and request/response with a spinner only while running', () => {
+  const render = runEventsHarness();
+  let run = reduceRun(initial(), toolEvent());
+  const active = render(run);
+  assert.equal(active.split('Thinking').length - 1, 1);
+  assert.match(active, /data-loading="true"/);
+  assert.match(active, /run_command/);
+  assert.match(active, /REQUEST/);
+  assert.match(active, /RESPONSE/);
+  assert.match(active, /date \+%Y-%m-%d/);
+  assert.match(active, /2026-11-17/);
+  assert.match(active, /exit_code/);
+  assert.doesNotMatch(
+    active,
+    /Internal tool-selection|思考过程|生成中|正在回复/
   );
+  assert.doesNotMatch(active, /<details[^>]*\bopen[\s>]|\d+(?:\.\d+)?s/);
+  for (const status of ['completed', 'cancelled', 'failed', 'interrupted']) {
+    run = reduceRun(run, { type: 'end', data: { status } });
+    const terminal = render(run);
+    assert.match(terminal, /Thinking/);
+    assert.match(terminal, /run_command/);
+    assert.doesNotMatch(terminal, /data-loading/);
+  }
+});
+
+test('reasoning alone never creates a Thinking or waiting indicator', () => {
+  const render = runEventsHarness();
+  const run = reduceRun(initial(), {
+    type: 'delta',
+    data: { reasoningContent: 'This private reasoning must not appear.' },
+  });
+  assert.equal(render(run), '');
+  assert.equal(render({ ...run, answer: '回答内容' }), '');
+  for (const status of ['completed', 'cancelled', 'failed', 'interrupted']) {
+    assert.equal(render({ ...run, status }), '');
+  }
+  const { hasVisibleRunOutput } = load('pages/agents/conversation.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+  });
+  assert.equal(hasVisibleRunOutput(run), false);
+  assert.equal(hasVisibleRunOutput({ ...run, answer: '回答内容' }), true);
+  assert.equal(hasVisibleRunOutput({ ...run, events: [toolEvent()] }), true);
+  assert.equal(hasVisibleRunOutput({ ...run, status: 'cancelled' }), true);
+});
+
+test('run errors remain visible outside collapsed tool traces', () => {
+  const render = runEventsHarness();
+  const run = {
+    ...initial(),
+    status: 'failed',
+    events: [
+      toolEvent(),
+      { type: 'error', data: { message: '工具服务暂时不可用' } },
+    ],
+  };
+  const markup = render(run);
   const alertPosition = markup.indexOf('role="alert"');
   const detailsPosition = markup.indexOf('<details');
   assert.ok(alertPosition >= 0 && alertPosition < detailsPosition);
-  assert.equal(markup.split('知识检索服务暂时不可用').length - 1, 1);
-  assert.match(markup, /查看执行过程/);
-  assert.doesNotMatch(markup, /<details[^>]*\bopen[\s>]/);
+  assert.equal(markup.split('工具服务暂时不可用').length - 1, 1);
+  assert.match(markup, /Thinking/);
+  assert.doesNotMatch(markup, /data-loading/);
+});
+
+test('knowledge references stay independently accessible and do not trigger Thinking', () => {
+  const render = runEventsHarness();
+  const run = {
+    ...initial(),
+    reasoning: 'Do not display reasoning.',
+    events: [
+      {
+        type: 'knowledge',
+        data: {
+          references: [
+            {
+              source_id: 'doc-1',
+              chunk: [{ chunk_context: '使用指南.pdf\n这里是检索到的原文。' }],
+            },
+          ],
+        },
+      },
+    ],
+  };
+  const knowledgeOnly = render(run);
+  assert.match(knowledgeOnly, /知识引用/);
+  assert.match(knowledgeOnly, /使用指南.pdf/);
+  assert.match(knowledgeOnly, /这里是检索到的原文。/);
+  assert.doesNotMatch(
+    knowledgeOnly,
+    /Thinking|agent-tool-trace|data-loading|Do not display/
+  );
+  const combined = render({ ...run, events: [toolEvent(), ...run.events] });
+  // Knowledge is a sibling after the closed trace, rather than inside Thinking.
+  const traceEnd = combined.indexOf('</details></div></details>');
+  assert.ok(traceEnd >= 0);
+  assert.ok(combined.indexOf('知识引用') > traceEnd);
+});
+
+test('legacy tool results remain readable without fabricated request data', () => {
+  const render = runEventsHarness();
+  const markup = render({
+    ...initial(),
+    status: 'completed',
+    events: [
+      {
+        type: 'tool',
+        data: { name: 'legacy_search', result: '<output>Found</output>' },
+      },
+    ],
+  });
+  assert.match(markup, /legacy_search/);
+  assert.match(markup, /此记录未保存请求参数/);
+  assert.match(markup, /&lt;output&gt;Found&lt;\/output&gt;/);
+  assert.doesNotMatch(markup, /<output>|data-loading/);
 });

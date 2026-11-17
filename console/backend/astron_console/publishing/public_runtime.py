@@ -11,6 +11,7 @@ from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from astron_console.agents import conversations
+from astron_console.agents.definitions import effective_definition
 from astron_console.agents.models import Agent, AgentFile, AgentRun, AgentSession
 from astron_console.agents.resource_resolution import resolve_resources
 from astron_console.http import api_endpoint
@@ -56,7 +57,7 @@ def public_data(publication):
         "description": config.get("botDesc", ""),
         "avatar": config.get("avatar", ""),
         "prologue": config.get("prologue", ""),
-        "supportUpload": bool(config.get("supportUpload")),
+        "supportUpload": candidate.resource_kind == "agent" or bool(config.get("supportUpload")),
         "inputs": [],
     }
     if candidate.resource_kind == "workflow":
@@ -144,7 +145,7 @@ def prepare_public(
         return run, grant, None
     question = text(values, "message", required=True, limit=32000)
     agent = Agent.objects.get(pk=candidate.bot_id, is_delete=0)
-    config = candidate.definition
+    config = effective_definition(candidate.definition)
     runtime = resolve_resources(scope, config)
     from .public_files import authorize_inputs, file_data
 
@@ -182,7 +183,7 @@ def prepare_public(
     conversations.recover_interrupted(session)
     if session.active_run_id:
         raise ValidationError("当前会话仍在生成")
-    history = conversations.history_for(session) if config.get("supportContext") else []
+    history = conversations.history_for(session)
     run = AgentRun.objects.create(
         session=session,
         question=question,
