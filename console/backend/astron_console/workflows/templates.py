@@ -124,16 +124,10 @@ def import_value(scope, value):
     issues = []
     for node in iter_nodes(payload["data"]):
         try:
-            params = node["data"]["nodeParam"]
             if node["id"].startswith("agent::"):
-                if params.get("agentId"):
-                    get_scoped_agent(scope, params["agentId"])
-                else:
-                    from astron_console.agents.resource_resolution import resolve_resources
+                from .execution_context import require_agent_reference
 
-                    from .execution_context import inline_definition
-
-                    resolve_resources(scope, inline_definition(node), runtime=False)
+                get_scoped_agent(scope, require_agent_reference(node))
             authorized_params(node, row, scope)
         except (ValidationError, PermissionDenied, Http404):
             issues.append(

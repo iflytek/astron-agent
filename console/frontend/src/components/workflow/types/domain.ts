@@ -12,6 +12,7 @@ export interface WorkflowServiceModelConfig {
 export type WorkflowModel = Omit<ModelInfo, 'config' | 'llmSource'> & {
   config: string | WorkflowServiceModelConfig;
   llmSource: number;
+  avatarEndpoint?: string;
 };
 
 /** A reference can be empty while the user is choosing an upstream output. */
@@ -118,6 +119,8 @@ export interface LoopVariable {
 /** Fields shared by the editor's node validators; individual nodes refine these. */
 export interface WorkflowNodeParameters extends AgentNodeParam {
   model?: string;
+  enableChatHistoryV2?: { isEnabled: boolean; rounds?: number | null };
+  maxLoopCount?: number | null;
   domain?: string;
   appId?: string;
   apiKey?: string;

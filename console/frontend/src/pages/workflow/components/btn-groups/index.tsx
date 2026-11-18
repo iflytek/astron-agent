@@ -1,10 +1,19 @@
-import { useState, type ReactElement } from 'react';
-import { Button, Dropdown, Input, Modal, message } from 'antd';
+import { useEffect, useState, type ReactElement } from 'react';
+import { Button, Input, Modal, message } from 'antd';
 import {
-  EllipsisOutlined,
+  BarChartOutlined,
+  FolderOpenOutlined,
+  ApartmentOutlined,
+  SettingOutlined,
+  ExportOutlined,
   PlayCircleOutlined,
   HistoryOutlined,
 } from '@ant-design/icons';
+import { useLocation, useNavigate } from 'react-router-dom';
+import WorkflowAnalysis from '../../workflow-analysis';
+import WorkflowFiles from '../../workflow-files';
+import './index.scss';
+import useChatStore from '@/components/workflow/store/use-chat-store';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useFlowCommon } from '@/components/workflow/hooks/use-flow-common';
 import { downloadFileWithHeaders } from '@/utils/http';
@@ -13,6 +22,11 @@ import { getFixedUrl } from '@/components/workflow/utils';
 import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
 
 export default function WorkflowActions(): ReactElement {
+  const debugging = useChatStore(state => state.debuggering);
+  const paused = useChatStore(state => state.interruptChat.interrupt);
+  const stopping = useChatStore(state => state.stopRequested);
+  const showNodeList = useFlowsManager(state => state.showNodeList);
+  const busy = debugging || paused || stopping || !showNodeList;
   const currentFlow = useFlowsManager(state => state.currentFlow);
   const historyVersion = useFlowsManager(state => state.historyVersion);
   const flushCurrentFlow = useFlowsManager(state => state.flushCurrentFlow);
@@ -25,11 +39,18 @@ export default function WorkflowActions(): ReactElement {
   const setWorkflowTracePanelOpen = useFlowsManager(
     state => state.setWorkflowTracePanelOpen
   );
-  const setFlowChatResultOpen = useFlowsManager(
-    state => state.setFlowChatResultOpen
-  );
   const { handleDebugger } = useFlowCommon();
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<'analysis' | 'files' | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const view = new URLSearchParams(location.search).get('panel');
+    if (view === 'analysis' || view === 'files') {
+      setPanel(view);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.pathname, location.search, navigate]);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const save = async (): Promise<void> => {
@@ -53,57 +74,50 @@ export default function WorkflowActions(): ReactElement {
   };
   return (
     <div className="workflow-toolbar-actions flex items-center gap-3">
-      <Dropdown
-        trigger={['click']}
-        placement="bottomRight"
-        menu={{
-          items: [
-            {
-              key: 'result',
-              label: '运行结果',
-              onClick: () => setFlowChatResultOpen(true),
-            },
-            {
-              key: 'trace',
-              label: '运行追踪',
-              onClick: () => setWorkflowTracePanelOpen(true),
-            },
-            ...(!historyVersion
-              ? [
-                  {
-                    key: 'advanced',
-                    label: '高级配置',
-                    onClick: () => setAdvancedConfiguration(true),
-                  },
-                ]
-              : []),
-            { type: 'divider' as const },
-            {
-              key: 'export',
-              label: '导出工作流',
-              onClick: () =>
-                void downloadFileWithHeaders(
-                  getFixedUrl(`/workflow/export/${currentFlow?.id}`),
-                  `${currentFlow?.name}.yml`
-                ),
-            },
-          ],
-        }}
-      >
-        <Button
-          aria-label="更多工作流操作"
-          title="更多工作流操作"
-          icon={<EllipsisOutlined />}
-        />
-      </Dropdown>
+      <Button icon={<BarChartOutlined />} onClick={() => setPanel('analysis')}>
+        分析
+      </Button>
+      <Button icon={<FolderOpenOutlined />} onClick={() => setPanel('files')}>
+        文件
+      </Button>
       <Button
+        icon={<ApartmentOutlined />}
+        onClick={() => setWorkflowTracePanelOpen(true)}
+      >
+        运行追踪
+      </Button>
+      {!historyVersion && (
+        <Button
+          icon={<SettingOutlined />}
+          disabled={busy}
+          onClick={() => setAdvancedConfiguration(true)}
+        >
+          高级配置
+        </Button>
+      )}
+      <Button
+        aria-label="导出工作流"
+        title="导出工作流"
+        icon={<ExportOutlined />}
+        onClick={() =>
+          void downloadFileWithHeaders(
+            getFixedUrl(`/workflow/export/${currentFlow?.id}`),
+            `${currentFlow?.name}.yml`
+          )
+        }
+      />
+      <Button
+        disabled={busy}
         aria-label="版本历史"
         title="版本历史"
         icon={<HistoryOutlined />}
         onClick={() => setVersionManagement(true)}
-      />
+      >
+        版本
+      </Button>
       <Button
         icon={<PlayCircleOutlined />}
+        disabled={busy}
         onClick={() => void handleDebugger()}
       >
         测试运行
@@ -112,11 +126,29 @@ export default function WorkflowActions(): ReactElement {
         <EditorPublishMenu
           target={{ kind: 'workflow', id: currentFlow?.id || '' }}
           name={currentFlow?.name || '工作流'}
-          disabled={!currentFlow?.id || saving}
+          disabled={!currentFlow?.id || saving || busy}
           beforePublish={flushCurrentFlow}
           onSaveVersion={() => setOpen(true)}
         />
       )}
+      <Modal
+        title={panel === 'analysis' ? '工作流分析' : '工作流文件'}
+        open={panel !== null}
+        onCancel={() => setPanel(null)}
+        footer={null}
+        width={panel === 'analysis' ? 760 : 1080}
+        centered
+        destroyOnClose
+        className="workflow-tool-dialog"
+        styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
+      >
+        {panel === 'analysis' && currentFlow?.flowId && (
+          <WorkflowAnalysis flowId={currentFlow.flowId} />
+        )}
+        {panel === 'files' && currentFlow?.id && (
+          <WorkflowFiles id={String(currentFlow.id)} />
+        )}
+      </Modal>
       <Modal
         title="保存工作流版本"
         open={open}

@@ -1,3 +1,4 @@
+import { workflowModelAvatar } from '../model-avatar';
 import type { ChangeNodeParameter } from '@/components/workflow/nodes/types';
 import type {
   WorkflowInput,
@@ -407,7 +408,7 @@ export const Model = memo(({ model }: NodePropsFor<'model'>) => {
         {t('workflow.nodes.largeModelNode.model')}
       </div>
       <div className="flex items-center gap-1">
-        <img src={model?.icon} className="w-[14px] h-[14px]" alt="" />
+        <img src={workflowModelAvatar(model)} className="w-[14px] h-[14px]" alt="" />
         <span>{model?.name}</span>
       </div>
     </>

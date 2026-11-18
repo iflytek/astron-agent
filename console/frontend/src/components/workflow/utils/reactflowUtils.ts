@@ -577,30 +577,15 @@ function validateAgentParams(currentCheckNode: WorkflowNode): boolean {
     return true;
   }
 
-  currentCheckNode.data.nodeParam.instruction ??= {};
-  const referencedInput =
-    currentCheckNode.data.nodeParam.agentId &&
+  const valid = Boolean(currentCheckNode.data.nodeParam.agentId);
+  currentCheckNode.data.nodeParam.agentIdErrMsg = valid
+    ? ''
+    : '请选择已有 Agent';
+  return (
+    valid &&
     currentCheckNode.data.inputs.some(input =>
       ['query', 'input'].includes(input.name)
-    );
-  if (
-    !currentCheckNode.data.nodeParam.instruction.query?.trim() &&
-    !referencedInput
-  ) {
-    currentCheckNode.data.nodeParam.instruction.queryErrMsg = i18next.t(
-      'workflow.nodes.validation.valueCannotBeEmpty'
-    );
-    return false;
-  }
-
-  currentCheckNode.data.nodeParam.instruction.queryErrMsg = '';
-
-  if (currentCheckNode.data.nodeParam.agentId) return true;
-  return Boolean(
-    currentCheckNode?.data.nodeParam.instruction?.query?.trim() &&
-      currentCheckNode?.data.nodeParam?.plugin?.mcpServerUrls?.every(
-        (item: string) => !item?.trim() || isValidURL(item)
-      )
+    )
   );
 }
 
@@ -737,11 +722,7 @@ export function validateDatabaseParams(
 }
 
 function validateServiceIdParams(currentCheckNode: WorkflowNode): boolean {
-  if (
-    currentCheckNode.nodeType === 'agent' &&
-    currentCheckNode.data.nodeParam.agentId
-  )
-    return true;
+  if (currentCheckNode.nodeType === 'agent') return true;
   const nodeTypesRequiringServiceId = [
     'spark-llm',
     'knowledge-pro-base',

@@ -250,12 +250,6 @@ export async function getReleaseChannelStatus(
   );
 }
 
-export async function getAgentStrategyAPI(): Promise<AgentStrategy[]> {
-  return http.get<AgentStrategy[], AgentStrategy[]>(
-    '/workflow/get-agent-strategy'
-  );
-}
-
 export async function getKnowledgeProStrategyAPI(): Promise<AgentStrategy[]> {
   return http.get<AgentStrategy[], AgentStrategy[]>(
     '/workflow/get-knowledge-pro-strategy'

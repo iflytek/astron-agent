@@ -1,5 +1,5 @@
-import React, { useMemo, useState, ReactNode, memo, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import React, { useMemo, useState, ReactNode, memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
@@ -107,48 +107,9 @@ const FlowStatus: React.FC<FlowStatusProps> = ({ flowResult, t }) => {
   );
 };
 
-interface FlowTabsProps {
-  currentTab: FlowTabKey;
-  id: string;
-  t: TFunction;
-  navigate: ReturnType<typeof useNavigate>;
-}
-
-const FlowTabs: React.FC<FlowTabsProps> = ({ currentTab, id, t, navigate }) => (
-  <nav
-    className="workflow-tabs flex items-center justify-center w-auto gap-3"
-    aria-label="工作流视图"
-  >
-    {(['arrange', 'overview', 'files'] as FlowTabKey[]).map(tab => (
-      <button
-        key={tab}
-        type="button"
-        aria-current={currentTab === tab ? 'page' : undefined}
-        className={`flex min-w-[106px] items-center justify-center py-2.5 px-5 rounded-xl font-medium cursor-pointer ${
-          currentTab === tab ? 'config-tabs-active' : 'config-tabs-normal'
-        }`}
-        onClick={() => navigate(`/work_flow/${id}/${tab}`, { replace: true })}
-      >
-        <span className={`${tab}-icon`}></span>
-        <span className="ml-2">
-          {tab === 'files'
-            ? '文件'
-            : t(
-                `workflow.nodes.header.${
-                  tab === 'arrange' ? 'arrange' : 'analysis'
-                }`
-              )}
-        </span>
-      </button>
-    ))}
-  </nav>
-);
-
 const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
   const { t } = useTranslation();
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const flowResult = useFlowsManager(state => state.flowResult);
   const stopRequested = useChatStore(state => state.stopRequested);
   const isLoading = useFlowsManager(state => state.isLoading);
@@ -163,7 +124,7 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
   const historyVersion = useFlowsManager(state => state.historyVersion);
   const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const setCurrentFlow = useFlowsManager(state => state.setCurrentFlow);
-  const [currentTab, setCurrentTab] = useState<FlowTabKey>('arrange');
+  const currentTab: FlowTabKey = 'arrange';
   const [modalType, setModalType] = useState<string>('');
 
   const isVirtualFlow = useMemo(() => {
@@ -212,15 +173,6 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
       );
     });
   };
-
-  useEffect(() => {
-    const tab = location?.pathname?.split('/')?.pop();
-    setCurrentTab(
-      tab === 'overview' || tab === 'files' || tab === 'arrange'
-        ? tab
-        : 'arrange'
-    );
-  }, [location]);
 
   return (
     <div className="workflow-header-shell" onKeyDown={e => e.stopPropagation()}>
@@ -383,11 +335,6 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
             />
           </div>
         </div>
-
-        {/* 中间 Tabs */}
-        {id && (
-          <FlowTabs currentTab={currentTab} id={id} t={t} navigate={navigate} />
-        )}
 
         {/* 右侧操作按钮 */}
         <div className="workflow-header-actions">{children}</div>

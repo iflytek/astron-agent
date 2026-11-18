@@ -26,7 +26,7 @@ from .execution_context import (
     freeze_dependencies,
     freeze_graph,
     graph_nodes,
-    inline_definition,
+    require_agent_reference,
     spend,
 )
 from .models import ExecutionContext, WorkflowRun
@@ -38,18 +38,57 @@ TERMINAL = {"completed", "failed", "cancelled", "interrupted"}
 def validate_bindings(scope, graph, snapshots):
     bindings = {}
     for node in graph_nodes(graph):
-        param = node.get("data", {}).get("nodeParam") or {}
         if node.get("id", "").split("::")[0] == "agent":
-            if param.get("agentId"):
-                fixed = snapshots["agents"].get(str(param["agentId"]))
-                if fixed is None:
-                    raise ValidationError("运行快照缺少Agent版本")
-                config = resolve_version(scope, fixed["agentId"], fixed["versionId"])["definition"]
-                bindings[node["id"]] = fixed
-            else:
-                config = inline_definition(node)
+            agent_id = require_agent_reference(node)
+            fixed = snapshots["agents"].get(str(agent_id))
+            if fixed is None:
+                raise ValidationError("运行快照缺少Agent版本")
+            config = resolve_version(scope, fixed["agentId"], fixed["versionId"])["definition"]
+            bindings[node["id"]] = fixed
             resolve_resources(scope, config)
     return bindings
+
+
+def conversation_history(scope, workflow, chat_id, version_id):
+    """Only completed turns from this caller's selected workflow conversation."""
+    from astron_console.publishing.models import PublicRunGrant
+
+    if not chat_id:
+        return []
+    rows = WorkflowRun.objects.filter(
+        workflow_id=workflow.pk,
+        uid=scope.uid,
+        space_id=scope.space_id,
+        chat_id=chat_id,
+        version_id=version_id,
+        parent_run_id__isnull=True,
+        kind="workflow",
+        history_hidden=False,
+    ).exclude(context_id__in=PublicRunGrant.objects.values("root_id"))
+    if not rows.exists():
+        raise ValidationError("对话不存在或不可继续，请开启新对话")
+    # The node-level round limit is applied by core/workflow. Bound the snapshot
+    # to the editor's maximum and never trust client-supplied transcript contents.
+    messages = []
+    for previous in reversed(
+        list(rows.filter(status="completed").order_by("-create_time", "-id")[:20])
+    ):
+        question = previous.inputs.get("AGENT_USER_INPUT")
+        if question is None and len(previous.inputs) == 1:
+            question = next(iter(previous.inputs.values()))
+        if question is None:
+            question = json.dumps(previous.inputs, ensure_ascii=False)
+        elif not isinstance(question, str):
+            question = json.dumps(question, ensure_ascii=False)
+        if not previous.output:
+            continue
+        messages.extend(
+            [
+                {"role": "user", "content": question, "content_type": "text"},
+                {"role": "assistant", "content": previous.output, "content_type": "text"},
+            ]
+        )
+    return messages
 
 
 def prepare_run(
@@ -64,11 +103,19 @@ def prepare_run(
     kind="workflow",
     version_id=None,
     execution_snapshots=None,
+    conversation_id=None,
 ):
     scope = active_scope(scope.uid, scope.space_id)
     workflow = get_workflow(scope, workflow.flow_id, EXECUTE)
     if not isinstance(inputs, dict) or len(json.dumps(inputs)) > 200000:
         raise ValidationError("输入必须为有效对象且不超过200KB")
+    if conversation_id is not None and (
+        not isinstance(conversation_id, str)
+        or not conversation_id
+        or len(conversation_id) > 128
+        or not all(c.isalnum() or c in "-_" for c in conversation_id)
+    ):
+        raise ValidationError("对话标识无效")
     if retry_of:
         if retry_of.status not in TERMINAL or retry_of.workflow_id != workflow.pk:
             raise ValidationError("只能重试本工作流已结束的运行")
@@ -135,8 +182,15 @@ def prepare_run(
             call_chain=chain,
             invocation_id=invocation,
             version_id=version_id,
+            history_messages=(
+                retry_of.history_messages
+                if retry_of
+                else conversation_history(scope, workflow, conversation_id, version_id)
+                if kind == "workflow" and not parent_context
+                else []
+            ),
         )
-        run.chat_id = run.pk
+        run.chat_id = retry_of.chat_id if retry_of else conversation_id or run.pk
         run.event_id = run.pk
         run.save(update_fields=["chat_id", "event_id"])
     logger.info(
@@ -158,6 +212,7 @@ def run_data(run):
         "runId": run.pk,
         "id": run.pk,
         "eventId": run.event_id,
+        "chatId": run.chat_id,
         "status": run.status,
         "resolvedAgents": run.resolved_agents,
         "output": run.output,
@@ -200,7 +255,7 @@ def core_payload(run):
             "stream": True,
             "parameters": run.inputs,
             "chat_id": run.chat_id,
-            "history": [],
+            "history": run.history_messages,
             "ext": {"console_context": {"run_id": run.pk, "root_id": run.context_id}},
         },
     }

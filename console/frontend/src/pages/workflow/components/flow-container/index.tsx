@@ -27,30 +27,13 @@ import { cloneDeep } from 'lodash';
 
 import CustomNode from '@/components/workflow/nodes';
 import CustomEdge from '@/components/workflow/edges';
+import {
+  createWorkflowShortcutScope,
+  shouldIgnoreWorkflowShortcut,
+} from './keyboard-shortcuts';
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { customEdge: CustomEdge };
-
-const shouldIgnoreWorkflowShortcut = (event: KeyboardEvent): boolean => {
-  const target = event.target instanceof HTMLElement ? event.target : null;
-
-  if (!target) {
-    return false;
-  }
-
-  const tagName = target.tagName?.toLowerCase();
-
-  if (
-    target.isContentEditable ||
-    ['input', 'textarea', 'select'].includes(tagName)
-  ) {
-    return true;
-  }
-
-  return Boolean(
-    target.closest('.monaco-editor, .monaco-inputbox, [contenteditable="true"]')
-  );
-};
 
 interface IndexProps {
   zoom: number;
@@ -74,6 +57,7 @@ const useFlowContainerEffect = ({
   const canPublishSetNot = useFlowsManager(state => state.canPublishSetNot);
   const nodes = useFlowStore(state => state.nodes);
   const position = useRef({ x: 0, y: 0 });
+  const shortcutScope = useRef(createWorkflowShortcutScope());
 
   const handleDelete = useCallback(() => {
     if (!lastSelection) return;
@@ -98,8 +82,12 @@ const useFlowContainerEffect = ({
   }, [lastSelection, edges]);
 
   useEffect(() => {
+    const trackInteraction = (event: Event): void =>
+      shortcutScope.current.trackInteraction(event);
+    window.addEventListener('pointerdown', trackInteraction, true);
+    window.addEventListener('focusin', trackInteraction, true);
     const handleKeyDown = async (event: KeyboardEvent): Promise<void> => {
-      if (shouldIgnoreWorkflowShortcut(event)) {
+      if (shortcutScope.current.shouldIgnore(event)) {
         return;
       }
 
@@ -132,6 +120,7 @@ const useFlowContainerEffect = ({
         ['Backspace', 'Delete']?.includes(event.key) &&
         lastSelection
       ) {
+        event.preventDefault();
         handleDelete();
       }
     };
@@ -145,6 +134,8 @@ const useFlowContainerEffect = ({
     window.addEventListener('mousemove', handleMouseMove);
 
     return () => {
+      window.removeEventListener('pointerdown', trackInteraction, true);
+      window.removeEventListener('focusin', trackInteraction, true);
       startWorkflowKeydownEvent &&
         window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousemove', handleMouseMove);
@@ -265,6 +256,13 @@ function Index({ zoom, setZoom }: IndexProps): React.ReactElement {
       onDrop={handleDropAllowed}
       ref={dropZoneRef}
       id="flow-container"
+      data-workflow-canvas
+      tabIndex={0}
+      aria-label="工作流画布"
+      onPointerDown={event => {
+        if (!shouldIgnoreWorkflowShortcut(event.nativeEvent))
+          event.currentTarget.focus({ preventScroll: true });
+      }}
     >
       {lastSelection?.nodes?.length && lastSelection.nodes.length > 1 ? (
         <SelectNode lastSelection={lastSelection} />

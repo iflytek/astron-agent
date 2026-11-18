@@ -116,7 +116,6 @@ export type FlowsManagerStoreType = {
   sparkLlmModels: WorkflowModel[];
   decisionMakingModels: WorkflowModel[];
   extractorParameterModels: WorkflowModel[];
-  agentModels: WorkflowModel[];
   knowledgeProModels: WorkflowModel[];
   questionAnswerModels: WorkflowModel[];
   nodeList: WorkflowNodeCategory[];
@@ -135,8 +134,6 @@ export type FlowsManagerStoreType = {
   setUpdateNodeInputData: (
     updateNodeInputData: boolean | ((previous: boolean) => boolean)
   ) => void;
-  flowChatResultOpen: boolean;
-  setFlowChatResultOpen: (flowChatResultOpen: boolean) => void;
   workflowTracePanelOpen: boolean;
   setWorkflowTracePanelOpen: (workflowTracePanelOpen: boolean) => void;
   flowResult: {
@@ -161,9 +158,6 @@ export type FlowsManagerStoreType = {
       | ((oldState: FlowType | undefined) => FlowType | undefined)
   ) => void;
   textNodeConfigList: TextNodeConfig[];
-  setAgentStrategy: (
-    value: AgentStrategy[] | ((old: AgentStrategy[]) => AgentStrategy[])
-  ) => void;
   setKnowledgeProStrategy: (
     value: AgentStrategy[] | ((old: AgentStrategy[]) => AgentStrategy[])
   ) => void;
@@ -172,7 +166,6 @@ export type FlowsManagerStoreType = {
       | TextNodeConfig[]
       | ((previous: TextNodeConfig[]) => TextNodeConfig[])
   ) => void;
-  agentStrategy: AgentStrategy[];
   knowledgeProStrategy: AgentStrategy[];
   addTextNodeConfig: (params: unknown) => Promise<void>;
   autoSaveCurrentFlow: () => void;
@@ -197,14 +190,6 @@ export type FlowsManagerStoreType = {
   setIteratorId: (iteratorId: string) => void;
   showIterativeModal: boolean;
   setShowIterativeModal: (showIterativeModal: boolean) => void;
-  selectAgentPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  };
-  setSelectAgentPromptModalInfo: (selectAgentPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  }) => void;
   defaultValueModalInfo: {
     open: boolean;
     nodeId: string;

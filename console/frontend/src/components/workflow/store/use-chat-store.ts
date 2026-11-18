@@ -42,7 +42,7 @@ const useChatStore = create<ChatStoreType>((set, get) => ({
   setDeleteAllModal: (change): void => setDeleteAllModal(change, get, set),
   handleChatTypeChange: (type: string) => handleChatTypeChange(type, set),
   getDialogues: (id: string, shouldAddDivider = false): void =>
-    getDialogues(id, set, shouldAddDivider),
+    getDialogues(id, set, shouldAddDivider, get),
   clearNodeStatus: (): void => clearNodeStatus(get),
   handleSaveDialogue: (): void => handleSaveDialogue(get, set),
   handleResumeChat: (content): void => handleResumeChat(content, get, set),

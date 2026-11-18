@@ -20,12 +20,7 @@ import type {
 import React from 'react';
 import { ChatListItem } from '../types';
 
-import {
-  getDialogueAPI,
-  stopWorkflowRun,
-  buildFlowAPI,
-  workflowDialogClear,
-} from '@/services/flow';
+import { getDialogueAPI, stopWorkflowRun, buildFlowAPI } from '@/services/flow';
 import { message } from 'antd';
 import { v4 as uuid } from 'uuid';
 import { moveToPosition } from './flow-function';
@@ -115,7 +110,9 @@ export const initialStatus: ChatState = {
   suggestProblem: [],
   userWheel: false,
   deleteAllModal: false,
-  chatIdRef: uuid().replace(/-/g, ''),
+  chatIdRef: '',
+  conversationScope: '',
+  historyStatus: 'idle',
   runId: '',
   runStatus: '',
   stopRequested: false,
@@ -139,51 +136,66 @@ export const handleChatTypeChange = (type: string, set: ChatSetter) => {
 
 let historyGeneration = 0;
 
+const currentConversationScope = (id?: string): string => {
+  const manager = useFlowsManager.getState();
+  return JSON.stringify([
+    String(id ?? manager.currentFlow?.id ?? ''),
+    manager.historyVersion ? 'version' : 'draft',
+    manager.historyVersion
+      ? (manager.historyVersionData?.versionNum ?? '')
+      : '',
+  ]);
+};
+
+const conversationReady = (get: ChatGetter): boolean => {
+  const state = get();
+  return (
+    state.historyStatus === 'ready' &&
+    state.conversationScope === currentConversationScope()
+  );
+};
+
 const getDialogues = (
   id: string,
   set: ChatSetter,
-  shouldAddDivider = false
+  _shouldAddDivider = false,
+  get?: ChatGetter
 ): void => {
   const generation = ++historyGeneration;
   const manager = useFlowsManager.getState();
   const version = manager.historyVersion
     ? manager.historyVersionData?.versionNum
     : undefined;
-  set({ chatList: [] });
+  const scope = currentConversationScope(id);
+  const previous = get?.();
+  const scopeChanged = previous?.conversationScope !== scope;
+  if (scopeChanged) previous?.controllerRef?.abort();
+  set({
+    chatList: [],
+    chatIdRef: '',
+    conversationScope: scope,
+    historyStatus: 'loading',
+    runId: '',
+    runStatus: '',
+    interruptChat: { ...initInterruptChat },
+    debuggering: false,
+    stopRequested: false,
+    controllerRef: scopeChanged ? undefined : previous?.controllerRef,
+    ...(scopeChanged ? { userInput: '' } : {}),
+  });
   getDialogueAPI(id, 1, version)
     .then(data => {
       if (generation !== historyGeneration) return;
-      if (String(useFlowsManager.getState().currentFlow?.id) !== String(id))
-        return;
-      const current = useFlowsManager.getState();
-      if (
-        (current.historyVersion
-          ? current.historyVersionData?.versionNum
-          : undefined) !== version
-      )
-        return;
+      if (currentConversationScope() !== scope) return;
+      // Reopen the latest conversation in chronological order. Previous sessions
+      // remain available as execution records, without fake message separators.
+      const latest = data[data.length - 1];
+      const conversation = latest?.chatId
+        ? data.filter(item => item.chatId === latest.chatId)
+        : data;
       const chatList: ChatListItem[] = [];
-      let chatId = data?.[0]?.chatId || null;
-      data?.forEach(chat => {
-        const currentChatId = chat?.chatId;
-        if (currentChatId !== chatId) {
-          chatList.unshift({
-            id: uuid(),
-            type: 'divider',
-          });
-        }
-
-        chatList.unshift({
-          ...chat,
-          id: chat?.id,
-          type: 'answer',
-          messageContent: readHistoryAnswer(chat.answer).messageContent,
-          reasoningContent: readHistoryAnswer(chat.answer).reasoningContent,
-          content: readHistoryAnswer(chat.answer).content,
-          option: readHistoryAnswer(chat.answer)
-            .option as ChatListItem['option'],
-        });
-        chatList.unshift({
+      conversation.forEach(chat => {
+        chatList.push({
           ...chat,
           id: uuid(),
           type: 'ask',
@@ -196,23 +208,23 @@ const getDialogues = (
             originErrorMsg: '',
           })),
         });
-        chatId = currentChatId;
-      });
-      if (
-        shouldAddDivider &&
-        data.length !== 0 &&
-        !data.some(item => item.status === 'paused')
-      ) {
         chatList.push({
-          id: uuid(),
-          type: 'divider',
+          ...chat,
+          id: chat.id,
+          type: 'answer',
+          ...readHistoryAnswer(chat.answer),
+          option: readHistoryAnswer(chat.answer)
+            .option as ChatListItem['option'],
         });
-      }
-      const paused = data.find(
+      });
+      const paused = conversation.find(
         item => item.status === 'paused' && item.runId && item.eventId
       );
       set({
         chatList,
+        conversationScope: scope,
+        historyStatus: 'ready',
+        chatIdRef: latest?.runId && latest?.chatId ? latest.chatId : '',
         ...(paused
           ? {
               runId: paused.runId,
@@ -234,7 +246,15 @@ const getDialogues = (
       });
       if (paused) useFlowsManager.getState().setCanvasesDisabled(true);
     })
-    .catch(() => message.error('无法读取工作流历史'));
+    .catch(() => {
+      if (
+        generation !== historyGeneration ||
+        currentConversationScope() !== scope
+      )
+        return;
+      set({ historyStatus: 'error' });
+      message.error('无法读取工作流历史，请重试或开启新对话');
+    });
 };
 const handleMoveToPosition = (
   id: string | undefined,
@@ -310,7 +330,7 @@ const handleSaveDialogue = (get: ChatGetter, set: ChatSetter): void => {
   // Execution events and answers are written by the server; the browser only reloads them.
   const currentFlow = useFlowsManager.getState().currentFlow;
   if (currentFlow?.id && !get().interruptChat.interrupt)
-    getDialogues(currentFlow.id, set);
+    getDialogues(currentFlow.id, set, false, get);
   get().chatInfoRef = cloneDeep(initChatInfo);
 };
 const handleAuditFailed = (
@@ -587,7 +607,11 @@ const handleMessage = (
   const frame = JSON.parse(e.data);
   if (e.event === 'run') {
     const runId = String(frame.runId || frame.id || '');
-    set({ runId, runStatus: frame.status || 'running' });
+    set({
+      runId,
+      runStatus: frame.status || 'running',
+      ...(typeof frame.chatId === 'string' ? { chatIdRef: frame.chatId } : {}),
+    });
     get().setChatList(items =>
       items.map((item, index) =>
         index === items.length - 1
@@ -607,7 +631,7 @@ const handleMessage = (
     set({ runStatus: frame.status });
     if (!get().debuggering && frame.status !== 'paused') {
       const flow = useFlowsManager.getState().currentFlow;
-      if (flow?.id) getDialogues(flow.id, set);
+      if (flow?.id) getDialogues(flow.id, set, false, get);
     }
     get().setChatList(items =>
       items.map(item =>
@@ -758,6 +782,7 @@ const handleResumeChat = (
   get: ChatGetter,
   set: ChatSetter
 ): void => {
+  if (!conversationReady(get)) return;
   if (get().stopRequested || get().runStatus === 'stopping') return;
   historyGeneration += 1;
   const currentFlow = useFlowsManager.getState().currentFlow;
@@ -932,9 +957,13 @@ const handleRunDebugger = ({
   inputs,
   regen = false,
 }: RunDebuggerOptions & { inputs?: StartNodeType[] }): void => {
-  historyGeneration += 1;
+  if (!conversationReady(get)) return;
+  const generation = ++historyGeneration;
+  const scope = currentConversationScope();
   const retryId = regen ? get().runId : '';
   set({
+    conversationScope: currentConversationScope(),
+    historyStatus: 'ready',
     runId: '',
     runStatus: 'preparing',
     stopRequested: false,
@@ -972,6 +1001,12 @@ const handleRunDebugger = ({
     regen || historyVersion ? Promise.resolve() : buildFlowAPI(params);
   ready
     .then(() => {
+      if (
+        generation !== historyGeneration ||
+        currentConversationScope() !== scope ||
+        !conversationReady(get)
+      )
+        return;
       if (get().stopRequested) {
         finishStopConversation(get, set, 'cancelled');
         return;
@@ -1003,6 +1038,11 @@ const handleRunDebugger = ({
       });
     })
     .catch(() => {
+      if (
+        generation !== historyGeneration ||
+        currentConversationScope() !== scope
+      )
+        return;
       set({ debuggering: false, stopRequested: false, runStatus: 'failed' });
       setCanvasesDisabled(false);
       setShowNodeList(true);
@@ -1031,6 +1071,7 @@ const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
 };
 
 const canRunDebugger = (get: ChatGetter): boolean => {
+  if (!conversationReady(get)) return false;
   if (get().stopRequested || get().runStatus === 'stopping') return false;
   if (!get().debuggering && get().interruptChat?.type === 'option')
     return false;
@@ -1174,20 +1215,12 @@ const finishStopConversation = (
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
-  get().chatIdRef = uuid().replace(/-/g, '');
   set({
     debuggering: false,
     stopRequested: false,
     wsMessageStatus: 'end',
     runStatus: status,
   });
-  get().setChatList(chatList => [
-    ...chatList,
-    {
-      id: uuid(),
-      type: 'divider',
-    },
-  ]);
   get().setInterruptChat({ ...initInterruptChat });
   get().handleSaveDialogue();
   !historyVersion && setCanvasesDisabled(false);
@@ -1234,18 +1267,20 @@ const handleStopConversation = (get: ChatGetter, set: ChatSetter): void => {
   });
 };
 
+// The single New conversation action resets context, retaining server run records.
 const deleteAllChat = (get: ChatGetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  const historyVersion = useFlowsManager.getState().historyVersion;
-  const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
-  if (!currentFlow?.id) return;
-  workflowDialogClear(currentFlow.id, 1).then(() => {
-    get().chatIdRef = uuid().replace(/-/g, '');
-    get().setDeleteAllModal(false);
-    get().setChatList([]);
-    get().setInterruptChat({ ...initInterruptChat });
-    !historyVersion && setCanvasesDisabled(false);
-  });
+  if (get().debuggering || get().interruptChat.interrupt || get().stopRequested)
+    return;
+  historyGeneration += 1;
+  get().chatIdRef = '';
+  get().conversationScope = currentConversationScope();
+  get().historyStatus = 'ready';
+  get().runId = '';
+  get().runStatus = '';
+  get().setUserInput('');
+  get().setDeleteAllModal(false);
+  get().setChatList([]);
+  get().setInterruptChat({ ...initInterruptChat });
 };
 
 const setChatList = (

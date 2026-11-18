@@ -472,6 +472,9 @@ test('actual history selection flushes the draft before showing read-only nodes'
     '../src/components/workflow/drawer/version-management/index.tsx',
     'select',
     {
+      switching: false,
+      restoring: false,
+      setSwitching: noop,
       flushCurrentFlow: h.state.flushCurrentFlow,
       useFlowsManager: { getState: () => h.state, setState: h.set },
       useFlowStore: {
@@ -1105,7 +1108,7 @@ test('actual input, nested output and node validation decorations do not dirty t
     node.data.outputs[0].schema.properties[0].properties[0].nameErrMsg,
     ''
   );
-  assert.equal(node.data.nodeParam.instruction.queryErrMsg, '');
+  assert.equal(node.data.nodeParam.agentIdErrMsg, '');
   node.selected = true;
   node.data.status = 'running';
   h.canvas.edges[0].selected = true;

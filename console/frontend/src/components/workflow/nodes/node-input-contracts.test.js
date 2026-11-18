@@ -1,9 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  readMcpRows,
-  readParameterSummaries,
-} from './agent/components/add-tool/catalog.ts';
 import { databaseTableOptions } from './database/types.ts';
 import { numericConstraint, readModelSettings } from './model-settings.ts';
 import { changeReferencedInput, inputReference } from './types.ts';
@@ -63,41 +59,6 @@ test('malformed model settings and non-numeric bounds cannot reach controls', ()
     []
   );
   assert.equal(numericConstraint('not-a-number'), undefined);
-});
-
-test('tool parameter previews accept valid rows and reject malformed envelopes', () => {
-  const valid = {
-    name: 'query',
-    title: 'Question',
-    type: 'string',
-    description: 'User input',
-  };
-  const result = readParameterSummaries(
-    JSON.stringify({ toolRequestInput: [null, valid, { type: 9 }] })
-  );
-  assert.equal(result.length, 1);
-  assert.equal(result[0].name, 'query');
-  assert.deepEqual(readParameterSummaries('{'), []);
-  assert.deepEqual(
-    readParameterSummaries(JSON.stringify({ toolRequestInput: {} })),
-    []
-  );
-});
-
-test('MCP server rows bind resource IDs and retain optional metadata', () => {
-  const rows = readMcpRows([
-    {
-      id: '9007199254740993',
-      name: 'Server',
-      server_url: 'https://example.test/mcp',
-    },
-    null,
-    { id: 'bad', name: 'Missing endpoint' },
-  ]);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].id, '9007199254740993');
-  assert.equal(rows[0].toolId, '9007199254740993');
-  assert.equal(rows[0].childName, '');
 });
 
 test('database tree conversion preserves large table IDs while using names as selections', () => {

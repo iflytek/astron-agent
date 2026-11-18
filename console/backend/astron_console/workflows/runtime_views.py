@@ -56,7 +56,14 @@ def chat(request):
     inputs = payload.get("inputs", payload.get("parameters", {}))
     if isinstance(inputs, list):
         inputs = {item["name"]: item.get("content", item.get("default", "")) for item in inputs}
-    run = prepare_run(scope, workflow, inputs, graph=graph, version_id=version_id)
+    run = prepare_run(
+        scope,
+        workflow,
+        inputs,
+        graph=graph,
+        version_id=version_id,
+        conversation_id=payload.get("chatId", payload.get("chat_id")) or None,
+    )
     return streaming(run)
 
 
@@ -169,7 +176,10 @@ def history(request):
     else:
         rows = rows.filter(version_id__isnull=True)
     rows = rows.exclude(kind="node-debug")
-    result = [dialogue_data(reconcile(row)) for row in rows.order_by("create_time")[:500]]
+    result = [
+        dialogue_data(reconcile(row))
+        for row in reversed(list(rows.order_by("-create_time", "-id")[:500]))
+    ]
     if requested_version:
         return result
     legacy = WorkflowDialog.objects.filter(

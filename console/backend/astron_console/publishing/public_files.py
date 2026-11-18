@@ -241,9 +241,7 @@ def workflow_upload_identity(values, *, console=False):
                 pk=resolved["versionId"], agent_id=resolved["agentId"]
             ).definition
         else:
-            from astron_console.workflows.execution_context import inline_definition
-
-            config = inline_definition(node)
+            raise PermissionDenied("Agent节点缺少固定引用")
         if str(values.get("skillId", "")) not in {str(x) for x in config.get("skills", [])}:
             raise PermissionDenied
     return grant, scope, run

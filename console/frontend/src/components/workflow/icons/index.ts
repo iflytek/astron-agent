@@ -11,17 +11,6 @@ export interface PromptOptimizeIcons {
   reTry: string;
 }
 
-// Select Agent Prompt Icons
-import selectAgentPromptClose from '@/assets/imgs/workflow/modal-close.png';
-import selectAgentPromptSearch from '@/assets/imgs/workflow/search-icon.svg';
-import selectAgentPromptKnowledgeListEmpty from '@/assets/imgs/workflow/knowledge-list-empty.png';
-
-export interface SelectAgentPromptIcons {
-  close: string;
-  search: string;
-  knowledgeListEmpty: string;
-}
-
 // Select LLM Prompt Icons
 import selectLlmPromptClose from '@/assets/imgs/workflow/modal-close.png';
 import selectLlmPromptSearch from '@/assets/imgs/workflow/search-icon.svg';
@@ -42,31 +31,6 @@ import setDefaultValueClose from '@/assets/imgs/workflow/modal-close.png';
 
 export interface SetDefaultValueIcons {
   close: string;
-}
-
-// Agent Icons
-import agentToolIcon from '@/assets/imgs/workflow/tool-modal-tool-icon.png';
-import agentKnowledgeIcon from '@/assets/imgs/workflow/knowledgeIcon.png';
-import agentInputAddIcon from '@/assets/imgs/workflow/input-add-icon.png';
-import agentPromptLibraryIcon from '@/assets/imgs/workflow/prompt-library-icon.svg';
-import agentQuestionMark from '@/assets/imgs/common/questionmark.png';
-import agentZoomOutIcon from '@/assets/imgs/workflow/zoom-out-icon.png';
-import agentZoomInIcon from '@/assets/imgs/workflow/zoom-in-icon.png';
-import agentRemove from '@/assets/imgs/workflow/input-remove-icon.png';
-import agentKnowledgeListDelete from '@/assets/imgs/workflow/knowledge-list-delete.svg';
-import agentOneClickUpdate from '@/assets/imgs/plugin/one-click-update.svg';
-
-export interface AgentIcons {
-  toolIcon: string;
-  knowledgeIcon: string;
-  inputAddIcon: string;
-  promptLibraryIcon: string;
-  questionMark: string;
-  zoomOutIcon: string;
-  zoomInIcon: string;
-  remove: string;
-  knowledgeListDelete: string;
-  oneClickUpdate: string;
 }
 
 // Code Icons
@@ -441,10 +405,8 @@ export interface WorkflowIcons {
   clearFlowCanvas: ClearFlowCanvasIcons;
   knowledgeDetail: KnowledgeDetailIcons;
   promptOptimize: PromptOptimizeIcons;
-  selectAgentPrompt: SelectAgentPromptIcons;
   selectLlmPrompt: SelectLlmPromptIcons;
   setDefaultValue: SetDefaultValueIcons;
-  agent: AgentIcons;
   code: CodeIcons;
   panel: PanelIcons;
   nodeOperation: NodeOperationIcons;
@@ -580,11 +542,6 @@ export const Icons: WorkflowIcons = {
   promptOptimize: {
     reTry: promptOptimizeReTry,
   },
-  selectAgentPrompt: {
-    close: selectAgentPromptClose,
-    search: selectAgentPromptSearch,
-    knowledgeListEmpty: selectAgentPromptKnowledgeListEmpty,
-  },
   selectLlmPrompt: {
     close: selectLlmPromptClose,
     search: selectLlmPromptSearch,
@@ -594,18 +551,6 @@ export const Icons: WorkflowIcons = {
   },
   setDefaultValue: {
     close: setDefaultValueClose,
-  },
-  agent: {
-    toolIcon: agentToolIcon,
-    knowledgeIcon: agentKnowledgeIcon,
-    inputAddIcon: agentInputAddIcon,
-    promptLibraryIcon: agentPromptLibraryIcon,
-    questionMark: agentQuestionMark,
-    zoomOutIcon: agentZoomOutIcon,
-    zoomInIcon: agentZoomInIcon,
-    remove: agentRemove,
-    knowledgeListDelete: agentKnowledgeListDelete,
-    oneClickUpdate: agentOneClickUpdate,
   },
   code: {
     editCode: codeEditCode,

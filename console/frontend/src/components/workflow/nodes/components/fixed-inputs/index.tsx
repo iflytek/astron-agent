@@ -18,7 +18,7 @@ import desciptionIcon from '@/assets/imgs/workflow/desciption-icon.png';
 
 function InputName({ item }: { item: WorkflowInput }): React.ReactElement {
   return (
-    <span className="relative flex items-center gap-1.5 max-w-[80px]">
+    <span className="workflow-parameter-fixed-name relative flex items-center gap-1.5">
       <span className="flex-1 text-overflow" title={item?.name}>
         {item.name}
       </span>
@@ -41,11 +41,7 @@ function InputName({ item }: { item: WorkflowInput }): React.ReactElement {
 }
 
 function InputTypeTag({ item }: { item: WorkflowInput }): React.ReactElement {
-  return (
-    <div className="bg-[#F0F0F0] py-1 px-2.5 rounded text-xs ml-1 flex-shrink-0">
-      {renderType(item)}
-    </div>
-  );
+  return <div className="workflow-parameter-type">{renderType(item)}</div>;
 }
 
 function index({ id, data }: NodeComponentProps): React.ReactElement {
@@ -60,21 +56,21 @@ function index({ id, data }: NodeComponentProps): React.ReactElement {
         </div>
       }
       content={
-        <div className="flex flex-col gap-3 mt-3 mx-[18px]">
+        <div className="workflow-parameter-list">
           {data?.nodeParam?.enableChatHistoryV2?.isEnabled && (
             <ChatHistory id={id} data={data} />
           )}
-          {inputs.map((item, index) => (
-            <div key={index} className="flex flex-col gap-1">
-              <div className="w-full flex items-center gap-3">
-                <div className="flex items-center w-1/3 relative gap-2.5 overflow-hidden">
-                  <InputName item={item} />
-                  <InputTypeTag item={item} />
-                </div>
-                <div className="flex flex-col w-1/4">
+          {inputs.map(item => (
+            <div key={item.id} className="workflow-parameter-field">
+              <div className="workflow-parameter-fixed-identity">
+                <InputName item={item} />
+                <InputTypeTag item={item} />
+              </div>
+              <div className="workflow-parameter-assignment">
+                <div>
                   <TypeSelector id={id} data={data} item={item} />
                 </div>
-                <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="min-w-0">
                   <ValueField id={id} data={data} item={item} />
                 </div>
               </div>

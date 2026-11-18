@@ -4,20 +4,15 @@ Runtime endpoints and credentials stay in the resource domain. These projections
 preserve the canvas response contract while selecting with the 03 scope rules.
 """
 
-import json
-import re
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ValidationError
-from django.db.models import Q
 
 from astron_console.agents.resource_resolution import scoped, select, tool_query
 from astron_console.http import api_endpoint
 from astron_console.resources import clients
 from astron_console.resources.common import (
-    number,
-    parsed,
     scope_for,
-    serialize,
     text,
     upstream_errors,
 )
@@ -25,8 +20,42 @@ from astron_console.resources.model_views import _java_llm_id
 from astron_console.resources.models import McpConfig, Model
 
 from .management_views import LIST
-from .models import PromptTemplate
 from .tool_catalog import canvas_tool
+
+
+def avatar_endpoint(endpoint):
+    """Project known public origins only; never expose private URLs or credentials."""
+    hosts = {
+        "api.openai.com",
+        "api.anthropic.com",
+        "generativelanguage.googleapis.com",
+        "api.minimaxi.com",
+        "open.bigmodel.cn",
+        "dashscope.aliyuncs.com",
+        "api.moonshot.cn",
+        "ark.cn-beijing.volces.com",
+        "api.deepseek.com",
+        "dashscope-intl.aliyuncs.com",
+        "dashscope-us.aliyuncs.com",
+        "cn-hongkong.dashscope.aliyuncs.com",
+        "api.minimax.io",
+        "api.moonshot.ai",
+        "api.z.ai",
+        "ark.ap-southeast.bytepluses.com",
+        "spark-api-open.xf-yun.com",
+        "spark-api.xf-yun.com",
+        "spark-openapi.cn-huabei-1.xf-yun.com",
+        "maas-api.cn-huabei-1.xf-yun.com",
+    }
+    try:
+        parsed_url = urlsplit(endpoint)
+        return (
+            f"https://{parsed_url.hostname}"
+            if (parsed_url.scheme in {"http", "https"} and parsed_url.hostname in hosts)
+            else ""
+        )
+    except ValueError:
+        return ""
 
 
 @api_endpoint(["GET"])
@@ -52,6 +81,7 @@ def models(request):
                         "isThink": bool(row.is_think),
                         "multiMode": bool(row.multi_mode),
                         "icon": row.image_url or "",
+                        "avatarEndpoint": avatar_endpoint(row.url),
                         "desc": row.desc or "",
                         "url": "",
                     }
@@ -128,45 +158,6 @@ def mcp_debug(request):
             "tool_args": arguments,
         },
     )
-
-
-@api_endpoint(["GET"])
-def prompts(request):
-    scope = scope_for(request, LIST)
-    # Retained global templates have no owner. User templates remain private.
-    rows = PromptTemplate.objects.filter(deleted=False).filter(
-        Q(uid=scope.uid) | Q(uid__in=["", "-1"]) | Q(uid__isnull=True)
-    )
-    if request.GET.get("search"):
-        rows = rows.filter(name__icontains=request.GET["search"][:255])
-    size = number(request.GET.get("pageSize"), 20, 1000)
-    current = number(request.GET.get("current"), 1)
-    data = []
-    for row in rows.order_by("-id")[(current - 1) * size : current * size]:
-        item = serialize(row, exclude=("uid", "prompt", "deleted"))
-        model = parsed(row.adaptation_model)
-        if isinstance(model, dict):
-            model = {
-                key: value
-                for key, value in model.items()
-                if key
-                in {"id", "modelId", "llmId", "domain", "serviceId", "isThink", "provider", "name"}
-            }
-        else:
-            model = {}
-        item["adaptationModel"] = json.dumps(model, ensure_ascii=False)
-        prompt = parsed(row.prompt)
-        item.update(
-            {key: prompt.get(key, "") for key in ("characterSettings", "thinkStep", "userQuery")}
-        )
-        item["inputs"] = [
-            {"name": name}
-            for name in dict.fromkeys(
-                re.findall(r"\{\{\s*([\w]+)\s*\}\}", json.dumps(prompt, ensure_ascii=False))
-            )
-        ]
-        data.append(item)
-    return {"pageData": data, "totalCount": rows.count()}
 
 
 @api_endpoint(["GET"])
