@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>开始节点</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E9F7EF" stroke="#D0EBDC"/>
+  <g fill="none" stroke="#187953" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="16" cy="16" r="8.95" fill="#ceeddd"/>
+    <path d="M13.55 12.05a.78.78 0 0 1 1.19-.67l6.27 3.95a.79.79 0 0 1 0 1.34l-6.27 3.95a.78.78 0 0 1-1.19-.67Z" fill="#187953" stroke="none"/>
+  </g>
+</svg>

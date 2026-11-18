@@ -99,9 +99,6 @@ const ChatFooter = ({
   if (!trialRun) return null;
   return (
     <div className="workflow-debugger-footer">
-      <span className="workflow-chat-input-hint">
-        Enter 发送 · Shift + Enter 换行
-      </span>
       <div className="flex items-center gap-2.5">
         {(debuggering || interruptChat.interrupt) && (
           <Button
@@ -406,10 +403,8 @@ export function ChatDebuggerContent({
 }: ChatDebuggerContentProps): React.ReactElement {
   const { t } = useTranslation();
   const currentFlow = useWorkflowExecutionView();
-  const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const userInput = useChatStore(state => state.userInput);
   const setUserInput = useChatStore(state => state.setUserInput);
-  const historyVersion = useFlowsManager(state => state.historyVersion);
   const chatType = useChatStore(state => state.chatType);
   const startNodeParams = useChatStore(state => state.startNodeParams);
   const setStartNodeParams = useChatStore(state => state.setStartNodeParams);
@@ -645,12 +640,13 @@ export function ChatDebuggerContent({
           <Button
             type="text"
             size="small"
+            shape="circle"
             icon={<PlusOutlined />}
+            aria-label="新对话"
+            title="新对话"
             disabled={debuggering || interruptChat.interrupt}
             onClick={deleteAllChat}
-          >
-            新对话
-          </Button>
+          />
           <Button
             type="text"
             aria-label="关闭测试运行"
@@ -671,23 +667,6 @@ export function ChatDebuggerContent({
         </div>
       )}
       <div className="flex-1 flex flex-col overflow-hidden mt-1 relative">
-        <div className="workflow-debugger-context">
-          <span>
-            {historyVersion
-              ? `版本 · ${historyVersionData?.name || '历史版本'}`
-              : '当前草稿'}
-          </span>
-          <span>
-            {historyStatus === 'loading'
-              ? '正在加载对话…'
-              : debuggering
-                ? '正在运行'
-                : interruptChat.interrupt
-                  ? '等待你的回复'
-                  : '连续对话'}
-          </span>
-        </div>
-
         {historyStatus === 'error' && (
           <div
             role="alert"

@@ -179,6 +179,9 @@ const getDialogues = (
     runStatus: '',
     interruptChat: { ...initInterruptChat },
     debuggering: false,
+    messageNodeTextQueue: '',
+    endNodeReasoningTextQueue: '',
+    endNodeTextQueue: '',
     stopRequested: false,
     controllerRef: scopeChanged ? undefined : previous?.controllerRef,
     ...(scopeChanged ? { userInput: '' } : {}),
@@ -308,6 +311,54 @@ const pushContentToAnswer = (
 ): void => {
   get()[key] = get()[key] + (content ?? '');
 };
+
+/** Preserve already received text before a terminal action stops queue playback. */
+const drainQueuedAnswer = (get: ChatGetter, set: ChatSetter): void => {
+  const state = get();
+  const queued = {
+    messageContent: state.messageNodeTextQueue,
+    reasoningContent: state.endNodeReasoningTextQueue,
+    content: state.endNodeTextQueue,
+  };
+  if (!Object.values(queued).some(Boolean)) return;
+  let answerIndex = -1;
+  for (let index = state.chatList.length - 1; index >= 0; index--) {
+    const item = state.chatList[index];
+    if (
+      item?.type === 'answer' &&
+      (!state.runId || !item.runId || item.runId === state.runId)
+    ) {
+      answerIndex = index;
+      break;
+    }
+  }
+  if (answerIndex !== -1) {
+    for (const key of [
+      'messageContent',
+      'reasoningContent',
+      'content',
+    ] as const) {
+      state.chatInfoRef.answer[key] =
+        (state.chatInfoRef.answer[key] ?? '') + queued[key];
+    }
+  }
+  set({
+    messageNodeTextQueue: '',
+    endNodeReasoningTextQueue: '',
+    endNodeTextQueue: '',
+    chatList: state.chatList.map((item, index) =>
+      index === answerIndex
+        ? {
+            ...item,
+            messageContent: (item.messageContent ?? '') + queued.messageContent,
+            reasoningContent:
+              (item.reasoningContent ?? '') + queued.reasoningContent,
+            content: (item.content ?? '') + queued.content,
+          }
+        : item
+    ),
+  });
+};
 const clearNodeStatus = (get: ChatGetter): void => {
   if (get().userInput) {
     get().setUserInput('');
@@ -326,11 +377,23 @@ const clearNodeStatus = (get: ChatGetter): void => {
     }))
   );
 };
-const handleSaveDialogue = (get: ChatGetter, set: ChatSetter): void => {
-  // Execution events and answers are written by the server; the browser only reloads them.
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  if (currentFlow?.id && !get().interruptChat.interrupt)
-    getDialogues(currentFlow.id, set, false, get);
+const handleSaveDialogue = (get: ChatGetter, _set: ChatSetter): void => {
+  // The server already persists execution events and answers. Keep the live
+  // transcript mounted after a turn instead of clearing it to reload history.
+  // Opening the drawer or switching workflow/version still loads server history.
+  const { runId, runStatus } = get();
+  if (
+    runId &&
+    ['completed', 'failed', 'cancelled', 'interrupted'].includes(runStatus)
+  ) {
+    get().setChatList(items =>
+      items.map(item =>
+        item.type === 'answer' && item.runId === runId
+          ? { ...item, status: runStatus }
+          : item
+      )
+    );
+  }
   get().chatInfoRef = cloneDeep(initChatInfo);
 };
 const handleAuditFailed = (
@@ -629,10 +692,6 @@ const handleMessage = (
   }
   if (e.event === 'run-end') {
     set({ runStatus: frame.status });
-    if (!get().debuggering && frame.status !== 'paused') {
-      const flow = useFlowsManager.getState().currentFlow;
-      if (flow?.id) getDialogues(flow.id, set, false, get);
-    }
     get().setChatList(items =>
       items.map(item =>
         item.runId === frame.runId ? { ...item, status: frame.status } : item
@@ -1215,6 +1274,7 @@ const finishStopConversation = (
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
+  drainQueuedAnswer(get, set);
   set({
     debuggering: false,
     stopRequested: false,
@@ -1277,6 +1337,9 @@ const deleteAllChat = (get: ChatGetter): void => {
   get().historyStatus = 'ready';
   get().runId = '';
   get().runStatus = '';
+  get().messageNodeTextQueue = '';
+  get().endNodeReasoningTextQueue = '';
+  get().endNodeTextQueue = '';
   get().setUserInput('');
   get().setDeleteAllModal(false);
   get().setChatList([]);
@@ -1362,6 +1425,7 @@ const setDebuggering = (
 ): void => {
   const newChange =
     typeof change === 'function' ? change(get().debuggering) : change;
+  if (!newChange) drainQueuedAnswer(get, set);
   set({
     debuggering: newChange,
   });

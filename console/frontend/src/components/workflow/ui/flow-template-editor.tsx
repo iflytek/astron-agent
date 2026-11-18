@@ -291,7 +291,6 @@ const useEditorHandlers = ({
             // 如果是 {{xxx}} 的部分，用 <span> 包裹
             const span = document.createElement('span');
             span.textContent = part;
-            span.style.color = 'blue'; // 可根据需求设置样式
             lineContainer.appendChild(span);
           } else {
             // 其他文本直接添加为文本节点

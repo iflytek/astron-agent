@@ -9,6 +9,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Image, message, Empty } from 'antd';
+import { LoadingOutlined } from '@ant-design/icons';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { isJSON } from '@/utils';
 import MarkdownRender from '@/components/markdown-render';
@@ -133,7 +134,7 @@ const MessageAsk = ({
       <div className="flex items-center gap-4">
         <img src={icons.chatUser} className="w-9 h-9" alt="" />
       </div>
-      <div className="w-fit min-w-[50px] bg-[#315ff4] p-3 flex flex-col gap-2.5 rounded-xl overflow-hidden">
+      <div className="workflow-chat-ask-bubble w-fit min-w-[50px] p-3 flex flex-col gap-2.5 rounded-xl overflow-hidden">
         {chat?.inputs?.map((input, index) => (
           <div key={index}>
             {renderInputElement(chat as ChatListItemExtended, input)}
@@ -725,13 +726,12 @@ const MessageReply = ({
               !chat?.messageContent &&
               !chat?.reasoningContent &&
               !chat?.content && (
-                <div className="flex items-center gap-2.5">
-                  <span>{t('workflow.nodes.chatDebugger.generating')}</span>
-                  <img
-                    src={icons.chatLoading}
-                    className="w-5 h-5 flow-rotate-center"
-                    alt=""
-                  />
+                <div
+                  className="workflow-chat-generating"
+                  role="status"
+                  aria-label={t('workflow.nodes.chatDebugger.generating')}
+                >
+                  <LoadingOutlined spin />
                 </div>
               )}
             <MessageActions
@@ -866,7 +866,7 @@ const useChatContent = ({
           ? firstFile
           : undefined;
       const inputName = chat?.inputs?.length && chat.inputs.length > 1 && (
-        <div className="px-4 py-1 bg-[#688fff] rounded-lg text-[#fff] inline-block">
+        <div className="workflow-chat-input-name inline-block">
           {input?.name}
         </div>
       );
@@ -895,16 +895,16 @@ const useChatContent = ({
                     alt=""
                   />
                 </div>
-                <span className="text-[#fff]">{file?.name}</span>
+                <span>{file?.name}</span>
               </div>
             )}
           </div>
         );
       }
       return (
-        <div className="flex items-start gap-2.5 text-[#fff]">
+        <div className="flex items-start gap-2.5">
           {inputName}
-          <div className="flow-chat-drawer-ask inline-block flex-1 overflow-hidden min-h-[29px]">
+          <div className="workflow-chat-user-content inline-block flex-1 overflow-hidden min-h-[29px]">
             {typeof input?.default === 'string' ? (
               <MarkdownRender content={input?.default} isSending={false} />
             ) : (
@@ -1025,23 +1025,23 @@ function ChatContent({
           />
         ) : (
           <div key={chat.id}>
-            {chat.status && (
-              <div
-                className={`workflow-chat-status is-${chat.status}`}
-                role="status"
-              >
-                {{
-                  completed: '运行完成',
-                  failed: '运行失败，请检查运行追踪后重试',
-                  cancelled: '已停止',
-                  interrupted: '连接中断，已保留输出',
-                  paused: '等待回复后继续',
-                  running: '正在运行',
-                  resuming: '正在继续',
-                  stopping: '正在停止',
-                }[chat.status] || '正在运行'}
-              </div>
-            )}
+            {chat.status &&
+              !['completed', 'running', 'resuming'].includes(chat.status) && (
+                <div
+                  className={`workflow-chat-status is-${chat.status}`}
+                  role="status"
+                >
+                  {{
+                    failed: '运行失败，请检查运行追踪后重试',
+                    cancelled: '已停止',
+                    interrupted: '连接中断，已保留输出',
+                    paused: '等待回复后继续',
+                    running: '正在运行',
+                    resuming: '正在继续',
+                    stopping: '正在停止',
+                  }[chat.status] || '正在运行'}
+                </div>
+              )}
             <MessageReply
               chat={chat}
               currentFlow={currentFlow}

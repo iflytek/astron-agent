@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>变量存储器</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#EAF3FF" stroke="#D2E3FC"/>
+  <g fill="none" stroke="#2760BD" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.05 12.65V22.7a1.8 1.8 0 0 0 1.8 1.8h12.3a1.8 1.8 0 0 0 1.8-1.8V12.65Z" fill="#2760BD" stroke="none"/>
+    <rect x="6.95" y="7.5" width="18.1" height="5.35" rx="1.45" fill="#92C1FC" stroke-width="1.65"/>
+    <path d="M13.65 15.45c-1.1 0-1.45.45-1.45 1.25v.38c0 .75-.42 1.15-.98 1.34.56.19.98.59.98 1.34v.38c0 .8.35 1.25 1.45 1.25m4.7-5.94c1.1 0 1.45.45 1.45 1.25v.38c0 .75.42 1.15.98 1.34-.56.19-.98.59-.98 1.34v.38c0 .8-.35 1.25-1.45 1.25" stroke="#FFF" stroke-width="1.48"/>
+  </g>
+</svg>

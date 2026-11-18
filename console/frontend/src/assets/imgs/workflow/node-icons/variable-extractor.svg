@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>变量提取器</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E9F7EF" stroke="#D0EBDC"/>
+  <g fill="none" stroke="#187953" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.7 11.8h16.6l-6.35 6.35v2.25h-3.9v-2.25z" fill="#8CD5B1" stroke-width="1.75"/>
+    <circle cx="10.8" cy="8.45" r="1.2" fill="#449c77" stroke="none"/>
+    <circle cx="16" cy="8.45" r="1.2" fill="#449c77" stroke="none"/>
+    <circle cx="21.2" cy="8.45" r="1.2" fill="#449c77" stroke="none"/>
+    <circle cx="16" cy="24.1" r="1.48" fill="#187953" stroke="none"/>
+  </g>
+</svg>

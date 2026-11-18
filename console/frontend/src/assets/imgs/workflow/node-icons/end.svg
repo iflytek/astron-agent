@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>结束节点</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#FFF0F1" stroke="#F4D8DC"/>
+  <g fill="none" stroke="#A34757" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="16" cy="16" r="8.95" fill="#f7dcdf"/>
+    <rect x="11.9" y="11.9" width="8.2" height="8.2" rx="1.35" fill="#A34757" stroke="none"/>
+  </g>
+</svg>

@@ -150,12 +150,6 @@ export async function debugWorkflowNode(
   );
 }
 
-export async function canPublishSetNotAPI(
-  id: string | number
-): Promise<unknown> {
-  return http.get(`/workflow/can-publish-set-not?id=${id}`);
-}
-
 export async function codeRun(params: CodeRunParams): Promise<CodeRunResponse> {
   return http.post<CodeRunResponse, CodeRunResponse>(
     '/workflow/code/run',

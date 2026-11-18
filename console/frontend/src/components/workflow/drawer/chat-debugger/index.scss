@@ -31,22 +31,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 16px 20px 12px;
-    border-bottom: 1px solid #dfe6f1;
     flex-shrink: 0;
-  }
-  .workflow-debugger-context {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 20px;
-    color: #607089;
-    font-size: 12px;
-    flex-shrink: 0;
-    span:first-child {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
   }
   .debugger-chat-content {
     min-height: 120px;
@@ -77,8 +62,21 @@
     }
     > div:last-child {
       max-width: 100%;
-      border-radius: 12px 12px 3px 12px;
+      border-radius: 14px;
     }
+  }
+  .workflow-chat-ask-bubble {
+    background: #eaf2fc;
+    color: #18243d;
+    overflow-wrap: anywhere;
+  }
+  .workflow-chat-input-name {
+    color: #526580;
+    font-size: 12px;
+    line-height: 22px;
+    flex-shrink: 0;
+    max-width: 45%;
+    overflow-wrap: anywhere;
   }
   .workflow-chat-reply {
     min-width: 0;
@@ -87,12 +85,19 @@
       min-width: 0;
     }
     .workflow-chat-reply-bubble {
-      background: #f2f5fb;
-      padding: 14px;
+      background: transparent;
+      padding: 4px 0;
     }
     .markdown {
       overflow-wrap: anywhere;
     }
+  }
+  .workflow-chat-generating {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+    color: #8aa0bb;
+    font-size: 18px;
   }
   .workflow-chat-status {
     margin: 0 0 6px 40px;
@@ -108,17 +113,29 @@
   }
   .workflow-debugger-composer {
     padding-top: 14px;
-    border-top: 1px solid #dfe6f1;
     flex-shrink: 0;
   }
   .user-chat-input {
-    border-radius: 8px;
+    border-radius: 12px;
     color: #18243d;
+    border-color: #dfe6f1;
+    background: #f8fafc;
+    box-shadow: none;
+    &:hover,
+    &:focus {
+      border-color: #8494aa;
+      box-shadow: none;
+      outline: none;
+    }
+    &:focus-visible {
+      outline: 2px solid #b8c7dc;
+      outline-offset: 2px;
+    }
   }
   .workflow-debugger-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 10px;
     padding: 10px 20px 0;
     flex-shrink: 0;
@@ -126,19 +143,12 @@
       height: 34px;
     }
   }
-  .workflow-chat-input-hint {
-    font-size: 11px;
-    color: #607089;
-  }
   .ant-btn {
     box-shadow: none;
   }
   @media (max-width: 600px) {
     .workflow-debugger-header {
       padding: 12px;
-    }
-    .workflow-chat-input-hint {
-      display: none;
     }
     .workflow-debugger-footer {
       justify-content: flex-end;

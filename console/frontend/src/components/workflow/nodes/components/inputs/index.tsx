@@ -293,20 +293,20 @@ function index({
           )}
           {inputs.map(item => (
             <div key={item.id} className="workflow-parameter-field">
-              <div className="workflow-parameter-identity">
-                <label htmlFor={`${id}-${item.id}-name`}>
-                  {t('workflow.nodes.common.parameterName')}
-                </label>
-                <NameField
-                  id={id}
-                  item={item}
-                  handleChangeInputParam={handleChangeInputParam}
-                />
-                <RemoveButton item={item} id={id} data={data} />
-              </div>
-              <div className="workflow-parameter-assignment">
+              <div className="workflow-parameter-row">
+                <div className="workflow-parameter-name">
+                  <label className="sr-only" htmlFor={`${id}-${item.id}-name`}>
+                    {t('workflow.nodes.common.parameterName')}
+                  </label>
+                  <NameField
+                    id={id}
+                    item={item}
+                    handleChangeInputParam={handleChangeInputParam}
+                  />
+                </div>
                 <TypeSelector id={id} data={data} item={item} />
                 <ValueField id={id} data={data} item={item} />
+                <RemoveButton item={item} id={id} data={data} />
               </div>
               <ErrorMessages item={item} />
             </div>

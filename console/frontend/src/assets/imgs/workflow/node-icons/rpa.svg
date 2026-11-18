@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>RPA</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E9F7EF" stroke="#D0EBDC"/>
+  <g fill="none" stroke="#187953" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14 22.1v2.65m-3.25 0h6.5m-2.3-4.7H8.2a1.85 1.85 0 0 1-1.85-1.85V9.55A1.85 1.85 0 0 1 8.2 7.7h15.6a1.85 1.85 0 0 1 1.85 1.85v7.25" fill="none"/>
+    <path d="M14.9 15.2h-1.5m3-2.15-.9-1.25m3.05 1.02.4-1.42" stroke="#449c77" stroke-width="1.55"/>
+    <path d="m17.4 15.02 8.06 3.8-3.38 1.15 1.83 3.3-1.8 1.02-1.95-3.3-2.24 2.5z" fill="#187953" stroke="#E9F7EF" stroke-width="1.18"/>
+  </g>
+</svg>

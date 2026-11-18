@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>变量聚合</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E6F7F5" stroke="#CBECE7"/>
+  <g fill="none" stroke="#08766F" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.3 9.2h1.7c4.9 0 3.2 6.8 8 6.8h5.85M9.3 16h10.1m-10.1 6.8H11c4.9 0 3.2-6.8 8-6.8m2.7-3.15L24.85 16l-3.15 3.15"/>
+    <g fill="#83D3C8" stroke="#379991" stroke-width="1">
+      <circle cx="8" cy="9.2" r="1.75"/>
+      <circle cx="8" cy="16" r="1.75"/>
+      <circle cx="8" cy="22.8" r="1.75"/>
+    </g>
+  </g>
+</svg>
