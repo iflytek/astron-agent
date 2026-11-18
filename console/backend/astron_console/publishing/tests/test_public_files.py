@@ -171,13 +171,22 @@ class PublicFileTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         row = Artifact.objects.get(pk=response.json()["data"]["id"])
         self.assertEqual(row.uid, "caller")
+        self.assertEqual(
+            response.json()["data"]["downloadUrl"],
+            f"/console-api/published/workflow-artifacts/{row.pk}",
+        )
         self.client.force_login(self.publisher)
         self.assertEqual(self.client.get(f"/workflow/artifacts/{row.pk}").status_code, 404)
         self.assertEqual(
             self.client.get(f"/published/workflow-artifacts/{row.pk}").status_code, 403
         )
         self.client.force_login(self.caller)
-        with patch("astron_console.knowledge.storage.read", return_value=b"private output"):
+        with patch("astron_console.knowledge.storage.read", return_value=b"private output") as read:
+            for suffix in ("/download", "/content"):
+                self.assertEqual(
+                    self.client.get(f"/workflow/artifacts/{row.pk}{suffix}").status_code, 404
+                )
+            read.assert_not_called()
             self.assertEqual(
                 self.client.get(f"/published/workflow-artifacts/{row.pk}").status_code, 200
             )
@@ -232,6 +241,14 @@ class PublicFileTests(TestCase):
         )
         for row in rows[:2]:
             self.assertEqual(self.client.get(f"/workflow/artifacts/{row.pk}").status_code, 404)
+            self.assertEqual(
+                self.client.get(f"/workflow/artifacts/{row.pk}/download").status_code, 404
+            )
+            with patch("astron_console.knowledge.storage.read") as read:
+                self.assertEqual(
+                    self.client.get(f"/workflow/artifacts/{row.pk}/content").status_code, 404
+                )
+                read.assert_not_called()
             self.assertEqual(self.client.delete(f"/workflow/artifacts/{row.pk}").status_code, 404)
 
     @patch("astron_console.publishing.services.validate_graph")

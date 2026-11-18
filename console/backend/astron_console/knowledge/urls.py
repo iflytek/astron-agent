@@ -17,5 +17,6 @@ urlpatterns = [
     path("workflow/artifacts/console-upload", files.upload_artifact, {"console": True}),
     path("workflow/<int:workflow_id>/artifacts", files.artifacts),
     path("workflow/artifacts/<int:artifact_id>/download", files.artifacts, {"action": "download"}),
+    path("workflow/artifacts/<int:artifact_id>/content", files.artifact_content),
     path("workflow/artifacts/<int:artifact_id>", files.artifacts),
 ]

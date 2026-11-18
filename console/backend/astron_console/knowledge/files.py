@@ -17,7 +17,7 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
 from django.db.models import Sum
-from django.http import Http404, HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from astron_console.http import api_endpoint
@@ -26,6 +26,9 @@ from astron_console.spaces.permissions import (
     resolve_scope,
     scope_queryset,
     space_membership,
+)
+from astron_console.spaces.permissions import (
+    identifier as scope_identifier,
 )
 
 from . import clients, storage
@@ -425,13 +428,52 @@ def artifact_dump(row, download=False):
         result["downloadUrl"] = f"/console-api/published/workflow-artifacts/{row.pk}"
         return result
     if download:
-        bucket, key = artifact_location(row)
-        result["downloadUrl"] = storage.download(
-            key,
-            bucket,
-            getattr(settings, "SKILL_SANDBOX_ARTIFACT_DOWNLOAD_EXPIRY_SECONDS", 300),
-            row.file_name,
-        )
+        artifact_location(row)
+        result["downloadUrl"] = f"/console-api/workflow/artifacts/{row.pk}/content"
+        if row.space_id is not None:
+            result["downloadUrl"] += f"?spaceId={row.space_id}"
+    return result
+
+
+def private_artifact(scope, artifact_id):
+    row = scope_queryset(
+        exclude_public_artifacts(Artifact.objects.filter(pk=artifact_id, deleted=False)),
+        scope,
+    ).first()
+    if not row:
+        raise Http404()
+    artifact_workflow(scope, row.workflow_id)
+    return row
+
+
+@api_endpoint(["GET"])
+@clients.service_errors
+def artifact_content(request, artifact_id):
+    scope = resolve_scope(request)
+    # A browser download navigation carries the session cookie, but no space-id
+    # header. The URL selects a scope only; membership is checked on every read.
+    space_id = scope_identifier(request.GET.get("spaceId"), required="spaceId" in request.GET)
+    if space_id is not None:
+        if scope.space_id is not None and scope.space_id != space_id:
+            raise PermissionDenied()
+        space, _ = space_membership(scope.uid, space_id)
+        if scope.enterprise_id is not None and scope.enterprise_id != space.enterprise_id:
+            raise PermissionDenied()
+        scope = ResourceScope(scope.uid, space_id, space.enterprise_id)
+    row = private_artifact(scope, artifact_id)
+    bucket, key = artifact_location(row)
+    body = storage.read(key, bucket)
+    result = FileResponse(
+        io.BytesIO(body), as_attachment=True, filename=row.file_name, content_type=row.content_type
+    )
+    result["Cache-Control"] = "private, no-store"
+    result["X-Content-Type-Options"] = "nosniff"
+    logger.info(
+        "Downloaded workflow artifact id=%s workflow=%s size=%s",
+        row.pk,
+        row.workflow_id,
+        len(body),
+    )
     return result
 
 
@@ -450,13 +492,7 @@ def artifacts(request, artifact_id=None, workflow_id=None, action=None):
                 scope,
             ).order_by("-id")
         ]
-    row = scope_queryset(
-        exclude_public_artifacts(Artifact.objects.filter(pk=artifact_id, deleted=False)),
-        scope,
-    ).first()
-    if not row:
-        raise Http404()
-    artifact_workflow(scope, row.workflow_id)
+    row = private_artifact(scope, artifact_id)
     if request.method == "DELETE":
         bucket, key = artifact_location(row)
         storage.remove(key, bucket)
