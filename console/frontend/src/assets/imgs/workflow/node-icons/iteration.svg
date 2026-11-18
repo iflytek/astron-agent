@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>迭代</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E6F7F5" stroke="#CBECE7"/>
+  <g fill="none" stroke="#08766F" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M11.2 10a2.35 2.35 0 0 1 2.35-2.35H23a2.35 2.35 0 0 1 2.35 2.35v7.7" stroke="#379991" stroke-width="1.65"/>
+    <path d="M8.85 13.1a2.35 2.35 0 0 1 2.35-2.35h9.35a2.35 2.35 0 0 1 2.35 2.35v7.7" stroke="#379991" stroke-width="1.65"/>
+    <rect x="6.5" y="14" width="13.8" height="10.3" rx="2.15" fill="#caece7"/>
+    <path d="M9.7 19.15h7.4" stroke="#379991" stroke-width="1.35"/>
+    <circle cx="9.7" cy="19.15" r="1.29" fill="#08766F" stroke="none"/>
+    <circle cx="13.4" cy="19.15" r="1.29" fill="#08766F" stroke="none"/>
+    <circle cx="17.1" cy="19.15" r="1.29" fill="#83D3C8" stroke="none"/>
+  </g>
+</svg>

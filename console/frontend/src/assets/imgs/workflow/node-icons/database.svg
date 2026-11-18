@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>数据库</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#EAF3FF" stroke="#D2E3FC"/>
+  <g fill="none" stroke="#2760BD" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.15 11c0-2.1 3.5-3.8 7.85-3.8s7.85 1.7 7.85 3.8v10c0 2.1-3.5 3.8-7.85 3.8S8.15 23.1 8.15 21z" fill="#92C1FC"/>
+    <ellipse cx="16" cy="11" rx="7.85" ry="3.8" fill="#d0e4fe"/>
+    <path d="M8.15 16c0 2.1 3.5 3.8 7.85 3.8s7.85-1.7 7.85-3.8"/>
+  </g>
+</svg>

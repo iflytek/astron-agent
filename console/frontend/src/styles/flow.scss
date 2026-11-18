@@ -692,11 +692,17 @@
   }
 
   button:focus-visible,
+  [tabindex]:not(input):not(textarea):not([contenteditable]):focus-visible {
+    outline: 2px solid #8494aa;
+    outline-offset: 2px;
+  }
+
   input:focus-visible,
   textarea:focus-visible,
-  [tabindex]:focus-visible {
-    outline: 2px solid #315ff4;
-    outline-offset: 2px;
+  [contenteditable]:focus-visible {
+    outline: 1px solid #8494aa;
+    outline-offset: -1px;
+    box-shadow: none;
   }
 }
 

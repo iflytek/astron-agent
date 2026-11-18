@@ -56,7 +56,7 @@ const defaults = JSON.parse(
   .filter(row => row.category === 'WORKFLOW_NODE_TEMPLATE')
   .map(row => JSON.parse(row.value));
 
-test('the shipped node catalog renders bundled images or official SVG icons without external defaults', () => {
+test('the shipped node catalog renders bundled SVG images without external defaults', () => {
   const original = structuredClone(defaults);
   const [category] = normalizeWorkflowNodeIcons([
     { name: 'Nodes', nodes: defaults },
@@ -68,7 +68,8 @@ test('the shipped node catalog renders bundled images or official SVG icons with
         src: node.data.icon,
       })
     );
-    assert.match(markup, /<(img|svg)\b/, node.idType);
+    assert.match(markup, /<img\b/, node.idType);
+    assert.match(node.icon, /\/node-icons\/[^/]+\.svg$/, node.idType);
     assert.doesNotMatch(markup, /src="https?:\/\//, node.idType);
     assert.equal(node.icon, node.data.icon, node.idType);
   }
@@ -98,16 +99,54 @@ test('saved built-in identities and nested start/end nodes ignore stale remote i
         src: 'https://unavailable.example/icon.png',
       })
     );
-    assert.match(markup, /<(img|svg)\b/, nodeType);
+    assert.match(markup, /<img\b/, nodeType);
     assert.doesNotMatch(markup, /unavailable\.example/, nodeType);
   }
 });
 
-test('selected resource icons remain custom, with a usable default for missing resources', () => {
+test('every known node uses its supplied SVG, including resource identities and nested boundaries', () => {
+  const iconNames = {
+    'node-start': 'start',
+    'iteration-node-start': 'start',
+    'loop-node-start': 'start',
+    'node-end': 'end',
+    'iteration-node-end': 'end',
+    'loop-node-end': 'end',
+    'loop-exit': 'end',
+    'spark-llm': 'large-model',
+    'ifly-code': 'code',
+    'knowledge-base': 'knowledge-base',
+    'knowledge-pro-base': 'knowledge-base',
+    'decision-making': 'decision',
+    'if-else': 'branch',
+    iteration: 'iteration',
+    loop: 'loop',
+    'node-variable': 'variable-storage',
+    'extractor-parameter': 'variable-extractor',
+    'text-joiner': 'text-processing',
+    message: 'message',
+    agent: 'agent',
+    'question-answer': 'question-answer',
+    database: 'database',
+    'variable-aggregation': 'variable-aggregator',
+    plugin: 'tool',
+    flow: 'workflow',
+    rpa: 'rpa',
+    mcp: 'mcp',
+  };
+  for (const [nodeType, iconName] of Object.entries(iconNames)) {
+    const source = workflowNodeIconSource(nodeType, '/stale-selected.png');
+    assert.equal(path.basename(source), `${iconName}.svg`, nodeType);
+    assert.ok(existsSync(source), nodeType);
+  }
+  assert.equal(new Set(Object.values(iconNames)).size, 21);
+});
+
+test('selected resources use the shared node identity while unknown extensions retain custom icons', () => {
   for (const nodeType of ['plugin', 'mcp', 'flow', 'rpa']) {
     assert.equal(
       workflowNodeIconSource(nodeType, '/selected-resource.png'),
-      '/selected-resource.png'
+      workflowNodeIconSource(nodeType)
     );
     assert.ok(existsSync(workflowNodeIconSource(nodeType)), nodeType);
   }

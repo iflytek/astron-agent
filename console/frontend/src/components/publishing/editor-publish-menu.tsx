@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, Button, Dropdown, Modal, Select, Spin, message } from 'antd';
-import { DownOutlined } from '@ant-design/icons';
+import {
+  ApiOutlined,
+  CloudUploadOutlined,
+  DownOutlined,
+  SaveOutlined,
+  ShopOutlined,
+} from '@ant-design/icons';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
+import styles from './editor-publish-menu.module.scss';
 
 interface EditorPublishMenuProps {
   target: { kind: 'workflow' | 'agent'; id: string | number };
@@ -37,6 +44,7 @@ export default function EditorPublishMenu({
   disabledReason,
   onPublishingChange,
 }: EditorPublishMenuProps): ReactElement {
+  const isWorkflow = target.kind === 'workflow';
   const spaceId = useSpaceStore(state => state.spaceId);
   const enterpriseId = useSpaceStore(state => state.enterpriseId);
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -162,22 +170,26 @@ export default function EditorPublishMenu({
       <Dropdown
         trigger={['click']}
         placement="bottomRight"
+        overlayClassName={isWorkflow ? styles.workflowMenu : undefined}
         menu={{
           items: [
             {
               key: 'market',
               label: '发布到市场',
+              icon: isWorkflow ? <ShopOutlined /> : undefined,
               onClick: (): void => openChannel('MARKET'),
             },
             {
               key: 'api',
               label: '发布为 API',
+              icon: isWorkflow ? <ApiOutlined /> : undefined,
               onClick: (): void => openChannel('API'),
             },
             { type: 'divider' },
             {
               key: 'version',
               label: '保存版本',
+              icon: isWorkflow ? <SaveOutlined /> : undefined,
               disabled: saveVersionDisabled,
               onClick: onSaveVersion,
             },
@@ -187,6 +199,8 @@ export default function EditorPublishMenu({
       >
         <Button
           type="primary"
+          className={isWorkflow ? styles.workflowTrigger : undefined}
+          icon={isWorkflow ? <CloudUploadOutlined /> : undefined}
           disabled={disabled || publishing}
           title={disabledReason}
         >

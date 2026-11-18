@@ -172,6 +172,59 @@ function saveVersion(h, snapshot, errors = []) {
     }
   );
 }
+
+test('editing a validated draft invalidates locally and still saves parameter changes', async () => {
+  let legacyRequests = 0;
+  const h = harness(undefined, undefined, {
+    canPublishSetNotAPI: () => {
+      legacyRequests += 1;
+      return Promise.reject(new Error('404: removed legacy route'));
+    },
+  });
+  h.state.canPublish = true;
+  h.state.setCanPublish = value => {
+    h.state.canPublish = value;
+  };
+  let resultClosed = 0;
+  h.state.openOperationResult = true;
+  h.state.errNodes = [];
+  h.state.setOpenOperationResult = value => {
+    h.state.openOperationResult = value;
+    resultClosed += 1;
+  };
+  const node = {
+    id: 'node-start::parameters',
+    nodeType: 'node-start',
+    data: { nodeParam: {}, outputs: [] },
+  };
+  h.canvas.nodes = [node];
+  node.data.outputs.push({
+    id: 'new-output',
+    name: '',
+    schema: { type: 'string', default: '' },
+  });
+  h.manager.canPublishSetNot(() => h.state);
+  assert.equal(h.state.canPublish, false, 'invalidate before the next render');
+  assert.equal(resultClosed, 1);
+  await h.state.flushCurrentFlow();
+  assert.equal(h.writes.at(-1).data.nodes[0].data.outputs.length, 1);
+
+  node.data.outputs = [];
+  h.manager.canPublishSetNot(() => h.state);
+  await h.state.flushCurrentFlow();
+  assert.equal(h.writes.at(-1).data.nodes[0].data.outputs.length, 0);
+  assert.equal(
+    legacyRequests,
+    0,
+    'parameter edits must not call a removed API'
+  );
+
+  h.state.currentFlow = undefined;
+  h.state.canPublish = true;
+  h.manager.canPublishSetNot(() => h.state);
+  assert.equal(h.state.canPublish, false);
+  assert.equal(legacyRequests, 0);
+});
 function restoreVersion(h, restore, errors = []) {
   return callback(
     '../src/components/workflow/drawer/version-management/index.tsx',

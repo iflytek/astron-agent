@@ -24,7 +24,6 @@ import {
   textNodeConfigClear as textNodeConfigClearAPI,
   getKnowledgeProStrategyAPI,
   getFlowModelList,
-  canPublishSetNotAPI,
 } from '@/services/flow';
 
 import { appendVariableAggregationNodeTemplate } from '../utils/variable-aggregation';
@@ -655,12 +654,10 @@ export const canPublishSetNot = (get: FlowsManagerGetter): void => {
     get().errNodes?.length === 0 &&
     get().setOpenOperationResult(false);
   //改变画布时，将画布可发布态置为false
-  const flowId = get().currentFlow?.id;
-  get().canPublish &&
-    flowId &&
-    canPublishSetNotAPI(flowId).then(() => {
-      get().setCanPublish(false);
-    });
+  // This flag only caches client-side graph validation. Console validates and
+  // freezes the current draft independently when running or publishing it.
+  // Editing must not invoke the removed legacy eligibility-mutation endpoint.
+  if (get().canPublish) get().setCanPublish(false);
 };
 // Set Current Store
 export const setCurrentStore = (

@@ -182,7 +182,20 @@
     .flow-input:focus,
     .flow-template-editor:focus,
     .flow-textarea:focus {
-      border-color: var(--node-editor-primary) !important;
+      border-color: #8494aa !important;
+      outline: none !important;
+      box-shadow: none !important;
+    }
+    .flow-input:focus-visible,
+    .flow-template-editor:focus-visible,
+    .flow-textarea:focus-visible {
+      box-shadow: inset 0 0 0 1px #8494aa !important;
+    }
+    .ant-select-focused .ant-select-selector,
+    .ant-input-number-focused {
+      border-color: #8494aa !important;
+      outline: none !important;
+      box-shadow: none !important;
     }
     .flow-output-tree,
     .flow-output-tree .ant-tree-node-content-wrapper:hover,
@@ -200,11 +213,39 @@
   .workflow-parameter-list {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
   }
-  .workflow-parameter-field + .workflow-parameter-field {
-    padding-top: 14px;
-    border-top: 1px solid #edf1f7;
+  .workflow-parameter-row {
+    display: grid;
+    grid-template-columns: 112px 76px minmax(0, 1fr) 28px;
+    align-items: center;
+    gap: 8px;
+    > * {
+      min-width: 0;
+    }
+    &.workflow-parameter-row-fixed {
+      grid-template-columns: 112px 76px minmax(0, 1fr);
+      .workflow-parameter-fixed-identity {
+        gap: 4px;
+        margin-bottom: 0;
+      }
+      .workflow-parameter-fixed-name {
+        flex: 1;
+      }
+      .workflow-parameter-type {
+        max-width: 50%;
+        padding-inline: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+  .workflow-parameter-name {
+    min-width: 0;
+    .flow-input {
+      padding-inline: 8px;
+    }
   }
   .workflow-parameter-identity {
     display: grid;
@@ -333,6 +374,13 @@
     }
     .workflow-parameter-assignment {
       grid-template-columns: 86px minmax(0, 1fr);
+    }
+    .workflow-parameter-row {
+      grid-template-columns: 88px 68px minmax(0, 1fr) 28px;
+      gap: 6px;
+      &.workflow-parameter-row-fixed {
+        grid-template-columns: 88px 68px minmax(0, 1fr);
+      }
     }
   }
 }

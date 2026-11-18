@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>大模型</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#EDF0FF" stroke="#D8DEFF"/>
+  <g fill="none" stroke="#3C50CA" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 6.75 24 11.35v9.3l-8 4.6-8-4.6v-9.3z" fill="#AAB8FF"/>
+    <path d="M16 16v9.25l8-4.6v-9.3z" fill="#3C50CA" stroke="none" opacity=".24"/>
+    <path d="M8 11.35 16 16l8-4.65M16 16v9.25"/>
+    <path d="m16 12 3.5 2v4L16 20l-3.5-2v-4z" fill="#FFF" stroke="none"/>
+  </g>
+</svg>

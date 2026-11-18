@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>代码</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#EAF3FF" stroke="#D2E3FC"/>
+  <g fill="none" stroke="#2760BD" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m11.25 11.1-5 4.9 5 4.9m9.5-9.8 5 4.9-5 4.9"/>
+    <path d="m18.15 8.9-4.3 14.2" stroke="#5085d5"/>
+  </g>
+</svg>

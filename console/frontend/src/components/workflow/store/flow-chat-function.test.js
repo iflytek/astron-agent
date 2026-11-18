@@ -368,6 +368,226 @@ test('history reopens only the latest conversation in chronological order', asyn
   assert.equal(h.state.chatList[2].inputs[0].default, 'two');
 });
 
+test('finishing a turn retains live message identities without reloading history', async () => {
+  let historyRequests = 0;
+  const h = harness({
+    history: async () => {
+      historyRequests++;
+      return [
+        {
+          id: 'saved',
+          runId: 'old-run',
+          chatId: 'session',
+          question: 'question',
+          answer: 'saved answer',
+        },
+      ];
+    },
+  });
+  h.state.debuggering = false;
+  h.state.runStatus = 'completed';
+  h.state.chatList = [
+    {
+      id: 'ask-live',
+      type: 'ask',
+      inputs: [{ name: 'query', default: 'question' }],
+    },
+    {
+      id: 'answer-live',
+      type: 'answer',
+      runId: 'old-run',
+      content: 'streamed answer',
+    },
+  ];
+  const ask = h.state.chatList[0];
+  h.actions.handleSaveDialogue(h.get, h.set);
+  await tick();
+  assert.equal(historyRequests, 0);
+  assert.equal(h.state.historyStatus, 'ready');
+  assert.equal(h.state.chatList[0], ask);
+  assert.equal(h.state.chatList[1].id, 'answer-live');
+  assert.equal(h.state.chatList[1].content, 'streamed answer');
+  assert.equal(h.state.chatList[1].status, 'completed');
+
+  // Explicitly reopening still reads the persisted server transcript.
+  h.actions.getDialogues('workflow', h.set, false, h.get);
+  await tick();
+  assert.equal(historyRequests, 1);
+  assert.equal(h.state.chatList[1].id, 'saved');
+  assert.equal(h.state.chatList[1].content, 'saved answer');
+});
+
+test('terminal run frame after streaming preserves content without a history round trip', async () => {
+  let historyRequests = 0;
+  const h = harness({
+    history: async () => {
+      historyRequests++;
+      return [];
+    },
+  });
+  h.actions.handleResumeChat('question', h.get, h.set);
+  h.state.debuggering = false;
+  h.state.wsMessageStatus = 'end';
+  h.state.chatList = [
+    {
+      id: 'answer-live',
+      type: 'answer',
+      runId: 'old-run',
+      content: 'final output',
+    },
+  ];
+  h.frame({ runId: 'old-run', status: 'completed' }, 'run-end');
+  await tick();
+  assert.equal(historyRequests, 0);
+  assert.equal(h.state.chatList[0].id, 'answer-live');
+  assert.equal(h.state.chatList[0].content, 'final output');
+  assert.equal(h.state.chatList[0].status, 'completed');
+});
+
+test('failed and stopped turns retain partial replies and terminal feedback', () => {
+  for (const status of ['failed', 'cancelled', 'interrupted']) {
+    const h = harness({
+      history: () => {
+        throw new Error('must not reload');
+      },
+    });
+    h.state.debuggering = false;
+    h.state.runStatus = status;
+    h.state.chatList = [
+      {
+        id: 'partial',
+        type: 'answer',
+        runId: 'old-run',
+        content: 'partial reply',
+      },
+    ];
+    h.actions.handleSaveDialogue(h.get, h.set);
+    assert.equal(h.state.chatList[0].id, 'partial');
+    assert.equal(h.state.chatList[0].content, 'partial reply');
+    assert.equal(h.state.chatList[0].status, status);
+    assert.equal(h.state.historyStatus, 'ready');
+  }
+});
+
+test('confirmed stop drains all pending channels to the original reply and isolates the next turn', async () => {
+  let historyRequests = 0;
+  const h = harness({
+    history: async () => {
+      historyRequests++;
+      return [];
+    },
+  });
+  h.state.chatList = [
+    {
+      id: 'older',
+      type: 'answer',
+      runId: 'older-run',
+      content: 'older output',
+    },
+    {
+      id: 'current',
+      type: 'answer',
+      runId: 'old-run',
+      messageContent: 'message prefix',
+      reasoningContent: 'reason prefix',
+      content: 'answer prefix',
+    },
+  ];
+  h.state.messageNodeTextQueue = ' message suffix';
+  h.state.endNodeReasoningTextQueue = ' reason suffix';
+  h.state.endNodeTextQueue = ' answer suffix';
+  h.actions.handleStopConversation(h.get, h.set);
+  await tick();
+  assert.equal(h.state.debuggering, false);
+  assert.equal(h.state.chatList[0].content, 'older output');
+  assert.deepEqual(h.state.chatList[1], {
+    id: 'current',
+    type: 'answer',
+    runId: 'old-run',
+    status: 'cancelled',
+    messageContent: 'message prefix message suffix',
+    reasoningContent: 'reason prefix reason suffix',
+    content: 'answer prefix answer suffix',
+  });
+  assert.equal(h.state.messageNodeTextQueue, '');
+  assert.equal(h.state.endNodeReasoningTextQueue, '');
+  assert.equal(h.state.endNodeTextQueue, '');
+  assert.equal(historyRequests, 0);
+
+  h.actions.handleRunDebugger({
+    nodes: [],
+    edges: [],
+    get: h.get,
+    set: h.set,
+    inputs: [],
+  });
+  await tick();
+  const next = h.state.chatList.at(-1);
+  assert.equal(next.type, 'answer');
+  assert.equal(next.messageContent, '');
+  assert.equal(next.reasoningContent, '');
+  assert.equal(next.content, '');
+  assert.equal(h.state.chatList[1].content, 'answer prefix answer suffix');
+});
+
+test('rejected stop leaves queue playback active without duplicating buffered text', async () => {
+  const pending = deferred();
+  const h = harness({ stop: () => pending.promise });
+  h.state.chatList = [
+    { id: 'current', type: 'answer', runId: 'old-run', content: 'prefix' },
+  ];
+  h.state.endNodeTextQueue = ' suffix';
+  h.actions.handleStopConversation(h.get, h.set);
+  pending.reject(new Error('stop rejected'));
+  await tick();
+  assert.equal(h.state.debuggering, true);
+  assert.equal(h.state.chatList[0].content, 'prefix');
+  assert.equal(h.state.endNodeTextQueue, ' suffix');
+});
+
+test('completion winning a stop race preserves buffered final text once', async () => {
+  const h = harness({ stop: async () => ({ status: 'completed' }) });
+  h.state.chatList = [
+    { id: 'current', type: 'answer', runId: 'old-run', content: 'prefix' },
+  ];
+  h.state.endNodeTextQueue = ' suffix';
+  h.actions.handleStopConversation(h.get, h.set);
+  await tick();
+  h.actions.setDebuggering(false, h.get, h.set);
+  assert.equal(h.state.chatList[0].content, 'prefix suffix');
+  assert.equal(h.state.chatList[0].status, 'completed');
+  assert.equal(h.state.endNodeTextQueue, '');
+});
+
+test('ending playback preserves buffered text and cannot append it to another run', () => {
+  for (const status of ['failed', 'interrupted']) {
+    const h = harness();
+    h.state.runStatus = status;
+    h.state.chatList = [
+      { id: 'current', type: 'answer', runId: 'old-run', content: 'prefix' },
+    ];
+    h.state.endNodeTextQueue = ' received suffix';
+    h.actions.setDebuggering(false, h.get, h.set);
+    h.actions.handleSaveDialogue(h.get, h.set);
+    assert.equal(h.state.chatList[0].content, 'prefix received suffix');
+    assert.equal(h.state.chatList[0].status, status);
+    assert.equal(h.state.endNodeTextQueue, '');
+  }
+  const h = harness();
+  h.state.chatList = [
+    {
+      id: 'other',
+      type: 'answer',
+      runId: 'other-run',
+      content: 'other output',
+    },
+  ];
+  h.state.endNodeTextQueue = ' stale suffix';
+  h.actions.setDebuggering(false, h.get, h.set);
+  assert.equal(h.state.chatList[0].content, 'other output');
+  assert.equal(h.state.endNodeTextQueue, '');
+});
+
 test('new conversation clears local context and cannot race an active execution', () => {
   const h = harness();
   h.state.chatIdRef = 'server-session';

@@ -19,7 +19,7 @@ import desciptionIcon from '@/assets/imgs/workflow/desciption-icon.png';
 function InputName({ item }: { item: WorkflowInput }): React.ReactElement {
   return (
     <span className="workflow-parameter-fixed-name relative flex items-center gap-1.5">
-      <span className="flex-1 text-overflow" title={item?.name}>
+      <span className="min-w-0 flex-1 text-overflow" title={item?.name}>
         {item.name}
       </span>
       {item?.required && (
@@ -41,7 +41,12 @@ function InputName({ item }: { item: WorkflowInput }): React.ReactElement {
 }
 
 function InputTypeTag({ item }: { item: WorkflowInput }): React.ReactElement {
-  return <div className="workflow-parameter-type">{renderType(item)}</div>;
+  const type = renderType(item);
+  return (
+    <div className="workflow-parameter-type" title={type}>
+      {type}
+    </div>
+  );
 }
 
 function index({ id, data }: NodeComponentProps): React.ReactElement {
@@ -62,11 +67,11 @@ function index({ id, data }: NodeComponentProps): React.ReactElement {
           )}
           {inputs.map(item => (
             <div key={item.id} className="workflow-parameter-field">
-              <div className="workflow-parameter-fixed-identity">
-                <InputName item={item} />
-                <InputTypeTag item={item} />
-              </div>
-              <div className="workflow-parameter-assignment">
+              <div className="workflow-parameter-row workflow-parameter-row-fixed">
+                <div className="workflow-parameter-fixed-identity">
+                  <InputName item={item} />
+                  <InputTypeTag item={item} />
+                </div>
                 <div>
                   <TypeSelector id={id} data={data} item={item} />
                 </div>
