@@ -1,5 +1,25 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Alert, Button, Drawer, Empty, Modal, Pagination, message } from 'antd';
+import {
+  Alert,
+  Button,
+  Drawer,
+  Empty,
+  Modal,
+  Pagination,
+  Skeleton,
+  Tag,
+  message,
+} from 'antd';
+import {
+  HistoryOutlined,
+  EyeOutlined,
+  PlayCircleOutlined,
+  RollbackOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons';
+import dayjs from 'dayjs';
+import { useAuthoringDrawerStyle } from '../../hooks/use-authoring-drawer-style';
+import './version-management.css';
 import { getVersionList, restoreVersion } from '@/services/common';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
@@ -12,8 +32,8 @@ import type { WorkflowSnapshot } from '@/components/workflow/types/domain';
 export default function VersionManagement({
   open,
   setOpen,
-  operationResultOpen,
 }: VersionManagementProps): ReactElement {
+  const rootStyle = useAuthoringDrawerStyle();
   const currentFlow = useFlowsManager(state => state.currentFlow);
   const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const setHistoryVersion = useFlowsManager(state => state.setHistoryVersion);
@@ -32,11 +52,16 @@ export default function VersionManagement({
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [revision, setRevision] = useState(0);
   const [restoring, setRestoring] = useState(false);
   const [target, setTarget] = useState<VersionItem | null>(null);
   useEffect(() => {
     let ignore = false;
-    if (open && currentFlow?.flowId)
+    if (open && currentFlow?.flowId) {
+      setLoading(true);
+      setError('');
       void getVersionList({
         flowId: currentFlow.flowId,
         current: page,
@@ -50,13 +75,23 @@ export default function VersionManagement({
           }
         })
         .catch(() => {
-          if (!ignore) setError('无法读取版本列表');
+          if (!ignore) setError('版本加载失败，请重试。');
+        })
+        .finally(() => {
+          if (!ignore) setLoading(false);
         });
+    }
     return () => {
       ignore = true;
     };
-  }, [open, currentFlow?.flowId, page]);
+  }, [open, currentFlow?.flowId, page, revision]);
+  useEffect(() => {
+    setPage(1);
+    setVersions([]);
+  }, [currentFlow?.flowId]);
   const select = async (version: VersionItem | null): Promise<boolean> => {
+    if (switching || restoring) return false;
+    setSwitching(true);
     try {
       await flushCurrentFlow();
       const draft = useFlowsManager.getState().currentFlow;
@@ -83,6 +118,8 @@ export default function VersionManagement({
     } catch {
       message.error('切换版本前保存失败，请重试');
       return false;
+    } finally {
+      setSwitching(false);
     }
   };
   const restore = async (): Promise<void> => {
@@ -125,60 +162,152 @@ export default function VersionManagement({
   };
   return (
     <Drawer
-      title="工作流版本"
+      title={
+        <span>
+          <HistoryOutlined /> 版本历史
+        </span>
+      }
       open={open}
       onClose={() => setOpen(false)}
-      width={430}
+      width="min(540px, 100vw)"
       mask={false}
-      rootStyle={{ top: 80, right: operationResultOpen ? 530 : 0 }}
+      rootStyle={rootStyle}
+      rootClassName="workflow-version-drawer"
     >
-      {error && <Alert type="error" message={error} />}
-      <Button block className="mb-4" onClick={() => void select(null)}>
-        返回当前草稿
-      </Button>
-      {!versions.length && !error && <Empty description="尚未保存版本" />}
-      {versions.map(version => (
-        <article
-          key={version.id}
-          className="border rounded-lg p-4 mb-4"
-          style={{
-            borderColor:
-              historyVersionData?.id === version.id ? '#6356EA' : undefined,
-          }}
-        >
-          <h3 className="font-semibold">{version.name}</h3>
-          <p>{version.versionNum}</p>
-          <p className="text-gray-500 text-xs my-2">{version.createdTime}</p>
-          <div className="flex gap-2">
-            <Button onClick={() => void select(version)}>查看</Button>
-            <Button
-              onClick={async () => {
-                if (!(await select(version))) return;
-                const state = useFlowsManager.getState();
-                state.setVersionManagement(false);
-                state.checkFlow();
-                state.setOpenOperationResult(true);
-              }}
-            >
-              调试此版本
+      <div className="workflow-version-context">
+        <div>
+          <strong>当前草稿</strong>
+          <p>编辑会自动保存；已保存版本保持不变。</p>
+        </div>
+        {historyVersionData ? (
+          <Button
+            loading={switching}
+            disabled={restoring}
+            onClick={() => void select(null)}
+          >
+            回到草稿
+          </Button>
+        ) : (
+          <Tag color="blue">正在编辑</Tag>
+        )}
+      </div>
+      <div className="workflow-version-list-heading">
+        <h3>
+          已保存版本 <span>{total}</span>
+        </h3>
+        <Button
+          type="text"
+          aria-label="刷新版本列表"
+          icon={<ReloadOutlined />}
+          loading={loading}
+          onClick={() => setRevision(value => value + 1)}
+        />
+      </div>
+      {error && (
+        <Alert
+          showIcon
+          type="error"
+          message={error}
+          action={
+            <Button onClick={() => setRevision(value => value + 1)}>
+              重试
             </Button>
-            <Button onClick={() => setTarget(version)}>恢复为草稿</Button>
-          </div>
-        </article>
-      ))}
-      <Pagination
-        size="small"
-        current={page}
-        total={total}
-        pageSize={20}
-        onChange={setPage}
-        showSizeChanger={false}
-      />
+          }
+        />
+      )}
+      {loading ? (
+        <Skeleton active paragraph={{ rows: 6 }} />
+      ) : (
+        !error && (
+          <>
+            {!versions.length && (
+              <Empty description="尚未保存版本。通过发布菜单保存版本后，可在这里查看或恢复。" />
+            )}
+            <div className="workflow-version-list">
+              {versions.map(version => (
+                <article
+                  key={version.id}
+                  className={
+                    historyVersionData?.id === version.id ? 'is-selected' : ''
+                  }
+                >
+                  <div className="workflow-version-identity">
+                    <h4 title={version.name}>{version.name || '未命名版本'}</h4>
+                    {historyVersionData?.id === version.id && (
+                      <Tag color="blue">正在查看</Tag>
+                    )}
+                  </div>
+                  <time>
+                    {dayjs(version.createdTime).isValid()
+                      ? dayjs(version.createdTime).format('YYYY-MM-DD HH:mm')
+                      : version.createdTime}
+                  </time>
+                  <details>
+                    <summary>版本标识</summary>
+                    <code>{version.versionNum}</code>
+                  </details>
+                  <div className="workflow-version-actions">
+                    <Button
+                      size="small"
+                      icon={<EyeOutlined />}
+                      disabled={switching || restoring}
+                      onClick={() => void select(version)}
+                    >
+                      查看
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<PlayCircleOutlined />}
+                      disabled={switching || restoring}
+                      onClick={async () => {
+                        if (!(await select(version))) return;
+                        const state = useFlowsManager.getState();
+                        state.setVersionManagement(false);
+                        state.checkFlow();
+                        state.setOpenOperationResult(true);
+                      }}
+                    >
+                      调试
+                    </Button>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<RollbackOutlined />}
+                      disabled={switching || restoring}
+                      onClick={() => setTarget(version)}
+                    >
+                      恢复为草稿
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+            {total > 20 && (
+              <Pagination
+                size="small"
+                current={page}
+                total={total}
+                pageSize={20}
+                onChange={setPage}
+                showSizeChanger={false}
+              />
+            )}
+          </>
+        )
+      )}
       <Modal
         title="恢复版本"
         open={!!target}
-        onCancel={() => setTarget(null)}
+        keyboard={!restoring}
+        onCancel={() => {
+          if (!restoring) setTarget(null);
+        }}
         confirmLoading={restoring}
+        okText="恢复为草稿"
+        cancelText="取消"
+        cancelButtonProps={{ disabled: restoring }}
+        closable={!restoring}
+        maskClosable={!restoring}
         onOk={() => void restore()}
       >
         用“{target?.name}”更新当前草稿？已保存版本与历史运行保留。

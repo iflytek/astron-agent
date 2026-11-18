@@ -19,7 +19,6 @@ from astron_console.workflows.execution_context import (
 from astron_console.workflows.lifecycle import claim_run, prepare_run, stream_run
 from astron_console.workflows.models import (
     ExecutionContext,
-    PromptTemplate,
     Workflow,
     WorkflowRun,
     WorkflowVersion,
@@ -143,14 +142,40 @@ class RuntimeTests(TransactionTestCase):
         self.assertEqual([r["id"] for r in items], [self.model.pk])
         self.assertNotIn(b"secret", result.content)
         self.assertNotIn(b"example.com", result.content)
-        PromptTemplate.objects.create(uid="another-owner", name="private", prompt="{}")
-        PromptTemplate.objects.create(
-            uid="-1", name="shared", prompt='{"userQuery":"{{question}}"}'
+        result = self.client.get("/workflow/agent-node/prompt-template")
+        self.assertEqual(result.status_code, 404)
+
+    def test_agent_node_requires_existing_published_reference(self):
+        for params in ({}, {"modelId": self.model.pk}, {"agentId": True}):
+            self.graph["nodes"][1]["data"]["nodeParam"] = params
+            with self.assertRaisesMessage(ValidationError, "请选择已有 Agent"):
+                prepare_run(self.scope, self.workflow, {}, graph=self.graph)
+        self.graph["nodes"][1]["data"]["nodeParam"] = {"agentId": self.agent.pk}
+        self.state.published_version_id = None
+        self.state.save()
+        with self.assertRaisesMessage(ValidationError, "Agent尚无已发布版本"):
+            prepare_run(self.scope, self.workflow, {}, graph=self.graph)
+
+    def test_agent_reference_cannot_cross_owner_scope(self):
+        self.agent.uid = "different-owner"
+        self.agent.save()
+        with self.assertRaises(PermissionDenied):
+            prepare_run(self.scope, self.workflow, {})
+
+    def test_agent_reference_ignores_inline_prompt_and_resource_overrides(self):
+        params = self.graph["nodes"][1]["data"]["nodeParam"]
+        params.update(modelId=999999, plugin={"tools": [999999]}, instruction={"answer": "bad"})
+        run = prepare_run(self.scope, self.workflow, {}, graph=self.graph)
+        run.status = "running"
+        run.save()
+        result = self.post(
+            "/workflow/internal/agent-runtime",
+            {"runId": run.pk, "nodeId": "agent::one", "query": "hello", "answerInstruction": "bad"},
+            internal=True,
         )
-        result = self.client.get("/workflow/agent-node/prompt-template?pageSize=999")
         self.assertEqual(result.status_code, 200, result.content)
-        self.assertEqual(result.json()["data"]["pageData"][0]["inputs"], [{"name": "question"}])
-        self.assertEqual(result.json()["data"]["totalCount"], 1)
+        self.assertEqual(result.json()["data"]["instruction"]["answer"], "v1")
+        self.assertEqual(result.json()["data"]["model_config"]["domain"], self.model.domain)
 
     def test_retry_does_not_resolve_new_invalid_draft_dependencies(self):
         original = prepare_run(self.scope, self.workflow, {})
@@ -165,7 +190,7 @@ class RuntimeTests(TransactionTestCase):
         retried = prepare_run(self.scope, self.workflow, {}, retry_of=original)
         self.assertEqual(retried.graph, original.graph)
         self.assertEqual(retried.resolved_agents, original.resolved_agents)
-        with self.assertRaises(PermissionDenied):
+        with self.assertRaisesMessage(ValidationError, "请选择已有 Agent"):
             prepare_run(self.scope, self.workflow, {})
 
     def test_history_filters_draft_version_and_single_node_runs(self):

@@ -182,6 +182,7 @@ async def test_node_debug_preserves_schemas_and_removes_model_credentials(
     }
     if node_type == "agent":
         parameters.update(
+            agentId=9,
             modelConfig={
                 "domain": "test-model",
                 "api": "https://model.example/v1/chat/completions",
@@ -250,7 +251,12 @@ async def test_node_debug_preserves_schemas_and_removes_model_credentials(
         self: AgentNode | SparkLLMNode, variable_pool: VariablePool, span: Span
     ) -> NodeRunResult:
         executed.append(self.node_id)
-        assert self.apiKey == "" and self.apiSecret == ""
+        if node_type == "agent":
+            assert "apiKey" not in self.model_dump()
+            assert "apiSecret" not in self.model_dump()
+            assert self.agentId == 9
+        else:
+            assert self.apiKey == "" and self.apiSecret == ""
         assert self.retry_config.should_retry is False
         assert self.retry_config.custom_output == {
             "REASONING_CONTENT": "",

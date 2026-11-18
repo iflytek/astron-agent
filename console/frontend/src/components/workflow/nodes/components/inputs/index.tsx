@@ -6,6 +6,8 @@ import type {
   WorkflowReference,
 } from '@/components/workflow/types/domain';
 import React, { memo } from 'react';
+import { Button, Tooltip } from 'antd';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import {
   FlowNodeInput,
@@ -17,9 +19,6 @@ import ChatHistory from '@/components/workflow/nodes/components/chat-history';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 import { EnabledChatHistory } from '@/components/workflow/nodes/components/single-input';
-
-import inputAddIcon from '@/assets/imgs/workflow/input-add-icon.png';
-import remove from '@/assets/imgs/workflow/input-remove-icon.png';
 
 interface InputFieldProps extends NodeComponentProps {
   item: WorkflowInput;
@@ -52,6 +51,8 @@ function NameField({
   return (
     <FlowNodeInput
       nodeId={id}
+      id={`${id}-${item.id}-name`}
+      aria-label="参数名称"
       maxLength={30}
       value={item.name}
       onChange={value =>
@@ -75,6 +76,7 @@ export function TypeSelector({
 
   return (
     <FlowSelect
+      aria-label={`${item.name || '参数'}的赋值方式`}
       value={item?.schema?.value?.type}
       options={[
         { label: t('workflow.nodes.common.input'), value: 'literal' },
@@ -147,6 +149,7 @@ export function LiteralField({
   return (
     <FlowNodeInput
       nodeId={id}
+      aria-label={`${item.name || '参数'}的值`}
       value={
         item.schema.value.type === 'literal'
           ? typeof item.schema.value.content === 'string'
@@ -176,16 +179,17 @@ function RemoveButton({
 
   const isImageParam = item?.customParameterType === 'image_understanding';
   return (
-    <img
-      src={remove}
-      className="w-[16px] h-[17px] flex-shrink-0 mt-1.5"
-      style={{
-        cursor: isImageParam ? 'not-allowed' : 'pointer',
-        opacity: isImageParam ? 0.5 : 1,
-      }}
-      onClick={() => !isImageParam && handleRemoveInputLine(item.id)}
-      alt=""
-    />
+    <Tooltip title={isImageParam ? '图片参数不可删除' : '删除参数'}>
+      <Button
+        type="text"
+        size="small"
+        className="workflow-parameter-remove"
+        aria-label={`删除参数 ${item.name || ''}`}
+        disabled={isImageParam}
+        icon={<DeleteOutlined />}
+        onClick={() => handleRemoveInputLine(item.id)}
+      />
+    </Tooltip>
   );
 }
 
@@ -231,6 +235,7 @@ function ReferenceField({
 
   return (
     <FlowCascader
+      aria-label={`${item.name || '参数'}引用的变量`}
       value={cascaderValue}
       options={references}
       handleTreeSelect={handleSelect}
@@ -247,14 +252,17 @@ export function ErrorMessages({
 }: {
   item: WorkflowInput;
 }): React.ReactElement {
-  return (
-    <div className="flex items-center gap-3 text-xs text-[#F74E43]">
-      <div className="flex flex-col w-1/3">{item?.nameErrMsg}</div>
-      <div className="flex flex-col w-1/4"></div>
-      <div className="flex flex-col flex-1">
-        {item?.schema?.value?.contentErrMsg}
-      </div>
+  const errors = [item?.nameErrMsg, item?.schema?.value?.contentErrMsg].filter(
+    Boolean
+  );
+  return errors.length ? (
+    <div className="workflow-parameter-errors" role="status">
+      {errors.map((error, index) => (
+        <p key={index}>{error}</p>
+      ))}
     </div>
+  ) : (
+    <></>
   );
 }
 
@@ -264,13 +272,8 @@ function index({
 }: React.PropsWithChildren<NodeComponentProps> & {
   allowAdd?: boolean;
 }): React.ReactElement {
-  const {
-    inputs,
-    isIteratorNode,
-    handleAddInputLine,
-    handleChangeInputParam,
-    allowAddInput,
-  } = useNodeCommon({ id, data });
+  const { inputs, handleAddInputLine, handleChangeInputParam, allowAddInput } =
+    useNodeCommon({ id, data });
   const { t } = useTranslation();
 
   return (
@@ -284,53 +287,40 @@ function index({
         </div>
       }
       content={
-        <div className="px-[18px] rounded-lg overflow-hidden">
-          <div className="flex items-center gap-3 text-desc">
-            <h4 className="w-1/3">
-              {t('workflow.nodes.common.parameterName')}
-            </h4>
-            <h4 className="w-1/4">
-              {isIteratorNode ? ' ' : t('workflow.nodes.common.parameterValue')}
-            </h4>
-            <h4 className="flex-1">
-              {isIteratorNode ? t('workflow.nodes.common.parameterValue') : ' '}
-            </h4>
-            <span className="w-5 h-5"></span>
-          </div>
+        <div className="workflow-parameter-list">
           {data?.nodeParam?.enableChatHistoryV2?.isEnabled && (
             <ChatHistory id={id} data={data} />
           )}
-          <div className="flex flex-col gap-3 mt-4">
-            {inputs.map(item => (
-              <div key={item.id} className="flex flex-col gap-1">
-                <div className="flex items-start gap-3 overflow-hidden">
-                  <div className="flex flex-col flex-shrink-0 w-1/3">
-                    <NameField
-                      id={id}
-                      item={item}
-                      handleChangeInputParam={handleChangeInputParam}
-                    />
-                  </div>
-                  <div className="flex flex-col flex-shrink-0 w-1/4">
-                    <TypeSelector id={id} data={data} item={item} />
-                  </div>
-                  <div className="flex flex-col flex-1 overflow-hidden">
-                    <ValueField id={id} data={data} item={item} />
-                  </div>
-                  <RemoveButton item={item} id={id} data={data} />
-                </div>
-                <ErrorMessages item={item} />
+          {inputs.map(item => (
+            <div key={item.id} className="workflow-parameter-field">
+              <div className="workflow-parameter-identity">
+                <label htmlFor={`${id}-${item.id}-name`}>
+                  {t('workflow.nodes.common.parameterName')}
+                </label>
+                <NameField
+                  id={id}
+                  item={item}
+                  handleChangeInputParam={handleChangeInputParam}
+                />
+                <RemoveButton item={item} id={id} data={data} />
               </div>
-            ))}
-          </div>
+              <div className="workflow-parameter-assignment">
+                <TypeSelector id={id} data={data} item={item} />
+                <ValueField id={id} data={data} item={item} />
+              </div>
+              <ErrorMessages item={item} />
+            </div>
+          ))}
           {allowAddInput && (
-            <div
-              className="text-[#6356EA] text-xs font-medium mt-1 inline-flex items-center cursor-pointer gap-1.5"
+            <Button
+              type="text"
+              size="small"
+              className="workflow-add-parameter"
+              icon={<PlusOutlined />}
               onClick={() => handleAddInputLine()}
             >
-              <img src={inputAddIcon} className="w-3 h-3" alt="" />
-              <span>{t('workflow.nodes.common.add')}</span>
-            </div>
+              {t('workflow.nodes.common.add')}
+            </Button>
           )}
         </div>
       }

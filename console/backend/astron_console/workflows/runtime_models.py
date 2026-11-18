@@ -41,6 +41,7 @@ class WorkflowRun(models.Model):
     invocation_id = models.CharField(max_length=128, null=True, unique=True)
     version_id = models.BigIntegerField(null=True)
     chat_id = models.CharField(max_length=128, default="")
+    history_messages = models.JSONField(default=list)
     status = models.CharField(max_length=32, default="pending", db_index=True)
     event_id = models.CharField(max_length=255, default="")
     events = models.JSONField(default=list)

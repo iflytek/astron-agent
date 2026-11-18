@@ -28,7 +28,6 @@ import { isJSON } from '@/utils';
 import { originOutputTypeList } from '@/components/workflow/constant';
 import { useTranslation } from 'react-i18next';
 import {
-  AgentNodeOneClickUpdate,
   ToolNodeOneClickUpdate,
   FlowNodeOneClickUpdate,
   RpaNodeOneClickUpdate,
@@ -773,7 +772,6 @@ const useNodeModels = ({
   id,
   data,
 }: Required<NodeCommonProps>): UseNodeModelsReturn => {
-  const agentModels = useFlowsManager(state => state.agentModels);
   const sparkLlmModels = useFlowsManager(state => state.sparkLlmModels);
   const questionAnswerModels = useFlowsManager(
     state => state.questionAnswerModels
@@ -785,9 +783,7 @@ const useNodeModels = ({
     state => state.extractorParameterModels
   );
   const models = useMemo(() => {
-    if (id?.startsWith('agent')) {
-      return agentModels;
-    }
+
     if (id?.startsWith('spark-llm')) {
       return sparkLlmModels;
     }
@@ -801,7 +797,7 @@ const useNodeModels = ({
       return extractorParameterModels;
     }
     return [];
-  }, [id, agentModels, sparkLlmModels, questionAnswerModels]);
+  }, [id, sparkLlmModels, questionAnswerModels]);
   const model = useMemo(() => {
     return models?.find(item => item?.llmId === data?.nodeParam?.llmId);
   }, [data?.nodeParam?.llmId, models]);
@@ -1268,9 +1264,7 @@ export const useNodeCommon = ({
 
   const renderTypeOneClickUpdate = (): React.ReactElement | null => {
     const { nodeType } = useNodeInfo({ id, data });
-    if (nodeType === 'agent') {
-      return <AgentNodeOneClickUpdate id={id} data={data} />;
-    } else if (nodeType === 'plugin') {
+    if (nodeType === 'plugin') {
       return <ToolNodeOneClickUpdate id={id} data={data} />;
     } else if (nodeType === 'flow') {
       return <FlowNodeOneClickUpdate id={id} data={data} />;

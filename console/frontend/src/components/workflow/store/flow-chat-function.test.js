@@ -101,6 +101,8 @@ function harness({ stop, history, build } = {}) {
   const actions = load('./flow-chat-function');
   const state = {
     ...actions.initialStatus,
+    conversationScope: JSON.stringify(['workflow', 'draft', '']),
+    historyStatus: 'ready',
     controllerRef: new AbortController(),
     runId: 'old-run',
     runStatus: 'running',
@@ -113,7 +115,11 @@ function harness({ stop, history, build } = {}) {
   };
   const get = () => state;
   state.setChatList = change => {
-    state.chatList = change(state.chatList);
+    state.chatList =
+      typeof change === 'function' ? change(state.chatList) : change;
+  };
+  state.setDeleteAllModal = value => {
+    state.deleteAllModal = value;
   };
   state.setInterruptChat = change => {
     state.interruptChat = change;
@@ -137,11 +143,13 @@ function harness({ stop, history, build } = {}) {
     get,
     set,
     ui,
+    manager,
     flow,
     errors,
     updates,
     hasRequest: () => Boolean(request),
     requestUrl: () => requestUrl,
+    requestBody: () => JSON.parse(request.body),
     close: value => {
       ui.open = value;
     },
@@ -150,6 +158,240 @@ function harness({ stop, history, build } = {}) {
   };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test('uninitialized conversation cannot send before history loads or new conversation is selected', () => {
+  const h = harness();
+  h.state.historyStatus = 'idle';
+  h.state.conversationScope = '';
+  h.state.debuggering = false;
+  h.state.startNodeParams = [{ name: 'query', type: 'string' }];
+  h.state.userInput = 'hello';
+  assert.equal(h.actions.canRunDebugger(h.get), false);
+  h.actions.deleteAllChat(h.get);
+  h.state.userInput = 'hello';
+  assert.equal(h.actions.canRunDebugger(h.get), true);
+});
+
+test('draft to version history blocks send and clears stale session and pause before loading', async () => {
+  const pending = deferred();
+  const h = harness({ history: () => pending.promise });
+  h.state.debuggering = false;
+  h.state.chatIdRef = 'draft-session';
+  h.state.conversationScope = JSON.stringify(['workflow', 'draft', '']);
+  h.state.interruptChat = {
+    ...h.state.interruptChat,
+    interrupt: true,
+    eventId: 'draft-event',
+  };
+  h.state.runStatus = 'paused';
+  h.state.startNodeParams = [{ name: 'query', type: 'string' }];
+  h.state.userInput = 'send';
+  h.manager.historyVersion = true;
+  h.manager.historyVersionData = { versionNum: 'v1' };
+  assert.equal(
+    h.actions.canRunDebugger(h.get),
+    false,
+    'scope change is blocked even before history effect'
+  );
+  const previousController = h.state.controllerRef;
+  h.actions.getDialogues('workflow', h.set, false, h.get);
+  assert.equal(previousController.signal.aborted, true);
+  assert.equal(h.state.chatIdRef, '');
+  assert.equal(h.state.runId, '');
+  assert.equal(h.state.interruptChat.interrupt, false);
+  assert.equal(h.state.historyStatus, 'loading');
+  assert.equal(h.actions.canRunDebugger(h.get), false);
+  h.actions.handleRunDebugger({
+    nodes: [],
+    edges: [],
+    get: h.get,
+    set: h.set,
+    inputs: [],
+  });
+  h.actions.handleResumeChat('stale reply', h.get, h.set);
+  await tick();
+  assert.equal(
+    h.hasRequest(),
+    false,
+    'direct action calls cannot bypass loading guard'
+  );
+
+  pending.resolve([
+    {
+      id: 'version-run',
+      runId: 'version-run',
+      chatId: 'version-session',
+      question: 'version question',
+      answer: 'version answer',
+    },
+  ]);
+  await tick();
+  assert.equal(h.state.historyStatus, 'ready');
+  assert.equal(h.state.chatIdRef, 'version-session');
+  h.state.userInput = 'continue';
+  assert.equal(h.actions.canRunDebugger(h.get), true);
+  h.actions.handleRunDebugger({
+    nodes: [],
+    edges: [],
+    get: h.get,
+    set: h.set,
+    inputs: [],
+  });
+  await tick();
+  assert.equal(h.requestBody().chatId, 'version-session');
+  assert.equal(h.requestBody().version, 'v1');
+});
+
+test('history failure can retry or escape to a new conversation without accepting late history', async () => {
+  const attempts = [deferred(), deferred(), deferred()];
+  let index = 0;
+  const h = harness({ history: () => attempts[index++].promise });
+  h.state.debuggering = false;
+  h.actions.getDialogues('workflow', h.set);
+  attempts[0].reject(new Error('offline'));
+  await tick();
+  assert.equal(h.state.historyStatus, 'error');
+  assert.equal(h.actions.canRunDebugger(h.get), false);
+  h.actions.deleteAllChat(h.get);
+  assert.equal(
+    h.state.historyStatus,
+    'ready',
+    'new conversation escapes failed history'
+  );
+  assert.equal(h.state.chatIdRef, '');
+  h.actions.getDialogues('workflow', h.set);
+  assert.equal(h.state.historyStatus, 'loading');
+  attempts[1].resolve([]);
+  await tick();
+  assert.equal(h.state.historyStatus, 'ready');
+
+  h.actions.getDialogues('workflow', h.set);
+  h.actions.deleteAllChat(h.get);
+  assert.equal(h.state.historyStatus, 'ready');
+  assert.equal(h.state.chatIdRef, '');
+  attempts[2].resolve([
+    {
+      id: 'old-run',
+      runId: 'old-run',
+      chatId: 'old-session',
+      question: 'old',
+      answer: 'old',
+    },
+  ]);
+  await tick();
+  assert.equal(h.state.chatIdRef, '');
+  assert.deepEqual(h.state.chatList, []);
+});
+
+test('old workflow history failure cannot overwrite the selected workflow', async () => {
+  const old = deferred();
+  const selected = deferred();
+  const h = harness({
+    history: id => (id === 'workflow' ? old.promise : selected.promise),
+  });
+  h.actions.getDialogues('workflow', h.set);
+  h.manager.currentFlow = { id: 'other-workflow', flowId: 'other-flow' };
+  h.actions.getDialogues('other-workflow', h.set);
+  selected.resolve([
+    {
+      id: 'selected-run',
+      runId: 'selected-run',
+      chatId: 'selected-session',
+      question: 'selected',
+      answer: 'answer',
+    },
+  ]);
+  await tick();
+  old.reject(new Error('late old failure'));
+  await tick();
+  assert.equal(h.state.historyStatus, 'ready');
+  assert.equal(h.state.chatIdRef, 'selected-session');
+  assert.equal(h.errors.length, 0);
+});
+
+test('a draft build finishing after version history loads cannot start a cross-scope run', async () => {
+  const building = deferred();
+  const h = harness({ build: () => building.promise });
+  h.actions.handleRunDebugger({
+    nodes: [],
+    edges: [],
+    get: h.get,
+    set: h.set,
+    inputs: [],
+  });
+  h.manager.historyVersion = true;
+  h.manager.historyVersionData = { versionNum: 'v1' };
+  h.actions.getDialogues('workflow', h.set, false, h.get);
+  await tick();
+  building.resolve();
+  await tick();
+  assert.equal(h.hasRequest(), false);
+  assert.equal(h.state.historyStatus, 'ready');
+  assert.equal(h.state.debuggering, false);
+});
+
+test('history reopens only the latest conversation in chronological order', async () => {
+  const h = harness({
+    history: async () => [
+      {
+        id: 'old',
+        runId: 'old',
+        chatId: 'old-session',
+        question: 'old question',
+        answer: 'old answer',
+      },
+      {
+        id: 'first',
+        runId: 'first',
+        chatId: 'latest-session',
+        question: 'one',
+        answer: 'first answer',
+      },
+      {
+        id: 'second',
+        runId: 'second',
+        chatId: 'latest-session',
+        question: 'two',
+        answer: 'second answer',
+      },
+    ],
+  });
+  h.actions.getDialogues('workflow', h.set);
+  await tick();
+  assert.equal(h.state.chatIdRef, 'latest-session');
+  assert.deepEqual(
+    h.state.chatList.map(item => item.type),
+    ['ask', 'answer', 'ask', 'answer']
+  );
+  assert.equal(h.state.chatList[0].inputs[0].default, 'one');
+  assert.equal(h.state.chatList[1].content, 'first answer');
+  assert.equal(h.state.chatList[2].inputs[0].default, 'two');
+});
+
+test('new conversation clears local context and cannot race an active execution', () => {
+  const h = harness();
+  h.state.chatIdRef = 'server-session';
+  h.state.chatList = [{ type: 'answer', content: 'retained on server' }];
+  h.actions.deleteAllChat(h.get);
+  assert.equal(h.state.chatIdRef, 'server-session');
+  h.state.debuggering = false;
+  h.state.runStatus = 'completed';
+  h.actions.deleteAllChat(h.get);
+  assert.equal(h.state.chatIdRef, '');
+  assert.deepEqual(h.state.chatList, []);
+  assert.equal(h.state.runId, '');
+  assert.equal(h.hasRequest(), false);
+});
+
+test('server run frame establishes the conversation for following turns', () => {
+  const h = harness();
+  h.actions.handleResumeChat('continue', h.get, h.set);
+  h.frame(
+    { runId: 'first-run', chatId: 'server-session', status: 'running' },
+    'run'
+  );
+  assert.equal(h.state.chatIdRef, 'server-session');
+});
 function deferred() {
   let resolve, reject;
   const promise = new Promise((yes, no) => {
@@ -211,7 +453,7 @@ test('paused drawer stop sends cancellation before clearing paused state', async
   assert.equal(h.hasRequest(), false);
   pending.resolve({ status: 'cancelled' });
   await tick();
-  assert.equal(h.state.controllerRef.signal.aborted, true);
+  assert.equal(controller.signal.aborted, true);
   assert.equal(h.state.interruptChat.interrupt, false);
   assert.equal(h.ui.status, 'cancelled');
   assert.equal(h.flow.nodes[0].data.status, 'cancel');
@@ -284,6 +526,7 @@ test('late same-version history cannot clear a newly resumed execution', async (
   const pending = deferred();
   const h = harness({ history: () => pending.promise });
   h.actions.getDialogues('workflow', h.set);
+  h.actions.deleteAllChat(h.get);
   h.actions.handleResumeChat('continue', h.get, h.set);
   h.frame({ runId: 'new-run', status: 'resuming' }, 'run');
   const chats = h.state.chatList;
@@ -312,6 +555,7 @@ test('stop before the first run frame waits for its ID without aborting', async 
   });
   await tick();
   assert.equal(h.state.runId, '');
+  const controller = h.state.controllerRef;
   h.actions.clearData(h.close, h.get);
   assert.equal(h.state.controllerRef.signal.aborted, false);
   assert.deepEqual(stopped, []);
@@ -320,7 +564,7 @@ test('stop before the first run frame waits for its ID without aborting', async 
   assert.equal(h.state.controllerRef.signal.aborted, false);
   pending.resolve({ status: 'cancelled' });
   await tick();
-  assert.equal(h.state.controllerRef.signal.aborted, true);
+  assert.equal(controller.signal.aborted, true);
 });
 
 test('stop during deferred build never starts a run or cancels an old run', async () => {

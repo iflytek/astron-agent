@@ -11,7 +11,6 @@ urlpatterns = [
     path("workflow/get-mcp-server-list-locally", catalog.mcp_list),
     path("workflow/get-server-tool-detail-locally", catalog.mcp_detail),
     path("workflow/debug-server-tool", catalog.mcp_debug),
-    path("workflow/agent-node/prompt-template", catalog.prompts),
     path("workflow/chat", views.chat),
     path("workflow/node/debug/<str:node_id>", views.node_debug),
     path("workflow/code/run", views.code_run),

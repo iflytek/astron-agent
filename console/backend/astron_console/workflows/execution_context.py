@@ -31,45 +31,23 @@ def graph_value(value):
 
 
 def freeze_graph(scope, value):
-    from astron_console.agents.resource_resolution import snapshot_references
-
     graph = graph_value(value)
     for node in graph_nodes(graph):
-        param = node.get("data", {}).get("nodeParam") or {}
-        if node.get("id", "").startswith("agent::") and not param.get("agentId"):
-            config = snapshot_references(scope, inline_definition(node))
-            plugin = param.setdefault("plugin", {})
-            plugin["mcpServerIds"] = config["mcpServerIds"]
-            plugin["mcpServerUrls"] = []
-            plugin["tools"] = config["tools"]
-            plugin["skills"] = config["skills"]
-            plugin["knowledge"] = [{"repoId": value} for value in config["repoIds"]]
-            plugin["workflowIds"] = config["workflows"]
+        if node.get("id", "").startswith("agent::"):
+            require_agent_reference(node)
     return graph
+
+
+def require_agent_reference(node):
+    param = (node.get("data") or {}).get("nodeParam") or {}
+    agent_id = param.get("agentId")
+    if isinstance(agent_id, bool) or not str(agent_id or "").isdigit() or int(agent_id) < 1:
+        raise ValidationError("请选择已有 Agent；节点内联配置已停用")
+    return agent_id
 
 
 def workflow_reference(value):
     return reference(value, "flowId", "flow_id", "workflowId")
-
-
-def inline_definition(node):
-    param = (node.get("data") or {}).get("nodeParam") or {}
-    plugin = param.get("plugin") or {}
-    instruction = param.get("instruction") or {}
-    return {
-        "modelId": param.get("modelId"),
-        "prompt": param.get("prompt") or instruction.get("reasoning") or "",
-        "maxLoopCount": param.get("maxLoopCount", 5),
-        "tools": plugin.get("tools", []),
-        "mcpServerIds": plugin.get("mcpServerIds", []),
-        "mcpServerUrls": plugin.get("mcpServerUrls", []),
-        "skills": plugin.get("skills", []),
-        "repoIds": [
-            item.get("repoId", item.get("id")) if isinstance(item, dict) else item
-            for item in plugin.get("knowledge", [])
-        ],
-        "workflows": plugin.get("workflowIds", []),
-    }
 
 
 def select_graph(workflow, version=None):
@@ -122,10 +100,7 @@ def freeze_dependencies(scope, *, workflow=None, graph=None, agent_config=None, 
             param = (node.get("data") or {}).get("nodeParam") or {}
             kind = node.get("id", "").split("::")[0]
             if kind == "agent":
-                if param.get("agentId"):
-                    visit_agent(param["agentId"])
-                else:
-                    agent_dependencies(inline_definition(node))
+                visit_agent(require_agent_reference(node))
             elif kind == "flow" and param.get("flowId"):
                 visit_flow(get_workflow(scope, param["flowId"], EXECUTE))
 
@@ -209,13 +184,11 @@ def runtime_identity(context):
             chain = run.call_chain
         elif kind == "agent":
             fixed = run.resolved_agents.get(node["id"])
-            if fixed:
-                resolved = resolve_version(scope, fixed["agentId"], fixed["versionId"])
-                config = resolved["definition"]
-                chain = extend_chain(run.call_chain, f"agent:{fixed['agentId']}")
-            else:
-                config = inline_definition(node)
-                chain = extend_chain(run.call_chain, f"inline:{run.workflow_id}:{node['id']}")
+            if not fixed:
+                raise ValidationError("Agent节点缺少固定引用，请重新选择已有 Agent")
+            resolved = resolve_version(scope, fixed["agentId"], fixed["versionId"])
+            config = resolved["definition"]
+            chain = extend_chain(run.call_chain, f"agent:{fixed['agentId']}")
             allowed = refs(config.get("workflows"))
         else:
             raise PermissionDenied

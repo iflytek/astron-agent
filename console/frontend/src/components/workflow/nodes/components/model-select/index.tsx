@@ -26,10 +26,6 @@ import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import ModelParams from '../model-params';
 import useUserStore from '@/store/user-store';
 import {
-  getCustomModelConfigDetail,
-  getModelConfigDetail,
-} from '@/services/common';
-import {
   checkedNodeOutputData,
   generateOrUpdateObject,
 } from '@/components/workflow/utils/reactflowUtils';
@@ -37,7 +33,9 @@ import { isJSON } from '@/utils';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 import dayjs from 'dayjs';
 
-import debuggerIcon from '@/assets/imgs/workflow/debugger-icon.png';
+import { Button } from 'antd';
+import { SlidersOutlined } from '@ant-design/icons';
+import { workflowModelAvatar } from '../../model-avatar';
 import inputErrorMsg from '@/assets/imgs/plugin/input_error_msg.svg';
 
 // 模型标签
@@ -137,7 +135,10 @@ const ModelItem = ({
     <div className="w-full flex items-start justify-between overflow-hidden">
       <div className="flex items-start gap-2 flex-1 overflow-hidden">
         <div className="flex items-center gap-2">
-          <img src={model.icon} className="w-[20px] h-[20px] flex-shrink-0" />
+          <img
+            src={workflowModelAvatar(model)}
+            className="w-[20px] h-[20px] flex-shrink-0"
+          />
           <span
             className="text-xs"
             style={{
@@ -172,56 +173,21 @@ const useModelSelect = (id: string, models: WorkflowModel[]) => {
   const setNode = currentStore(state => state.setNode);
   const handleResetModelParams = useMemoizedFn(
     (currentSelectModel: WorkflowModel) => {
-      if (currentSelectModel?.llmSource === 0) {
-        getCustomModelConfigDetail(
-          String(currentSelectModel.id),
-          String(currentSelectModel.llmSource)
-        ).then(data => {
-          setNode(id, old => {
-            const config = readModelSettings({
-              ...currentSelectModel,
-              config: JSON.stringify(data ?? []),
-              llmSource: 0,
-            });
-            const extraParams: Record<string, number | boolean | null> = {};
-            config.forEach(item => {
-              extraParams[item?.key] = item?.default;
-              Reflect.deleteProperty(old.data.nodeParam, item.key);
-            });
-            old.data.nodeParam.extraParams = extraParams;
-            return {
-              ...cloneDeep(old),
-            };
-          });
-          autoSaveCurrentFlow();
+      const configs = readModelSettings(currentSelectModel);
+      setNode(id, old => {
+        const extraParams: Record<string, number | boolean | null> = {};
+        configs.forEach(item => {
+          if (currentSelectModel.llmSource === 0) {
+            extraParams[item.key] = item.default;
+            Reflect.deleteProperty(old.data.nodeParam, item.key);
+          } else {
+            writeModelSetting(old.data.nodeParam, item.key, item.default);
+          }
         });
-      } else {
-        getModelConfigDetail(
-          String(currentSelectModel.llmId),
-          String(currentSelectModel.llmSource)
-        ).then(modelDetail => {
-          const configs = readModelSettings({
-            ...currentSelectModel,
-            config: JSON.stringify(modelDetail),
-            llmSource: 2,
-          });
-          setNode(id, old => {
-            configs.forEach(item => {
-              if (item.key === 'max_tokens') {
-                item.key = 'maxTokens';
-              }
-              if (item.key === 'top_k') {
-                item.key = 'topK';
-              }
-              writeModelSetting(old.data.nodeParam, item.key, item.default);
-            });
-            return {
-              ...cloneDeep(old),
-            };
-          });
-          autoSaveCurrentFlow();
-        });
-      }
+        old.data.nodeParam.extraParams = extraParams;
+        return cloneDeep(old);
+      });
+      autoSaveCurrentFlow();
     }
   );
   const handleSparkLLMOutputs = useMemoizedFn(
@@ -384,15 +350,16 @@ function index({ id, data }: NodeComponentProps): React.ReactElement {
           </FlowSelect>
         </div>
         {!canvasesDisabled && (
-          <div
-            className="relative p-1.5 mb-0.5 border border-[#f5f7fc] shadow-sm rounded-lg cursor-pointer bg-[#fff]"
+          <Button
+            type="text"
+            aria-label="模型参数"
+            title="模型参数"
+            icon={<SlidersOutlined />}
             onClick={e => {
               e.stopPropagation();
-              setShowModelParmas(true);
+              setShowModelParmas(value => !value);
             }}
-          >
-            <img src={debuggerIcon} className="w-4 h-4" alt="" />
-          </div>
+          />
         )}
         {showModelParmas && (
           <ModelParams

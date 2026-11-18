@@ -21,6 +21,21 @@ def node_options() -> dict:
     }
 
 
+def test_v2_history_rounds_keep_complete_user_assistant_pairs() -> None:
+    messages = [
+        HistoryItem(role=role, content=f"{index}:{role.value}")
+        for index in range(4)
+        for role in (RoleEnum.user, RoleEnum.assistant)
+    ]
+
+    retained = History.process_history(messages, rounds=2)
+
+    assert retained == messages[-4:]
+    assert [item.role for item in retained] == [
+        RoleEnum.user, RoleEnum.assistant, RoleEnum.user, RoleEnum.assistant,
+    ]
+
+
 @pytest.mark.asyncio
 async def test_legacy_history_is_preserved_in_model_messages() -> None:
     node = DecisionNode(**node_options())

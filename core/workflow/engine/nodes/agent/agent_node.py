@@ -11,30 +11,23 @@ from common.otlp.trace.langfuse import (
     inject_trusted_langfuse_context,
     redact_trusted_trace_headers,
 )
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import PrivateAttr
 
 from workflow.consts.engine.chat_status import ChatStatus
-from workflow.consts.engine.model_provider import ModelProviderEnum
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
-from workflow.engine.entities.history import EnableChatHistoryV2
 from workflow.engine.entities.msg_or_end_dep_info import MsgOrEndDepInfo
-from workflow.engine.entities.private_config import PrivateConfig
 from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.base_node import BaseNode
 from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
     WorkflowNodeExecutionStatus,
 )
-from workflow.engine.nodes.util.dict_util import keys_to_snake_case
 from workflow.engine.nodes.util.frame_processor import extract_tool_calls_content
-from workflow.engine.nodes.util.prompt import prompt_template_replace
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
 from workflow.infra import console_runtime
-from workflow.infra.providers.llm.runtime_config import resolve_model_config
-from workflow.infra.providers.llm.schemas import StreamOutputMsg
 from workflow.utils.credentials import credential_from_env_or_file
 from workflow.utils.trace_sanitization import serialize_trace_payload
 
@@ -62,249 +55,13 @@ def _agent_frame(line: bytes) -> dict | None:
     return json.loads(data)
 
 
-# Temporarily unused
-class Instruction(BaseModel):
-    """Instruction configuration for agent node.
-
-    :param reasoning: Reasoning instruction template
-    :param answer: Answer instruction template
-    :param query: Query instruction template
-    """
-
-    reasoning: str = ""
-    answer: str = ""
-    query: str = ""
-
-
-class AgentModelConfig(BaseModel):
-    """Agent model configuration.
-
-    :param domain: Model domain identifier
-    :param api: API endpoint URL
-    :param agentStrategy: Agent strategy type (1 for default)
-    """
-
-    domain: str = Field(...)
-    api: str = Field(...)
-    agentStrategy: int = Field(...)
-
-
-class Match(BaseModel):
-    """Knowledge base matching configuration.
-
-    :param repoIds: List of repository IDs to match
-    :param docIds: List of document IDs to match
-    """
-
-    repoIds: List[str] = Field(min_length=1)
-    docIds: List[str] | None = Field(default=None, min_length=1)
-    datasetIds: List[str] | None = Field(default=None, min_length=1)
-
-
-class Knowledge(BaseModel):
-    """Knowledge base configuration for agent.
-
-    :param name: Knowledge base name
-    :param description: Knowledge base description
-    :param topK: Number of top results to retrieve
-    :param repoType: Repository type (default: CBG_RAG)
-    :param match: Matching configuration for repositories and documents
-    """
-
-    name: str = Field(min_length=1, max_length=128)
-    description: str = Field(min_length=0, max_length=1024)
-    topK: int = Field(ge=1, le=5)
-    repoType: int = Field(..., ge=1, le=3)
-    match: Match
-
-    @model_validator(mode="after")
-    def check_doc_ids_when_repo_type(self) -> "Knowledge":
-        if self.repoType == 2:
-            if self.match.docIds is None or len(self.match.docIds) == 0:
-                raise ValueError(
-                    "When repoType=2, match.docIds is required and must contain at least one item."
-                )
-        return self
-
-
-class Skill(BaseModel):
-    """Skill metadata passed to agent runtime.
-
-    :param skillId: Skill file identifier
-    :param name: Skill display name
-    :param description: Short summary injected into system prompt
-    :param downloadUrl: Presigned URL for lazily reading full SKILL.md content
-    :param resources: Relative-path resource manifest for referenced files
-    """
-
-    class Resource(BaseModel):
-        path: str = Field(min_length=1)
-        name: str = Field(default="")
-        downloadUrl: str = Field(default="")
-        fileExt: str = Field(default="")
-        fileSize: int = Field(default=0)
-
-    skillId: str = Field(..., min_length=1)
-    name: str = Field(min_length=1, max_length=128)
-    description: str = Field(min_length=0, max_length=1024)
-    downloadUrl: str = Field(default="")
-    resources: List[Resource] = Field(default_factory=list)
-    sandbox: Dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("skillId", mode="before")
-    @classmethod
-    def normalize_skill_id(cls, value: Any) -> str:
-        if value is None:
-            raise ValueError("skillId is required")
-        return str(value)
-
-    @field_validator("description", "downloadUrl", mode="before")
-    @classmethod
-    def normalize_optional_string_fields(cls, value: Any) -> str:
-        return "" if value is None else str(value)
-
-    @field_validator("sandbox", mode="before")
-    @classmethod
-    def remove_untrusted_sandbox_credentials(cls, value: Any) -> dict[str, Any]:
-        if not isinstance(value, dict):
-            return {}
-        sanitized = dict(value)
-        for key in (
-            "provider",
-            "apiKey",
-            "api_key",
-            "timeoutSeconds",
-            "timeout_seconds",
-            "allowInternetAccess",
-            "allow_internet_access",
-            "runtimeConfigUrl",
-            "runtime_config_url",
-            "artifactUploadUrl",
-            "artifact_upload_url",
-            "artifactUploadToken",
-            "artifact_upload_token",
-            "runtimeCredentialToken",
-            "runtime_credential_token",
-        ):
-            sanitized.pop(key, None)
-        return sanitized
-
-
-class AgentNodePlugin(BaseModel):
-    """Plugin configuration for agent node.
-
-    :param mcpServerIds: List of MCP server IDs
-    :param mcpServerUrls: List of MCP server URLs
-    :param tools: List of available tools
-    :param workflowIds: List of workflow IDs
-    :param knowledge: List of knowledge base configurations
-    """
-
-    mcpServerIds: List[str] = Field(...)
-    mcpServerUrls: List[str] = Field(...)
-    tools: list = Field(...)
-    workflowIds: List[str] = Field(...)
-    knowledge: List[Knowledge] = Field(default_factory=list)
-    skills: List[Skill] = Field(default_factory=list)
-
-
-class AgentNodeMessage:
-    """Message structure for agent communication.
-
-    :param role: Message role (user, assistant, system)
-    :param content: Message content
-    """
-
-    role: str
-    content: str
-
-    def __init__(self, role: str, content: str):
-        """Initialize agent message.
-
-        :param role: Message role
-        :param content: Message content
-        """
-        self.role = role
-        self.content = content
-
-    def to_dict(self) -> dict:
-        """Convert message to dictionary format.
-
-        :return: Dictionary representation of the message
-        """
-        return {"role": self.role, "content": self.content}
-
-
-class AgentMetaData(BaseModel):
-    """Metadata configuration for agent node.
-
-    :param caller: Caller identifier (default: workflow-agent-node)
-    :param callerSid: Caller session ID
-    """
-
-    caller: str = Field(default="workflow-agent-node")
-    callerSid: str = Field(default="")
-    workflowId: str = Field(default="")
-    runId: str = Field(default="")
-    nodeId: str = Field(default="")
-
-
 class AgentNode(BaseNode):
-    """Agent node implementation for workflow execution.
+    """Invoke an existing Agent through Console's fixed, authorized release."""
 
-    This class handles agent-based workflow nodes that can interact with
-    external AI services, use tools, and access knowledge bases.
-
-    :param appId: Application ID for authentication
-    :param apiKey: API key for authentication
-    :param apiSecret: API secret for authentication
-    :param uid: User identifier
-    :param modelConfig: Model configuration settings
-    :param instruction: Instruction templates for reasoning, answer, and query
-    :param plugin: Plugin configuration including tools and knowledge bases
-    :param metaData: Metadata configuration
-    :param maxLoopCount: Maximum number of execution loops (default: 10)
-    :param stream: Whether to use streaming mode (default: True)
-    :param maxTokens: Maximum token limit (default: 10240)
-    :param enableChatHistoryV2: Chat history configuration
-    :param source: Model provider source (default: OPENAI)
-    """
-
-    _private_config = PrivateConfig()
-
-    appId: str = Field(...)
-    modelId: str | int = Field(default="")
-    apiKey: str = Field(default="", exclude=True, repr=False)
-    apiSecret: str = Field(default="", exclude=True, repr=False)
-    uid: str = Field(default="")
+    appId: str
     agentId: str | int | None = None
-    modelConfig: AgentModelConfig = Field(
-        default_factory=lambda: AgentModelConfig(domain="", api="", agentStrategy=1)
-    )
-    instruction: Instruction = Field(default_factory=Instruction)
-    plugin: AgentNodePlugin = Field(
-        default_factory=lambda: AgentNodePlugin(
-            mcpServerIds=[], mcpServerUrls=[], tools=[], workflowIds=[]
-        )
-    )
-    metaData: AgentMetaData = AgentMetaData()
-    maxLoopCount: int = Field(default=5)
-    stream: bool = Field(default=True)
-    maxTokens: int = Field(default=10240)
-    enableChatHistoryV2: EnableChatHistoryV2 = Field(
-        default_factory=EnableChatHistoryV2
-    )
-    source: str = Field(default=ModelProviderEnum.OPENAI.value)
-
-    @model_validator(mode="before")
-    @classmethod
-    def reference_ignores_inline_execution_config(cls, value: Any) -> Any:
-        if isinstance(value, dict) and value.get("agentId") is not None:
-            value = dict(value)
-            # Only the published definition may select models, tools and loop limits.
-            for key in ("modelConfig", "plugin", "maxLoopCount"):
-                value.pop(key, None)
-        return value
+    stream: bool = True
+    _runtime_domain: str = PrivateAttr(default="")
 
     def _build_agent_request_headers(self) -> dict[str, str]:
         """Build an authenticated request for the deployment-internal Agent API."""
@@ -350,32 +107,16 @@ class AgentNode(BaseNode):
         :param event_log_node_trace: Event logging for node execution
         :return: Tuple of (content_list, reasoning_content_list, token_usage)
         """
-        # Prepare instruction templates
-        reasoning_instruction, answer_instruction, query_instruction = (
-            self._prepare_instructions(variable_pool, span)
-        )
-        reasoning_instruction, answer_instruction = self._append_skill_context(
-            reasoning_instruction, answer_instruction
-        )
-
-        messages = await self._deal_history(inputs, variable_pool, span)
-        if not query_instruction:
-            query_instruction = str(
-                inputs.get("query")
-                or inputs.get("input")
-                or json.dumps(inputs, ensure_ascii=False)
-            )
-        messages.append(AgentNodeMessage("user", query_instruction).to_dict())
-        await span.add_info_event_async(f"messages: {messages}")
-
-        self._normalize_tools()
+        query = inputs.get("query", inputs.get("input"))
+        if query is None:
+            query = json.dumps(inputs, ensure_ascii=False)
+        messages = [{"role": "user", "content": str(query)}]
 
         # Construct request headers
         headers = self._build_agent_request_headers()
 
-        req_body = await self._generate_agent_request(
-            reasoning_instruction, answer_instruction, messages, variable_pool, span
-        )
+        req_body = await self._generate_agent_request(messages, variable_pool, span)
+        self._runtime_domain = req_body.get("model_config", {}).get("domain", "")
         logged_headers = _redact_agent_request_headers(headers)
         sanitized_req_body = serialize_trace_payload(req_body)
         await span.add_info_event_async(f"req header: {logged_headers}")
@@ -428,63 +169,6 @@ class AgentNode(BaseNode):
 
         return content_list, reasoning_content_list, token_usage
 
-    def _prepare_instructions(
-        self, variable_pool: VariablePool, span: Span
-    ) -> Tuple[str, str, str]:
-        """Prepare instruction templates by replacing variables.
-
-        :param variable_pool: Variable pool containing template variables
-        :param span: Tracing span for monitoring
-        :return: Tuple of (reasoning_instruction, answer_instruction, query_instruction)
-        """
-        reasoning_instruction = prompt_template_replace(
-            input_identifier=self.input_identifier,
-            _prompt_template=self.instruction.reasoning,
-            node_id=self.node_id,
-            variable_pool=variable_pool,
-            span_context=span,
-        )
-
-        answer_instruction = prompt_template_replace(
-            input_identifier=self.input_identifier,
-            _prompt_template=self.instruction.answer,
-            node_id=self.node_id,
-            variable_pool=variable_pool,
-            span_context=span,
-        )
-
-        query_instruction = prompt_template_replace(
-            input_identifier=self.input_identifier,
-            _prompt_template=self.instruction.query,
-            node_id=self.node_id,
-            variable_pool=variable_pool,
-            span_context=span,
-        )
-
-        return (
-            reasoning_instruction,
-            answer_instruction,
-            query_instruction,
-        )
-
-    def _append_skill_context(
-        self, reasoning_instruction: str, answer_instruction: str
-    ) -> Tuple[str, str]:
-        if not self.plugin.skills:
-            return reasoning_instruction, answer_instruction
-
-        skill_lines = [
-            f"- {skill.name}: {skill.description}".rstrip(": ").rstrip()
-            for skill in self.plugin.skills
-        ]
-        skill_context = (
-            "\n\nAvailable Skills:\n"
-            + "\n".join(skill_lines)
-            + "\nIf detailed procedures are required, call the corresponding skill tool to read SKILL.md and the resource manifest."
-            + "\nWhen SKILL.md references a relative file path like references/beijing.md, call the same tool again with that path."
-        )
-        return reasoning_instruction + skill_context, answer_instruction + skill_context
-
     async def _process_stream_response(
         self,
         response: ClientResponse,
@@ -534,12 +218,11 @@ class AgentNode(BaseNode):
 
             finish_reason = choices[0].get("finish_reason")
             # Put frame content into msg_or_end_node_deps for streaming
-            # await self.put_agent_content(self.node_id, variable_pool, msg_or_end_node_deps, msg)
             await self.put_stream_content(
                 self.node_id,
                 variable_pool,
                 msg_or_end_node_deps,
-                self.modelConfig.domain,
+                self._runtime_domain,
                 msg,
             )
             if finish_reason == ChatStatus.FINISH_REASON.value:
@@ -555,161 +238,29 @@ class AgentNode(BaseNode):
         return content_list, reasoning_content_list, token_usage
 
     async def _generate_agent_request(
-        self,
-        reasoning_instruction: str,
-        answer_instruction: str,
-        messages: List[Dict],
-        variable_pool: VariablePool,
-        span: Span,
+        self, messages: List[Dict], variable_pool: VariablePool, span: Span
     ) -> dict:
-        """Generate request body for agent service call.
-
-        :param reasoning_instruction: Processed reasoning instruction
-        :param answer_instruction: Processed answer instruction
-        :param messages: List of conversation messages
-        :param span: Tracing span for monitoring
-        :return: Request body dictionary
-        """
-        context = variable_pool.system_params.get(ParamKey.ConsoleContext, default={})
-        if context:
-            console_runtime.validate_context(context)
-            return await console_runtime.request(
-                "agent-runtime",
-                {
-                    "runId": context["run_id"],
-                    "nodeId": self.node_id,
-                    "query": messages[-1]["content"],
-                    "reasoningInstruction": reasoning_instruction,
-                    "answerInstruction": answer_instruction,
-                    "invocationId": str(uuid4()),
-                },
+        if not self.agentId:
+            raise CustomException(
+                CodeEnum.AGENT_NODE_EXECUTION_ERROR,
+                err_msg="请选择已有 Agent；节点内联配置已停用",
             )
-        if self.agentId is not None:
+        context = variable_pool.system_params.get(ParamKey.ConsoleContext, default={})
+        if not context:
             raise CustomException(
                 CodeEnum.AGENT_NODE_EXECUTION_ERROR,
                 err_msg="Agent references require a Console run",
             )
-        model = await resolve_model_config(
-            str(variable_pool.system_params.get(ParamKey.ModelFlowId, default="")),
-            str(self.modelId),
+        console_runtime.validate_context(context)
+        return await console_runtime.request(
+            "agent-runtime",
+            {
+                "runId": context["run_id"],
+                "nodeId": self.node_id,
+                "query": messages[-1]["content"],
+                "invocationId": str(uuid4()),
+            },
         )
-        return {
-            "model_config": {
-                "domain": model["domain"],
-                "api": model["api"],
-                "api_key": model["apiKey"],
-                "provider": model["provider"],
-            },
-            "instruction": {
-                "reasoning": reasoning_instruction,
-                "answer": answer_instruction,
-            },
-            "plugin": {
-                "tools": self.plugin.tools,
-                "mcp_server_ids": self.plugin.mcpServerIds,
-                "mcp_server_urls": self.plugin.mcpServerUrls,
-                "workflow_ids": self.plugin.workflowIds,
-                "knowledge": keys_to_snake_case(
-                    [k.dict() for k in self.plugin.knowledge]
-                ),
-                "skills": keys_to_snake_case([s.dict() for s in self.plugin.skills]),
-            },
-            "uid": span.uid,
-            "messages": messages,
-            "meta_data": {
-                "caller": self.metaData.caller,
-                "caller_sid": self.metaData.callerSid,
-                "workflow_id": variable_pool.system_params.get(
-                    ParamKey.FlowId, default=""
-                ),
-                "run_id": self.metaData.callerSid,
-                "node_id": self.node_id,
-            },
-            "stream": True,
-            "max_loop_count": self.maxLoopCount,
-        }
-
-    def _normalize_tools(self) -> None:
-        """Normalize tool configuration format.
-
-        Converts string tool IDs to proper tool configuration objects.
-        """
-        for index, tool in enumerate(self.plugin.tools):
-            if isinstance(tool, str):
-                self.plugin.tools[index] = {"tool_id": tool, "version": "V1.0"}
-
-    async def _deal_history(
-        self,
-        inputs: Dict,
-        variable_pool: VariablePool,
-        span: Span,
-    ) -> List[Dict]:
-        """Process chat history for agent context.
-
-        :param inputs: Input data dictionary
-        :param variable_pool: Variable pool containing history data
-        :param span: Tracing span for monitoring
-        :return: List of formatted message dictionaries
-        """
-        messages: List[Dict] = []
-        if variable_pool.system_params.get(ParamKey.ConsoleContext, default={}):
-            return messages
-        if not (self.enableChatHistoryV2 and self.enableChatHistoryV2.is_enabled):
-            return messages
-        rounds = self.enableChatHistoryV2.rounds
-        history = []
-        # variable_pool.history_v2 is None during single node debugging
-        if variable_pool.history_v2:
-            history = variable_pool.history_v2.process_history(
-                data=variable_pool.history_v2.origin_history,
-                rounds=rounds,
-            )
-        for item in history:
-            # Multimodal content is not currently supported
-            if item.content_type == "text":
-                messages.append(
-                    AgentNodeMessage(role=item.role, content=item.content).to_dict()
-                )
-        inputs.update({"chatHistory": messages})
-        await span.add_info_event_async(f"history: {history}")
-        return messages
-
-    async def put_agent_content(
-        self,
-        node_id: str,
-        variable_pool: VariablePool,
-        msg_or_end_node_deps: Dict[str, MsgOrEndDepInfo],
-        agent_content: dict,
-    ) -> None:
-        """Put agent response content into streaming queue.
-
-        :param node_id: Node identifier
-        :param variable_pool: Variable pool for data storage
-        :param msg_or_end_node_deps: Message or end node dependencies
-        :param agent_content: Agent response content to queue
-        """
-        try:
-            if not variable_pool.get_stream_node_has_sent_first_token(node_id):
-                # Once put_llm_content is executed, it proves the agent has sent the first frame
-                # Set has_sent_first_token to True
-                variable_pool.set_stream_node_has_sent_first_token(node_id)
-            if not msg_or_end_node_deps:
-                # No node dependencies during single node debugging
-                return
-
-            if not variable_pool.stream_data:
-                return
-
-            for msg_end_node, info in msg_or_end_node_deps.items():
-                data_dep = info.data_dep
-                if node_id in data_dep:
-                    await variable_pool.stream_data[msg_end_node][node_id].put(
-                        StreamOutputMsg(
-                            domain=self.modelConfig.domain, llm_response=agent_content
-                        )
-                    )
-        except Exception as e:
-            raise e
 
     async def async_execute(
         self,
@@ -727,7 +278,6 @@ class AgentNode(BaseNode):
         :return: Node execution result
         """
         try:
-            self.metaData.callerSid = span.sid
             msg_or_end_node_deps = kwargs.get("msg_or_end_node_deps", {})
             inputs = {}
             for input_key in self.input_identifier:

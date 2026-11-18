@@ -8,5 +8,4 @@ export * from './knowledge-parameter';
 export * from './knowledge-pro-parameter';
 export * from './node-detail';
 export * from './prompt-optimize';
-export * from './select-agent-prompt';
 export * from './add-mcp';

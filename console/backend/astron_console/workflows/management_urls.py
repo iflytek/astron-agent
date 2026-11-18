@@ -26,7 +26,6 @@ urlpatterns = [
     path("workflow/automation/<int:task_id>/enable", automation.enable),
     path("workflow/automation/<int:task_id>/runs", automation.runs),
     path("workflow/automation/<int:task_id>/run-now", automation.run_now),
-    path("workflow/get-agent-strategy", views.strategies, {"category": "WORKFLOW_AGENT_STRATEGY"}),
     path(
         "workflow/get-knowledge-pro-strategy",
         views.strategies,

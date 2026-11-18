@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from workflow.consts.engine.model_provider import ModelProviderEnum
 from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.agent.agent_node import (
     WORKFLOW_INTERNAL_API_KEY_HEADER,
@@ -22,105 +21,8 @@ def build_agent_node() -> AgentNode:
         input_identifier=[],
         output_identifier=["output"],
         appId="app-id",
-        apiKey="api-key",
-        apiSecret="api-secret",
-        modelConfig={
-            "domain": "test-domain",
-            "api": "https://example.test/v1/chat/completions",
-            "agentStrategy": 1,
-        },
-        instruction={
-            "reasoning": "think",
-            "answer": "answer",
-            "query": "query",
-        },
-        plugin={
-            "mcpServerIds": [],
-            "mcpServerUrls": [],
-            "tools": [],
-            "workflowIds": [],
-            "knowledge": [],
-            "skills": [
-                {
-                    "skillId": "skill-1",
-                    "name": "Report Skill",
-                    "description": "Generate reports",
-                    "downloadUrl": "",
-                    "resources": [],
-                    "sandbox": {
-                        "provider": "e2b",
-                        "enabled": True,
-                        "apiKey": "legacy-api-key-must-not-be-forwarded",
-                        "api_key": "legacy-snake-api-key-must-not-be-forwarded",
-                        "runtimeConfigUrl": "https://attacker.example/runtime-config",
-                        "timeoutSeconds": 600,
-                        "allowInternetAccess": True,
-                        "artifactUploadUrl": "https://attacker.example/workflow/artifacts/internal-upload",
-                        "artifactUploadToken": "legacy-artifact-token",
-                        "runtimeCredentialToken": "legacy-runtime-token",
-                    },
-                }
-            ],
-        },
-        maxLoopCount=3,
-        source=ModelProviderEnum.OPENAI.value,
+        agentId="9",
     )
-
-
-@pytest.mark.asyncio
-async def test_generate_agent_request_includes_runtime_metadata(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    variable_pool = VariablePool([])
-    variable_pool.system_params.set(ParamKey.FlowId, "flow-123")
-    span = Span(uid="user-1")
-    node = build_agent_node()
-    node.metaData.callerSid = "run-456"
-
-    variable_pool.system_params.set(ParamKey.ModelFlowId, "group-123")
-    node.modelId = "42"
-    resolve = AsyncMock(
-        return_value={
-            "domain": "current-model",
-            "api": "http://current",
-            "provider": "openai",
-            "apiKey": "current-key",
-        }
-    )
-    monkeypatch.setattr(
-        "workflow.engine.nodes.agent.agent_node.resolve_model_config", resolve
-    )
-    request = await node._generate_agent_request(
-        "reasoning",
-        "answer",
-        [{"role": "user", "content": "hello"}],
-        variable_pool,
-        span,
-    )
-
-    resolve.assert_awaited_once_with("group-123", "42")
-    assert node.apiKey == "api-key"
-    assert request["model_config"]["domain"] == "current-model"
-    assert request["meta_data"] == {
-        "caller": "workflow-agent-node",
-        "caller_sid": "run-456",
-        "workflow_id": "flow-123",
-        "run_id": "run-456",
-        "node_id": "agent-node-1",
-    }
-    assert request["model_config"]["provider"] == "openai"
-    assert request["model_config"]["api_key"] == "current-key"
-    sandbox = request["plugin"]["skills"][0]["sandbox"]
-    assert sandbox["enabled"] is True
-    assert "provider" not in sandbox
-    assert "timeoutSeconds" not in sandbox
-    assert "allowInternetAccess" not in sandbox
-    assert "artifactUploadUrl" not in sandbox
-    assert "apiKey" not in sandbox
-    assert "api_key" not in sandbox
-    assert "runtimeConfigUrl" not in sandbox
-    assert "artifactUploadToken" not in sandbox
-    assert "runtimeCredentialToken" not in sandbox
 
 
 def test_agent_request_headers_require_and_forward_internal_key(
@@ -170,8 +72,6 @@ async def test_console_node_uses_only_authorized_fixed_runtime(
         "workflow.engine.nodes.agent.agent_node.console_runtime.request", request
     )
     result = await node._generate_agent_request(
-        "untrusted",
-        "untrusted",
         [{"role": "user", "content": "current"}],
         pool,
         Span(uid="user"),
@@ -181,9 +81,8 @@ async def test_console_node_uses_only_authorized_fixed_runtime(
     assert action == "agent-runtime"
     assert body["runId"] == "run" and body["nodeId"] == node.node_id
     assert body["query"] == "current" and body["invocationId"]
-    assert body["reasoningInstruction"] == "untrusted"
-    assert body["answerInstruction"] == "untrusted"
-    # Console only applies expanded instructions to an authorized inline node.
+    assert "reasoningInstruction" not in body
+    assert "answerInstruction" not in body
 
 
 @pytest.mark.asyncio
@@ -192,8 +91,6 @@ async def test_agent_reference_cannot_fallback_to_inline_without_console() -> No
     node.agentId = "9"
     with pytest.raises(CustomException):
         await node._generate_agent_request(
-            "a",
-            "b",
             [{"role": "user", "content": "c"}],
             VariablePool([]),
             Span(uid="user"),
@@ -250,4 +147,22 @@ def test_reference_ignores_stale_inline_resource_configuration() -> None:
         }
     )
     assert node.agentId == "9"
-    assert node.plugin.knowledge == []
+    assert "plugin" not in node.model_dump()
+    assert "modelConfig" not in node.model_dump()
+    assert "maxLoopCount" not in node.model_dump()
+
+
+@pytest.mark.asyncio
+async def test_old_inline_node_requires_existing_agent_even_with_console_context() -> (
+    None
+):
+    node = build_agent_node()
+    node.agentId = None
+    pool = VariablePool([])
+    pool.system_params.set(
+        ParamKey.ConsoleContext, {"run_id": "run", "root_id": "root"}
+    )
+    with pytest.raises(CustomException, match="请选择已有 Agent"):
+        await node._generate_agent_request(
+            [{"role": "user", "content": "hello"}], pool, Span(uid="user")
+        )

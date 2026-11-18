@@ -26,7 +26,6 @@ import {
   textNodeConfigList as textNodeConfigListAPI,
   textNodeConfigSave as textNodeConfigSaveAPI,
   textNodeConfigClear as textNodeConfigClearAPI,
-  getAgentStrategyAPI,
   getKnowledgeProStrategyAPI,
   getFlowModelList,
   canPublishSetNotAPI,
@@ -57,7 +56,6 @@ export const initialStatus = {
   sparkLlmModels: [], //Spark LLM Node Model List
   decisionMakingModels: [], //Decision Node Model List
   extractorParameterModels: [], //Parameter Extractor Node Model List
-  agentModels: [], //Agent Node Model List
   knowledgeProModels: [], //Knowledge Base Pro Node Model List
   questionAnswerModels: [], //Question Answer Node Model List
   flowResult: {
@@ -71,10 +69,6 @@ export const initialStatus = {
   isLoading: true, //Initialize flow data loading
   canPublish: false, //Whether the flow can be published
   showIterativeModal: false, //Whether to display the iterative node modal
-  selectAgentPromptModalInfo: {
-    open: false,
-    nodeId: '',
-  }, //Select Agent Prompt Modal Information
   defaultValueModalInfo: {
     open: false,
     nodeId: '',
@@ -99,7 +93,6 @@ export const initialStatus = {
   }, //Code IDEA Modal Information
   iteratorId: '', //Iterator Node ID
   currentStore: undefined, //Current Store
-  flowChatResultOpen: false, //Flow Last Session Input Output Modal
   workflowTracePanelOpen: false, //Workflow Trace Panel
   edgeType: 'curve', //Edge Type
   loadingModels: false, //Load Model List
@@ -107,7 +100,6 @@ export const initialStatus = {
   showMultipleCanvasesTip: false, //Multiple Open Modal Tip
   updateNodeInputData: false, //Update Node Input Data
   textNodeConfigList: [], //Text Node Separator Configuration List
-  agentStrategy: [], //Agent Node Strategy
   knowledgeProStrategy: [], //Knowledge Base Pro Node Strategy
   openOperationResult: false, //Node Validation Result Modal
   knowledgeModalInfo: {
@@ -202,7 +194,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
     getFlowModelList(appId, 'spark-llm'),
     getFlowModelList(appId, 'decision-making'),
     getFlowModelList(appId, 'extractor-parameter'),
-    getFlowModelList(appId, 'agent'),
     getFlowModelList(appId, 'knowledge-pro-base'),
     getFlowModelList(appId, 'question-answer'),
   ])
@@ -211,7 +202,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
         sparkLlmModelsData,
         decisionMakingModelsData,
         extractorParameterModelsData,
-        agentData,
         knowledgeProData,
         questionAnswerData,
       ]) => {
@@ -229,9 +219,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
           extractorParameterModelsData?.workflow.flatMap(function (item) {
             return item.modelList;
           });
-        const agentModels = agentData?.workflow.flatMap(function (item) {
-          return item.modelList;
-        });
         const knowledgeProModels = knowledgeProData?.workflow.flatMap(
           function (item) {
             return item.modelList;
@@ -246,7 +233,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
           sparkLlmModels,
           decisionMakingModels,
           extractorParameterModels,
-          agentModels,
           knowledgeProModels,
           questionAnswerModels,
           currentStore: useFlowStore,
@@ -339,13 +325,11 @@ export const initFlowData = async (
       flow,
       nodeTemplate,
       textNodeConfigList,
-      agentStrategy,
       knowledgeProStrategy,
     ] = await Promise.all([
       getFlowDetailAPI(id),
       flowsNodeTemplate(),
       textNodeConfigListAPI(),
-      getAgentStrategyAPI(),
       getKnowledgeProStrategyAPI(),
     ]);
     if (generation !== draftGeneration) return;
@@ -367,7 +351,6 @@ export const initFlowData = async (
     set({
       nodeList,
       textNodeConfigList,
-      agentStrategy,
       knowledgeProStrategy,
       controlMode: window.localStorage.getItem('controlMode') || 'mouse',
     });
@@ -464,6 +447,7 @@ const graphComparisonShape: GraphComparisonShape = {
                   'fieldNameErrMsg',
                   'sqlErrMsg',
                   'llmIdErrMsg',
+                  'agentIdErrMsg',
                   'setAnswerContentErrMsg',
                   'promptPrefixErrMsg',
                   'fallbackValueErrMsg',
@@ -741,18 +725,6 @@ export const setTextNodeConfigList = (
     typeof change === 'function' ? change(get().textNodeConfigList) : change;
   set({
     textNodeConfigList,
-  });
-};
-// Set Agent Strategy
-export const setAgentStrategy = (
-  change: Parameters<FlowsManagerStoreType['setAgentStrategy']>[0],
-  get: FlowsManagerGetter,
-  set: FlowsManagerSetter
-): void => {
-  const agentStrategy =
-    typeof change === 'function' ? change(get().agentStrategy) : change;
-  set({
-    agentStrategy,
   });
 };
 // Set Knowledge Pro Strategy

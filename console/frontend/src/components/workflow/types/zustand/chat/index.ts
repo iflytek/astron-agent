@@ -35,6 +35,8 @@ export interface ChatState {
   userWheel: boolean;
   deleteAllModal: boolean;
   chatIdRef: string;
+  conversationScope: string;
+  historyStatus: 'idle' | 'loading' | 'ready' | 'error';
   runId: string;
   runStatus: string;
   stopRequested: boolean;

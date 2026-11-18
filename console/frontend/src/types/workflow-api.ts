@@ -52,27 +52,6 @@ export interface WorkflowModelsResponse {
   workflow: { modelList: WorkflowModel[] }[];
 }
 
-/** PromptTemplate after listPagePromptTemplate expands its prompt JSON. */
-export interface AgentPromptTemplate {
-  id: number;
-  name: string;
-  description: string;
-  adaptationModel: string;
-  maxLoopCount: number;
-  characterSettings: string;
-  thinkStep: string;
-  userQuery: string;
-  createdTime?: string;
-  updatedTime?: string;
-  inputs: { name: string }[];
-  jsonAdaptationModel?: Record<string, unknown>;
-}
-
-export interface AgentPromptPage {
-  pageData: AgentPromptTemplate[];
-  totalCount: number;
-}
-
 /** McpServerTool, including the snake_case JSON names declared by the backend. */
 export interface McpServerTool {
   id: string;

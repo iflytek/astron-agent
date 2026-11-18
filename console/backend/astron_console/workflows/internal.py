@@ -19,7 +19,6 @@ from .execution_context import (
     control_state,
     extend_chain,
     graph_nodes,
-    inline_definition,
     runtime_identity,
     spend,
 )
@@ -49,13 +48,11 @@ def agent_runtime(request):
     if node is None or node_id.split("::")[0] != "agent":
         raise PermissionDenied
     fixed = run.resolved_agents.get(node_id)
-    agent = None
-    if fixed:
-        config = resolve_version(scope, fixed["agentId"], fixed["versionId"])["definition"]
-        agent = get_scoped_agent(scope, fixed["agentId"])
-        extend_chain(run.call_chain, f"agent:{agent.pk}")
-    else:
-        config = inline_definition(node)
+    if not fixed:
+        raise ValidationError("Agent节点缺少固定引用，请重新选择已有 Agent")
+    config = resolve_version(scope, fixed["agentId"], fixed["versionId"])["definition"]
+    agent = get_scoped_agent(scope, fixed["agentId"])
+    extend_chain(run.call_chain, f"agent:{agent.pk}")
     runtime = resolve_resources(scope, config)
     query = payload.get("query", "")
     if not isinstance(query, str) or len(query) > 200000:
@@ -79,13 +76,6 @@ def agent_runtime(request):
         "node_id": node_id,
         "invocation_id": str(payload.get("invocationId") or ""),
     }
-    reasoning = prompt
-    answer = prompt
-    if agent is None:
-        reasoning = payload.get("reasoningInstruction", prompt)
-        answer = payload.get("answerInstruction", prompt)
-        if any(not isinstance(value, str) or len(value) > 200000 for value in (reasoning, answer)):
-            raise ValidationError("节点提示词无效")
     from astron_console.publishing.runtime_authorization import caller_uid
 
     result = {
@@ -93,7 +83,7 @@ def agent_runtime(request):
         "uid": caller_uid(root),
         "stream": True,
         "messages": [{"role": "user", "content": query}],
-        "instruction": {"reasoning": reasoning, "answer": answer},
+        "instruction": {"reasoning": prompt, "answer": prompt},
         "max_loop_count": config.get("maxLoopCount", 5),
         "meta_data": {
             "caller": "workflow-agent-node",

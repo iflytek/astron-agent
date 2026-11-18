@@ -2,6 +2,12 @@ import { useWorkflowExecutionView } from '../../hooks/use-workflow-execution-vie
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, message, Spin } from 'antd';
+import {
+  CloseOutlined,
+  PlusOutlined,
+  SendOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import { cloneDeep } from 'lodash';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
@@ -11,7 +17,6 @@ import {
   generateDefaultInput,
   generateValidationSchema,
 } from '@/components/workflow/utils/reactflowUtils';
-import DeleteChatHistory from '@/components/workflow/modal/delete-chat-history';
 import ChatContent from './components/chat-content';
 import ChatInput from './components/chat-input';
 import useChatStore from '@/components/workflow/store/use-chat-store';
@@ -63,7 +68,6 @@ const initInterruptChat: InterruptChatType = {
 type ChatFooterProps = Pick<
   ChatStoreType,
   | 'debuggering'
-  | 'setDeleteAllModal'
   | 'handleResumeChat'
   | 'resetNodesAndEdges'
   | 'handleRunDebugger'
@@ -79,7 +83,6 @@ type ChatFooterProps = Pick<
 const ChatFooter = ({
   trialRun,
   debuggering,
-  setDeleteAllModal,
   t,
   clearData,
   handleResumeChat,
@@ -91,42 +94,30 @@ const ChatFooter = ({
 }: ChatFooterProps): React.ReactElement | null => {
   const canRunDebugger = useChatStore(state => state.canRunDebugger);
   const stopRequested = useChatStore(state => state.stopRequested);
-  const canRunChat = useMemo(
-    () => canRunDebugger(),
-    [debuggering, startNodeParams, stopRequested, interruptChat, userInput]
-  );
+  const historyStatus = useChatStore(state => state.historyStatus);
+  const canRunChat = canRunDebugger();
   if (!trialRun) return null;
   return (
-    <div className="flex items-center justify-between mt-4 px-5">
-      {!debuggering ? (
-        <Button
-          type="text"
-          className="origin-btn px-[26px]"
-          disabled={stopRequested}
-          onClick={() => setDeleteAllModal(true)}
-        >
-          {t('workflow.nodes.chatDebugger.clearDialogue')}
-        </Button>
-      ) : (
-        <div className="h-1"></div>
-      )}
+    <div className="workflow-debugger-footer">
+      <span className="workflow-chat-input-hint">
+        Enter 发送 · Shift + Enter 换行
+      </span>
       <div className="flex items-center gap-2.5">
-        <Button
-          type="text"
-          className="origin-btn px-[24px]"
-          disabled={stopRequested}
-          loading={stopRequested}
-          onClick={() => clearData()}
-        >
-          {stopRequested
-            ? '正在停止运行…'
-            : debuggering || interruptChat.interrupt
-              ? '停止运行'
-              : t('common.cancel')}
-        </Button>
+        {(debuggering || interruptChat.interrupt) && (
+          <Button
+            icon={<StopOutlined />}
+            disabled={stopRequested}
+            loading={stopRequested}
+            onClick={() => clearData()}
+          >
+            {stopRequested ? '正在停止…' : '停止运行'}
+          </Button>
+        )}
         <Button
           type="primary"
-          className="px-[24px] flex items-center gap-2"
+          className="workflow-chat-send"
+          loading={historyStatus === 'loading'}
+          icon={<SendOutlined />}
           onClick={() => {
             if (startNodeParams?.length === 1 || interruptChat?.interrupt) {
               if (interruptChat?.interrupt) {
@@ -155,7 +146,6 @@ const ChatFooter = ({
           }}
           disabled={!canRunChat}
         >
-          <img src={icons.trialRun} className="w-3 h-3" alt="" />
           <span>{t('workflow.nodes.chatDebugger.send')}</span>
         </Button>
       </div>
@@ -428,12 +418,12 @@ export function ChatDebuggerContent({
   const debuggering = useChatStore(state => state.debuggering);
   const userWheel = useChatStore(state => state.userWheel);
   const setUserWheel = useChatStore(state => state.setUserWheel);
-  const deleteAllModal = useChatStore(state => state.deleteAllModal);
-  const setDeleteAllModal = useChatStore(state => state.setDeleteAllModal);
   const suggestLoading = useChatStore(state => state.suggestLoading);
   const suggestProblem = useChatStore(state => state.suggestProblem);
   const interruptChat = useChatStore(state => state.interruptChat);
   const deleteAllChat = useChatStore(state => state.deleteAllChat);
+  const historyStatus = useChatStore(state => state.historyStatus);
+  const getDialogues = useChatStore(state => state.getDialogues);
   const clearData = useChatStore(state => state.clearData);
   const handleResumeChat = useChatStore(state => state.handleResumeChat);
   const resetNodesAndEdges = useChatStore(state => state.resetNodesAndEdges);
@@ -623,23 +613,13 @@ export function ChatDebuggerContent({
   }, [chatList]);
   return (
     <div
-      className="w-full h-full py-4 flex flex-col overflow-hidden"
+      className="workflow-debugger w-full h-full flex flex-col overflow-hidden"
       tabIndex={0}
       onKeyDown={e => e.stopPropagation()}
     >
-      {deleteAllModal && (
-        <DeleteChatHistory
-          setDeleteModal={setDeleteAllModal}
-          deleteChat={deleteAllChat}
-        />
-      )}
-      <div className="flex items-center justify-between px-5 z-[10]">
+      <div className="workflow-debugger-header">
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-lg">
-            {trialRun
-              ? t('workflow.nodes.chatDebugger.dialogue')
-              : t('workflow.nodes.chatDebugger.runResult')}
-          </span>
+          <span className="font-semibold text-lg">测试运行</span>
         </div>
         <div className="flex items-center gap-3">
           {hasVirtualScene && (
@@ -662,11 +642,20 @@ export function ChatDebuggerContent({
               )}
             </>
           )}
-          <img
-            src={icons.close}
-            className="w-3 h-3 cursor-pointer"
-            alt=""
-            onClick={() => closeFunction()}
+          <Button
+            type="text"
+            size="small"
+            icon={<PlusOutlined />}
+            disabled={debuggering || interruptChat.interrupt}
+            onClick={deleteAllChat}
+          >
+            新对话
+          </Button>
+          <Button
+            type="text"
+            aria-label="关闭测试运行"
+            icon={<CloseOutlined />}
+            onClick={closeFunction}
           />
         </div>
       </div>
@@ -682,18 +671,38 @@ export function ChatDebuggerContent({
         </div>
       )}
       <div className="flex-1 flex flex-col overflow-hidden mt-1 relative">
-        <div className="w-full flex items-center justify-between px-5">
-          <div className="flex items-center gap-2 text-desc">
-            <img src={icons.chatListTip} className="w-3 h-3 mt-0.5" alt="" />
-            <span>{t('workflow.nodes.chatDebugger.debugHistory')}</span>
-          </div>
-          <span className="text-xs text-gray-500">
+        <div className="workflow-debugger-context">
+          <span>
             {historyVersion
-              ? `工作流版本 ${historyVersionData?.name || ''}`
-              : '当前草稿'}{' '}
-            · 历史由服务端保存
+              ? `版本 · ${historyVersionData?.name || '历史版本'}`
+              : '当前草稿'}
+          </span>
+          <span>
+            {historyStatus === 'loading'
+              ? '正在加载对话…'
+              : debuggering
+                ? '正在运行'
+                : interruptChat.interrupt
+                  ? '等待你的回复'
+                  : '连续对话'}
           </span>
         </div>
+
+        {historyStatus === 'error' && (
+          <div
+            role="alert"
+            className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          >
+            历史加载失败。你可以重试，或点击右上角「新对话」。
+            <Button
+              type="link"
+              size="small"
+              onClick={() => currentFlow?.id && getDialogues(currentFlow.id)}
+            >
+              重试
+            </Button>
+          </div>
+        )}
 
         <div
           className="vms-container"
@@ -762,7 +771,6 @@ export function ChatDebuggerContent({
         <ChatFooter
           trialRun={trialRun}
           debuggering={debuggering}
-          setDeleteAllModal={setDeleteAllModal}
           t={t}
           clearData={() => clearData(setOpen)}
           handleResumeChat={handleResumeChat}

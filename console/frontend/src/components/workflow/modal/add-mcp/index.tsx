@@ -47,7 +47,7 @@ import dayjs from 'dayjs';
 import { v4 as uuid } from 'uuid';
 import { useMemoizedFn } from 'ahooks';
 import { NodeType } from '@/components/workflow/types/zustand/flow';
-import MCPDetail from '@/components/workflow/nodes/agent/components/add-tool/components/mcp-detail';
+import MCPDetail from '@/components/workflow/modal/add-mcp/mcp-detail';
 
 import arrowDown from '@/assets/imgs/mcp/mcp-arrow-down.svg';
 

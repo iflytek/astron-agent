@@ -165,9 +165,8 @@ const Index = (): React.ReactElement => {
       <CommunityQRCode />
       {/* 顶部工具栏 */}
       <FlowHeader currentFlow={currentFlow}>
-        {showNodeList ? (
-          <BtnGroups />
-        ) : (
+        <BtnGroups />
+        {!showNodeList && (
           <Button
             danger
             loading={stopRequested}

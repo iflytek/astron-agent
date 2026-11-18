@@ -168,7 +168,7 @@ function ChatInput({
 
   return (
     <div
-      className="flex flex-col gap-1 mt-2"
+      className="workflow-debugger-composer flex flex-col gap-1"
       style={{
         maxHeight: '40vh',
         overflow: 'auto',
@@ -179,12 +179,13 @@ function ChatInput({
           <FlowTextArea
             disabled={interruptChat?.type === 'option'}
             className="user-chat-input pr-3.5 w-full py-3"
+            aria-label="测试运行输入"
             value={userInput}
             style={{
               resize: 'none',
-              minHeight: 36,
-              lineHeight: '36px',
-              maxHeight: 200,
+              minHeight: 64,
+              lineHeight: '22px',
+              maxHeight: 160,
             }}
             adaptiveHeight={true}
             onChange={e => {

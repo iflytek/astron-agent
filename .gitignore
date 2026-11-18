@@ -259,3 +259,8 @@ docs/superpowers/
 
 # Local Python Console development databases
 console/backend/*.sqlite3
+
+# Local Impeccable design context
+/PRODUCT.md
+/DESIGN.md
+/.impeccable/

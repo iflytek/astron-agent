@@ -1,11 +1,11 @@
 import type { NodeChildrenProps } from '@/components/workflow/nodes/types';
 import React, { useMemo, memo } from 'react';
+import { Button } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { cloneDeep } from 'lodash';
 import { useTranslation } from 'react-i18next';
 import { FLowCollapse, FLowTree } from '@/components/workflow/ui';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
-
-import inputAddIcon from '@/assets/imgs/workflow/input-add-icon.png';
 
 interface OutputParamsProps extends NodeChildrenProps {
   hasRef?: boolean;
@@ -65,13 +65,15 @@ function index({ id, data, children }: OutputParamsProps): React.ReactElement {
             />
           </div>
           {allowAddOutput && (
-            <div
-              className="text-[#6356EA] text-xs font-medium mt-1 inline-flex items-center cursor-pointer gap-1.5 pl-6"
+            <Button
+              type="text"
+              size="small"
+              className="workflow-add-parameter"
+              icon={<PlusOutlined />}
               onClick={() => handleAddOutputLine()}
             >
-              <img src={inputAddIcon} className="w-3 h-3" alt="" />
-              <span>{t('workflow.nodes.common.add')}</span>
-            </div>
+              {t('workflow.nodes.common.add')}
+            </Button>
           )}
         </div>
       }

@@ -1,8 +1,7 @@
 import React, { memo } from 'react';
 import { Collapse, type CollapseProps } from 'antd';
 import { cn } from '@/utils';
-
-import downIcon from '@/assets/imgs/workflow/flow-part-down.svg';
+import { RightOutlined } from '@ant-design/icons';
 
 interface FlowCollapseProps extends Omit<CollapseProps, 'items'> {
   label: React.ReactNode;
@@ -22,20 +21,17 @@ function FLowCollapse({
       className={cn('flow-collapse', className)}
       expandIcon={({ isActive }) => {
         return (
-          <img
-            className="w-3 h-3"
-            src={downIcon}
-            style={{
-              transform: isActive ? 'rotate(90deg)' : '',
-            }}
+          <RightOutlined
+            className="flow-section-chevron"
+            rotate={isActive ? 90 : 0}
           />
         );
       }}
       items={[
         {
           key: '1',
-          label: <div>{label}</div>,
-          children: <div>{content}</div>,
+          label: <div className="flow-section-heading">{label}</div>,
+          children: <div className="flow-section-content">{content}</div>,
         },
       ]}
       {...reset}

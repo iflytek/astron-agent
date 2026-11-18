@@ -1,6 +1,6 @@
 import Loading from '@/components/loading';
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useParams } from 'react-router-dom';
 import Layout from '@/layouts/index';
 import AgentWorkspace from '@/pages/agents/editor';
 
@@ -18,10 +18,10 @@ const ModelDetail = lazy(() => import('@/pages/model-management/model-detail'));
 const ResourceManagement = lazy(() => import('@/pages/resource-management'));
 const WorkFlow = lazy(() => import('@/pages/workflow'));
 const WorkflowList = lazy(() => import('@/pages/workflow/list'));
-const WorkFlowAnalysis = lazy(
-  () => import('@/pages/workflow/workflow-analysis')
-);
-const WorkFlowFiles = lazy(() => import('@/pages/workflow/workflow-files'));
+function WorkflowToolRedirect({ panel }: { panel: 'analysis' | 'files' }) {
+  const { id } = useParams();
+  return <Navigate to={`/work_flow/${id}/arrange?panel=${panel}`} replace />;
+}
 
 const AgentList = lazy(() => import('@/pages/agents/list'));
 const PersonalSpace = lazy(() => import('@/pages/space/personal'));
@@ -297,7 +297,7 @@ const routes = [
     path: '/work_flow/:id/overview',
     element: (
       <Suspense fallback={<Loading />}>
-        <WorkFlowAnalysis />
+        <WorkflowToolRedirect panel="analysis" />
       </Suspense>
     ),
   },
@@ -305,7 +305,7 @@ const routes = [
     path: '/work_flow/:id/files',
     element: (
       <Suspense fallback={<Loading />}>
-        <WorkFlowFiles />
+        <WorkflowToolRedirect panel="files" />
       </Suspense>
     ),
   },

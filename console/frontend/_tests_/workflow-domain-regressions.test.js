@@ -356,7 +356,7 @@ test('published Agent references accept API-created query/input bindings without
       },
     };
     assert.equal(utilities.checkedNodeParams(node), true);
-    assert.equal(node.data.nodeParam.instruction.queryErrMsg, '');
+    assert.equal(node.data.nodeParam.agentIdErrMsg, '');
     assert.equal(utilities.checkedNodeInputData(node.data.inputs, node), true);
     node.data.inputs[0].schema.value.content = {};
     assert.equal(utilities.checkedNodeInputData(node.data.inputs, node), false);
@@ -365,18 +365,200 @@ test('published Agent references accept API-created query/input bindings without
   }
 });
 
-test('inline Agents still require their query template and model configuration', () => {
+test('legacy inline Agents cannot execute until rebound to an existing Agent', () => {
   const node = {
     nodeType: 'agent',
     data: {
-      nodeParam: { plugin: { mcpServerUrls: [] } },
+      nodeParam: {
+        plugin: { mcpServerUrls: [] },
+        instruction: { query: '{{query}}' },
+        serviceId: 'model',
+      },
       inputs: [{ name: 'query' }],
       outputs: [],
     },
   };
   assert.equal(utilities.checkedNodeParams(node), false);
-  node.data.nodeParam.instruction.query = '{{query}}';
-  assert.equal(utilities.checkedNodeParams(node), false);
-  node.data.nodeParam.serviceId = 'configured-model';
+  assert.equal(node.data.nodeParam.agentIdErrMsg, '请选择已有 Agent');
+  node.data.nodeParam.agentId = 158;
   assert.equal(utilities.checkedNodeParams(node), true);
+});
+
+function agentSelection(node) {
+  const noop = () => undefined;
+  const agents = [
+    { id: 158, botName: 'Support', publishedVersionId: 1 },
+    { id: 159, botName: 'Research', publishedVersionId: 2 },
+  ];
+  const states = [agents, false, '', 0];
+  const react = {
+    ...require('react'),
+    memo: component => component,
+    useEffect: noop,
+    useState: () => [states.shift(), noop],
+  };
+  const { AgentDetail } = loadTypeScript(
+    '../src/components/workflow/nodes/agent/index.tsx',
+    {
+      react,
+      antd: {
+        Alert: 'alert',
+        Button: 'button',
+        Select: 'select',
+        Spin: 'spin',
+      },
+      '@/services/agents': { listAgents: noop },
+      '@/components/workflow/store/use-flows-manager': selector =>
+        selector({ canvasesDisabled: false }),
+      '@/components/workflow/hooks/use-node-common': {
+        useNodeCommon: () => ({
+          handleChangeNodeParam: (update, value) => update(node.data, value),
+        }),
+      },
+      '@/components/workflow/ui': { FLowCollapse: 'section' },
+      '../components/inputs': 'inputs',
+      '../components/outputs': 'outputs',
+      '../components/exception-handling': 'exception-handling',
+    }
+  );
+  const editor = AgentDetail({ id: node.id, data: node.data });
+  const content = editor.props.children[0].props.content;
+  return content.props.children.find(
+    element => element?.props?.['aria-label'] === '选择 Agent'
+  ).props.onChange;
+}
+
+function validateAgentBranches(node, edges) {
+  const makeNode = (id, nodeType) => ({
+    id,
+    nodeType,
+    data: { label: id, nodeMeta: {}, nodeParam: {}, inputs: [], outputs: [] },
+  });
+  let errors;
+  const state = {
+    nodes: [makeNode('start', 'node-start'), node, makeNode('end', 'node-end')],
+    edges: [{ id: 'start-agent', source: 'start', target: node.id }, ...edges],
+    checkNode: () => true,
+    setEdges: update => {
+      state.edges = update(state.edges);
+    },
+  };
+  const { checkFlow } = loadTypeScript(
+    '../src/components/workflow/store/flow-manager-function.ts',
+    {
+      antd: { message: {} },
+      '@/utils/http-error': {},
+      './advanced-config-persistence': {},
+      '@/services/flow': {},
+      '../utils/variable-aggregation': {},
+      './use-flow-store': { getState: () => state },
+      './use-iterator-flow-store': {},
+      '@/components/workflow/utils/workflow-import-dependencies': {
+        getActiveImportDependencyIssues: () => [],
+      },
+      './workflow-save-coordinator': {},
+      i18next: { t: key => key },
+    }
+  );
+  const valid = checkFlow(() => ({
+    setErrNodes: value => {
+      errors = value;
+    },
+  }));
+  return { valid, errors };
+}
+
+test('actual Agent selection preserves custom names, remarks and configured exception branches', () => {
+  const node = {
+    id: 'agent::support',
+    nodeType: 'agent',
+    data: {
+      label: 'Answer customer questions',
+      nodeMeta: { aliasName: 'Customer support', nodeType: '基础节点' },
+      nodeParam: {
+        handlingEdge: 'normal_one_of::support',
+        exceptionHandlingEdge: 'fail_one_of::support',
+        remark: 'Escalate failures to a teammate',
+        remarkVisible: true,
+        streamOutput: true,
+        agentIdErrMsg: '请选择已有 Agent',
+        modelId: 9,
+        llmId: 9,
+        serviceId: 'old-model',
+        uid: 'old-owner',
+        appId: 'old-app',
+        modelConfig: { domain: 'old-model', agentStrategy: 1 },
+        instruction: { query: '{{input}}', reasoning: 'old prompt' },
+        plugin: { tools: ['old-tool'], mcpServerUrls: ['https://old.example'] },
+        maxLoopCount: 10,
+        enableChatHistoryV2: { isEnabled: true, rounds: 2 },
+      },
+      retryConfig: { shouldRetry: true, errorStrategy: 2, maxRetries: 2 },
+      inputs: [{ name: 'input', schema: { type: 'string' } }],
+      outputs: [{ name: 'output', schema: { type: 'string' } }],
+    },
+  };
+  const edges = [
+    {
+      id: 'normal',
+      source: node.id,
+      sourceHandle: 'normal_one_of::support',
+      target: 'end',
+    },
+    {
+      id: 'failure',
+      source: node.id,
+      sourceHandle: 'fail_one_of::support',
+      target: 'end',
+    },
+  ];
+  const original = structuredClone(node);
+  const originalEdges = structuredClone(edges);
+  const select = agentSelection(node);
+  for (const [agentId, agentName] of [
+    [158, 'Support'],
+    [159, 'Research'],
+  ]) {
+    select(agentId);
+    assert.equal(node.data.nodeParam.agentId, agentId);
+    assert.equal(node.data.nodeParam.agentName, agentName);
+    assert.equal(node.data.nodeParam.agentIdErrMsg, '');
+    assert.deepEqual(node.data.nodeMeta, original.data.nodeMeta);
+    assert.equal(node.data.label, original.data.label);
+    assert.deepEqual(node.data.retryConfig, original.data.retryConfig);
+    assert.deepEqual(node.data.inputs, original.data.inputs);
+    assert.deepEqual(node.data.outputs, original.data.outputs);
+    assert.equal(node.data.nodeParam.remark, original.data.nodeParam.remark);
+    assert.equal(node.data.nodeParam.remarkVisible, true);
+    assert.equal(node.data.nodeParam.streamOutput, true);
+    assert.deepEqual(edges, originalEdges);
+    assert.equal(node.data.nodeParam.handlingEdge, edges[0].sourceHandle);
+    assert.equal(
+      node.data.nodeParam.exceptionHandlingEdge,
+      edges[1].sourceHandle
+    );
+    assert.deepEqual(validateAgentBranches(node, edges), {
+      valid: true,
+      errors: [],
+    });
+    for (const field of [
+      'modelId',
+      'llmId',
+      'serviceId',
+      'uid',
+      'appId',
+      'modelConfig',
+      'instruction',
+      'plugin',
+      'maxLoopCount',
+      'enableChatHistoryV2',
+    ]) {
+      assert.equal(Object.hasOwn(node.data.nodeParam, field), false, field);
+    }
+  }
+  // Confirm the validation exercised above detects the original failure mode.
+  delete node.data.nodeParam.exceptionHandlingEdge;
+  const broken = validateAgentBranches(node, edges);
+  assert.equal(broken.valid, false);
+  assert.match(broken.errors[0].errorMsg, /异常处理节点存在未连接的边/);
 });
