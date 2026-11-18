@@ -224,7 +224,7 @@
       min-width: 0;
     }
     &.workflow-parameter-row-fixed {
-      grid-template-columns: 112px 76px minmax(0, 1fr);
+      grid-template-columns: 152px 76px minmax(0, 1fr);
       .workflow-parameter-fixed-identity {
         gap: 4px;
         margin-bottom: 0;
@@ -379,7 +379,7 @@
       grid-template-columns: 88px 68px minmax(0, 1fr) 28px;
       gap: 6px;
       &.workflow-parameter-row-fixed {
-        grid-template-columns: 88px 68px minmax(0, 1fr);
+        grid-template-columns: 144px 68px minmax(0, 1fr);
       }
     }
   }
