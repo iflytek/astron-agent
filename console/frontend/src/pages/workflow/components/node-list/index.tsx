@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import type {
   WorkflowNodeTemplate,
   WorkflowNodeCategory,
@@ -155,10 +156,10 @@ const NodeList: React.FC<NodeListProps> = ({
                                   }}
                                 >
                                   <div className="flex items-center gap-2.5">
-                                    <img
+                                    <WorkflowNodeIcon
+                                      nodeType={item.idType}
                                       src={item?.data?.icon}
                                       className="w-[20px] h-[20px]"
-                                      alt=""
                                     />
                                     <span className="flex-1 text-base font-medium">
                                       {item.aliasName}

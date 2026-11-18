@@ -1,3 +1,4 @@
+import { workflowNodeIconSource } from '../nodes/node-icon-source';
 import { syncIteratorEndInputs } from '../utils/iterator-outputs';
 import type { CheckboxProps } from 'antd';
 import React, { useCallback, useMemo, useState } from 'react';
@@ -213,21 +214,8 @@ const useNodeInfo = ({
   }, [data?.nodeParam]);
 
   const nodeIcon = useMemo(() => {
-    let nodeFinallyType = '';
-    if (['iteration-node-start', 'loop-node-start'].includes(nodeType)) {
-      nodeFinallyType = 'node-start';
-    } else if (
-      ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(nodeType)
-    ) {
-      nodeFinallyType = 'node-end';
-    } else {
-      nodeFinallyType = nodeType;
-    }
-    const currentNode = nodeList
-      ?.flatMap(item => item?.nodes)
-      ?.find(item => item?.idType === nodeFinallyType);
-    return currentNode?.data?.icon;
-  }, [nodeList, nodeType]);
+    return workflowNodeIconSource(nodeType, data.icon);
+  }, [nodeType, data.icon]);
 
   const nodeDesciption = useMemo(() => {
     //工具节点需要特判一下，使用工具本身的描述
@@ -783,7 +771,6 @@ const useNodeModels = ({
     state => state.extractorParameterModels
   );
   const models = useMemo(() => {
-
     if (id?.startsWith('spark-llm')) {
       return sparkLlmModels;
     }

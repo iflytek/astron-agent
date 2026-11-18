@@ -34,7 +34,11 @@ function index({ id, data, children }: OutputParamsProps): React.ReactElement {
     <FLowCollapse
       label={
         <div className="w-full flex items-center cursor-pointer gap-2">
-          {children}
+          {children || (
+            <div className="text-base font-medium">
+              {t('workflow.nodes.common.output')}
+            </div>
+          )}
         </div>
       }
       content={
