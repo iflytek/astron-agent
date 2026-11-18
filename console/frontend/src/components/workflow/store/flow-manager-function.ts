@@ -3,11 +3,7 @@ import { message } from 'antd';
 import { shouldShowRequestError } from '@/utils/http-error';
 import { createAdvancedConfigPersistence } from './advanced-config-persistence';
 import type { AdvancedConfigUpdate } from '../types/drawer/advanced-config';
-import type {
-  WorkflowNode,
-  WorkflowNodeCategory,
-  WorkflowNodeData,
-} from '../types/domain';
+import type { WorkflowNode, WorkflowNodeData } from '../types/domain';
 import type {
   FlowsManagerGetter,
   FlowsManagerSetter,
@@ -36,7 +32,7 @@ import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
 import { FlowStoreType } from '../types/zustand/flow';
 import { UseBoundStore, StoreApi } from 'zustand';
-import loopNodeIcon from '@/assets/imgs/workflow/loop-node-icon.svg';
+import { normalizeWorkflowNodeIcons } from '../nodes/node-icon-source';
 import { getActiveImportDependencyIssues } from '@/components/workflow/utils/workflow-import-dependencies';
 import {
   createSaveCoordinator,
@@ -321,31 +317,16 @@ export const initFlowData = async (
   useFlowStore.getState().setNodes([]);
   useFlowStore.getState().setEdges([]);
   try {
-    const [
-      flow,
-      nodeTemplate,
-      textNodeConfigList,
-      knowledgeProStrategy,
-    ] = await Promise.all([
-      getFlowDetailAPI(id),
-      flowsNodeTemplate(),
-      textNodeConfigListAPI(),
-      getKnowledgeProStrategyAPI(),
-    ]);
+    const [flow, nodeTemplate, textNodeConfigList, knowledgeProStrategy] =
+      await Promise.all([
+        getFlowDetailAPI(id),
+        flowsNodeTemplate(),
+        textNodeConfigListAPI(),
+        getKnowledgeProStrategyAPI(),
+      ]);
     if (generation !== draftGeneration) return;
-    const nodeList = appendVariableAggregationNodeTemplate(nodeTemplate).map(
-      (category: WorkflowNodeCategory) => ({
-        ...category,
-        nodes: category.nodes?.map(node =>
-          node?.idType === 'loop'
-            ? {
-                ...node,
-                data: { ...node.data, icon: loopNodeIcon },
-                icon: loopNodeIcon,
-              }
-            : node
-        ),
-      })
+    const nodeList = normalizeWorkflowNodeIcons(
+      appendVariableAggregationNodeTemplate(nodeTemplate)
     );
     adoptWorkflowDraft(flow, set);
     set({

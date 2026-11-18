@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import { workflowModelAvatar } from '../model-avatar';
 import type { ChangeNodeParameter } from '@/components/workflow/nodes/types';
 import type {
@@ -408,7 +409,11 @@ export const Model = memo(({ model }: NodePropsFor<'model'>) => {
         {t('workflow.nodes.largeModelNode.model')}
       </div>
       <div className="flex items-center gap-1">
-        <img src={workflowModelAvatar(model)} className="w-[14px] h-[14px]" alt="" />
+        <img
+          src={workflowModelAvatar(model)}
+          className="w-[14px] h-[14px]"
+          alt=""
+        />
         <span>{model?.name}</span>
       </div>
     </>
@@ -462,7 +467,11 @@ export const NodeHeader = memo<NodeHeaderProps>(
     return (
       <div className="w-full flex items-center justify-between px-[14px] relative pt-[14px]">
         <div className="flex items-center gap-3">
-          <img src={nodeIcon} className="w-[18px] h-[18px]" alt="" />
+          <WorkflowNodeIcon
+            nodeType={id.split('::')[0] || ''}
+            src={nodeIcon}
+            className="w-[18px] h-[18px]"
+          />
           <Label id={id} data={data} />
           {renderTypeOneClickUpdate()}
         </div>

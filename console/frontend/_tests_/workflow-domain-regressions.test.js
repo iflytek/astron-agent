@@ -279,6 +279,9 @@ function iteratorEditor() {
       '@/components/workflow/ui': {},
       '@/components/workflow/constant': { originOutputTypeList: [] },
       '@/components/workflow/hooks/use-one-click-update': {},
+      '../nodes/node-icon-source': {
+        workflowNodeIconSource: (_type, source) => source,
+      },
       '@/utils': { isJSON: () => false },
       '../utils/iterator-outputs': loadTypeScript(
         '../src/components/workflow/utils/iterator-outputs.ts'
@@ -449,6 +452,7 @@ function validateAgentBranches(node, edges) {
       antd: { message: {} },
       '@/utils/http-error': {},
       './advanced-config-persistence': {},
+      '../nodes/node-icon-source': {},
       '@/services/flow': {},
       '../utils/variable-aggregation': {},
       './use-flow-store': { getState: () => state },

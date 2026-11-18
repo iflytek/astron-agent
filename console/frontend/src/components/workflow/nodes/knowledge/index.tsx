@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import type { KnowledgeItem } from '@/components/workflow/types/modal/add-knowledge';
 import type { WorkflowNodeData } from '@/components/workflow/types/domain';
 import type { NodePropsFor } from '@/components/workflow/nodes/types';
@@ -102,7 +103,11 @@ export const KnowledgeRepoList = ({
                 e.stopPropagation();
               }}
             >
-              <img src={data?.icon} className="w-7 h-7" alt="" />
+              <WorkflowNodeIcon
+                nodeType="knowledge-base"
+                src={data?.icon}
+                className="w-7 h-7"
+              />
               <div className="flex items-center flex-1 overflow-hidden">
                 <p
                   className="flex-1 text-overflow text-sm font-medium"
@@ -234,7 +239,11 @@ export const Knowledge = memo(
           {(repoList?.length ?? 0) > 0 ? (
             repoList?.map(item => (
               <span key={item.id} className="flex items-center gap-1">
-                <img src={data?.icon} className="w-[12px] h-[12px]" alt="" />
+                <WorkflowNodeIcon
+                  nodeType="knowledge-base"
+                  src={data?.icon}
+                  className="w-[12px] h-[12px]"
+                />
                 <span>{item.name}</span>
               </span>
             ))

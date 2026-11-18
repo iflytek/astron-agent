@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import React, { useMemo, memo } from 'react';
 import { Button, Drawer } from 'antd';
 import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
@@ -28,7 +29,6 @@ function OperationResult({
   const errNodes = useFlowsManager(state => state.errNodes);
   const checkFlow = useFlowsManager(state => state.checkFlow);
   const currentStore = useFlowsManager(state => state.getCurrentStore());
-  const nodeList = useFlowsManager(state => state.nodeList);
   const setNodeInfoEditDrawerlInfo = useFlowsManager(
     state => state.setNodeInfoEditDrawerlInfo
   );
@@ -59,23 +59,6 @@ function OperationResult({
   const showErrorNodesDrawer = useMemo(() => {
     return errNodes?.length !== 0;
   }, [errNodes]);
-
-  const nodeIcon = useMemoizedFn((nodeType = '') => {
-    let nodeFinallyType = '';
-    if (['iteration-node-start', 'loop-node-start'].includes(nodeType)) {
-      nodeFinallyType = 'node-start';
-    } else if (
-      ['iteration-node-end', 'loop-node-end', 'loop-exit'].includes(nodeType)
-    ) {
-      nodeFinallyType = 'node-end';
-    } else {
-      nodeFinallyType = nodeType;
-    }
-    const currentNode = nodeList
-      ?.flatMap(item => item?.nodes)
-      ?.find(item => item?.idType === nodeFinallyType);
-    return currentNode?.data?.icon;
-  });
 
   return (
     <Drawer
@@ -125,10 +108,10 @@ function OperationResult({
                 onClick={() => handleClickErrorNode(node.id)}
               >
                 <div className="flex items-center  gap-5">
-                  <img
-                    src={nodeIcon(node.nodeType)}
+                  <WorkflowNodeIcon
+                    nodeType={node.nodeType || node.id.split('::')[0] || ''}
+                    src={nodes.find(item => item.id === node.id)?.data.icon}
                     className="w-[30px] h-[30px]"
-                    alt=""
                   />
                   <div className="flex flex-col gap-1">
                     <span className="text-base font-medium">{node.name}</span>
@@ -144,10 +127,14 @@ function OperationResult({
                 )}
                 {node?.childErrList?.map(childNode => (
                   <div key={childNode?.id} className="flex items-center  gap-5">
-                    <img
-                      src={nodeIcon(childNode.nodeType)}
+                    <WorkflowNodeIcon
+                      nodeType={
+                        childNode.nodeType || childNode.id.split('::')[0] || ''
+                      }
+                      src={
+                        nodes.find(item => item.id === childNode.id)?.data.icon
+                      }
                       className="w-[30px] h-[30px]"
-                      alt=""
                     />
                     <div className="flex flex-col gap-1">
                       <span className="text-base font-medium">

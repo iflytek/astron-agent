@@ -7,6 +7,7 @@ import {
   listWorkflowArtifacts,
 } from '@/services/sandbox';
 import type { WorkflowArtifact } from '@/types/sandbox';
+import './index.scss';
 
 const formatFileSize = (value?: number): string => {
   if (!value) {
@@ -79,6 +80,7 @@ function WorkflowFiles({ id }: { id: string }): React.ReactElement {
       {
         title: '文件名',
         dataIndex: 'fileName',
+        width: 320,
         ellipsis: true,
         render: (value): React.ReactNode => (
           <span className="font-medium text-[#222529]">{value}</span>
@@ -88,6 +90,7 @@ function WorkflowFiles({ id }: { id: string }): React.ReactElement {
         title: '来源',
         dataIndex: 'source',
         width: 120,
+        responsive: ['sm'],
         render: (value): React.ReactNode => (
           <Tag color="blue">{value || 'skill'}</Tag>
         ),
@@ -95,33 +98,37 @@ function WorkflowFiles({ id }: { id: string }): React.ReactElement {
       {
         title: 'Skill',
         dataIndex: 'skillId',
-        width: 180,
+        width: 150,
+        responsive: ['xl'],
         ellipsis: true,
         render: (value): React.ReactNode => value || '-',
       },
       {
         title: '节点',
         dataIndex: 'nodeId',
-        width: 180,
+        width: 150,
+        responsive: ['xl'],
         ellipsis: true,
         render: (value): React.ReactNode => value || '-',
       },
       {
         title: '大小',
         dataIndex: 'fileSize',
-        width: 110,
+        width: 96,
+        responsive: ['md'],
         render: formatFileSize,
       },
       {
         title: '生成时间',
         dataIndex: 'createTime',
-        width: 180,
+        width: 160,
+        responsive: ['lg'],
         render: (value): React.ReactNode => value || '-',
       },
       {
         title: '操作',
         key: 'action',
-        width: 140,
+        width: 120,
         fixed: 'right',
         render: (_, record): React.ReactNode => (
           <div className="flex items-center gap-3">
@@ -172,19 +179,20 @@ function WorkflowFiles({ id }: { id: string }): React.ReactElement {
         columns={columns}
         dataSource={artifacts}
         pagination={{ pageSize: 10, showSizeChanger: true }}
-        scroll={{ x: 980 }}
-        locale={{
-          emptyText: (
-            <Empty
-              description={
-                error
-                  ? '文件未加载'
-                  : '还没有生成文件。工作流运行产生的文件会显示在这里。'
-              }
-            />
-          ),
-        }}
+        scroll={{ x: 'max-content' }}
+        locale={{ emptyText: null }}
       />
+      {!loading && artifacts.length === 0 && (
+        <Empty
+          className="workflow-files-empty"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={
+            error
+              ? '文件未加载'
+              : '还没有生成文件。工作流运行产生的文件会显示在这里。'
+          }
+        />
+      )}
     </section>
   );
 }

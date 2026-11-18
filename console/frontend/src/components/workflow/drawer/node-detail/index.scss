@@ -170,6 +170,10 @@
       color: var(--node-editor-muted);
       opacity: 1;
     }
+    .flow-template-editor {
+      word-break: normal;
+      overflow-wrap: break-word;
+    }
     .flow-input:disabled,
     .flow-input-number-disabled {
       color: #64748b !important;

@@ -136,7 +136,9 @@ function harness(
       },
       './use-flow-store': { getState: () => canvas },
       './use-iterator-flow-store': {},
-      '@/assets/imgs/workflow/loop-node-icon.svg': '',
+      '../nodes/node-icon-source': {
+        normalizeWorkflowNodeIcons: value => value,
+      },
       '@/components/workflow/utils/workflow-import-dependencies': {},
     }
   );

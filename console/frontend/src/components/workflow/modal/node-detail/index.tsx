@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { getCommonConfig } from '@/services/common';
 import MarkdownRender from '@/components/markdown-render';
@@ -50,7 +51,11 @@ function NodeDetail({
     >
       <div className="h-full flex flex-col gap-2.5 overflow-hidden">
         <div className="w-full flex items-center justify-between pr-1.5">
-          <img src={currentTemplateNode?.icon} className="w-6 h-6" alt="" />
+          <WorkflowNodeIcon
+            nodeType={currentNodeId}
+            src={currentTemplateNode?.icon}
+            className="w-6 h-6"
+          />
           <img
             src={Icons.nodeDetail.close}
             className="w-3 h-3 cursor-pointer"

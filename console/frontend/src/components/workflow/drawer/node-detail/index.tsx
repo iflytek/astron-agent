@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import React, { useMemo, useEffect, useState } from 'react';
 import { Button, Drawer, Empty, Tabs, Tag } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
@@ -143,7 +144,11 @@ function index(): React.ReactElement {
       <div className="workflow-node-panel-header">
         <div className="workflow-node-panel-identity">
           <div className="workflow-node-panel-name">
-            <img src={nodeIcon} className="workflow-node-panel-icon" alt="" />
+            <WorkflowNodeIcon
+              nodeType={nodeInfo?.id.split('::')[0] || ''}
+              src={nodeIcon}
+              className="workflow-node-panel-icon"
+            />
             {nodeInfo && (
               <Label
                 data={nodeInfo.data}

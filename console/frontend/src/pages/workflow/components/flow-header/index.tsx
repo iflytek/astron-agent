@@ -266,7 +266,10 @@ const FlowHeader: React.FC<FlowHeaderProps> = ({ children, currentFlow }) => {
                   </>
                 )}
                 {historyVersion && (
-                  <span className="bg-[#E9EEFF] w-[30px] h-[18px] text-[#6356EA] text-[10px] flex items-center justify-center rounded-[7px]">
+                  <span
+                    className="workflow-current-version max-w-[140px] shrink-0 truncate rounded bg-[#eef3ff] px-2 py-0.5 text-[11px] leading-5 text-[#3159d9]"
+                    title={historyVersionData?.name}
+                  >
                     {(historyVersionData as any)?.name}
                   </span>
                 )}
