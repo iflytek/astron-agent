@@ -1,4 +1,4 @@
-FROM artifacts.iflytek.com/cbg-docker-private/xfyun_webdev/nginx:1.15-alpine
+FROM nginx:1.30.7-alpine
 
 ENV port=1881
 
