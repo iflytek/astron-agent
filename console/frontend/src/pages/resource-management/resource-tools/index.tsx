@@ -36,6 +36,7 @@ import {
   type JsonObject,
 } from './mcp-tools';
 import './style.css';
+import { httpTestTemplate } from './http-test-template';
 
 type Resource = {
   id: number;
@@ -43,6 +44,8 @@ type Resource = {
   description?: string;
   content?: string;
   schema?: JsonObject;
+  method?: string;
+  endPoint?: string;
   temporaryData?: {
     name?: string;
     description?: string;
@@ -118,6 +121,7 @@ export default function ResourceTools({
   const [parameters, setParameters] = useState('{}');
   const [debugName, setDebugName] = useState('');
   const [debugInput, setDebugInput] = useState('{}');
+  const [debugHint, setDebugHint] = useState('');
   const [result, setResult] = useState('');
   const [resultFailed, setResultFailed] = useState(false);
   const [notice, setNotice] = useState('');
@@ -259,12 +263,14 @@ export default function ResourceTools({
     setServerUrl('');
     setParameters(pretty(row?.parameters || {}));
     const tools = mcpTools(row);
+    const template = httpTestTemplate(row || {});
     setDebugName(tools[0]?.name || '');
     setDebugInput(
       mode === 'mcp'
         ? pretty(schemaExample(tools[0]?.inputSchema || { type: 'object' }))
-        : '{\n  "path": {},\n  "query": {},\n  "header": {},\n  "body": {}\n}'
+        : template.input
     );
+    setDebugHint(mode === 'tools' ? template.hint : '');
     setResult('');
     setResultFailed(false);
     setError('');
@@ -1029,6 +1035,11 @@ export default function ResourceTools({
                             }
                           />
                         </label>
+                        {debugHint && (
+                          <p className="resource-tools-section-note">
+                            {debugHint}
+                          </p>
+                        )}
                         <div className="resource-tools-actions">
                           <Button
                             type="primary"
