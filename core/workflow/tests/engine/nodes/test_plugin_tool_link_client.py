@@ -5,7 +5,6 @@ from typing import Any
 
 import aiohttp
 import pytest
-
 from workflow.engine.nodes.plugin_tool.link_client import Tool
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
@@ -90,3 +89,113 @@ async def test_run_returns_parsed_payload_on_success(
     monkeypatch.setattr(aiohttp.ClientSession, "post", _post)
 
     assert await tool.run({}, {}, Span(uid="user-1")) == {"answer": 42}
+
+
+def test_fixed_values_nested_defaults_and_false_are_preserved() -> None:
+    tool = build_tool()
+    tool.method_schema = {
+        "parameters": [
+            {
+                "in": "path",
+                "name": "id",
+                "required": True,
+                "schema": {"type": "string", "x-display": True, "x-from": 2},
+            },
+            {
+                "in": "header",
+                "name": "Authorization",
+                "schema": {"type": "string", "default": "stored", "x-from": 0},
+            },
+            {
+                "in": "query",
+                "name": "enabled",
+                "schema": {"type": "boolean", "default": False},
+            },
+        ]
+    }
+    assert tool.assemble_parameters(
+        {"id": "item", "Authorization": "untrusted"}, {}
+    ) == ({"Authorization": "stored"}, {"enabled": False}, {"id": "item"})
+    schema = {
+        "type": "object",
+        "properties": {
+            "token": {"type": "string", "x-value": "stored", "x-from": 2},
+            "nested": {
+                "type": "object",
+                "default": {},
+                "properties": {
+                    "limit": {"type": "integer", "default": 3},
+                    "enabled": {"type": "boolean", "default": False},
+                },
+            },
+        },
+    }
+    assert tool.assemble_body(schema, {"token": "untrusted"}, {}) == {
+        "token": "stored",
+        "nested": {"limit": 3, "enabled": False},
+    }
+
+
+def test_path_level_parameters_are_inherited_and_operation_overrides() -> None:
+    from workflow.engine.nodes.plugin_tool.link_client import Link
+
+    link = Link("app", ["tool"], "", "")
+    link.open_api_schema_list = [
+        {
+            "id": "tool",
+            "schema": json.dumps(
+                {
+                    "paths": {
+                        "/items/{id}": {
+                            "parameters": [
+                                {
+                                    "in": "path",
+                                    "name": "id",
+                                    "required": True,
+                                    "schema": {"type": "string"},
+                                },
+                                {
+                                    "in": "query",
+                                    "name": "limit",
+                                    "schema": {"type": "integer", "default": 1},
+                                },
+                            ],
+                            "post": {
+                                "operationId": "search",
+                                "parameters": [
+                                    {
+                                        "in": "query",
+                                        "name": "limit",
+                                        "schema": {"type": "integer", "default": 5},
+                                    }
+                                ],
+                            },
+                        }
+                    }
+                }
+            ),
+        }
+    ]
+    link.parse_react_schema_list()
+    assert len(link.tools) == 1
+    assert link.tools[0].assemble_parameters({"id": "item"}, {}) == (
+        {},
+        {"limit": 5},
+        {"id": "item"},
+    )
+
+
+def test_nullable_and_readonly_body_properties_follow_openapi_contract() -> None:
+    tool = build_tool()
+    body = {
+        "type": "object",
+        "required": ["server_id"],
+        "properties": {
+            "server_id": {"type": "integer", "readOnly": True},
+            "optional": {"type": "string", "nullable": True},
+            "number": {"type": "integer", "minimum": 0, "exclusiveMinimum": True},
+        },
+    }
+    assert tool.assemble_body(
+        body, {"server_id": 7, "optional": None, "number": 1}, {}
+    ) == {"optional": None, "number": 1}

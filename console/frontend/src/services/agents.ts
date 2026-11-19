@@ -59,7 +59,7 @@ export const buildAgentResourceUpdate = (
 
 export interface AgentResourceOptions {
   models: Array<{ id: number; name: string; provider?: string }>;
-  tools: Array<{ id: number; name: string; toolId?: string }>;
+  tools: Array<{ id: number; name: string; toolId?: string; version?: string }>;
   mcp: Array<{ id: number; name: string; url?: string }>;
   skills: Array<{ id: number; name: string }>;
   repos: Array<{ id: number; name: string }>;

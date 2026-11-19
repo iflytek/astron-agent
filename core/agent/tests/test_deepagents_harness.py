@@ -7,6 +7,15 @@ from typing import Any
 
 import httpx
 import pytest
+from agent.api.schemas.base_inputs import BaseInputs
+from agent.api.schemas.llm_message import LLMMessage
+from agent.api.v1.base_api import CompletionBase
+from agent.domain.models.providers import ModelHandle, create_provider_model
+from agent.engine.deepagents_runner import DeepAgentsRunner
+from agent.engine.plugin_tools import build_plugin_tools
+from agent.exceptions.plugin_exc import PluginExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
+from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 from aiohttp import web
 from common.otlp import sid
 from common.otlp.trace.span import Span
@@ -18,16 +27,6 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from pydantic import Field
-
-from agent.api.schemas.base_inputs import BaseInputs
-from agent.api.schemas.llm_message import LLMMessage
-from agent.api.v1.base_api import CompletionBase
-from agent.domain.models.providers import ModelHandle, create_provider_model
-from agent.engine.deepagents_runner import DeepAgentsRunner
-from agent.engine.plugin_tools import build_plugin_tools
-from agent.exceptions.plugin_exc import PluginExc
-from agent.service.plugin.base import BasePlugin, PluginResponse
-from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 
 class RecordingModel(FakeMessagesListChatModel):
@@ -678,3 +677,31 @@ async def test_raised_tool_failure_is_sanitized_and_emitted_as_failed_result(
     assert runner.model_handle._closed
     for observed in exporter.get_finished_spans():
         assert "must-never-leak" not in str(observed.events)
+
+
+def test_same_name_tools_from_distinct_resources_have_stable_aliases(
+    context: Any,
+) -> None:
+    from agent.service.plugin.link import LinkPlugin
+    from agent.service.plugin.mcp import McpPlugin
+
+    template = plugin(name="echo")
+    first = McpPlugin(
+        **template.model_dump(exclude={"typ"}),
+        typ="mcp",
+        server_url="https://one.example/mcp",
+    )
+    second = McpPlugin(
+        **template.model_dump(exclude={"typ"}),
+        typ="mcp",
+        server_url="https://two.example/mcp",
+    )
+    third = LinkPlugin(
+        **template.model_dump(exclude={"typ"}), typ="link", tool_id="http-tool"
+    )
+    forward = build_plugin_tools([first, second, third], context[0])
+    reverse = build_plugin_tools([third, second, first], context[0])
+    assert len({tool.name for tool in forward}) == 3
+    assert [tool.name for tool in forward] == [tool.name for tool in reversed(reverse)]
+    with pytest.raises(ValueError):
+        build_plugin_tools([first, first], context[0])

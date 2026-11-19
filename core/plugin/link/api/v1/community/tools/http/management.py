@@ -10,6 +10,7 @@ from plugin.link.api.schemas.community.tools.http.management_schema import (
     ToolManagerResponse,
     ToolUpdateRequest,
 )
+from plugin.link.service.community.tools.http.builtin_catalog import builtin_catalog
 from plugin.link.service.community.tools.http.management_server import (
     create_version,
     delete_version,
@@ -57,3 +58,9 @@ def read_version_api(
     Search for existing tool.
     """
     return read_version(tool_ids=tool_ids, app_id=app_id, versions=versions)
+
+
+@management_router.get("/tools/builtin_catalog")
+async def builtin_catalog_api() -> ToolManagerResponse:
+    """Discover active built-ins without creating cross-space tool records."""
+    return await builtin_catalog()

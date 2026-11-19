@@ -14,8 +14,21 @@ def ensure_definition_unreferenced(kind, identifiers):
     fields = {
         "tool": {"tools", "pluginId", "toolId", "tool_id"},
         "repo": {"repoIds", "repoId", "knowledge"},
+        "mcp": {
+            "mcpServerIds",
+            "mcp_server_ids",
+            "mcpServerId",
+            "mcpId",
+            "mcp_id",
+            "serverId",
+            "mcpServerUrls",
+            "mcp_server_urls",
+            "mcpServerUrl",
+        },
     }[kind]
-    message = {"tool": "工具", "repo": "知识库"}[kind] + "仍被 Agent 或工作流引用，无法删除"
+    message = {"tool": "工具", "repo": "知识库", "mcp": "MCP服务"}[
+        kind
+    ] + "仍被 Agent 或工作流引用，无法删除"
 
     def matches(value):
         if isinstance(value, list):

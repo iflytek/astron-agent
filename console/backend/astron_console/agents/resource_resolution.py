@@ -51,13 +51,20 @@ def select(query, value, *keys, remote=None):
 
 def tool_query(scope):
     permission = "ToolBoxController_getDetail_GET"
-    owned = scoped(Tool.objects.filter(deleted=0), scope, permission, "user_id")
+    owned = scoped(Tool.objects.filter(deleted=0, status=1), scope, permission, "user_id")
     shared = GroupVisibility.objects.filter(
         type=2, user_id=scope.uid, space_id=scope.space_id
     ).values("relation_id")
-    return Tool.objects.filter(deleted=0).filter(
+    return Tool.objects.filter(deleted=0, status=1).filter(
         Q(pk__in=owned.values("id")) | Q(is_public=True, status=1) | Q(pk__in=shared)
     )
+
+
+def select_tool(query, value):
+    # A retained explicit version is a binding, not a request for the latest tool.
+    if isinstance(value, dict) and value.get("version"):
+        query = query.filter(version=str(value["version"]))
+    return select(query, value, "toolId", "tool_id", remote="tool_id")
 
 
 def repo_query(scope):
@@ -145,7 +152,7 @@ def resolve_resources(scope, definition, *, runtime=True):
     if tools:
         query = tool_query(scope)
         for value in tools:
-            row = select(query, value, "toolId", "tool_id", remote="tool_id")
+            row = select_tool(query, value)
             if runtime:
                 if not row.tool_id or not row.version:
                     raise ValidationError("工具缺少已同步版本")
@@ -232,9 +239,13 @@ def resources(request, agent_id):
 
     _, scope = get_agent(request, agent_id)
 
-    def options(query, name="name"):
+    def options(query, name="name", *, versioned=False):
         return [
-            {"id": row.pk, "name": getattr(row, name) or str(row.pk)}
+            {
+                "id": row.pk,
+                "name": getattr(row, name) or str(row.pk),
+                **({"version": row.version or ""} if versioned else {}),
+            }
             for row in query.order_by("id")
         ]
 
@@ -266,7 +277,7 @@ def resources(request, agent_id):
         ("repos", lambda: repo_query(scope), "name"),
     ]:
         try:
-            result[key] = options(factory(), name)
+            result[key] = options(factory(), name, versioned=key == "tools")
         except PermissionDenied:
             result[key] = []
     from astron_console.workflows.authorization import EXECUTE
@@ -287,10 +298,7 @@ def snapshot_references(scope, definition):
     if result.get("legacyDatasetIds"):
         raise ValidationError("旧个人Spark数据集尚未接入统一执行，原配置已保留；请重新选择知识库")
     resolve_resources(scope, result, runtime=False)
-    result["tools"] = [
-        select(tool_query(scope), x, "toolId", "tool_id", remote="tool_id").pk
-        for x in refs(result.get("tools"))
-    ]
+    result["tools"] = [select_tool(tool_query(scope), x).pk for x in refs(result.get("tools"))]
     skill_query = scope_queryset(SkillFile.objects.filter(deleted=False), scope)
     result["skills"] = [
         select(skill_query, x, "fileId", "skillId", "skill_id").pk

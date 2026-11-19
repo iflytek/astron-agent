@@ -176,7 +176,16 @@ def collection(request):
         .values("latest")
     )
     query = query.filter(Q(pk__in=latest) | Q(tool_id__isnull=True) | Q(tool_id=""))
-    return page(query.order_by("-id"), request.GET, data)
+    favorites = set(
+        ToolFavorite.objects.filter(user_id=scope.uid, is_deleted=0).values_list(
+            "plugin_tool_id", flat=True
+        )
+    )
+    return page(
+        query.order_by("-id"),
+        request.GET,
+        lambda row: {**data(row), "favorite": row.tool_id in favorites},
+    )
 
 
 def normalize_schema(value, old=None):
@@ -203,8 +212,8 @@ def normalize_schema(value, old=None):
     return value, operations
 
 
-def save(request, pk=None):
-    payload = request.payload
+def save(request, pk=None, *, payload=None, builtin_id=None):
+    payload = request.payload if payload is None else payload
     if pk is not None:
         row, scope = owned(request, Tool, pk, WRITE, uid_field="user_id", deleted="deleted")
     else:
@@ -219,6 +228,9 @@ def save(request, pk=None):
     credentials = schema_auth(schema)
     row.name = text(payload, "name", required=True, limit=64)
     row.description = text(payload, "description", required=True, limit=255)
+    if builtin_id:
+        row.source = 0
+        row.tool_tag = "builtin:" + builtin_id
     version = text(payload, "version", limit=100) or row.version or "V1.0"
     if payload.get("draft") is True:
         row.temporary_data = json.dumps(

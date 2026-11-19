@@ -106,7 +106,7 @@ def definition(agent, *, public_scope=None):
         # Never return retained credentials, MCP bearer URLs, or expiring object URLs.
         result["configuredMcpCount"] = len(result["mcpServerUrls"])
         result["mcpServerUrls"] = []
-        from .resource_resolution import select, tool_query
+        from .resource_resolution import select_tool, tool_query
 
         def safe_refs(values, keys, tool=False):
             output = []
@@ -114,9 +114,7 @@ def definition(agent, *, public_scope=None):
                 if tool:
                     try:
                         # Use exactly the same authorized ID/version resolution as execution.
-                        row = select(
-                            tool_query(public_scope), value, "toolId", "tool_id", remote="tool_id"
-                        )
+                        row = select_tool(tool_query(public_scope), value)
                         output.append(row.pk)
                     except PermissionDenied:
                         # The definition remains readable; execution still rejects unavailable refs.

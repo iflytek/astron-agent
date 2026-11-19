@@ -7,12 +7,11 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
-
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
 from agent.service.plugin.link import LinkPluginFactory, LinkPluginRunner
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
 
 
 @dataclass
@@ -227,3 +226,60 @@ async def test_mcp_initialization_failure_cannot_silently_remove_tools(
             await factory.build_tools(Span(app_id="test", uid="user"))
         assert error.value.c == 40026
         assert "secret" not in str(error.value)
+
+
+@pytest.mark.asyncio
+async def test_mcp_schema_preserves_refs_and_constraints() -> None:
+    from agent.service.plugin.mcp import McpPluginFactory
+
+    schema = {
+        "type": "object",
+        "$defs": {"count": {"type": "integer", "minimum": 1}},
+        "properties": {"count": {"$ref": "#/$defs/count"}},
+        "additionalProperties": False,
+        "oneOf": [{"required": ["count"]}],
+    }
+    converted = await McpPluginFactory.convert_tool(
+        {"name": "echo", "inputSchema": schema}
+    )
+    assert json.loads(converted.rpartition("tool_parameters:")[2]) == schema
+
+
+@pytest.mark.asyncio
+async def test_mcp_execution_error_is_not_reported_as_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import aiohttp
+    from agent.service.plugin.mcp import McpPluginRunner
+
+    class Response:
+        status = 200
+
+        async def __aenter__(self) -> "Response":
+            return self
+
+        async def __aexit__(self, *args: Any) -> bool:
+            return False
+
+        def raise_for_status(self) -> None:
+            pass
+
+        async def json(self) -> dict[str, Any]:
+            return {
+                "code": 0,
+                "data": {
+                    "isError": True,
+                    "content": [{"type": "text", "text": "failed"}],
+                },
+            }
+
+    monkeypatch.setenv("RUN_MCP_PLUGIN_URL", "https://link.example/mcp")
+    monkeypatch.setattr(
+        aiohttp.ClientSession, "post", lambda *args, **kwargs: Response()
+    )
+    runner = McpPluginRunner(
+        server_id="", server_url="https://example.com", sid="", name="echo"
+    )
+    with pytest.raises(PluginExc) as exc:
+        await runner.run({}, Span(app_id="app", uid="user"))
+    assert exc.value.c == 40027

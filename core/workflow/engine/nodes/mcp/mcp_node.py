@@ -6,7 +6,6 @@ import aiohttp
 import httpx
 from aiohttp import ClientTimeout
 from pydantic import Field, model_validator
-
 from workflow.engine.entities.private_config import PrivateConfig
 from workflow.engine.entities.variable_pool import VariablePool
 from workflow.engine.nodes.base_node import BaseNode
@@ -70,9 +69,7 @@ class MCPNode(BaseNode):
                     for k in self.input_identifier
                 }
             )
-            await span.add_info_events_async(
-                {"mcp_input": json.dumps(inputs, ensure_ascii=False)}
-            )
+            await span.add_info_events_async({"mcp_tool": self.toolName})
             status = WorkflowNodeExecutionStatus.SUCCEEDED
 
             # Prepare MCP tool call request
@@ -99,13 +96,18 @@ class MCPNode(BaseNode):
                         )
 
                     res_json = json.loads(await resp.text())
-                    await span.add_info_events_async(
-                        {"mcp_response": json.dumps(res_json, ensure_ascii=False)}
-                    )
+                    await span.add_info_events_async({"mcp_code": res_json.get("code")})
 
                     # Check for errors in response
-                    if res_json.get("code") != 0:
-                        msg = f"reason {res_json.get('message')}"
+                    if (
+                        res_json.get("code") != 0
+                        or res_json.get("data", {}).get("isError") is True
+                    ):
+                        msg = (
+                            "MCP tool returned an execution error"
+                            if res_json.get("data", {}).get("isError") is True
+                            else f"reason {res_json.get('message')}"
+                        )
                         span.add_error_event(msg)
                         raise CustomException(
                             err_code=CodeEnum.MCP_REQUEST_ERROR,

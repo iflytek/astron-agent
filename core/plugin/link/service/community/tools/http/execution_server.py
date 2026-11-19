@@ -37,7 +37,9 @@ from plugin.link.utils.json_schemas.read_json_schemas import (
 )
 from plugin.link.utils.json_schemas.schema_validate import api_validate
 from plugin.link.utils.open_api_schema.response_filter import (
+    extract_response_schema,
     filter_response_by_x_display,
+    select_operation_document,
     should_ignore_validation_error_by_x_display,
 )
 from plugin.link.utils.open_api_schema.schema_parser import OpenapiSchemaParser
@@ -462,6 +464,18 @@ async def process_http_result(
     except Exception:
         result_json = result
 
+    envelope_error = builtin_response_error(result_json, open_api_schema)
+    if envelope_error:
+        return await handle_custom_error(
+            ErrCode.OFFICIAL_API_REQUEST_FAILED_ERR,
+            envelope_error,
+            span_context,
+            node_trace,
+            m,
+            tool_id,
+            tool_type,
+        )
+
     er_msgs = validate_response_schema(result_json, open_api_schema)
     if er_msgs:
         msg = ";".join(er_msgs)
@@ -614,6 +628,9 @@ async def handle_request_execution(
 ) -> HttpRunResponse:
     """Handle the actual HTTP request execution."""
     try:
+        open_api_schema = select_operation_document(
+            open_api_schema, operation_id=params["operation_id"]
+        )
         message = run_params_list["payload"]["message"]
         message_header, message_query, path, body = process_message_params(message)
 
@@ -800,6 +817,11 @@ async def tool_debug(  # noqa: C901
                     validate_err, span_context, node_trace, m, tool_id, tool_type or ""
                 )
 
+            openapi_schema = select_operation_document(
+                openapi_schema,
+                method=tool_debug_params.method,
+                endpoint=tool_debug_params.server,
+            )
             http_inst = HttpRun(
                 server=tool_debug_params.server,
                 method=tool_debug_params.method,
@@ -815,6 +837,18 @@ async def tool_debug(  # noqa: C901
                 result_json = json.loads(result)
             except Exception:
                 result_json = result
+
+            envelope_error = builtin_response_error(result_json, openapi_schema)
+            if envelope_error:
+                return await handle_custom_error(
+                    ErrCode.OFFICIAL_API_REQUEST_FAILED_ERR,
+                    envelope_error,
+                    span_context,
+                    node_trace,
+                    m,
+                    tool_id,
+                    tool_type or "",
+                )
 
             er_msgs = validate_response_schema(result_json, openapi_schema)
             if er_msgs:
@@ -869,17 +903,15 @@ def process_array(name: str) -> Tuple[str, int]:
 
 def get_response_schema(openapi_schema: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """Get response schema from tool's OpenAPI schema."""
-    if openapi_schema is None:
-        return {}
-    paths = openapi_schema.get("paths", {})
-    response_schema = {}
-    for _, method_dict in paths.items():
-        for _, method in method_dict.items():
-            response_schema = (
-                method.get("responses", {})
-                .get("200", {})
-                .get("content", {})
-                .get("application/json", {})
-                .get("schema", {})
-            )
-    return response_schema
+    return extract_response_schema(openapi_schema)
+
+
+def builtin_response_error(result: Any, document: Dict[str, Any]) -> Optional[str]:
+    """Interpret only the explicit AI Tools contract published by our catalog."""
+    if document.get("info", {}).get("x-astron-response-envelope") != "aitools-v1":
+        return None
+    if not isinstance(result, dict) or type(result.get("code")) is not int:
+        return "AI Tools returned an invalid response envelope"
+    if result["code"] == 0:
+        return None
+    return f"AI Tools request failed ({result['code']}): {result.get('message', 'Unknown error')}"
