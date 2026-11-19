@@ -27,6 +27,10 @@ import {
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import { httpTestTemplate } from '@/pages/resource-management/resource-tools/http-test-template';
+import {
+  httpCallFailure,
+  resourceFailure,
+} from '@/pages/resource-management/resource-tools/resource-errors';
 import '@/pages/resource-management/resource-tools/style.css';
 
 function toolParameters(value: string): string {
@@ -108,13 +112,7 @@ export default function AddPlugin(): ReactElement {
       if (token === request.current) setResult(pretty(data));
     } catch (reason) {
       if (token === request.current)
-        setError(
-          reason instanceof SyntaxError
-            ? '参数 JSON 格式无效，请检查后重试。'
-            : reason instanceof Error
-              ? reason.message
-              : '工具调用失败。'
-        );
+        setError(resourceFailure(reason, httpCallFailure).description);
     } finally {
       if (token === request.current) setBusy(false);
     }
@@ -165,7 +163,7 @@ export default function AddPlugin(): ReactElement {
             <Alert
               type="error"
               showIcon
-              message="工具调用失败"
+              message={httpCallFailure.title}
               description={error}
             />
           )}

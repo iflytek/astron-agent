@@ -37,6 +37,13 @@ import {
 } from './mcp-tools';
 import './style.css';
 import { httpTestTemplate } from './http-test-template';
+import {
+  httpCallFailure,
+  mcpCallFailure,
+  mcpDiscoveryFailure,
+  resourceFailure,
+  type FailureContext,
+} from './resource-errors';
 
 type Resource = {
   id: number;
@@ -126,6 +133,7 @@ export default function ResourceTools({
   const [resultFailed, setResultFailed] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [errorTitle, setErrorTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [loading, setLoading] = useState(true);
@@ -212,7 +220,8 @@ export default function ResourceTools({
   }, [base, market, revision, spaceId, enterpriseId]);
 
   const run = async (
-    action: (current: () => boolean) => Promise<void>
+    action: (current: () => boolean) => Promise<void>,
+    failure: FailureContext
   ): Promise<void> => {
     if (busyRef.current) return;
     const scope = epoch.current;
@@ -226,14 +235,11 @@ export default function ResourceTools({
     try {
       await action(current);
     } catch (reason) {
-      if (current())
-        setError(
-          reason instanceof SyntaxError
-            ? 'JSON 格式无效，请检查后重试。'
-            : reason instanceof Error
-              ? reason.message
-              : '操作失败，请重试。'
-        );
+      if (current()) {
+        const problem = resourceFailure(reason, failure);
+        setErrorTitle(problem.title);
+        setError(problem.description);
+      }
     } finally {
       if (scope === epoch.current) {
         busyRef.current = false;
@@ -292,70 +298,96 @@ export default function ResourceTools({
     setEditing(false);
     prepare(row);
     setDrawerTab(config ? 'config' : 'test');
-    await run(async current => {
-      try {
-        const detail = await http.get<never, Resource>(`${base}/${row.id}`);
-        if (!current()) return;
-        prepare(detail);
-        setEditing(false);
-      } finally {
-        if (current()) setDetailLoading(false);
-      }
-    });
+    await run(
+      async current => {
+        try {
+          const detail = await http.get<never, Resource>(`${base}/${row.id}`);
+          if (!current()) return;
+          prepare(detail);
+          setEditing(false);
+        } finally {
+          if (current()) setDetailLoading(false);
+        }
+      },
+      mode === 'mcp'
+        ? mcpDiscoveryFailure
+        : {
+            title: 'HTTP 工具配置读取失败',
+            recovery: '请刷新工具目录后重新打开配置。',
+          }
+    );
   };
   const save = (draft: boolean): void => {
     if (!formRef.current?.reportValidity()) return;
-    void run(async current => {
-      const payload =
-        mode === 'tools'
-          ? {
-              name,
-              description,
-              schema: parseArguments(schema),
-              version,
-              draft,
-            }
-          : {
-              name,
-              description,
-              serverUrl,
-              parameters: parseArguments(parameters),
-            };
-      const saved = selected
-        ? await http.put<never, Resource>(`${base}/${selected.id}`, payload)
-        : await http.post<never, Resource>(base, payload);
-      if (!current()) return;
-      const detail =
-        mode === 'mcp'
-          ? await http.get<never, Resource>(`${base}/${saved.id}`)
-          : saved;
-      if (!current()) return;
-      prepare(detail);
-      setEditing(false);
-      setNotice(
-        draft
-          ? '草稿已保存，发布后可用于 Agent 和工作流。'
-          : '配置已保存。可在测试中验证实际调用。'
-      );
-      setRevision(value => value + 1);
-    });
+    void run(
+      async current => {
+        const payload =
+          mode === 'tools'
+            ? {
+                name,
+                description,
+                schema: parseArguments(schema),
+                version,
+                draft,
+              }
+            : {
+                name,
+                description,
+                serverUrl,
+                parameters: parseArguments(parameters),
+              };
+        const saved = selected
+          ? await http.put<never, Resource>(`${base}/${selected.id}`, payload)
+          : await http.post<never, Resource>(base, payload);
+        if (!current()) return;
+        const detail =
+          mode === 'mcp'
+            ? await http.get<never, Resource>(`${base}/${saved.id}`)
+            : saved;
+        if (!current()) return;
+        prepare(detail);
+        setEditing(false);
+        setNotice(
+          draft
+            ? '草稿已保存，发布后可用于 Agent 和工作流。'
+            : '配置已保存。可在测试中验证实际调用。'
+        );
+        setRevision(value => value + 1);
+      },
+      mode === 'mcp'
+        ? {
+            title: 'MCP 连接验证与保存未完成',
+            recovery:
+              '请检查服务地址、授权和参数后重新验证；已保存的连接可在目录中重新发现。',
+          }
+        : {
+            title: draft ? 'HTTP 工具草稿保存失败' : 'HTTP 工具发布失败',
+            recovery: '请检查 OpenAPI 文档和版本配置后重新保存。',
+          }
+    );
   };
   const remove = (): void => {
     if (!deleteTarget) return;
     const row = deleteTarget;
-    void run(async current => {
-      await http.delete(`${base}/${row.id}`);
-      if (!current()) return;
-      setDeleteTarget(null);
-      setNotice(`已删除“${row.name}”。`);
-      if (selected?.id === row.id) {
-        setOpen(false);
-        setSelected(null);
-        setEditing(false);
+    void run(
+      async current => {
+        await http.delete(`${base}/${row.id}`);
+        if (!current()) return;
+        setDeleteTarget(null);
+        setNotice(`已删除“${row.name}”。`);
+        if (selected?.id === row.id) {
+          setOpen(false);
+          setSelected(null);
+          setEditing(false);
+        }
+        if (items.length === 1 && page > 1) setPage(value => value - 1);
+        setRevision(value => value + 1);
+      },
+      {
+        title: `${noun}删除失败`,
+        recovery: '请检查资源引用和当前权限后重试。',
       }
-      if (items.length === 1 && page > 1) setPage(value => value - 1);
-      setRevision(value => value + 1);
-    });
+    );
   };
   const exportTool = (): void => {
     if (!selected) return;
@@ -380,18 +412,24 @@ export default function ResourceTools({
   const importTool = (file: File): void => {
     if (busy || !mayLeave()) return;
     detailRequest.current += 1;
-    void run(async current => {
-      const imported = JSON.parse(await file.text()) as Resource;
-      if (!current()) return;
-      prepare(null);
-      setName(imported.name || '');
-      setDescription(imported.description || '');
-      setSchema(pretty(imported.schema || imported));
-      setVersion(imported.version || 'V1.0');
-      setOpen(true);
-      setEditing(true);
-      setDrawerTab('config');
-    });
+    void run(
+      async current => {
+        const imported = JSON.parse(await file.text()) as Resource;
+        if (!current()) return;
+        prepare(null);
+        setName(imported.name || '');
+        setDescription(imported.description || '');
+        setSchema(pretty(imported.schema || imported));
+        setVersion(imported.version || 'V1.0');
+        setOpen(true);
+        setEditing(true);
+        setDrawerTab('config');
+      },
+      {
+        title: 'HTTP 工具导入失败',
+        recovery: '请选择有效的工具 JSON 或 OpenAPI 文档后重新导入。',
+      }
+    );
   };
   const availableTools = mcpTools(selected);
   const activeTool = availableTools.find(tool => tool.name === debugName);
@@ -511,7 +549,7 @@ export default function ResourceTools({
         />
       )}
       {error && !open && (
-        <Alert type="error" showIcon message="操作未完成" description={error} />
+        <Alert type="error" showIcon message={errorTitle} description={error} />
       )}
       {(isCatalog ? catalogError : listError) && (
         <Alert
@@ -577,16 +615,23 @@ export default function ResourceTools({
                           setServerUrl(item.server || '');
                         }
                       } else
-                        void run(async current => {
-                          await http.post(
-                            `${base}/catalog/${encodeURIComponent(item.id)}/install`,
-                            {}
-                          );
-                          if (current()) {
-                            setNotice(`已将“${item.name}”添加到当前空间。`);
-                            setRevision(value => value + 1);
+                        void run(
+                          async current => {
+                            await http.post(
+                              `${base}/catalog/${encodeURIComponent(item.id)}/install`,
+                              {}
+                            );
+                            if (current()) {
+                              setNotice(`已将“${item.name}”添加到当前空间。`);
+                              setRevision(value => value + 1);
+                            }
+                          },
+                          {
+                            title: '内置工具添加失败',
+                            recovery:
+                              '请刷新内置目录，确认平台配置后重新添加。',
                           }
-                        });
+                        );
                     }}
                   >
                     {item.installed
@@ -686,15 +731,24 @@ export default function ResourceTools({
                           setDeleteTarget(row);
                         }
                         if (key === 'favorite' || key === 'publish')
-                          void run(async current => {
-                            await http.post(
-                              `${base}/${row.id}/${key === 'favorite' ? 'favorite' : 'publish'}`,
-                              key === 'favorite'
-                                ? { favorite: !row.favorite }
-                                : { public: !row.isPublic }
-                            );
-                            if (current()) setRevision(value => value + 1);
-                          });
+                          void run(
+                            async current => {
+                              await http.post(
+                                `${base}/${row.id}/${key === 'favorite' ? 'favorite' : 'publish'}`,
+                                key === 'favorite'
+                                  ? { favorite: !row.favorite }
+                                  : { public: !row.isPublic }
+                              );
+                              if (current()) setRevision(value => value + 1);
+                            },
+                            {
+                              title:
+                                key === 'favorite'
+                                  ? '收藏更新失败'
+                                  : '市场状态更新失败',
+                              recovery: '请刷新工具目录后重试。',
+                            }
+                          );
                       },
                     }}
                     disabled={busy}
@@ -769,7 +823,7 @@ export default function ResourceTools({
           <Alert
             type="error"
             showIcon
-            message="操作未完成"
+            message={errorTitle}
             description={error}
           />
         )}
@@ -1045,22 +1099,29 @@ export default function ResourceTools({
                             type="primary"
                             loading={busy}
                             onClick={() =>
-                              void run(async current => {
-                                const args = parseArguments(debugInput);
-                                const value = await http.post(
-                                  `${base}/${selected.id}/debug`,
-                                  mode === 'tools'
-                                    ? args
-                                    : { name: debugName, arguments: args },
-                                  { timeout: 300000 }
-                                );
-                                if (current()) {
-                                  setResult(pretty(value));
-                                  setResultFailed(
-                                    mode === 'mcp' && mcpResultFailed(value)
+                              void run(
+                                async current => {
+                                  setResult('');
+                                  setResultFailed(false);
+                                  const args = parseArguments(debugInput);
+                                  const value = await http.post(
+                                    `${base}/${selected.id}/debug`,
+                                    mode === 'tools'
+                                      ? args
+                                      : { name: debugName, arguments: args },
+                                    { timeout: 300000 }
                                   );
-                                }
-                              })
+                                  if (current()) {
+                                    setResult(pretty(value));
+                                    setResultFailed(
+                                      mode === 'mcp' && mcpResultFailed(value)
+                                    );
+                                  }
+                                },
+                                mode === 'mcp'
+                                  ? mcpCallFailure
+                                  : httpCallFailure
+                              )
                             }
                           >
                             运行测试
@@ -1073,15 +1134,23 @@ export default function ResourceTools({
                               <Button
                                 disabled={busy}
                                 onClick={() =>
-                                  void run(async current => {
-                                    const data = await http.get(
-                                      `${base}/${selected.id}/versions`
-                                    );
-                                    if (current()) {
-                                      setResult(pretty(data));
+                                  void run(
+                                    async current => {
+                                      setResult('');
                                       setResultFailed(false);
+                                      const data = await http.get(
+                                        `${base}/${selected.id}/versions`
+                                      );
+                                      if (current()) {
+                                        setResult(pretty(data));
+                                        setResultFailed(false);
+                                      }
+                                    },
+                                    {
+                                      title: '工具版本记录读取失败',
+                                      recovery: '请重新读取版本记录。',
                                     }
-                                  })
+                                  )
                                 }
                               >
                                 版本记录

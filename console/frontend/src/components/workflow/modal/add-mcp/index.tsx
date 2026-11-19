@@ -13,6 +13,7 @@ import type { McpItem } from '@/components/workflow/types/modal/add-mcp';
 import type { McpType } from '@/components/workflow/types/drawer/chat-debugger';
 import MCPDetail from './mcp-detail';
 import useSpaceStore from '@/store/space-store';
+import { resourceFailure } from '@/pages/resource-management/resource-tools/resource-errors';
 import '@/pages/resource-management/resource-tools/style.css';
 type Server = McpServerTool & {
   connectionStatus?: string;
@@ -42,9 +43,15 @@ export default function AddMcp(): ReactElement {
       .then(data => {
         if (token === request.current) setServers(data);
       })
-      .catch((reason: Error) => {
+      .catch((reason: unknown) => {
         if (token === request.current)
-          setError(reason.message || 'MCP 服务读取失败。');
+          setError(
+            resourceFailure(reason, {
+              title: 'MCP 服务读取失败',
+              recovery:
+                '请刷新服务列表；连接异常时请在 MCP 服务管理中检查配置与授权。',
+            }).description
+          );
       })
       .finally(() => {
         if (token === request.current) setLoading(false);
