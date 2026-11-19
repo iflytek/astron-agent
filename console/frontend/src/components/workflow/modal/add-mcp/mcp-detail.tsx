@@ -4,6 +4,11 @@ import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { getServerToolDetailAPI, debugServerToolAPI } from '@/services/plugin';
 import type { McpItem } from '@/components/workflow/types/modal/add-mcp';
 import {
+  mcpCallFailure,
+  mcpDiscoveryFailure,
+  resourceFailure,
+} from '@/pages/resource-management/resource-tools/resource-errors';
+import {
   mcpTools,
   mcpResultFailed,
   parseArguments,
@@ -28,6 +33,7 @@ export function MCPDetail({
   const [detail, setDetail] = useState<Detail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [errorTitle, setErrorTitle] = useState('');
   const [revision, setRevision] = useState(0);
   const [toolName, setToolName] = useState('');
   const [input, setInput] = useState('{}');
@@ -41,6 +47,7 @@ export function MCPDetail({
     setError('');
     setDetail(null);
     setResult('');
+    setFailed(false);
     setBusy(false);
     void getServerToolDetailAPI(currentTool.id || '')
       .then(value => {
@@ -55,9 +62,12 @@ export function MCPDetail({
           pretty(schemaExample(selected?.inputSchema || { type: 'object' }))
         );
       })
-      .catch((reason: Error) => {
-        if (token === request.current)
-          setError(reason.message || 'MCP 工具读取失败。');
+      .catch((reason: unknown) => {
+        if (token === request.current) {
+          const problem = resourceFailure(reason, mcpDiscoveryFailure);
+          setErrorTitle(problem.title);
+          setError(problem.description);
+        }
       })
       .finally(() => {
         if (token === request.current) setLoading(false);
@@ -81,6 +91,7 @@ export function MCPDetail({
     setBusy(true);
     setError('');
     setResult('');
+    setFailed(false);
     try {
       const args = parseArguments(input);
       const value = await debugServerToolAPI({
@@ -93,14 +104,11 @@ export function MCPDetail({
         setFailed(mcpResultFailed(value));
       }
     } catch (reason) {
-      if (token === request.current)
-        setError(
-          reason instanceof SyntaxError
-            ? '参数 JSON 格式无效，请检查后重试。'
-            : reason instanceof Error
-              ? reason.message
-              : '调用失败。'
-        );
+      if (token === request.current) {
+        const problem = resourceFailure(reason, mcpCallFailure);
+        setErrorTitle(problem.title);
+        setError(problem.description);
+      }
     } finally {
       if (token === request.current) setBusy(false);
     }
@@ -135,7 +143,7 @@ export function MCPDetail({
             <Alert
               type="error"
               showIcon
-              message="操作未完成"
+              message={errorTitle}
               description={error}
               action={!detail ? refresh : undefined}
             />
