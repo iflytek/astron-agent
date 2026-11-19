@@ -247,3 +247,122 @@ async def test_url_processing_maps_blocked_flag_not_message_text(
     )
     assert local.server_status == ErrCode.MCP_SERVER_LOCAL_URL_ERR.code
     connect.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_official_mcp_contents_and_structured_output_are_preserved(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any
+) -> None:
+    from mcp.types import AudioContent, CallToolResult, ImageContent, ResourceLink
+
+    session = FakeSession()
+    official = CallToolResult(
+        content=[
+            ImageContent(type="image", data="aGVsbG8=", mimeType="image/png"),
+            AudioContent(type="audio", data="aGVsbG8=", mimeType="audio/wav"),
+            ResourceLink(
+                type="resource_link", uri="https://example.com/file", name="file"
+            ),
+        ],
+        structuredContent={"items": [1, 2]},
+        isError=True,
+    )
+    session.call_tool.return_value = official
+    monkeypatch.setattr(
+        mcp_server, "initialized_mcp_session", initialized_session([], session)
+    )
+    result = await mcp_server._call_mcp_tool(
+        "https://example.com/mcp", "echo", {}, "sid", Mock(), Mock(), "server", Mock()
+    )
+    assert result.data.model_dump() == official.model_dump()
+    assert result.data.isError is True
+
+
+@pytest.mark.asyncio
+async def test_discovery_reads_all_pages_and_preserves_tool_metadata(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any
+) -> None:
+    from mcp.types import ListToolsResult, Tool
+
+    session = FakeSession()
+    session.list_tools.side_effect = [
+        ListToolsResult(
+            tools=[
+                Tool(
+                    name="first",
+                    inputSchema={"type": "object"},
+                    outputSchema={"type": "object"},
+                )
+            ],
+            nextCursor="second-page",
+        ),
+        ListToolsResult(tools=[Tool(name="second", inputSchema={"type": "object"})]),
+    ]
+    monkeypatch.setattr(
+        mcp_server, "initialized_mcp_session", initialized_session([], session)
+    )
+    result = await mcp_server._connect_and_get_tools("https://example.com/mcp")
+    assert result.server_status == 0
+    assert [tool.name for tool in result.tools] == ["first", "second"]
+    assert result.tools[0].outputSchema == {"type": "object"}
+    assert session.list_tools.await_args_list[1].kwargs == {"cursor": "second-page"}
+
+
+@pytest.mark.asyncio
+async def test_repeated_pagination_cursor_fails_instead_of_looping(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any
+) -> None:
+    from mcp.types import ListToolsResult
+
+    session = FakeSession()
+    session.list_tools.return_value = ListToolsResult(tools=[], nextCursor="same")
+    monkeypatch.setattr(
+        mcp_server, "initialized_mcp_session", initialized_session([], session)
+    )
+    result = await mcp_server._connect_and_get_tools("https://example.com/mcp")
+    assert result.server_status == ErrCode.MCP_SERVER_TOOL_LIST_ERR.code
+    assert session.list_tools.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_multi_server_discovery_is_bounded_and_isolates_failures(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any
+) -> None:
+    import asyncio
+
+    from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import (
+        MCPItemInfo,
+        MCPToolListRequest,
+    )
+
+    active = peak = 0
+
+    async def discover(url: str, transport: MCPTransport) -> MCPItemInfo:
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        try:
+            await asyncio.sleep(0)
+            if url == "broken":
+                raise RuntimeError("connection failed")
+            return MCPItemInfo(
+                server_url=url, server_status=0, server_message="ok", tools=[]
+            )
+        finally:
+            active -= 1
+
+    monkeypatch.setattr(mcp_server, "_process_mcp_server_by_url", discover)
+    urls = ["one", "two", "broken", "four", "five", "six"]
+    result = await mcp_server._discover_servers(
+        MCPToolListRequest(mcp_server_urls=urls), Mock()
+    )
+    assert 1 < peak <= 4
+    assert [item.server_url for item in result] == urls
+    assert [item.server_status == 0 for item in result] == [
+        True,
+        True,
+        False,
+        True,
+        True,
+        True,
+    ]

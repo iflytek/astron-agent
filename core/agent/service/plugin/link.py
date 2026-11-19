@@ -7,13 +7,12 @@ from base64 import b64encode
 from typing import Any, List, Union
 
 import aiohttp
+from agent.exceptions.plugin_exc import GetToolSchemaExc, PluginExc, RunToolExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
 from common.otlp.trace.span import Span
 from jsonschema import Draft202012Validator, SchemaError, ValidationError
 from pydantic import BaseModel
 from referencing import Registry
-
-from agent.exceptions.plugin_exc import GetToolSchemaExc, PluginExc, RunToolExc
-from agent.service.plugin.base import BasePlugin, PluginResponse
 
 # OpenAPI transport stays in core/link; this adapter only projects model arguments.
 _MISSING = object()
@@ -400,6 +399,7 @@ class LinkPluginRunner(BaseModel):
 
 class LinkPlugin(BasePlugin):
     tool_id: str
+    version: str = ""
 
 
 class LinkPluginFactory(BaseModel):
@@ -533,6 +533,7 @@ class LinkPluginFactory(BaseModel):
         description = method_schema.get("description", method_schema.get("summary", ""))
         return LinkPlugin(
             tool_id=tool_id,
+            version=version,
             name=action_name,
             description=description,
             schema_template=f"tool_name:{action_name}, tool_description:{description}, tool_parameters:{json.dumps(model_schema, ensure_ascii=False)}",

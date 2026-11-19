@@ -1,6 +1,56 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlsplit
+
+HTTP_METHODS = frozenset(
+    {"get", "post", "put", "patch", "delete", "options", "head", "trace"}
+)
+
+
+def select_operation_document(
+    document: Dict[str, Any],
+    *,
+    operation_id: Optional[str] = None,
+    method: Optional[str] = None,
+    endpoint: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Scope response processing to the operation actually being executed."""
+    matches = []
+    for path, item in document.get("paths", {}).items():
+        if not isinstance(item, dict):
+            continue
+        for verb, operation in item.items():
+            if verb not in HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            if (
+                operation_id is not None
+                and operation.get("operationId") != operation_id
+            ):
+                continue
+            if method is not None and verb != method.lower():
+                continue
+            servers = operation.get(
+                "servers", item.get("servers", document.get("servers", []))
+            )
+            if (
+                endpoint is not None
+                and servers
+                and not any(
+                    urlsplit(endpoint).path
+                    == urlsplit(server["url"].rstrip("/") + path).path
+                    for server in servers
+                )
+            ):
+                continue
+            matches.append((path, verb, item, operation))
+    if len(matches) != 1:
+        if not matches and not document.get("paths"):
+            return document
+        raise ValueError("Response schema requires one matching HTTP operation")
+    path, verb, item, operation = matches[0]
+    metadata = {key: value for key, value in item.items() if key not in HTTP_METHODS}
+    return {**document, "paths": {path: {**metadata, verb: operation}}}
 
 
 def _is_x_display_false(schema: Dict[str, Any]) -> bool:
@@ -24,8 +74,8 @@ def extract_response_schema(openapi_schema: Optional[Dict[str, Any]]) -> Dict[st
     for _, method_dict in paths.items():
         if not isinstance(method_dict, dict):
             continue
-        for _, method_schema in method_dict.items():
-            if not isinstance(method_schema, dict):
+        for method, method_schema in method_dict.items():
+            if method not in HTTP_METHODS or not isinstance(method_schema, dict):
                 continue
             response_schema = (
                 method_schema.get("responses", {})

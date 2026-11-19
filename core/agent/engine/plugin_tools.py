@@ -5,9 +5,13 @@ import inspect
 import json
 import re
 import time
+from collections import Counter
 from contextlib import aclosing
 from typing import Any
 
+from agent.api.schemas.agent_response import AgentResponse, ToolExecution
+from agent.exceptions.plugin_exc import PluginExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
 from common.exceptions.base import BaseExc
 from common.otlp.trace.langfuse import langfuse_observation_attributes
 from common.otlp.trace.span import Span
@@ -17,10 +21,6 @@ from langgraph.config import get_stream_writer
 from loguru import logger
 from opentelemetry.trace import Status, StatusCode
 from referencing import Registry
-
-from agent.api.schemas.agent_response import AgentResponse, ToolExecution
-from agent.exceptions.plugin_exc import PluginExc
-from agent.service.plugin.base import BasePlugin, PluginResponse
 
 # These names belong to the Harness, even when a particular backend omits them.
 RESERVED_TOOLS = {
@@ -53,13 +53,33 @@ def plugin_schema(plugin: BasePlugin) -> dict[str, Any]:
 
 def build_plugin_tools(plugins: list[BasePlugin], span: Span) -> list[StructuredTool]:
     names = set(RESERVED_TOOLS)
-    original_names: set[str] = set()
+    identities: set[tuple[str, ...]] = set()
+    counts = Counter(plugin.name for plugin in plugins)
     tools = []
     for plugin in plugins:
-        if not plugin.name.strip() or plugin.name in original_names:
-            raise ValueError("Empty or duplicate plugin name")
-        original_names.add(plugin.name)
+        source = str(
+            getattr(plugin, "tool_id", "")
+            or getattr(plugin, "server_id", "")
+            or getattr(plugin, "server_url", "")
+            or getattr(plugin, "flow_id", "")
+        )
+        identity = (
+            plugin.typ,
+            source,
+            str(getattr(plugin, "version", "")),
+            plugin.name,
+        )
+        if not plugin.name.strip() or identity in identities:
+            raise ValueError("Empty or duplicate plugin identity")
+        identities.add(identity)
         alias = plugin.name
+        if counts[plugin.name] > 1:
+            if not source:
+                raise ValueError("Duplicate plugins require a resource identity")
+            alias = (
+                "astron_tool_"
+                + hashlib.sha256(json.dumps(identity).encode()).hexdigest()[:24]
+            )
         if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", alias) or alias in RESERVED_TOOLS:
             alias = "astron_tool_" + hashlib.sha256(alias.encode()).hexdigest()[:24]
         if alias in names:

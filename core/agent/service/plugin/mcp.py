@@ -5,11 +5,10 @@ import time
 from typing import Any, cast
 
 import aiohttp
-from common.otlp.trace.span import Span
-from pydantic import BaseModel, Field
-
 from agent.exceptions.plugin_exc import GetMcpPluginExc, RunMcpPluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
+from common.otlp.trace.span import Span
+from pydantic import BaseModel, Field
 
 
 class McpPlugin(BasePlugin):
@@ -64,6 +63,8 @@ class McpPluginRunner(BaseModel):
             except (asyncio.TimeoutError, aiohttp.ClientError, ValueError):
                 raise RunMcpPluginExc from None
 
+            if resp.get("code") != 0 or resp.get("data", {}).get("isError") is True:
+                raise RunMcpPluginExc("MCP tool execution failed")
             end_time = int(round(time.time() * 1000))
             plugin_response = PluginResponse(
                 code=resp.get("code", ""),
@@ -96,8 +97,8 @@ class McpPluginFactory(BaseModel):
             raise GetMcpPluginExc()
         for server in servers_list:
             server_status = server.get("server_status")
-            server_id = server.get("server_id", "")
-            server_url = server.get("server_url", "")
+            server_id = server.get("server_id") or ""
+            server_url = server.get("server_url") or ""
 
             if server_status != 0:
                 # Missing configured tools must fail the run, not change its abilities.
@@ -110,7 +111,7 @@ class McpPluginFactory(BaseModel):
                     server_id=server_id,
                     server_url=server_url,
                     name=tool.get("name", ""),
-                    description=tool.get("description", ""),
+                    description=tool.get("description") or "",
                     schema_template=await self.convert_tool(tool),
                     typ="mcp",
                     run=McpPluginRunner(
@@ -179,9 +180,7 @@ class McpPluginFactory(BaseModel):
     async def convert_tool(tool: dict) -> str:
         property_template = json.dumps(
             {
-                "type": "object",
-                "properties": tool.get("inputSchema", {}).get("properties", {}),
-                "required": tool.get("inputSchema", {}).get("required", []),
+                **(tool.get("inputSchema") or {"type": "object", "properties": {}}),
             },
             ensure_ascii=False,
         )

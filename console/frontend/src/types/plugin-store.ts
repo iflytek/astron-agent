@@ -1,4 +1,3 @@
-import React from 'react';
 //插件广场插件列表参数
 interface ListToolSquareParams {
   search?: string;
@@ -242,56 +241,15 @@ interface ToolConfig {
   open?: boolean;
 }
 
-/**
- * 聚合搜索相关 MCP 配置的数据类型定义
- * 对应 JSON 结构的完整 TypeScript 接口映射
- */
+/** Authorized Console projection; runtime endpoints and credentials are omitted. */
 interface MCPToolDetail {
-  /** 简述信息 */
-  brief: string;
-  /** 概述信息（包含 "什么是聚合搜索" 等标题性内容） */
-  overview: string;
-  /** 创建者信息 */
-  creator: string;
-  /** Spark 标识（可为 null） */
-  sparkId: string | null;
-  /** 创建时间（ISO 时间格式，如 "2025-04-26T12:01:31+08:00"） */
-  createTime: string;
-  /** Logo 图片的 URL 地址 */
-  logoUrl: string;
-  /** MCP 类型（此处固定为 "flow"） */
-  mcpType: string;
-  /** 关联的工具列表 */
-  tools: ToolConfig[];
-  /** 详细描述内容 */
-  content: string;
-  /** 标签列表（此处包含 "搜索" 等标签） */
-  tags: string[];
-  /** 记录标识 ID */
-  recordId: string;
-  /** MCP 名称 */
-  name: string;
-  /** MCP 唯一标识 ID */
   id: string;
-  /** SSE 服务的地址 URL */
-  serverUrl: string;
-}
-interface UseMcpDetailProps {
-  handleInputParamsChange: (
-    toolIndex: number,
-    argIndex: number,
-    value: unknown
-  ) => void;
-  renderInput: (
-    arg: ToolArg,
-    toolIndex: number,
-    index: number
-  ) => React.ReactElement | undefined;
-  handleOpenTool: (toolIndex: number) => void;
-  handleDebugServerMCP: (
-    e: React.MouseEvent<HTMLButtonElement>,
-    toolIndex: number
-  ) => void;
+  name: string;
+  description: string;
+  tools: ToolConfig[];
+  connectionStatus: 'connected' | 'error';
+  connectionMessage: string;
+  server_url: string;
 }
 
 export type {
@@ -310,5 +268,4 @@ export type {
   InputSchema,
   SchemaProperty,
   ToolArg,
-  UseMcpDetailProps,
 };

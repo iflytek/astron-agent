@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import config_views, mcp, model_views, platform_accounts, rpa, sandbox, tools
+from . import config_views, mcp, model_views, platform_accounts, rpa, sandbox, tool_catalog, tools
 
 urlpatterns = [
     path("config-info/get-list-by-category", config_views.configs),
@@ -26,6 +26,8 @@ urlpatterns = [
     path("skill-sandbox/internal-runtime-config", sandbox.runtime),
     path("model/internal-runtime-config", sandbox.model_runtime),
     path("resources/tools", tools.collection),
+    path("resources/tools/catalog", tool_catalog.catalog),
+    path("resources/tools/catalog/<str:catalog_id>/install", tool_catalog.install),
     path("resources/tools/<int:pk>", tools.item),
     path("resources/tools/<int:pk>/debug", tools.debug),
     path("resources/tools/<int:pk>/favorite", tools.favorite),

@@ -16,6 +16,7 @@ from astron_console.resources.common import (
     text,
     upstream_errors,
 )
+from astron_console.resources.mcp import discover, discover_many
 from astron_console.resources.model_views import _java_llm_id
 from astron_console.resources.models import McpConfig, Model
 
@@ -98,20 +99,26 @@ def mcp_rows(scope):
     )
 
 
-def mcp_tools(row):
-    result = clients.call(
-        "RESOURCE_TOOL_URL",
-        "POST",
-        "/api/v1/mcp/tool_list",
-        payload={"mcp_server_urls": [row.sort_link]},
-    )
-    return [tool for server in result.get("servers", []) for tool in server.get("tools", [])]
+def mcp_projection(row, result=None):
+    result = discover(row) if result is None else result
+    return {
+        "connectionStatus": result["connectionStatus"],
+        "connectionMessage": result["connectionMessage"],
+        "tools": [
+            tool
+            for server in result["tools"]["servers"]
+            if server.get("server_status") == 0
+            for tool in server.get("tools", [])
+        ],
+    }
 
 
 @api_endpoint(["GET"])
 @upstream_errors
 def mcp_list(request):
     scope = scope_for(request, LIST)
+    rows = list(mcp_rows(scope).order_by("id"))
+    discoveries = discover_many(rows)
     return [
         {
             "id": str(row.pk),
@@ -121,9 +128,9 @@ def mcp_list(request):
             "brief": row.content or "",
             "logo_url": "",
             "create_time": row.create_time,
-            "tools": mcp_tools(row),
+            **mcp_projection(row, discoveries[row.pk]),
         }
-        for row in mcp_rows(scope).order_by("id")
+        for row in rows
     ]
 
 
@@ -135,7 +142,7 @@ def mcp_detail(request):
         "id": str(row.pk),
         "name": row.name,
         "description": row.content or "",
-        "tools": mcp_tools(row),
+        **mcp_projection(row),
         "server_url": "",
     }
 

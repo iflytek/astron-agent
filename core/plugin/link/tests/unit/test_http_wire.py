@@ -4,6 +4,7 @@ import json
 import threading
 from base64 import b64encode
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any, Iterator
 from unittest.mock import MagicMock
 
@@ -33,9 +34,10 @@ def http_receiver(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, Any]]:
                         int(self.headers.get("Content-Length", "0"))
                     ),
                     "method": self.command,
+                    "path": self.path,
                 }
             )
-            payload = b'{"ok": true}'
+            payload = json.dumps(state.get("response", {"ok": True})).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(payload)))
@@ -203,3 +205,175 @@ async def test_agent_body_survives_link_decoding_and_real_http(
     _, status = await request._execute_request(http_receiver["endpoint"], MagicMock())
     assert status == 200
     assert_wire_body(http_receiver["requests"][0], expected)
+
+
+def test_link_parser_inherits_path_level_parameters_and_operation_override() -> None:
+    from plugin.link.utils.open_api_schema.schema_parser import OpenapiSchemaParser
+
+    parser = OpenapiSchemaParser("{}")
+    inherited = {
+        "name": "id",
+        "in": "path",
+        "required": True,
+        "schema": {"type": "string"},
+    }
+    override = {
+        "name": "limit",
+        "in": "query",
+        "schema": {"type": "integer", "default": 5},
+    }
+    interfaces = parser._extract_interfaces(
+        {
+            "paths": {
+                "/items/{id}": {
+                    "parameters": [
+                        inherited,
+                        {**override, "schema": {"type": "integer", "default": 1}},
+                    ],
+                    "get": {"operationId": "lookup", "parameters": [override]},
+                }
+            }
+        }
+    )
+    assert len(interfaces) == 1
+    assert interfaces[0]["operation"]["parameters"] == [inherited, override]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("consumer", ["agent", "workflow"])
+async def test_path_parameters_complete_execution_selects_current_response(
+    http_receiver: dict[str, Any], monkeypatch: pytest.MonkeyPatch, consumer: str
+) -> None:
+    from workflow.engine.nodes.plugin_tool.link_client import Link
+
+    http_receiver["response"] = {"ok": True, "secret": "private"}
+    response_schema = {
+        "type": "object",
+        "required": ["ok"],
+        "properties": {
+            "ok": {"type": "boolean"},
+            "secret": {"type": "string", "x-display": False},
+        },
+    }
+    operation = {
+        "operationId": "send",
+        "parameters": [
+            {
+                "in": "query",
+                "name": "limit",
+                "schema": {"type": "integer", "default": 5},
+            }
+        ],
+        "responses": {
+            "200": {"content": {"application/json": {"schema": response_schema}}}
+        },
+    }
+    inherited = [
+        {"in": "path", "name": "id", "required": True, "schema": {"type": "string"}},
+        {"in": "query", "name": "limit", "schema": {"type": "integer", "default": 1}},
+    ]
+    item = {
+        "parameters": inherited,
+        "summary": "Shared path metadata",
+        "post": operation,
+        "get": {
+            "operationId": "wrong",
+            "responses": {
+                "200": {"content": {"application/json": {"schema": {"type": "string"}}}}
+            },
+        },
+    }
+    document = {
+        "openapi": "3.0.3",
+        "info": {"title": "test", "version": "1"},
+        "servers": [{"url": http_receiver["endpoint"].removesuffix("/receive")}],
+        "paths": {"/receive/{id}": item},
+    }
+    span = MagicMock()
+    span.sid, span.app_id, span.uid = "path-test", "app", "user"
+    span.start.return_value.__enter__.return_value = span
+    monkeypatch.setattr(execution_server, "Span", lambda **_kwargs: span)
+    monkeypatch.setattr(execution_server, "Meter", lambda **_kwargs: MagicMock())
+    row = MagicMock()
+    row.dict.return_value = {
+        "tool_id": "tool@test",
+        "open_api_schema": json.dumps(document),
+    }
+    crud = MagicMock()
+    crud.get_tools.return_value = [row]
+    monkeypatch.setattr(execution_server, "ToolCrudOperation", lambda *_a: crud)
+    monkeypatch.setattr(execution_server, "get_db_engine", MagicMock())
+    if consumer == "agent":
+        from agent.service.plugin.link import LinkPluginFactory
+
+        method_schema = LinkPluginFactory._operation_schema(
+            "/receive/{id}", item, operation
+        )
+        tool = LinkPluginRunner(
+            app_id="app",
+            uid="user",
+            tool_id="tool@test",
+            version="V1.0",
+            operation_id="send",
+            method_schema=method_schema,
+        )
+    else:
+        link = Link("app", ["tool@test"], "", "")
+        link.open_api_schema_list = [
+            {"id": "tool@test", "schema": json.dumps(document)}
+        ]
+        link.parse_react_schema_list()
+        tool = next(tool for tool in link.tools if tool.operation_id == "send")
+    header, query, path = tool.assemble_parameters({"id": "item-7"}, {})
+    from plugin.link.api.schemas.community.tools.http.execution_schema import (
+        HttpRunRequest,
+    )
+
+    run_schema = (
+        Path(__file__).resolve().parents[2]
+        / "utils/json_schemas/schema_files/http_run_schema.json"
+    )
+    monkeypatch.setattr(execution_server, "get_http_run_schema", run_schema.read_text)
+    response = await execution_server.http_run(
+        HttpRunRequest(
+            **{
+                "header": {"app_id": "app", "uid": "user"},
+                "parameter": {
+                    "tool_id": "tool@test",
+                    "operation_id": "send",
+                    "version": "V1.0",
+                },
+                "payload": {
+                    "message": {
+                        "header": encode(header),
+                        "query": encode(query),
+                        "path": encode(path),
+                    }
+                },
+            }
+        )
+    )
+    assert response.header.code == 0, response.header.message
+    assert json.loads(response.payload["text"]["text"]) == {"ok": True}
+    assert http_receiver["requests"][0]["path"] == "/receive/item-7?limit=5"
+    assert execution_server.get_response_schema(document) == response_schema
+    debug_schema = (
+        Path(__file__).resolve().parents[2]
+        / "utils/json_schemas/schema_files/tool_debug_schema.json"
+    )
+    monkeypatch.setattr(
+        execution_server, "get_tool_debug_schema", debug_schema.read_text
+    )
+    debug = await execution_server.tool_debug(
+        ToolDebugRequest(
+            server=http_receiver["endpoint"] + "/{id}",
+            method="POST",
+            path=path,
+            query=query,
+            header=header,
+            openapi_schema=json.dumps(document),
+        )
+    )
+    assert debug.header.code == 0, debug.header.message
+    assert json.loads(debug.payload["text"]["text"]) == {"ok": True}
+    assert http_receiver["requests"][1]["path"] == "/receive/item-7?limit=5"
