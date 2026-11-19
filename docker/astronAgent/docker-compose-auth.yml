@@ -23,7 +23,7 @@ services:
 
   casdoor-gateway:
     # Debian avoids Alpine musl's pwritev2 incompatibility on older hosts.
-    image: nginx:1.30.6-trixie
+    image: nginx:1.30.7-trixie
     restart: always
     ports:
       - "${CASDOOR_BIND_ADDRESS:-0.0.0.0}:${CASDOOR_PORT:-8000}:8000"
