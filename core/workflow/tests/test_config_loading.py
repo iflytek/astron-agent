@@ -75,6 +75,20 @@ def test_explicit_process_disabled_setting_remains_fail_closed(
     assert os.getenv("CODE_EXEC_TYPE") == "disabled"
 
 
+def test_deployment_mcp_route_overrides_legacy_mounted_localhost(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_file = tmp_path / "config.env"
+    config_file.write_text("MCP_BASE_URL=http://127.0.0.1:18888\n", encoding="utf-8")
+    monkeypatch.setenv("MCP_BASE_URL", "http://core-link:18888")
+
+    loader = LocalLoader()
+    loader.env_file = config_file
+    loader.load()
+
+    assert os.getenv("MCP_BASE_URL") == "http://core-link:18888"
+
+
 def test_new_template_can_explicitly_keep_disabled_setting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

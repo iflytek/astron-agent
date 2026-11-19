@@ -279,6 +279,9 @@ coreLink:
     port: 18888
   env:
     servicePort: 18888
+    # Empty values derive this release's AI Tools URL and its four exact tool paths.
+    aitoolsBaseUrl: ""
+    privateEndpointAllowList: ""
     mysqlHost: astron-agent-mysql
     mysqlPort: 3306
     mysqlUser: root
@@ -466,6 +469,8 @@ coreWorkflow:
     knowledgeBaseUrl: "http://astron-agent-core-knowledge:20010"
     knowledgeProBaseUrl: "http://astron-agent-core-knowledge:20010"
     pluginBaseUrl: "http://astron-agent-core-link:18888"
+    # Defaults to this release's Core Link service and port; supports an external override.
+    mcpBaseUrl: ""
     workflowBaseUrl: "http://astron-agent-core-workflow:7880"
     appManagePlatBaseUrl: "http://astron-agent-core-tenant:5052"
     agentBaseUrl: "http://astron-agent-core-agent:17870"

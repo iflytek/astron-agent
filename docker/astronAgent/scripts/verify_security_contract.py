@@ -253,9 +253,51 @@ def validate_zero_configuration(compose_file: Path) -> None:
         if "REDIS_DATABASE_CONSOLE" in environment and environment["REDIS_DATABASE_CONSOLE"] != "1":
             raise GateError("bare Compose Console Redis database differs from .env.example")
     workflow = services["core-workflow"]["environment"]
-    for name in ("KNOWLEDGE_BASE_URL", "PLUGIN_BASE_URL", "WORKFLOW_BASE_URL", "APP_MANAGE_PLAT_BASE_URL", "AGENT_BASE_URL", "PGSQL_BASE_URL", "RPA_BASE_URL"):
+    for name in ("KNOWLEDGE_BASE_URL", "PLUGIN_BASE_URL", "MCP_BASE_URL", "WORKFLOW_BASE_URL", "APP_MANAGE_PLAT_BASE_URL", "AGENT_BASE_URL", "PGSQL_BASE_URL", "RPA_BASE_URL"):
         if not urlsplit(workflow[name]).port:
             raise GateError("bare Compose workflow downstream port is missing")
+    if workflow["MCP_BASE_URL"] != "http://core-link:18888":
+        raise GateError("bare Compose workflow MCP must route through Core Link")
+    validate_builtin_tool_routing(services["core-link"]["environment"], "http://core-aitools:18668")
+
+
+def validate_builtin_tool_routing(environment: Mapping[str, Any], base_url: str) -> None:
+    expected = {
+        f"{base_url}/aitools/v1/{path}"
+        for path in ("smarttts", "image_generate", "image_understanding", "ocr")
+    }
+    endpoints = environment.get("PRIVATE_ENDPOINT_ALLOW_LIST", "").split(",")
+    if environment.get("AITOOLS_BASE_URL") != base_url or len(endpoints) != 4 or set(endpoints) != expected:
+        raise GateError("Link built-in catalog URL and four exact private endpoints must agree")
+
+
+def validate_builtin_tool_overrides(compose_file: Path) -> None:
+    for overrides, expected in (
+        ({"AITOOLS_BASE_URL": "", "CORE_AITOOLS_PORT": "28668"}, "http://core-aitools:28668"),
+        ({"AITOOLS_BASE_URL": "https://aitools.example.org", "CORE_AITOOLS_PORT": "28668"}, "https://aitools.example.org"),
+    ):
+        config = _render_compose(compose_file, {**overrides, "PRIVATE_ENDPOINT_ALLOW_LIST": ""})
+        validate_builtin_tool_routing(config["services"]["core-link"]["environment"], expected)
+    explicit = "http://private.example.org:8080/one-exact-path"
+    config = _render_compose(compose_file, {"PRIVATE_ENDPOINT_ALLOW_LIST": explicit})
+    if config["services"]["core-link"]["environment"].get("PRIVATE_ENDPOINT_ALLOW_LIST") != explicit:
+        raise GateError("Link explicit private endpoint configuration must be preserved")
+
+
+def validate_workflow_mcp_routing(compose_file: Path) -> None:
+    """Render overrides without starting containers or printing environment data."""
+    cases = (
+        ({"MCP_BASE_URL": "", "CORE_LINK_PORT": "28888"}, "http://core-link:28888"),
+        (
+            {"MCP_BASE_URL": "https://link.example.org", "CORE_LINK_PORT": "28888"},
+            "https://link.example.org",
+        ),
+    )
+    for overrides, expected in cases:
+        config = _render_compose(compose_file, overrides)
+        workflow = config["services"]["core-workflow"]["environment"]
+        if workflow.get("MCP_BASE_URL") != expected:
+            raise GateError("workflow MCP routing must preserve Link port and explicit URL overrides")
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -1407,6 +1449,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     try:
         validate_zero_configuration(compose_file)
+        validate_workflow_mcp_routing(compose_file)
+        validate_builtin_tool_overrides(compose_file)
         config = _render_compose(compose_file)
         errors = validate_contract(config)
         if errors:
