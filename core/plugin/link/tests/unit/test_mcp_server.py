@@ -1,6 +1,8 @@
 """Tests for transport-aware MCP tool listing and execution."""
 
+import asyncio
 import importlib
+import json
 import sys
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
@@ -8,7 +10,10 @@ from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import MCPTransport
+from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import (
+    MCPToolListRequest,
+    MCPTransport,
+)
 from plugin.link.service.community.tools.mcp.mcp_transport import MCPTransportError
 from plugin.link.utils.errors.code import ErrCode
 
@@ -366,3 +371,189 @@ async def test_multi_server_discovery_is_bounded_and_isolates_failures(
         True,
         True,
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("healthy_first", [True, False])
+async def test_batch_deadline_keeps_partial_results_and_cleans_up_queued_connections(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any, healthy_first: bool
+) -> None:
+    """Call the real discovery function under the scaled 30s caller deadline."""
+    monkeypatch.setattr(mcp_server, "_DISCOVERY_BUDGET_SECONDS", 0.2)
+    monkeypatch.setattr(mcp_server, "_DISCOVERY_CLEANUP_SECONDS", 0.04)
+    monkeypatch.setattr(
+        mcp_server, "_reject_unsafe_mcp_url", AsyncMock(return_value=None)
+    )
+    active = peak = 0
+    entered: list[str] = []
+    closed: list[str] = []
+    workers: set[asyncio.Task[Any]] = set()
+
+    @asynccontextmanager
+    async def connector(
+        url: str, transport: MCPTransport
+    ) -> AsyncIterator[tuple[FakeSession, MCPTransport]]:
+        nonlocal active, peak
+        task = asyncio.current_task()
+        assert task is not None
+        workers.add(task)
+        active += 1
+        peak = max(peak, active)
+        entered.append(url)
+        try:
+            session = FakeSession()
+            if url != "healthy":
+                await asyncio.Event().wait()
+            yield session, transport
+        finally:
+            await asyncio.sleep(0)
+            active -= 1
+            closed.append(url)
+
+    monkeypatch.setattr(mcp_server, "initialized_mcp_session", connector)
+    # More than one full wave stays queued after four slots fill with hung peers.
+    urls = [f"hung-{index}" for index in range(8)]
+    urls.insert(0 if healthy_first else len(urls), "healthy")
+    existing_tasks = asyncio.all_tasks()
+    before = asyncio.get_running_loop().time()
+    result = await asyncio.wait_for(
+        mcp_server._discover_servers(MCPToolListRequest(mcp_server_urls=urls), Mock()),
+        timeout=0.3,
+    )
+    elapsed = asyncio.get_running_loop().time() - before
+
+    assert elapsed < 0.25
+    assert peak == 4
+    assert active == 0
+    assert sorted(closed) == sorted(entered)
+    assert all(task.done() for task in workers)
+    assert not (asyncio.all_tasks() - existing_tasks)
+    assert [item.server_url for item in result] == urls
+    healthy = result[0 if healthy_first else -1]
+    if healthy_first:
+        assert healthy.server_status == 0
+        assert [tool.name for tool in healthy.tools] == ["echo"]
+    else:
+        assert healthy.server_status == ErrCode.MCP_SERVER_CONNECT_ERR.code
+        assert "before connection started" in healthy.server_message
+        assert healthy.tools == []
+    assert all(
+        item.server_status == ErrCode.MCP_SERVER_CONNECT_ERR.code
+        and ("timed out" if item.server_url in entered else "before connection started")
+        in item.server_message
+        for item in result
+        if item.server_url != "healthy"
+    )
+
+
+@pytest.mark.asyncio
+async def test_caller_cancellation_closes_all_discovery_workers(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any
+) -> None:
+    from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import MCPItemInfo
+
+    ready = asyncio.Event()
+    workers: set[asyncio.Task[Any]] = set()
+    closed: set[asyncio.Task[Any]] = set()
+
+    async def discover(url: str, transport: MCPTransport) -> MCPItemInfo:
+        task = asyncio.current_task()
+        assert task is not None
+        workers.add(task)
+        if len(workers) == 4:
+            ready.set()
+        try:
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+        finally:
+            await asyncio.sleep(0)
+            closed.add(task)
+
+    monkeypatch.setattr(mcp_server, "_process_mcp_server_by_url", discover)
+    task = asyncio.create_task(
+        mcp_server._discover_servers(
+            MCPToolListRequest(mcp_server_urls=[str(index) for index in range(9)]),
+            Mock(),
+        )
+    )
+    await asyncio.wait_for(ready.wait(), timeout=1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=1)
+    assert closed == workers
+    assert all(worker.done() for worker in workers)
+
+
+@pytest.mark.asyncio
+async def test_batch_deadline_interrupts_stalled_official_sdk_session_termination(
+    monkeypatch: pytest.MonkeyPatch, mcp_server: Any
+) -> None:
+    import httpx
+    from plugin.link.service.community.tools.mcp import mcp_transport
+
+    monkeypatch.setattr(mcp_server, "_DISCOVERY_BUDGET_SECONDS", 0.2)
+    monkeypatch.setattr(mcp_server, "_DISCOVERY_CLEANUP_SECONDS", 0.04)
+    monkeypatch.setattr(
+        mcp_server, "_reject_unsafe_mcp_url", AsyncMock(return_value=None)
+    )
+    termination_started = termination_closed = False
+    http_tasks: set[asyncio.Task[Any]] = set()
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        nonlocal termination_started, termination_closed
+        task = asyncio.current_task()
+        assert task is not None
+        http_tasks.add(task)
+        if request.method == "DELETE":
+            termination_started = True
+            try:
+                await asyncio.Event().wait()
+            finally:
+                termination_closed = True
+        if request.method == "GET":
+            return httpx.Response(405)
+        payload = json.loads(request.content)
+        if payload["method"] == "initialize":
+            return httpx.Response(
+                200,
+                headers={"mcp-session-id": "test-session"},
+                json={
+                    "jsonrpc": "2.0",
+                    "id": payload["id"],
+                    "result": {
+                        "protocolVersion": payload["params"]["protocolVersion"],
+                        "capabilities": {"tools": {}},
+                        "serverInfo": {"name": "test", "version": "1"},
+                    },
+                },
+            )
+        if payload["method"] == "tools/list":
+            await asyncio.Event().wait()
+        return httpx.Response(202)
+
+    real_client = httpx.AsyncClient
+
+    def create_client(*args: Any, **kwargs: Any) -> httpx.AsyncClient:
+        kwargs["transport"] = httpx.MockTransport(respond)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(mcp_transport.httpx, "AsyncClient", create_client)
+    existing_tasks = asyncio.all_tasks()
+    before = asyncio.get_running_loop().time()
+    result = await asyncio.wait_for(
+        mcp_server._discover_servers(
+            MCPToolListRequest(
+                mcp_server_urls=["https://example.com/mcp"],
+                transport=MCPTransport.STREAMABLE_HTTP,
+            ),
+            Mock(),
+        ),
+        timeout=0.3,
+    )
+
+    assert asyncio.get_running_loop().time() - before < 0.25
+    assert termination_started and termination_closed
+    assert all(task.done() for task in http_tasks)
+    assert not (asyncio.all_tasks() - existing_tasks)
+    assert result[0].server_status == ErrCode.MCP_SERVER_CONNECT_ERR.code
+    assert "timed out" in result[0].server_message

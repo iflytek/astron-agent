@@ -42,6 +42,9 @@ from plugin.link.service.community.tools.mcp.mcp_transport import (
 from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.sid.sid_generator2 import new_sid
 
+_DISCOVERY_BUDGET_SECONDS = 20.0
+_DISCOVERY_CLEANUP_SECONDS = 2.0
+
 
 async def _reject_unsafe_mcp_url(url: str) -> ErrCode | None:
     """Return the public MCP error when a URL is not a safe outbound target."""
@@ -177,11 +180,33 @@ async def _connect_and_get_tools(
         )
 
 
+async def _cancel_discovery_tasks(
+    tasks: list[asyncio.Task[None]], deadline: float
+) -> None:
+    """Close SDK contexts in their owning tasks, including stalled termination."""
+    pending = {task for task in tasks if not task.done()}
+    for task in pending:
+        task.cancel()
+    try:
+        if pending:
+            await asyncio.wait(
+                pending, timeout=max(0.0, deadline - asyncio.get_running_loop().time())
+            )
+    finally:
+        # SDK Streamable HTTP termination sends DELETE while unwinding. A second
+        # cancellation interrupts a stalled DELETE after its cleanup allowance.
+        for task in pending:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
 async def _discover_servers(
     list_info: MCPToolListRequest, span_context: Any
 ) -> list[MCPItemInfo]:
-    # Bound both concurrency and each endpoint's setup time. One broken server
-    # must not consume the caller's entire resource-list request timeout.
+    # The budget covers queued connections too, leaving room below the caller's
+    # 30s timeout for cancellation, response serialization and network overhead.
+    deadline = asyncio.get_running_loop().time() + _DISCOVERY_BUDGET_SECONDS
     semaphore = asyncio.Semaphore(4)
     targets = [("id", value) for value in dict.fromkeys(list_info.mcp_server_ids or [])]
     targets += [
@@ -190,26 +215,73 @@ async def _discover_servers(
         if value.strip()
     ]
 
-    async def discover(kind: str, value: str) -> MCPItemInfo:
-        async with semaphore:
-            try:
-                async with asyncio.timeout(20):
-                    if kind == "id":
-                        return await _process_mcp_server_by_id(
-                            value, span_context, list_info.transport
-                        )
-                    return await _process_mcp_server_by_url(value, list_info.transport)
-            except Exception as exc:
-                logger.warning("MCP discovery failed; type={}", type(exc).__name__)
-                err = ErrCode.MCP_SERVER_CONNECT_ERR
-                identity = {"server_id" if kind == "id" else "server_url": value}
-                return MCPItemInfo(
-                    **identity, server_status=err.code, server_message=err.msg, tools=[]
-                )
+    results: list[MCPItemInfo | None] = [None] * len(targets)
+    started = [False] * len(targets)
 
-    return list(
-        await asyncio.gather(*(discover(kind, value) for kind, value in targets))
-    )
+    def failed(index: int, failure: str, message: str) -> MCPItemInfo:
+        kind, value = targets[index]
+        # The request-local index identifies URL targets without logging secrets.
+        logger.warning(
+            "MCP discovery failed; target={} kind={} type={}", index, kind, failure
+        )
+        err = ErrCode.MCP_SERVER_CONNECT_ERR
+        identity = {"server_id" if kind == "id" else "server_url": value}
+        return MCPItemInfo(
+            **identity, server_status=err.code, server_message=message, tools=[]
+        )
+
+    async def discover(index: int, kind: str, value: str) -> None:
+        try:
+            async with semaphore:
+                started[index] = True
+                if kind == "id":
+                    results[index] = await _process_mcp_server_by_id(
+                        value, span_context, list_info.transport
+                    )
+                else:
+                    results[index] = await _process_mcp_server_by_url(
+                        value, list_info.transport
+                    )
+        except Exception as exc:
+            results[index] = failed(
+                index, type(exc).__name__, ErrCode.MCP_SERVER_CONNECT_ERR.msg
+            )
+
+    tasks = [
+        asyncio.create_task(discover(index, kind, value))
+        for index, (kind, value) in enumerate(targets)
+    ]
+    if not tasks:
+        return []
+    try:
+        await asyncio.wait(
+            tasks,
+            timeout=max(
+                0.0,
+                deadline
+                - _DISCOVERY_CLEANUP_SECONDS
+                - asyncio.get_running_loop().time(),
+            ),
+        )
+    finally:
+        await _cancel_discovery_tasks(tasks, deadline)
+
+    return [
+        (
+            result
+            if result is not None
+            else failed(
+                index,
+                "TimeoutError" if started[index] else "QueueTimeout",
+                (
+                    "MCP discovery timed out; retry the connection"
+                    if started[index]
+                    else "MCP discovery budget exhausted before connection started; retry"
+                ),
+            )
+        )
+        for index, result in enumerate(results)
+    ]
 
 
 async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListResponse:

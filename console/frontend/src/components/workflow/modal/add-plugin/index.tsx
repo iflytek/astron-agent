@@ -26,6 +26,7 @@ import {
 } from '@/pages/resource-management/resource-tools/mcp-tools';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
+import { httpTestTemplate } from '@/pages/resource-management/resource-tools/http-test-template';
 import '@/pages/resource-management/resource-tools/style.css';
 
 function toolParameters(value: string): string {
@@ -51,9 +52,8 @@ export default function AddPlugin(): ReactElement {
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<ToolItem | null>(null);
-  const [input, setInput] = useState(
-    '{\n  "path": {},\n  "query": {},\n  "header": {},\n  "body": {}\n}'
-  );
+  const [input, setInput] = useState(() => httpTestTemplate().input);
+  const [inputHint, setInputHint] = useState('');
   const [result, setResult] = useState('');
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
@@ -180,6 +180,7 @@ export default function AddPlugin(): ReactElement {
               onChange={event => setInput(event.target.value)}
             />
           </label>
+          <p className="resource-tools-section-note">{inputHint}</p>
           <Button type="primary" loading={busy} onClick={() => void debug()}>
             运行测试
           </Button>
@@ -272,9 +273,9 @@ export default function AddPlugin(): ReactElement {
                         setSelected(item);
                         setError('');
                         setResult('');
-                        setInput(
-                          '{\n  "path": {},\n  "query": {},\n  "header": {},\n  "body": {}\n}'
-                        );
+                        const template = httpTestTemplate(item);
+                        setInput(template.input);
+                        setInputHint(template.hint);
                       }}
                     >
                       参数与测试
