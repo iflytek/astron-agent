@@ -554,6 +554,8 @@ services:
     container_name: astron-agent-core-link
     environment:
       SERVICE_PORT: "${CORE_LINK_PORT:-18888}"
+      AITOOLS_BASE_URL: "${AITOOLS_BASE_URL:-http://core-aitools:${CORE_AITOOLS_PORT:-18668}}"
+      PRIVATE_ENDPOINT_ALLOW_LIST: "${PRIVATE_ENDPOINT_ALLOW_LIST:-${AITOOLS_BASE_URL:-http://core-aitools:${CORE_AITOOLS_PORT:-18668}}/aitools/v1/smarttts,${AITOOLS_BASE_URL:-http://core-aitools:${CORE_AITOOLS_PORT:-18668}}/aitools/v1/image_generate,${AITOOLS_BASE_URL:-http://core-aitools:${CORE_AITOOLS_PORT:-18668}}/aitools/v1/image_understanding,${AITOOLS_BASE_URL:-http://core-aitools:${CORE_AITOOLS_PORT:-18668}}/aitools/v1/ocr}"
       MYSQL_HOST: "${MYSQL_HOST:-mysql}"
       MYSQL_PORT: "${MYSQL_PORT:-3306}"
       MYSQL_USER: "${MYSQL_USER:-root}"
@@ -819,6 +821,7 @@ services:
       KNOWLEDGE_BASE_URL: "${KNOWLEDGE_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}}"
       KNOWLEDGE_PRO_BASE_URL: "${KNOWLEDGE_PRO_BASE_URL:-http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}}"
       PLUGIN_BASE_URL: "${PLUGIN_BASE_URL:-http://core-link:${CORE_LINK_PORT:-18888}}"
+      MCP_BASE_URL: "${MCP_BASE_URL:-http://core-link:${CORE_LINK_PORT:-18888}}"
       WORKFLOW_BASE_URL: "${WORKFLOW_BASE_URL:-http://core-workflow:${CORE_WORKFLOW_PORT:-7880}}"
       APP_MANAGE_PLAT_BASE_URL: "${APP_MANAGE_PLAT_BASE_URL:-http://core-tenant:${CORE_TENANT_PORT:-5052}}"
       AGENT_BASE_URL: "${AGENT_BASE_URL:-http://core-agent:${CORE_AGENT_PORT:-17870}}"

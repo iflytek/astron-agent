@@ -119,6 +119,20 @@ Core service URLs - 用于生成完整的服务 URL（包括协议和端口）
 {{- printf "http://%s-core-agent:%d" (include "astron-agent.fullname" .) (.Values.coreAgent.service.port | int) }}
 {{- end }}
 
+{{/* Link discovery and private HTTP exceptions must share the same AI Tools origin. */}}
+{{- define "astron-agent.coreLink.aitoolsUrl" -}}
+{{- default (include "astron-agent.coreAitools.url" .) .Values.coreLink.env.aitoolsBaseUrl | trimSuffix "/" -}}
+{{- end }}
+
+{{- define "astron-agent.coreLink.builtinEndpoints" -}}
+{{- $base := include "astron-agent.coreLink.aitoolsUrl" . -}}
+{{- $endpoints := list -}}
+{{- range $path := list "smarttts" "image_generate" "image_understanding" "ocr" -}}
+{{- $endpoints = append $endpoints (printf "%s/aitools/v1/%s" $base $path) -}}
+{{- end -}}
+{{- join "," $endpoints -}}
+{{- end }}
+
 {{- define "astron-agent.coreKnowledge.url" -}}
 {{- printf "http://%s-core-knowledge:%d" (include "astron-agent.fullname" .) (.Values.coreKnowledge.service.port | int) }}
 {{- end }}

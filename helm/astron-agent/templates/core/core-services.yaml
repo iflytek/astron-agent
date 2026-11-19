@@ -125,7 +125,19 @@ spec:
         imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
         env:
         {{- range $key, $value := $serviceConfig.env }}
-        {{- if and (eq $key "ossEndpoint") $usesObjectStorage }}
+        {{- if and (eq $serviceName "coreAitools") (eq $key "servicePort") }}
+        - name: SERVICE_PORT
+          value: {{ $serviceConfig.service.port | quote }}
+        {{- else if and (eq $serviceName "coreLink") (eq $key "aitoolsBaseUrl") }}
+        - name: AITOOLS_BASE_URL
+          value: {{ include "astron-agent.coreLink.aitoolsUrl" $ | quote }}
+        {{- else if and (eq $serviceName "coreLink") (eq $key "privateEndpointAllowList") }}
+        - name: PRIVATE_ENDPOINT_ALLOW_LIST
+          value: {{ $value | default (include "astron-agent.coreLink.builtinEndpoints" $) | quote }}
+        {{- else if and (eq $serviceName "coreWorkflow") (eq $key "mcpBaseUrl") }}
+        - name: MCP_BASE_URL
+          value: {{ $value | default (include "astron-agent.coreLink.url" $) | quote }}
+        {{- else if and (eq $key "ossEndpoint") $usesObjectStorage }}
         - name: {{ upper (snakecase $key) }}
           value: {{ include "astron-agent.minioEndpoint" $ | quote }}
         {{- else if and (eq $key "ossDownloadHost") $usesObjectStorage }}

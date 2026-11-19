@@ -1,6 +1,7 @@
 """Authenticated run, resume, history and trace endpoints for the workflow canvas."""
 
 import json
+import logging
 
 from django.core.exceptions import ValidationError
 from django.http import Http404, StreamingHttpResponse
@@ -19,6 +20,8 @@ from .lifecycle import (
     stream_run,
 )
 from .models import WorkflowDialog, WorkflowRun
+
+logger = logging.getLogger(__name__)
 
 
 def streaming(run, **kwargs):
@@ -432,6 +435,7 @@ async def _node_debug(request, node_id, code_params=None):
 
     run = await sync_to_async(prepare_node)(request, node_id, code_params)
     status, error = "failed", "node_debug_failed"
+    core_code, http_status = None, None
 
     async def heartbeat():
         while True:
@@ -447,8 +451,16 @@ async def _node_debug(request, node_id, code_params=None):
                 json=payload,
                 headers=core_headers(),
             )
+            http_status = result.status_code
             result.raise_for_status()
             value = result.json()
+            # Only a bounded numeric code is diagnostic-safe. Core messages and
+            # exception strings may contain upstream URLs, credentials or bodies.
+            code = value.get("code")
+            if type(code) is int and 0 <= code <= 999999:
+                core_code = code
+            elif isinstance(code, str) and code.isascii() and code.isdigit() and len(code) <= 6:
+                core_code = int(code)
             if value.get("code") not in (0, "0"):
                 raise ValueError("Core node failed")
         data = value.get("data") or {}
@@ -460,7 +472,16 @@ async def _node_debug(request, node_id, code_params=None):
         status, error = "interrupted", "client_disconnected"
         raise
     except Exception:
-        return response(message="单节点执行失败，已保留实际输出", status=502)
+        logger.warning(
+            "Workflow node debug failed run_id=%s node_id=%r core_code=%s http_status=%s",
+            run.pk,
+            node_id[:128],
+            core_code,
+            http_status,
+        )
+        return response(
+            message="单节点执行失败，未获得可展示的输出，请检查节点配置或服务后重试", status=502
+        )
     finally:
         heartbeat_task.cancel()
         await asyncio.gather(heartbeat_task, return_exceptions=True)

@@ -677,6 +677,61 @@ def _verify_sandbox_external_secrets() -> None:
         raise VerificationError("existing sandbox Secret must not be replaced")
 
 
+def _verify_builtin_tool_routing() -> None:
+    for fullname, port, override, expected in (
+        ("astron-agent", "18668", "", "http://astron-agent-core-aitools:18668"),
+        ("custom-release", "28668", "", "http://custom-release-core-aitools:28668"),
+        ("custom-release", "28668", "https://aitools.example.org/", "https://aitools.example.org"),
+    ):
+        rendered = _render((
+            "--set-string", f"fullnameOverride={fullname}",
+            "--set", f"coreAitools.service.port={port}",
+            "--set-string", f"coreLink.env.aitoolsBaseUrl={override}",
+        ))
+        service = _find_document(rendered, "Service", fullname + "-core-aitools")
+        if not re.search(rf"port: {port}\b", service):
+            raise VerificationError("AI Tools Service port must match its Link URL")
+        aitools = _find_document(rendered, "Deployment", fullname + "-core-aitools")
+        _, aitools_env = _main_container_environment(aitools)
+        if aitools_env["SERVICE_PORT"].get("value") != port:
+            raise VerificationError("AI Tools listener must match its Service port")
+        deployment = _find_document(rendered, "Deployment", fullname + "-core-link")
+        names, environment = _main_container_environment(deployment)
+        endpoints = environment["PRIVATE_ENDPOINT_ALLOW_LIST"].get("value", "").split(",")
+        expected_endpoints = {
+            f"{expected}/aitools/v1/{path}"
+            for path in ("smarttts", "image_generate", "image_understanding", "ocr")
+        }
+        if (names.count("AITOOLS_BASE_URL") != 1 or names.count("PRIVATE_ENDPOINT_ALLOW_LIST") != 1
+            or environment["AITOOLS_BASE_URL"].get("value") != expected
+            or len(endpoints) != 4 or set(endpoints) != expected_endpoints):
+            raise VerificationError("Link built-in catalog and exact private endpoints must agree")
+    explicit = "http://private.example.org:8080/one-exact-path"
+    rendered = _render(("--set-string", f"coreLink.env.privateEndpointAllowList={explicit}"))
+    deployment = _find_document(rendered, "Deployment", "astron-agent-core-link")
+    _, environment = _main_container_environment(deployment)
+    if environment["PRIVATE_ENDPOINT_ALLOW_LIST"].get("value") != explicit:
+        raise VerificationError("Link explicit private endpoint override must be preserved")
+
+
+def _verify_workflow_mcp_routing() -> None:
+    for fullname, port, override, expected in (
+        ("astron-agent", "18888", "", "http://astron-agent-core-link:18888"),
+        ("custom-release", "28888", "", "http://custom-release-core-link:28888"),
+        ("custom-release", "28888", "https://link.example.org", "https://link.example.org"),
+    ):
+        rendered = _render((
+            "--set-string", f"fullnameOverride={fullname}",
+            "--set", f"coreLink.service.port={port}",
+            "--set-string", f"coreWorkflow.env.mcpBaseUrl={override}",
+        ))
+        _find_document(rendered, "Service", fullname + "-core-link")
+        deployment = _find_document(rendered, "Deployment", fullname + "-core-workflow")
+        names, environment = _main_container_environment(deployment)
+        if names.count("MCP_BASE_URL") != 1 or environment["MCP_BASE_URL"].get("value") != expected:
+            raise VerificationError("workflow MCP URL must follow the Link service or explicit override")
+
+
 def _verify_console_internal_hosts() -> None:
     public_hosts = "public.example.org,198.51.100.8"
     for fullname in ("astron-agent", "custom-release"):
@@ -990,6 +1045,8 @@ def main() -> int:
         _verify_docker_host_regressions(docker_nginx)
         _verify_default_render()
         _verify_console_internal_hosts()
+        _verify_workflow_mcp_routing()
+        _verify_builtin_tool_routing()
         _verify_sandbox_external_secrets()
         _verify_explicit_render()
         _verify_external_secret_render()

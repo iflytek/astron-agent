@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from asgiref.sync import async_to_sync
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -102,6 +102,54 @@ class RuntimeTests(TransactionTestCase):
         self.assertEqual(retried.resolved_agents, first.resolved_agents)
         new = prepare_run(self.scope, self.workflow, {})
         self.assertEqual(new.resolved_agents["agent::one"]["versionId"], second_version.pk)
+
+    def test_node_debug_failure_has_truthful_message_and_safe_diagnostics(self):
+        sensitive = "https://user:sentinel-credential@private.example/raw-traceback"
+        cases = (
+            (21501, 200, None, 21501),
+            ("21500", 200, None, 21500),
+            (sensitive, 200, None, None),
+            (None, 503, None, None),
+            (None, None, RuntimeError(sensitive), None),
+        )
+        for code, http_status, transport_error, expected_code in cases:
+            with self.subTest(code=expected_code, http_status=http_status):
+                upstream = Mock(status_code=http_status)
+                upstream.json.return_value = {"code": code, "message": sensitive}
+                if http_status == 503:
+                    upstream.raise_for_status.side_effect = RuntimeError(sensitive)
+                with (
+                    patch(
+                        "httpx.AsyncClient.post",
+                        new=AsyncMock(return_value=upstream, side_effect=transport_error),
+                    ),
+                    patch("astron_console.workflows.lifecycle.cancel_core", new=AsyncMock()),
+                    self.assertLogs(
+                        "astron_console.workflows.runtime_views", level="WARNING"
+                    ) as logs,
+                ):
+                    result = self.post(
+                        "/workflow/node/debug/agent::one",
+                        {
+                            "flowId": self.workflow.flow_id,
+                            "data": {"nodes": [self.graph["nodes"][1]]},
+                        },
+                    )
+                self.assertEqual(result.status_code, 502, result.content)
+                self.assertIn("未获得可展示的输出", result.json()["message"])
+                self.assertNotIn("已保留实际输出", result.json()["message"])
+                self.assertNotIn(sensitive, result.content.decode())
+                run = WorkflowRun.objects.filter(kind="node-debug").latest("create_time")
+                self.assertEqual(run.status, "failed")
+                self.assertFalse(run.output)
+                self.assertIn(f"run_id={run.pk}", logs.output[0])
+                self.assertIn("node_id='agent::one'", logs.output[0])
+                self.assertIn(f"core_code={expected_code}", logs.output[0])
+                self.assertIn(
+                    f"http_status={None if transport_error else http_status}", logs.output[0]
+                )
+                self.assertNotIn(sensitive, logs.output[0])
+                self.assertIsNone(logs.records[0].exc_info)
 
     def test_old_agent_node_release_does_not_inject_personality(self):
         stored = {

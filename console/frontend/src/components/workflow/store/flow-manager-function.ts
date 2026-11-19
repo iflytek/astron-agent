@@ -410,7 +410,7 @@ const graphComparisonShape: GraphComparisonShape = {
         ],
         fields: {
           data: {
-            omit: ['status', 'updatable'],
+            omit: ['status', 'updatable', 'debuggerResult'],
             fields: {
               inputs: { items: parameterShape },
               outputs: { items: parameterShape },

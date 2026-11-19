@@ -91,7 +91,11 @@ Compose 使用主 `docker/astronAgent/docker-compose.yaml`。RPA 资源管理和
 
 工具页的内置目录经 Link 读取 AI Tools 当前注册的 OpenAPI 能力，不回放历史 SQL 种子。`GET /resources/tools/catalog` 返回目录；`POST /resources/tools/catalog/{id}/install` 将该能力接入当前授权空间，生成普通 HTTP 工具及版本。接入后可从 Agent 和工作流选择；草稿不进入执行目录。Link 默认使用 `http://core-aitools:18668`，独立部署可设置其 `AITOOLS_BASE_URL`。目录的 `configured` 仅表示平台账号凭据已配置，`health: unknown` 表示尚未通过真实调用验证；厂商授权和服务状态以测试调用结果为准。已废弃且未注册的 API 不进入目录。
 
+Compose 为 Link 注入随 `CORE_AITOOLS_PORT` 变化的 `AITOOLS_BASE_URL`，显式覆盖请使用不带结尾斜杠的服务地址；Helm 的 `coreLink.env.aitoolsBaseUrl` 留空时自动使用本次 release 的 AI Tools Service 名和端口。部署同时生成该地址下 `smarttts`、`image_generate`、`image_understanding`、`ocr` 四条 `/aitools/v1/` 精确路径的私网许可，不开放整个主机或网段。已有自定义私网调用可显式配置 `PRIVATE_ENDPOINT_ALLOW_LIST`（Helm：`coreLink.env.privateEndpointAllowList`），该配置会整体替代自动列表；仍需保留所用内置工具的精确地址。
+
 MCP 连接在 Console 保持稳定资源身份，按授权后的服务地址调用 Link 官方 MCP SDK；编辑不另建无消费者的上游注册。运行地址与参数凭据不回传客户端。详情及工作流目录返回每个连接的发现状态，一个连接失败不会隐藏其他资源。HTTP 工具的显式版本引用保留原版本；HTTP 与 MCP 删除都会检查 Agent、工作流当前配置和发布版本，存在引用时拒绝删除。
+
+工作流直接 MCP 节点由 Core Workflow 经 `MCP_BASE_URL` 调用 Link。Compose 默认使用 `http://core-link:${CORE_LINK_PORT:-18888}`，可用进程环境的 `MCP_BASE_URL` 覆盖；Helm 的 `coreWorkflow.env.mcpBaseUrl` 留空时自动采用本次 release 的 Core Link Service 名和端口，显式值优先。这些部署环境变量优先于挂载的旧 `config.env`；独立本机开发仍可使用配置文件中的 localhost 地址。
 
 内部模型配置使用 `WORKFLOW_INTERNAL_API_KEY`，沙箱配置使用 `SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN`，产物上传使用 `SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN`，均支持 `_FILE`，并继续匹配调用方现有 header。这些凭据不是浏览器登录凭据，不能写入 Agent/工作流定义。`uv run python manage.py init_resource_storage` 仅创建缺失的 Console 和产物桶，保留现有对象和桶策略。容器在启用迁移且配置 OSS_ENDPOINT 时执行该初始化；多副本关闭迁移时应在部署任务中显式执行一次。新产物使用 `SKILL_SANDBOX_ARTIFACT_BUCKET` 私有桶；历史 bucket_name 为空的产物仍指向原 Console 桶。
 

@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { readConfigObject } from '../src/components/workflow/drawer/chat-debugger/chat-state.ts';
 import * as coordinators from '../src/components/workflow/store/workflow-save-coordinator.ts';
 import { workflowExecutionView } from '../src/components/workflow/store/workflow-execution-view.ts';
+import { mergeNodeDebugState } from '../src/components/workflow/nodes/components/node-operation/node-debug-request.ts';
 import {
   trackWorkflowSave,
   waitForWorkflowSaves,
@@ -1099,6 +1100,43 @@ test('literal values and schema property maps retain UI-like and ErrMsg business
     );
   }
   assert.equal(h.writes.length, edits.length);
+});
+
+test('node debug results do not dirty the draft while parameter edits still persist', async () => {
+  const h = harness();
+  h.manager.adoptWorkflowDraft(
+    {
+      ...h.state.currentFlow,
+      data: JSON.stringify({
+        nodes: [{ id: 'agent::A', data: { nodeParam: { agentId: 158 } } }],
+        edges: [],
+      }),
+    },
+    h.set
+  );
+  for (const status of ['running', 'success', 'failed', 'cancel']) {
+    h.canvas.nodes[0] = mergeNodeDebugState(h.canvas.nodes[0], {
+      status,
+      debuggerResult:
+        status === 'running'
+          ? undefined
+          : {
+              done: true,
+              ...(status === 'failed'
+                ? { failedReason: 'service unavailable' }
+                : { output: { answer: 'actual runtime output' } }),
+            },
+    });
+    assert.equal(h.state.hasUnsavedCurrentFlow(), false, status);
+    await h.state.flushCurrentFlow();
+    assert.deepEqual(h.writes, []);
+  }
+  h.canvas.nodes[0].data.nodeParam.agentId = 159;
+  assert.equal(h.state.hasUnsavedCurrentFlow(), true);
+  await h.state.flushCurrentFlow();
+  assert.equal(h.writes.length, 1);
+  assert.equal(h.writes[0].data.nodes[0].data.nodeParam.agentId, 159);
+  assert.equal(h.state.hasUnsavedCurrentFlow(), false);
 });
 
 test('actual input, nested output and node validation decorations do not dirty the draft', async () => {
