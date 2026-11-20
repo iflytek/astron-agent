@@ -958,6 +958,7 @@ export default function ResourceTools({
                         服务要求额外授权时填写，已有凭据保持原值即可保留。
                       </p>
                       <SchemaFields
+                        key={`${spaceId}:${selected?.id ?? 'new'}:connection`}
                         title="连接参数"
                         schema={{
                           type: 'object',
@@ -1086,6 +1087,7 @@ export default function ResourceTools({
                           onSubmit={event => event.preventDefault()}
                         >
                           <SchemaFields
+                            key={`${spaceId}:${mode}:${selected.id}:${activeTool?.name ?? ''}`}
                             schema={
                               mode === 'tools'
                                 ? httpInputSchema(selected)

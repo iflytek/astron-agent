@@ -435,6 +435,7 @@
   font-size: 13px;
 }
 .resource-field small,
+.resource-field-switch-hint,
 .resource-field-group > small {
   display: block;
   margin-top: 6px;
@@ -442,6 +443,20 @@
   font-size: 12px;
   line-height: 1.6;
   overflow-wrap: anywhere;
+}
+.resource-field-type {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+.resource-field-type label {
+  margin-bottom: 0;
+}
+.resource-field-type select {
+  width: auto;
+  max-width: 100%;
 }
 .resource-schema-fields input:not([type='checkbox']),
 .resource-schema-fields select,

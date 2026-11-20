@@ -135,6 +135,107 @@ export function updateProperty(
   return result;
 }
 
+/** Presentation branches only: the server remains responsible for schema validation. */
+export function fieldVariants(
+  schema: JsonObject,
+  root: JsonObject
+): JsonObject[] {
+  if (Array.isArray(schema.enum)) return [];
+  const variants = Array.isArray(schema.oneOf)
+    ? schema.oneOf
+    : Array.isArray(schema.anyOf)
+      ? schema.anyOf
+      : Array.isArray(schema.type)
+        ? schema.type.map(type => ({ type }))
+        : [];
+  const base = Object.fromEntries(
+    Object.entries(schema).filter(
+      ([key]) => !['oneOf', 'anyOf', 'type', 'default', 'title'].includes(key)
+    )
+  );
+  return variants.map(raw => ({
+    ...base,
+    ...(Array.isArray(schema.type) ? {} : { type: schema.type }),
+    ...resolveField(raw, root),
+  }));
+}
+
+export function fieldType(schema: JsonObject): string {
+  return typeof schema.type === 'string'
+    ? schema.type
+    : schema.properties
+      ? 'object'
+      : schema.items
+        ? 'array'
+        : 'string';
+}
+
+/** Infer a useful editor from the value's JSON type, without coercing saved data. */
+export function variantIndex(variants: JsonObject[], value: unknown): number {
+  const type =
+    value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value;
+  const index = variants.findIndex(schema => {
+    const variantType = fieldType(schema);
+    return (
+      (variantType === type ||
+        (variantType === 'integer' &&
+          type === 'number' &&
+          Number.isInteger(value))) &&
+      (!Array.isArray(schema.enum) ||
+        schema.enum.some(
+          choice => JSON.stringify(choice) === JSON.stringify(value)
+        ))
+    );
+  });
+  if (index >= 0) return index;
+  const withDefault = variants.findIndex(schema => 'default' in schema);
+  return withDefault >= 0
+    ? withDefault
+    : Math.max(
+        0,
+        variants.findIndex(schema => fieldType(schema) !== 'null')
+      );
+}
+
+export function variantLabel(schema: JsonObject): string {
+  if (typeof schema.title === 'string') return schema.title;
+  return (
+    {
+      string: '文本',
+      array: '列表',
+      object: '对象',
+      number: '数字',
+      integer: '整数',
+      boolean: '是 / 否',
+      null: '空值',
+    }[fieldType(schema)] || '参数'
+  );
+}
+
+/** Moving a single text value between text/list editors should not require retyping. */
+export function variantValue(
+  schema: JsonObject,
+  value: unknown,
+  root: JsonObject
+): unknown {
+  const type = fieldType(schema);
+  if (
+    type === 'array' &&
+    typeof value === 'string' &&
+    fieldType(resolveField(schema.items, root)) === 'string'
+  )
+    return value ? [value] : [];
+  if (
+    type === 'string' &&
+    Array.isArray(value) &&
+    value.length === 1 &&
+    typeof value[0] === 'string'
+  )
+    return value[0];
+  if (type === 'null') return null;
+  return fieldDefault(schema, root);
+}
+
 /** Only explicit defaults are initial values; optional fields remain absent. */
 export function fieldDefault(
   definition: JsonObject,
@@ -145,6 +246,13 @@ export function fieldDefault(
   const schema = resolveField(definition, root);
   if ('default' in schema && schema.default !== '******') return schema.default;
   if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  const variants = fieldVariants(schema, root);
+  if (variants.length)
+    return fieldDefault(
+      variants[variantIndex(variants, undefined)] ?? {},
+      root,
+      depth + 1
+    );
   if (schema.type === 'object' || schema.properties) {
     const required = Array.isArray(schema.required) ? schema.required : [];
     return Object.fromEntries(

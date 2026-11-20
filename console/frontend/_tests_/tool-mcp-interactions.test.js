@@ -26,7 +26,12 @@ function load(path, mocks = {}) {
   return module.exports;
 }
 const helpers = load(
-  '../src/pages/resource-management/resource-tools/mcp-tools.ts'
+  '../src/pages/resource-management/resource-tools/mcp-tools.ts',
+  {
+    './schema-form-model': load(
+      '../src/pages/resource-management/resource-tools/schema-form-model.ts'
+    ),
+  }
 );
 const { httpTestTemplate } = load(
   '../src/pages/resource-management/resource-tools/http-test-template.ts',

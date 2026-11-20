@@ -1,11 +1,54 @@
-import { useId, type ReactElement } from 'react';
+import { useId, useRef, useState, type ReactElement } from 'react';
 import {
   asObject,
   fieldDefault,
+  fieldVariants,
   resolveField,
   updateProperty,
+  variantIndex,
+  variantLabel,
+  variantValue,
 } from './schema-form-model';
 import { pretty, type JsonObject } from './mcp-tools';
+
+type UnionDraft = {
+  index: number;
+  source: string | undefined;
+  saved: Map<number, unknown>;
+};
+type FormDrafts = {
+  source: string;
+  schemaKey: string;
+  unions: Map<string, UnionDraft>;
+  arrays: Map<string, number[]>;
+  nextItem: number;
+};
+const newDrafts = (source: string, schemaKey: string): FormDrafts => ({
+  source,
+  schemaKey,
+  unions: new Map(),
+  arrays: new Map(),
+  nextItem: 0,
+});
+const inputKey = (value: string): string => {
+  try {
+    return JSON.stringify(JSON.parse(value));
+  } catch {
+    return value;
+  }
+};
+function arrayIds(drafts: FormDrafts, path: string, length: number): number[] {
+  const ids = drafts.arrays.get(path) ?? [];
+  while (ids.length < length) ids.push(drafts.nextItem++);
+  ids.length = length;
+  drafts.arrays.set(path, ids);
+  return ids;
+}
+function forgetPath(drafts: FormDrafts, path: string): void {
+  for (const map of [drafts.unions, drafts.arrays])
+    for (const key of map.keys())
+      if (key === path || key.startsWith(`${path}/`)) map.delete(key);
+}
 
 type FieldProps = {
   schema: JsonObject;
@@ -16,7 +59,74 @@ type FieldProps = {
   required?: boolean;
   disabled?: boolean;
   depth?: number;
+  drafts: FormDrafts;
+  path: string;
 };
+
+function UnionField({
+  variants,
+  ...props
+}: FieldProps & { variants: JsonObject[] }): ReactElement {
+  const id = useId();
+  const selection = props.drafts.unions.get(props.path);
+  const saved = selection?.saved ?? new Map<number, unknown>();
+  const index =
+    selection && selection.source === JSON.stringify(props.value)
+      ? selection.index
+      : variantIndex(
+          variants,
+          props.value === undefined ? props.schema.default : props.value
+        );
+  const title =
+    typeof props.schema.title === 'string' ? props.schema.title : props.name;
+  const change = (next: unknown, selected = index): void => {
+    props.drafts.unions.set(props.path, {
+      index: selected,
+      source: JSON.stringify(next),
+      saved,
+    });
+    props.onChange(next);
+  };
+  return (
+    <div className="resource-field-union">
+      <div className="resource-field resource-field-type">
+        <label htmlFor={id}>{title}类型</label>
+        <select
+          id={id}
+          disabled={props.disabled}
+          value={index}
+          onChange={event => {
+            const next = Number(event.target.value);
+            saved.set(index, props.value);
+            change(
+              saved.has(next)
+                ? saved.get(next)
+                : variantValue(variants[next] ?? {}, props.value, props.root),
+              next
+            );
+          }}
+        >
+          {variants.map((variant, i) => (
+            <option key={i} value={i}>
+              {variantLabel(variant)}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Field
+        key={index}
+        {...props}
+        schema={{ ...variants[index], title }}
+        path={`${props.path}/variant:${index}`}
+        onChange={next => change(next)}
+        depth={(props.depth ?? 0) + 1}
+      />
+      <small className="resource-field-switch-hint">
+        切换类型会保留已填写内容。
+      </small>
+    </div>
+  );
+}
 
 function Field({
   schema: raw,
@@ -27,9 +137,28 @@ function Field({
   required = false,
   disabled = false,
   depth = 0,
+  drafts,
+  path,
 }: FieldProps): ReactElement {
   const id = useId();
   const schema = resolveField(raw, root);
+  const variants = fieldVariants(schema, root);
+  if (variants.length && depth <= 12 && !schema.$ref && !schema.allOf)
+    return (
+      <UnionField
+        schema={schema}
+        root={root}
+        value={value}
+        onChange={onChange}
+        name={name}
+        required={required}
+        disabled={disabled}
+        depth={depth}
+        variants={variants}
+        drafts={drafts}
+        path={path}
+      />
+    );
   const title = typeof schema.title === 'string' ? schema.title : name;
   const type = Array.isArray(schema.type)
     ? schema.type.find(item => item !== 'null')
@@ -157,6 +286,8 @@ function Field({
         key={key}
         schema={asObject(child)}
         root={root}
+        drafts={drafts}
+        path={`${path}/property:${encodeURIComponent(key)}`}
         value={current[key]}
         name={key}
         required={requiredNames.includes(key)}
@@ -175,6 +306,8 @@ function Field({
         )
     );
     const additional = schema.additionalProperties;
+    const items = Array.isArray(value) ? value : [];
+    const ids = type === 'array' ? arrayIds(drafts, path, items.length) : [];
     return (
       <fieldset className="resource-field-group" disabled={disabled}>
         <legend>{label}</legend>
@@ -190,11 +323,13 @@ function Field({
         )}
         {type === 'array' ? (
           <>
-            {(Array.isArray(value) ? value : []).map((item, index) => (
-              <div className="resource-field-array-row" key={index}>
+            {items.map((item, index) => (
+              <div className="resource-field-array-row" key={ids[index]}>
                 <Field
                   schema={asObject(schema.items)}
                   root={root}
+                  drafts={drafts}
+                  path={`${path}/item:${ids[index]}`}
                   value={item}
                   name={`第 ${index + 1} 项`}
                   required
@@ -211,9 +346,13 @@ function Field({
                 <button
                   type="button"
                   className="resource-field-link"
-                  onClick={() =>
-                    onChange((value as unknown[]).filter((_, i) => i !== index))
-                  }
+                  onClick={() => {
+                    forgetPath(drafts, `${path}/item:${ids[index]}`);
+                    ids.splice(index, 1);
+                    onChange(
+                      (value as unknown[]).filter((_, i) => i !== index)
+                    );
+                  }}
                 >
                   移除第 {index + 1} 项
                 </button>
@@ -267,6 +406,8 @@ function Field({
                         }
                   }
                   root={root}
+                  drafts={drafts}
+                  path={`${path}/property:${encodeURIComponent(key)}`}
                   value={item}
                   name={key}
                   disabled={disabled}
@@ -397,6 +538,17 @@ export function SchemaFields({
   disabled?: boolean;
   title?: string;
 }): ReactElement {
+  const [, refresh] = useState(0);
+  const schemaKey = JSON.stringify(schema);
+  const sourceKey = inputKey(value);
+  const saved = useRef<FormDrafts>(newDrafts(sourceKey, schemaKey));
+  // A raw editor update replaces the form input; its old inactive drafts must not win.
+  if (
+    saved.current.source !== sourceKey ||
+    saved.current.schemaKey !== schemaKey
+  )
+    saved.current = newDrafts(sourceKey, schemaKey);
+  const drafts = saved.current;
   let parsed: unknown;
   try {
     parsed = JSON.parse(value);
@@ -406,13 +558,21 @@ export function SchemaFields({
   return (
     <div className="resource-schema-fields">
       <Field
+        key={JSON.stringify(schema)}
         schema={{ ...schema, title }}
         root={schema}
+        drafts={drafts}
+        path="form"
         value={parsed}
         name={title}
         required
         disabled={disabled}
-        onChange={next => onChange(pretty(next))}
+        onChange={next => {
+          const source = pretty(next);
+          drafts.source = inputKey(source);
+          onChange(source);
+          refresh(revision => revision + 1);
+        }}
       />
     </div>
   );

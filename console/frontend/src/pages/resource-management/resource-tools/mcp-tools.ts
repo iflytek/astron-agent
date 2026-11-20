@@ -6,18 +6,31 @@ export type McpTool = {
 };
 
 /** Preserve server-owned JSON Schema and falsy defaults when preparing a test. */
-export function schemaExample(schema: JsonObject = {}): unknown {
+export function schemaExample(
+  definition: JsonObject = {},
+  root = definition,
+  depth = 0
+): unknown {
+  if (depth > 12) return '';
+  const schema = resolveField(definition, root);
   if ('default' in schema) return schema.default;
   if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  const variants = fieldVariants(schema, root);
+  if (variants.length)
+    return schemaExample(
+      variants[variantIndex(variants, undefined)] ?? {},
+      root,
+      depth + 1
+    );
   if (schema.type === 'object' || schema.properties) {
     return Object.fromEntries(
       Object.entries((schema.properties || {}) as Record<string, JsonObject>)
         .filter(
           ([name, value]) =>
             ((schema.required || []) as string[]).includes(name) ||
-            'default' in value
+            'default' in resolveField(value, root)
         )
-        .map(([name, value]) => [name, schemaExample(value)])
+        .map(([name, value]) => [name, schemaExample(value, root, depth + 1)])
     );
   }
   if (schema.type === 'array') return [];
@@ -49,3 +62,4 @@ export function parseArguments(value: string): JsonObject {
 export function mcpResultFailed(value: unknown): boolean {
   return Boolean((value as { isError?: boolean } | null)?.isError);
 }
+import { fieldVariants, resolveField, variantIndex } from './schema-form-model';
