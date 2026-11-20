@@ -1,4 +1,6 @@
 import { useId, useRef, useState, type ReactElement } from 'react';
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import './schema-fields.css';
 import {
   asObject,
   fieldDefault,
@@ -62,6 +64,7 @@ type FieldProps = {
   depth?: number;
   drafts: FormDrafts;
   path: string;
+  kindControl?: ReactElement;
 };
 
 function UnionField({
@@ -88,43 +91,55 @@ function UnionField({
     });
     props.onChange(next);
   };
+  const ownKindControl = (
+    <div className="resource-field resource-field-type">
+      <label htmlFor={id}>{title}类型</label>
+      <select
+        id={id}
+        disabled={props.disabled}
+        value={index}
+        onChange={event => {
+          const next = Number(event.target.value);
+          saved.set(index, props.value);
+          change(
+            saved.has(next)
+              ? saved.get(next)
+              : variantValue(variants[next] ?? {}, props.value, props.root),
+            next
+          );
+        }}
+      >
+        {variants.map((variant, i) => (
+          <option key={i} value={i}>
+            {variantLabel(variant)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+  const kindControl = props.kindControl ? (
+    <div className="resource-field-kind-stack">
+      {props.kindControl}
+      {ownKindControl}
+    </div>
+  ) : (
+    ownKindControl
+  );
   return (
     <div className="resource-field-union">
-      <div className="resource-field resource-field-type">
-        <label htmlFor={id}>{title}类型</label>
-        <select
-          id={id}
-          disabled={props.disabled}
-          value={index}
-          onChange={event => {
-            const next = Number(event.target.value);
-            saved.set(index, props.value);
-            change(
-              saved.has(next)
-                ? saved.get(next)
-                : variantValue(variants[next] ?? {}, props.value, props.root),
-              next
-            );
-          }}
-        >
-          {variants.map((variant, i) => (
-            <option key={i} value={i}>
-              {variantLabel(variant)}
-            </option>
-          ))}
-        </select>
-      </div>
       <Field
         key={index}
         {...props}
-        schema={{ ...variants[index], title }}
+        schema={{
+          ...variants[index],
+          title,
+          description: variants[index]?.description ?? props.schema.description,
+        }}
+        kindControl={kindControl}
         path={`${props.path}/variant:${index}`}
         onChange={next => change(next)}
         depth={(props.depth ?? 0) + 1}
       />
-      <small className="resource-field-switch-hint">
-        切换类型会保留已填写内容。
-      </small>
     </div>
   );
 }
@@ -141,6 +156,7 @@ function Field({
   depth = 0,
   drafts,
   path,
+  kindControl,
 }: FieldProps): ReactElement {
   const id = useId();
   const schema = resolveField(raw, root);
@@ -160,6 +176,7 @@ function Field({
         variants={variants}
         drafts={drafts}
         path={path}
+        kindControl={kindControl}
       />
     );
   const title = typeof schema.title === 'string' ? schema.title : name;
@@ -177,7 +194,30 @@ function Field({
       )}
     </span>
   );
-  const hint = description && <small id={`${id}-hint`}>{description}</small>;
+  const hint = (
+    <small className="resource-field-hint" id={`${id}-hint`}>
+      {description}
+    </small>
+  );
+  const kind = kindControl || (
+    <span
+      className={`resource-field-kind resource-field-kind-${String(type || 'string')}`}
+    >
+      {Array.isArray(schema.enum)
+        ? '枚举'
+        : (
+            {
+              string: '文本',
+              integer: '整数',
+              number: '数字',
+              boolean: '布尔',
+              object: '对象',
+              array: '列表',
+              null: '空值',
+            } as Record<string, string>
+          )[String(type || 'string')] || '参数'}
+    </span>
+  );
   const common = {
     id,
     disabled,
@@ -191,9 +231,9 @@ function Field({
     !!schema.allOf;
   if (unsupported)
     return (
-      <div className="resource-field">
+      <div className="resource-field resource-schema-row">
         <label htmlFor={id}>{label}</label>
-        {hint}
+        {kind}
         <textarea
           {...common}
           defaultValue={value === undefined ? '' : pretty(value)}
@@ -210,6 +250,7 @@ function Field({
             }
           }}
         />
+        {hint}
       </div>
     );
   if (Array.isArray(schema.enum) || type === 'boolean' || type === 'null') {
@@ -219,8 +260,9 @@ function Field({
         ? [null]
         : [true, false];
     return (
-      <div className="resource-field">
+      <div className="resource-field resource-schema-row">
         <label htmlFor={id}>{label}</label>
+        {kind}
         <select
           {...common}
           required={required}
@@ -255,8 +297,11 @@ function Field({
   if (object || type === 'array') {
     if (value === undefined && !required)
       return (
-        <div className="resource-field">
+        <div className="resource-field resource-schema-row">
+          <label htmlFor={id}>{label}</label>
+          {kind}
           <button
+            id={id}
             type="button"
             className="resource-field-link"
             disabled={disabled}
@@ -314,9 +359,15 @@ function Field({
     const items = Array.isArray(value) ? value : [];
     const ids = type === 'array' ? arrayIds(drafts, path, items.length) : [];
     return (
-      <fieldset className="resource-field-group" disabled={disabled}>
+      <fieldset
+        className={`resource-field-group${!markRequired ? ' resource-field-root' : ''}`}
+        disabled={disabled}
+      >
         <legend>{label}</legend>
-        {hint}
+        {kindControl && (
+          <div className="resource-field-container-kind">{kindControl}</div>
+        )}
+        {!!description && hint}
         {!required && (
           <button
             type="button"
@@ -350,7 +401,9 @@ function Field({
                 />
                 <button
                   type="button"
-                  className="resource-field-link"
+                  className="resource-field-icon resource-field-remove"
+                  aria-label={`移除第 ${index + 1} 项`}
+                  title={`移除第 ${index + 1} 项`}
                   onClick={() => {
                     forgetPath(drafts, `${path}/item:${ids[index]}`);
                     ids.splice(index, 1);
@@ -359,13 +412,15 @@ function Field({
                     );
                   }}
                 >
-                  移除第 {index + 1} 项
+                  <DeleteOutlined aria-hidden="true" />
                 </button>
               </div>
             ))}
             <button
               type="button"
-              className="resource-field-link"
+              className="resource-field-icon resource-field-create"
+              aria-label="添加一项"
+              title="添加一项"
               onClick={() =>
                 onChange([
                   ...(Array.isArray(value) ? value : []),
@@ -373,7 +428,7 @@ function Field({
                 ])
               }
             >
-              添加一项
+              <PlusOutlined aria-hidden="true" />
             </button>
           </>
         ) : (
@@ -421,12 +476,14 @@ function Field({
                 />
                 <button
                   type="button"
-                  className="resource-field-link"
+                  className="resource-field-icon resource-field-remove"
+                  aria-label={`移除 ${key}`}
+                  title={`移除 ${key}`}
                   onClick={() =>
                     onChange(updateProperty(value, key, undefined))
                   }
                 >
-                  移除 {key}
+                  <DeleteOutlined aria-hidden="true" />
                 </button>
               </div>
             ))}
@@ -452,8 +509,9 @@ function Field({
   }
   const numeric = type === 'number' || type === 'integer';
   return (
-    <div className="resource-field">
+    <div className="resource-field resource-schema-row">
       <label htmlFor={id}>{label}</label>
+      {kind}
       <input
         {...common}
         type={
@@ -510,8 +568,10 @@ function AddProperty({
       <input id={id} disabled={disabled} placeholder="如 API_KEY" />
       <button
         type="button"
-        className="resource-field-link"
+        className="resource-field-icon resource-field-create"
         disabled={disabled}
+        aria-label="添加参数"
+        title="添加参数"
         onClick={() => {
           const input = document.getElementById(id) as HTMLInputElement;
           const key = input.value.trim();
@@ -524,7 +584,7 @@ function AddProperty({
           }
         }}
       >
-        添加参数
+        <PlusOutlined aria-hidden="true" />
       </button>
     </div>
   );
@@ -562,24 +622,32 @@ export function SchemaFields({
   }
   return (
     <div className="resource-schema-fields">
-      <Field
-        key={JSON.stringify(schema)}
-        schema={{ ...schema, title }}
-        root={schema}
-        drafts={drafts}
-        path="form"
-        value={parsed}
-        name={title}
-        required
-        markRequired={false}
-        disabled={disabled}
-        onChange={next => {
-          const source = pretty(next);
-          drafts.source = inputKey(source);
-          onChange(source);
-          refresh(revision => revision + 1);
-        }}
-      />
+      <div className="resource-schema-table">
+        <div className="resource-schema-columns" aria-hidden="true">
+          <span>参数名</span>
+          <span>类型</span>
+          <span>值</span>
+          <span>说明</span>
+        </div>
+        <Field
+          key={JSON.stringify(schema)}
+          schema={{ ...schema, title }}
+          root={schema}
+          drafts={drafts}
+          path="form"
+          value={parsed}
+          name={title}
+          required
+          markRequired={false}
+          disabled={disabled}
+          onChange={next => {
+            const source = pretty(next);
+            drafts.source = inputKey(source);
+            onChange(source);
+            refresh(revision => revision + 1);
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -182,19 +182,47 @@
 .resource-tools .ant-empty {
   padding: 48px 12px;
 }
-.resource-tools-drawer {
+.resource-tools-modal,
+.workflow-tools-modal {
   color: #18243d;
 }
-.resource-tools-drawer .ant-drawer-title {
+.resource-tools-modal .ant-modal,
+.workflow-tools-modal .ant-modal {
+  max-width: calc(100vw - 48px);
+}
+.resource-tools-modal .ant-modal-content,
+.workflow-tools-modal .ant-modal-content {
+  padding: 0;
+  overflow: hidden;
+}
+.resource-tools-modal .ant-modal-header,
+.workflow-tools-modal .ant-modal-header {
+  padding: 18px 24px;
+  margin: 0;
+  border-bottom: 1px solid #e8edf5;
+}
+.resource-tools-modal .ant-modal-title,
+.workflow-tools-modal .ant-modal-title {
   overflow-wrap: anywhere;
+  font-size: 17px;
 }
-.resource-tools-drawer .ant-drawer-body {
-  padding: 8px 24px 24px;
+.resource-tools-modal .ant-modal-body,
+.workflow-tools-modal .ant-modal-body {
+  max-height: calc(100dvh - 160px);
+  overflow-y: auto;
+  padding: 0 24px 24px;
+  scrollbar-color: #c5cede #f6f8fd;
+  scrollbar-width: thin;
 }
-.resource-tools-drawer .ant-alert {
+.resource-tools-modal .ant-modal-close,
+.workflow-tools-modal .ant-modal-close {
+  top: 14px;
+  right: 20px;
+}
+.resource-tools-modal .ant-alert {
   margin: 16px 0;
 }
-.resource-tools-drawer label,
+.resource-tools-modal label,
 .workflow-mcp-detail label {
   display: flex;
   flex-direction: column;
@@ -203,14 +231,14 @@
   color: #18243d;
   font-size: 14px;
 }
-.resource-tools-drawer p,
+.resource-tools-modal p,
 .workflow-mcp-detail p {
   color: #526580;
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .resource-tools-form-intro {
-  margin: 8px 0 20px;
+  margin: 8px 0 16px;
 }
 .resource-tools-form-intro h2 {
   margin: 0 0 6px;
@@ -218,11 +246,29 @@
   font-weight: 600;
 }
 .resource-tools-form-intro p {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 13px;
 }
-.resource-tools-drawer textarea.ant-input.resource-tools-code,
-.workflow-mcp-drawer textarea.ant-input.resource-tools-code {
+.resource-tools-basics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 160px;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.resource-tools-modal .resource-tools-basics > label {
+  min-width: 0;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.resource-tools-description {
+  grid-column: 1 / -1;
+}
+.resource-tools-basics-mcp {
+  grid-template-columns: minmax(0, 1fr);
+}
+.resource-tools-modal textarea.ant-input.resource-tools-code,
+.workflow-tools-modal textarea.ant-input.resource-tools-code {
   min-height: 240px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
@@ -230,11 +276,11 @@
   tab-size: 2;
   resize: vertical;
 }
-.resource-tools-drawer textarea.ant-input.resource-tools-code-short,
-.workflow-mcp-drawer textarea.ant-input.resource-tools-code-short {
+.resource-tools-modal textarea.ant-input.resource-tools-code-short,
+.workflow-tools-modal textarea.ant-input.resource-tools-code-short {
   min-height: 140px;
 }
-.resource-tools-drawer pre,
+.resource-tools-modal pre,
 .workflow-mcp-detail pre {
   max-height: 420px;
   overflow: auto;
@@ -256,7 +302,16 @@
   padding: 6px 0;
 }
 .resource-tools-result {
-  margin-top: 28px;
+  margin-top: 24px;
+  border-top: 1px solid #e8edf5;
+  padding-top: 20px;
+}
+.resource-tools-result-empty {
+  min-height: 140px;
+}
+.resource-tools-result-empty p {
+  color: #607089;
+  font-size: 13px;
 }
 .resource-tools-result h3 {
   font-size: 15px;
@@ -270,6 +325,31 @@
   align-items: center;
   gap: 10px;
 }
+.resource-tools-requestbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 16px;
+  border-bottom: 1px solid #e8edf5;
+}
+.resource-tools-method {
+  color: #166548;
+  background: #edf8f2;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.resource-tools-endpoint {
+  flex: 1;
+  min-width: 0;
+  color: #18243d;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.resource-tools-requestbar .resource-tools-actions {
+  justify-content: flex-end;
+}
 .resource-tools-save {
   position: sticky;
   bottom: -24px;
@@ -279,18 +359,18 @@
   border-top: 1px solid #e8edf5;
 }
 .resource-tools input::placeholder,
-.resource-tools-drawer textarea::placeholder {
+.resource-tools-modal textarea::placeholder {
   color: #607089;
   opacity: 1;
 }
 .resource-tools button:focus-visible,
-.resource-tools-drawer summary:focus-visible {
+.resource-tools-modal summary:focus-visible {
   outline: 2px solid #315ff4;
   outline-offset: 3px;
   border-radius: 4px;
 }
 .resource-tools ::selection,
-.resource-tools-drawer ::selection {
+.resource-tools-modal ::selection {
   background: #e7eeff;
   color: #18243d;
 }
@@ -300,6 +380,30 @@
   }
 }
 @media (max-width: 650px) {
+  .resource-tools-modal .ant-modal,
+  .workflow-tools-modal .ant-modal {
+    top: 12px !important;
+    max-width: calc(100vw - 16px);
+    width: calc(100vw - 16px) !important;
+  }
+  .resource-tools-modal .ant-modal-header,
+  .workflow-tools-modal .ant-modal-header {
+    padding: 16px 18px;
+  }
+  .resource-tools-modal .ant-modal-body,
+  .workflow-tools-modal .ant-modal-body {
+    max-height: calc(100dvh - 108px);
+  }
+  .resource-tools-basics {
+    grid-template-columns: minmax(0, 1fr) 100px;
+  }
+  .resource-tools-requestbar {
+    flex-wrap: wrap;
+  }
+  .resource-tools-requestbar .resource-tools-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
   .resource-tools {
     padding: 18px 18px 28px;
   }
@@ -316,7 +420,7 @@
   .resource-tools-grid {
     grid-template-columns: 1fr;
   }
-  .resource-tools-drawer .ant-drawer-body {
+  .resource-tools-modal .ant-modal-body {
     padding: 8px 18px 20px;
   }
   .resource-tools-save {
@@ -331,7 +435,7 @@
     transition: none;
   }
 }
-.workflow-mcp-drawer .ant-drawer-body {
+.workflow-tools-modal .ant-modal-body {
   padding: 20px 24px;
 }
 .workflow-mcp-servers > section {
@@ -390,7 +494,7 @@
   margin: 16px 0;
 }
 @media (max-width: 650px) {
-  .workflow-mcp-drawer .ant-drawer-body {
+  .workflow-tools-modal .ant-modal-body {
     padding: 18px;
   }
   .workflow-mcp-tool {
@@ -402,65 +506,6 @@
   }
 }
 
-.resource-schema-fields {
-  margin: 20px 0;
-}
-.resource-field-group {
-  min-width: 0;
-  margin: 18px 0;
-  padding: 0;
-  border: 0;
-}
-.resource-field-group > legend {
-  width: auto;
-  margin-bottom: 10px;
-  color: #18243d;
-  font-size: 14px;
-  font-weight: 600;
-}
-.resource-field-group .resource-field-group {
-  padding-left: 14px;
-  border-left: 1px solid #dfe6f1;
-}
-.resource-field,
-.resource-config-section {
-  min-width: 0;
-  margin: 16px 0;
-}
-.resource-tools-drawer .resource-field label,
-.workflow-mcp-detail .resource-field label,
-.resource-field label {
-  display: block;
-  margin: 0 0 7px;
-  font-size: 13px;
-}
-.resource-field small,
-.resource-field-switch-hint,
-.resource-field-group > small {
-  display: block;
-  margin-top: 6px;
-  color: #526580;
-  font-size: 12px;
-  line-height: 1.6;
-  overflow-wrap: anywhere;
-}
-.resource-field-type {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 0;
-}
-.resource-field-type label {
-  margin-bottom: 0;
-}
-.resource-field-type select {
-  width: auto;
-  max-width: 100%;
-}
-.resource-schema-fields input:not([type='checkbox']),
-.resource-schema-fields select,
-.resource-schema-fields textarea,
 .resource-config-select {
   width: 100%;
   min-width: 0;
@@ -473,197 +518,9 @@
   font: inherit;
   font-size: 13px;
 }
-.resource-schema-fields textarea {
-  min-height: 100px;
-}
-.resource-schema-fields input:focus-visible,
-.resource-schema-fields select:focus-visible,
-.resource-schema-fields textarea:focus-visible,
 .resource-config-select:focus-visible {
   outline: 2px solid #315ff4;
   outline-offset: 2px;
-}
-.resource-schema-fields input::placeholder {
-  color: #607089;
-  opacity: 1;
-}
-.resource-field-required {
-  color: #b42318;
-}
-.resource-field-optional {
-  margin: 16px 0;
-}
-.resource-field-optional > summary {
-  padding: 6px 0;
-  color: #3159d9;
-  cursor: pointer;
-  font-size: 13px;
-}
-.resource-field-link {
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  color: #3159d9;
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.resource-field-link:disabled {
-  color: #607089;
-  cursor: default;
-}
-.resource-field-array-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.resource-field-array-row > .resource-field,
-.resource-field-array-row > .resource-field-group {
-  flex: 1;
-}
-.resource-field-array-row > button {
-  flex: 0 0 auto;
-  margin-top: 42px;
-}
-.resource-field-add {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 12px 0;
-}
-.resource-field-add > input {
-  flex: 1;
-  width: auto !important;
-}
-.resource-tools-drawer .resource-field-add > label {
-  margin: 0;
-}
-.resource-config-section > h3 {
-  margin: 20px 0 10px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.resource-http-config {
-  display: grid;
-  gap: 20px;
-  container: http-config / inline-size;
-}
-.resource-tools-drawer .resource-tools-config-form > label {
-  gap: 6px;
-  margin: 0 0 16px;
-  font-size: 13px;
-}
-.resource-tools-drawer .resource-http-config label {
-  min-width: 0;
-  gap: 6px;
-  margin: 0;
-  font-size: 13px;
-}
-.resource-config-grid,
-.resource-config-auth {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.resource-config-auth {
-  grid-template-columns: minmax(0, 1fr);
-  margin: 12px 0;
-}
-.resource-config-endpoint {
-  grid-template-columns: 96px minmax(0, 1fr);
-}
-.resource-http-config .resource-config-section {
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid #e8edf5;
-}
-.resource-config-section > summary {
-  position: relative;
-  min-height: 32px;
-  padding: 6px 40px 6px 0;
-  color: #18243d;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.resource-http-config .resource-tool-hint {
-  margin: 6px 0 12px;
-}
-.resource-config-row,
-.resource-config-table-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 84px 40px 32px 32px;
-  align-items: center;
-  gap: 8px;
-}
-.resource-config-table-head {
-  margin-top: 12px;
-  padding-bottom: 4px;
-  color: #526580;
-  font-size: 12px;
-}
-.resource-config-table-head > span:nth-child(3) {
-  text-align: center;
-}
-.resource-config-row {
-  padding: 8px 0;
-  border-bottom: 1px solid #e8edf5;
-}
-.resource-config-row:last-child {
-  border-bottom: 0;
-}
-.resource-config-shared {
-  grid-column: 1 / 5;
-  margin: 0;
-  font-size: 13px;
-}
-.resource-tools-drawer
-  .resource-http-config
-  .resource-config-row
-  .resource-config-check {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  min-height: 36px;
-}
-.resource-tools-drawer .resource-http-config .ant-btn.resource-config-remove,
-.resource-tools-drawer .resource-http-config .ant-btn.resource-config-edit,
-.resource-tools-drawer .resource-http-config .ant-btn.resource-config-icon-add {
-  width: 32px;
-  height: 36px;
-  padding: 0;
-  color: #607089;
-  border: 0;
-  box-shadow: none;
-}
-.resource-tools-drawer .resource-http-config .ant-btn.resource-config-icon-add {
-  position: absolute;
-  top: -2px;
-  right: 0;
-  color: #3159d9;
-}
-.resource-tools-drawer
-  .resource-http-config
-  .resource-config-remove:not(:disabled):hover {
-  color: #b42318;
-  background: #fff1f0;
-}
-.resource-tools-drawer .resource-http-config .ant-btn.resource-config-add {
-  height: 32px;
-  padding: 0 4px;
-  color: #3159d9;
-  box-shadow: none;
-}
-.resource-tools-drawer .resource-config-check {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-.resource-config-section > .resource-config-check {
-  margin-top: 12px !important;
 }
 .resource-param-modal label {
   display: flex;
@@ -681,32 +538,4 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 24px;
-}
-@container http-config (max-width: 380px) {
-  .resource-config-row,
-  .resource-config-table-head {
-    grid-template-columns: minmax(0, 1fr) 72px 32px 28px 28px;
-    gap: 4px;
-  }
-  .resource-tools-drawer .resource-http-config .ant-btn.resource-config-edit,
-  .resource-tools-drawer .resource-http-config .ant-btn.resource-config-remove {
-    width: 28px;
-  }
-}
-@media (max-width: 650px) {
-  .resource-config-grid:not(.resource-config-endpoint) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .resource-field-array-row {
-    flex-wrap: wrap;
-    gap: 0;
-  }
-  .resource-field-array-row > .resource-field,
-  .resource-field-array-row > .resource-field-group {
-    flex-basis: 100%;
-  }
-  .resource-field-array-row > button {
-    margin-top: 0;
-    margin-bottom: 8px;
-  }
 }

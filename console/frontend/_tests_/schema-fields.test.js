@@ -40,6 +40,11 @@ const { SchemaFields } = load('schema-fields.tsx', {
   'react/jsx-runtime': jsxRuntime,
   './mcp-tools': helpers,
   './schema-form-model': model,
+  './schema-fields.css': {},
+  '@ant-design/icons': {
+    DeleteOutlined: () => null,
+    PlusOutlined: () => null,
+  },
 });
 const renderers = [];
 test.afterEach(() =>
@@ -288,8 +293,7 @@ test('arrays are edited as item forms and removing an item preserves remaining v
     { tags: ['a', 'b'] }
   );
   const button = app.nodes.find(
-    node =>
-      node.type === 'button' && text(node.props.children) === '移除第 1 项'
+    node => node.type === 'button' && node.props['aria-label'] === '移除第 1 项'
   );
   assert.ok(button);
   button.props.onClick();
@@ -406,7 +410,7 @@ test('MCP text/list union uses typed controls and restores all list items across
   app.render();
   app.nodes
     .find(
-      node => node.type === 'button' && text(node.props.children) === '添加一项'
+      node => node.type === 'button' && node.props['aria-label'] === '添加一项'
     )
     .props.onClick();
   app.render();
@@ -574,8 +578,7 @@ test('array union drafts follow stable row identity after deleting an earlier ro
   control(app, '第 1 项类型').props.onChange({ target: { value: '1' } });
   control(app, '第 2 项类型').props.onChange({ target: { value: '1' } });
   const outerRemove = app.nodes.filter(
-    node =>
-      node.type === 'button' && text(node.props.children) === '移除第 1 项'
+    node => node.type === 'button' && node.props['aria-label'] === '移除第 1 项'
   )[1];
   outerRemove.props.onClick();
   assert.deepEqual(app.value(), { items: [['second']] });
@@ -654,4 +657,37 @@ test('raw value, schema and resource changes isolate inactive union drafts', () 
       reset
     );
   }
+});
+
+test('nested union selectors keep outer array choice and inner nullable drafts reachable', () => {
+  const app = fields(
+    {
+      type: 'object',
+      properties: {
+        choice: {
+          anyOf: [
+            { type: ['string', 'null'] },
+            { type: 'array', items: { type: 'string' } },
+          ],
+        },
+      },
+      required: ['choice'],
+    },
+    { choice: 'draft text' }
+  );
+  const selector = options =>
+    app.nodes.find(
+      node => node.type === 'select' && text(node.props.children) === options
+    );
+  assert.ok(selector('文本列表'));
+  assert.ok(selector('文本空值'));
+  selector('文本空值').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), { choice: null });
+  selector('文本列表').props.onChange({ target: { value: '1' } });
+  assert.ok(Array.isArray(app.value().choice));
+  assert.equal(selector('文本空值'), undefined);
+  selector('文本列表').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { choice: null });
+  selector('文本空值').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { choice: 'draft text' });
 });

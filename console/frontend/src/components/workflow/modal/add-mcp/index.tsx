@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { Alert, Button, Drawer, Empty, Input, Skeleton, Tag } from 'antd';
+import { Alert, Button, Modal, Empty, Input, Skeleton, Tag } from 'antd';
 import {
   PlusOutlined,
   ReloadOutlined,
@@ -68,12 +68,14 @@ export default function AddMcp(): ReactElement {
     `${server.name} ${server.brief}`.toLowerCase().includes(query.toLowerCase())
   );
   return (
-    <Drawer
+    <Modal
       title="添加 MCP 工具"
       open={info.open}
-      onClose={close}
-      width="min(1040px, 100vw)"
-      rootClassName="workflow-mcp-drawer"
+      onCancel={close}
+      width="min(1180px, calc(100vw - 48px))"
+      rootClassName="workflow-tools-modal"
+      footer={null}
+      style={{ top: 32 }}
       destroyOnClose
     >
       {detail ? (
@@ -215,6 +217,6 @@ export default function AddMcp(): ReactElement {
           )}
         </>
       )}
-    </Drawer>
+    </Modal>
   );
 }

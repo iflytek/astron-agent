@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   Alert,
   Button,
-  Drawer,
   Dropdown,
   Empty,
   Input,
@@ -122,7 +121,7 @@ export default function ResourceTools({
   const [revision, setRevision] = useState(0);
   const [selected, setSelected] = useState<Resource | null>(null);
   const [open, setOpen] = useState(false);
-  const [drawerTab, setDrawerTab] = useState('test');
+  const [panelTab, setPanelTab] = useState('test');
   const [editing, setEditing] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [name, setName] = useState('');
@@ -293,7 +292,7 @@ export default function ResourceTools({
     prepare(null);
     setOpen(true);
     setEditing(true);
-    setDrawerTab('config');
+    setPanelTab('config');
     return true;
   };
   const load = async (row: Resource, config = false): Promise<void> => {
@@ -303,7 +302,7 @@ export default function ResourceTools({
     setDetailLoading(true);
     setEditing(false);
     prepare(row);
-    setDrawerTab(config ? 'config' : 'test');
+    setPanelTab(config ? 'config' : 'test');
     await run(
       async current => {
         try {
@@ -429,7 +428,7 @@ export default function ResourceTools({
         setVersion(imported.version || 'V1.0');
         setOpen(true);
         setEditing(true);
-        setDrawerTab('config');
+        setPanelTab('config');
       },
       {
         title: 'HTTP 工具导入失败',
@@ -815,12 +814,14 @@ export default function ResourceTools({
           )}
         </>
       )}
-      <Drawer
+      <Modal
         title={selected?.name || `新建${noun}`}
         open={open}
-        width="min(740px, 100vw)"
-        rootClassName="resource-tools-drawer"
-        onClose={close}
+        width="min(1180px, calc(100vw - 48px))"
+        rootClassName="resource-tools-modal"
+        onCancel={close}
+        footer={null}
+        style={{ top: 32 }}
         maskClosable={!busy}
         keyboard={!busy}
         destroyOnClose
@@ -839,20 +840,20 @@ export default function ResourceTools({
         ) : (
           <>
             <Tabs
-              activeKey={drawerTab}
+              activeKey={panelTab}
               onChange={value => {
-                if (busy || (value !== drawerTab && !mayLeave())) return;
+                if (busy || (value !== panelTab && !mayLeave())) return;
                 if (editing) prepare(selected);
-                setDrawerTab(value);
+                setPanelTab(value);
                 setEditing(false);
                 setError('');
               }}
               items={[
                 ...(!market ? [{ key: 'config', label: '配置' }] : []),
-                ...(selected ? [{ key: 'test', label: '工具与测试' }] : []),
+                ...(selected ? [{ key: 'test', label: '测试' }] : []),
               ]}
             />
-            {drawerTab === 'config' && (
+            {panelTab === 'config' && (
               <form
                 className="resource-tools-config-form"
                 ref={formRef}
@@ -862,48 +863,29 @@ export default function ResourceTools({
                 }}
               >
                 <div className="resource-tools-form-intro">
-                  <h2>
-                    {selected
-                      ? '资源配置'
-                      : mode === 'mcp'
-                        ? '接入 MCP 服务'
-                        : '创建 HTTP 工具'}
-                  </h2>
                   <p>
                     {mode === 'mcp'
                       ? '保存时发现服务工具，连接地址与凭据由服务端保管。'
                       : '填写请求地址和参数，发布后可被 Agent 和工作流引用。'}
                   </p>
                 </div>
-                <label>
-                  名称
-                  <Input
-                    disabled={busy}
-                    required
-                    maxLength={mode === 'tools' ? 64 : 255}
-                    value={name}
-                    onChange={event => {
-                      setName(event.target.value);
-                      setEditing(true);
-                    }}
-                  />
-                </label>
-                <label>
-                  说明
-                  <Input.TextArea
-                    disabled={busy}
-                    required={mode === 'tools'}
-                    maxLength={mode === 'tools' ? 255 : 10000}
-                    autoSize={{ minRows: 2, maxRows: 5 }}
-                    value={description}
-                    onChange={event => {
-                      setDescription(event.target.value);
-                      setEditing(true);
-                    }}
-                  />
-                </label>
-                {mode === 'tools' ? (
-                  <>
+                <div
+                  className={`resource-tools-basics resource-tools-basics-${mode}`}
+                >
+                  <label>
+                    名称
+                    <Input
+                      disabled={busy}
+                      required
+                      maxLength={mode === 'tools' ? 64 : 255}
+                      value={name}
+                      onChange={event => {
+                        setName(event.target.value);
+                        setEditing(true);
+                      }}
+                    />
+                  </label>
+                  {mode === 'tools' && (
                     <label>
                       版本
                       <Input
@@ -916,6 +898,24 @@ export default function ResourceTools({
                         }}
                       />
                     </label>
+                  )}
+                  <label className="resource-tools-description">
+                    说明
+                    <Input.TextArea
+                      disabled={busy}
+                      required={mode === 'tools'}
+                      maxLength={mode === 'tools' ? 255 : 10000}
+                      autoSize={{ minRows: 2, maxRows: 5 }}
+                      value={description}
+                      onChange={event => {
+                        setDescription(event.target.value);
+                        setEditing(true);
+                      }}
+                    />
+                  </label>
+                </div>
+                {mode === 'tools' ? (
+                  <>
                     <HttpConfigForm
                       value={schema}
                       disabled={busy}
@@ -993,7 +993,7 @@ export default function ResourceTools({
                 </div>
               </form>
             )}
-            {drawerTab === 'test' && selected && (
+            {panelTab === 'test' && selected && (
               <>
                 <div className="resource-tools-form-intro">
                   <p>{selected.description || selected.content}</p>
@@ -1083,6 +1083,89 @@ export default function ResourceTools({
                     )}
                     {(mode === 'tools' || !!activeTool) && (
                       <>
+                        <div className="resource-tools-requestbar">
+                          {mode === 'tools' && (
+                            <span className="resource-tools-method">
+                              {(selected.method || 'HTTP').toUpperCase()}
+                            </span>
+                          )}
+                          <span className="resource-tools-endpoint">
+                            {mode === 'tools'
+                              ? selected.endPoint || '已保存的 HTTP 请求'
+                              : activeTool?.name}
+                          </span>
+                          <div className="resource-tools-actions">
+                            <Button
+                              type="primary"
+                              loading={busy}
+                              onClick={() => {
+                                if (!debugFormRef.current?.reportValidity())
+                                  return;
+                                void run(
+                                  async current => {
+                                    setResult('');
+                                    setResultFailed(false);
+                                    const args = parseArguments(debugInput);
+                                    const value = await http.post(
+                                      `${base}/${selected.id}/debug`,
+                                      mode === 'tools'
+                                        ? args
+                                        : { name: debugName, arguments: args },
+                                      { timeout: 300000 }
+                                    );
+                                    if (current()) {
+                                      setResult(pretty(value));
+                                      setResultFailed(
+                                        mode === 'mcp' && mcpResultFailed(value)
+                                      );
+                                    }
+                                  },
+                                  mode === 'mcp'
+                                    ? mcpCallFailure
+                                    : httpCallFailure
+                                );
+                              }}
+                            >
+                              运行测试
+                            </Button>
+                            {mode === 'tools' && (
+                              <>
+                                <Button
+                                  type="text"
+                                  disabled={busy}
+                                  onClick={exportTool}
+                                >
+                                  导出 JSON
+                                </Button>
+                                <Button
+                                  type="text"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    void run(
+                                      async current => {
+                                        setResult('');
+                                        setResultFailed(false);
+                                        const data = await http.get(
+                                          `${base}/${selected.id}/versions`
+                                        );
+                                        if (current()) {
+                                          setResult(pretty(data));
+                                          setResultFailed(false);
+                                        }
+                                      },
+                                      {
+                                        title: '工具版本记录读取失败',
+                                        recovery: '请重新读取版本记录。',
+                                      }
+                                    )
+                                  }
+                                >
+                                  版本记录
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
                         <form
                           ref={debugFormRef}
                           onSubmit={event => event.preventDefault()}
@@ -1122,75 +1205,15 @@ export default function ResourceTools({
                             )}
                           </p>
                         )}
-                        <div className="resource-tools-actions">
-                          <Button
-                            type="primary"
-                            loading={busy}
-                            onClick={() => {
-                              if (!debugFormRef.current?.reportValidity())
-                                return;
-                              void run(
-                                async current => {
-                                  setResult('');
-                                  setResultFailed(false);
-                                  const args = parseArguments(debugInput);
-                                  const value = await http.post(
-                                    `${base}/${selected.id}/debug`,
-                                    mode === 'tools'
-                                      ? args
-                                      : { name: debugName, arguments: args },
-                                    { timeout: 300000 }
-                                  );
-                                  if (current()) {
-                                    setResult(pretty(value));
-                                    setResultFailed(
-                                      mode === 'mcp' && mcpResultFailed(value)
-                                    );
-                                  }
-                                },
-                                mode === 'mcp'
-                                  ? mcpCallFailure
-                                  : httpCallFailure
-                              );
-                            }}
-                          >
-                            运行测试
-                          </Button>
-                          {mode === 'tools' && (
-                            <>
-                              <Button disabled={busy} onClick={exportTool}>
-                                导出 JSON
-                              </Button>
-                              <Button
-                                disabled={busy}
-                                onClick={() =>
-                                  void run(
-                                    async current => {
-                                      setResult('');
-                                      setResultFailed(false);
-                                      const data = await http.get(
-                                        `${base}/${selected.id}/versions`
-                                      );
-                                      if (current()) {
-                                        setResult(pretty(data));
-                                        setResultFailed(false);
-                                      }
-                                    },
-                                    {
-                                      title: '工具版本记录读取失败',
-                                      recovery: '请重新读取版本记录。',
-                                    }
-                                  )
-                                }
-                              >
-                                版本记录
-                              </Button>
-                            </>
-                          )}
-                        </div>
                       </>
                     )}
                   </>
+                )}
+                {!result && selected.status !== 0 && (
+                  <section className="resource-tools-result resource-tools-result-empty">
+                    <h3>调用结果</h3>
+                    <p>运行测试后，在此查看服务返回内容。</p>
+                  </section>
                 )}
                 {result && (
                   <section className="resource-tools-result">
@@ -1210,7 +1233,7 @@ export default function ResourceTools({
             )}
           </>
         )}
-      </Drawer>
+      </Modal>
       <Modal
         title="删除资源"
         open={!!deleteTarget}
