@@ -32,6 +32,8 @@ import {
   resourceFailure,
 } from '@/pages/resource-management/resource-tools/resource-errors';
 import '@/pages/resource-management/resource-tools/style.css';
+import { SchemaFields } from '@/pages/resource-management/resource-tools/schema-fields';
+import { httpInputSchema } from '@/pages/resource-management/resource-tools/schema-form-model';
 
 function toolParameters(value: string): string {
   try {
@@ -61,6 +63,7 @@ export default function AddPlugin(): ReactElement {
   const [result, setResult] = useState('');
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
+  const debugFormRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (!info.open) return;
     const token = ++request.current;
@@ -97,7 +100,7 @@ export default function AddPlugin(): ReactElement {
     resetBeforeAndWillNode();
   };
   const debug = async (): Promise<void> => {
-    if (!selected || busy) return;
+    if (!selected || busy || !debugFormRef.current?.reportValidity()) return;
     const token = request.current;
     setBusy(true);
     setError('');
@@ -167,18 +170,32 @@ export default function AddPlugin(): ReactElement {
               description={error}
             />
           )}
-          <label>
-            请求参数（path / query / header / body）
-            <Input.TextArea
-              className="resource-tools-code"
-              rows={12}
-              spellCheck={false}
-              disabled={busy}
+          <form ref={debugFormRef} onSubmit={event => event.preventDefault()}>
+            <SchemaFields
+              schema={httpInputSchema(selected)}
               value={input}
-              onChange={event => setInput(event.target.value)}
+              onChange={setInput}
+              disabled={busy}
             />
-          </label>
-          <p className="resource-tools-section-note">{inputHint}</p>
+            <details className="resource-tools-schema">
+              <summary>高级参数</summary>
+              <label>
+                参数原文
+                <Input.TextArea
+                  className="resource-tools-code"
+                  disabled={busy}
+                  value={input}
+                  onChange={event => setInput(event.target.value)}
+                />
+              </label>
+            </details>
+          </form>
+          <p className="resource-tools-section-note">
+            {inputHint.replace(
+              '修改后的 JSON 将按原样提交',
+              '修改后按当前填写内容提交'
+            )}
+          </p>
           <Button type="primary" loading={busy} onClick={() => void debug()}>
             运行测试
           </Button>

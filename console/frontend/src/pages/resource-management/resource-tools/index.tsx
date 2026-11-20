@@ -36,6 +36,9 @@ import {
   type JsonObject,
 } from './mcp-tools';
 import './style.css';
+import HttpConfigForm from './http-config-form';
+import { SchemaFields } from './schema-fields';
+import { httpInputSchema } from './schema-form-model';
 import { httpTestTemplate } from './http-test-template';
 import {
   httpCallFailure,
@@ -65,6 +68,8 @@ type Resource = {
   status?: number;
   parameters?: JsonObject;
   configured?: boolean;
+  serverUrl?: string;
+  serverUrlMasked?: boolean;
   connectionStatus?: string;
   connectionMessage?: string;
   tools?: { servers?: { tools?: import('./mcp-tools').McpTool[] }[] };
@@ -83,7 +88,7 @@ type Catalog = {
 const initialSchema = {
   openapi: '3.0.3',
   info: { title: 'HTTP Tool', version: '1.0.0' },
-  servers: [{ url: 'https://example.com' }],
+  servers: [{ url: '' }],
   paths: {
     '/api': {
       get: {
@@ -141,6 +146,7 @@ export default function ResourceTools({
   const [catalogError, setCatalogError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Resource | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const debugFormRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const epoch = useRef(0);
   const detailRequest = useRef(0);
@@ -266,7 +272,7 @@ export default function ResourceTools({
       pretty(row?.temporaryData?.schema || row?.schema || initialSchema)
     );
     setVersion(row?.temporaryData?.version || row?.version || 'V1.0');
-    setServerUrl('');
+    setServerUrl(row?.serverUrl || '');
     setParameters(pretty(row?.parameters || {}));
     const tools = mcpTools(row);
     const template = httpTestTemplate(row || {});
@@ -865,7 +871,7 @@ export default function ResourceTools({
                   <p>
                     {mode === 'mcp'
                       ? '保存时发现服务工具，连接地址与凭据由服务端保管。'
-                      : '使用 OpenAPI 3 文档定义请求。发布后可被 Agent 和工作流引用。'}
+                      : '填写请求地址和参数，发布后可被 Agent 和工作流引用。'}
                   </p>
                 </div>
                 <label>
@@ -909,25 +915,14 @@ export default function ResourceTools({
                         }}
                       />
                     </label>
-                    <label>
-                      OpenAPI 3 文档
-                      <Input.TextArea
-                        disabled={busy}
-                        className="resource-tools-code"
-                        rows={12}
-                        required
-                        spellCheck={false}
-                        value={schema}
-                        onChange={event => {
-                          setSchema(event.target.value);
-                          setEditing(true);
-                        }}
-                      />
-                    </label>
-                    <p className="resource-tool-hint">
-                      如需鉴权，在文档的 securitySchemes
-                      中配置。已有凭据显示为掩码，保持掩码即可保留。
-                    </p>
+                    <HttpConfigForm
+                      value={schema}
+                      disabled={busy}
+                      onChange={value => {
+                        setSchema(value);
+                        setEditing(true);
+                      }}
+                    />
                   </>
                 ) : (
                   <>
@@ -949,24 +944,36 @@ export default function ResourceTools({
                         }}
                       />
                     </label>
-                    <label>
-                      环境参数（JSON）
-                      <Input.TextArea
-                        disabled={busy}
-                        className="resource-tools-code resource-tools-code-short"
-                        rows={7}
-                        spellCheck={false}
+                    {selected?.serverUrlMasked && (
+                      <p className="resource-tool-hint">
+                        地址中的凭据已隐藏。保留原值可继续使用；更换连接请填写完整地址。
+                      </p>
+                    )}
+                    <details
+                      className="resource-field-optional"
+                      open={parameters !== '{}'}
+                    >
+                      <summary>连接参数（可选）</summary>
+                      <p className="resource-tool-hint">
+                        服务要求额外授权时填写，已有凭据保持原值即可保留。
+                      </p>
+                      <SchemaFields
+                        title="连接参数"
+                        schema={{
+                          type: 'object',
+                          additionalProperties: {
+                            type: 'string',
+                            format: 'password',
+                          },
+                        }}
                         value={parameters}
-                        onChange={event => {
-                          setParameters(event.target.value);
+                        disabled={busy}
+                        onChange={value => {
+                          setParameters(value);
                           setEditing(true);
                         }}
                       />
-                    </label>
-                    <p className="resource-tool-hint">
-                      使用托管 MCP
-                      服务时填写文本键值参数。已有凭据显示为掩码，保留掩码即可保持原值。
-                    </p>
+                    </details>
                   </>
                 )}
                 <div className="resource-tools-save">
@@ -1074,31 +1081,51 @@ export default function ResourceTools({
                     )}
                     {(mode === 'tools' || !!activeTool) && (
                       <>
-                        <label>
-                          {mode === 'tools'
-                            ? '请求参数（path / query / header / body）'
-                            : '工具参数（JSON）'}
-                          <Input.TextArea
-                            disabled={busy}
-                            className="resource-tools-code"
-                            rows={12}
-                            value={debugInput}
-                            spellCheck={false}
-                            onChange={event =>
-                              setDebugInput(event.target.value)
+                        <form
+                          ref={debugFormRef}
+                          onSubmit={event => event.preventDefault()}
+                        >
+                          <SchemaFields
+                            schema={
+                              mode === 'tools'
+                                ? httpInputSchema(selected)
+                                : activeTool?.inputSchema || { type: 'object' }
                             }
+                            value={debugInput}
+                            onChange={setDebugInput}
+                            disabled={busy}
                           />
-                        </label>
+                          <details className="resource-tools-schema">
+                            <summary>高级参数</summary>
+                            <label>
+                              参数原文
+                              <Input.TextArea
+                                disabled={busy}
+                                className="resource-tools-code"
+                                rows={8}
+                                value={debugInput}
+                                onChange={event =>
+                                  setDebugInput(event.target.value)
+                                }
+                              />
+                            </label>
+                          </details>
+                        </form>
                         {debugHint && (
                           <p className="resource-tools-section-note">
-                            {debugHint}
+                            {debugHint.replace(
+                              '修改后的 JSON 将按原样提交',
+                              '修改后按当前填写内容提交'
+                            )}
                           </p>
                         )}
                         <div className="resource-tools-actions">
                           <Button
                             type="primary"
                             loading={busy}
-                            onClick={() =>
+                            onClick={() => {
+                              if (!debugFormRef.current?.reportValidity())
+                                return;
                               void run(
                                 async current => {
                                   setResult('');
@@ -1121,8 +1148,8 @@ export default function ResourceTools({
                                 mode === 'mcp'
                                   ? mcpCallFailure
                                   : httpCallFailure
-                              )
-                            }
+                              );
+                            }}
                           >
                             运行测试
                           </Button>

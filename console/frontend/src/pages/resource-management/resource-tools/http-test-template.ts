@@ -62,6 +62,19 @@ export function httpTestTemplate(tool: HttpTool = {}): Template {
       typeof value === 'object' &&
       Object.values(value as JsonObject).some(containsMask));
 
+  const hasDefault = (
+    value: unknown,
+    ancestors = new Set<JsonObject>()
+  ): boolean => {
+    const schema = resolve(value);
+    if ('default' in schema && !containsMask(schema.default)) return true;
+    if (ancestors.has(schema)) return false;
+    const next = new Set(ancestors).add(schema);
+    return Object.values(object(schema.properties)).some(child =>
+      hasDefault(child, next)
+    );
+  };
+
   // Unlike MCP examples, HTTP tests must not invent executable required values.
   const defaults = (
     value: unknown,
@@ -72,6 +85,8 @@ export function httpTestTemplate(tool: HttpTool = {}): Template {
     const schema = resolve(value);
     if ('default' in schema && !containsMask(schema.default))
       return schemaExample(schema);
+    // A nested required container only applies after its optional parent exists.
+    if (!required && !hasDefault(schema)) return undefined;
     if (ancestors.has(schema)) {
       if (required) missing.push(path);
       return undefined;
@@ -91,6 +106,8 @@ export function httpTestTemplate(tool: HttpTool = {}): Template {
       })
     );
     if (Object.keys(result).length) return result;
+    if (required && (schema.type === 'object' || schema.properties)) return {};
+    if (required && schema.type === 'array') return [];
     // Absent optional objects do not require their nested fields yet.
     if (!required) missing.splice(localMissing);
     else if (missing.length === localMissing) missing.push(path);

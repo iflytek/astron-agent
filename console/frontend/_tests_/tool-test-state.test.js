@@ -155,6 +155,9 @@ function fixture(mode) {
       './mcp-tools': helpers,
       './http-test-template': templates,
       './resource-errors': errors,
+      './http-config-form': { default: 'HttpConfigForm' },
+      './schema-fields': { SchemaFields: 'SchemaFields' },
+      './schema-form-model': { httpInputSchema: () => ({ type: 'object' }) },
     }
   ).default;
   let tree;
@@ -163,6 +166,11 @@ function fixture(mode) {
     effects = [];
     tree = Component({ mode });
     effects.forEach(effect => effect());
+    nodes(tree)
+      .filter(node => node.type === 'form' && node.props.ref)
+      .forEach(node => {
+        node.props.ref.current = { reportValidity: () => true };
+      });
     return tree;
   }
   const all = () => nodes(tree);

@@ -281,3 +281,75 @@ test('required values without defaults are named, masked auth and cyclic refs ar
   assert.match(template.hint, /query.count/);
   assert.doesNotMatch(template.input, /example-only|\*\*\*\*\*\*|token/);
 });
+
+test('required empty containers are submitted while absent optional containers remain omitted', () => {
+  for (const field of [
+    { type: 'object', properties: {} },
+    { type: 'object', properties: { optional: { type: 'string' } } },
+    { type: 'array', items: { type: 'string' } },
+  ]) {
+    for (const required of [true, false]) {
+      const tool = {
+        schema: {
+          servers: [{ url: 'https://example.com' }],
+          paths: {
+            '/run': {
+              post: {
+                requestBody: {
+                  required,
+                  content: { 'application/json': { schema: field } },
+                },
+              },
+            },
+          },
+        },
+      };
+      const input = JSON.parse(httpTestTemplate(tool).input);
+      if (required)
+        assert.deepEqual(input.body, field.type === 'array' ? [] : {});
+      else assert.equal('body' in input, false);
+    }
+  }
+});
+
+test('required children cannot activate absent optional HTTP parent containers', () => {
+  for (const nested of [
+    { type: 'object', properties: {} },
+    { type: 'array', items: { type: 'string' } },
+  ]) {
+    const parent = {
+      type: 'object',
+      required: ['nested'],
+      properties: { nested },
+    };
+    const tool = {
+      schema: {
+        servers: [{ url: 'https://example.com' }],
+        paths: {
+          '/run': {
+            post: {
+              parameters: [{ name: 'options', in: 'query', schema: parent }],
+              requestBody: {
+                required: false,
+                content: { 'application/json': { schema: parent } },
+              },
+            },
+          },
+        },
+      },
+    };
+    assert.deepEqual(JSON.parse(httpTestTemplate(tool).input), {
+      path: {},
+      query: {},
+      header: {},
+    });
+    parent.properties.flag = { type: 'boolean', default: false };
+    const withDefault = JSON.parse(httpTestTemplate(tool).input);
+    const activated = {
+      nested: nested.type === 'array' ? [] : {},
+      flag: false,
+    };
+    assert.deepEqual(withDefault.body, activated);
+    assert.deepEqual(withDefault.query.options, activated);
+  }
+});

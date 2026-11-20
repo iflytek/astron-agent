@@ -401,3 +401,166 @@
     flex-basis: 100%;
   }
 }
+
+.resource-schema-fields {
+  margin: 20px 0;
+}
+.resource-field-group {
+  min-width: 0;
+  margin: 18px 0;
+  padding: 0;
+  border: 0;
+}
+.resource-field-group > legend {
+  width: auto;
+  margin-bottom: 10px;
+  color: #18243d;
+  font-size: 14px;
+  font-weight: 600;
+}
+.resource-field-group .resource-field-group {
+  padding-left: 14px;
+  border-left: 1px solid #dfe6f1;
+}
+.resource-field,
+.resource-config-section {
+  min-width: 0;
+  margin: 16px 0;
+}
+.resource-tools-drawer .resource-field label,
+.workflow-mcp-detail .resource-field label,
+.resource-field label {
+  display: block;
+  margin: 0 0 7px;
+  font-size: 13px;
+}
+.resource-field small,
+.resource-field-group > small {
+  display: block;
+  margin-top: 6px;
+  color: #526580;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.resource-schema-fields input:not([type='checkbox']),
+.resource-schema-fields select,
+.resource-schema-fields textarea,
+.resource-config-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid #c5cede;
+  border-radius: 6px;
+  color: #18243d;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+.resource-schema-fields textarea {
+  min-height: 100px;
+}
+.resource-schema-fields input:focus-visible,
+.resource-schema-fields select:focus-visible,
+.resource-schema-fields textarea:focus-visible,
+.resource-config-select:focus-visible {
+  outline: 2px solid #315ff4;
+  outline-offset: 2px;
+}
+.resource-schema-fields input::placeholder {
+  color: #607089;
+  opacity: 1;
+}
+.resource-field-required {
+  color: #b42318;
+}
+.resource-field-optional {
+  margin: 16px 0;
+}
+.resource-field-optional > summary {
+  padding: 6px 0;
+  color: #3159d9;
+  cursor: pointer;
+  font-size: 13px;
+}
+.resource-field-link {
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #3159d9;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.resource-field-link:disabled {
+  color: #607089;
+  cursor: default;
+}
+.resource-field-array-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.resource-field-array-row > .resource-field,
+.resource-field-array-row > .resource-field-group {
+  flex: 1;
+}
+.resource-field-array-row > button {
+  flex: 0 0 auto;
+  margin-top: 42px;
+}
+.resource-field-add {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+.resource-field-add > input {
+  flex: 1;
+  width: auto !important;
+}
+.resource-tools-drawer .resource-field-add > label {
+  margin: 0;
+}
+.resource-config-section > h3 {
+  margin: 20px 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.resource-config-grid,
+.resource-config-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.resource-config-grid > label,
+.resource-config-row > label {
+  min-width: 0;
+}
+.resource-tools-drawer .resource-config-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+@media (max-width: 650px) {
+  .resource-config-grid,
+  .resource-config-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .resource-field-array-row {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .resource-field-array-row > .resource-field,
+  .resource-field-array-row > .resource-field-group {
+    flex-basis: 100%;
+  }
+  .resource-field-array-row > button {
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+}

@@ -93,7 +93,7 @@ Compose 使用主 `docker/astronAgent/docker-compose.yaml`。RPA 资源管理和
 
 Compose 为 Link 注入随 `CORE_AITOOLS_PORT` 变化的 `AITOOLS_BASE_URL`，显式覆盖请使用不带结尾斜杠的服务地址；Helm 的 `coreLink.env.aitoolsBaseUrl` 留空时自动使用本次 release 的 AI Tools Service 名和端口。部署同时生成该地址下 `smarttts`、`image_generate`、`image_understanding`、`ocr` 四条 `/aitools/v1/` 精确路径的私网许可，不开放整个主机或网段。已有自定义私网调用可显式配置 `PRIVATE_ENDPOINT_ALLOW_LIST`（Helm：`coreLink.env.privateEndpointAllowList`），该配置会整体替代自动列表；仍需保留所用内置工具的精确地址。
 
-MCP 连接在 Console 保持稳定资源身份，按授权后的服务地址调用 Link 官方 MCP SDK；编辑不另建无消费者的上游注册。运行地址与参数凭据不回传客户端。详情及工作流目录返回每个连接的发现状态，一个连接失败不会隐藏其他资源。HTTP 工具的显式版本引用保留原版本；HTTP 与 MCP 删除都会检查 Agent、工作流当前配置和发布版本，存在引用时拒绝删除。
+MCP 连接在 Console 保持稳定资源身份，按授权后的服务地址调用 Link 官方 MCP SDK；编辑不另建无消费者的上游注册。普通服务 URL 可安全回显，地址中的凭据及非标准短链路径使用掩码；原样提交掩码保留真实连接，参数凭据不回传客户端。详情及工作流目录返回每个连接的发现状态，一个连接失败不会隐藏其他资源。HTTP 工具的显式版本引用保留原版本；HTTP 与 MCP 删除都会检查 Agent、工作流当前配置和发布版本，存在引用时拒绝删除。
 
 工作流直接 MCP 节点由 Core Workflow 经 `MCP_BASE_URL` 调用 Link。Compose 默认使用 `http://core-link:${CORE_LINK_PORT:-18888}`，可用进程环境的 `MCP_BASE_URL` 覆盖；Helm 的 `coreWorkflow.env.mcpBaseUrl` 留空时自动采用本次 release 的 Core Link Service 名和端口，显式值优先。这些部署环境变量优先于挂载的旧 `config.env`；独立本机开发仍可使用配置文件中的 localhost 地址。
 

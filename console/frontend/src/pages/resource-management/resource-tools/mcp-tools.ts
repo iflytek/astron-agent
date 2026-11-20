@@ -8,6 +8,7 @@ export type McpTool = {
 /** Preserve server-owned JSON Schema and falsy defaults when preparing a test. */
 export function schemaExample(schema: JsonObject = {}): unknown {
   if ('default' in schema) return schema.default;
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
   if (schema.type === 'object' || schema.properties) {
     return Object.fromEntries(
       Object.entries((schema.properties || {}) as Record<string, JsonObject>)
@@ -20,7 +21,6 @@ export function schemaExample(schema: JsonObject = {}): unknown {
     );
   }
   if (schema.type === 'array') return [];
-  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
   if (schema.type === 'boolean') return false;
   if (schema.type === 'integer' || schema.type === 'number') return 0;
   if (schema.type === 'null') return null;

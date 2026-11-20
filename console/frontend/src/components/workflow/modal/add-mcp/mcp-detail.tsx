@@ -17,6 +17,7 @@ import {
   type McpTool,
 } from '@/pages/resource-management/resource-tools/mcp-tools';
 import '@/pages/resource-management/resource-tools/style.css';
+import { SchemaFields } from '@/pages/resource-management/resource-tools/schema-fields';
 type Detail = {
   name?: string;
   description?: string;
@@ -41,6 +42,7 @@ export function MCPDetail({
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const request = useRef(0);
+  const debugFormRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     const token = ++request.current;
     setLoading(true);
@@ -86,7 +88,13 @@ export function MCPDetail({
   );
   const tool = tools.find(item => item.name === toolName);
   const debug = async (): Promise<void> => {
-    if (busy || !tool || !currentTool.id) return;
+    if (
+      busy ||
+      !tool ||
+      !currentTool.id ||
+      !debugFormRef.current?.reportValidity()
+    )
+      return;
     const token = request.current;
     setBusy(true);
     setError('');
@@ -187,17 +195,29 @@ export function MCPDetail({
                 <summary>查看输入参数定义</summary>
                 <pre>{pretty(tool?.inputSchema || {})}</pre>
               </details>
-              <label>
-                工具参数（JSON）
-                <Input.TextArea
-                  className="resource-tools-code"
-                  rows={12}
-                  spellCheck={false}
+              <form
+                ref={debugFormRef}
+                onSubmit={event => event.preventDefault()}
+              >
+                <SchemaFields
+                  schema={tool?.inputSchema || { type: 'object' }}
                   value={input}
+                  onChange={setInput}
                   disabled={busy}
-                  onChange={event => setInput(event.target.value)}
                 />
-              </label>
+                <details className="resource-tools-schema">
+                  <summary>高级参数</summary>
+                  <label>
+                    参数原文
+                    <Input.TextArea
+                      className="resource-tools-code"
+                      disabled={busy}
+                      value={input}
+                      onChange={event => setInput(event.target.value)}
+                    />
+                  </label>
+                </details>
+              </form>
               <Button
                 type="primary"
                 loading={busy}
