@@ -172,6 +172,7 @@ export default function AddPlugin(): ReactElement {
           )}
           <form ref={debugFormRef} onSubmit={event => event.preventDefault()}>
             <SchemaFields
+              key={`${spaceId}:${selected.id}:${selected.version}`}
               schema={httpInputSchema(selected)}
               value={input}
               onChange={setInput}

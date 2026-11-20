@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import ts from 'typescript';
+import React from 'react';
+import * as jsxRuntime from 'react/jsx-runtime';
+import { act, create } from 'react-test-renderer';
 function load(name, mocks = {}) {
   const { outputText } = ts.transpileModule(
     readFileSync(
@@ -30,31 +33,73 @@ function load(name, mocks = {}) {
   );
   return module.exports;
 }
-const helpers = load('mcp-tools.ts');
 const model = load('schema-form-model.ts');
-let id = 0;
-const jsx = (type, props) =>
-  typeof type === 'function' ? type(props) : { type, props };
+const helpers = load('mcp-tools.ts', { './schema-form-model': model });
 const { SchemaFields } = load('schema-fields.tsx', {
-  react: { useId: () => `field-${id++}` },
-  'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
+  react: React,
+  'react/jsx-runtime': jsxRuntime,
   './mcp-tools': helpers,
   './schema-form-model': model,
 });
-const nodes = node =>
-  Array.isArray(node)
-    ? node.flatMap(nodes)
-    : node && typeof node === 'object'
-      ? [node, ...nodes(node.props?.children)]
-      : [];
+const renderers = [];
+test.afterEach(() =>
+  act(() => renderers.splice(0).forEach(renderer => renderer.unmount()))
+);
 function fields(schema, value = {}) {
   let result = value;
-  const tree = SchemaFields({
-    schema,
-    value: JSON.stringify(value),
-    onChange: next => (result = JSON.parse(next)),
+  let setInput;
+  function App() {
+    const [input, set] = React.useState({
+      schema,
+      value: JSON.stringify(value),
+      resource: 'initial',
+    });
+    setInput = set;
+    result = JSON.parse(input.value);
+    return React.createElement(SchemaFields, {
+      key: input.resource,
+      schema: input.schema,
+      value: input.value,
+      onChange: next =>
+        set(previous =>
+          previous.value === next ? previous : { ...previous, value: next }
+        ),
+    });
+  }
+  let renderer;
+  act(() => {
+    renderer = create(React.createElement(App));
   });
-  return { nodes: nodes(tree), value: () => result };
+  renderers.push(renderer);
+  const app = {
+    get nodes() {
+      return renderer.root
+        .findAll(node => typeof node.type === 'string')
+        .map(node => ({
+          type: node.type,
+          props: Object.fromEntries(
+            Object.entries(node.props).map(([key, prop]) => [
+              key,
+              typeof prop === 'function' && key.startsWith('on')
+                ? (...args) => {
+                    let returned;
+                    act(() => {
+                      returned = prop(...args);
+                    });
+                    return returned;
+                  }
+                : prop,
+            ])
+          ),
+        }));
+    },
+    value: () => result,
+    render: (next = result, nextSchema = schema, resource = 'initial') =>
+      act(() =>
+        setInput({ schema: nextSchema, value: JSON.stringify(next), resource })
+      ),
+  };
+  return app;
 }
 const text = node =>
   Array.isArray(node)
@@ -267,4 +312,287 @@ test('opening optional containers initializes only their required child containe
     },
   };
   assert.deepEqual(model.fieldDefault(definition), { nested: { values: [] } });
+});
+
+test('MCP text/list union uses typed controls and restores all list items across type switches', () => {
+  const app = fields(
+    {
+      type: 'object',
+      required: ['repoName'],
+      properties: {
+        repoName: {
+          description: 'A repository or repositories.',
+          anyOf: [
+            { type: 'string' },
+            { type: 'array', items: { type: 'string' } },
+          ],
+        },
+      },
+    },
+    { repoName: '' }
+  );
+  assert.equal(control(app, 'repoName').type, 'input');
+  assert.equal(control(app, 'repoName').props.required, true);
+  assert.equal(
+    app.nodes.some(node => node.type === 'textarea'),
+    false
+  );
+  assert.equal(text(control(app, 'repoName类型').props.children), '文本列表');
+  control(app, 'repoName').props.onChange({
+    target: { value: 'langchain-ai/deepagents' },
+  });
+  app.render();
+  control(app, 'repoName类型').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), { repoName: ['langchain-ai/deepagents'] });
+  app.render();
+  app.nodes
+    .find(
+      node => node.type === 'button' && text(node.props.children) === '添加一项'
+    )
+    .props.onClick();
+  app.render();
+  control(app, '第 2 项').props.onChange({
+    target: { value: 'iflytek/astron-agent' },
+  });
+  app.render();
+  control(app, 'repoName类型').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { repoName: 'langchain-ai/deepagents' });
+  app.render();
+  control(app, 'repoName类型').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), {
+    repoName: ['langchain-ai/deepagents', 'iflytek/astron-agent'],
+  });
+  app.render();
+  assert.equal(control(app, '第 2 项').props.value, 'iflytek/astron-agent');
+  assert.equal(
+    app.nodes.some(node => node.type === 'textarea'),
+    false
+  );
+});
+
+test('oneOf local references, typed defaults and nullable values choose corresponding editors', () => {
+  const schema = {
+    type: 'object',
+    required: ['choice'],
+    properties: {
+      choice: { oneOf: [{ type: 'null' }, { $ref: '#/$defs/List' }] },
+    },
+    $defs: {
+      List: { type: 'array', title: '仓库列表', items: { type: 'string' } },
+    },
+  };
+  const app = fields(schema, { choice: ['a', 'b'] });
+  assert.equal(control(app, 'choice类型').props.value, 1);
+  assert.equal(control(app, '第 2 项').props.value, 'b');
+  control(app, 'choice类型').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { choice: null });
+  app.render();
+  assert.equal(control(app, 'choice').props.value, 'null');
+  control(app, 'choice类型').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), { choice: ['a', 'b'] });
+  assert.deepEqual(model.fieldDefault(schema), { choice: [] });
+  assert.deepEqual(helpers.schemaExample(schema), { choice: [] });
+  assert.deepEqual(
+    model.fieldDefault({
+      anyOf: [{ type: 'string' }, { type: 'array' }],
+      default: ['saved'],
+    }),
+    ['saved']
+  );
+});
+
+test('type arrays retain optional omission and numeric editor selection while empty', () => {
+  const app = fields({
+    type: 'object',
+    properties: { optional: { type: ['string', 'number', 'null'] } },
+  });
+  assert.deepEqual(app.value(), {});
+  control(app, 'optional类型').props.onChange({ target: { value: '1' } });
+  app.render();
+  assert.equal(control(app, 'optional').props.type, 'number');
+  assert.deepEqual(app.value(), {});
+  control(app, 'optional').props.onChange({
+    target: { value: '0', valueAsNumber: 0 },
+  });
+  app.render();
+  assert.deepEqual(app.value(), { optional: 0 });
+  // Editing the advanced value selects its actual type rather than coercing it.
+  app.render({ optional: null });
+  assert.equal(control(app, 'optional类型').props.value, 2);
+  assert.equal(control(app, 'optional').props.value, 'null');
+});
+
+test('union branch drafts stay isolated by field and use the latest advanced edits', () => {
+  const union = {
+    anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+  };
+  const app = fields(
+    {
+      type: 'object',
+      required: ['left', 'right'],
+      properties: { left: union, right: union },
+    },
+    { left: 'left', right: 'right' }
+  );
+  control(app, 'left类型').props.onChange({ target: { value: '1' } });
+  app.render();
+  control(app, 'right类型').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), { left: ['left'], right: ['right'] });
+  app.render({ left: ['latest', 'list'], right: ['right'] });
+  control(app, 'left类型').props.onChange({ target: { value: '0' } });
+  app.render();
+  control(app, 'left类型').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), { left: ['latest', 'list'], right: ['right'] });
+});
+
+test('union defaults select their matching type and reference recursion remains bounded', () => {
+  const choice = {
+    anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+    default: ['a'],
+  };
+  const app = fields({ type: 'object', properties: { choice } });
+  assert.equal(control(app, 'choice类型').props.value, 1);
+  assert.deepEqual(
+    helpers.schemaExample({ type: 'object', properties: { choice } }),
+    { choice: ['a'] }
+  );
+  assert.deepEqual(
+    model.fieldDefault({
+      anyOf: [{ type: 'string' }, { type: 'array', default: [] }],
+    }),
+    []
+  );
+  const recursive = {
+    $defs: { Recursive: { anyOf: [{ $ref: '#/$defs/Recursive' }] } },
+    type: 'object',
+    required: ['choice'],
+    properties: { choice: { $ref: '#/$defs/Recursive' } },
+  };
+  assert.doesNotThrow(() => helpers.schemaExample(recursive));
+  assert.doesNotThrow(() => fields(recursive, { choice: '' }));
+});
+
+test('optional union type and draft survive moving into optional fields and an unchanged parent value', () => {
+  const app = fields(
+    {
+      type: 'object',
+      properties: {
+        choice: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+      },
+    },
+    { choice: 'keep me' }
+  );
+  control(app, 'choice类型').props.onChange({ target: { value: '1' } });
+  assert.deepEqual(app.value(), {});
+  assert.equal(control(app, 'choice类型').props.value, 1);
+  assert.equal(control(app, 'choice').props.type, 'number');
+  // Its scalar value stays absent, but the editor choice is still a real UI update.
+  control(app, 'choice类型').props.onChange({ target: { value: '1' } });
+  assert.equal(control(app, 'choice').props.type, 'number');
+  control(app, 'choice类型').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { choice: 'keep me' });
+});
+
+test('array union drafts follow stable row identity after deleting an earlier row', () => {
+  const app = fields(
+    {
+      type: 'object',
+      required: ['items'],
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            anyOf: [
+              { type: 'string' },
+              { type: 'array', items: { type: 'string' } },
+            ],
+          },
+        },
+      },
+    },
+    { items: ['first', 'second'] }
+  );
+  control(app, '第 1 项类型').props.onChange({ target: { value: '1' } });
+  control(app, '第 2 项类型').props.onChange({ target: { value: '1' } });
+  const outerRemove = app.nodes.filter(
+    node =>
+      node.type === 'button' && text(node.props.children) === '移除第 1 项'
+  )[1];
+  outerRemove.props.onClick();
+  assert.deepEqual(app.value(), { items: [['second']] });
+  control(app, '第 1 项类型').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { items: ['second'] });
+});
+
+test('nested inactive union drafts survive outer branch unmounts', () => {
+  const app = fields(
+    {
+      type: 'object',
+      required: ['outer'],
+      properties: {
+        outer: {
+          anyOf: [
+            {
+              type: 'object',
+              required: ['inner'],
+              properties: {
+                inner: {
+                  anyOf: [
+                    { type: 'string' },
+                    { type: 'array', items: { type: 'string' } },
+                  ],
+                },
+              },
+            },
+            { type: 'string' },
+          ],
+        },
+      },
+    },
+    { outer: { inner: 'inner-text' } }
+  );
+  control(app, 'inner类型').props.onChange({ target: { value: '1' } });
+  control(app, '第 1 项').props.onChange({
+    target: { value: 'new-list-text' },
+  });
+  control(app, 'outer类型').props.onChange({ target: { value: '1' } });
+  control(app, 'outer类型').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { outer: { inner: ['new-list-text'] } });
+  control(app, 'inner类型').props.onChange({ target: { value: '0' } });
+  assert.deepEqual(app.value(), { outer: { inner: 'inner-text' } });
+});
+
+test('raw value, schema and resource changes isolate inactive union drafts', () => {
+  const schema = {
+    type: 'object',
+    required: ['choice'],
+    properties: {
+      choice: {
+        anyOf: [
+          { type: 'string' },
+          { type: 'array', items: { type: 'string' } },
+        ],
+      },
+    },
+  };
+  for (const reset of ['raw', 'schema', 'resource']) {
+    const app = fields(schema, { choice: 'old-text' });
+    control(app, 'choice类型').props.onChange({ target: { value: '1' } });
+    control(app, '第 1 项').props.onChange({
+      target: { value: 'current-list' },
+    });
+    app.render(
+      { choice: [reset === 'raw' ? 'new-list' : 'current-list'] },
+      reset === 'schema'
+        ? { ...schema, description: 'New definition' }
+        : schema,
+      reset === 'resource' ? 'another-resource' : 'initial'
+    );
+    control(app, 'choice类型').props.onChange({ target: { value: '0' } });
+    assert.deepEqual(
+      app.value(),
+      { choice: reset === 'raw' ? 'new-list' : 'current-list' },
+      reset
+    );
+  }
 });

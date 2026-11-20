@@ -200,6 +200,7 @@ export function MCPDetail({
                 onSubmit={event => event.preventDefault()}
               >
                 <SchemaFields
+                  key={`${currentTool.id}:${tool?.name ?? ''}`}
                   schema={tool?.inputSchema || { type: 'object' }}
                   value={input}
                   onChange={setInput}
