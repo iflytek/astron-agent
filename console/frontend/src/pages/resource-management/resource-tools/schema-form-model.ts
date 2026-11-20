@@ -136,9 +136,26 @@ export function updateProperty(
 }
 
 /** Only explicit defaults are initial values; optional fields remain absent. */
-export function fieldDefault(schema: JsonObject): unknown {
+export function fieldDefault(
+  definition: JsonObject,
+  root = definition,
+  depth = 0
+): unknown {
+  if (depth > 12) return undefined;
+  const schema = resolveField(definition, root);
   if ('default' in schema && schema.default !== '******') return schema.default;
-  if (schema.type === 'object' || schema.properties) return {};
+  if (Array.isArray(schema.enum) && schema.enum.length) return schema.enum[0];
+  if (schema.type === 'object' || schema.properties) {
+    const required = Array.isArray(schema.required) ? schema.required : [];
+    return Object.fromEntries(
+      Object.entries(asObject(schema.properties)).flatMap(([key, child]) => {
+        const field = resolveField(child, root);
+        if (!required.includes(key) && !('default' in field)) return [];
+        const value = fieldDefault(field, root, depth + 1);
+        return value === undefined ? [] : [[key, value]];
+      })
+    );
+  }
   if (schema.type === 'array') return [];
   return undefined;
 }

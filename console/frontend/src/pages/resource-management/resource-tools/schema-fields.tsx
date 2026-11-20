@@ -126,7 +126,11 @@ function Field({
             type="button"
             className="resource-field-link"
             disabled={disabled}
-            onClick={() => onChange(type === 'array' ? [] : {})}
+            onClick={() =>
+              onChange(
+                fieldDefault(schema, root) ?? (type === 'array' ? [] : {})
+              )
+            }
           >
             填写{title}
           </button>
@@ -221,7 +225,7 @@ function Field({
               onClick={() =>
                 onChange([
                   ...(Array.isArray(value) ? value : []),
-                  fieldDefault(resolveField(schema.items, root)) ?? '',
+                  fieldDefault(resolveField(schema.items, root), root) ?? '',
                 ])
               }
             >

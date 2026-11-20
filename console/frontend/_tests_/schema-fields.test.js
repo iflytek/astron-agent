@@ -222,3 +222,49 @@ test('structured enum selects preserve object and array values rather than rende
     assert.deepEqual(app.value(), { choice: choices[1] });
   }
 });
+
+test('opening optional containers initializes only their required child containers', () => {
+  for (const nested of [
+    { type: 'object', properties: {} },
+    { type: 'array', items: { type: 'string' } },
+  ]) {
+    const schema = {
+      type: 'object',
+      properties: {
+        body: {
+          type: 'object',
+          title: '请求内容',
+          required: ['nested'],
+          properties: { nested, unused: { type: 'object' } },
+        },
+      },
+    };
+    const app = fields(schema, {});
+    const button = app.nodes.find(
+      node =>
+        node.type === 'button' && text(node.props.children) === '填写请求内容'
+    );
+    assert.ok(button);
+    assert.deepEqual(app.value(), {});
+    button.props.onClick();
+    assert.deepEqual(app.value(), {
+      body: { nested: nested.type === 'array' ? [] : {} },
+    });
+  }
+  const definition = {
+    type: 'object',
+    required: ['nested'],
+    properties: {
+      nested: { $ref: '#/$defs/Child' },
+      ignored: { type: 'array' },
+    },
+    $defs: {
+      Child: {
+        type: 'object',
+        required: ['values'],
+        properties: { values: { type: 'array', items: { type: 'string' } } },
+      },
+    },
+  };
+  assert.deepEqual(model.fieldDefault(definition), { nested: { values: [] } });
+});
