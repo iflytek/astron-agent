@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
 from django.conf import settings
@@ -27,6 +28,35 @@ from .models import McpConfig
 READ = "ToolBoxController_getDetail_GET"
 WRITE = "ToolBoxController_updateTool_PUT"
 logger = logging.getLogger(__name__)
+URL_MASK = "******"
+
+
+def display_url(value):
+    """Expose an editable endpoint without returning bearer URLs or query credentials."""
+    if not value:
+        return "", False
+    try:
+        parts = urlsplit(value)
+        # Only conventional endpoint paths are known to be non-secret. Legacy
+        # short links and arbitrary paths can themselves be bearer credentials.
+        path = parts.path
+        if path.rstrip("/") not in ("", "/mcp", "/sse", "/mcp/sse"):
+            path = f"/{URL_MASK}"
+        netloc = parts.netloc.rsplit("@", 1)[-1]
+        if "@" in parts.netloc:
+            netloc = f"{URL_MASK}@{netloc}"
+        safe = urlunsplit(
+            (
+                parts.scheme,
+                netloc,
+                path,
+                URL_MASK if parts.query else "",
+                URL_MASK if parts.fragment else "",
+            )
+        )
+        return safe, safe != value
+    except ValueError:
+        return URL_MASK, True
 
 
 def data(row):
@@ -34,6 +64,7 @@ def data(row):
     result["parameters"] = {key: "******" for key in parsed(row.parameters)}
     # A shortened runtime URL can itself be a bearer credential.
     result["configured"] = bool(row.sort_link)
+    result["serverUrl"], result["serverUrlMasked"] = display_url(row.sort_link)
     return result
 
 
@@ -69,7 +100,16 @@ def save(request, pk=None):
     payload = request.payload
     row.name = text(payload, "name", required=True, limit=255)
     row.content = text(payload, "description", limit=10000)
-    url = text(payload, "serverUrl", limit=1024) or row.sort_link
+    # Redaction can be a few characters longer than the saved value.
+    submitted_url = text(payload, "serverUrl", limit=2048)
+    shown_url, masked = display_url(row.sort_link)
+    if masked and submitted_url == shown_url:
+        submitted_url = ""
+    elif URL_MASK in submitted_url:
+        raise ValidationError("请填写完整服务 URL，或保留原地址以继续使用已保存的连接")
+    if len(submitted_url) > 1024:
+        raise ValidationError("serverUrl 无效")
+    url = submitted_url or row.sort_link
     if not url:
         raise ValidationError("MCP地址必填")
     http_url(url)

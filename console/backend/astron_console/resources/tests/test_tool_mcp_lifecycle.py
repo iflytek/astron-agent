@@ -103,6 +103,74 @@ class ToolMcpLifecycleTests(TestCase):
         self.assertEqual(row.name, "MCP")
         self.assertIn("example.com/mcp?", row.sort_link)
 
+    def test_public_mcp_url_is_visible_and_editable_after_save(self):
+        row = self.mcp()
+        row.sort_link = "https://mcp.deepwiki.com/mcp"
+        row.save()
+        with patch(
+            "astron_console.resources.clients.call",
+            return_value={"servers": [{"server_status": 0, "tools": []}]},
+        ) as remote:
+            detail = self.client.get(f"/resources/mcp/{row.pk}").json()["data"]
+            self.assertEqual(detail["serverUrl"], row.sort_link)
+            self.assertFalse(detail["serverUrlMasked"])
+            for url in (detail["serverUrl"], "https://another.example/sse"):
+                response = self.write(
+                    "put", f"/resources/mcp/{row.pk}", {"name": "Edited", "serverUrl": url}
+                )
+                self.assertEqual(response.status_code, 200, response.content)
+                self.assertEqual(response.json()["data"]["serverUrl"], url)
+                self.assertEqual(remote.call_args.kwargs["payload"]["mcp_server_urls"], [url])
+        row.refresh_from_db()
+        self.assertEqual(row.sort_link, "https://another.example/sse")
+
+    def test_masked_mcp_url_roundtrip_preserves_credentials(self):
+        for url, expected in (
+            ("https://example.com/mcp?token=private-value", "https://example.com/mcp?******"),
+            ("https://example.com/private-bearer", "https://example.com/******"),
+            (
+                "https://example.com/short/private-token?api-key=secret",
+                "https://example.com/******?******",
+            ),
+        ):
+            with self.subTest(url=url):
+                row = self.mcp()
+                row.sort_link = url
+                row.save()
+                with patch(
+                    "astron_console.resources.clients.call",
+                    return_value={"servers": [{"server_status": 0, "tools": []}]},
+                ) as remote:
+                    response = self.client.get(f"/resources/mcp/{row.pk}")
+                    detail = response.json()["data"]
+                    self.assertEqual(detail["serverUrl"], expected)
+                    self.assertTrue(detail["serverUrlMasked"])
+                    for secret in ("private-value", "private-bearer", "private-token", "secret"):
+                        self.assertNotIn(secret.encode(), response.content)
+                    result = self.write(
+                        "put",
+                        f"/resources/mcp/{row.pk}",
+                        {"name": "Renamed", "serverUrl": detail["serverUrl"]},
+                    )
+                    self.assertEqual(result.status_code, 200, result.content)
+                    self.assertEqual(remote.call_args.kwargs["payload"]["mcp_server_urls"], [url])
+                row.refresh_from_db()
+                self.assertEqual(row.sort_link, url)
+
+    def test_partially_changed_masked_url_requires_complete_replacement(self):
+        row = self.mcp()
+        with patch("astron_console.resources.clients.call") as remote:
+            result = self.write(
+                "put",
+                f"/resources/mcp/{row.pk}",
+                {"name": "Edited", "serverUrl": "https://new.example.com/mcp?******"},
+            )
+        self.assertEqual(result.status_code, 400, result.content)
+        remote.assert_not_called()
+        row.refresh_from_db()
+        self.assertEqual(row.name, "MCP")
+        self.assertEqual(row.sort_link, "https://example.com/mcp?token=secret")
+
     def test_mcp_delete_guards_agent_and_workflow_drafts_and_published_references(self):
         for source in (
             "agent-draft",

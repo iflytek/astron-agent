@@ -1099,40 +1099,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       ))}
                     </div>
                   )}
-                  <div className="agents-actions">
-                    <Button
-                      size="small"
-                      icon={<ReloadOutlined />}
-                      disabled={busy}
-                      onClick={() => setResourceRevision(value => value + 1)}
-                    >
-                      刷新资源
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={() =>
-                        window.open(
-                          '/resource/plugin',
-                          '_blank',
-                          'noopener,noreferrer'
-                        )
-                      }
-                    >
-                      管理工具与内置能力
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={() =>
-                        window.open(
-                          '/resource/mcp',
-                          '_blank',
-                          'noopener,noreferrer'
-                        )
-                      }
-                    >
-                      管理 MCP 服务
-                    </Button>
-                  </div>
                   {resourceError ? (
                     <Alert
                       type="error"
