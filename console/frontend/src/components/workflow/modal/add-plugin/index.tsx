@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   Alert,
   Button,
-  Drawer,
+  Modal,
   Empty,
   Input,
   Pagination,
@@ -121,12 +121,14 @@ export default function AddPlugin(): ReactElement {
     }
   };
   return (
-    <Drawer
+    <Modal
       title="添加工具"
       open={info.open}
-      onClose={close}
-      width="min(1040px, 100vw)"
-      rootClassName="workflow-mcp-drawer"
+      onCancel={close}
+      width="min(1180px, calc(100vw - 48px))"
+      rootClassName="workflow-tools-modal"
+      footer={null}
+      style={{ top: 32 }}
       destroyOnClose
     >
       {selected ? (
@@ -319,6 +321,6 @@ export default function AddPlugin(): ReactElement {
           )}
         </>
       )}
-    </Drawer>
+    </Modal>
   );
 }

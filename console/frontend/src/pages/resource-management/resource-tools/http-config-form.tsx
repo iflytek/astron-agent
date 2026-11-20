@@ -1,10 +1,11 @@
-import { useState, type ReactElement } from 'react';
-import { Alert, Button, Input, Tooltip } from 'antd';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { Alert, Button, Input, Tabs, Tooltip, type InputRef } from 'antd';
 import { DeleteOutlined, PlusOutlined, EditOutlined } from '@ant-design/icons';
 import ParameterOptionsDialog from './parameter-options-dialog';
 import {
   asObject,
   configOperations,
+  defaultText,
   FIELD_TYPES,
   HTTP_METHODS,
   moveOperation,
@@ -19,6 +20,97 @@ import {
   updateServer,
 } from './http-config';
 import type { JsonObject } from './mcp-tools';
+import './http-config-form.css';
+
+function DefaultValueCell({
+  schema,
+  name,
+  disabled,
+  onChange,
+  onProblem,
+  onAdvanced,
+}: {
+  schema: JsonObject;
+  name: string;
+  disabled: boolean;
+  onChange: (next: JsonObject) => void;
+  onProblem: (message: string) => void;
+  onAdvanced: () => void;
+}): ReactElement {
+  const sourceText = defaultText(schema);
+  const [draft, setDraft] = useState(sourceText);
+  const publishedText = useRef(sourceText);
+  const inputRef = useRef<InputRef>(null);
+  useEffect(() => {
+    if (sourceText !== publishedText.current) {
+      setDraft(sourceText);
+      publishedText.current = sourceText;
+      inputRef.current?.input?.setCustomValidity('');
+      onProblem('');
+    }
+  }, [sourceText, onProblem]);
+  if (schema.type === 'object' || schema.type === 'array' || schema.$ref)
+    return (
+      <Button
+        type="text"
+        className="http-config-complex"
+        disabled={disabled}
+        onClick={onAdvanced}
+      >
+        查看设置
+      </Button>
+    );
+  if (schema.type === 'boolean')
+    return (
+      <select
+        className="resource-config-select http-config-cell-select"
+        aria-label={`${name}默认值`}
+        disabled={disabled}
+        value={defaultText(schema)}
+        onChange={event =>
+          onChange(updateFieldSchema(schema, 'default', event.target.value))
+        }
+      >
+        <option value="">未设置</option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
+  const numeric = schema.type === 'number' || schema.type === 'integer';
+  return (
+    <Input
+      ref={inputRef}
+      disabled={disabled}
+      aria-label={`${name}默认值`}
+      type={numeric ? 'number' : 'text'}
+      step={schema.type === 'integer' ? 1 : 'any'}
+      value={draft}
+      placeholder="未设置"
+      onChange={event => {
+        const input = event.target;
+        setDraft(input.value);
+        try {
+          if (input.validity?.badInput)
+            throw new Error('请填写完整、有效的数字。');
+          const text =
+            numeric && input.value !== ''
+              ? String(Number(input.value))
+              : input.value;
+          const next = updateFieldSchema(schema, 'default', text);
+          input.setCustomValidity('');
+          publishedText.current = defaultText(next);
+          onChange(next);
+          onProblem('');
+        } catch (reason) {
+          const message =
+            reason instanceof Error ? reason.message : '请检查默认值。';
+          input.setCustomValidity(message);
+          onProblem(message);
+        }
+      }}
+    />
+  );
+}
 
 export default function HttpConfigForm({
   value,
@@ -31,12 +123,12 @@ export default function HttpConfigForm({
 }): ReactElement {
   const [selected, setSelected] = useState(0);
   const [problem, setProblem] = useState('');
+  const [tab, setTab] = useState('params');
   const [fieldEditor, setFieldEditor] = useState<{
     kind: 'parameter' | 'body';
     index: number;
     name: string;
   } | null>(null);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const document = parseDocument(value);
   const operations = configOperations(document || {});
   const operation = operations[selected] || operations[0];
@@ -95,6 +187,7 @@ export default function HttpConfigForm({
       className="resource-config-select resource-config-type"
       aria-label={`${label}类型`}
       disabled={disabled || !!schema.$ref}
+      data-type={String(schema.type || 'string')}
       value={String(schema.type || 'string')}
       onChange={event =>
         onUpdate(updateFieldSchema(schema, 'type', event.target.value))
@@ -102,16 +195,7 @@ export default function HttpConfigForm({
     >
       {FIELD_TYPES.map(type => (
         <option key={type} value={type}>
-          {
-            {
-              string: '文本',
-              integer: '整数',
-              number: '数字',
-              boolean: '是/否',
-              object: '对象',
-              array: '列表',
-            }[type]
-          }
+          {type}
         </option>
       ))}
     </select>
@@ -123,7 +207,18 @@ export default function HttpConfigForm({
       ),
     });
   return (
-    <div className="resource-http-config">
+    <div
+      className="resource-http-config http-config-editor"
+      onInvalidCapture={event => {
+        const input = event.target as HTMLInputElement;
+        const pane = input.closest<HTMLElement>('[data-http-pane]');
+        if (pane?.hidden) {
+          event.preventDefault();
+          setTab(pane.dataset.httpPane || 'params');
+          setProblem(input.validationMessage);
+        }
+      }}
+    >
       {problem && <Alert type="error" showIcon message={problem} />}
       {document && operation ? (
         <>
@@ -144,24 +239,25 @@ export default function HttpConfigForm({
               </select>
             </label>
           )}
-          <label>
-            服务地址
-            <Input
-              required
-              type="url"
-              disabled={disabled}
-              value={String(
-                asObject(
-                  Array.isArray(document.servers) ? document.servers[0] : {}
-                ).url || ''
-              )}
-              placeholder="https://api.example.com"
-              onChange={event =>
-                apply(updateServer(document, event.target.value))
-              }
-            />
-          </label>
+
           <div className="resource-config-grid resource-config-endpoint">
+            <label className="http-config-server">
+              服务地址
+              <Input
+                required
+                type="url"
+                disabled={disabled}
+                value={String(
+                  asObject(
+                    Array.isArray(document.servers) ? document.servers[0] : {}
+                  ).url || ''
+                )}
+                placeholder="https://api.example.com"
+                onChange={event =>
+                  apply(updateServer(document, event.target.value))
+                }
+              />
+            </label>
             <label>
               请求方式
               <select
@@ -201,18 +297,29 @@ export default function HttpConfigForm({
               onChange={event => patch({ operationId: event.target.value })}
             />
           </label>
-          <details
-            className="resource-config-section"
-            open={expanded[`${operationKey}:params`] ?? params.length > 0}
-            onToggle={event => {
-              const open = event.currentTarget.open;
-              setExpanded(previous => ({
-                ...previous,
-                [`${operationKey}:params`]: open,
-              }));
-            }}
+          <Tabs
+            className="http-config-tabs"
+            activeKey={tab}
+            onChange={setTab}
+            items={[
+              {
+                key: 'params',
+                label: `Params${params.length ? ` (${params.length})` : ''}`,
+              },
+              {
+                key: 'body',
+                label: `Body${Object.keys(properties).length ? ` (${Object.keys(properties).length})` : ''}`,
+              },
+              { key: 'auth', label: 'Auth' },
+            ]}
+          />
+          <section
+            className="http-config-panel"
+            data-http-pane="params"
+            hidden={tab !== 'params'}
+            aria-label="请求参数"
           >
-            <summary>
+            <div className="http-config-panel-heading">
               <span>
                 请求参数{params.length ? `（${params.length}）` : '（可选）'}
               </span>
@@ -226,10 +333,6 @@ export default function HttpConfigForm({
                   onClick={event => {
                     event.preventDefault();
                     event.stopPropagation();
-                    setExpanded(previous => ({
-                      ...previous,
-                      [`${operationKey}:params`]: true,
-                    }));
                     patch({
                       parameters: [
                         ...params,
@@ -239,14 +342,16 @@ export default function HttpConfigForm({
                   }}
                 />
               </Tooltip>
-            </summary>
+            </div>
             <p className="resource-tool-hint">
               路径中的 {'{name}'} 自动识别为路径参数，其余新增参数用于查询。
             </p>
             {!!params.length && (
-              <div className="resource-config-table-head" aria-hidden="true">
+              <div className="http-config-table-head" aria-hidden="true">
                 <span>参数名</span>
                 <span>类型</span>
+                <span>默认值</span>
+                <span>说明</span>
                 <span>必填</span>
               </div>
             )}
@@ -256,7 +361,7 @@ export default function HttpConfigForm({
               const name = String(parameter.name || '');
               return (
                 <div
-                  className="resource-config-row"
+                  className="http-config-row"
                   key={`${operationKey}:${index}`}
                 >
                   {parameter.$ref ? (
@@ -287,6 +392,31 @@ export default function HttpConfigForm({
                           updateParam(index, { ...parameter, schema: next }),
                         name
                       )}
+                      <DefaultValueCell
+                        key={`${operationKey}:${index}:${name}:${schema.type}`}
+                        schema={schema}
+                        name={name}
+                        disabled={disabled}
+                        onChange={next =>
+                          updateParam(index, { ...parameter, schema: next })
+                        }
+                        onProblem={setProblem}
+                        onAdvanced={() =>
+                          setFieldEditor({ kind: 'parameter', index, name })
+                        }
+                      />
+                      <Input
+                        disabled={disabled}
+                        aria-label={`${name}说明`}
+                        value={String(parameter.description || '')}
+                        placeholder="参数说明"
+                        onChange={event =>
+                          updateParam(index, {
+                            ...parameter,
+                            description: event.target.value,
+                          })
+                        }
+                      />
                       <label className="resource-config-check">
                         <input
                           type="checkbox"
@@ -304,7 +434,7 @@ export default function HttpConfigForm({
                           }
                         />
                       </label>
-                      <Tooltip title="说明与默认值">
+                      <Tooltip title="更多设置">
                         <Button
                           type="text"
                           className="resource-config-edit"
@@ -337,21 +467,14 @@ export default function HttpConfigForm({
                 </div>
               );
             })}
-          </details>
-          <details
-            className="resource-config-section"
-            open={
-              expanded[`${operationKey}:body`] ?? Object.keys(body).length > 0
-            }
-            onToggle={event => {
-              const open = event.currentTarget.open;
-              setExpanded(previous => ({
-                ...previous,
-                [`${operationKey}:body`]: open,
-              }));
-            }}
+          </section>
+          <section
+            className="http-config-panel"
+            data-http-pane="body"
+            hidden={tab !== 'body'}
+            aria-label="请求内容"
           >
-            <summary>
+            <div className="http-config-panel-heading">
               <span>请求内容{Object.keys(body).length ? '' : '（可选）'}</span>
               {!body.$ref &&
               !bodySchema.$ref &&
@@ -367,10 +490,6 @@ export default function HttpConfigForm({
                     onClick={event => {
                       event.preventDefault();
                       event.stopPropagation();
-                      setExpanded(previous => ({
-                        ...previous,
-                        [`${operationKey}:body`]: true,
-                      }));
                       const name = nextFieldName(Object.keys(properties));
                       apply(
                         updateBodyProperty(
@@ -386,7 +505,7 @@ export default function HttpConfigForm({
                   />
                 </Tooltip>
               ) : null}
-            </summary>
+            </div>
             {body.$ref ||
             bodySchema.$ref ||
             (bodySchema.type && bodySchema.type !== 'object') ||
@@ -400,12 +519,11 @@ export default function HttpConfigForm({
                   JSON 请求内容按字段配置；没有请求内容时无需添加。
                 </p>
                 {!!Object.keys(properties).length && (
-                  <div
-                    className="resource-config-table-head"
-                    aria-hidden="true"
-                  >
+                  <div className="http-config-table-head" aria-hidden="true">
                     <span>字段名</span>
                     <span>类型</span>
+                    <span>默认值</span>
+                    <span>说明</span>
                     <span>必填</span>
                   </div>
                 )}
@@ -427,7 +545,7 @@ export default function HttpConfigForm({
                     );
                   return (
                     <div
-                      className="resource-config-row"
+                      className="http-config-row"
                       key={`${operationKey}:${name}`}
                     >
                       <Input
@@ -449,6 +567,26 @@ export default function HttpConfigForm({
                         }
                       />
                       {typeControl(field, update, `内容 ${name}`)}
+                      <DefaultValueCell
+                        key={`${operationKey}:${name}:${field.type}`}
+                        schema={field}
+                        name={`内容 ${name}`}
+                        disabled={disabled}
+                        onChange={update}
+                        onProblem={setProblem}
+                        onAdvanced={() =>
+                          setFieldEditor({ kind: 'body', index, name })
+                        }
+                      />
+                      <Input
+                        disabled={disabled}
+                        aria-label={`内容 ${name}说明`}
+                        value={String(field.description || '')}
+                        placeholder="字段说明"
+                        onChange={event =>
+                          update({ ...field, description: event.target.value })
+                        }
+                      />
                       <label className="resource-config-check">
                         <input
                           type="checkbox"
@@ -469,7 +607,7 @@ export default function HttpConfigForm({
                           }
                         />
                       </label>
-                      <Tooltip title="说明与默认值">
+                      <Tooltip title="更多设置">
                         <Button
                           type="text"
                           className="resource-config-edit"
@@ -516,12 +654,14 @@ export default function HttpConfigForm({
                 )}
               </>
             )}
-          </details>
-          <details
-            className="resource-config-section"
-            open={activeSchemes.length > 0 || undefined}
+          </section>
+          <section
+            className="http-config-panel"
+            data-http-pane="auth"
+            hidden={tab !== 'auth'}
+            aria-label="身份验证"
           >
-            <summary>身份验证（可选）</summary>
+            <div className="http-config-panel-heading">身份验证（可选）</div>
             <p className="resource-tool-hint">
               公开接口无需填写。已有密钥显示为掩码，保持掩码可保留原值。
             </p>
@@ -615,7 +755,7 @@ export default function HttpConfigForm({
                 添加 API Key
               </Button>
             )}
-          </details>
+          </section>
         </>
       ) : (
         <Alert
@@ -625,7 +765,7 @@ export default function HttpConfigForm({
           description="请在高级设置中修正文档，或重新导入有效的 OpenAPI 文档。"
         />
       )}
-      <details className="resource-config-section">
+      <details className="http-config-advanced">
         <summary>高级设置 · OpenAPI 文档</summary>
         <p className="resource-tool-hint">
           导入的响应定义、共享结构和扩展字段会保留。仅复杂接口需要编辑文档。
