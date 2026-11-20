@@ -151,6 +151,65 @@ test('merges a response into the latest node without reverting edits made in fli
   assert.equal(latestNode.data.status, 'running');
 });
 
+test('a new run clears previous results only after saving and keeps current node edits', async () => {
+  for (const [previousStatus, previousResult] of [
+    ['failed', { failedReason: 'previous failure', done: true }],
+    ['success', { output: 'previous output', done: true }],
+    ['cancel', { cancelReason: 'previous cancellation', done: true }],
+  ]) {
+    let releaseSave, finishRequest;
+    const saving = new Promise(resolve => (releaseSave = resolve));
+    const response = new Promise(resolve => (finishRequest = resolve));
+    let node = {
+      id: 'agent::one',
+      data: {
+        inputs: [{ id: 'query', value: 'original input' }],
+        nodeParam: { agentId: 10 },
+        status: previousStatus,
+        debuggerResult: previousResult,
+      },
+    };
+    const execution = executeNodeDebugRequest({
+      coordinator: createNodeDebugRequestCoordinator(),
+      workflowIdentity: 'workflow-a',
+      isWorkflowCurrent: () => true,
+      flushCurrentFlow: () => saving,
+      request: () => response,
+      onRunning: () => {
+        node = mergeNodeDebugState(node, { status: 'running' });
+      },
+      onSuccess: result => {
+        node = mergeNodeDebugState(node, {
+          status: 'success',
+          debuggerResult: { output: result, done: true },
+        });
+      },
+      onFailure: error => assert.fail(String(error)),
+      onFlushFailure: error => assert.fail(String(error)),
+    });
+    assert.equal(node.data.status, previousStatus);
+    assert.equal(node.data.debuggerResult, previousResult);
+    node.data.inputs = [{ id: 'query', value: 'edited while saving' }];
+    node.data.nodeParam.agentId = 11;
+    releaseSave();
+    await saving;
+    assert.equal(node.data.status, 'running');
+    assert.equal(node.data.debuggerResult, undefined);
+    assert.deepEqual(node.data.inputs, [
+      { id: 'query', value: 'edited while saving' },
+    ]);
+    assert.equal(node.data.nodeParam.agentId, 11);
+    finishRequest('current output');
+    await execution.completion;
+    assert.equal(node.data.status, 'success');
+    assert.deepEqual(node.data.debuggerResult, {
+      output: 'current output',
+      done: true,
+    });
+    assert.equal(node.data.nodeParam.agentId, 11);
+  }
+});
+
 test('builds the request from the latest node with transient debugger inputs', () => {
   const latestNode = {
     id: 'node-1',
