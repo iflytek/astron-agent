@@ -57,6 +57,7 @@ type FieldProps = {
   onChange: (value: unknown) => void;
   name: string;
   required?: boolean;
+  markRequired?: boolean;
   disabled?: boolean;
   depth?: number;
   drafts: FormDrafts;
@@ -135,6 +136,7 @@ function Field({
   onChange,
   name,
   required = false,
+  markRequired = true,
   disabled = false,
   depth = 0,
   drafts,
@@ -152,6 +154,7 @@ function Field({
         onChange={onChange}
         name={name}
         required={required}
+        markRequired={markRequired}
         disabled={disabled}
         depth={depth}
         variants={variants}
@@ -169,7 +172,9 @@ function Field({
   const label = (
     <span>
       {title}
-      {required && <span className="resource-field-required"> *</span>}
+      {required && markRequired && (
+        <span className="resource-field-required"> *</span>
+      )}
     </span>
   );
   const hint = description && <small id={`${id}-hint`}>{description}</small>;
@@ -566,6 +571,7 @@ export function SchemaFields({
         value={parsed}
         name={title}
         required
+        markRequired={false}
         disabled={disabled}
         onChange={next => {
           const source = pretty(next);
