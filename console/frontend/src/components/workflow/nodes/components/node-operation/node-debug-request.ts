@@ -71,6 +71,7 @@ export const createWorkflowIdentity = (
 /**
  * Apply only transient debugger fields to the latest store node. This avoids
  * restoring the stale node snapshot captured when the request was started.
+ * Each state owns its result; starting a run clears the preceding run's result.
  */
 export const mergeNodeDebugState = <
   TData extends { inputs?: unknown },
@@ -85,9 +86,7 @@ export const mergeNodeDebugState = <
     data: {
       ...latestNode.data,
       status: patch.status,
-      ...(patch.debuggerResult === undefined
-        ? {}
-        : { debuggerResult: patch.debuggerResult }),
+      debuggerResult: patch.debuggerResult,
     },
   }) as TNode;
 

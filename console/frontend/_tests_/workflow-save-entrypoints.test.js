@@ -1114,7 +1114,14 @@ test('node debug results do not dirty the draft while parameter edits still pers
     },
     h.set
   );
-  for (const status of ['running', 'success', 'failed', 'cancel']) {
+  for (const status of [
+    'success',
+    'running',
+    'failed',
+    'running',
+    'cancel',
+    'running',
+  ]) {
     h.canvas.nodes[0] = mergeNodeDebugState(h.canvas.nodes[0], {
       status,
       debuggerResult:
@@ -1127,6 +1134,8 @@ test('node debug results do not dirty the draft while parameter edits still pers
                 : { output: { answer: 'actual runtime output' } }),
             },
     });
+    if (status === 'running')
+      assert.equal(h.canvas.nodes[0].data.debuggerResult, undefined);
     assert.equal(h.state.hasUnsavedCurrentFlow(), false, status);
     await h.state.flushCurrentFlow();
     assert.deepEqual(h.writes, []);
