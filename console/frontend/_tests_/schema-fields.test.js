@@ -45,7 +45,7 @@ const renderers = [];
 test.afterEach(() =>
   act(() => renderers.splice(0).forEach(renderer => renderer.unmount()))
 );
-function fields(schema, value = {}) {
+function fields(schema, value = {}, title = '调用参数') {
   let result = value;
   let setInput;
   function App() {
@@ -58,6 +58,7 @@ function fields(schema, value = {}) {
     result = JSON.parse(input.value);
     return React.createElement(SchemaFields, {
       key: input.resource,
+      title,
       schema: input.schema,
       value: input.value,
       onChange: next =>
@@ -119,6 +120,64 @@ const control = (app, name) => {
     node => node.props?.id && node.props.id === label?.props.htmlFor
   );
 };
+test('system-provided root groups have no required marker while required child fields stay required', () => {
+  for (const schema of [
+    {
+      type: 'object',
+      required: ['repo'],
+      properties: { repo: { type: 'string' } },
+    },
+    {
+      anyOf: [
+        {
+          type: 'object',
+          required: ['repo'],
+          properties: { repo: { type: 'string' } },
+        },
+        { type: 'null' },
+      ],
+    },
+  ]) {
+    const app = fields(schema, { repo: '' });
+    assert.equal(
+      text(app.nodes.find(node => node.type === 'legend').props.children),
+      '调用参数'
+    );
+    const label = app.nodes.find(
+      node => node.type === 'label' && text(node.props.children) === 'repo *'
+    );
+    assert.ok(label);
+    assert.equal(control(app, 'repo').props.required, true);
+  }
+  const connection = fields(
+    {
+      type: 'object',
+      additionalProperties: { type: 'string', format: 'password' },
+    },
+    {},
+    '连接参数'
+  );
+  assert.equal(
+    text(connection.nodes.find(node => node.type === 'legend').props.children),
+    '连接参数'
+  );
+  assert.equal(
+    connection.nodes.some(
+      node =>
+        ['input', 'select', 'textarea'].includes(node.type) &&
+        node.props.required
+    ),
+    false
+  );
+  assert.equal(
+    connection.nodes.some(
+      node =>
+        node.type === 'button' && text(node.props.children) === '不填写连接参数'
+    ),
+    false
+  );
+  assert.deepEqual(connection.value(), {});
+});
 test('MCP nested references, enum booleans and numeric inputs remain typed without adding optional keys', () => {
   const schema = {
     type: 'object',
