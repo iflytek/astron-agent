@@ -1,13 +1,16 @@
 import { useState, type ReactElement } from 'react';
-import { Alert, Button, Input } from 'antd';
+import { Alert, Button, Input, Tooltip } from 'antd';
+import { DeleteOutlined, PlusOutlined, EditOutlined } from '@ant-design/icons';
+import ParameterOptionsDialog from './parameter-options-dialog';
 import {
   asObject,
   configOperations,
-  defaultText,
   FIELD_TYPES,
   HTTP_METHODS,
   moveOperation,
   nextFieldName,
+  newRequestParameter,
+  renameRequestParameter,
   parseDocument,
   removeBodyProperty,
   updateBodyProperty,
@@ -28,6 +31,12 @@ export default function HttpConfigForm({
 }): ReactElement {
   const [selected, setSelected] = useState(0);
   const [problem, setProblem] = useState('');
+  const [fieldEditor, setFieldEditor] = useState<{
+    kind: 'parameter' | 'body';
+    index: number;
+    name: string;
+  } | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const document = parseDocument(value);
   const operations = configOperations(document || {});
   const operation = operations[selected] || operations[0];
@@ -82,101 +91,31 @@ export default function HttpConfigForm({
     onUpdate: (next: JsonObject) => void,
     label: string
   ): ReactElement => (
-    <label>
-      类型
-      <select
-        className="resource-config-select"
-        aria-label={`${label}类型`}
-        disabled={disabled || !!schema.$ref}
-        value={String(schema.type || 'string')}
-        onChange={event =>
-          onUpdate(updateFieldSchema(schema, 'type', event.target.value))
-        }
-      >
-        {FIELD_TYPES.map(type => (
-          <option key={type} value={type}>
+    <select
+      className="resource-config-select resource-config-type"
+      aria-label={`${label}类型`}
+      disabled={disabled || !!schema.$ref}
+      value={String(schema.type || 'string')}
+      onChange={event =>
+        onUpdate(updateFieldSchema(schema, 'type', event.target.value))
+      }
+    >
+      {FIELD_TYPES.map(type => (
+        <option key={type} value={type}>
+          {
             {
-              (
-                {
-                  string: '文本',
-                  integer: '整数',
-                  number: '数字',
-                  boolean: '是 / 否',
-                  object: '对象',
-                  array: '列表',
-                } as Record<string, string>
-              )[type]
-            }
-          </option>
-        ))}
-      </select>
-    </label>
+              string: '文本',
+              integer: '整数',
+              number: '数字',
+              boolean: '是/否',
+              object: '对象',
+              array: '列表',
+            }[type]
+          }
+        </option>
+      ))}
+    </select>
   );
-  const commitDefault = (
-    schema: JsonObject,
-    onUpdate: (next: JsonObject) => void,
-    label: string
-  ): ReactElement => {
-    if (schema.type === 'boolean')
-      return (
-        <label>
-          默认值（可选）
-          <select
-            className="resource-config-select"
-            disabled={disabled || !!schema.$ref}
-            aria-label={`${label}默认值`}
-            value={
-              Object.prototype.hasOwnProperty.call(schema, 'default')
-                ? String(schema.default)
-                : ''
-            }
-            onChange={event =>
-              onUpdate(updateFieldSchema(schema, 'default', event.target.value))
-            }
-          >
-            <option value="">不设置</option>
-            <option value="true">是</option>
-            <option value="false">否</option>
-          </select>
-        </label>
-      );
-    if (schema.type === 'object' || schema.type === 'array' || schema.$ref)
-      return (
-        <p className="resource-tool-hint">
-          复杂结构及已有默认值会保留；需要修改结构时使用高级设置。
-        </p>
-      );
-    const numeric = schema.type === 'number' || schema.type === 'integer';
-    return (
-      <label>
-        默认值（可选）
-        <Input
-          key={`${operationKey}:${label}:${schema.type}:${defaultText(schema)}`}
-          disabled={disabled}
-          aria-label={`${label}默认值`}
-          type={numeric ? 'number' : 'text'}
-          step={schema.type === 'integer' ? 1 : 'any'}
-          defaultValue={defaultText(schema)}
-          placeholder="不填则由调用者提供"
-          onBlur={event => {
-            if (event.target.value === defaultText(schema)) return;
-            try {
-              onUpdate(
-                updateFieldSchema(schema, 'default', event.target.value)
-              );
-              setProblem('');
-            } catch (error) {
-              setProblem(
-                error instanceof Error ? error.message : '请检查默认值。'
-              );
-              event.target.setCustomValidity('默认值格式不正确');
-            }
-          }}
-          onChange={event => event.target.setCustomValidity('')}
-        />
-      </label>
-    );
-  };
   const updateParam = (index: number, next: JsonObject): void =>
     patch({
       parameters: params.map((item, position) =>
@@ -222,7 +161,7 @@ export default function HttpConfigForm({
               }
             />
           </label>
-          <div className="resource-config-grid">
+          <div className="resource-config-grid resource-config-endpoint">
             <label>
               请求方式
               <select
@@ -264,14 +203,53 @@ export default function HttpConfigForm({
           </label>
           <details
             className="resource-config-section"
-            open={params.length > 0 || undefined}
+            open={expanded[`${operationKey}:params`] ?? params.length > 0}
+            onToggle={event => {
+              const open = event.currentTarget.open;
+              setExpanded(previous => ({
+                ...previous,
+                [`${operationKey}:params`]: open,
+              }));
+            }}
           >
             <summary>
-              请求参数{params.length ? `（${params.length}）` : '（可选）'}
+              <span>
+                请求参数{params.length ? `（${params.length}）` : '（可选）'}
+              </span>
+              <Tooltip title="添加参数">
+                <Button
+                  type="text"
+                  className="resource-config-icon-add"
+                  aria-label="添加参数"
+                  icon={<PlusOutlined />}
+                  disabled={disabled}
+                  onClick={event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setExpanded(previous => ({
+                      ...previous,
+                      [`${operationKey}:params`]: true,
+                    }));
+                    patch({
+                      parameters: [
+                        ...params,
+                        newRequestParameter(document, operation),
+                      ],
+                    });
+                  }}
+                />
+              </Tooltip>
             </summary>
             <p className="resource-tool-hint">
-              添加接口需要的路径、查询或请求头参数。路径中的占位符需有同名参数。
+              路径中的 {'{name}'} 自动识别为路径参数，其余新增参数用于查询。
             </p>
+            {!!params.length && (
+              <div className="resource-config-table-head" aria-hidden="true">
+                <span>参数名</span>
+                <span>类型</span>
+                <span>必填</span>
+              </div>
+            )}
             {params.map((entry, index) => {
               const parameter = asObject(entry);
               const schema = asObject(parameter.schema);
@@ -282,78 +260,37 @@ export default function HttpConfigForm({
                   key={`${operationKey}:${index}`}
                 >
                   {parameter.$ref ? (
-                    <p>此参数使用共享定义，保持原配置。可在高级设置中修改。</p>
+                    <p className="resource-config-shared">
+                      共享参数定义，原配置保留
+                    </p>
                   ) : (
                     <>
-                      <div className="resource-config-grid">
-                        <label>
-                          参数名
-                          <Input
-                            required
-                            disabled={disabled}
-                            aria-label={`参数 ${index + 1} 名称`}
-                            value={name}
-                            onChange={event =>
-                              updateParam(index, {
-                                ...parameter,
-                                name: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-                        <label>
-                          位置
-                          <select
-                            className="resource-config-select"
-                            disabled={disabled}
-                            value={String(parameter.in || 'query')}
-                            onChange={event =>
-                              updateParam(index, {
-                                ...parameter,
-                                in: event.target.value,
-                                required:
-                                  event.target.value === 'path' ||
-                                  parameter.required === true,
-                              })
-                            }
-                          >
-                            <option value="path">路径</option>
-                            <option value="query">查询</option>
-                            <option value="header">请求头</option>
-                            <option value="cookie">
-                              Cookie（保留现有配置）
-                            </option>
-                          </select>
-                        </label>
-                        {typeControl(
-                          schema,
-                          next =>
-                            updateParam(index, { ...parameter, schema: next }),
-                          name
-                        )}
-                        {commitDefault(
-                          schema,
-                          next =>
-                            updateParam(index, { ...parameter, schema: next }),
-                          name
-                        )}
-                      </div>
-                      <label>
-                        参数说明
-                        <Input
-                          disabled={disabled}
-                          value={String(parameter.description || '')}
-                          onChange={event =>
-                            updateParam(index, {
-                              ...parameter,
-                              description: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
+                      <Input
+                        required
+                        disabled={disabled}
+                        aria-label={`参数 ${index + 1} 名称`}
+                        value={name}
+                        onChange={event =>
+                          updateParam(
+                            index,
+                            renameRequestParameter(
+                              operation.path,
+                              parameter,
+                              event.target.value
+                            )
+                          )
+                        }
+                      />
+                      {typeControl(
+                        schema,
+                        next =>
+                          updateParam(index, { ...parameter, schema: next }),
+                        name
+                      )}
                       <label className="resource-config-check">
                         <input
                           type="checkbox"
+                          aria-label={`${name}必填`}
                           disabled={disabled || parameter.in === 'path'}
                           checked={
                             parameter.in === 'path' ||
@@ -366,52 +303,89 @@ export default function HttpConfigForm({
                             })
                           }
                         />
-                        必填
                       </label>
+                      <Tooltip title="说明与默认值">
+                        <Button
+                          type="text"
+                          className="resource-config-edit"
+                          icon={<EditOutlined />}
+                          aria-label={`编辑参数 ${name}`}
+                          disabled={disabled}
+                          onClick={() =>
+                            setFieldEditor({ kind: 'parameter', index, name })
+                          }
+                        />
+                      </Tooltip>
                     </>
                   )}
-                  <Button
-                    disabled={disabled}
-                    onClick={() =>
-                      patch({
-                        parameters: params.filter(
-                          (_, position) => position !== index
-                        ),
-                      })
-                    }
-                  >
-                    删除参数
-                  </Button>
+                  <Tooltip title="删除参数">
+                    <Button
+                      type="text"
+                      className="resource-config-remove"
+                      icon={<DeleteOutlined />}
+                      aria-label={`删除参数 ${name || index + 1}`}
+                      disabled={disabled}
+                      onClick={() =>
+                        patch({
+                          parameters: params.filter(
+                            (_, position) => position !== index
+                          ),
+                        })
+                      }
+                    />
+                  </Tooltip>
                 </div>
               );
             })}
-            <Button
-              disabled={disabled}
-              onClick={() =>
-                patch({
-                  parameters: [
-                    ...params,
-                    {
-                      name: nextFieldName(
-                        params.map(item => String(asObject(item).name))
-                      ),
-                      in: 'query',
-                      required: false,
-                      schema: { type: 'string' },
-                    },
-                  ],
-                })
-              }
-            >
-              添加参数
-            </Button>
           </details>
           <details
             className="resource-config-section"
-            open={Object.keys(body).length > 0 || undefined}
+            open={
+              expanded[`${operationKey}:body`] ?? Object.keys(body).length > 0
+            }
+            onToggle={event => {
+              const open = event.currentTarget.open;
+              setExpanded(previous => ({
+                ...previous,
+                [`${operationKey}:body`]: open,
+              }));
+            }}
           >
             <summary>
-              请求内容{Object.keys(body).length ? '' : '（可选）'}
+              <span>请求内容{Object.keys(body).length ? '' : '（可选）'}</span>
+              {!body.$ref &&
+              !bodySchema.$ref &&
+              (!bodySchema.type || bodySchema.type === 'object') &&
+              (!body.content || asObject(body.content)['application/json']) ? (
+                <Tooltip title="添加内容字段">
+                  <Button
+                    type="text"
+                    className="resource-config-icon-add"
+                    aria-label="添加内容字段"
+                    icon={<PlusOutlined />}
+                    disabled={disabled}
+                    onClick={event => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setExpanded(previous => ({
+                        ...previous,
+                        [`${operationKey}:body`]: true,
+                      }));
+                      const name = nextFieldName(Object.keys(properties));
+                      apply(
+                        updateBodyProperty(
+                          document,
+                          operation,
+                          name,
+                          name,
+                          { type: 'string' },
+                          false
+                        )
+                      );
+                    }}
+                  />
+                </Tooltip>
+              ) : null}
             </summary>
             {body.$ref ||
             bodySchema.$ref ||
@@ -425,7 +399,17 @@ export default function HttpConfigForm({
                 <p className="resource-tool-hint">
                   JSON 请求内容按字段配置；没有请求内容时无需添加。
                 </p>
-                {Object.entries(properties).map(([name, entry]) => {
+                {!!Object.keys(properties).length && (
+                  <div
+                    className="resource-config-table-head"
+                    aria-hidden="true"
+                  >
+                    <span>字段名</span>
+                    <span>类型</span>
+                    <span>必填</span>
+                  </div>
+                )}
+                {Object.entries(properties).map(([name, entry], index) => {
                   const field = asObject(entry);
                   const required =
                     Array.isArray(bodySchema.required) &&
@@ -446,47 +430,29 @@ export default function HttpConfigForm({
                       className="resource-config-row"
                       key={`${operationKey}:${name}`}
                     >
-                      <div className="resource-config-grid">
-                        <label>
-                          字段名
-                          <Input
-                            required
-                            disabled={disabled}
-                            defaultValue={name}
-                            aria-label={`内容字段 ${name} 名称`}
-                            onBlur={event =>
-                              safely(() =>
-                                updateBodyProperty(
-                                  document,
-                                  operation,
-                                  name,
-                                  event.target.value,
-                                  field,
-                                  required
-                                )
-                              )
-                            }
-                          />
-                        </label>
-                        {typeControl(field, update, `内容 ${name}`)}
-                        {commitDefault(field, update, `内容 ${name}`)}
-                      </div>
-                      <label>
-                        字段说明
-                        <Input
-                          disabled={disabled}
-                          value={String(field.description || '')}
-                          onChange={event =>
-                            update({
-                              ...field,
-                              description: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
+                      <Input
+                        required
+                        disabled={disabled}
+                        defaultValue={name}
+                        aria-label={`内容字段 ${name} 名称`}
+                        onBlur={event =>
+                          safely(() =>
+                            updateBodyProperty(
+                              document,
+                              operation,
+                              name,
+                              event.target.value,
+                              field,
+                              required
+                            )
+                          )
+                        }
+                      />
+                      {typeControl(field, update, `内容 ${name}`)}
                       <label className="resource-config-check">
                         <input
                           type="checkbox"
+                          aria-label={`内容 ${name}必填`}
                           disabled={disabled}
                           checked={required}
                           onChange={event =>
@@ -502,37 +468,34 @@ export default function HttpConfigForm({
                             )
                           }
                         />
-                        必填
                       </label>
-                      <Button
-                        disabled={disabled}
-                        onClick={() =>
-                          apply(removeBodyProperty(document, operation, name))
-                        }
-                      >
-                        删除字段
-                      </Button>
+                      <Tooltip title="说明与默认值">
+                        <Button
+                          type="text"
+                          className="resource-config-edit"
+                          icon={<EditOutlined />}
+                          aria-label={`编辑字段 ${name}`}
+                          disabled={disabled}
+                          onClick={() =>
+                            setFieldEditor({ kind: 'body', index, name })
+                          }
+                        />
+                      </Tooltip>
+                      <Tooltip title="删除字段">
+                        <Button
+                          type="text"
+                          className="resource-config-remove"
+                          icon={<DeleteOutlined />}
+                          aria-label={`删除字段 ${name}`}
+                          disabled={disabled}
+                          onClick={() =>
+                            apply(removeBodyProperty(document, operation, name))
+                          }
+                        />
+                      </Tooltip>
                     </div>
                   );
                 })}
-                <Button
-                  disabled={disabled}
-                  onClick={() => {
-                    const name = nextFieldName(Object.keys(properties));
-                    apply(
-                      updateBodyProperty(
-                        document,
-                        operation,
-                        name,
-                        name,
-                        { type: 'string' },
-                        false
-                      )
-                    );
-                  }}
-                >
-                  添加内容字段
-                </Button>
                 {Object.keys(body).length > 0 && (
                   <label className="resource-config-check">
                     <input
@@ -576,36 +539,20 @@ export default function HttpConfigForm({
                   },
                 });
               return (
-                <div className="resource-config-row" key={key}>
+                <div className="resource-config-auth" key={key}>
                   {scheme.type === 'apiKey' ? (
                     <>
-                      <div className="resource-config-grid">
-                        <label>
-                          鉴权字段
-                          <Input
-                            required
-                            disabled={disabled}
-                            value={String(scheme.name || '')}
-                            onChange={event =>
-                              change({ name: event.target.value })
-                            }
-                          />
-                        </label>
-                        <label>
-                          位置
-                          <select
-                            className="resource-config-select"
-                            disabled={disabled}
-                            value={String(scheme.in || 'header')}
-                            onChange={event =>
-                              change({ in: event.target.value })
-                            }
-                          >
-                            <option value="header">请求头</option>
-                            <option value="query">查询参数</option>
-                          </select>
-                        </label>
-                      </div>
+                      <label>
+                        鉴权字段
+                        <Input
+                          required
+                          disabled={disabled}
+                          value={String(scheme.name || '')}
+                          onChange={event =>
+                            change({ name: event.target.value })
+                          }
+                        />
+                      </label>
                       <label>
                         密钥
                         <Input
@@ -628,6 +575,8 @@ export default function HttpConfigForm({
             })}
             {!!activeSchemes.length && (
               <Button
+                type="text"
+                className="resource-config-add"
                 disabled={disabled}
                 onClick={() => patch({ security: [] })}
               >
@@ -636,6 +585,9 @@ export default function HttpConfigForm({
             )}
             {!activeSchemes.length && (
               <Button
+                type="text"
+                className="resource-config-add"
+                icon={<PlusOutlined />}
                 disabled={disabled}
                 onClick={() => {
                   let key = 'apiKey';
@@ -688,6 +640,47 @@ export default function HttpConfigForm({
           onChange={event => onChange(event.target.value)}
         />
       </details>
+      {fieldEditor && document && operation && (
+        <ParameterOptionsDialog
+          key={`${operationKey}:${fieldEditor.kind}:${fieldEditor.index}:${fieldEditor.name}`}
+          name={fieldEditor.name}
+          schema={
+            fieldEditor.kind === 'parameter'
+              ? asObject(asObject(params[fieldEditor.index]).schema)
+              : asObject(properties[fieldEditor.name])
+          }
+          description={String(
+            (fieldEditor.kind === 'parameter'
+              ? asObject(params[fieldEditor.index])
+              : asObject(properties[fieldEditor.name])
+            ).description || ''
+          )}
+          onCancel={() => setFieldEditor(null)}
+          onSave={(next, description) => {
+            if (fieldEditor.kind === 'parameter') {
+              const parameter = asObject(params[fieldEditor.index]);
+              updateParam(fieldEditor.index, {
+                ...parameter,
+                description,
+                schema: next,
+              });
+            } else {
+              apply(
+                updateBodyProperty(
+                  document,
+                  operation,
+                  fieldEditor.name,
+                  fieldEditor.name,
+                  { ...next, description },
+                  Array.isArray(bodySchema.required) &&
+                    bodySchema.required.includes(fieldEditor.name)
+                )
+              );
+            }
+            setFieldEditor(null);
+          }}
+        />
+      )}
     </div>
   );
 }

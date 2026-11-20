@@ -240,3 +240,83 @@ export function nextFieldName(names: string[]): string {
   while (names.includes(`parameter${index}`)) index++;
   return `parameter${index}`;
 }
+
+function pathParameterNames(path: string): string[] {
+  return [
+    ...new Set(
+      Array.from(path.matchAll(/\{([^{}]+)\}/g), match => match[1] ?? '')
+    ),
+  ];
+}
+
+/** Keep imported header/cookie bindings; ordinary inputs follow the URL template. */
+export function renameRequestParameter(
+  path: string,
+  parameter: JsonObject,
+  name: string
+): JsonObject {
+  if (parameter.in === 'header' || parameter.in === 'cookie')
+    return { ...parameter, name };
+  const location = pathParameterNames(path).includes(name) ? 'path' : 'query';
+  return {
+    ...parameter,
+    name,
+    in: location,
+    required: location === 'path' || parameter.required === true,
+  };
+}
+
+function resolvedParameter(document: JsonObject, value: unknown): JsonObject {
+  let parameter = asObject(value);
+  const seen = new Set<string>();
+  while (
+    typeof parameter.$ref === 'string' &&
+    parameter.$ref.startsWith('#/')
+  ) {
+    const reference = parameter.$ref;
+    if (seen.has(reference)) break;
+    seen.add(reference);
+    let target: unknown = document;
+    for (const token of reference.slice(2).split('/'))
+      target =
+        target && typeof target === 'object'
+          ? (target as JsonObject)[
+              token.replace(/~1/g, '/').replace(/~0/g, '~')
+            ]
+          : undefined;
+    if (!target) break;
+    parameter = asObject(target);
+  }
+  return parameter;
+}
+
+/** Add missing URL placeholders first without rewriting inherited definitions. */
+export function newRequestParameter(
+  document: JsonObject,
+  operation: ConfigOperation
+): JsonObject {
+  const pathItem = asObject(asObject(document.paths)[operation.path]);
+  const parameters = [
+    ...(Array.isArray(pathItem.parameters) ? pathItem.parameters : []),
+    ...(Array.isArray(operation.operation.parameters)
+      ? operation.operation.parameters
+      : []),
+  ].map(entry => resolvedParameter(document, entry));
+  const missing = pathParameterNames(operation.path).find(
+    name =>
+      !parameters.some(
+        parameter => parameter.in === 'path' && parameter.name === name
+      )
+  );
+  const name =
+    missing ??
+    nextFieldName(parameters.map(parameter => String(parameter.name || '')));
+  return renameRequestParameter(
+    operation.path,
+    {
+      schema: { type: 'string' },
+      required: false,
+    },
+    name
+  );
+}

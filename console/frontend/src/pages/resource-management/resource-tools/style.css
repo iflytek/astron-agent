@@ -544,15 +544,117 @@
   font-size: 14px;
   font-weight: 600;
 }
+.resource-http-config {
+  display: grid;
+  gap: 20px;
+  container: http-config / inline-size;
+}
+.resource-tools-drawer .resource-tools-config-form > label {
+  gap: 6px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+.resource-tools-drawer .resource-http-config label {
+  min-width: 0;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
 .resource-config-grid,
-.resource-config-row {
+.resource-config-auth {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-.resource-config-grid > label,
-.resource-config-row > label {
-  min-width: 0;
+.resource-config-auth {
+  grid-template-columns: minmax(0, 1fr);
+  margin: 12px 0;
+}
+.resource-config-endpoint {
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+.resource-http-config .resource-config-section {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid #e8edf5;
+}
+.resource-config-section > summary {
+  position: relative;
+  min-height: 32px;
+  padding: 6px 40px 6px 0;
+  color: #18243d;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.resource-http-config .resource-tool-hint {
+  margin: 6px 0 12px;
+}
+.resource-config-row,
+.resource-config-table-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px 40px 32px 32px;
+  align-items: center;
+  gap: 8px;
+}
+.resource-config-table-head {
+  margin-top: 12px;
+  padding-bottom: 4px;
+  color: #526580;
+  font-size: 12px;
+}
+.resource-config-table-head > span:nth-child(3) {
+  text-align: center;
+}
+.resource-config-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #e8edf5;
+}
+.resource-config-row:last-child {
+  border-bottom: 0;
+}
+.resource-config-shared {
+  grid-column: 1 / 5;
+  margin: 0;
+  font-size: 13px;
+}
+.resource-tools-drawer
+  .resource-http-config
+  .resource-config-row
+  .resource-config-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  min-height: 36px;
+}
+.resource-tools-drawer .resource-http-config .ant-btn.resource-config-remove,
+.resource-tools-drawer .resource-http-config .ant-btn.resource-config-edit,
+.resource-tools-drawer .resource-http-config .ant-btn.resource-config-icon-add {
+  width: 32px;
+  height: 36px;
+  padding: 0;
+  color: #607089;
+  border: 0;
+  box-shadow: none;
+}
+.resource-tools-drawer .resource-http-config .ant-btn.resource-config-icon-add {
+  position: absolute;
+  top: -2px;
+  right: 0;
+  color: #3159d9;
+}
+.resource-tools-drawer
+  .resource-http-config
+  .resource-config-remove:not(:disabled):hover {
+  color: #b42318;
+  background: #fff1f0;
+}
+.resource-tools-drawer .resource-http-config .ant-btn.resource-config-add {
+  height: 32px;
+  padding: 0 4px;
+  color: #3159d9;
+  box-shadow: none;
 }
 .resource-tools-drawer .resource-config-check {
   display: flex;
@@ -560,11 +662,40 @@
   align-items: center;
   gap: 8px;
 }
+.resource-config-section > .resource-config-check {
+  margin-top: 12px !important;
+}
+.resource-param-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 20px 0;
+  color: #18243d;
+  font-size: 13px;
+}
+.resource-param-modal .ant-alert {
+  margin-top: 16px;
+}
+.resource-param-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+@container http-config (max-width: 380px) {
+  .resource-config-row,
+  .resource-config-table-head {
+    grid-template-columns: minmax(0, 1fr) 72px 32px 28px 28px;
+    gap: 4px;
+  }
+  .resource-tools-drawer .resource-http-config .ant-btn.resource-config-edit,
+  .resource-tools-drawer .resource-http-config .ant-btn.resource-config-remove {
+    width: 28px;
+  }
+}
 @media (max-width: 650px) {
-  .resource-config-grid,
-  .resource-config-row {
+  .resource-config-grid:not(.resource-config-endpoint) {
     grid-template-columns: minmax(0, 1fr);
-    gap: 0;
   }
   .resource-field-array-row {
     flex-wrap: wrap;
