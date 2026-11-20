@@ -28,6 +28,8 @@ const {
   updateFieldSchema,
   updateBodyProperty,
   removeBodyProperty,
+  renameRequestParameter,
+  newRequestParameter,
 } = module.exports;
 const fixture = () => ({
   openapi: '3.0.3',
@@ -186,4 +188,129 @@ test('default fields retain false and zero with type validation instead of conve
     ),
     { type: 'array', items: { type: 'string' } }
   );
+});
+
+test('ordinary parameter names follow URL placeholders while preserving schema and required choices', () => {
+  const parameter = {
+    name: 'old',
+    in: 'query',
+    required: false,
+    schema: { type: 'integer', default: 0 },
+    'x-owned': true,
+  };
+  assert.deepEqual(renameRequestParameter('/items/{id}', parameter, 'id'), {
+    ...parameter,
+    name: 'id',
+    in: 'path',
+    required: true,
+  });
+  assert.deepEqual(
+    renameRequestParameter(
+      '/items/{id}',
+      { ...parameter, in: 'path', required: true },
+      'limit'
+    ),
+    {
+      ...parameter,
+      name: 'limit',
+      in: 'query',
+      required: true,
+    }
+  );
+  assert.deepEqual(
+    renameRequestParameter('/items/{id}', parameter, 'idSuffix'),
+    {
+      ...parameter,
+      name: 'idSuffix',
+      in: 'query',
+      required: false,
+    }
+  );
+  assert.equal(parameter.name, 'old');
+  assert.deepEqual(renameRequestParameter('/items/{id}', {}, 'search'), {
+    name: 'search',
+    in: 'query',
+    required: false,
+  });
+});
+
+test('renaming imported header and cookie parameters never moves their wire bindings', () => {
+  for (const location of ['header', 'cookie']) {
+    const parameter = {
+      name: 'token',
+      in: location,
+      required: false,
+      schema: { type: 'string' },
+    };
+    assert.deepEqual(renameRequestParameter('/items/{id}', parameter, 'id'), {
+      ...parameter,
+      name: 'id',
+    });
+  }
+});
+
+test('new parameters fill missing URL placeholders in order and skip inherited and local definitions', () => {
+  const doc = fixture();
+  doc.paths['/items/{id}'].get.parameters = [
+    { name: 'parameter1', in: 'query', schema: { type: 'string' } },
+  ];
+  const before = JSON.stringify(doc);
+  assert.deepEqual(newRequestParameter(doc, configOperations(doc)[0]), {
+    name: 'parameter2',
+    in: 'query',
+    required: false,
+    schema: { type: 'string' },
+  });
+  assert.equal(JSON.stringify(doc), before);
+  doc.paths['/teams/{team}/items/{id}'] = {
+    parameters: [
+      { name: 'team', in: 'path', required: true, schema: { type: 'string' } },
+    ],
+    get: {
+      parameters: [{ name: 'id', in: 'query', schema: { type: 'string' } }],
+    },
+  };
+  const op = configOperations(doc).find(item => item.path.startsWith('/teams'));
+  const added = newRequestParameter(doc, op);
+  assert.deepEqual(added, {
+    name: 'id',
+    in: 'path',
+    required: true,
+    schema: { type: 'string' },
+  });
+  const next = updateOperation(doc, op, {
+    parameters: [...op.operation.parameters, added],
+  });
+  assert.equal(
+    newRequestParameter(
+      next,
+      configOperations(next).find(item => item.path === op.path)
+    ).in,
+    'query'
+  );
+});
+
+test('new parameter discovery reads local parameter references without rewriting shared definitions', () => {
+  const doc = fixture();
+  doc.components.parameters = {
+    'Item/Id': {
+      name: 'id',
+      in: 'path',
+      required: true,
+      schema: { type: 'string' },
+    },
+    cursor: { name: 'parameter1', in: 'query', schema: { type: 'integer' } },
+  };
+  doc.paths['/items/{id}'].parameters = [
+    { $ref: '#/components/parameters/Item~1Id' },
+  ];
+  doc.paths['/items/{id}'].get.parameters = [
+    { $ref: '#/components/parameters/cursor' },
+  ];
+  const before = JSON.stringify(doc);
+  assert.equal(
+    newRequestParameter(doc, configOperations(doc)[0]).name,
+    'parameter2'
+  );
+  assert.equal(JSON.stringify(doc), before);
 });

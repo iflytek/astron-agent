@@ -854,6 +854,7 @@ export default function ResourceTools({
             />
             {drawerTab === 'config' && (
               <form
+                className="resource-tools-config-form"
                 ref={formRef}
                 onSubmit={event => {
                   event.preventDefault();
