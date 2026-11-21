@@ -7,11 +7,12 @@ from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from common.otlp import sid as sid_module
+from common.otlp.trace.span import Span
+
 from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
 from agent.service.plugin.link import LinkPluginFactory, LinkPluginRunner
-from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
 
 
 @dataclass
@@ -250,6 +251,7 @@ async def test_mcp_execution_error_is_not_reported_as_success(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import aiohttp
+
     from agent.service.plugin.mcp import McpPluginRunner
 
     class Response:

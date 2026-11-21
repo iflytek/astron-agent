@@ -9,9 +9,6 @@ from collections import Counter
 from contextlib import aclosing
 from typing import Any
 
-from agent.api.schemas.agent_response import AgentResponse, ToolExecution
-from agent.exceptions.plugin_exc import PluginExc
-from agent.service.plugin.base import BasePlugin, PluginResponse
 from common.exceptions.base import BaseExc
 from common.otlp.trace.langfuse import langfuse_observation_attributes
 from common.otlp.trace.span import Span
@@ -21,6 +18,10 @@ from langgraph.config import get_stream_writer
 from loguru import logger
 from opentelemetry.trace import Status, StatusCode
 from referencing import Registry
+
+from agent.api.schemas.agent_response import AgentResponse, ToolExecution
+from agent.exceptions.plugin_exc import PluginExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
 
 # These names belong to the Harness, even when a particular backend omits them.
 RESERVED_TOOLS = {

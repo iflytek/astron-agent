@@ -3,10 +3,10 @@
 import importlib.util
 import socket
 from pathlib import Path
+from types import ModuleType
 from urllib.parse import urlsplit
 
 import pytest
-
 from plugin.link.infra.tool_exector.ssrf_guard import (
     OutboundPolicy,
     OutboundPolicyError,
@@ -17,8 +17,10 @@ ROOT = Path(__file__).resolve().parents[5]
 PATHS = ("smarttts", "image_generate", "image_understanding", "ocr")
 
 
-def _load_gate(relative_path: str):
-    spec = importlib.util.spec_from_file_location("deployment_gate", ROOT / relative_path)
+def _load_gate(relative_path: str) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "deployment_gate", ROOT / relative_path
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -36,7 +38,9 @@ def test_rendered_builtin_endpoints_only_authorize_exact_targets(
             ROOT / "docker/astronAgent/docker-compose.yaml",
             {
                 "CORE_AITOOLS_PORT": "28668" if mode == "custom" else "18668",
-                "AITOOLS_BASE_URL": "https://aitools.example.org" if mode == "explicit" else "",
+                "AITOOLS_BASE_URL": (
+                    "https://aitools.example.org" if mode == "explicit" else ""
+                ),
                 "PRIVATE_ENDPOINT_ALLOW_LIST": "",
             },
         )["services"]["core-link"]["environment"]
@@ -48,13 +52,13 @@ def test_rendered_builtin_endpoints_only_authorize_exact_targets(
     else:
         gate = _load_gate("helm/astron-agent/tests/verify_tenant_bootstrap.py")
         fullname = "custom-release" if mode == "custom" else "astron-agent"
-        port = "28668" if mode == "custom" else "18668"
+        service_port = "28668" if mode == "custom" else "18668"
         rendered = gate._render(
             (
                 "--set-string",
                 f"fullnameOverride={fullname}",
                 "--set",
-                f"coreAitools.service.port={port}",
+                f"coreAitools.service.port={service_port}",
                 "--set-string",
                 "coreLink.env.aitoolsBaseUrl="
                 + ("https://aitools.example.org/" if mode == "explicit" else ""),
@@ -66,21 +70,36 @@ def test_rendered_builtin_endpoints_only_authorize_exact_targets(
         expected = (
             "https://aitools.example.org"
             if mode == "explicit"
-            else f"http://{fullname}-core-aitools:{port}"
+            else f"http://{fullname}-core-aitools:{service_port}"
         )
 
     assert environment["AITOOLS_BASE_URL"] == expected
     assert set(environment["PRIVATE_ENDPOINT_ALLOW_LIST"].split(",")) == {
         f"{expected}/aitools/v1/{path}" for path in PATHS
     }
-    for name in ("SEGMENT_BLACK_LIST", "IP_BLACK_LIST", "IP_WHITE_LIST", "DOMAIN_BLACK_LIST"):
+    for name in (
+        "SEGMENT_BLACK_LIST",
+        "IP_BLACK_LIST",
+        "IP_WHITE_LIST",
+        "DOMAIN_BLACK_LIST",
+    ):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("PRIVATE_ENDPOINT_ALLOW_LIST", environment["PRIVATE_ENDPOINT_ALLOW_LIST"])
+    monkeypatch.setenv(
+        "PRIVATE_ENDPOINT_ALLOW_LIST", environment["PRIVATE_ENDPOINT_ALLOW_LIST"]
+    )
     policy = OutboundPolicy.from_environment()
     port = urlsplit(expected).port or (443 if expected.startswith("https:") else 80)
-    address = (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("10.0.0.8", port))
+    address = (
+        socket.AF_INET,
+        socket.SOCK_STREAM,
+        socket.IPPROTO_TCP,
+        "",
+        ("10.0.0.8", port),
+    )
     for path in PATHS:
-        factory = create_socket_factory(policy, f"{expected}/aitools/v1/{path}?request=1")
+        factory = create_socket_factory(
+            policy, f"{expected}/aitools/v1/{path}?request=1"
+        )
         sock = factory(address)
         sock.close()
     parsed = urlsplit(expected)

@@ -7,15 +7,6 @@ from typing import Any
 
 import httpx
 import pytest
-from agent.api.schemas.base_inputs import BaseInputs
-from agent.api.schemas.llm_message import LLMMessage
-from agent.api.v1.base_api import CompletionBase
-from agent.domain.models.providers import ModelHandle, create_provider_model
-from agent.engine.deepagents_runner import DeepAgentsRunner
-from agent.engine.plugin_tools import build_plugin_tools
-from agent.exceptions.plugin_exc import PluginExc
-from agent.service.plugin.base import BasePlugin, PluginResponse
-from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 from aiohttp import web
 from common.otlp import sid
 from common.otlp.trace.span import Span
@@ -27,6 +18,16 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 from pydantic import Field
+
+from agent.api.schemas.base_inputs import BaseInputs
+from agent.api.schemas.llm_message import LLMMessage
+from agent.api.v1.base_api import CompletionBase
+from agent.domain.models.providers import ModelHandle, create_provider_model
+from agent.engine.deepagents_runner import DeepAgentsRunner
+from agent.engine.plugin_tools import build_plugin_tools
+from agent.exceptions.plugin_exc import PluginExc
+from agent.service.plugin.base import BasePlugin, PluginResponse
+from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 
 class RecordingModel(FakeMessagesListChatModel):
