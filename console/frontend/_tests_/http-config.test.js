@@ -349,6 +349,259 @@ test('nested properties rename and removal preserve constraints and required ref
     () => updateSchemaProperty(renamed, 'name', '', {}, true),
     /不能为空/
   );
-  assert.deepEqual(removeSchemaProperty(renamed, 'name').required, []);
+  assert.equal(removeSchemaProperty(renamed, 'name').required, undefined);
   assert.deepEqual(original.required, ['title']);
+});
+
+test('optional field edits omit required and removing the last required field omits the keyword', () => {
+  const { updateSchemaProperty, removeSchemaProperty } = module.exports;
+  const optional = updateSchemaProperty(
+    { type: 'object' },
+    'note',
+    'note',
+    { type: 'string' },
+    false
+  );
+  assert.equal(Object.hasOwn(optional, 'required'), false);
+  const required = updateSchemaProperty(
+    optional,
+    'note',
+    'note',
+    { type: 'string' },
+    true
+  );
+  assert.deepEqual(required.required, ['note']);
+  assert.equal(
+    Object.hasOwn(
+      updateSchemaProperty(required, 'note', 'note', { type: 'string' }, false),
+      'required'
+    ),
+    false
+  );
+  assert.equal(
+    Object.hasOwn(removeSchemaProperty(required, 'note'), 'required'),
+    false
+  );
+});
+
+test('saving an existing OpenAPI 3.0 draft repairs nested empty schema required without touching data', () => {
+  const { prepareHttpSchemaForSave } = module.exports;
+  const data = {
+    required: [],
+    nested: { required: [] },
+    count: 0,
+    enabled: false,
+  };
+  const schema = {
+    type: 'object',
+    required: [],
+    default: data,
+    example: data,
+    'x-business': data,
+    properties: {
+      detail: {
+        type: 'object',
+        required: [],
+        properties: { enabled: { type: 'boolean', default: false } },
+      },
+      rows: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: [],
+          properties: { count: { type: 'integer', default: 0 } },
+        },
+      },
+      requiredChild: {
+        type: 'object',
+        required: ['name'],
+        properties: { name: { type: 'string' } },
+      },
+    },
+  };
+  const document = {
+    openapi: '3.0.3',
+    info: { title: 'Old draft', version: '1' },
+    paths: {
+      '/items': {
+        get: {
+          operationId: 'nested',
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema,
+                example: data,
+                examples: { sample: { value: data } },
+              },
+            },
+          },
+          responses: { 200: { description: 'ok' } },
+        },
+      },
+    },
+  };
+  const before = structuredClone(document);
+  const saved = prepareHttpSchemaForSave(document);
+  const body = saved.paths['/items'].get.requestBody;
+  const result = body.content['application/json'].schema;
+  assert.equal(body.required, false);
+  assert.equal(Object.hasOwn(result, 'required'), false);
+  assert.equal(Object.hasOwn(result.properties.detail, 'required'), false);
+  assert.equal(Object.hasOwn(result.properties.rows.items, 'required'), false);
+  assert.equal(result.properties.detail.properties.enabled.default, false);
+  assert.equal(result.properties.rows.items.properties.count.default, 0);
+  assert.deepEqual(result.properties.requiredChild.required, ['name']);
+  assert.deepEqual(result.default, data);
+  assert.deepEqual(result.example, data);
+  assert.deepEqual(result['x-business'], data);
+  assert.deepEqual(body.content['application/json'].example, data);
+  assert.deepEqual(
+    body.content['application/json'].examples.sample.value,
+    data
+  );
+  assert.deepEqual(
+    document,
+    before,
+    'preparing a save must not mutate the editable draft'
+  );
+});
+
+test('OpenAPI schema traversal covers components, composition, responses, headers, encoding and callbacks', () => {
+  const { prepareHttpSchemaForSave } = module.exports;
+  const empty = () => ({ type: 'object', required: [] });
+  const parameter = () => ({ schema: empty(), example: { required: [] } });
+  const response = () => ({
+    description: 'ok',
+    headers: { result: parameter() },
+    content: {
+      'application/json': {
+        schema: {
+          allOf: [empty()],
+          oneOf: [empty()],
+          anyOf: [empty()],
+          not: empty(),
+          additionalProperties: empty(),
+        },
+        encoding: { field: { headers: { encoded: parameter() } } },
+      },
+    },
+  });
+  const callback = () => ({
+    '{$request.body#/callbackUrl}': {
+      parameters: [parameter()],
+      post: {
+        requestBody: { content: { 'application/json': { schema: empty() } } },
+        responses: { 200: response() },
+      },
+    },
+  });
+  const document = {
+    openapi: '3.0.3',
+    components: {
+      schemas: { Shared: empty() },
+      parameters: { Param: parameter() },
+      headers: { Header: parameter() },
+      requestBodies: {
+        Body: {
+          required: false,
+          content: { 'application/json': { schema: empty() } },
+        },
+      },
+      responses: { Response: response() },
+      callbacks: { Callback: callback() },
+    },
+    paths: {
+      '/': {
+        parameters: [parameter()],
+        get: {
+          parameters: [parameter()],
+          responses: { 200: response() },
+          callbacks: { Inline: callback() },
+        },
+      },
+    },
+  };
+  const saved = prepareHttpSchemaForSave(document);
+  assert.equal(
+    Object.hasOwn(saved.components.schemas.Shared, 'required'),
+    false
+  );
+  assert.equal(
+    Object.hasOwn(saved.components.parameters.Param.schema, 'required'),
+    false
+  );
+  assert.equal(
+    Object.hasOwn(saved.components.headers.Header.schema, 'required'),
+    false
+  );
+  assert.equal(saved.components.requestBodies.Body.required, false);
+  assert.equal(
+    Object.hasOwn(
+      saved.components.requestBodies.Body.content['application/json'].schema,
+      'required'
+    ),
+    false
+  );
+  const result = saved.components.responses.Response;
+  assert.equal(Object.hasOwn(result.headers.result.schema, 'required'), false);
+  const media = result.content['application/json'];
+  for (const key of ['allOf', 'oneOf', 'anyOf'])
+    assert.equal(Object.hasOwn(media.schema[key][0], 'required'), false);
+  for (const key of ['not', 'additionalProperties'])
+    assert.equal(Object.hasOwn(media.schema[key], 'required'), false);
+  assert.equal(
+    Object.hasOwn(media.encoding.field.headers.encoded.schema, 'required'),
+    false
+  );
+  const callbackResult =
+    saved.paths['/'].get.callbacks.Inline['{$request.body#/callbackUrl}'];
+  assert.equal(
+    Object.hasOwn(callbackResult.parameters[0].schema, 'required'),
+    false
+  );
+  assert.equal(
+    Object.hasOwn(
+      callbackResult.post.requestBody.content['application/json'].schema,
+      'required'
+    ),
+    false
+  );
+  assert.deepEqual(callbackResult.parameters[0].example, { required: [] });
+});
+
+test('save normalization is scoped to OpenAPI 3.0 and leaves MCP JSON Schema and OAS 3.1 untouched', () => {
+  const { prepareHttpSchemaForSave } = module.exports;
+  for (const document of [
+    { type: 'object', required: [] },
+    {
+      openapi: '3.1.0',
+      components: { schemas: { Payload: { type: 'object', required: [] } } },
+    },
+  ]) {
+    assert.equal(prepareHttpSchemaForSave(document), document);
+  }
+});
+
+test('extension data resembling paths, callback paths or responses is not treated as a formal schema', () => {
+  const { prepareHttpSchemaForSave } = module.exports;
+  const fakeResponse = {
+    content: {
+      'application/json': { schema: { type: 'object', required: [] } },
+    },
+  };
+  const fakePath = { get: { responses: { 200: fakeResponse } } };
+  const document = {
+    openapi: '3.0.3',
+    paths: {
+      'x-data': fakePath,
+      '/': {
+        get: {
+          responses: { 'x-data': fakeResponse },
+          callbacks: { listener: { 'x-data': fakePath } },
+        },
+      },
+    },
+  };
+  assert.deepEqual(prepareHttpSchemaForSave(document), document);
 });

@@ -37,6 +37,7 @@ import {
 } from './mcp-tools';
 import './style.css';
 import HttpConfigForm from './http-config-form';
+import { prepareHttpSchemaForSave } from './http-config';
 import { SchemaFields } from './schema-fields';
 import { httpInputSchema } from './schema-form-model';
 import { httpTestTemplate } from './http-test-template';
@@ -332,7 +333,7 @@ export default function ResourceTools({
             ? {
                 name,
                 description,
-                schema: parseArguments(schema),
+                schema: prepareHttpSchemaForSave(parseArguments(schema)),
                 version,
                 draft,
               }

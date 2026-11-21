@@ -162,6 +162,7 @@ function fixture(mode) {
       './resource-errors': errors,
       './connection-parameters': { default: 'ConnectionParameters' },
       './resource-select': { default: 'ResourceSelect' },
+      './http-config': { prepareHttpSchemaForSave: value => value },
       './http-config-form': { default: 'HttpConfigForm' },
       './schema-fields': { SchemaFields: 'SchemaFields' },
       './schema-form-model': { httpInputSchema: () => ({ type: 'object' }) },
