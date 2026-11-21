@@ -314,3 +314,41 @@ test('new parameter discovery reads local parameter references without rewriting
   );
   assert.equal(JSON.stringify(doc), before);
 });
+
+test('nested properties rename and removal preserve constraints and required references', () => {
+  const { updateSchemaProperty, removeSchemaProperty } = module.exports;
+  const original = {
+    type: 'object',
+    additionalProperties: false,
+    'x-meta': 'keep',
+    required: ['title'],
+    properties: {
+      title: { type: 'string', default: '' },
+      rows: {
+        type: 'array',
+        items: { type: 'object', properties: { count: { type: 'integer' } } },
+      },
+    },
+  };
+  const renamed = updateSchemaProperty(
+    original,
+    'title',
+    'name',
+    { type: 'string', default: 'ok' },
+    true
+  );
+  assert.deepEqual(renamed.required, ['name']);
+  assert.equal(renamed.additionalProperties, false);
+  assert.equal(renamed['x-meta'], 'keep');
+  assert.deepEqual(renamed.properties.rows, original.properties.rows);
+  assert.throws(
+    () => updateSchemaProperty(renamed, 'name', 'rows', {}, true),
+    /已存在/
+  );
+  assert.throws(
+    () => updateSchemaProperty(renamed, 'name', '', {}, true),
+    /不能为空/
+  );
+  assert.deepEqual(removeSchemaProperty(renamed, 'name').required, []);
+  assert.deepEqual(original.required, ['title']);
+});

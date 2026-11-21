@@ -41,6 +41,20 @@ const { SchemaFields } = load('schema-fields.tsx', {
   './mcp-tools': helpers,
   './schema-form-model': model,
   './schema-fields.css': {},
+  './resource-select': {
+    default: ({ options, onChange, ...props }) =>
+      React.createElement(
+        'select',
+        { ...props, onChange: event => onChange(event.target.value) },
+        options.map(option =>
+          React.createElement(
+            'option',
+            { key: option.value, value: option.value },
+            option.label
+          )
+        )
+      ),
+  },
   '@ant-design/icons': {
     DeleteOutlined: () => null,
     PlusOutlined: () => null,

@@ -2,10 +2,12 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, Button, Input, Tabs, Tooltip, type InputRef } from 'antd';
 import { DeleteOutlined, PlusOutlined, EditOutlined } from '@ant-design/icons';
 import ParameterOptionsDialog from './parameter-options-dialog';
+import ResourceSelect from './resource-select';
 import {
   asObject,
   configOperations,
   defaultText,
+  fieldType,
   FIELD_TYPES,
   HTTP_METHODS,
   moveOperation,
@@ -49,7 +51,7 @@ function DefaultValueCell({
       onProblem('');
     }
   }, [sourceText, onProblem]);
-  if (schema.type === 'object' || schema.type === 'array' || schema.$ref)
+  if (['object', 'array', '组合结构', '共享定义'].includes(fieldType(schema)))
     return (
       <Button
         type="text"
@@ -62,19 +64,20 @@ function DefaultValueCell({
     );
   if (schema.type === 'boolean')
     return (
-      <select
+      <ResourceSelect
         className="resource-config-select http-config-cell-select"
         aria-label={`${name}默认值`}
         disabled={disabled}
         value={defaultText(schema)}
-        onChange={event =>
-          onChange(updateFieldSchema(schema, 'default', event.target.value))
+        onChange={value =>
+          onChange(updateFieldSchema(schema, 'default', value))
         }
-      >
-        <option value="">未设置</option>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+        options={[
+          { value: '', label: '未设置' },
+          { value: 'true', label: 'true' },
+          { value: 'false', label: 'false' },
+        ]}
+      />
     );
   const numeric = schema.type === 'number' || schema.type === 'integer';
   return (
@@ -181,24 +184,32 @@ export default function HttpConfigForm({
   const typeControl = (
     schema: JsonObject,
     onUpdate: (next: JsonObject) => void,
-    label: string
+    label: string,
+    scalarOnly = false
   ): ReactElement => (
-    <select
+    <ResourceSelect
       className="resource-config-select resource-config-type"
       aria-label={`${label}类型`}
-      disabled={disabled || !!schema.$ref}
-      data-type={String(schema.type || 'string')}
-      value={String(schema.type || 'string')}
-      onChange={event =>
-        onUpdate(updateFieldSchema(schema, 'type', event.target.value))
+      disabled={
+        disabled ||
+        !!schema.$ref ||
+        !!schema.oneOf ||
+        !!schema.anyOf ||
+        !!schema.allOf ||
+        Array.isArray(schema.type) ||
+        (scalarOnly &&
+          (['object', 'array'].includes(fieldType(schema)) ||
+            !!schema.oneOf ||
+            !!schema.anyOf ||
+            !!schema.allOf))
       }
-    >
-      {FIELD_TYPES.map(type => (
-        <option key={type} value={type}>
-          {type}
-        </option>
-      ))}
-    </select>
+      data-type={fieldType(schema)}
+      value={fieldType(schema)}
+      onChange={value => onUpdate(updateFieldSchema(schema, 'type', value))}
+      options={FIELD_TYPES.filter(
+        value => !scalarOnly || !['object', 'array'].includes(value)
+      ).map(value => ({ value, label: value }))}
+    />
   );
   const updateParam = (index: number, next: JsonObject): void =>
     patch({
@@ -225,18 +236,16 @@ export default function HttpConfigForm({
           {operations.length > 1 && (
             <label>
               请求操作
-              <select
+              <ResourceSelect
                 className="resource-config-select"
                 disabled={disabled}
                 value={operations.indexOf(operation)}
-                onChange={event => setSelected(Number(event.target.value))}
-              >
-                {operations.map((item, index) => (
-                  <option key={`${item.method}:${item.path}`} value={index}>
-                    {item.method.toUpperCase()} {item.path}
-                  </option>
-                ))}
-              </select>
+                onChange={value => setSelected(Number(value))}
+                options={operations.map((item, index) => ({
+                  value: index,
+                  label: `${item.method.toUpperCase()} ${item.path}`,
+                }))}
+              />
             </label>
           )}
 
@@ -260,18 +269,16 @@ export default function HttpConfigForm({
             </label>
             <label>
               请求方式
-              <select
+              <ResourceSelect
                 className="resource-config-select"
                 disabled={disabled}
                 value={operation.method}
-                onChange={event => relocate(operation.path, event.target.value)}
-              >
-                {HTTP_METHODS.map(method => (
-                  <option key={method} value={method}>
-                    {method.toUpperCase()}
-                  </option>
-                ))}
-              </select>
+                onChange={value => relocate(operation.path, value)}
+                options={HTTP_METHODS.map(value => ({
+                  value,
+                  label: value.toUpperCase(),
+                }))}
+              />
             </label>
             <label>
               请求路径
@@ -296,6 +303,23 @@ export default function HttpConfigForm({
               placeholder="如 getRepository，用于 Agent 识别工具"
               onChange={event => patch({ operationId: event.target.value })}
             />
+          </label>
+          <label className="http-config-model-description">
+            模型工具说明
+            <Input.TextArea
+              disabled={disabled}
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              value={String(
+                operation.operation.description ??
+                  operation.operation.summary ??
+                  ''
+              )}
+              placeholder="说明工具的用途、适用场景和调用限制"
+              onChange={event => patch({ description: event.target.value })}
+            />
+            <span className="resource-tool-hint">
+              调用名称、此说明和参数定义会提供给模型；默认值用于执行时补值。
+            </span>
           </label>
           <Tabs
             className="http-config-tabs"
@@ -344,7 +368,9 @@ export default function HttpConfigForm({
               </Tooltip>
             </div>
             <p className="resource-tool-hint">
-              路径中的 {'{name}'} 自动识别为路径参数，其余新增参数用于查询。
+              路径中的 {'{name}'}{' '}
+              自动识别为路径参数，其余新增参数用于查询。支持文本、整数、数字和布尔值；复杂结构请放入
+              Body。
             </p>
             {!!params.length && (
               <div className="http-config-table-head" aria-hidden="true">
@@ -390,7 +416,8 @@ export default function HttpConfigForm({
                         schema,
                         next =>
                           updateParam(index, { ...parameter, schema: next }),
-                        name
+                        name,
+                        true
                       )}
                       <DefaultValueCell
                         key={`${operationKey}:${index}:${name}:${schema.type}`}
@@ -635,22 +662,28 @@ export default function HttpConfigForm({
                   );
                 })}
                 {Object.keys(body).length > 0 && (
-                  <label className="resource-config-check">
-                    <input
-                      type="checkbox"
-                      disabled={disabled}
-                      checked={body.required === true}
-                      onChange={event =>
-                        patch({
-                          requestBody: {
-                            ...body,
-                            required: event.target.checked,
-                          },
-                        })
-                      }
-                    />
-                    请求内容必填
-                  </label>
+                  <details className="http-config-body-options">
+                    <summary>请求体选项</summary>
+                    <label className="resource-config-check">
+                      <input
+                        type="checkbox"
+                        disabled={disabled}
+                        checked={body.required === true}
+                        onChange={event =>
+                          patch({
+                            requestBody: {
+                              ...body,
+                              required: event.target.checked,
+                            },
+                          })
+                        }
+                      />
+                      调用时必须发送请求体
+                    </label>
+                    <p className="resource-tool-hint">
+                      约束整个请求体是否可省略；字段行中的必填只约束已发送对象内的字段。
+                    </p>
+                  </details>
                 )}
               </>
             )}

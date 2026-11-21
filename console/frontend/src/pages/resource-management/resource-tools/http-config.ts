@@ -115,6 +115,67 @@ export function defaultText(schema: JsonObject): string {
     ? schema.default
     : JSON.stringify(schema.default);
 }
+export function fieldType(schema: JsonObject): string {
+  if (
+    schema.oneOf ||
+    schema.anyOf ||
+    schema.allOf ||
+    Array.isArray(schema.type)
+  )
+    return '组合结构';
+  if (schema.$ref && !schema.type) return '共享定义';
+  return String(
+    schema.type ||
+      (schema.properties ? 'object' : schema.items ? 'array' : 'string')
+  );
+}
+
+/** Edit one property without dropping imported constraints or sibling definitions. */
+export function updateSchemaProperty(
+  schema: JsonObject,
+  name: string,
+  nextName: string,
+  field: JsonObject,
+  required: boolean
+): JsonObject {
+  if (!nextName.trim()) throw new Error('字段名不能为空。');
+  const properties = asObject(schema.properties);
+  if (
+    nextName !== name &&
+    Object.prototype.hasOwnProperty.call(properties, nextName)
+  )
+    throw new Error('参数名已存在。');
+  const entries = Object.entries(properties).map(([key, value]) =>
+    key === name ? [nextName, field] : [key, value]
+  );
+  if (!Object.prototype.hasOwnProperty.call(properties, name))
+    entries.push([nextName, field]);
+  const names = (Array.isArray(schema.required) ? schema.required : []).filter(
+    key => key !== name && key !== nextName
+  );
+  if (required) names.push(nextName);
+  return {
+    ...schema,
+    type: 'object',
+    properties: Object.fromEntries(entries),
+    required: names,
+  };
+}
+
+export function removeSchemaProperty(
+  schema: JsonObject,
+  name: string
+): JsonObject {
+  const properties = { ...asObject(schema.properties) };
+  delete properties[name];
+  return {
+    ...schema,
+    properties,
+    required: (Array.isArray(schema.required) ? schema.required : []).filter(
+      key => key !== name
+    ),
+  };
+}
 /** Form edits retain enums, constraints and extension metadata unless the type changes. */
 export function updateFieldSchema(
   schema: JsonObject,
@@ -171,21 +232,6 @@ export function updateBodyProperty(
   const content = asObject(requestBody.content);
   const media = asObject(content['application/json']);
   const schema = asObject(media.schema);
-  const properties = { ...asObject(schema.properties) };
-  if (
-    nextName !== name &&
-    Object.prototype.hasOwnProperty.call(properties, nextName)
-  )
-    throw new Error('参数名已存在。');
-  const entries = Object.entries(properties).map(([key, value]) =>
-    key === name ? [nextName, field] : [key, value]
-  );
-  if (!Object.prototype.hasOwnProperty.call(properties, name))
-    entries.push([nextName, field]);
-  const names = (Array.isArray(schema.required) ? schema.required : []).filter(
-    key => key !== name && key !== nextName
-  );
-  if (required) names.push(nextName);
   return updateOperation(document, operation, {
     requestBody: {
       ...requestBody,
@@ -193,12 +239,7 @@ export function updateBodyProperty(
         ...content,
         'application/json': {
           ...media,
-          schema: {
-            ...schema,
-            type: 'object',
-            properties: Object.fromEntries(entries),
-            required: names,
-          },
+          schema: updateSchemaProperty(schema, name, nextName, field, required),
         },
       },
     },
@@ -213,8 +254,6 @@ export function removeBodyProperty(
   const content = asObject(requestBody.content);
   const media = asObject(content['application/json']);
   const schema = asObject(media.schema);
-  const properties = { ...asObject(schema.properties) };
-  delete properties[name];
   return updateOperation(document, operation, {
     requestBody: {
       ...requestBody,
@@ -222,14 +261,7 @@ export function removeBodyProperty(
         ...content,
         'application/json': {
           ...media,
-          schema: {
-            ...schema,
-            properties,
-            required: (Array.isArray(schema.required)
-              ? schema.required
-              : []
-            ).filter(key => key !== name),
-          },
+          schema: removeSchemaProperty(schema, name),
         },
       },
     },
