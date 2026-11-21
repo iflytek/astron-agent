@@ -154,12 +154,14 @@ export function updateSchemaProperty(
     key => key !== name && key !== nextName
   );
   if (required) names.push(nextName);
-  return {
+  const next: JsonObject = {
     ...schema,
     type: 'object',
     properties: Object.fromEntries(entries),
-    required: names,
   };
+  if (names.length) next.required = names;
+  else delete next.required;
+  return next;
 }
 
 export function removeSchemaProperty(
@@ -168,13 +170,130 @@ export function removeSchemaProperty(
 ): JsonObject {
   const properties = { ...asObject(schema.properties) };
   delete properties[name];
-  return {
+  const next: JsonObject = {
     ...schema,
     properties,
-    required: (Array.isArray(schema.required) ? schema.required : []).filter(
-      key => key !== name
-    ),
   };
+  const names = (Array.isArray(schema.required) ? schema.required : []).filter(
+    key => key !== name
+  );
+  if (names.length) next.required = names;
+  else delete next.required;
+  return next;
+}
+
+type DocumentVisitor = (value: unknown) => unknown;
+function visitFields(
+  value: unknown,
+  visitors: Record<string, DocumentVisitor>
+): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const next = { ...(value as JsonObject) };
+  for (const [key, visit] of Object.entries(visitors))
+    if (Object.prototype.hasOwnProperty.call(next, key))
+      next[key] = visit(next[key]);
+  return next;
+}
+const visitMap =
+  (
+    visit: DocumentVisitor,
+    acceptsKey = (_key: string): boolean => true
+  ): DocumentVisitor =>
+  value =>
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? Object.fromEntries(
+          Object.entries(value).map(([key, entry]) => [
+            key,
+            acceptsKey(key) ? visit(entry) : entry,
+          ])
+        )
+      : value;
+const visitList =
+  (visit: DocumentVisitor): DocumentVisitor =>
+  value =>
+    Array.isArray(value) ? value.map(visit) : value;
+
+/** OpenAPI 3.0 follows JSON Schema draft 4: required, when present, must be nonempty. */
+function prepareSchemaObject(value: unknown): unknown {
+  const next = visitFields(value, {
+    properties: visitMap(prepareSchemaObject),
+    items: prepareSchemaObject,
+    additionalProperties: prepareSchemaObject,
+    allOf: visitList(prepareSchemaObject),
+    oneOf: visitList(prepareSchemaObject),
+    anyOf: visitList(prepareSchemaObject),
+    not: prepareSchemaObject,
+  });
+  if (next && typeof next === 'object' && !Array.isArray(next)) {
+    const schema = next as JsonObject;
+    if (Array.isArray(schema.required) && schema.required.length === 0)
+      delete schema.required;
+  }
+  return next;
+}
+const prepareContent: DocumentVisitor = visitMap(value =>
+  visitFields(value, {
+    schema: prepareSchemaObject,
+    encoding: visitMap(encoding =>
+      visitFields(encoding, { headers: visitMap(prepareParameter) })
+    ),
+  })
+);
+function prepareParameter(value: unknown): unknown {
+  return visitFields(value, {
+    schema: prepareSchemaObject,
+    content: prepareContent,
+  });
+}
+function prepareRequestBody(value: unknown): unknown {
+  return visitFields(value, { content: prepareContent });
+}
+function prepareResponse(value: unknown): unknown {
+  return visitFields(value, {
+    content: prepareContent,
+    headers: visitMap(prepareParameter),
+  });
+}
+const prepareCallback: DocumentVisitor = visitMap(
+  preparePathItem,
+  key => !key.startsWith('x-')
+);
+function prepareOperation(value: unknown): unknown {
+  return visitFields(value, {
+    parameters: visitList(prepareParameter),
+    requestBody: prepareRequestBody,
+    responses: visitMap(
+      prepareResponse,
+      key => key === 'default' || /^[1-5](?:\d{2}|XX)$/i.test(key)
+    ),
+    callbacks: visitMap(prepareCallback),
+  });
+}
+function preparePathItem(value: unknown): unknown {
+  return visitFields(value, {
+    parameters: visitList(prepareParameter),
+    ...Object.fromEntries(
+      HTTP_METHODS.map(method => [method, prepareOperation])
+    ),
+  });
+}
+
+/** Repair old HTTP drafts only at OAS Schema Object positions, never example/default data or MCP schemas. */
+export function prepareHttpSchemaForSave(document: JsonObject): JsonObject {
+  if (typeof document.openapi !== 'string' || !/^3\.0\./.test(document.openapi))
+    return document;
+  return visitFields(document, {
+    paths: visitMap(preparePathItem, key => key.startsWith('/')),
+    components: value =>
+      visitFields(value, {
+        schemas: visitMap(prepareSchemaObject),
+        parameters: visitMap(prepareParameter),
+        headers: visitMap(prepareParameter),
+        requestBodies: visitMap(prepareRequestBody),
+        responses: visitMap(prepareResponse),
+        callbacks: visitMap(prepareCallback),
+      }),
+  }) as JsonObject;
 }
 /** Form edits retain enums, constraints and extension metadata unless the type changes. */
 export function updateFieldSchema(
