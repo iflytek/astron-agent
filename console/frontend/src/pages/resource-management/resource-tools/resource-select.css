@@ -1,0 +1,66 @@
+.resource-select-wrap {
+  position: relative;
+  display: inline-block;
+  width: 112px;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: middle;
+}
+.resource-select-wrap .resource-select {
+  width: 100%;
+  font-size: 13px;
+}
+.resource-select-wrap .ant-select-selector {
+  border-radius: 6px;
+}
+.resource-select-wrap .ant-select-arrow {
+  inset-inline-end: 10px;
+  font-size: 10px;
+  pointer-events: none;
+}
+.resource-select-wrap.resource-select-tool {
+  width: 360px;
+}
+.resource-select-wrap .ant-select-selection-item {
+  padding-inline-end: 20px;
+}
+.resource-select-popup {
+  min-width: 112px;
+  max-width: min(440px, calc(100vw - 32px));
+}
+.resource-select-popup .ant-select-item {
+  font-size: 13px;
+}
+.resource-select-popup .ant-select-item-option-content {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.resource-select-wrap .resource-select-validation {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.resource-select-error {
+  display: block;
+  margin-top: 4px;
+  color: #bc3932;
+  font-size: 12px;
+}
+/* Input resets in parameter tables must not style the Select's search input. */
+.resource-schema-fields
+  .resource-select
+  input.ant-select-selection-search-input {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+}

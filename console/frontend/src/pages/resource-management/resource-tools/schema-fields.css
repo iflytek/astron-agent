@@ -77,7 +77,6 @@
 }
 
 .resource-schema-fields input,
-.resource-schema-fields select,
 .resource-schema-fields textarea {
   width: 100%;
   min-width: 0;
@@ -106,14 +105,12 @@
 }
 
 .resource-schema-fields input:disabled,
-.resource-schema-fields select:disabled,
 .resource-schema-fields textarea:disabled {
   background: #f6f8fd;
   color: #718198;
 }
 
 .resource-schema-fields input:focus-visible,
-.resource-schema-fields select:focus-visible,
 .resource-schema-fields textarea:focus-visible,
 .resource-schema-fields button:focus-visible {
   outline: 2px solid #315ff4;
@@ -139,9 +136,12 @@
   white-space: nowrap;
 }
 
-.resource-schema-fields .resource-field-type > select {
+.resource-schema-fields .resource-field-type > .resource-select-wrap {
+  width: 100%;
   max-width: 110px;
-  padding-inline: 4px;
+}
+.resource-schema-fields .resource-field-type .ant-select-selector {
+  padding-inline: 6px;
   font-size: 12px;
 }
 

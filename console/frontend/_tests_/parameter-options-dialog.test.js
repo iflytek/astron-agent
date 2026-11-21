@@ -37,20 +37,16 @@ function load(name, mocks = {}) {
 
 const input = tag => props =>
   React.createElement(tag, {
-    type: props.type,
-    value: props.value,
-    onChange: props.onChange,
-    step: props.step,
-    placeholder: props.placeholder,
+    ...props,
   });
 const Input = input('input');
 Input.TextArea = input('textarea');
 const antd = {
   Input,
-  Button: ({ children, htmlType, onClick }) =>
+  Button: ({ children, htmlType, onClick, ...props }) =>
     React.createElement(
       'button',
-      { type: htmlType || 'button', onClick },
+      { ...props, type: htmlType || 'button', onClick },
       children
     ),
   Modal: ({ children, onCancel }) =>
@@ -64,6 +60,7 @@ const antd = {
         'Close dialog'
       )
     ),
+  Tooltip: ({ children }) => children,
   Alert: ({ message }) =>
     React.createElement('div', { role: 'alert' }, message),
 };
@@ -73,6 +70,22 @@ const Dialog = load('parameter-options-dialog.tsx', {
   'react/jsx-runtime': jsxRuntime,
   antd,
   './http-config': helpers,
+  './resource-select': {
+    default: ({ options, onChange, ...props }) =>
+      React.createElement(
+        'select',
+        { ...props, onChange: event => onChange(event.target.value) },
+        options.map(option =>
+          React.createElement(
+            'option',
+            { key: option.value, value: option.value },
+            option.label
+          )
+        )
+      ),
+  },
+  '@ant-design/icons': { DeleteOutlined: () => null, PlusOutlined: () => null },
+  './parameter-options-dialog.css': {},
 }).default;
 
 const renderers = [];
@@ -191,8 +204,6 @@ test('complex and referenced defaults stay untouched when their description chan
     { type: 'array', default: [0, 1], items: { type: 'integer' } },
   ]) {
     const app = dialog(schema);
-    assert.equal(app.root.findAllByType('input').length, 0);
-    assert.equal(app.root.findAllByType('select').length, 0);
     app.change('textarea', 'Updated description');
     app.submit();
     assert.equal(app.saves[0].schema, schema);
@@ -209,4 +220,82 @@ test('an untouched empty string default is retained and clearing a numeric defau
   numeric.change('input', '');
   numeric.submit();
   assert.deepEqual(numeric.saves[0].schema, { type: 'number', minimum: 0 });
+});
+
+function named(app, label, tag = 'input') {
+  return app.root
+    .findAllByType(tag)
+    .find(node => node.props['aria-label'] === label);
+}
+function changeNode(node, value, checked) {
+  const target = {
+    value,
+    checked,
+    setCustomValidity(message) {
+      this.validationMessage = message;
+    },
+    reportValidity() {},
+    validity: {},
+  };
+  act(() => node.props.onChange({ target }));
+}
+
+test('object and array object item fields are editable without JSON and apply together', () => {
+  const schema = {
+    type: 'object',
+    'x-owned': true,
+    properties: {
+      rows: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { count: { type: 'integer', default: 1 } },
+          required: ['count'],
+        },
+      },
+    },
+  };
+  const app = dialog(schema);
+  changeNode(named(app, 'limit.rows[].count默认值'), '0');
+  changeNode(named(app, 'limit.rows[].count说明'), '数量');
+  changeNode(named(app, 'limit.rows[].count字段名'), 'total');
+  app.submit();
+  const result = app.saves[0].schema;
+  assert.deepEqual(result.properties.rows.items.required, ['total']);
+  assert.deepEqual(result.properties.rows.items.properties.total, {
+    type: 'integer',
+    default: 0,
+    description: '数量',
+  });
+  assert.equal(result.properties.rows.items.additionalProperties, false);
+  assert.equal(result['x-owned'], true);
+  assert.equal(schema.properties.rows.items.properties.count.default, 1);
+});
+
+test('new object children and nested array types remain draft until apply, cancel discards them', () => {
+  const app = dialog({ type: 'object', properties: {} });
+  act(() =>
+    app.root
+      .findAllByType('button')
+      .find(node => node.props['aria-label'] === '添加 limit 子字段')
+      .props.onClick()
+  );
+  changeNode(named(app, 'limit.parameter1类型', 'select'), 'array');
+  changeNode(named(app, 'limit.parameter1元素类型', 'select'), 'boolean');
+  changeNode(named(app, 'limit.parameter1[]默认值', 'select'), 'false');
+  app.submit();
+  assert.deepEqual(app.saves[0].schema.properties.parameter1.items, {
+    type: 'boolean',
+    default: false,
+  });
+  const cancelled = dialog({ type: 'object', properties: {} });
+  act(() =>
+    cancelled.root
+      .findAllByType('button')
+      .find(node => node.props['aria-label'] === '添加 limit 子字段')
+      .props.onClick()
+  );
+  cancelled.cancel();
+  assert.equal(cancelled.saves.length, 0);
 });

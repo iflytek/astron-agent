@@ -1,5 +1,6 @@
+import ResourceSelect from '@/pages/resource-management/resource-tools/resource-select';
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Alert, Button, Input, Select, Skeleton } from 'antd';
+import { Alert, Button, Input, Skeleton } from 'antd';
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { getServerToolDetailAPI, debugServerToolAPI } from '@/services/plugin';
 import type { McpItem } from '@/components/workflow/types/modal/add-mcp';
@@ -170,7 +171,11 @@ export function MCPDetail({
             <>
               <label>
                 工具
-                <Select
+                <ResourceSelect
+                  className="resource-select-tool"
+                  showSearch
+                  optionFilterProp="label"
+                  aria-label="选择 MCP 工具"
                   value={toolName}
                   disabled={busy}
                   options={tools.map(item => ({

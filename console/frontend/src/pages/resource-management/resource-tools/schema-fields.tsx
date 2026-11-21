@@ -1,3 +1,4 @@
+import ResourceSelect from './resource-select';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import './schema-fields.css';
@@ -94,12 +95,17 @@ function UnionField({
   const ownKindControl = (
     <div className="resource-field resource-field-type">
       <label htmlFor={id}>{title}类型</label>
-      <select
+      <ResourceSelect
         id={id}
         disabled={props.disabled}
         value={index}
-        onChange={event => {
-          const next = Number(event.target.value);
+        aria-label={`${title}类型`}
+        options={variants.map((variant, i) => ({
+          value: i,
+          label: variantLabel(variant),
+        }))}
+        onChange={value => {
+          const next = Number(value);
           saved.set(index, props.value);
           change(
             saved.has(next)
@@ -108,13 +114,7 @@ function UnionField({
             next
           );
         }}
-      >
-        {variants.map((variant, i) => (
-          <option key={i} value={i}>
-            {variantLabel(variant)}
-          </option>
-        ))}
-      </select>
+      />
     </div>
   );
   const kindControl = props.kindControl ? (
@@ -263,33 +263,31 @@ function Field({
       <div className="resource-field resource-schema-row">
         <label htmlFor={id}>{label}</label>
         {kind}
-        <select
+        <ResourceSelect
           {...common}
+          aria-label={title}
           required={required}
           value={value === undefined ? '' : JSON.stringify(value)}
-          onChange={event =>
-            onChange(
-              event.target.value === ''
-                ? undefined
-                : JSON.parse(event.target.value)
-            )
+          options={[
+            { value: '', label: '请选择' },
+            ...choices.map(choice => ({
+              value: JSON.stringify(choice),
+              label:
+                choice === true
+                  ? '是'
+                  : choice === false
+                    ? '否'
+                    : choice === null
+                      ? '空值'
+                      : typeof choice === 'object'
+                        ? JSON.stringify(choice)
+                        : String(choice),
+            })),
+          ]}
+          onChange={next =>
+            onChange(next === '' ? undefined : JSON.parse(next))
           }
-        >
-          <option value="">请选择</option>
-          {choices.map((choice, i) => (
-            <option key={i} value={JSON.stringify(choice)}>
-              {choice === true
-                ? '是'
-                : choice === false
-                  ? '否'
-                  : choice === null
-                    ? '空值'
-                    : typeof choice === 'object'
-                      ? JSON.stringify(choice)
-                      : String(choice)}
-            </option>
-          ))}
-        </select>
+        />
         {hint}
       </div>
     );

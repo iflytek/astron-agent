@@ -81,8 +81,7 @@
   padding: 7px 0;
   border-bottom: 1px solid #e8edf5;
 }
-.http-config-row .ant-input,
-.http-config-row .resource-config-select {
+.http-config-row .ant-input {
   width: 100%;
   min-width: 0;
   min-height: 32px;
@@ -95,12 +94,10 @@
   font: inherit;
   font-size: 13px;
 }
-.http-config-row .ant-input:hover,
-.http-config-row .resource-config-select:hover {
+.http-config-row .ant-input:hover {
   border-color: #dfe6f1;
 }
-.http-config-row .ant-input:focus,
-.http-config-row .resource-config-select:focus-visible {
+.http-config-row .ant-input:focus {
   border-color: #315ff4;
   outline: 2px solid #e7eeff;
   outline-offset: 0;
@@ -200,21 +197,22 @@
 .http-config-editor .resource-config-select {
   width: 100%;
   min-width: 0;
-  min-height: 36px;
-  padding: 7px 10px;
-  border: 1px solid #c5cede;
-  border-radius: 6px;
-  color: #18243d;
-  background: #fff;
-  font: inherit;
-  font-size: 13px;
 }
-.http-config-editor .http-config-row .resource-config-select {
-  min-height: 32px;
-  height: 32px;
-  padding: 4px 7px;
+.http-config-editor .http-config-row .resource-select .ant-select-selector {
   border-color: transparent;
   background: transparent;
+  padding-inline: 7px;
+  height: 32px;
+  box-shadow: none;
+}
+.http-config-editor
+  .http-config-row
+  .resource-select:hover
+  .ant-select-selector {
+  border-color: #dfe6f1;
+}
+.http-config-editor .http-config-row .ant-select-focused .ant-select-selector {
+  border-color: #315ff4;
 }
 .http-config-editor .resource-config-select:focus-visible,
 .http-config-advanced summary:focus-visible {
@@ -234,4 +232,24 @@
   .http-config-panel-heading {
     gap: 8px;
   }
+}
+.http-config-editor.http-config-editor > .http-config-model-description {
+  max-width: 760px;
+}
+.http-config-body-options {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #607089;
+}
+.http-config-body-options > summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.http-config-editor .http-config-body-options .resource-config-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  color: #18243d;
 }

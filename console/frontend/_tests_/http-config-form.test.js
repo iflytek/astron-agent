@@ -73,6 +73,7 @@ const HttpConfigForm = load('http-config-form.tsx', {
     PlusOutlined: () => null,
     EditOutlined: () => null,
   },
+  './resource-select': { default: () => null },
   './http-config': helpers,
   './parameter-options-dialog': { default: () => null },
   './http-config-form.css': {},

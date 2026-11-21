@@ -160,6 +160,8 @@ function fixture(mode) {
       './mcp-tools': helpers,
       './http-test-template': templates,
       './resource-errors': errors,
+      './connection-parameters': { default: 'ConnectionParameters' },
+      './resource-select': { default: 'ResourceSelect' },
       './http-config-form': { default: 'HttpConfigForm' },
       './schema-fields': { SchemaFields: 'SchemaFields' },
       './schema-form-model': { httpInputSchema: () => ({ type: 'object' }) },

@@ -1,3 +1,5 @@
+import ConnectionParameters from './connection-parameters';
+import ResourceSelect from './resource-select';
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   Alert,
@@ -7,7 +9,6 @@ import {
   Input,
   Modal,
   Pagination,
-  Select,
   Skeleton,
   Tabs,
   Tag,
@@ -900,7 +901,7 @@ export default function ResourceTools({
                     </label>
                   )}
                   <label className="resource-tools-description">
-                    说明
+                    资源说明
                     <Input.TextArea
                       disabled={busy}
                       required={mode === 'tools'}
@@ -954,20 +955,13 @@ export default function ResourceTools({
                       className="resource-field-optional"
                       open={parameters !== '{}'}
                     >
-                      <summary>连接参数（可选）</summary>
+                      <summary>服务环境参数（可选）</summary>
                       <p className="resource-tool-hint">
-                        服务要求额外授权时填写，已有凭据保持原值即可保留。
+                        仅按服务提供方要求填写文本键值；普通 MCP
+                        地址无需填写。这些值用于服务连接，不会作为工具参数提供给模型。已有凭据保持原值即可保留。
                       </p>
-                      <SchemaFields
+                      <ConnectionParameters
                         key={`${spaceId}:${selected?.id ?? 'new'}:connection`}
-                        title="连接参数"
-                        schema={{
-                          type: 'object',
-                          additionalProperties: {
-                            type: 'string',
-                            format: 'password',
-                          },
-                        }}
                         value={parameters}
                         disabled={busy}
                         onChange={value => {
@@ -1038,7 +1032,8 @@ export default function ResourceTools({
                         )}
                         <label>
                           选择工具
-                          <Select
+                          <ResourceSelect
+                            className="resource-select-tool"
                             showSearch
                             optionFilterProp="label"
                             aria-label="选择 MCP 工具"
