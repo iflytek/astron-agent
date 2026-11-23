@@ -25,6 +25,7 @@ dependencies = [
   "python-docx>=1.2,<2",
   "croniter>=6,<7",
   "pyyaml>=6,<7",
+  "pillow>=12.2,<14",
 ]
 
 [project.optional-dependencies]

@@ -1,4 +1,10 @@
-import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactElement,
+} from 'react';
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
@@ -36,9 +42,10 @@ const loginDestination = (): string => {
   sessionStorage.removeItem('postLoginRedirect');
   return destination?.startsWith('/') &&
     !destination.startsWith('//') &&
-    !destination.includes('\\')
+    !destination.includes('\\') &&
+    !/^\/(?:account|login|register|reset-password)(?:[/?#]|$)/.test(destination)
     ? destination
-    : '/account';
+    : '/space/agent';
 };
 
 export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
@@ -47,6 +54,9 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
   const [loadError, setLoadError] = useState('');
   const [user, setUser] = useState<User>();
   const [failedAvatar, setFailedAvatar] = useState<string>();
+  const [avatarFile, setAvatarFile] = useState<File>();
+  const avatarInput = useRef<HTMLInputElement>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>();
   const [loading, setLoading] = useState(mode === 'account');
   const [revision, setRevision] = useState(0);
   const [resetParams] = useState(
@@ -83,6 +93,16 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
       ignore = true;
     };
   }, [mode, revision]);
+
+  useEffect((): (() => void) | undefined => {
+    if (!avatarFile) {
+      setAvatarPreview(undefined);
+      return;
+    }
+    const preview = URL.createObjectURL(avatarFile);
+    setAvatarPreview(preview);
+    return () => URL.revokeObjectURL(preview);
+  }, [avatarFile]);
 
   const run = async (
     action: Action,
@@ -127,13 +147,25 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
     });
   };
 
+  const clearAvatarSelection = (): void => {
+    if (avatarInput.current) avatarInput.current.value = '';
+    setAvatarFile(undefined);
+  };
+
   const submitProfile = async (
     event: FormEvent<HTMLFormElement>
   ): Promise<void> => {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    if (!avatarFile) data.delete('avatar');
     await run('profile', async () => {
+      if (avatarFile && avatarFile.size > 5 * 1024 * 1024) {
+        throw new Error('请选择不超过 5 MB 的图片');
+      }
       setUser(await accountRequest<User>('/user-info/update', data));
+      clearAvatarSelection();
+      setFailedAvatar(undefined);
       setFeedback({ action: 'profile', notice: '资料已保存。' });
     });
   };
@@ -188,7 +220,7 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
               <h1>{titles.account}</h1>
               <p className={styles.intro}>{descriptions.account}</p>
             </div>
-            <a className={styles.outlineButton} href="/home">
+            <a className={styles.outlineButton} href="/space/agent">
               <ArrowLeftOutlined aria-hidden="true" />
               进入控制台
             </a>
@@ -214,11 +246,14 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
             <div className={styles.accountSurface}>
               <div className={styles.identity}>
                 <img
-                  src={avatar}
+                  src={avatarPreview || avatar}
                   alt=""
                   width="54"
                   height="54"
-                  onError={() => setFailedAvatar(user.avatar)}
+                  onError={() => {
+                    if (avatarPreview) setAvatarPreview(undefined);
+                    else setFailedAvatar(user.avatar);
+                  }}
                 />
                 <div className={styles.identityText}>
                   <strong>{user.nickname || user.username}</strong>
@@ -240,16 +275,52 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
                         maxLength={255}
                       />
                     </label>
-                    <label>
-                      头像地址
-                      <input
-                        name="avatar"
-                        type="url"
-                        defaultValue={user.avatar}
-                        maxLength={512}
-                        placeholder="https://…"
-                      />
-                    </label>
+                    <div className={styles.avatarField}>
+                      <span className={styles.fieldLabel}>头像</span>
+                      <div className={styles.avatarFile}>
+                        <input
+                          ref={avatarInput}
+                          name="avatar"
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          hidden
+                          disabled={!!busy}
+                          onChange={event =>
+                            setAvatarFile(event.currentTarget.files?.[0])
+                          }
+                        />
+                        <button
+                          type="button"
+                          className={styles.outlineButton}
+                          aria-describedby="account-avatar-guide"
+                          disabled={!!busy}
+                          onClick={() => avatarInput.current?.click()}
+                        >
+                          选择头像
+                        </button>
+                        {avatarFile && (
+                          <>
+                            <span
+                              className={styles.avatarFilename}
+                              title={avatarFile.name}
+                            >
+                              {avatarFile.name}
+                            </span>
+                            <button
+                              type="button"
+                              className={styles.outlineButton}
+                              disabled={!!busy}
+                              onClick={clearAvatarSelection}
+                            >
+                              取消选择
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <span className={styles.hint} id="account-avatar-guide">
+                      PNG、JPEG 或 WebP，最大 5 MB。
+                    </span>
                     <button
                       className={styles.primaryButton}
                       type="submit"

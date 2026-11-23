@@ -85,13 +85,13 @@ const routes = [
       },
       {
         index: true,
-        element: <Navigate to="/store/agent" replace />,
+        element: <Navigate to="/space/agent" replace />,
       },
       {
         path: '/home',
         element: (
           <Suspense fallback={<Loading />}>
-            <Navigate to="/store/agent" replace />
+            <Navigate to="/space/agent" replace />
           </Suspense>
         ),
       },

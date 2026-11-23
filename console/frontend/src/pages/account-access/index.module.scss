@@ -447,3 +447,36 @@ form > .hint {
     transition: none;
   }
 }
+
+.avatarField {
+  display: grid;
+  width: 100%;
+  gap: 6px;
+}
+
+.fieldLabel {
+  font-weight: 550;
+}
+
+.avatarFile {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+
+  input[hidden] {
+    display: none;
+  }
+
+  button {
+    flex: none;
+  }
+}
+
+.avatarFilename {
+  overflow: hidden;
+  color: var(--account-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -13,11 +13,13 @@ from urllib.parse import parse_qs, urlsplit
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
 from django.core.cache import cache
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
+from PIL import Image, PngImagePlugin
 
 from astron_console.accounts.models import User, UserProfile
 
@@ -50,6 +52,71 @@ class AccountTests(TestCase):
             "password": NEW_PASSWORD,
             "passwordConfirm": NEW_PASSWORD,
         }
+
+    def test_avatar_upload_default_replacement_and_authenticated_read(self):
+        user = self.create_user()
+        profile = UserProfile.objects.get(uid=user.pk)
+        profile.avatar = "https://cdn.casbin.org/img/casbin.svg"
+        profile.save(update_fields=["avatar"])
+        self.assertEqual(self.login().json()["data"]["avatar"], "")
+        self.assertEqual(self.client.get("/user-info/me").json()["data"]["avatar"], "")
+        csrf = self.client.get("/auth/csrf").json()["data"]["csrfToken"]
+        objects = {}
+
+        def put(key, stream, length, content_type):
+            self.assertEqual(content_type, "image/png")
+            objects[key] = stream.read()
+            self.assertEqual(len(objects[key]), length)
+
+        def upload():
+            content = io.BytesIO()
+            metadata = PngImagePlugin.PngInfo()
+            metadata.add_text("label", "metadata to remove")
+            Image.new("RGBA", (700, 400), (45, 90, 170, 130)).save(content, "PNG", pnginfo=metadata)
+            return SimpleUploadedFile("local.png", content.getvalue(), "image/png")
+
+        with (
+            patch("astron_console.accounts.avatars.storage.put", side_effect=put) as store,
+            patch("astron_console.accounts.avatars.storage.read", side_effect=objects.__getitem__),
+            patch("astron_console.accounts.avatars.storage.remove", side_effect=objects.pop),
+        ):
+            without_csrf = self.client.post("/user-info/update", {"avatar": upload()})
+            self.assertEqual(without_csrf.status_code, 403)
+            invalid = self.client.post(
+                "/user-info/update",
+                {"avatar": SimpleUploadedFile("avatar.png", b"bad image", "image/png")},
+                HTTP_X_CSRFTOKEN=csrf,
+            )
+            self.assertEqual(invalid.status_code, 400)
+            store.assert_not_called()
+            first = self.client.post(
+                "/user-info/update",
+                {"nickname": "新昵称", "avatar": upload()},
+                HTTP_X_CSRFTOKEN=csrf,
+            )
+            self.assertEqual(first.status_code, 200, first.content)
+            first_url = first.json()["data"]["avatar"]
+            self.assertEqual(first.json()["data"]["nickname"], "新昵称")
+            first_path = first_url.removeprefix("/console-api")
+            self.assertEqual(Client().get(first_path).status_code, 401)
+            content = self.client.get(first_path)
+            self.assertEqual(content.headers["Content-Type"], "image/png")
+            with Image.open(io.BytesIO(content.content)) as image:
+                self.assertEqual(image.width, 512)
+                self.assertEqual(image.mode, "RGBA")
+                self.assertNotIn("label", image.info)
+
+            with self.captureOnCommitCallbacks(execute=True):
+                second = self.client.post(
+                    "/user-info/update",
+                    {"avatar": upload()},
+                    HTTP_X_CSRFTOKEN=csrf,
+                )
+            self.assertEqual(second.status_code, 200, second.content)
+            self.assertEqual(len(objects), 1)
+            new_url = self.client.get("/user-info/me").json()["data"]["avatar"]
+            self.assertNotEqual(new_url, first_url)
+            self.assertEqual(self.client.get(first_path).status_code, 404)
 
     def test_json_password_values_are_not_coerced_to_strings(self):
         user = self.create_user()

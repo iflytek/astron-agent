@@ -39,11 +39,12 @@ export class AccountRequestError extends Error {
 
 export const accountRequest = async <T>(
   path: string,
-  payload?: Record<string, unknown>
+  payload?: Record<string, unknown> | FormData
 ): Promise<T> => {
   const headers: Record<string, string> = {};
+  const multipart = payload instanceof FormData;
   if (payload !== undefined) {
-    headers['Content-Type'] = 'application/json';
+    if (!multipart) headers['Content-Type'] = 'application/json';
     headers['X-CSRFToken'] = await ensureCsrfToken();
   }
   const response = await fetch(`${API_BASE}${path}`, {
@@ -51,7 +52,7 @@ export const accountRequest = async <T>(
     headers,
     credentials: 'same-origin',
     cache: 'no-store',
-    ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+    body: multipart ? payload : JSON.stringify(payload),
   });
   const result = await response.json();
   if (!response.ok || result.code !== 0) {

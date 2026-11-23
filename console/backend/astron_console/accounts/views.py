@@ -5,13 +5,19 @@ from django.contrib.auth.forms import PasswordChangeForm, SetPasswordForm
 from django.contrib.auth.tokens import default_token_generator
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, transaction
+from django.http import Http404, HttpResponse
 from django.middleware.csrf import get_token
 from django.utils import timezone
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.views.decorators.http import require_GET, require_POST
 
+from astron_console.http import api_endpoint
+from astron_console.knowledge import storage
+from astron_console.knowledge.clients import ResourceServiceError
+
+from . import avatars
 from .forms import RegistrationForm
 from .http import endpoint, form_error, response
 from .models import User, UserProfile, normalize_username
@@ -25,14 +31,15 @@ def valid_password_fields(payload, *fields):
     )
 
 
-def profile_data(user):
-    profile = UserProfile.objects.get(uid=user.pk)
+def profile_data(user, profile=None):
+    if profile is None:
+        profile = UserProfile.objects.get(uid=user.pk)
     return {
         "id": profile.pk,
         "uid": user.pk,
         "username": user.username,
         "nickname": profile.nickname or user.username,
-        "avatar": profile.avatar or "",
+        "avatar": avatars.display_url(profile.avatar),
         "mobile": profile.mobile or "",
         "accountStatus": profile.account_status,
         "enterpriseServiceType": profile.enterprise_service_type,
@@ -113,12 +120,17 @@ def me(request):
     return response(profile_data(request.user))
 
 
-@require_POST
-@endpoint(authenticated=True)
+@api_endpoint(["POST"])
 def update_profile(request):
-    if set(request.payload) - {"nickname", "avatar"}:
-        return response(message="只能更新昵称和头像", status=400)
     changes = {}
+    files = request.FILES.getlist("avatar")
+    if (
+        set(request.payload) - {"nickname", "avatar"}
+        or set(request.FILES) - {"avatar"}
+        or len(files) > 1
+        or (files and "avatar" in request.payload)
+    ):
+        return response(message="只能更新昵称和一张头像", status=400)
     for key, length in (("nickname", 255), ("avatar", 512)):
         if key in request.payload:
             value = request.payload[key]
@@ -129,9 +141,57 @@ def update_profile(request):
         try:
             URLValidator(schemes=["https", "http"])(changes["avatar"])
         except ValidationError:
-            return response(message="头像必须为 HTTP(S) 地址", status=400)
-    UserProfile.objects.filter(uid=request.user.pk).update(**changes, update_time=timezone.now())
-    return response(profile_data(request.user))
+            return response(message="请选择本地图片上传", status=400)
+
+    new_key = None
+    saved = False
+    uid = request.user.pk
+    try:
+        if files:
+            profile_id = UserProfile.objects.only("id").get(uid=uid).pk
+            encoded, size = avatars.prepare(files[0])
+            with encoded:
+                changes["avatar"], new_key = avatars.upload(profile_id, encoded, size)
+        with transaction.atomic():
+            profile = UserProfile.objects.select_for_update().get(uid=uid)
+            old_key = avatars.stored_key(profile.pk, profile.avatar)
+            for key, value in changes.items():
+                setattr(profile, key, value)
+            profile.update_time = timezone.now()
+            profile.save(update_fields=[*changes, "update_time"])
+            saved = True
+            if old_key and "avatar" in changes:
+                transaction.on_commit(lambda: avatars.remove(old_key))
+    except ResourceServiceError:
+        logger.warning("Account avatar upload failed uid=%s", uid)
+        return response(message="头像上传失败，请稍后重试", status=503)
+    except DatabaseError:
+        # A connection loss during COMMIT may leave the new avatar referenced.
+        if new_key and not saved:
+            avatars.remove(new_key)
+        raise
+    if new_key:
+        logger.info("Account avatar updated uid=%s", uid)
+    return response(profile_data(request.user, profile))
+
+
+@api_endpoint(["GET"])
+def avatar_content(request, profile_id, name):
+    # Space member and invitation responses also display current profile avatars.
+    # The versioned URL identifies one active avatar and still requires a session.
+    key = avatars.object_key(profile_id, name)
+    url = f"{avatars.AVATAR_PATH}{profile_id}/{name}"
+    if not key or not UserProfile.objects.filter(pk=profile_id, avatar=url, deleted=0).exists():
+        raise Http404()
+    try:
+        body = storage.read(key)
+    except ResourceServiceError:
+        logger.warning("Account avatar read failed profile=%s", profile_id)
+        return response(message="无法读取头像", status=503)
+    result = HttpResponse(body, content_type="image/png")
+    result["Cache-Control"] = "private, max-age=300"
+    result["X-Content-Type-Options"] = "nosniff"
+    return result
 
 
 @require_POST
