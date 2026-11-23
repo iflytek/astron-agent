@@ -8,7 +8,7 @@ external services.
 
 | Purpose | Implementation |
 | --- | --- |
-| Tenant API keys and secrets | `core/tenant/tools/generator/app.go` reads `crypto/rand.Reader`; keys use 16 random bytes and secrets use 24 random bytes. Random-source failure stops generation. |
+| Tenant API keys and secrets | `core/tenant/tenant/service.py` uses Python's `secrets` module; keys use 16 random bytes and secrets use 24 random bytes. Random-source failure stops generation. |
 | Persistent service tokens | Deployment provisions persistent random tokens in existing secret files or environment variables. Python Console reads the same tokens and uses constant-time comparison on its internal resource endpoints; restarting Console does not rotate tokens. |
 | Space invitations | Invitations are addressed to a UID and accepted by that authenticated user in a transaction. Console no longer uses encrypted invitation URLs. |
 | Model and resource credentials | Python Console preserves the existing database credential values and exposes masked management responses. Provider SDK calls and authorized internal endpoints receive credentials server-side. Browser submissions use the same-origin HTTPS/session/CSRF boundary; the old model RSA transmission protocol is removed. Existing API-key columns and platform JSON remain in their original storage format. |

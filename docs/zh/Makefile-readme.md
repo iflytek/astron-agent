@@ -1,6 +1,6 @@
 # 🚀 多语言CI/CD工具链
 
-> **统一开发工作流，支持Go、Python、TypeScript**
+> **统一开发工作流，支持Python、TypeScript**
 
 ## 快速开始
 
@@ -69,25 +69,21 @@ enabled = false   # 禁用其他模块以提高执行速度
 
 ### `make format`
 格式化所有语言的代码：
-- Go: `gofmt` + `goimports` + `gofumpt` + `golines`
 - Python: `black` + `isort`
 - TypeScript: `prettier`
 
 ### `make check` (别名: `make lint`)
 所有语言的质量检查：
-- Go: `gocyclo` + `staticcheck` + `golangci-lint`
 - Python: `flake8` + `mypy` + `pylint`
 - TypeScript: `eslint` + `tsc`
 
 ### `make test`
 运行所有项目的测试：
-- Go: `go test` with coverage
 - Python: `pytest` with coverage
 - TypeScript: `npm test`
 
 ### `make build`
 构建所有项目：
-- Go: 构建二进制文件
 - Python: 安装依赖
 - TypeScript: Vite `build`
 
@@ -103,8 +99,8 @@ enabled = false   # 禁用其他模块以提高执行速度
 ## 运行服务
 
 ```bash
-# Go服务
-cd core/tenant && go run cmd/main.go
+# Tenant (see core/tenant/README.md for credentials and MySQL settings)
+cd core/tenant && uv run --locked python -m tenant
 
 # Python Console
 cd console/backend && uv run python manage.py runserver 127.0.0.1:8080
@@ -143,14 +139,6 @@ Git钩子管理：
 ## 专用命令
 
 运行 `make enable-legacy` 后，可以使用语言专用命令：
-
-### Go命令
-```bash
-make fmt-go              # 格式化Go代码
-make check-go            # Go质量检查
-make test-go             # 运行Go测试
-make build-go            # 构建Go项目
-```
 
 ### Python命令
 ```bash

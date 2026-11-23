@@ -32,7 +32,6 @@
 
 - **Node.js 20+** (用于前端开发)
 - **Python 3.11+** (用于核心服务)
-- **Go 1.23+** (用于租户服务)
 - **Docker & Docker Compose** (用于容器化服务)
 - **Git** (用于版本控制)
 
@@ -94,8 +93,8 @@ pre-commit install --hook-type commit-msg
 ```
 
 Pre-commit 将在每次提交时自动运行：
-- 检查代码格式（Black、Prettier、gofmt、Ruff）
-- 运行代码检查器（flake8、ESLint、golangci-lint、Ruff）
+- 检查代码格式（Black、Prettier、Ruff）
+- 运行代码检查器（flake8、ESLint、Ruff）
 - 执行类型检查（mypy、TypeScript）
 - 扫描敏感信息（gitleaks）
 - 验证提交消息格式
@@ -121,7 +120,7 @@ astron-agent/
 │   ├── knowledge/             # 知识库服务 (Python)
 │   ├── memory/                # 内存管理
 │   ├── plugin/                # 插件系统
-│   ├── tenant/                # 多租户服务 (Go)
+│   ├── tenant/                # 多租户服务 (Python)
 │   └── workflow/              # 工作流编排 (Python)
 ├── docs/                      # 文档
 ├── makefiles/                 # 构建系统组件
@@ -181,7 +180,6 @@ Astron Agent 支持多种编程语言，具有统一的质量标准：
 
 | 语言 | 格式化 | 质量工具 | 标准 |
 |------|--------|----------|------|
-| **Go** | gofmt + goimports + gofumpt | golangci-lint + staticcheck | Go 标准格式，复杂度 ≤10 |
 | **Python** | black + isort | flake8 + mypy + pylint | PEP 8，复杂度 ≤10 |
 | **TypeScript** | prettier | eslint + tsc | ESLint 规则，严格类型检查 |
 
@@ -210,7 +208,6 @@ pre-commit run --all-files
 # 运行特定的钩子
 pre-commit run black --all-files
 pre-commit run eslint-check --all-files
-pre-commit run golangci-lint --all-files
 ```
 
 详细信息请参阅 [Pre-commit 使用指南](./PRE-COMMIT.md)。
@@ -230,7 +227,6 @@ pre-commit run golangci-lint --all-files
 make test
 
 # 运行特定语言测试
-make test-go
 make test-python
 make test-typescript
 

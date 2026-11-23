@@ -30,7 +30,6 @@ Pre-commit 是一个用于管理和维护多语言 pre-commit 钩子的框架。
 
 - Python 3.11+
 - Node.js 20+（用于 TypeScript/JavaScript 检查）
-- Go 1.23+（用于 Go 检查）
 
 ### 安装 pre-commit
 
@@ -124,14 +123,7 @@ pre-commit autoupdate
 | `prettier-check` | 检查代码格式 | console/frontend/src |
 | `eslint-check` | 代码问题检查 | console/frontend/src |
 
-### Go 检查
-
-| 钩子 | 描述 | 范围 |
-|------|------|------|
-| `golangci-lint` | 综合代码检查 | core/tenant |
-| `go-fmt-check` | 检查 gofmt 格式 | core/tenant |
-| `go-imports-check` | 检查 goimports 格式 | core/tenant |
-| `go-vet` | 检查可疑代码 | core/tenant |
+Tenant Python 文件由 `tenant-python-check` 钩子检查。
 
 ### Python Console
 
@@ -178,19 +170,6 @@ npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}"
 
 # 修复 linting 问题（仅可自动修复的）
 npx eslint "src/**/*.{ts,tsx}" --fix
-```
-
-### Go
-
-```bash
-cd core/tenant
-
-# 修复格式
-gofmt -w .
-goimports -w .
-
-# 或使用 gofumpt 进行更严格的格式化
-gofumpt -w .
 ```
 
 ## 配置
@@ -256,9 +235,6 @@ python3 -m flake8 --version
 npx prettier --version
 npx eslint --version
 
-# 检查 Go 工具
-golangci-lint --version
-gofmt -help
 ```
 
 #### 2. 钩子运行时间过长

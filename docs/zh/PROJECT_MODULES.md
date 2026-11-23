@@ -137,7 +137,7 @@
 
 **模块路径**：`core/tenant/`
 
-**使用语言**：Go
+**使用语言**：Python
 
 **主要职责**：
 - 应用注册与管理
@@ -145,9 +145,9 @@
 
 空间成员、角色及资源授权由 Console 管理。
 
-**技术栈**：Go 1.23、Gin 框架、MySQL
+**技术栈**：FastAPI、SQLAlchemy Core、PyMySQL、MySQL
 
-**设计理念**：采用 Go 实现以保证高性能和低内存开销
+**设计理念**：应用身份和 API Key 存储于 MySQL，Console、Agent 和 Workflow 通过内部 HTTP API 调用。
 
 ---
 
@@ -270,7 +270,7 @@ Core Microservices（核心微服务层）
     ├── Workflow Service (Python FastAPI)
     ├── Knowledge Service (Python FastAPI)
     ├── Memory DB Service (Python)
-    ├── Tenant Service (Go Gin)
+    ├── Tenant Service (Python FastAPI)
     ├── Plugin: AI Tools (Python FastAPI)
     ├── Plugin: Link (Python FastAPI)
     └── Plugin: RPA (Python FastAPI)
@@ -336,7 +336,7 @@ External Services（外部服务）
 | | Workflow Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Knowledge Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Memory DB Service | Python | Python 3.11+ |
-| | Tenant Service | Go + Gin | Go 1.23, Gin 1.10.1 |
+| | Tenant Service | Python + FastAPI | Python 3.11+, FastAPI 0.116+ |
 | **插件** | AI Tools Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | RPA Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Link Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
@@ -366,10 +366,6 @@ External Services（外部服务）
 - **代码风格**：ESLint + Prettier
 - **类型检查**：TypeScript 严格模式
 - **测试**：Node.js 测试运行器 (`npm run test:unit`)
-
-### Go 模块
-- **代码风格**：Go fmt
-- **代码分析**：Go vet、Golint
 
 ---
 

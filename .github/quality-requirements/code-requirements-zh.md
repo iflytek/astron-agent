@@ -6,7 +6,6 @@
 
 | 语言 | 文档 | Makefile命令 | 工具链 |
 |------|------|-------------|--------|
-| **Go** | [`go-zh.md`](./langs/go-zh.md) | `make fmt-go`, `make check-go` | gofmt + goimports + gofumpt + golines + staticcheck + golangci-lint |
 | **Python** | [`python-zh.md`](./langs/python-zh.md) | `make fmt-python`, `make check-python` | black + isort + flake8 + mypy + pylint |
 | **TypeScript** | [`typescript-zh.md`](./langs/typescript-zh.md) | `make fmt-typescript`, `make check-typescript` | prettier + eslint + tsc |
 
@@ -20,7 +19,6 @@ make check     # 检查所有语言质量
 
 ### 单语言命令
 ```bash
-make fmt-go && make check-go           # Go
 make fmt-python && make check-python   # Python
 make fmt-typescript && make check-typescript  # TypeScript
 ```

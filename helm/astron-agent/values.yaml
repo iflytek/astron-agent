@@ -206,7 +206,6 @@ coreTenant:
     type: ClusterIP
     port: 5052
   env:
-    serviceLocation: hf
     servicePort: 5052
     databaseType: mysql
     databaseUsername: root

@@ -32,7 +32,6 @@ Before contributing, ensure you have the following installed:
 
 - **Node.js 20+** (for frontend development)
 - **Python 3.11+** (for core services)
-- **Go 1.23+** (for tenant service)
 - **Docker & Docker Compose** (for containerized services)
 - **Git** (for version control)
 
@@ -94,8 +93,8 @@ pre-commit install --hook-type commit-msg
 ```
 
 Pre-commit will automatically run on every commit to:
-- Check code formatting (Black, Prettier, gofmt, Ruff)
-- Run linters (flake8, ESLint, golangci-lint, Ruff)
+- Check code formatting (Black, Prettier, Ruff)
+- Run linters (flake8, ESLint, Ruff)
 - Perform type checking (mypy, TypeScript)
 - Scan for secrets (gitleaks)
 - Validate commit message format
@@ -121,7 +120,7 @@ astron-agent/
 │   ├── knowledge/             # Knowledge base service (Python)
 │   ├── memory/                # Memory management
 │   ├── plugin/                # Plugin system
-│   ├── tenant/                # Multi-tenant service (Go)
+│   ├── tenant/                # Multi-tenant service (Python)
 │   └── workflow/              # Workflow orchestration (Python)
 ├── docs/                      # Documentation
 ├── makefiles/                 # Build system components
@@ -181,7 +180,6 @@ Astron Agent supports multiple programming languages with unified quality standa
 
 | Language | Formatting | Quality Tools | Standards |
 |----------|------------|---------------|-----------|
-| **Go** | gofmt + goimports + gofumpt | golangci-lint + staticcheck | Go standard format, complexity ≤10 |
 | **Python Core** | black + isort | flake8 + mypy + pylint | PEP 8, complexity ≤10 |
 | **Python Console** | Ruff | Ruff + Django checks | Django tests and migration preservation |
 | **TypeScript** | prettier | eslint + tsc | ESLint rules, strict typing |
@@ -211,7 +209,6 @@ pre-commit run --all-files
 # Run a specific hook
 pre-commit run black --all-files
 pre-commit run eslint-check --all-files
-pre-commit run golangci-lint --all-files
 ```
 
 For more details, see the [Pre-commit Usage Guide](/PRE-COMMIT).
@@ -231,7 +228,6 @@ For more details, see the [Pre-commit Usage Guide](/PRE-COMMIT).
 make test
 
 # Run specific language tests
-make test-go
 make test-python
 make test-typescript
 

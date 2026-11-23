@@ -450,7 +450,6 @@ services:
     container_name: astron-agent-core-tenant
     environment:
       SERVICE_PORT: "${CORE_TENANT_PORT:-5052}"
-      SERVICE_LOCATION: "${SERVICE_LOCATION:-hf}"
       DATABASE_DB_TYPE: "${DATABASE_DB_TYPE:-mysql}"
       DATABASE_USERNAME: "${DATABASE_USERNAME:-${MYSQL_USER:-root}}"
       DATABASE_PASSWORD: "${DATABASE_PASSWORD:-${MYSQL_PASSWORD:-${MYSQL_ROOT_PASSWORD:-root123}}}"

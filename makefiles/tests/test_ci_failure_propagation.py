@@ -29,15 +29,6 @@ if (tool == os.environ.get("FAIL_TOOL")
     sys.exit(29)
 if tool == "child-make" and args[-1] == os.environ.get("FAIL_TARGET"):
     sys.exit(31)
-if tool == "go":
-    if args[:2] == ["env", "GOPATH"]:
-        print(os.environ["FIXTURE_ROOT"])
-    elif args[:1] == ["list"]:
-        print("example.test/tenant")
-    elif args[:1] == ["build"]:
-        if args != ["build", "-o", "bin/server", "."]:
-            sys.exit("build must use the root main package and retain bin/server")
-        Path("bin/server").write_text("stub binary")
 """
 
 
@@ -56,12 +47,6 @@ class FailurePropagationTests(unittest.TestCase):
         self.tools = self.root / "tools"
         self.tools.mkdir()
         for name in (
-            "go",
-            "goimports",
-            "gocyclo",
-            "staticcheck",
-            "golangci-lint",
-            "curl",
             "uv",
             "npm",
             "npx",
@@ -109,12 +94,9 @@ class FailurePropagationTests(unittest.TestCase):
         env.update(failure or {})
         settings = {
             "LOCALCI_CONFIG": "",
-            "ACTIVE_PROJECTS": "go python typescript",
-            "GO_DIRS": "first middle last",
+            "ACTIVE_PROJECTS": "python typescript",
             "PYTHON_DIRS": "first middle last",
             "TS_DIRS": "first middle last",
-            "GOMODULES": "fixture",
-            "GOFILES": "",
             "PYTHON_FILES": "",
             "TS_FILES": "",
             "PYTHON": str(self.tools / "python-stub"),
@@ -160,25 +142,6 @@ class FailurePropagationTests(unittest.TestCase):
         self.assertNotIn("All Python projects passed", result.stdout)
         self.assertNotIn(f"Built: {project}", result.stdout)
         self.assertNotIn(f"Dependencies installed with uv: {project}", result.stdout)
-
-    def test_go_checks_install_pipeline_analysis_and_build_fail_fast(self):
-        stages = (
-            ("check-go", "go", ["install"]),
-            ("check-go", "go", ["env"]),
-            ("check-go", "curl", []),
-            ("check-go", "goimports", []),
-            ("check-go", "go", ["vet"]),
-            ("check-go", "gocyclo", []),
-            ("check-go", "go", ["list"]),
-            ("check-go", "staticcheck", []),
-            ("check-go", "golangci-lint", []),
-            ("test-go", "go", ["test"]),
-            ("build-go", "go", ["build"]),
-        )
-        for target, tool, args in stages:
-            for project in ("first", "middle"):
-                with self.subTest(target=target, tool=tool, args=args, project=project):
-                    self.assert_tool_failure(target, tool, args, project)
 
     def test_typescript_install_formatter_type_lint_test_and_build_fail_fast(self):
         stages = (
@@ -237,7 +200,7 @@ class FailurePropagationTests(unittest.TestCase):
                 )
 
     def test_language_targets_finish_all_projects_on_success(self):
-        for language in ("go", "python", "typescript"):
+        for language in ("python", "typescript"):
             for action in ("check", "test", "build"):
                 with self.subTest(language=language, action=action):
                     result, calls = self.run_target(f"{action}-{language}")
@@ -245,14 +208,9 @@ class FailurePropagationTests(unittest.TestCase):
                     self.assertEqual(
                         {call["project"] for call in calls}, {"first", "middle", "last"}
                     )
-        for project in ("first", "middle", "last"):
-            self.assertEqual(
-                (self.root / project / "bin/server").read_text(), "stub binary"
-            )
 
     def test_missing_project_fails_without_running_later_projects(self):
         for language, variable in (
-            ("go", "GO_DIRS"),
             ("python", "PYTHON_DIRS"),
             ("typescript", "TS_DIRS"),
         ):
@@ -285,20 +243,17 @@ class FailurePropagationTests(unittest.TestCase):
             (
                 "check",
                 [
-                    "check-go",
                     "check-python",
                     "check-typescript",
-                    "check-comments-go",
                     "check-comments-python",
                     "check-comments-typescript",
                 ],
             ),
-            ("test", ["test-go", "test-python", "test-typescript"]),
-            ("build", ["build-go", "build-python", "build-typescript"]),
+            ("test", ["test-python", "test-typescript"]),
+            ("build", ["build-python", "build-typescript"]),
             (
                 "check-comments",
                 [
-                    "check-comments-go",
                     "check-comments-python",
                     "check-comments-typescript",
                 ],
@@ -336,12 +291,12 @@ class FailurePropagationTests(unittest.TestCase):
     def test_actual_ci_recursion_reaches_build_and_propagates_tool_failure(self):
         for failure in (
             {},
-            {"FAIL_TOOL": "go", "FAIL_ARGS": '["build"]', "FAIL_PROJECT": "middle"},
+            {"FAIL_TOOL": "npm", "FAIL_ARGS": '["run", "build"]', "FAIL_PROJECT": "middle"},
         ):
             result, calls = self.run_target("ci", failure=failure)
             if failure:
                 self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertEqual(calls[-1]["args"][0], "build")
+                self.assertEqual(calls[-1]["args"], ["run", "build"])
                 self.assertEqual(calls[-1]["project"], "middle")
                 self.assertNotIn("CI pipeline complete", result.stdout)
             else:

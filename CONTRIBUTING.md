@@ -32,7 +32,6 @@ Before contributing, ensure you have the following installed:
 
 - **Node.js 20** (for frontend development and CI)
 - **Python 3.11+** and **uv** (for the Django Console; core services use their module requirements)
-- **Go 1.21+** (for tenant service)
 - **Docker & Docker Compose** (for containerized services)
 - **Git** (for version control)
 
@@ -94,8 +93,8 @@ pre-commit install --hook-type commit-msg
 ```
 
 Pre-commit will automatically run on every commit to:
-- Check code formatting (Black, Ruff, Prettier, gofmt)
-- Run linters (Ruff, flake8, ESLint, golangci-lint)
+- Check code formatting (Black, Ruff, Prettier)
+- Run linters (Ruff, flake8, ESLint)
 - Perform type checking (mypy, TypeScript)
 - Scan for secrets (gitleaks)
 - Validate commit message format
@@ -118,7 +117,7 @@ astron-agent/
 │   ├── knowledge/             # Knowledge base service (Python)
 │   ├── memory/                # Memory management
 │   ├── plugin/                # Plugin system
-│   ├── tenant/                # Multi-tenant service (Go)
+│   ├── tenant/                # Multi-tenant service (Python)
 │   └── workflow/              # Workflow orchestration (Python)
 ├── docs/                      # Documentation
 ├── makefiles/                 # Build system components
@@ -178,7 +177,6 @@ Astron Agent supports multiple programming languages with unified quality standa
 
 | Language | Formatting | Quality Tools | Standards |
 |----------|------------|---------------|-----------|
-| **Go** | gofmt + goimports + gofumpt | golangci-lint + staticcheck | Go standard format, complexity ≤10 |
 | **Python** | Ruff (Console), black + isort (core) | Ruff (Console), flake8 + mypy + pylint (core) | PEP 8, complexity ≤10 |
 | **TypeScript** | prettier | eslint + tsc | ESLint rules, strict typing |
 
@@ -207,7 +205,6 @@ pre-commit run --all-files
 # Run a specific hook
 pre-commit run black --all-files
 pre-commit run eslint-check --all-files
-pre-commit run golangci-lint --all-files
 ```
 
 For more details, see the [Pre-commit Usage Guide](docs/PRE-COMMIT.md).
@@ -227,7 +224,6 @@ For more details, see the [Pre-commit Usage Guide](docs/PRE-COMMIT.md).
 make test
 
 # Run specific language tests
-make test-go
 make test-python
 make test-typescript
 

@@ -171,6 +171,8 @@ See [Python Console configuration](../console/backend/README.md) for the require
 
 ## 5. Tenant Module Configuration
 
+Tenant runs on Python 3.11 and loads MySQL and startup credentials before serving traffic. See the [Tenant service guide](../core/tenant/README.md) for credential files and local startup.
+
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
 | DATABASE_DB_TYPE | Required | string | Database type | mysql |

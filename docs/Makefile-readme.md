@@ -1,6 +1,6 @@
 # 🚀 Multi-Language CI/CD Toolchain
 
-> **Unified development workflow for Go, Python, TypeScript**
+> **Unified development workflow for Python and TypeScript**
 
 ## Quick Start
 
@@ -69,25 +69,21 @@ One-time environment setup. Installs tools, configures Git hooks, sets branch st
 
 ### `make format`
 Formats code for all languages:
-- Go: `gofmt` + `goimports` + `gofumpt` + `golines`
 - Python: `black` + `isort`
 - TypeScript: `prettier`
 
 ### `make check` (alias: `make lint`)
 Quality checks for all languages:
-- Go: `gocyclo` + `staticcheck` + `golangci-lint`
 - Python: `flake8` + `mypy` + `pylint`
 - TypeScript: `eslint` + `tsc`
 
 ### `make test`
 Runs tests for all projects:
-- Go: `go test` with coverage
 - Python: `pytest` with coverage
 - TypeScript: `npm test`
 
 ### `make build`
 Builds all projects:
-- Go: Build binaries
 - Python: Install dependencies
 - TypeScript: Vite `build`
 
@@ -103,8 +99,8 @@ Cleans build artifacts for all languages.
 ## Running Services
 
 ```bash
-# Go service
-cd core/tenant && go run cmd/main.go
+# Tenant (see core/tenant/README.md for credentials and MySQL settings)
+cd core/tenant && uv run --locked python -m tenant
 
 # Python Console
 cd console/backend && uv run python manage.py runserver 127.0.0.1:8080
@@ -143,14 +139,6 @@ Enables specialized language commands for backward compatibility.
 ## Specialized Commands
 
 After running `make enable-legacy`, you can use language-specific commands:
-
-### Go Commands
-```bash
-make fmt-go              # Format Go code
-make check-go            # Go quality check
-make test-go             # Run Go tests
-make build-go            # Build Go project
-```
 
 ### Python Commands
 ```bash

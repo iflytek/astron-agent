@@ -11,21 +11,15 @@ out/
 # Language-Specific Build Files
 # =============================================================================
 
-# Go
+# Native build output
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-*.test
 *.out
-go.work
-go.work.sum
 bin/
-pkg/
 vendor/
-.gocache/
-.golangci-cache/
 
 # Retired build output must not be committed during upgrades
 target/
@@ -81,6 +75,7 @@ loop/*
 loop/project-development/*
 !loop/project-development/astron-agent-docs/
 loop/project-development/astron-agent-docs/*
+!loop/project-development/astron-agent-docs/python-tenant/
 !loop/project-development/astron-agent-docs/python-console/
 
 # =============================================================================
@@ -218,6 +213,7 @@ ENV/
 virtualenv/
 *.venv*
 .python-version
+!core/tenant/.python-version
 
 # Python Tools Cache
 .ruff_cache/

@@ -166,6 +166,8 @@
 
 ## 5. Tenant 模块配置
 
+Tenant 使用 Python 3.11，在提供 HTTP 服务前初始化 MySQL 和启动凭据。参见 [Tenant 服务指南](../../core/tenant/README.md) 配置凭据文件和本地启动。
+
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
 | DATABASE_DB_TYPE | 必填 | string | 数据库类型 | mysql |

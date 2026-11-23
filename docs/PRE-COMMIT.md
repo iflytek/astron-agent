@@ -30,7 +30,6 @@ Ensure you have the following installed:
 
 - Python 3.11+
 - Node.js 20+ (for TypeScript/JavaScript checks)
-- Go 1.23+ (for Go checks)
 
 ### Install pre-commit
 
@@ -124,14 +123,7 @@ pre-commit autoupdate
 | `prettier-check` | Check code formatting | console/frontend/src |
 | `eslint-check` | Lint for code issues | console/frontend/src |
 
-### Go Checks
-
-| Hook | Description | Scope |
-|------|-------------|-------|
-| `golangci-lint` | Comprehensive linting | core/tenant |
-| `go-fmt-check` | Check gofmt formatting | core/tenant |
-| `go-imports-check` | Check goimports formatting | core/tenant |
-| `go-vet` | Check for suspicious code | core/tenant |
+Tenant Python files use the `tenant-python-check` hook.
 
 ### Python Console
 
@@ -178,19 +170,6 @@ npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}"
 
 # Fix linting issues (auto-fixable only)
 npx eslint "src/**/*.{ts,tsx}" --fix
-```
-
-### Go
-
-```bash
-cd core/tenant
-
-# Fix formatting
-gofmt -w .
-goimports -w .
-
-# Or use gofumpt for stricter formatting
-gofumpt -w .
 ```
 
 ## Configuration
@@ -256,9 +235,6 @@ python3 -m flake8 --version
 npx prettier --version
 npx eslint --version
 
-# Check Go tools
-golangci-lint --version
-gofmt -help
 ```
 
 #### 2. Hook takes too long

@@ -137,7 +137,7 @@ Console manages conversation history and integrates optional Mem0 long-term memo
 
 **Module Path**: `core/tenant/`
 
-**Language**: Go
+**Language**: Python
 
 **Main Responsibilities**:
 - Application registration and management
@@ -145,9 +145,9 @@ Console manages conversation history and integrates optional Mem0 long-term memo
 
 Console owns space membership, roles, and resource authorization.
 
-**Tech Stack**: Go 1.23, Gin framework, MySQL
+**Tech Stack**: FastAPI, SQLAlchemy Core, PyMySQL, MySQL
 
-**Design Philosophy**: Implemented in Go for high performance and low memory overhead
+**Design Philosophy**: Keeps application identity and API keys in MySQL. Console, Agent and Workflow call the internal HTTP API.
 
 ---
 
@@ -270,7 +270,7 @@ Core Microservices Layer
     ├── Workflow Service (Python FastAPI)
     ├── Knowledge Service (Python FastAPI)
     ├── Memory DB Service (Python)
-    ├── Tenant Service (Go Gin)
+    ├── Tenant Service (Python FastAPI)
     ├── Plugin: AI Tools (Python FastAPI)
     ├── Plugin: Link (Python FastAPI)
     └── Plugin: RPA (Python FastAPI)
@@ -336,7 +336,7 @@ External Services
 | | Workflow Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Knowledge Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Memory DB Service | Python | Python 3.11+ |
-| | Tenant Service | Go + Gin | Go 1.23, Gin 1.10.1 |
+| | Tenant Service | Python + FastAPI | Python 3.11+, FastAPI 0.116+ |
 | **Plugins** | AI Tools Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | RPA Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Link Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
@@ -366,10 +366,6 @@ External Services
 - **Code Style**: ESLint + Prettier
 - **Type Checking**: TypeScript strict mode
 - **Testing**: Node.js test runner (`npm run test:unit`)
-
-### Go Modules
-- **Code Style**: Go fmt
-- **Code Analysis**: Go vet, Golint
 
 ---
 

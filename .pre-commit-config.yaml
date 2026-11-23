@@ -13,7 +13,6 @@
 #          To fix issues manually:
 #          - Python:     black . && isort .
 #          - TypeScript: npm run format
-#          - Go:         gofmt -w . && goimports -w .
 # =============================================================================
 
 default_language_version:
@@ -228,37 +227,13 @@ repos:
         files: ^console/frontend/src/.*\.(ts|tsx)$
         pass_filenames: false
 
-  # =============================================================================
-  # Go Code Quality - Check Only Mode
-  # =============================================================================
   - repo: local
     hooks:
-      - id: golangci-lint
-        name: Lint Go with golangci-lint
-        entry: bash -c 'cd core/tenant && golangci-lint run --timeout=5m ./...'
+      - id: tenant-python-check
+        name: Check Tenant Python style
+        entry: bash -c 'cd core/tenant && python3 -m black --check tenant tests && python3 -m isort --check-only --profile black tenant tests'
         language: system
-        files: ^core/tenant/.*\.go$
-        pass_filenames: false
-
-      - id: go-fmt-check
-        name: Check Go code format with gofmt
-        entry: bash -c 'cd core/tenant && gofmt -l . | tee /dev/stderr | test -z "$(cat)"'
-        language: system
-        files: ^core/tenant/.*\.go$
-        pass_filenames: false
-
-      - id: go-imports-check
-        name: Check Go imports with goimports
-        entry: bash -c 'cd core/tenant && goimports -l . | tee /dev/stderr | test -z "$(cat)"'
-        language: system
-        files: ^core/tenant/.*\.go$
-        pass_filenames: false
-
-      - id: go-vet
-        name: Check Go code with go vet
-        entry: bash -c 'cd core/tenant && go vet ./...'
-        language: system
-        files: ^core/tenant/.*\.go$
+        files: ^core/tenant/.*\.py$
         pass_filenames: false
 
   # Python Console uses its locked Ruff version and Django domain test suite.

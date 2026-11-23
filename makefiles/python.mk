@@ -24,7 +24,7 @@ PYTHON_DIR := $(PYTHON_PRIMARY_DIR)
 PYTHON_FILES := $(shell \
 	for dir in $(PYTHON_DIRS); do \
 		if [ -d "$$dir" ]; then \
-			find $$dir -name "*.py" 2>/dev/null || true; \
+			find $$dir -type d -name .venv -prune -o -name "*.py" -print 2>/dev/null || true; \
 		fi; \
 	done)
 
@@ -93,7 +93,7 @@ check-python: ## 🔍 Check Python code quality
 					$(PYTHON) -m $(MYPY) .; \
 				fi; \
 				echo "$(YELLOW)    5. Running pylint code analysis...$(RESET)"; \
-				find . -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT); \
+				find . -type d -name .venv -prune -o -name "*.py" -type f -print0 | xargs -0 $(PYTHON) -m $(PYLINT); \
 				fi); \
 				echo "$(GREEN)    ✅ $$dir passed all checks$(RESET)"; \
 			else \

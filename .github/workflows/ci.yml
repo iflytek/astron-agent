@@ -66,21 +66,15 @@ jobs:
             echo "✅ TypeScript: console/frontend"
           fi
 
-          # Go projects
-          if [[ -f "core/tenant/go.mod" ]]; then
-            [[ "$first" == "false" ]] && matrix+=","
-            matrix+="{\"name\":\"core-tenant\",\"path\":\"core/tenant\",\"type\":\"go\",\"setup\":\"go\",\"cache\":\"go\"}"
-            first=false
-            echo "✅ Go: core/tenant"
-          fi
-
           # Python projects - use pyproject.toml detection
-          for project in core/memory/database core/plugin/rpa core/plugin/link core/plugin/aitools core/agent core/knowledge core/workflow core/common; do
+          for project in core/tenant core/memory/database core/plugin/rpa core/plugin/link core/plugin/aitools core/agent core/knowledge core/workflow core/common; do
             if [[ -f "$project/pyproject.toml" ]] || [[ -f "$project/requirements.txt" ]]; then
               [[ "$first" == "false" ]] && matrix+=","
               name=$(basename "$project")
               # Handle nested paths
-              if [[ "$project" == core/memory/database ]]; then
+              if [[ "$project" == core/tenant ]]; then
+                name="core-tenant"
+              elif [[ "$project" == core/memory/database ]]; then
                 name="core-database"
               elif [[ "$project" == core/plugin/* ]]; then
                 name="core-$(basename "$project")"
@@ -128,13 +122,6 @@ jobs:
           cache: npm
           cache-dependency-path: console/frontend/package-lock.json
 
-      - name: Setup Go
-        if: matrix.setup == 'go'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache-dependency-path: core/tenant/go.sum
-
       - name: Setup Python
         if: matrix.setup == 'python'
         uses: actions/setup-python@v5
@@ -160,34 +147,6 @@ jobs:
               npm run type-check -- --pretty false
               npm run lint
               npm run build
-              ;;
-            go)
-              echo "🔍 Running Go quality checks..."
-              echo "🛠️ Installing Go tools..."
-              go install golang.org/x/tools/cmd/goimports@latest
-              go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-              go install honnef.co/go/tools/cmd/staticcheck@2025.1.1
-              curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.5.0
-              export PATH=$PATH:$(go env GOPATH)/bin
-              echo "✨ Checking goimports compliance..."
-              UNFORMATTED=$(goimports -l .) && \
-              if [ -n "$UNFORMATTED" ]; then \
-                echo "Files that need formatting:" && \
-                echo "$UNFORMATTED" && \
-                echo "Run 'goimports -w .' to fix formatting issues." && \
-                exit 1; \
-              fi
-              echo "🔍 Running go vet..."
-              go vet ./...
-              echo "🔍 Running gocyclo..."
-              gocyclo -over 10 . || (echo "High cyclomatic complexity detected" && exit 1)
-              echo "🔍 Running staticcheck..."
-              PKGS=$(go list ./... 2>/dev/null)
-              if [ -n "$PKGS" ]; then \
-                staticcheck $PKGS || exit 1; \
-              fi
-              echo "📋 Running golangci-lint..."
-              golangci-lint run ./... --timeout=5m
               ;;
             python)
               echo "🛠️ Installing Python quality tools..."
@@ -219,6 +178,15 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.detect-projects.outputs.matrix) }}
       fail-fast: false
+    services:
+      mysql:
+        image: ${{ matrix.path == 'core/tenant' && 'mysql:8.4' || '' }}
+        env:
+          MYSQL_ROOT_PASSWORD: tenant-test-password
+          MYSQL_ROOT_HOST: '%'
+        ports:
+          - 3306/tcp
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1" --health-interval=5s --health-timeout=5s --health-retries=12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -230,13 +198,6 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: console/frontend/package-lock.json
-
-      - name: Setup Go
-        if: matrix.setup == 'go'
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-          cache-dependency-path: core/tenant/go.sum
 
       - name: Setup Python
         if: matrix.setup == 'python'
@@ -251,6 +212,9 @@ jobs:
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Run tests with coverage
+        env:
+          TENANT_TEST_MYSQL_PORT: ${{ job.services.mysql.ports['3306'] }}
+          TENANT_TEST_MYSQL_PASSWORD: tenant-test-password
         working-directory: ${{ matrix.path }}
         run: |
           echo "🧪 Running tests with coverage for ${{ matrix.name }} (${{ matrix.type }})"
@@ -261,13 +225,13 @@ jobs:
               echo "🧪 Running TypeScript unit tests..."
               npm run test:unit
               ;;
-            go)
-              echo "🧪 Running Go tests with coverage..."
-              go test -coverprofile=coverage.out -covermode=atomic ./...
-              echo "📊 Generating coverage report..."
-              go tool cover -func=coverage.out
-              ;;
             python)
+              if [[ "${{ matrix.path }}" == "core/tenant" ]]; then
+                test -n "$TENANT_TEST_MYSQL_PORT"
+                uv sync --locked
+                uv run --locked pytest tests/ --cov=tenant --cov-fail-under=70 --cov-report=term --cov-report=xml --cov-report=html
+                exit
+              fi
               echo "📦 Installing dependencies..."
               if [ -f "uv.lock" ]; then
                 echo "Installing dependencies with uv..."
@@ -315,7 +279,6 @@ jobs:
           name: coverage-${{ matrix.name }}
           path: |
             ${{ matrix.path }}/coverage/
-            ${{ matrix.path }}/coverage.out
             ${{ matrix.path }}/coverage.xml
             ${{ matrix.path }}/htmlcov/
           retention-days: 30
@@ -342,18 +305,6 @@ jobs:
                 echo "⚠️ No coverage report found"
               fi
               echo "================================================"
-              ;;
-            go)
-              if [ -f coverage.out ]; then
-                echo "✅ Go Coverage Report:"
-                echo "================================================"
-                go tool cover -func=coverage.out | tail -n 1
-                echo "================================================"
-                echo "📄 Coverage profile: coverage.out"
-                echo "💡 View HTML report: go tool cover -html=coverage.out"
-              else
-                echo "⚠️ No Go coverage report found"
-              fi
               ;;
             python)
               echo "✅ Python Coverage Report:"
