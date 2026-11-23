@@ -347,13 +347,16 @@ def api_info(request):
     apps = App.objects.filter(uid=request.user.pk, is_delete=0)
     if app_id:
         apps = apps.filter(app_id=app_id)
+    # Retained app rows and Console publications can use different MySQL collations.
+    # Compare the publication targets with bound values instead of legacy columns.
+    allowed_targets = list(apps.values_list("app_id", flat=True))
     publication = (
         Publication.objects.filter(
             bot_id=bot.pk,
             channel="API",
             active=True,
             candidate__created_by=str(request.user.pk),
-            target_id__in=apps.values("app_id"),
+            target_id__in=allowed_targets,
         )
         .select_related("candidate")
         .order_by("-id")
