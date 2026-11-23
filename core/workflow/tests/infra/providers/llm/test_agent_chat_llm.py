@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import httpx
 import pytest
+from yarl import URL
 
 from workflow.engine.nodes.entities.llm_response import LLMResponse
 from workflow.engine.nodes.llm.spark_llm_node import SparkLLMNode
@@ -183,19 +184,21 @@ async def test_private_workflow_media_reaches_provider_as_inline_content(
         f"http://minio:9000/console/published-workflow-inputs/{'a' * 32}/input.{extension}"
         "?X-Amz-Signature=private"
     )
-    downloads = []
+    downloads: list[str] = []
 
-    async def chunks(_size):
+    async def chunks(_size: int) -> AsyncIterator[bytes]:
         yield b"sample"
 
     @asynccontextmanager
-    async def download(url, *, allow_redirects):
+    async def download(
+        url: URL, *, allow_redirects: bool
+    ) -> AsyncIterator[SimpleNamespace]:
         assert not allow_redirects
         downloads.append(str(url))
         yield SimpleNamespace(status=200, content=SimpleNamespace(iter_chunked=chunks))
 
     @asynccontextmanager
-    async def upload_client(_timeout):
+    async def upload_client(_timeout: float) -> AsyncIterator[SimpleNamespace]:
         yield SimpleNamespace(get=download)
 
     monkeypatch.setattr(

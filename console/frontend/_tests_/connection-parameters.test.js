@@ -42,6 +42,7 @@ new Function('require', 'module', 'exports', outputText)(
       react: React,
       'react/jsx-runtime': jsxRuntime,
       antd: { Input },
+      '@/components/saved-credential-input': { default: Input },
       '@ant-design/icons': {
         DeleteOutlined: () => null,
         PlusOutlined: () => null,

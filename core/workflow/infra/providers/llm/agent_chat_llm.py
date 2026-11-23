@@ -70,24 +70,28 @@ def _hide_uploaded_links(text: str) -> str:
     return _HTTP_URL.sub(replace, text)
 
 
+def _prepare_message(message: dict[str, Any]) -> None:
+    content_type = message.pop("content_type", "text")
+    content = message["content"]
+    if content_type in {"image", "audio", "video"}:
+        message["content"] = [{"type": content_type, "url": content}]
+    elif isinstance(content, str):
+        message["content"] = _hide_uploaded_links(content)
+    elif isinstance(content, list):
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "text"
+                and isinstance(block.get("text"), str)
+            ):
+                block["text"] = _hide_uploaded_links(block["text"])
+
+
 def _completion_messages(messages: list, media: list) -> list[dict[str, Any]]:
     """Preserve message order and translate Workflow media to standard blocks."""
     result = copy.deepcopy(messages)
     for message in result:
-        content_type = message.pop("content_type", "text")
-        content = message["content"]
-        if content_type in {"image", "audio", "video"}:
-            message["content"] = [{"type": content_type, "url": content}]
-        elif isinstance(content, str):
-            message["content"] = _hide_uploaded_links(content)
-        elif isinstance(content, list):
-            for block in content:
-                if (
-                    isinstance(block, dict)
-                    and block.get("type") == "text"
-                    and isinstance(block.get("text"), str)
-                ):
-                    block["text"] = _hide_uploaded_links(block["text"])
+        _prepare_message(message)
     if media:
         user = next((msg for msg in reversed(result) if msg["role"] == "user"), None)
         if user is None:
@@ -209,6 +213,23 @@ class AgentChatAI(ChatAI):
             trust_env=False,
         )
 
+    def _upload_mime_type(self, url: str, kind: str) -> str:
+        extension = urlsplit(url).path.rsplit(".", 1)[-1]
+        mime_type = _UPLOAD_MEDIA_MIME.get(extension, "")
+        if (
+            not mime_type
+            or kind != mime_type.split("/", 1)[0]
+            or (self.provider == "anthropic" and kind != "image")
+            or (self.provider == "openai" and kind == "video")
+        ):
+            raise _request_error(
+                "Uploaded media format is unsupported by the model protocol"
+            )
+        if self.provider == "openai" and extension == "mp3":
+            # Chat Completions requires format=mp3. LangChain uses the MIME subtype.
+            return "audio/mp3"
+        return mime_type
+
     async def _inline_uploaded_media(self, media: list, timeout: float) -> list:
         if not any(File.is_console_input_url(item.get("url", "")) for item in media):
             return media
@@ -221,21 +242,8 @@ class AgentChatAI(ChatAI):
                 if not File.is_console_input_url(url):
                     result.append(item)
                     continue
-                extension = urlsplit(url).path.rsplit(".", 1)[-1]
-                mime_type = _UPLOAD_MEDIA_MIME.get(extension, "")
-                kind = item.get("type")
-                if (
-                    not mime_type
-                    or kind != mime_type.split("/", 1)[0]
-                    or (self.provider == "anthropic" and kind != "image")
-                    or (self.provider == "openai" and kind == "video")
-                ):
-                    raise _request_error(
-                        "Uploaded media format is unsupported by the model protocol"
-                    )
-                if self.provider == "openai" and extension == "mp3":
-                    # Chat Completions requires format=mp3. LangChain derives it from the MIME subtype.
-                    mime_type = "audio/mp3"
+                kind = item.get("type", "")
+                mime_type = self._upload_mime_type(url, kind)
                 data = bytearray()
                 try:
                     async with client.get(

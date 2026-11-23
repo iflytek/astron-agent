@@ -6,7 +6,9 @@ from workflow.engine.entities.file import File
 from workflow.exception.e import CustomException
 
 
-def test_private_console_file_size_uses_get_and_closes_response(monkeypatch):
+def test_private_console_file_size_uses_get_and_closes_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("OSS_ENDPOINT", "http://minio:9000")
     url = (
         f"http://minio:9000/console/published-workflow-inputs/{'a' * 32}/input.txt"

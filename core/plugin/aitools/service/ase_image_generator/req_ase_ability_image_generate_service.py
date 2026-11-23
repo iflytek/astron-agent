@@ -70,6 +70,26 @@ def gen_params(
     return body, params
 
 
+def check_vendor_header(content: dict[str, Any]) -> None:
+    header = content.get("header")
+    if not isinstance(header, dict) or type(header.get("code")) is not int:
+        logger.warning("iFLYTEK text-to-image returned an invalid response")
+        raise ServiceException.from_error_code(
+            CodeEnums.ServiceResponseError, extra_message="讯飞文生图响应格式无效"
+        )
+
+    code = header["code"]
+    if code != 0:
+        logger.warning("iFLYTEK text-to-image request failed, vendor code={}", code)
+        message = header.get("message")
+        if isinstance(message, str) and "AppIdNoEnoughLicenceError" in message:
+            error = CodeEnums.ImageGenerateLicenseError
+            raise ServiceException(code=error.code, message=error.message)
+        raise ServiceException.from_error_code(
+            CodeEnums.ServiceResponseError, extra_message=f"讯飞文生图返回错误码 {code}"
+        )
+
+
 @api_service(
     method="POST",
     path="/aitools/v1/image_generate",
@@ -115,23 +135,9 @@ async def req_ase_ability_image_generate_service(
                 except ValueError:
                     content = None
 
-    header = content.get("header") if isinstance(content, dict) else None
-    if not isinstance(header, dict) or type(header.get("code")) is not int:
-        logger.warning("iFLYTEK text-to-image returned an invalid response")
-        raise ServiceException.from_error_code(
-            CodeEnums.ServiceResponseError, extra_message="讯飞文生图响应格式无效"
-        )
-
-    code = header["code"]
-    if code != 0:
-        logger.warning("iFLYTEK text-to-image request failed, vendor code={}", code)
-        message = header.get("message")
-        if isinstance(message, str) and "AppIdNoEnoughLicenceError" in message:
-            error = CodeEnums.ImageGenerateLicenseError
-            raise ServiceException(code=error.code, message=error.message)
-        raise ServiceException.from_error_code(
-            CodeEnums.ServiceResponseError, extra_message=f"讯飞文生图返回错误码 {code}"
-        )
+    if not isinstance(content, dict):
+        content = {}
+    check_vendor_header(content)
 
     try:
         text = content["payload"]["choices"]["text"][0]["content"]

@@ -55,6 +55,7 @@ const helpers = load('http-config.ts');
 const HttpConfigForm = load('http-config-form.tsx', {
   react: React,
   'react/jsx-runtime': jsxRuntime,
+  '@/components/saved-credential-input': { default: Input },
   antd: {
     Input,
     Button: ({ children, htmlType, ...props }) =>

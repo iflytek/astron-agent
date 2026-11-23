@@ -1,6 +1,7 @@
 """Regression checks for the built-in image generation endpoint."""
 
 from contextlib import asynccontextmanager
+from typing import AsyncIterator, Self
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -23,11 +24,11 @@ def vendor(monkeypatch: pytest.MonkeyPatch) -> tuple[Mock, AsyncMock]:
             upstream(**kwargs)
 
         @asynccontextmanager
-        async def start(self):
+        async def start(self) -> AsyncIterator[Self]:
             yield self
 
         @asynccontextmanager
-        async def request(self):
+        async def request(self) -> AsyncIterator[SuccessResponse]:
             yield SuccessResponse(data={"content": upstream.return_value})
 
     upload = AsyncMock(return_value="https://storage.example/image.jpg")
@@ -66,6 +67,7 @@ async def test_generates_image_for_both_response_content_types(
         "height": 360,
     }
     upload.assert_awaited_once()
+    assert upload.await_args is not None
     assert upload.await_args.args[1] == b"image"
     assert result.data == {
         "image_url": "https://storage.example/image.jpg",
