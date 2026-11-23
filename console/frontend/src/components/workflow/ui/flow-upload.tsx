@@ -12,6 +12,8 @@ interface FlowUploadProps {
   uploadType?: string[];
   uploadComplete?: (event: ProgressEvent<EventTarget>, fileId: string) => void;
   handleFileUpload: (file: File, fileId: string) => void;
+  uploadFile?: (file: File, fileId: string) => Promise<void>;
+  disabled?: boolean;
   maxSize: number;
 }
 
@@ -20,6 +22,8 @@ const FlowUpload: React.FC<FlowUploadProps> = ({
   uploadType = [],
   uploadComplete = (): void => {},
   handleFileUpload,
+  uploadFile,
+  disabled,
   maxSize,
 }): React.ReactElement => {
   const currentFlow = useFlowsManager(state => state.currentFlow);
@@ -46,6 +50,24 @@ const FlowUpload: React.FC<FlowUploadProps> = ({
     }
     const file = event.file;
     const fileId = uuid();
+    handleFileUpload(file, fileId);
+    if (uploadFile) {
+      void uploadFile(file, fileId)
+        .then(() => event.onSuccess?.({}))
+        .catch(reason => {
+          const error =
+            reason instanceof Error
+              ? reason
+              : new Error(
+                  reason && typeof reason === 'object' && 'message' in reason
+                    ? String(reason.message)
+                    : '文件上传失败'
+                );
+          event.onError?.(error);
+          message.error(error.message);
+        });
+      return;
+    }
     const url = getFixedUrl('/workflow/upload-file');
     const form = new FormData();
     form.append('files', file);
@@ -57,7 +79,6 @@ const FlowUpload: React.FC<FlowUploadProps> = ({
       uploadComplete(event, fileId);
     };
     xhr.send(form);
-    handleFileUpload(file, fileId);
   };
 
   const handleDrop = (event: React.DragEvent<HTMLDivElement>): boolean => {
@@ -76,6 +97,7 @@ const FlowUpload: React.FC<FlowUploadProps> = ({
     beforeUpload,
     customRequest: fileUpload,
     multiple,
+    disabled,
     onDrop: handleDrop,
   };
 

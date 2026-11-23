@@ -8,6 +8,7 @@ from django.db import connection, transaction
 from django.db.models import Max, Q
 from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 
 from astron_console.http import api_endpoint
 from astron_console.spaces.models import GroupVisibility
@@ -103,6 +104,13 @@ def stored_schema(row):
             }
             schema["security"] = [{name: []}]
     return schema
+
+
+def editable_schema(row):
+    draft = parsed(row.temporary_data)
+    if isinstance(draft, dict) and draft.get("schema"):
+        return draft["schema"]
+    return stored_schema(row)
 
 
 def schema_auth(schema):
@@ -224,7 +232,7 @@ def save(request, pk=None, *, payload=None, builtin_id=None):
             app_id=settings.RESOURCE_APP_ID,
             deleted=False,
         )
-    schema, operations = normalize_schema(payload.get("schema"), stored_schema(row))
+    schema, operations = normalize_schema(payload.get("schema"), editable_schema(row))
     credentials = schema_auth(schema)
     row.name = text(payload, "name", required=True, limit=64)
     row.description = text(payload, "description", required=True, limit=255)
@@ -360,6 +368,21 @@ def item(request, pk):
     return None
 
 
+@never_cache
+@api_endpoint(["POST"])
+def reveal_credential(request, pk):
+    row, scope = owned(request, Tool, pk, WRITE, uid_field="user_id", deleted="deleted")
+    field = request.payload.get("field")
+    if not isinstance(field, str) or not field:
+        raise ValidationError("鉴权方案名无效")
+    scheme = editable_schema(row).get("components", {}).get("securitySchemes", {}).get(field, {})
+    value = scheme.get("x-value") if scheme.get("type") == "apiKey" else None
+    if not isinstance(value, str) or not value:
+        raise Http404
+    logger.info("Tool credential viewed id=%s uid=%s space=%s", row.pk, scope.uid, scope.space_id)
+    return {"value": value}
+
+
 @api_endpoint(["POST"])
 @upstream_errors
 def debug(request, pk):
@@ -380,7 +403,18 @@ def debug(request, pk):
         payload[key] = value
     for auth in schema_auth(schema):
         payload[auth["location"]][auth["parameterName"]] = auth["serviceToken"]
-    result = clients.call("RESOURCE_TOOL_URL", "POST", "/api/v1/tools/tool_debug", payload=payload)
+    failure_messages = {}
+    if row.tool_tag == "builtin:aitools.image_generate":
+        failure_messages[(30400, "AI Tools request failed (45003): ")] = (
+            "当前讯飞应用的文生图授权不足，请在讯飞开放平台检查该应用的文生图服务授权"
+        )
+    result = clients.call(
+        "RESOURCE_TOOL_URL",
+        "POST",
+        "/api/v1/tools/tool_debug",
+        payload=payload,
+        failure_messages=failure_messages,
+    )
     ToolHistory.objects.create(tool_id=row.tool_id or str(row.pk), uid=scope.uid, type=1)
     return result
 

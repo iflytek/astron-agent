@@ -333,3 +333,43 @@ class ToolCoreContractTests(TestCase):
         link.assert_not_called()
         self.assertEqual(self.requests, [])
         self.assertFalse(ToolHistory.objects.exists())
+
+    def test_builtin_image_debug_displays_only_the_safe_license_error(self):
+        row = Tool.objects.create(
+            user_id=self.user.pk,
+            name="文生图",
+            tool_id="image-tool",
+            tool_tag="builtin:aitools.image_generate",
+            deleted=False,
+            schema=json.dumps(SCHEMA),
+            end_point="http://core-aitools/aitools/v1/image_generate",
+            method="post",
+        )
+        link_result = httpx.Response(
+            200,
+            json={
+                "header": {
+                    "code": 30400,
+                    "message": "AI Tools request failed (45003): private upstream diagnostics",
+                }
+            },
+        )
+        transport = httpx.MockTransport(lambda _request: link_result)
+        with patch(
+            "astron_console.resources.clients.httpx.Client",
+            side_effect=lambda **kwargs: self.http_client(transport=transport, **kwargs),
+        ):
+            response = self.client.post(
+                f"/resources/tools/{row.pk}/debug", {}, content_type="application/json"
+            )
+            row.tool_tag = ""
+            row.save(update_fields=["tool_tag"])
+            generic = self.client.post(
+                f"/resources/tools/{row.pk}/debug", {}, content_type="application/json"
+            )
+        self.assertEqual(response.status_code, 502)
+        self.assertIn("文生图授权不足", response.json()["message"])
+        self.assertNotIn("private upstream diagnostics", response.json()["message"])
+        self.assertEqual(generic.status_code, 502)
+        self.assertEqual(generic.json()["message"], "RESOURCE_TOOL_URL 返回失败")
+        self.assertFalse(ToolHistory.objects.exists())

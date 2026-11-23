@@ -8,6 +8,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
 from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 
 from astron_console.accounts.deployment import public_origin
 from astron_console.agents.models import Agent, AgentFavorite, AgentRun, AgentVersion
@@ -15,6 +16,7 @@ from astron_console.http import api_endpoint
 from astron_console.resources.common import number, serialize, text, upstream_errors
 from astron_console.spaces.permissions import resolve_scope, scope_queryset
 from astron_console.workflows.models import Workflow, WorkflowRun, WorkflowVersion
+from astron_console.workflows.protocol import schema as workflow_schema
 
 from . import services, tenant
 from .models import (
@@ -282,12 +284,76 @@ def create_api(request):
     )
 
 
+def example_value(schema, file_type=False):
+    if schema.get("enum"):
+        return schema["enum"][0]
+    kind = schema.get("type")
+    if kind == "object":
+        return {
+            key: example_value(value)
+            for key, value in schema.get("properties", {}).items()
+            if key in schema.get("required", [])
+        }
+    if kind == "array":
+        return [example_value(schema.get("items") or {}, file_type)]
+    if file_type:
+        return "https://example.com/file"
+    return {"integer": 1, "number": 1.5, "boolean": True, "null": None}.get(kind, "你好")
+
+
+def api_request_example(candidate):
+    if candidate.resource_kind == "agent":
+        return {
+            "bot_id": candidate.bot_id,
+            "user": "your-user-id",
+            "stream": True,
+            "messages": [{"role": "user", "content": "你好"}],
+        }, []
+    start = next(
+        (
+            node
+            for node in candidate.definition.get("graph", {}).get("nodes", [])
+            if node["id"].startswith("node-start::")
+        ),
+        {},
+    )
+    parameters, fields = {}, []
+    for output in start.get("data", {}).get("outputs", []):
+        name = output["name"]
+        schema = output.get("schema") or {}
+        required = bool(output.get("required"))
+        fields.append(
+            {
+                "name": name,
+                "type": schema.get("type", "string"),
+                "required": required,
+                "description": output.get("description") or schema.get("description") or "",
+            }
+        )
+        parameters[name] = example_value(workflow_schema(schema), bool(output.get("fileType")))
+    return {
+        "flow_id": candidate.resource_id,
+        "uid": "your-user-id",
+        "stream": True,
+        "parameters": parameters,
+    }, fields
+
+
+@never_cache
 @api_endpoint(["GET"])
 def api_info(request):
     bot = services.get_bot(resolve_scope(request), request.GET.get("botId"))
+    app_id = text(request.GET, "appId", required="appId" in request.GET, limit=255)
+    apps = App.objects.filter(uid=request.user.pk, is_delete=0)
+    if app_id:
+        apps = apps.filter(app_id=app_id)
     publication = (
         Publication.objects.filter(
-            bot_id=bot.pk, channel="API", active=True, candidate__created_by=str(request.user.pk)
+            bot_id=bot.pk,
+            channel="API",
+            active=True,
+            candidate__created_by=str(request.user.pk),
+            target_id__in=apps.values("app_id"),
         )
         .select_related("candidate")
         .order_by("-id")
@@ -295,24 +361,27 @@ def api_info(request):
     )
     if publication is None:
         return None
-    app = App.objects.filter(app_id=publication.target_id, uid=request.user.pk, is_delete=0).first()
+    app = apps.filter(app_id=publication.target_id).first()
     if app is None:
-        raise Http404
-    path = (
-        "/workflow/v1/chat/completions"
-        if publication.candidate.resource_kind == "workflow"
-        else "/agent/v1/chat/completions"
-    )
+        return None
+    candidate = publication.candidate
+    example, inputs = api_request_example(candidate)
     return {
         "botId": bot.pk,
-        "botName": bot.bot_name,
+        "botName": candidate.definition.get("botName", bot.bot_name),
         "appName": app.app_name,
         "appId": app.app_id,
-        "appKey": app.app_key,
-        "appSecret": app.app_secret,
-        "serviceUrl": public_origin(request) + path,
-        "flowId": publication.candidate.resource_id,
-        "versionId": publication.candidate.version_id,
+        **(
+            {"appKey": app.app_key, "appSecret": app.app_secret}
+            if request.GET.get("metadataOnly") != "true"
+            else {}
+        ),
+        "serviceUrl": f"{public_origin(request)}/{candidate.resource_kind}/v1/chat/completions",
+        "resourceKind": candidate.resource_kind,
+        "flowId": candidate.resource_id,
+        "versionId": candidate.version_id,
+        "requestExample": example,
+        "inputs": inputs,
     }
 
 

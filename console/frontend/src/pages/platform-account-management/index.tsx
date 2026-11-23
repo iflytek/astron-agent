@@ -19,8 +19,10 @@ import {
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   getPlatformAccountCards,
+  revealPlatformCredential,
   savePlatformAccountConfig,
 } from '@/services/platform-account';
+import SavedCredentialInput from '@/components/saved-credential-input';
 import {
   PlatformAccountCard,
   PlatformAccountConfig,
@@ -125,6 +127,16 @@ const PlatformAccountManagement = (): React.ReactElement => {
     if (!activeCard) {
       return null;
     }
+    const credential = (field: string): React.ReactElement => (
+      <SavedCredentialInput
+        placeholder="请输入"
+        disabled={saving}
+        maskedValue="******"
+        loadSaved={signal =>
+          revealPlatformCredential(activeCard.type, field, signal)
+        }
+      />
+    );
     switch (activeCard.type) {
       case 'iflytek_open_platform':
         return (
@@ -141,28 +153,28 @@ const PlatformAccountManagement = (): React.ReactElement => {
               label="PLATFORM_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('platformApiKey')}
             </Form.Item>
             <Form.Item
               name={['iflytekOpenPlatform', 'platformApiSecret']}
               label="PLATFORM_API_SECRET"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('platformApiSecret')}
             </Form.Item>
             <Form.Item
               name={['iflytekOpenPlatform', 'sparkApiPassword']}
               label="SPARK_API_PASSWORD"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkApiPassword')}
             </Form.Item>
             <Form.Item
               name={['iflytekOpenPlatform', 'sparkRtasrApiKey']}
               label="SPARK_RTASR_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkRtasrApiKey')}
             </Form.Item>
           </>
         );
@@ -188,7 +200,7 @@ const PlatformAccountManagement = (): React.ReactElement => {
               label="AI_ABILITY_CHAT_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('apiKey')}
             </Form.Item>
           </>
         );
@@ -207,14 +219,14 @@ const PlatformAccountManagement = (): React.ReactElement => {
               label="SPARK_VIRTUAL_MAN_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkVirtualManApiKey')}
             </Form.Item>
             <Form.Item
               name={['virtualMan', 'sparkVirtualManApiSecret']}
               label="SPARK_VIRTUAL_MAN_API_SECRET"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkVirtualManApiSecret')}
             </Form.Item>
           </>
         );
@@ -234,7 +246,7 @@ const PlatformAccountManagement = (): React.ReactElement => {
               name={['knowledgePlatform', 'ragflow', 'apiToken']}
               label="RAGFLOW_API_TOKEN"
             >
-              <Input.Password placeholder="请输入" />
+              {credential('apiToken')}
             </Form.Item>
             <Form.Item
               name={['knowledgePlatform', 'ragflow', 'timeout']}
@@ -335,7 +347,7 @@ const PlatformAccountManagement = (): React.ReactElement => {
         width={720}
       >
         <p className={styles.hint}>
-          已保存的敏感凭证以掩码显示；保留掩码将继续使用原凭证。
+          点击眼睛查看已保存的凭证。重新隐藏后可编辑，保存时保留未修改的凭证。
         </p>
         {saveError && (
           <Alert type="error" showIcon message={saveError} className="mb-4" />

@@ -11,12 +11,13 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 
 from astron_console.http import api_endpoint
 from astron_console.resources.common import UpstreamError, number, text, upstream_errors
 from astron_console.resources.models import ConfigInfo
 
-from .definitions import get_agent, get_scoped_agent
+from .definitions import WRITE, get_agent, get_scoped_agent
 from .models import MemoryConfig
 
 logger = logging.getLogger(__name__)
@@ -215,6 +216,21 @@ def config(request, agent_id):
     row.update_time = timezone.now()
     row.save()
     return config_data(row)
+
+
+@never_cache
+@api_endpoint(["POST"])
+@upstream_errors
+def reveal_credential(request, agent_id):
+    agent, scope = get_agent(request, agent_id, WRITE)
+    row = config_for(scope, agent)
+    if row is None or not row.api_key_ciphertext:
+        raise Http404
+    value = decrypt(row.api_key_ciphertext)
+    logger.info(
+        "Memory credential viewed bot_id=%s uid=%s space=%s", agent.pk, scope.uid, scope.space_id
+    )
+    return {"value": value}
 
 
 def all_scoped(client, scope, agent):

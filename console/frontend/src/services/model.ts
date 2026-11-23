@@ -61,6 +61,13 @@ export async function getModelDetail(
   return await http.get('/api/model/detail', { params });
 }
 
+export function revealModelCredential(
+  modelId: string,
+  signal: AbortSignal
+): Promise<{ value: string }> {
+  return http.post(`/api/model/${modelId}/credential`, {}, { signal });
+}
+
 // 自定义模型删除
 export async function deleteModelAPI(modelId: string | number): Promise<void> {
   return await http.delete(`/api/model/delete?modelId=${modelId}`);

@@ -9,7 +9,12 @@ from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.models import Agent, AgentFile, AgentVersion
 from astron_console.publishing import public_runtime, services
 from astron_console.publishing.models import Publication, PublicationCandidate, ShareRecord
-from astron_console.publishing.public_files import authorize_inputs
+from astron_console.publishing.public_files import (
+    WORKFLOW_FILE_KEY_PREFIX,
+    WORKFLOW_FILE_MAX_BYTES,
+    authorize_inputs,
+    workflow_input_bucket,
+)
 from astron_console.resources.models import Model
 from astron_console.spaces.permissions import ResourceScope
 
@@ -43,6 +48,113 @@ class PublicFileTests(TestCase):
         result = services.submit(self.scope, self.bot.pk, "MARKET")
         self.publication = Publication.objects.get(pk=result["publicationId"])
         self.client.force_login(self.caller)
+
+    @patch("astron_console.publishing.services.validate_graph")
+    @patch("astron_console.knowledge.storage.client")
+    @patch("astron_console.knowledge.storage.put")
+    def test_workflow_input_upload_binds_caller_version_and_start_field(self, put, sdk, validate):
+        import json
+
+        from astron_console.workflows.lifecycle import core_payload
+        from astron_console.workflows.management_views import create_workflow
+
+        workflow = create_workflow(self.scope, {"name": "workflow input"})
+        graph = json.loads(workflow.data)
+        outputs = graph["nodes"][0]["data"]["outputs"]
+        for name, kind in [("document", "string"), ("documents", "array-string")]:
+            outputs.append(
+                {
+                    "name": name,
+                    "fileType": "file",
+                    "allowedFileType": ["txt"],
+                    "schema": {"type": kind},
+                }
+            )
+        workflow.data = json.dumps(graph)
+        workflow.save()
+        bot = services.bind_workflow(self.scope, workflow.flow_id)
+        publication = Publication.objects.get(
+            pk=services.submit(self.scope, bot.pk, "MARKET")["publicationId"]
+        )
+        upload_path = f"/published/{bot.pk}/workflow-files"
+
+        def upload(field, filename, content=b"test contents"):
+            return self.client.post(
+                upload_path,
+                {
+                    "file": SimpleUploadedFile(filename, content),
+                    "field": field,
+                },
+            )
+
+        self.assertEqual(upload("AGENT_USER_INPUT", "file.txt").status_code, 400)
+        self.assertEqual(upload("document", "file.pdf").status_code, 400)
+        oversized = upload("document", "file.txt", b"x" * (WORKFLOW_FILE_MAX_BYTES + 1))
+        self.assertEqual(oversized.status_code, 400)
+        put.assert_not_called()
+        sdk.return_value.bucket_exists.return_value = False
+        sdk.return_value.get_bucket_lifecycle.return_value = None
+        text_response = upload("document", "file.txt")
+        self.assertEqual(text_response.status_code, 200, text_response.content)
+        bucket = workflow_input_bucket()
+        sdk.return_value.make_bucket.assert_called_once_with(bucket)
+        lifecycle_bucket, configuration = sdk.return_value.set_bucket_lifecycle.call_args.args
+        self.assertEqual(lifecycle_bucket, bucket)
+        self.assertEqual(configuration.rules[0].rule_filter.prefix, WORKFLOW_FILE_KEY_PREFIX)
+        self.assertEqual(configuration.rules[0].expiration.days, 2)
+        sdk.return_value.bucket_exists.return_value = True
+        sdk.return_value.get_bucket_lifecycle.return_value = configuration
+        files_response = upload("documents", "files.txt")
+        self.assertEqual(files_response.status_code, 200, files_response.content)
+        self.assertEqual(put.call_count, 2)
+        self.assertEqual(sdk.return_value.set_bucket_lifecycle.call_count, 1)
+        for call in put.call_args_list:
+            self.assertEqual(call.args[4], bucket)
+        sdk.return_value.set_bucket_policy.assert_not_called()
+        references = [r.json()["data"]["reference"] for r in (text_response, files_response)]
+        for response in (text_response, files_response):
+            self.assertNotContains(response, "http")
+
+        inputs = {
+            "AGENT_USER_INPUT": "hello",
+            "document": references[0],
+            "documents": references[1:],
+        }
+        for caller, fields in (
+            (self.other.pk, inputs),
+            (self.caller.pk, {**inputs, "documents": references[:1]}),
+            (self.caller.pk, {**inputs, "document": references[0] + "x"}),
+            (self.caller.pk, {**inputs, "AGENT_USER_INPUT": references[0]}),
+        ):
+            with self.assertRaises(PermissionDenied):
+                public_runtime.prepare_public(publication, caller, {"inputs": fields})
+
+        run, _, _ = public_runtime.prepare_public(publication, self.caller.pk, {"inputs": inputs})
+        urls = [
+            f"http://minio:9000/{bucket}/{call.args[0]}?X-Amz-Signature=temporary"
+            for call in put.call_args_list
+        ]
+        sdk.return_value.presigned_get_object.side_effect = urls
+        self.assertEqual(
+            core_payload(run)["chat"]["parameters"],
+            {
+                "AGENT_USER_INPUT": "hello",
+                "document": urls[0],
+                "documents": urls[1:],
+            },
+        )
+        run.refresh_from_db()
+        self.assertEqual(run.inputs, inputs)
+        for call in sdk.return_value.presigned_get_object.call_args_list:
+            self.assertEqual(call.args[0], bucket)
+        history = self.client.get(f"/published/{bot.pk}/history")
+        self.assertNotContains(history, references[0])
+        self.assertEqual(history.json()["data"][0]["question"]["document"], "[已上传文件]")
+
+        services.submit(self.scope, bot.pk, "MARKET")
+        publication.refresh_from_db()
+        with self.assertRaises(PermissionDenied):
+            public_runtime.prepare_public(publication, self.caller.pk, {"inputs": inputs})
 
     @patch("astron_console.knowledge.storage.put")
     def test_caller_input_survives_republish_but_never_transfers_ownership(self, put):

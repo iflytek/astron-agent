@@ -10,6 +10,10 @@ import workflowAvatar from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import WechatBinding from '@/components/channels/wechat-binding';
+import {
+  ApiCallDialog,
+  type ApiCallTarget,
+} from '@/components/publishing/api-call-guide';
 import ApprovalList from '@/pages/release-management/approval-list';
 import Analytics from './analytics';
 import { errorText } from '@/pages/agents/errors';
@@ -73,6 +77,7 @@ function ReleaseDetails({
   const [notice, setNotice] = useState('');
   const [detailTab, setDetailTab] = useState('channels');
   const [shareKey, setShareKey] = useState('');
+  const [calling, setCalling] = useState<ApiCallTarget | null>(null);
   const mounted = useRef(false);
   const submitting = useRef(false);
   useEffect(() => {
@@ -363,12 +368,20 @@ function ReleaseDetails({
                             ...(versionId === 'draft' ? {} : { versionId }),
                           },
                         });
-                        if (mounted.current)
+                        if (mounted.current) {
                           setNotice(
                             result.approvalRequired
                               ? '已提交审批，当前发布版本保持不变。'
                               : '发布成功，新的调用将使用此次版本。'
                           );
+                          if (
+                            channel === 'API' &&
+                            !result.approvalRequired &&
+                            bot.botId !== null
+                          ) {
+                            setCalling({ botId: bot.botId, appId: target });
+                          }
+                        }
                       }
                     )
                   }
@@ -412,6 +425,24 @@ function ReleaseDetails({
                       </small>
                     )}
                   </div>
+                  {pub.channel === 'API' &&
+                    bot.botId !== null &&
+                    preparation?.apps.some(
+                      app => app.appId === pub.targetId
+                    ) && (
+                      <Button
+                        onClick={() => {
+                          if (bot.botId !== null) {
+                            setCalling({
+                              botId: bot.botId,
+                              appId: pub.targetId,
+                            });
+                          }
+                        }}
+                      >
+                        API 调用方式
+                      </Button>
+                    )}
                   {pub.channel === 'WECHAT' ? (
                     <span className={styles.hint}>在微信渠道中管理</span>
                   ) : (
@@ -519,6 +550,9 @@ function ReleaseDetails({
             )}
           </section>
         </>
+      )}
+      {calling && (
+        <ApiCallDialog target={calling} onClose={() => setCalling(null)} />
       )}
     </div>
   );

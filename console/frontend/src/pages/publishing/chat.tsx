@@ -1,110 +1,228 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Spin } from 'antd';
-import styles from './index.module.scss';
+import { Alert, Button, Drawer, Skeleton } from 'antd';
+import {
+  HistoryOutlined,
+  PaperClipOutlined,
+  PlusOutlined,
+  SendOutlined,
+  StopOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { v4 as uuid } from 'uuid';
+import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
+import AgentComposer from '@/pages/agents/composer';
+import { errorText } from '@/pages/agents/errors';
+import { statusText } from '@/pages/agents/run-state';
+import MarkdownRender from '@/components/markdown-render';
+import WorkflowInputs from '@/components/workflow/drawer/chat-debugger/components/chat-input';
+import { FlowTextArea } from '@/components/workflow/ui';
+import type { StartNodeType } from '@/components/workflow/types';
 import http, { getLanguageCode, downloadFileWithHeaders } from '@/utils/http';
 import { fetchSseWithContext } from '@/utils/sse-request';
 import useSpaceStore from '@/store/space-store';
-import { errorText } from '@/pages/agents/errors';
 import '@/pages/agents/style.css';
+import '@/components/workflow/drawer/chat-debugger/index.scss';
+import styles from './index.module.scss';
+
 interface Detail {
-  id: number;
   name: string;
   description: string;
-  kind: string;
+  kind: 'agent' | 'workflow';
   prologue: string;
   supportUpload: boolean;
-  inputs: {
-    name: string;
-    type: string;
-    required: boolean;
-    description: string;
-  }[];
+  inputs: (Pick<
+    StartNodeType,
+    'name' | 'type' | 'required' | 'description' | 'fileType'
+  > & { allowedFileType?: string[] })[];
 }
-interface History {
+
+interface PublishedFile {
+  id: string;
+  name: string;
+  downloadUrl?: string;
+  direction?: 'input' | 'output';
+}
+
+interface Run {
   id: string;
   sessionId: string;
-  question: unknown;
+  question: string | Record<string, unknown>;
   answer: string;
   status: string;
-  files?: { id: string; name: string; downloadUrl: string }[];
+  files?: PublishedFile[];
+  interrupt?: Interrupt | null;
 }
-export default function PublishedChat() {
-  const { botId } = useParams();
-  const spaceId = useSpaceStore(state => state.spaceId);
-  const [params] = useSearchParams();
-  const shareKey = params.get('shareKey') || undefined;
-  const [detail, setDetail] = useState<Detail | null>(null);
-  const [history, setHistory] = useState<History[]>([]);
+
+interface Interrupt {
+  prompt: string;
+  needsReply: boolean;
+  options: { id: string; text: string }[];
+}
+
+function workflowValues(params: StartNodeType[]): Record<string, unknown> {
+  return Object.fromEntries(
+    params.flatMap(({ name, type, required, fileType, default: value }) => {
+      if (fileType) {
+        const uploaded = Array.isArray(value) ? value : [];
+        const references = uploaded.flatMap(file => {
+          if (typeof file === 'string') return [];
+          if (file.loading) throw new Error(`请等待 ${name} 上传完成`);
+          return file.url ? [file.url] : [];
+        });
+        if (!references.length) {
+          if (required) throw new Error(`请上传 ${name}`);
+          return [];
+        }
+        return [
+          [
+            name,
+            type === 'array' || type === 'array-string'
+              ? references
+              : references[0],
+          ],
+        ];
+      }
+      if ((typeof value === 'string' && !value.trim()) || value == null) {
+        if (required) throw new Error(`请输入 ${name}`);
+        return [];
+      }
+      if (type === 'object' || type.startsWith('array')) {
+        try {
+          return [
+            [name, typeof value === 'string' ? JSON.parse(value) : value],
+          ];
+        } catch {
+          throw new Error(`${name} 的 JSON 格式无效`);
+        }
+      }
+      return [[name, value]];
+    })
+  );
+}
+
+function Question({ value }: { value: Run['question'] }) {
+  if (typeof value === 'string') return <p>{value}</p>;
+  return (
+    <dl className={styles.chatArguments}>
+      {Object.entries(value).map(([name, item]) => (
+        <div key={name}>
+          <dt>{name}</dt>
+          <dd>{typeof item === 'string' ? item : JSON.stringify(item)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function Attachment({ file }: { file: PublishedFile }) {
+  if (!file.downloadUrl)
+    return (
+      <span>
+        <PaperClipOutlined /> {file.name}
+      </span>
+    );
+  const url = file.downloadUrl;
+  return (
+    <Button
+      type="text"
+      size="small"
+      icon={<PaperClipOutlined />}
+      onClick={() => void downloadFileWithHeaders(url, file.name)}
+    >
+      {file.name}
+    </Button>
+  );
+}
+
+function PublishedConversation({
+  botId,
+  shareKey,
+  detail,
+}: {
+  botId: string;
+  shareKey?: string;
+  detail: Detail;
+}) {
+  const workflow = detail.kind === 'workflow';
+  const emptyParams = () =>
+    detail.inputs.map(({ allowedFileType, ...input }) => {
+      const fileType =
+        input.fileType === 'file' ? allowedFileType?.[0] : undefined;
+      return {
+        ...input,
+        fileType,
+        default: fileType ? [] : '',
+        validationSchema: null,
+        errorMsg: '',
+        originErrorMsg: '',
+      };
+    });
+  const [params, setParams] = useState<StartNodeType[]>(emptyParams);
   const [message, setMessage] = useState('');
-  const [inputs, setInputs] = useState<Record<string, string>>({});
-  const [answer, setAnswer] = useState('');
-  const [error, setError] = useState('');
-  const [status, setStatus] = useState('');
   const [resume, setResume] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [files, setFiles] = useState<{ id: string; name: string }[]>([]);
-  const runId = useRef('');
-  const sessionId = useRef('');
-  const controller = useRef<AbortController | null>(null);
-  const stopRequested = useRef(false);
-  const generation = useRef(0);
-  const [revision, setRevision] = useState(0);
-  const [detailRevision, setDetailRevision] = useState(0);
-  const [detailLoading, setDetailLoading] = useState(true);
-  const [detailError, setDetailError] = useState('');
+  const [files, setFiles] = useState<PublishedFile[]>([]);
+  const [history, setHistory] = useState<Run[]>([]);
+  const [current, setCurrent] = useState<Run>();
+  const [session, setSession] = useState<string>();
+  const [showHistory, setShowHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [historyError, setHistoryError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const controller = useRef<AbortController | null>(null);
+  const alive = useRef(true);
+  const stopRequested = useRef(false);
+  const runId = useRef('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const messageList = useRef<HTMLDivElement>(null);
+  const followsLatest = useRef(true);
+  const selectedHistory = history.filter(run => run.sessionId === session);
+  const runs = current
+    ? [...selectedHistory.filter(run => run.id !== current.id), current]
+    : selectedHistory;
+  const latest = runs.at(-1);
+  const paused = latest?.status === 'paused';
+  const interrupt = paused ? latest?.interrupt : undefined;
+  const running = latest?.status === 'running' || latest?.status === 'resuming';
+
   useEffect(() => {
-    let active = true;
-    generation.current += 1;
-    controller.current?.abort();
-    runId.current = '';
-    sessionId.current = '';
-    setDetail(null);
-    setDetailLoading(true);
-    setDetailError('');
-    setError('');
-    setHistory([]);
-    setAnswer('');
-    setStatus('');
-    setBusy(false);
-    setFiles([]);
-    setInputs({});
-    setUploading(false);
-    http
-      .get<unknown, Detail>(`/published/${botId}`, { params: { shareKey } })
-      .then(data => {
-        if (active) {
-          setDetail(data);
-          setError('');
-        }
-      })
-      .catch(reason => {
-        if (active) setDetailError(errorText(reason));
-      })
-      .finally(() => {
-        if (active) setDetailLoading(false);
-      });
+    alive.current = true;
     return () => {
-      active = false;
+      alive.current = false;
       controller.current?.abort();
     };
-  }, [botId, shareKey, spaceId, detailRevision]);
+  }, []);
+
   useEffect(() => {
     let active = true;
     setHistoryLoading(true);
     setHistoryError('');
     http
-      .get<unknown, History[]>(`/published/${botId}/history`, {
+      .get<unknown, Run[]>(`/published/${botId}/history`, {
         params: { shareKey },
       })
-      .then(data => {
-        if (active) setHistory(data);
+      .then(rows => {
+        if (!active) return;
+        setHistory(rows);
+        setSession(previous => previous ?? rows.at(-1)?.sessionId ?? uuid());
+        setCurrent(previous =>
+          previous &&
+          previous.status !== 'running' &&
+          rows.some(
+            row => row.id === previous.id && row.status === previous.status
+          )
+            ? undefined
+            : previous
+        );
       })
       .catch(reason => {
-        if (active) setHistoryError(errorText(reason));
+        if (!active) return;
+        setHistoryError(errorText(reason));
+        setSession(previous => previous ?? uuid());
       })
       .finally(() => {
         if (active) setHistoryLoading(false);
@@ -112,80 +230,134 @@ export default function PublishedChat() {
     return () => {
       active = false;
     };
-  }, [botId, shareKey, spaceId, revision, detailRevision]);
-  const stop = async () => {
-    const currentGeneration = generation.current;
-    stopRequested.current = true;
-    if (!runId.current) return;
+  }, [botId, shareKey, revision]);
+
+  useEffect(() => {
+    if (messageList.current && followsLatest.current) {
+      messageList.current.scrollTop = messageList.current.scrollHeight;
+    }
+  }, [session, history, current]);
+
+  const requestStop = async (id: string) => {
     try {
       const result = await http.post<unknown, { status: string }>(
-        `/published/runs/${runId.current}/stop`
+        `/published/runs/${id}/stop`
       );
-      if (currentGeneration !== generation.current) return;
-      setStatus(result.status);
+      if (!alive.current) return;
       if (
         ['completed', 'failed', 'cancelled', 'interrupted'].includes(
           result.status
         )
       ) {
+        setCurrent(previous =>
+          previous?.id === id
+            ? { ...previous, status: result.status }
+            : previous
+        );
         controller.current?.abort();
-        setBusy(false);
       }
-      setRevision(value => value + 1);
     } catch (reason) {
-      if (currentGeneration === generation.current) setError(errorText(reason));
+      if (alive.current) setError(errorText(reason));
+    } finally {
+      if (alive.current) {
+        stopRequested.current = false;
+        setStopping(false);
+        setRevision(value => value + 1);
+      }
     }
   };
-  const execute = async (resuming = false) => {
-    if (busy || uploading) return;
-    setBusy(true);
+
+  const stop = () => {
+    if (stopRequested.current) return;
+    const id = runId.current || latest?.id;
+    if (!controller.current && !id) return;
+    setStopping(true);
+    stopRequested.current = true;
+    if (id) void requestStop(id);
+  };
+
+  const execute = async (resumeContent?: string) => {
+    const resuming = resumeContent !== undefined;
+    if (!session || controller.current || stopping || uploading) return;
+    if (
+      resuming
+        ? !paused || (interrupt?.needsReply !== false && !resumeContent.trim())
+        : paused || running || (!workflow && !message.trim())
+    )
+      return;
     setError('');
-    stopRequested.current = false;
-    if (!resuming) {
-      setAnswer('');
-      runId.current = '';
-    }
-    setStatus('running');
-    const abort = new AbortController();
-    const currentGeneration = generation.current;
-    controller.current = abort;
-    const space = useSpaceStore.getState();
-    let ended = false;
+    let question: Run['question'];
     try {
-      const values: Record<string, unknown> = {};
-      for (const item of detail?.inputs || []) {
-        const value = inputs[item.name];
-        if (value === undefined || value === '') {
-          if (item.required) throw new Error(`请输入 ${item.name}`);
-          continue;
-        }
-        values[item.name] = item.type === 'string' ? value : JSON.parse(value);
-      }
+      question =
+        resuming && latest
+          ? latest.question
+          : workflow
+            ? workflowValues(params)
+            : message.trim();
+    } catch (reason) {
+      setError(errorText(reason));
+      return;
+    }
+
+    const abort = new AbortController();
+    controller.current = abort;
+    stopRequested.current = false;
+    runId.current = (resuming && latest?.id) || '';
+    setBusy(true);
+    followsLatest.current = true;
+    setCurrent(
+      resuming && latest
+        ? { ...latest, status: 'running' }
+        : {
+            id: '',
+            sessionId: session,
+            question: workflow
+              ? Object.fromEntries(
+                  Object.entries(question).map(([name, value]) => [
+                    name,
+                    params.find(param => param.name === name)?.fileType
+                      ? '已上传文件'
+                      : value,
+                  ])
+                )
+              : question,
+            answer: '',
+            status: 'running',
+            files,
+          }
+    );
+    let ended = false;
+    let acknowledged = false;
+    let workflowOutput = '';
+    let hasStructuredOutput = false;
+    let pendingInterrupt: Interrupt | undefined;
+    const space = useSpaceStore.getState();
+    try {
       await fetchSseWithContext(
         resuming
           ? `/console-api/published/runs/${runId.current}/resume`
           : `/console-api/published/${botId}/chat`,
         {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'text/event-stream',
+          },
           getContext: () => ({
             languageCode: getLanguageCode(),
             spaceId: space.spaceId,
             spaceType: space.spaceType,
             enterpriseId: space.enterpriseId,
           }),
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'text/event-stream',
-          },
           body: JSON.stringify(
             resuming
-              ? { content: resume }
+              ? { content: resumeContent }
               : {
-                  message,
-                  files: files.map(file => file.id),
-                  inputs: values,
+                  ...(workflow
+                    ? { inputs: question }
+                    : { message: question, files: files.map(file => file.id) }),
+                  sessionId: session,
                   shareKey,
-                  sessionId: sessionId.current || undefined,
                 }
           ),
           signal: abort.signal,
@@ -202,23 +374,108 @@ export default function PublishedChat() {
             }
           },
           onmessage: event => {
-            if (currentGeneration !== generation.current) return;
-            if (!event.data || event.data === '[DONE]') return;
+            if (!alive.current || !event.data || event.data === '[DONE]')
+              return;
             const data = JSON.parse(event.data);
             if (event.event === 'run') {
-              runId.current = data.runId || data.id;
-              if (data.sessionId) sessionId.current = data.sessionId;
-              if (stopRequested.current) void stop();
-            } else if (event.event === 'delta')
-              setAnswer(value => value + (data.content || ''));
-            else if (event.event === 'end' || event.event === 'run-end') {
+              acknowledged = true;
+              const id = data.runId || data.id;
+              runId.current = id;
+              setCurrent(
+                previous =>
+                  previous && {
+                    ...previous,
+                    id,
+                    answer:
+                      typeof data.output === 'string'
+                        ? data.output
+                        : previous.answer,
+                  }
+              );
+              if (resuming) setResume('');
+              else if (!workflow) {
+                setMessage('');
+                setFiles([]);
+              }
+              if (stopRequested.current) void requestStop(id);
+              return;
+            }
+            if (event.event === 'end' || event.event === 'run-end') {
               ended = true;
-              setStatus(data.status);
-            } else if (event.event === 'error' || data.code)
+              setCurrent(
+                previous =>
+                  previous && {
+                    ...previous,
+                    answer: hasStructuredOutput
+                      ? previous.answer + workflowOutput
+                      : previous.answer || workflowOutput,
+                    status: data.status,
+                    interrupt:
+                      data.status === 'paused' ? pendingInterrupt : null,
+                  }
+              );
+              return;
+            }
+            if (event.event === 'error' || Number(data.code)) {
               setError(data.message || '执行失败');
-            else
-              for (const choice of data.choices || [])
-                setAnswer(value => value + (choice.delta?.content || ''));
+              return;
+            }
+            if (workflow) {
+              const node = data.workflow_step?.node;
+              if (
+                node?.id?.startsWith('node-end::') &&
+                node.outputs &&
+                Object.keys(node.outputs).length
+              ) {
+                hasStructuredOutput = node.ext?.answer_mode === 0;
+                workflowOutput =
+                  '\n\n```json\n' +
+                  JSON.stringify(node.outputs, null, 2) +
+                  '\n```';
+                if (hasStructuredOutput) return;
+              }
+              if (
+                hasStructuredOutput &&
+                (node?.id === 'flow_obj' || !node?.id) &&
+                data.choices?.some(
+                  (choice: { finish_reason?: string }) =>
+                    choice.finish_reason === 'stop'
+                )
+              )
+                return;
+              const value = data.event_data?.value;
+              if (
+                value &&
+                data.choices?.some(
+                  (choice: { finish_reason?: string }) =>
+                    choice.finish_reason === 'interrupt'
+                )
+              ) {
+                pendingInterrupt = {
+                  prompt: value.content || '',
+                  needsReply: data.event_data.need_reply !== false,
+                  options: (value.option || []).filter(
+                    (item: { id?: string }) =>
+                      typeof item?.id === 'string' && item.id !== 'default'
+                  ),
+                };
+              }
+            }
+            const delta =
+              event.event === 'delta'
+                ? data.content
+                : data.choices
+                    ?.map(
+                      (choice: { delta?: { content?: string } }) =>
+                        choice.delta?.content || ''
+                    )
+                    .join('');
+            if (typeof delta === 'string' && delta) {
+              setCurrent(
+                previous =>
+                  previous && { ...previous, answer: previous.answer + delta }
+              );
+            }
           },
           onclose: () => {
             if (!ended && !abort.signal.aborted)
@@ -230,250 +487,472 @@ export default function PublishedChat() {
         }
       );
     } catch (reason) {
-      if (!abort.signal.aborted && currentGeneration === generation.current) {
+      if (alive.current && !abort.signal.aborted) {
         setError(errorText(reason));
-        setStatus('failed');
+        setCurrent(previous =>
+          acknowledged && previous
+            ? { ...previous, status: 'interrupted' }
+            : resuming
+              ? latest
+              : undefined
+        );
       }
     } finally {
-      if (currentGeneration === generation.current) {
+      if (alive.current) {
+        controller.current = null;
+        if (!runId.current && stopRequested.current) {
+          stopRequested.current = false;
+          setStopping(false);
+        }
+        runId.current = '';
         setBusy(false);
-        setRevision(value => value + 1);
+        if (acknowledged) setRevision(value => value + 1);
       }
     }
   };
-  return (
-    <main className={`agents-page ${styles.chat}`}>
-      <header className="agents-header">
-        <div>
-          <h1>{detail?.name || '已发布 Agent'}</h1>
-          <p>{detail?.description}</p>
-        </div>
-        <Link to="/store/agent">返回市场</Link>
-      </header>
-      {error && (
-        <p role="alert" className="agents-error">
-          {error}
-        </p>
-      )}
-      {detailError && (
-        <Alert
-          type="error"
-          showIcon
-          message="无法打开已发布版本"
-          description={detailError}
-          action={
-            <Button onClick={() => setDetailRevision(value => value + 1)}>
-              重试
-            </Button>
+
+  const upload = async (selected: FileList | null) => {
+    if (!selected?.length) return;
+    setUploading(true);
+    setError('');
+    try {
+      for (const file of Array.from(selected).slice(0, 10 - files.length)) {
+        const form = new FormData();
+        form.append('file', file);
+        if (shareKey) form.append('shareKey', shareKey);
+        const uploaded = await http.post<unknown, PublishedFile>(
+          `/published/${botId}/files`,
+          form,
+          {
+            headers: { 'Content-Type': 'multipart/form-data' },
           }
-        />
-      )}
-      {detailLoading && (
-        <p role="status">
-          <Spin /> 正在读取已发布版本…
-        </p>
-      )}
-      {detail?.prologue && <p>{detail.prologue}</p>}
-      <section className="agents-panel">
-        <h2>我的会话历史</h2>
-        {historyLoading && <p role="status">正在读取会话历史…</p>}
-        {historyError && (
-          <Alert
-            type="error"
-            showIcon
-            message={historyError}
-            action={
-              <Button onClick={() => setRevision(value => value + 1)}>
-                重试
-              </Button>
-            }
-          />
-        )}
-        {!historyLoading && !historyError && !history.length && (
-          <p>暂无会话历史。发送消息后，可在这里查看运行记录。</p>
-        )}
-        {!historyLoading &&
-          history.map(item => (
-            <article key={item.id}>
-              <p>
-                <strong>提问：</strong>
-                {typeof item.question === 'string'
-                  ? item.question
-                  : JSON.stringify(item.question)}
-              </p>
-              <p style={{ whiteSpace: 'pre-wrap' }}>{item.answer}</p>
-              <small>{item.status}</small>
-              {item.files?.map(file => (
-                <button
-                  key={file.id}
-                  onClick={() =>
-                    downloadFileWithHeaders(file.downloadUrl, file.name)
-                  }
-                >
-                  {file.name}
-                </button>
-              ))}
-              {item.status === 'paused' && (
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    runId.current = item.id;
-                    setStatus('paused');
-                    setAnswer(item.answer);
-                  }}
-                >
-                  继续此运行
-                </button>
-              )}
-            </article>
-          ))}
-      </section>
-      <form
-        className="agents-panel"
-        onSubmit={event => {
-          event.preventDefault();
-          void execute();
-        }}
+        );
+        if (!alive.current) return;
+        setFiles(previous => [...previous, uploaded]);
+      }
+    } catch (reason) {
+      if (alive.current) setError(errorText(reason));
+    } finally {
+      if (alive.current) {
+        setUploading(false);
+        if (fileInput.current) fileInput.current.value = '';
+      }
+    }
+  };
+
+  const uploadWorkflowFile = async (
+    file: File,
+    field: string
+  ): Promise<string> => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('field', field);
+    if (shareKey) form.append('shareKey', shareKey);
+    const result = await http.post<unknown, { reference: string }>(
+      `/published/${botId}/workflow-files`,
+      form,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params: { uploadId: uuid() },
+      }
+    );
+    return result.reference;
+  };
+
+  const changeSession = (id: string) => {
+    setSession(id);
+    setCurrent(undefined);
+    setMessage('');
+    setResume('');
+    setParams(emptyParams());
+    setFiles([]);
+    setError('');
+    setShowHistory(false);
+    runId.current = '';
+    followsLatest.current = true;
+  };
+
+  const sessions = Array.from(
+    new Map(history.map(run => [run.sessionId, run])).values()
+  ).reverse();
+  const locked = busy || stopping || uploading;
+  const loading = !session && historyLoading;
+  const toolbar = (
+    <>
+      <Button
+        type="text"
+        icon={<HistoryOutlined />}
+        aria-label="会话历史"
+        title="会话历史"
+        aria-expanded={showHistory}
+        onClick={() => setShowHistory(true)}
+      />
+      <Button
+        type="text"
+        icon={<PlusOutlined />}
+        disabled={locked || loading}
+        aria-label="新对话"
+        onClick={() => changeSession(uuid())}
       >
-        {detail?.kind === 'workflow' ? (
-          detail.inputs.map(item => (
-            <label key={item.name}>
-              {item.name} · {item.description}
-              <textarea
-                required={item.required}
-                disabled={busy}
-                value={inputs[item.name] || ''}
-                placeholder={
-                  item.type === 'string' ? '输入文本' : '输入 JSON 值'
-                }
-                onChange={event =>
-                  setInputs(value => ({
-                    ...value,
-                    [item.name]: event.target.value,
-                  }))
-                }
-              />
-            </label>
-          ))
-        ) : (
-          <label>
-            消息
-            <textarea
-              required
-              disabled={busy}
-              value={message}
-              onChange={event => setMessage(event.target.value)}
-            />
-          </label>
-        )}
-        {detail?.supportUpload && (
-          <label>
-            上传文件
-            <input
-              type="file"
-              disabled={busy || uploading || files.length >= 10}
-              accept=".txt,.md,.csv,.json,.pdf,.docx"
-              onChange={event => {
-                const file = event.target.files?.[0];
-                event.target.value = '';
-                if (!file) return;
-                const currentGeneration = generation.current;
-                setUploading(true);
-                const form = new FormData();
-                form.append('file', file);
-                if (shareKey) form.append('shareKey', shareKey);
-                void http
-                  .post<unknown, { id: string; name: string }>(
-                    `/published/${botId}/files`,
-                    form,
-                    { headers: { 'Content-Type': 'multipart/form-data' } }
-                  )
-                  .then(data => {
-                    if (currentGeneration === generation.current)
-                      setFiles(previous => [...previous, data]);
-                  })
-                  .catch(reason => {
-                    if (currentGeneration === generation.current)
-                      setError(errorText(reason));
-                  })
-                  .finally(() => {
-                    if (currentGeneration === generation.current)
-                      setUploading(false);
-                  });
-              }}
-            />
-            {files.map(file => (
-              <span key={file.id}>
-                {file.name}
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() =>
-                    setFiles(previous =>
-                      previous.filter(value => value.id !== file.id)
-                    )
-                  }
-                >
-                  移除
-                </button>
-              </span>
-            ))}
-          </label>
-        )}
-        <div className="agents-actions">
-          <button className="primary" disabled={busy || uploading || !detail}>
-            发送
-          </button>
-          {(busy || status === 'paused') && (
-            <button type="button" onClick={() => void stop()}>
-              停止
-            </button>
+        新对话
+      </Button>
+    </>
+  );
+
+  return (
+    <div
+      className={
+        workflow
+          ? `workflow-debugger agents-chat-layout agents-chat-standalone ${styles.workflowChat}`
+          : 'agents-chat-layout agents-chat-standalone'
+      }
+    >
+      <div
+        className={
+          workflow ? 'workflow-debugger-header' : 'agent-preview-toolbar'
+        }
+      >
+        <div className="agent-chat-identity">
+          {!workflow && (
+            <img src={agentAvatar} alt="" className="agent-chat-avatar" />
           )}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              sessionId.current = '';
-              setNoticeEmpty();
+          <h2 title={detail.name}>{detail.name}</h2>
+        </div>
+        <div className={styles.chatTools}>{toolbar}</div>
+        <Link to="/store/agent">返回市场</Link>
+      </div>
+      <Drawer
+        title="会话历史"
+        placement="right"
+        width={320}
+        open={showHistory}
+        onClose={() => setShowHistory(false)}
+        rootClassName={`agent-history-drawer ${styles.chatHistory}`}
+      >
+        <aside className="agents-session-list">
+          <Button
+            type="text"
+            disabled={locked || historyLoading}
+            onClick={() => setRevision(value => value + 1)}
+          >
+            刷新历史
+          </Button>
+          {historyLoading && <Skeleton active paragraph={{ rows: 2 }} />}
+          {historyError && (
+            <Alert type="error" showIcon message={historyError} />
+          )}
+          {!historyLoading && !historyError && sessions.length === 0 && (
+            <p>暂无会话</p>
+          )}
+          {sessions.map(run => (
+            <div
+              className={`agents-session${run.sessionId === session ? ' selected' : ''}`}
+              key={run.sessionId}
+            >
+              <button
+                type="button"
+                disabled={locked}
+                aria-current={run.sessionId === session ? 'true' : undefined}
+                onClick={() =>
+                  run.sessionId === session
+                    ? setShowHistory(false)
+                    : changeSession(run.sessionId)
+                }
+              >
+                {typeof run.question === 'string'
+                  ? run.question
+                  : Object.values(run.question).map(String).join(' · ') ||
+                    '工作流运行'}
+              </button>
+            </div>
+          ))}
+        </aside>
+      </Drawer>
+      <div className={`agents-chat-main ${styles.chatBody}`}>
+        <section className="agents-conversation">
+          <div
+            className="agents-message-list"
+            ref={messageList}
+            aria-live="polite"
+            onScroll={event => {
+              const list = event.currentTarget;
+              followsLatest.current =
+                list.scrollHeight - list.scrollTop - list.clientHeight < 64;
             }}
           >
-            新会话
-          </button>
-        </div>
-      </form>
-      {(answer || status) && (
-        <section className="agents-panel">
-          <h2>当前回答</h2>
-          <div style={{ whiteSpace: 'pre-wrap' }}>{answer}</div>
-          <p role="status">{status}</p>
-        </section>
-      )}
-      {status === 'paused' && (
-        <form
-          className="agents-panel"
-          onSubmit={event => {
-            event.preventDefault();
-            void execute(true);
-          }}
-        >
-          <label>
-            补充内容
-            <textarea
-              required
-              value={resume}
-              onChange={event => setResume(event.target.value)}
+            {loading && <Skeleton active paragraph={{ rows: 3 }} />}
+            {!loading && !runs.length && (
+              <div
+                className={
+                  workflow
+                    ? styles.workflowWelcome
+                    : 'agent-conversation-welcome'
+                }
+              >
+                {!workflow && <img src={agentAvatar} alt="" />}
+                <strong>{detail.name}</strong>
+                {(detail.prologue || detail.description) && (
+                  <MarkdownRender
+                    content={detail.prologue || detail.description}
+                    isSending={false}
+                  />
+                )}
+              </div>
+            )}
+            {runs.map(run => (
+              <article className="agents-run" key={run.id || 'pending'}>
+                <div className="agents-question-row">
+                  <div className="agents-question">
+                    <Question value={run.question} />
+                    {run.files
+                      ?.filter(file => file.direction !== 'output')
+                      .map(file => (
+                        <Attachment key={file.id} file={file} />
+                      ))}
+                  </div>
+                  {!workflow && (
+                    <span className="agent-message-avatar agent-user-avatar">
+                      <UserOutlined />
+                    </span>
+                  )}
+                </div>
+                <div className="agents-answer-row">
+                  {!workflow && (
+                    <img
+                      className="agent-message-avatar"
+                      src={agentAvatar}
+                      alt=""
+                    />
+                  )}
+                  <div className="agents-answer-content">
+                    <div className="agents-answer">
+                      {run.answer && (
+                        <MarkdownRender
+                          content={run.answer}
+                          isSending={busy && run === latest}
+                        />
+                      )}
+                      {run.files
+                        ?.filter(file => file.direction === 'output')
+                        .map(file => (
+                          <Attachment key={file.id} file={file} />
+                        ))}
+                      {run.status !== 'completed' && (
+                        <span className={`agents-status ${run.status}`}>
+                          {run.status === 'paused'
+                            ? '等待补充输入'
+                            : statusText[
+                                run.status as keyof typeof statusText
+                              ] || run.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          {error && <Alert type="error" showIcon message={error} />}
+          {workflow ? (
+            <form
+              onSubmit={event => {
+                event.preventDefault();
+                void execute(paused ? resume : undefined);
+              }}
+            >
+              {paused ? (
+                <div className="workflow-debugger-composer mx-5">
+                  {interrupt?.prompt && (
+                    <MarkdownRender
+                      content={interrupt.prompt}
+                      isSending={false}
+                    />
+                  )}
+                  {interrupt?.options.map(option => (
+                    <Button
+                      key={option.id}
+                      disabled={locked}
+                      onClick={() => void execute(option.id)}
+                    >
+                      {option.text || option.id}
+                    </Button>
+                  ))}
+                  {!interrupt?.options.length && (
+                    <FlowTextArea
+                      className="user-chat-input"
+                      aria-label="补充内容"
+                      placeholder="输入补充内容以继续运行"
+                      value={resume}
+                      disabled={locked}
+                      onChange={event => setResume(event.target.value)}
+                    />
+                  )}
+                </div>
+              ) : (
+                <fieldset
+                  disabled={locked || running}
+                  className={styles.workflowInputs}
+                >
+                  <WorkflowInputs
+                    startNodeParams={params}
+                    setStartNodeParams={setParams}
+                    userInput={
+                      typeof params[0]?.default === 'string'
+                        ? params[0].default
+                        : ''
+                    }
+                    setUserInput={() => undefined}
+                    singleText={
+                      params.length === 1 &&
+                      params[0]?.type === 'string' &&
+                      !params[0].fileType
+                    }
+                    uploadFile={uploadWorkflowFile}
+                    disabled={locked || running}
+                    inputLabel={params[0]?.name || '运行输入'}
+                    handleEnterKey={event => {
+                      if (
+                        event.key === 'Enter' &&
+                        !event.shiftKey &&
+                        !event.nativeEvent.isComposing
+                      ) {
+                        event.preventDefault();
+                        void execute();
+                      }
+                    }}
+                  />
+                </fieldset>
+              )}
+              <div className="workflow-debugger-footer">
+                {(busy || running || paused) && (
+                  <Button
+                    icon={<StopOutlined />}
+                    disabled={stopping}
+                    loading={stopping}
+                    onClick={stop}
+                  >
+                    停止运行
+                  </Button>
+                )}
+                {paused && interrupt?.needsReply === false && (
+                  <Button
+                    aria-label="跳过"
+                    disabled={locked || loading}
+                    onClick={() => void execute('')}
+                  >
+                    跳过
+                  </Button>
+                )}
+                {!interrupt?.options.length && (
+                  <Button
+                    htmlType="submit"
+                    type="primary"
+                    aria-label={paused ? '恢复运行' : '发送'}
+                    icon={<SendOutlined />}
+                    disabled={
+                      locked || running || loading || (paused && !resume.trim())
+                    }
+                  >
+                    {paused ? '恢复运行' : '发送'}
+                  </Button>
+                )}
+              </div>
+            </form>
+          ) : (
+            <AgentComposer
+              value={message}
+              onChange={setMessage}
+              onSend={() => void execute()}
+              onStop={stop}
+              active={busy || running || stopping}
+              stopping={stopping}
+              disabled={busy || running || stopping || loading}
+              sendDisabled={locked || loading || !message.trim()}
+              stopDisabled={!busy && !running}
+              uploading={uploading}
+              files={files}
+              fileInput={detail.supportUpload ? fileInput : undefined}
+              uploadDisabled={files.length >= 10}
+              onUpload={selected => void upload(selected)}
+              onRemove={id =>
+                setFiles(previous => previous.filter(file => file.id !== id))
+              }
             />
-          </label>
-          <button disabled={busy}>恢复运行</button>
-        </form>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function PublishedPage({
+  botId,
+  shareKey,
+}: {
+  botId: string;
+  shareKey?: string;
+}) {
+  const [detail, setDetail] = useState<Detail>();
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setError('');
+    http
+      .get<unknown, Detail>(`/published/${botId}`, { params: { shareKey } })
+      .then(data => {
+        if (active) setDetail(data);
+      })
+      .catch(reason => {
+        if (active) setError(errorText(reason));
+      });
+    return () => {
+      active = false;
+    };
+  }, [botId, shareKey, revision]);
+
+  return (
+    <main className={`agents-page agent-chat-page ${styles.publishedChat}`}>
+      {detail ? (
+        <PublishedConversation
+          botId={botId}
+          shareKey={shareKey}
+          detail={detail}
+        />
+      ) : (
+        <div className={styles.chatLoading}>
+          <Link to="/store/agent">返回市场</Link>
+          {error ? (
+            <Alert
+              type="error"
+              showIcon
+              message="无法打开已发布版本"
+              description={error}
+              action={
+                <Button onClick={() => setRevision(value => value + 1)}>
+                  重试
+                </Button>
+              }
+            />
+          ) : (
+            <Skeleton active paragraph={{ rows: 3 }} />
+          )}
+        </div>
       )}
     </main>
   );
-  function setNoticeEmpty() {
-    setFiles([]);
-    setAnswer('');
-    setMessage('');
-    setStatus('');
-    runId.current = '';
-  }
+}
+
+export default function PublishedChat() {
+  const { botId = '' } = useParams();
+  const { spaceId, enterpriseId } = useSpaceStore();
+  const [params] = useSearchParams();
+  const shareKey = params.get('shareKey') || undefined;
+  return (
+    <PublishedPage
+      key={JSON.stringify([botId, shareKey, spaceId, enterpriseId])}
+      botId={botId}
+      shareKey={shareKey}
+    />
+  );
 }

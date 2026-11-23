@@ -10,6 +10,7 @@ urlpatterns = [
     path("agents/<int:agent_id>/versions", definitions.versions),
     path("agents/<int:agent_id>/published-version", definitions.published),
     path("agents/<int:agent_id>/memory/config", memory.config),
+    path("agents/<int:agent_id>/memory/credential", memory.reveal_credential),
     path("agents/<int:agent_id>/memory/items", memory.items),
     path("agents/<int:agent_id>/memory/items/<str:memory_id>", memory.items),
 ]

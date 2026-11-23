@@ -3,13 +3,10 @@ import copy from 'copy-to-clipboard';
 import { Alert, Button, Drawer, Modal, Skeleton } from 'antd';
 import {
   PaperClipOutlined,
-  CloseOutlined,
   DeleteOutlined,
   HistoryOutlined,
   PlusOutlined,
   UserOutlined,
-  ArrowUpOutlined,
-  StopOutlined,
   ReloadOutlined,
   CopyOutlined,
   CheckOutlined,
@@ -33,6 +30,7 @@ import {
   type AgentRun,
   type AgentSession,
 } from '@/services/agents';
+import AgentComposer from './composer';
 import { errorText } from './errors';
 import { isFileAvailable, inputFiles, needsFileUpload } from './files';
 import {
@@ -649,114 +647,32 @@ function SessionMessages({
           </button>
         </div>
       )}
-      <form
-        className="agents-composer"
-        onSubmit={event => {
-          event.preventDefault();
-          void send();
-        }}
-      >
-        <label className="agent-message-input">
-          <span className="agent-sr-only">消息</span>
-          <textarea
-            aria-label={session.kind === 'debug' ? '调试消息' : '聊天消息'}
-            value={question}
-            disabled={busy || stopping || loading}
-            onChange={event => setQuestion(event.target.value)}
-            placeholder={
-              session.kind === 'debug'
-                ? '发送消息，测试你的 Agent…'
-                : '发送消息…'
-            }
-            rows={2}
-            onKeyDown={event => {
-              if (
-                event.key === 'Enter' &&
-                !event.shiftKey &&
-                !event.nativeEvent.isComposing
-              ) {
-                event.preventDefault();
-                void send();
-              }
-            }}
-          />
-        </label>
-        {!!files.length && (
-          <div className="agents-files">
-            {files.map(file => (
-              <span key={file.id}>
-                {file.name}
-                <button
-                  type="button"
-                  aria-label={`移除 ${file.name}`}
-                  disabled={busy || stopping || uploading}
-                  onClick={() =>
-                    setFiles(current =>
-                      current.filter(item => item.id !== file.id)
-                    )
-                  }
-                >
-                  <CloseOutlined />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
-        <div className="agents-actions agent-composer-actions">
-          <input
-            ref={fileInput}
-            className="agents-file-input"
-            type="file"
-            accept=".txt,.md,.csv,.json,.pdf,.docx"
-            multiple
-            disabled={busy || stopping || uploading}
-            onChange={event => void upload(event.target.files)}
-          />
-          <Button
-            type="text"
-            icon={<PaperClipOutlined />}
-            aria-label="添加文件"
-            title="添加文件"
-            loading={uploading}
-            disabled={busy || stopping || uploading}
-            onClick={() => fileInput.current?.click()}
-          />
-          {busy || stopping || running ? (
-            <button
-              className="danger"
-              type="button"
-              disabled={
-                stopping ||
-                (!runId.current &&
-                  !runs.some(
-                    run =>
-                      run.status === 'running' && !run.id.startsWith('pending-')
-                  ))
-              }
-              onClick={() => void stop()}
-            >
-              <StopOutlined />{' '}
-              <span>{stopping ? '正在停止…' : '停止生成'}</span>
-            </button>
-          ) : (
-            <button
-              className="primary agent-send-button"
-              aria-label="发送消息"
-              title="发送消息"
-              type="submit"
-              disabled={
-                loading ||
-                !historyLoaded ||
-                uploading ||
-                running ||
-                !question.trim()
-              }
-            >
-              <ArrowUpOutlined />
-            </button>
-          )}
-        </div>
-      </form>
+      <AgentComposer
+        value={question}
+        onChange={setQuestion}
+        onSend={() => void send()}
+        onStop={() => void stop()}
+        active={busy || stopping || running}
+        stopping={stopping}
+        disabled={busy || stopping || loading}
+        sendDisabled={
+          loading || !historyLoaded || uploading || running || !question.trim()
+        }
+        stopDisabled={
+          !runId.current &&
+          !runs.some(
+            run => run.status === 'running' && !run.id.startsWith('pending-')
+          )
+        }
+        uploading={uploading}
+        files={files}
+        fileInput={fileInput}
+        onUpload={selected => void upload(selected)}
+        onRemove={id =>
+          setFiles(current => current.filter(item => item.id !== id))
+        }
+        debug={session.kind === 'debug'}
+      />
     </section>
   );
 }

@@ -27,9 +27,12 @@ import {
   getModelDetail,
   getLocalModelList,
   createOrUpdateLocalModel,
+  revealModelCredential,
 } from '@/services/model';
 import MoreIcons from '@/components/more-icons';
+import SavedCredentialInput from '@/components/saved-credential-input';
 import globalStore from '@/store/global-store';
+import useSpaceStore from '@/store/space-store';
 import ModelParamsTable from './model-params-table';
 import { v4 as uuid } from 'uuid';
 import tipsSvg from '@/assets/svgs/tips.svg';
@@ -642,6 +645,8 @@ const ModelBasicForm = ({
   setShowModal,
   modelCreateType,
   lockProvider = false,
+  modelId,
+  busy,
 }: {
   modelInfo: ModelFormData;
   setModelInfo: (info: ModelFormData) => void;
@@ -650,8 +655,12 @@ const ModelBasicForm = ({
   setShowModal: (show: boolean) => void;
   modelCreateType: ModelCreateType;
   lockProvider?: boolean;
+  modelId?: string;
+  busy: boolean;
 }): JSX.Element => {
   const { t } = useTranslation();
+  const spaceId = useSpaceStore(state => state.spaceId);
+  const enterpriseId = useSpaceStore(state => state.enterpriseId);
   const currentProvider = normalizeModelProvider(modelInfo?.provider);
   // 根据供应商类型决定显示什么提示信息
   const isAnthropicProvider = currentProvider === ModelProviderType.ANTHROPIC;
@@ -837,12 +846,20 @@ const ModelBasicForm = ({
                 <span className="text-[#F74E43]">*</span> {t('model.apiKey')}：
               </div>
             </div>
-            <Input.Password
+            <SavedCredentialInput
+              key={`${enterpriseId}:${spaceId}:${modelId}`}
               aria-label={t('model.apiKey')}
               maxLength={1024}
               placeholder={t('common.inputPlaceholder')}
               className="global-input w-full"
               value={modelInfo?.apiKEY}
+              disabled={busy}
+              maskedValue="********"
+              loadSaved={
+                modelId
+                  ? signal => revealModelCredential(modelId, signal)
+                  : undefined
+              }
               onChange={e =>
                 setModelInfo({ ...modelInfo, apiKEY: e.target.value })
               }
@@ -1769,6 +1786,8 @@ export function CreateModal({
             setShowModal={modalState.setShowModal}
             modelCreateType={modalState.modelCreateType}
             lockProvider={lockProvider}
+            modelId={modelId}
+            busy={modalState.loading || modalState.detailLoading}
           />
           {showCategoryForm && (
             <ModelCategoryForm

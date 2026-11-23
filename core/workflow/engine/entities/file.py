@@ -1,5 +1,7 @@
+import os
 import re
 from typing import Mapping, Tuple
+from urllib.parse import parse_qs, urlsplit
 
 from pydantic import BaseModel
 
@@ -128,6 +130,25 @@ class File(BaseModel):
             return match.group(1)
         return None
 
+    @staticmethod
+    def is_console_input_url(url: str) -> bool:
+        try:
+            target = urlsplit(url)
+            storage = urlsplit(os.getenv("OSS_ENDPOINT", ""))
+            return (
+                target.scheme in {"http", "https"}
+                and (target.scheme, target.netloc) == (storage.scheme, storage.netloc)
+                and bool(
+                    re.fullmatch(
+                        r"/[^/]+/published-workflow-inputs/[0-9a-f]{32}/input\.[a-z0-9]+",
+                        target.path,
+                    )
+                )
+                and "X-Amz-Signature" in parse_qs(target.query)
+            )
+        except (TypeError, ValueError):
+            return False
+
     @classmethod
     def get_file_size(cls, input_file_url: str) -> str:
         """
@@ -136,22 +157,25 @@ class File(BaseModel):
         :param input_file_url: URL of the file to check
         :return: File size in bytes as string
         """
+        private_input = cls.is_console_input_url(input_file_url)
         try:
             import requests  # type: ignore
 
             timeout = 10
-            response = requests.head(
-                input_file_url, allow_redirects=True, timeout=timeout
-            )
-            response.raise_for_status()
-            content_length = cls._extract_content_length(response.headers)
-            if content_length:
-                return content_length
+            if not private_input:
+                response = requests.head(
+                    input_file_url, allow_redirects=True, timeout=timeout
+                )
+                response.raise_for_status()
+                content_length = cls._extract_content_length(response.headers)
+                if content_length:
+                    return content_length
 
-            # Some OSS gateways do not return Content-Length for HEAD requests.
+            # MinIO signs the HTTP method. The Console gives the runtime a GET URL.
+            # Also handle other OSS gateways whose HEAD lacks Content-Length.
             response = requests.get(
                 input_file_url,
-                allow_redirects=True,
+                allow_redirects=not private_input,
                 stream=True,
                 timeout=timeout,
             )
@@ -169,6 +193,11 @@ class File(BaseModel):
         except CustomException as err:
             raise err
         except Exception as e:
+            if private_input:
+                raise CustomException(
+                    err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
+                    cause_error="Unable to read the uploaded workflow input",
+                ) from None
             raise CustomException(
                 err_code=CodeEnum.FILE_INVALID_TYPE_ERROR, cause_error=str(e)
             ) from e
@@ -185,7 +214,11 @@ class File(BaseModel):
         :param span_context: Tracing span for logging
         """
         try:
-            await span_context.add_info_event_async(f"input file url: {input_file_url}")
+            await span_context.add_info_event_async(
+                "input file: uploaded workflow input"
+                if cls.is_console_input_url(input_file_url)
+                else f"input file url: {input_file_url}"
+            )
             await span_context.add_info_event_async(
                 f"allowed file type: {allowed_file_type}"
             )

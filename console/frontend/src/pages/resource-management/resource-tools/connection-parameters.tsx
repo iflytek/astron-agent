@@ -7,6 +7,9 @@ import {
 } from 'react';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Input } from 'antd';
+import SavedCredentialInput, {
+  type LoadCredential,
+} from '@/components/saved-credential-input';
 
 type Row = { id: number; name: string; value: string; saved?: boolean };
 
@@ -14,10 +17,12 @@ export default function ConnectionParameters({
   value,
   disabled,
   onChange,
+  reveal,
 }: {
   value: string;
   disabled?: boolean;
   onChange: (value: string) => void;
+  reveal?: (name: string) => LoadCredential;
 }): ReactElement {
   const identity = useRef(0);
   const emitted = useRef(value);
@@ -107,12 +112,14 @@ export default function ConnectionParameters({
               )
             }
           />
-          <Input.Password
+          <SavedCredentialInput
             aria-label={`${row.name || '环境参数'}的值`}
             disabled={disabled}
             autoComplete="new-password"
             placeholder="文本值"
             value={row.value}
+            maskedValue="******"
+            loadSaved={row.saved ? reveal?.(row.name) : undefined}
             ref={input => {
               if (input?.input) values.current.set(row.id, input.input);
               else values.current.delete(row.id);

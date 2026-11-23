@@ -18,16 +18,22 @@ import { StartNodeType, FileUploadItem } from '@/components/workflow/types';
 
 type ChatInputProps = Pick<
   ChatStoreType,
-  | 'interruptChat'
   | 'startNodeParams'
   | 'setStartNodeParams'
   | 'userInput'
   | 'setUserInput'
   | 'handleEnterKey'
->;
+> & {
+  interruptChat?: ChatStoreType['interruptChat'];
+  disabled?: boolean;
+  singleText?: boolean;
+  inputLabel?: string;
+  uploadFile?: (file: File, field: string) => Promise<string>;
+};
 
 const useChatInput = (
-  setStartNodeParams: ChatStoreType['setStartNodeParams']
+  setStartNodeParams: ChatStoreType['setStartNodeParams'],
+  uploadFile?: ChatInputProps['uploadFile']
 ): Parameters<typeof renderParamInput>[2] => {
   const { t } = useTranslation();
   const uploadComplete = useMemoizedFn(
@@ -147,6 +153,22 @@ const useChatInput = (
     handleFileUpload,
     handleDeleteFile,
     handleChangeParam,
+    uploadFile: uploadFile
+      ? async (file, field, index, fileId): Promise<void> => {
+          try {
+            const reference = await uploadFile(file, field);
+            setStartNodeParams(params =>
+              finishFileUpload(params, index, fileId, {
+                code: 0,
+                data: [reference],
+              })
+            );
+          } catch (reason) {
+            handleDeleteFile(index, fileId);
+            throw reason;
+          }
+        }
+      : undefined,
   };
 };
 
@@ -157,14 +179,13 @@ function ChatInput({
   userInput,
   setUserInput,
   handleEnterKey,
+  disabled = false,
+  singleText = startNodeParams?.length === 1,
+  inputLabel = '测试运行输入',
+  uploadFile,
 }: ChatInputProps): React.ReactElement {
   const { t } = useTranslation();
-  const {
-    uploadComplete,
-    handleFileUpload,
-    handleDeleteFile,
-    handleChangeParam,
-  } = useChatInput(setStartNodeParams);
+  const inputActions = useChatInput(setStartNodeParams, uploadFile);
 
   return (
     <div
@@ -174,12 +195,12 @@ function ChatInput({
         overflow: 'auto',
       }}
     >
-      {startNodeParams?.length === 1 || interruptChat?.interrupt ? (
+      {singleText || interruptChat?.interrupt ? (
         <div className="relative mx-5">
           <FlowTextArea
-            disabled={interruptChat?.type === 'option'}
+            disabled={disabled || interruptChat?.type === 'option'}
             className="user-chat-input pr-3.5 w-full py-3"
-            aria-label="测试运行输入"
+            aria-label={inputLabel}
             value={userInput}
             style={{
               resize: 'none',
@@ -191,9 +212,12 @@ function ChatInput({
             onChange={e => {
               e.stopPropagation();
               const value = e.target.value;
-              if (startNodeParams[0]) {
-                startNodeParams[0].default = value;
-                setStartNodeParams([...startNodeParams]);
+              if (!interruptChat?.interrupt && startNodeParams[0]) {
+                setStartNodeParams(params =>
+                  params.map((param, index) =>
+                    index === 0 ? { ...param, default: value } : param
+                  )
+                );
               }
               setUserInput(value);
             }}
@@ -218,12 +242,7 @@ function ChatInput({
                   {renderType(params)}
                 </div>
               </div>
-              {renderParamInput(params, index, {
-                handleChangeParam,
-                uploadComplete,
-                handleFileUpload,
-                handleDeleteFile,
-              })}
+              {renderParamInput(params, index, { ...inputActions, disabled })}
             </div>
           );
         })

@@ -1,7 +1,9 @@
 import importlib
 import json
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
+from asgiref.sync import async_to_sync
 from django.apps import apps
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection
@@ -40,6 +42,24 @@ class PublicationTests(TestCase):
 
     def write(self, url, data=None):
         return self.client.post(url, json.dumps(data or {}), content_type="application/json")
+
+    def call_example(self, info, app_id):
+        with patch("astron_console.publishing.tenant.call", return_value={"appid": app_id}):
+            response = self.client.post(
+                urlsplit(info["serviceUrl"]).path,
+                json.dumps(info["requestExample"]),
+                content_type="application/json",
+                HTTP_AUTHORIZATION="Bearer key:secret",
+            )
+        self.assertEqual(
+            response.status_code, 200, response.content if not response.streaming else ""
+        )
+        self.assertEqual(response.headers["Content-Type"], "text/event-stream")
+
+        async def collect():
+            return b"".join([item async for item in response.streaming_content])
+
+        return async_to_sync(collect)()
 
     def shared(self):
         self.space = Space.objects.create(name="team", uid="owner")
@@ -176,6 +196,101 @@ class PublicationTests(TestCase):
                         response.json()["data"]["serviceUrl"],
                         f"{origin or 'http://testserver'}/{prefix}/v1/chat/completions",
                     )
+
+    def test_agent_api_example_uses_selected_app_and_runs(self):
+        self.shared()
+        self.model.url = "https://model.invalid/v1"
+        self.model.api_key = "model-key"
+        self.model.enable = True
+        self.model.save(update_fields=["url", "api_key", "enable"])
+        owner_scope = ResourceScope(self.owner.pk, self.space.pk, None)
+        scope_header = {"HTTP_SPACE_ID": str(self.space.pk)}
+        for app_id in ("earlier", "later"):
+            App.objects.create(
+                uid=self.owner.pk,
+                app_id=app_id,
+                app_name=app_id,
+                app_key="key",
+                app_secret="secret",
+            )
+        earlier = services.submit(owner_scope, self.bot.pk, "API", target_id="earlier")
+        self.bot.bot_name = "edited"
+        self.bot.save()
+        services.submit(owner_scope, self.bot.pk, "API", target_id="later")
+        params = {"botId": self.bot.pk, "appId": "earlier", "metadataOnly": "true"}
+        response = self.client.get("/publish-api/get-bot-api-info", params, **scope_header)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("no-store", response.headers["Cache-Control"])
+        info = response.json()["data"]
+        self.assertEqual((info["appId"], info["versionId"]), ("earlier", earlier["versionId"]))
+        self.assertEqual((info["resourceKind"], info["botName"]), ("agent", "original"))
+        self.assertNotIn("appKey", info)
+        self.assertNotIn("appSecret", info)
+
+        async def agent_stream(run, payload, *args, **kwargs):
+            self.assertEqual(payload["messages"][-1]["content"], "你好")
+            yield 'event: delta\ndata: {"content":"example answer"}\n\n'
+            yield 'event: end\ndata: {"status":"completed"}\n\n'
+
+        with patch("astron_console.agents.conversations.stream_run", agent_stream):
+            stream = self.call_example(info, "earlier")
+        self.assertIn(b"example answer", stream)
+        self.assertIn(b'"finish_reason": "stop"', stream)
+        self.assertEqual(PublicRunGrant.objects.get().candidate.version_id, earlier["versionId"])
+        self.client.force_login(self.member)
+        response = self.client.get("/publish-api/get-bot-api-info", params, **scope_header)
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.json()["data"])
+
+    @patch("astron_console.publishing.services.validate_graph")
+    def test_workflow_api_example_uses_frozen_start_inputs_and_runs(self, validate):
+        from astron_console.workflows.management_views import create_workflow
+
+        workflow = create_workflow(self.scope, {"name": "example workflow"})
+        graph = json.loads(workflow.data)
+        start = next(node for node in graph["nodes"] if node["id"].startswith("node-start::"))
+        start["data"]["outputs"] = [
+            {"name": "quantity", "schema": {"type": "integer"}, "required": True},
+            {"name": "enabled", "schema": {"type": "boolean"}},
+            {
+                "name": "items",
+                "schema": {
+                    "type": "array-object",
+                    "properties": [{"name": "title", "type": "string", "required": True}],
+                },
+            },
+        ]
+        workflow.data = json.dumps(graph)
+        workflow.save()
+        bot = services.bind_workflow(self.scope, workflow.pk)
+        App.objects.create(
+            uid=self.owner.pk,
+            app_id="workflow-app",
+            app_name="workflow",
+            app_key="key",
+            app_secret="secret",
+        )
+        result = services.submit(self.scope, bot.pk, "API", target_id="workflow-app")
+        start["data"]["outputs"][0]["name"] = "renamed_draft_field"
+        workflow.data = json.dumps(graph)
+        workflow.save()
+        response = self.client.get(
+            "/publish-api/get-bot-api-info", {"botId": bot.pk, "appId": "workflow-app"}
+        )
+        self.assertEqual(response.status_code, 200)
+        info = response.json()["data"]
+        parameters = {"quantity": 1, "enabled": True, "items": [{"title": "你好"}]}
+        self.assertEqual(info["requestExample"]["parameters"], parameters)
+        self.assertEqual(info["versionId"], result["versionId"])
+        self.assertEqual([field["name"] for field in info["inputs"]], list(parameters))
+
+        async def workflow_stream(run):
+            self.assertEqual(run.inputs, parameters)
+            yield 'event: run-end\ndata: {"status":"completed"}\n\n'
+
+        with patch("astron_console.publishing.public_runtime.stream_run", workflow_stream):
+            stream = self.call_example(info, "workflow-app")
+        self.assertIn(b'"status":"completed"', stream)
 
     def test_market_safe_projection_and_share_revocation(self):
         services.submit(self.scope, self.bot.pk, "MARKET")

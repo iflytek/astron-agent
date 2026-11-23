@@ -6,7 +6,9 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 
 from astron_console.http import api_endpoint
 
@@ -76,6 +78,21 @@ def catalog(request):
         item = json.loads(path.read_text())
         result.append({"id": item["id"], **item["mcp"]})
     return result
+
+
+@never_cache
+@api_endpoint(["POST"])
+def reveal_credential(request, pk):
+    row, scope = owned(request, McpConfig, pk, WRITE)
+    field = request.payload.get("field")
+    if not isinstance(field, str) or not field:
+        raise ValidationError("环境参数名无效")
+    parameters = parsed(row.parameters)
+    value = parameters.get(field) if isinstance(parameters, dict) else None
+    if not isinstance(value, str):
+        raise Http404
+    logger.info("MCP credential viewed id=%s uid=%s space=%s", row.pk, scope.uid, scope.space_id)
+    return {"value": value}
 
 
 @api_endpoint(["GET", "POST"])

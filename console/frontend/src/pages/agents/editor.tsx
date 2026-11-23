@@ -24,6 +24,7 @@ import {
   DeleteOutlined,
 } from '@ant-design/icons';
 import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
+import SavedCredentialInput from '@/components/saved-credential-input';
 import {
   Link,
   useNavigate,
@@ -42,6 +43,7 @@ import {
   createAgentVersion,
   publishAgentVersion,
   getAgentMemoryConfig,
+  revealAgentMemoryCredential,
   saveAgentMemoryConfig,
   listAgentMemories,
   addAgentMemory,
@@ -204,10 +206,15 @@ function Memory({
               </div>
               <label className="agent-memory-key">
                 Mem0 API Key
-                <Input.Password
+                <SavedCredentialInput
                   disabled={busy}
-                  autoComplete="new-password"
                   value={apiKey}
+                  maskedValue=""
+                  loadSaved={
+                    config.hasApiKey
+                      ? signal => revealAgentMemoryCredential(agentId, signal)
+                      : undefined
+                  }
                   placeholder={
                     config.hasApiKey ? '已配置，留空保留' : '输入 API Key'
                   }
@@ -215,7 +222,7 @@ function Memory({
                 />
                 <small>
                   {config.hasApiKey
-                    ? '密钥已安全保存；仅在更换时填写。'
+                    ? '点击眼睛查看已保存的密钥，留空可保留原值。'
                     : '配置后即可连接记忆服务。'}
                 </small>
               </label>

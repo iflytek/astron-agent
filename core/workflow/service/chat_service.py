@@ -61,7 +61,10 @@ from workflow.service.flow_service import set_flow_node_output_mode
 from workflow.service.history_service import get_history
 from workflow.service.ops_service import kafka_report
 from workflow.utils.protocol_sanitization import sanitize_protocol_document_for_use
-from workflow.utils.trace_sanitization import serialize_trace_payload
+from workflow.utils.trace_sanitization import (
+    redact_private_workflow_upload_urls,
+    serialize_trace_payload,
+)
 
 
 async def event_stream(
@@ -219,7 +222,11 @@ def _init_workflow_trace(
         log_caller="chat_sse" if is_release else "chat_sse_debug",
     )
     wl.add_srv(key="workflow_version", value=chat_vo.version)
-    wl.add_q(json.dumps(chat_vo.parameters, ensure_ascii=False))
+    wl.add_q(
+        redact_private_workflow_upload_urls(
+            json.dumps(chat_vo.parameters, ensure_ascii=False)
+        )
+    )
     return wl
 
 
@@ -487,9 +494,17 @@ async def _process_and_report_result(
     outputs_assemble = {**outputs, **(result.inputs or {})}
 
     # Record trace information
-    workflow_trace.add_a(json.dumps(outputs_assemble, ensure_ascii=False))
+    workflow_trace.add_a(
+        redact_private_workflow_upload_urls(
+            json.dumps(outputs_assemble, ensure_ascii=False)
+        )
+    )
     await span_context.add_info_events_async(
-        {"workflow_output": result.model_dump_json()}
+        {
+            "workflow_output": redact_private_workflow_upload_urls(
+                result.model_dump_json()
+            )
+        }
     )
 
     # Wait for consumer tasks to complete
@@ -606,7 +621,9 @@ async def _run(
         "workflow.run" if config.is_effectively_enabled else "",
         attributes=root_attributes,
     ) as span_context:
-        await span.add_info_event_async(f"user input: {chat_vo.json()}")
+        await span.add_info_event_async(
+            f"user input: {serialize_trace_payload(json.loads(chat_vo.json()))}"
+        )
         await span.add_info_event_async(
             f"spark dsl: {serialize_trace_payload(workflow_dsl)}"
         )

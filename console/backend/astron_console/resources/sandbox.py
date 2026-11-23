@@ -6,6 +6,7 @@ from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection
 from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 
 from astron_console.accounts.http import response
 from astron_console.http import api_endpoint
@@ -121,6 +122,17 @@ def config(request):
         return masked(save(request))
     scope = scope_for(request, READ)
     return masked(scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first())
+
+
+@never_cache
+@api_endpoint(["POST"])
+def reveal_credential(request):
+    scope = scope_for(request, WRITE)
+    row = scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first()
+    if row is None or not row.api_key:
+        raise Http404
+    logger.info("Sandbox credential viewed uid=%s space=%s", scope.uid, scope.space_id)
+    return {"value": row.api_key}
 
 
 @api_endpoint(["POST"])

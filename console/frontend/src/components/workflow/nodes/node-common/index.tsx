@@ -611,6 +611,13 @@ type DebugInputActions = Pick<
   UseSingleNodeDebuggingReturn,
   'uploadComplete' | 'handleFileUpload' | 'handleDeleteFile'
 > & {
+  uploadFile?: (
+    file: File,
+    field: string,
+    index: number,
+    fileId: string
+  ) => Promise<void>;
+  disabled?: boolean;
   handleChangeParam: <Value>(
     index: number,
     update: (data: { default?: unknown }, value: Value) => void,
@@ -687,11 +694,18 @@ const getMaxSize = (fileType: string | undefined): number => {
 const renderFileUpload = (
   params: DebugInputParameter,
   index: number,
-  uploadComplete: DebugInputActions['uploadComplete'],
-  handleFileUpload: DebugInputActions['handleFileUpload'],
-  handleDeleteFile: DebugInputActions['handleDeleteFile']
+  {
+    uploadComplete,
+    handleFileUpload,
+    handleDeleteFile,
+    uploadFile,
+    disabled,
+  }: DebugInputActions
 ): React.ReactElement => {
-  const multiple = params?.schema?.type === 'array-string';
+  const multiple = ['array-string', 'array'].includes(
+    params.schema?.type || params.type || ''
+  );
+  const configuredMaxSize = getMaxSize(params.fileType);
   return (
     <>
       <FlowUpload
@@ -702,7 +716,13 @@ const renderFileUpload = (
             uploadComplete(event, index, fileId),
           handleFileUpload: (file, fileId) =>
             handleFileUpload(file, index, multiple, fileId),
-          maxSize: getMaxSize(params?.fileType),
+          uploadFile: uploadFile
+            ? (file, fileId) => uploadFile(file, params.name, index, fileId)
+            : undefined,
+          disabled,
+          maxSize: uploadFile
+            ? Math.min(configuredMaxSize, 19)
+            : configuredMaxSize,
         }}
       />
       {(Array.isArray(params.default)
@@ -834,21 +854,9 @@ export const renderParamInput = (
   index: number,
   fnc: DebugInputActions
 ): React.ReactElement | null => {
-  const {
-    handleChangeParam,
-    uploadComplete,
-    handleFileUpload,
-    handleDeleteFile,
-  } = fnc;
+  const { handleChangeParam } = fnc;
   const type = params?.schema?.type || params?.type;
-  if (params?.fileType)
-    return renderFileUpload(
-      params,
-      index,
-      uploadComplete,
-      handleFileUpload,
-      handleDeleteFile
-    );
+  if (params?.fileType) return renderFileUpload(params, index, fnc);
 
   switch (type) {
     case 'string':

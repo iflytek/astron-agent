@@ -919,8 +919,19 @@ export default function ResourceTools({
                 {mode === 'tools' ? (
                   <>
                     <HttpConfigForm
+                      key={`${enterpriseId}:${spaceId}:${selected?.id ?? 'new'}:http`}
                       value={schema}
                       disabled={busy}
+                      reveal={
+                        selected
+                          ? name => signal =>
+                              http.post(
+                                `/resources/tools/${selected.id}/credential`,
+                                { field: name },
+                                { signal }
+                              )
+                          : undefined
+                      }
                       onChange={value => {
                         setSchema(value);
                         setEditing(true);
@@ -962,9 +973,19 @@ export default function ResourceTools({
                         地址无需填写。这些值用于服务连接，不会作为工具参数提供给模型。已有凭据保持原值即可保留。
                       </p>
                       <ConnectionParameters
-                        key={`${spaceId}:${selected?.id ?? 'new'}:connection`}
+                        key={`${enterpriseId}:${spaceId}:${selected?.id ?? 'new'}:connection`}
                         value={parameters}
                         disabled={busy}
+                        reveal={
+                          selected
+                            ? name => signal =>
+                                http.post(
+                                  `/resources/mcp/${selected.id}/credential`,
+                                  { field: name },
+                                  { signal }
+                                )
+                            : undefined
+                        }
                         onChange={value => {
                           setParameters(value);
                           setEditing(true);

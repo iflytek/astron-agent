@@ -30,9 +30,12 @@ import {
 } from '@ant-design/icons';
 import {
   getSkillSandboxConfig,
+  revealSandboxCredential,
   saveSkillSandboxConfig,
   testSkillSandboxConfig,
 } from '@/services/sandbox';
+import SavedCredentialInput from '@/components/saved-credential-input';
+import useSpaceStore from '@/store/space-store';
 import type { SkillSandboxConfig } from '@/types/sandbox';
 import type { RuleObject } from 'rc-field-form/es/interface';
 import styles from './index.module.scss';
@@ -249,10 +252,14 @@ function SandboxConfigModal({
             }),
           ]}
         >
-          <Input.Password
-            placeholder="输入 E2B API Key"
-            autoComplete="new-password"
-          />
+          {open && (
+            <SavedCredentialInput
+              placeholder="输入 E2B API Key"
+              disabled={loading || saving || testing}
+              maskedValue="********"
+              loadSaved={revealSandboxCredential}
+            />
+          )}
         </Form.Item>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -292,7 +299,7 @@ function SandboxConfigModal({
   );
 }
 
-function SandboxPage(): React.ReactElement {
+function SandboxConfiguration(): React.ReactElement {
   const [form] = Form.useForm<SkillSandboxConfig>();
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -488,4 +495,8 @@ function SandboxPage(): React.ReactElement {
   );
 }
 
-export default SandboxPage;
+export default function SandboxPage(): React.ReactElement {
+  const spaceId = useSpaceStore(state => state.spaceId);
+  const enterpriseId = useSpaceStore(state => state.enterpriseId);
+  return <SandboxConfiguration key={`${spaceId}:${enterpriseId}`} />;
+}

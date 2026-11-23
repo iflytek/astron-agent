@@ -13,11 +13,19 @@ export interface PublishedApiInfo {
   botName: string;
   appId: string;
   appName: string;
-  appKey: string;
-  appSecret: string;
+  appKey?: string;
+  appSecret?: string;
   serviceUrl: string;
+  resourceKind: 'agent' | 'workflow';
   flowId: string;
   versionId: number;
+  requestExample: Record<string, unknown>;
+  inputs: {
+    name: string;
+    type: string;
+    required: boolean;
+    description: string;
+  }[];
 }
 
 export const listApplications = (): Promise<UserApp[]> =>
@@ -29,9 +37,10 @@ export const createApplication = (
   http.post('/publish-api/create-user-app', values);
 
 export const publishedApiInfo = (
-  botId: string
+  botId: string | number,
+  options: { appId?: string; metadataOnly?: boolean } = {}
 ): Promise<PublishedApiInfo | null> =>
-  http.get('/publish-api/get-bot-api-info', { params: { botId } });
+  http.get('/publish-api/get-bot-api-info', { params: { botId, ...options } });
 
 export const bindPublishedApi = (
   botId: string,

@@ -21,7 +21,13 @@ from astron_console.resources.common import text, upstream_errors
 from astron_console.spaces.permissions import resolve_scope
 from astron_console.workflows.authorization import EXECUTE, get_workflow
 from astron_console.workflows.execution_context import cancel_root, register_agent_root
-from astron_console.workflows.lifecycle import claim_run, prepare_run, reconcile, stream_run
+from astron_console.workflows.lifecycle import (
+    claim_run,
+    conversation_messages,
+    prepare_run,
+    reconcile,
+    stream_run,
+)
 from astron_console.workflows.models import ExecutionContext, WorkflowRun
 
 from . import tenant
@@ -57,7 +63,7 @@ def public_data(publication):
         "description": config.get("botDesc", ""),
         "avatar": config.get("avatar", ""),
         "prologue": config.get("prologue", ""),
-        "supportUpload": candidate.resource_kind == "agent" or bool(config.get("supportUpload")),
+        "supportUpload": candidate.resource_kind == "agent",
         "inputs": [],
     }
     if candidate.resource_kind == "workflow":
@@ -69,8 +75,13 @@ def public_data(publication):
                         {
                             "name": item["name"],
                             "type": schema.get("type", "string"),
-                            "description": item.get("description", ""),
+                            "description": item.get("description")
+                            or (
+                                schema["default"] if isinstance(schema.get("default"), str) else ""
+                            ),
                             "required": bool(item.get("required", False)),
+                            "allowedFileType": item.get("allowedFileType") or [],
+                            "fileType": item.get("fileType"),
                         }
                     )
     return result
@@ -121,6 +132,25 @@ def prepare_public(
     if candidate.resource_kind == "workflow":
         workflow = get_workflow(scope, candidate.resource_id, EXECUTE)
         inputs = values.get("inputs", values.get("parameters", {}))
+        history = []
+        if kind == "console":
+            from .public_files import hide_workflow_file_references, validate_workflow_file_inputs
+
+            validate_workflow_file_inputs(publication, caller, caller_space_id, share_id, inputs)
+            grants = PublicRunGrant.objects.filter(
+                publication=publication,
+                candidate=candidate,
+                caller_uid=caller,
+                caller_space_id=caller_space_id,
+                identity_kind=kind,
+                share_id=share_id,
+                session_id=session_id,
+            )
+            history = conversation_messages(
+                WorkflowRun.objects.filter(workflow_id=workflow.pk, pk__in=grants.values("run_id")),
+                transform_inputs=hide_workflow_file_references,
+                transform_output=workflow_output,
+            )
         run = prepare_run(
             scope,
             workflow,
@@ -129,6 +159,7 @@ def prepare_public(
             version_id=candidate.version_id,
             kind="published",
             execution_snapshots=candidate.definition.get("executionSnapshots"),
+            published_history=history,
         )
         grant = new_grant(
             publication,
@@ -417,15 +448,77 @@ def grant_run(grant):
     return reconcile(WorkflowRun.objects.get(pk=grant.run_id))
 
 
+def workflow_interrupt(run):
+    if not isinstance(run, WorkflowRun) or run.status != "paused":
+        return None
+    event = next(
+        (
+            frame["event_data"]
+            for frame in reversed(run.events)
+            if isinstance(frame.get("event_data"), dict)
+            and any(
+                choice.get("finish_reason") == "interrupt" for choice in frame.get("choices") or []
+            )
+        ),
+        None,
+    )
+    if event is None:
+        return None
+    value = event.get("value") or {}
+    return {
+        "prompt": value.get("content") or "",
+        "needsReply": event.get("need_reply", True),
+        "options": [
+            {"id": item["id"], "text": item.get("text") or item["id"]}
+            for item in value.get("option") or []
+            if isinstance(item, dict)
+            and isinstance(item.get("id"), str)
+            and item["id"] != "default"
+        ],
+    }
+
+
+def workflow_output(run):
+    if isinstance(run, AgentRun):
+        return run.answer
+    for frame in reversed(run.events):
+        node = (frame.get("workflow_step") or {}).get("node") or {}
+        if (
+            str(node.get("id", "")).startswith("node-end::")
+            and node.get("outputs")
+            and ((node.get("ext") or {}).get("answer_mode") == 0 or not run.output)
+        ):
+            messages = []
+            for earlier in run.events:
+                if earlier is frame:
+                    break
+                for choice in earlier.get("choices") or []:
+                    content = (choice.get("delta") or {}).get("content")
+                    if isinstance(content, str):
+                        messages.append(content)
+            structured = json.dumps(node["outputs"], ensure_ascii=False, indent=2)
+            return "".join(messages) + f"\n\n```json\n{structured}\n```"
+    return run.output
+
+
 def control_grant(grant, action, values):
     run = grant_run(grant)
     if action == "resume":
         if grant.candidate.resource_kind != "workflow":
             raise ValidationError("仅暂停的工作流支持恢复")
-        content = text(values, "content", required=True, limit=200000)
+        interrupt = workflow_interrupt(run)
+        content = text(
+            values, "content", required=not interrupt or interrupt["needsReply"], limit=200000
+        )
+        options = {item["id"] for item in interrupt["options"]} if interrupt else set()
+        if content and options and content not in options:
+            raise ValidationError("请选择工作流提供的选项")
         claim_run(run, resume=True)
         response = StreamingHttpResponse(
-            stream_run(run, resume_content=content), content_type="text/event-stream"
+            stream_run(
+                run, resume_content=content, resume_event_type="resume" if content else "ignore"
+            ),
+            content_type="text/event-stream",
         )
         response["Cache-Control"] = "no-store"
         response["X-Accel-Buffering"] = "no"
@@ -496,7 +589,7 @@ def published_control(request, run_id, action):
 
 @api_endpoint(["GET"])
 def published_history(request, bot_id):
-    from .public_files import file_data
+    from .public_files import file_data, hide_workflow_file_references
 
     publication, _ = browser_publication(request, bot_id)
     scope = resolve_scope(request)
@@ -512,11 +605,17 @@ def published_history(request, bot_id):
     result = []
     for grant in grants.select_related("candidate").order_by("-create_time")[:100]:
         run = grant_run(grant)
-        artifacts = [file_data(row) for row in AgentFile.objects.filter(run_id=run.pk)]
+        artifacts = (
+            [item for item in run.files or [] if item.get("direction") == "input"]
+            if isinstance(run, AgentRun)
+            else []
+        )
+        artifacts.extend(file_data(row) for row in AgentFile.objects.filter(run_id=run.pk))
         artifacts.extend(
             {
                 "id": str(row.pk),
                 "name": row.file_name,
+                "direction": "output",
                 "downloadUrl": f"/console-api/published/workflow-artifacts/{row.pk}",
             }
             for row in artifacts_for_root(
@@ -531,9 +630,12 @@ def published_history(request, bot_id):
                 "id": run.pk,
                 "sessionId": grant.session_id,
                 "kind": grant.candidate.resource_kind,
-                "question": run.question if isinstance(run, AgentRun) else run.inputs,
-                "answer": run.answer if isinstance(run, AgentRun) else run.output,
+                "question": run.question
+                if isinstance(run, AgentRun)
+                else hide_workflow_file_references(run.inputs),
+                "answer": workflow_output(run),
                 "status": run.status,
+                "interrupt": workflow_interrupt(run),
                 "files": artifacts,
                 "createdAt": run.create_time,
             }

@@ -165,6 +165,13 @@ export const getAgentResources = (id: number | string) =>
 export const getAgentMemoryConfig = (id: number | string) =>
   http.get<unknown, AgentMemoryConfig>(`/agents/${id}/memory/config`);
 
+export const revealAgentMemoryCredential = (id: number, signal: AbortSignal) =>
+  http.post<unknown, { value: string }>(
+    `/agents/${id}/memory/credential`,
+    {},
+    { signal }
+  );
+
 export const saveAgentMemoryConfig = (
   id: number | string,
   payload: Partial<AgentMemoryConfig> & { apiKey?: string }

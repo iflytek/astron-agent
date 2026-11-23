@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Alert, Button, Input, Tabs, Tooltip, type InputRef } from 'antd';
 import { DeleteOutlined, PlusOutlined, EditOutlined } from '@ant-design/icons';
+import SavedCredentialInput, {
+  type LoadCredential,
+} from '@/components/saved-credential-input';
 import ParameterOptionsDialog from './parameter-options-dialog';
 import ResourceSelect from './resource-select';
 import {
@@ -119,10 +122,12 @@ export default function HttpConfigForm({
   value,
   onChange,
   disabled = false,
+  reveal,
 }: {
   value: string;
   onChange: (next: string) => void;
   disabled?: boolean;
+  reveal?: (name: string) => LoadCredential;
 }): ReactElement {
   const [selected, setSelected] = useState(0);
   const [problem, setProblem] = useState('');
@@ -696,7 +701,7 @@ export default function HttpConfigForm({
           >
             <div className="http-config-panel-heading">身份验证（可选）</div>
             <p className="resource-tool-hint">
-              公开接口无需填写。已有密钥显示为掩码，保持掩码可保留原值。
+              公开接口无需填写。点击眼睛查看已保存的密钥，保留掩码可继续使用原值。
             </p>
             {activeSchemes.map(([key, entry]) => {
               const scheme = asObject(entry);
@@ -728,11 +733,12 @@ export default function HttpConfigForm({
                       </label>
                       <label>
                         密钥
-                        <Input
-                          type="password"
+                        <SavedCredentialInput
+                          key={tab === 'auth' ? 'auth' : 'hidden'}
                           required
-                          autoComplete="new-password"
                           disabled={disabled}
+                          maskedValue="******"
+                          loadSaved={reveal?.(key)}
                           value={String(scheme['x-value'] || '')}
                           onChange={event =>
                             change({ 'x-value': event.target.value })

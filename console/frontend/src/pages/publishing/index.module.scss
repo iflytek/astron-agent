@@ -294,40 +294,102 @@
   }
 }
 
-.chat {
-  height: 100vh;
+.publishedChat {
+  height: 100dvh;
   min-height: 0;
-  :global {
-    .agents-header {
-      margin-bottom: 24px;
-    }
-    .agents-panel {
-      border-color: #dfe6f1;
-      border-radius: 14px;
-      padding: 20px;
-    }
-    .agents-panel > article {
-      padding: 16px 0;
-      border-bottom: 1px solid #e8edf5;
-    }
-    .agents-panel > article:last-child {
-      border-bottom: 0;
-    }
-    .agents-panel h2 {
-      margin-bottom: 16px;
-    }
-    .ant-alert {
-      margin-block: 16px;
-    }
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+
+  > div {
+    width: min(100%, 1120px);
+    margin-inline: auto;
   }
-  @media (max-width: 760px) {
-    :global(.agents-panel) {
-      padding: 16px;
+
+  a {
+    flex-shrink: 0;
+  }
+}
+
+.chatTools {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.chatLoading {
+  padding: 20px;
+}
+
+.chatHistory :global(.agents-session) > button:only-child {
+  flex: 1;
+  width: auto;
+}
+
+.chatBody {
+  :global(.ant-alert) {
+    width: min(840px, 100%);
+    margin: 0 auto 12px;
+  }
+}
+
+.workflowChat {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+
+  .chatBody {
+    padding: 0 20px;
+  }
+
+  :global(.agents-answer) {
+    padding: 10px 0;
+  }
+
+  @media (max-width: 600px) {
+    .chatBody {
+      padding-inline: 12px;
     }
   }
 }
 
-// Publishing uses a compact comparison surface; market and chat retain their layouts.
+.workflowWelcome {
+  display: grid;
+  min-height: 100%;
+  place-content: center;
+  padding: 20px;
+  text-align: center;
+}
+
+.workflowInputs {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.chatArguments {
+  margin: 0;
+
+  div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 8px;
+  }
+
+  dt {
+    color: #526580;
+    overflow-wrap: anywhere;
+  }
+
+  dd {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+
 .tabs {
   padding-bottom: 0;
   gap: 24px;

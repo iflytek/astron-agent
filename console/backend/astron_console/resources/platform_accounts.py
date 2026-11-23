@@ -1,11 +1,14 @@
 """Global platform credentials. The persisted JSON contract is shared with core services."""
 
 import json
+import logging
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
+from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 from redis import Redis
 from redis.exceptions import RedisError
 
@@ -30,6 +33,18 @@ SECRETS = {
     "sparkVirtualManApiKey",
     "sparkVirtualManApiSecret",
 }
+SECRET_FIELDS = {
+    "iflytek_open_platform": {
+        "platformApiKey",
+        "platformApiSecret",
+        "sparkApiPassword",
+        "sparkRtasrApiKey",
+    },
+    "ai_ability_chat": {"apiKey"},
+    "virtual_man": {"sparkVirtualManApiKey", "sparkVirtualManApiSecret"},
+    "knowledge_platform": {"apiToken"},
+}
+logger = logging.getLogger(__name__)
 
 
 def get_platform_config(kind):
@@ -116,6 +131,23 @@ def cards(request):
         }
         for kind, values in TYPES.items()
     ]
+
+
+@never_cache
+@api_endpoint(["POST"])
+def reveal_credential(request, kind):
+    administrator(request)
+    field = request.payload.get("field")
+    if not isinstance(field, str) or field not in SECRET_FIELDS.get(kind, ()):
+        raise ValidationError("未知平台凭证字段")
+    config = get_platform_config(kind)
+    if kind == "knowledge_platform":
+        config = config.get("ragflow", {})
+    value = config.get(field) if isinstance(config, dict) else None
+    if not isinstance(value, str) or not value:
+        raise Http404
+    logger.info("Platform credential viewed type=%s field=%s uid=%s", kind, field, request.user.pk)
+    return {"value": value}
 
 
 @api_endpoint(["GET", "PUT"])

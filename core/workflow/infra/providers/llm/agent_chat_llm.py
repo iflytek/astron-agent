@@ -1,21 +1,26 @@
 """Workflow transport for the Agent service's single-completion API."""
 
 import asyncio
+import base64
 import copy
 import json
 import math
 import os
+import re
 from contextlib import aclosing
 from typing import Any, AsyncGenerator, Literal
 from urllib.parse import urlsplit
 
+import aiohttp
 import httpx
 from common.otlp.trace.langfuse import (
     AGENT_TRACE_AUDIENCE,
     inject_trusted_langfuse_context,
 )
 from httpx_sse import aconnect_sse
+from yarl import URL
 
+from workflow.engine.entities.file import File
 from workflow.engine.nodes.entities.llm_response import LLMResponse
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
@@ -23,6 +28,17 @@ from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
 from workflow.infra.providers.llm.chat_ai import ChatAI
 from workflow.utils.credentials import credential_from_env_or_file
+
+_UPLOAD_MEDIA_MIME = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "wav": "audio/wav",
+    "mp3": "audio/mpeg",
+    "mp4": "video/mp4",
+}
+_UPLOAD_MEDIA_LIMIT = 19 * 1024 * 1024
+_HTTP_URL = re.compile(r"https?://[a-zA-Z0-9.:[\]_-]+/[a-zA-Z0-9._~:/?&=+%#@-]*")
 
 
 def _request_error(message: str) -> CustomException:
@@ -43,13 +59,35 @@ def _http_endpoint(value: str) -> str:
     return value.rstrip("/")
 
 
+def _hide_uploaded_links(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        matched = match.group()
+        url = matched.rstrip(".")
+        if File.is_console_input_url(url):
+            return "[uploaded file]" + matched[len(url) :]
+        return matched
+
+    return _HTTP_URL.sub(replace, text)
+
+
 def _completion_messages(messages: list, media: list) -> list[dict[str, Any]]:
     """Preserve message order and translate Workflow media to standard blocks."""
     result = copy.deepcopy(messages)
     for message in result:
         content_type = message.pop("content_type", "text")
+        content = message["content"]
         if content_type in {"image", "audio", "video"}:
-            message["content"] = [{"type": content_type, "url": message["content"]}]
+            message["content"] = [{"type": content_type, "url": content}]
+        elif isinstance(content, str):
+            message["content"] = _hide_uploaded_links(content)
+        elif isinstance(content, list):
+            for block in content:
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") == "text"
+                    and isinstance(block.get("text"), str)
+                ):
+                    block["text"] = _hide_uploaded_links(block["text"])
     if media:
         user = next((msg for msg in reversed(result) if msg["role"] == "user"), None)
         if user is None:
@@ -58,11 +96,14 @@ def _completion_messages(messages: list, media: list) -> list[dict[str, Any]]:
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
         for item in media:
-            if item.get("type") not in {"image", "audio", "video"} or not item.get(
-                "url"
-            ):
+            if item.get("type") not in {"image", "audio", "video"}:
                 raise _request_error("Invalid multimodal input")
-            content.append({"type": item["type"], "url": item["url"]})
+            if "base64" in item:
+                content.append(item)
+            elif item.get("url"):
+                content.append({"type": item["type"], "url": item["url"]})
+            else:
+                raise _request_error("Invalid multimodal input")
         user["content"] = content
     return result
 
@@ -161,6 +202,71 @@ class AgentChatAI(ChatAI):
             follow_redirects=False,
         )
 
+    @staticmethod
+    def _upload_client(timeout: float) -> aiohttp.ClientSession:
+        return aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=min(timeout, 10)),
+            trust_env=False,
+        )
+
+    async def _inline_uploaded_media(self, media: list, timeout: float) -> list:
+        if not any(File.is_console_input_url(item.get("url", "")) for item in media):
+            return media
+
+        result = []
+        remaining = _UPLOAD_MEDIA_LIMIT
+        async with self._upload_client(timeout) as client:
+            for item in media:
+                url = item.get("url", "")
+                if not File.is_console_input_url(url):
+                    result.append(item)
+                    continue
+                extension = urlsplit(url).path.rsplit(".", 1)[-1]
+                mime_type = _UPLOAD_MEDIA_MIME.get(extension, "")
+                kind = item.get("type")
+                if (
+                    not mime_type
+                    or kind != mime_type.split("/", 1)[0]
+                    or (self.provider == "anthropic" and kind != "image")
+                    or (self.provider == "openai" and kind == "video")
+                ):
+                    raise _request_error(
+                        "Uploaded media format is unsupported by the model protocol"
+                    )
+                if self.provider == "openai" and extension == "mp3":
+                    # Chat Completions requires format=mp3. LangChain derives it from the MIME subtype.
+                    mime_type = "audio/mp3"
+                data = bytearray()
+                try:
+                    async with client.get(
+                        URL(url, encoded=True), allow_redirects=False
+                    ) as response:
+                        if response.status != 200:
+                            raise _request_error(
+                                "Unable to read the uploaded workflow media"
+                            )
+                        async for chunk in response.content.iter_chunked(65536):
+                            remaining -= len(chunk)
+                            if remaining < 0:
+                                raise _request_error(
+                                    "Uploaded media exceed the model request limit"
+                                )
+                            data.extend(chunk)
+                except (aiohttp.ClientError, TimeoutError):
+                    raise _request_error(
+                        "Unable to read the uploaded workflow media"
+                    ) from None
+                if not data:
+                    raise _request_error("Uploaded workflow media is empty")
+                result.append(
+                    {
+                        "type": kind,
+                        "base64": base64.b64encode(data).decode("ascii"),
+                        "mime_type": mime_type,
+                    }
+                )
+        return result
+
     async def _events(
         self,
         url: str,
@@ -227,9 +333,6 @@ class AgentChatAI(ChatAI):
             )
         url = await self.assemble_url(span)
         headers = self._headers()
-        body = self._request_body(
-            user_message, multimodal_inputs, extra_params, budget, flow_id, span
-        )
         if event_log_node_trace:
             event_log_node_trace.append_config_data(
                 {
@@ -241,6 +344,10 @@ class AgentChatAI(ChatAI):
             )
         try:
             async with asyncio.timeout(budget + 5):
+                media = await self._inline_uploaded_media(multimodal_inputs, budget)
+                body = self._request_body(
+                    user_message, media, extra_params, budget, flow_id, span
+                )
                 async with aclosing(
                     self._events(url, headers, body, budget + 5)
                 ) as stream:

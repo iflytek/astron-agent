@@ -3,6 +3,8 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from typing import Any, Literal, Protocol
 from unittest.mock import Mock
 
@@ -154,6 +156,84 @@ async def test_complete_stream_preserves_parameters_usage_and_closes_before_term
     assert body["messages"][0]["role"] == "system"
     assert body["meta_data"]["node_id"] == "spark-llm::node-1"
     assert len(requests) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "provider,kind,extension,mime_type",
+    [
+        ("openai", "image", "png", "image/png"),
+        ("anthropic", "image", "jpg", "image/jpeg"),
+        ("openai", "audio", "mp3", "audio/mp3"),
+        ("google", "video", "mp4", "video/mp4"),
+    ],
+)
+async def test_private_workflow_media_reaches_provider_as_inline_content(
+    transport: TransportFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    provider: Literal["openai", "anthropic", "google"],
+    kind: str,
+    extension: str,
+    mime_type: str,
+) -> None:
+    configure, requests, _ = transport
+    configure(frame("answer") + frame(finish="stop") + "data: [DONE]\n\n")
+    monkeypatch.setenv("OSS_ENDPOINT", "http://minio:9000")
+    private_url = (
+        f"http://minio:9000/console/published-workflow-inputs/{'a' * 32}/input.{extension}"
+        "?X-Amz-Signature=private"
+    )
+    downloads = []
+
+    async def chunks(_size):
+        yield b"sample"
+
+    @asynccontextmanager
+    async def download(url, *, allow_redirects):
+        assert not allow_redirects
+        downloads.append(str(url))
+        yield SimpleNamespace(status=200, content=SimpleNamespace(iter_chunked=chunks))
+
+    @asynccontextmanager
+    async def upload_client(_timeout):
+        yield SimpleNamespace(get=download)
+
+    monkeypatch.setattr(
+        AgentChatAI,
+        "_upload_client",
+        staticmethod(upload_client),
+    )
+    external_url = "https://example.com/image.png"
+    media = [{"type": kind, "url": private_url}, {"type": "image", "url": external_url}]
+    assert [
+        item
+        async for item in adapter(provider).achat(
+            "flow-1",
+            [
+                {"role": "system", "content": f"Inspect ({private_url})"},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Compare {private_url} and {external_url}",
+                        },
+                    ],
+                },
+            ],
+            Mock(sid="run-1"),
+            multimodal_inputs=media,
+        )
+    ]
+    assert downloads == [private_url]
+    request = json.loads(requests[0].content)
+    assert request["messages"][0]["content"] == "Inspect ([uploaded file])"
+    assert request["messages"][-1]["content"] == [
+        {"type": "text", "text": f"Compare [uploaded file] and {external_url}"},
+        {"type": kind, "base64": "c2FtcGxl", "mime_type": mime_type},
+        {"type": "image", "url": external_url},
+    ]
+    assert b"X-Amz-Signature" not in requests[0].content
 
 
 @pytest.mark.asyncio

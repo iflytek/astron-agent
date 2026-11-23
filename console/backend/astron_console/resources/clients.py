@@ -12,7 +12,17 @@ from .common import UpstreamError, http_url
 logger = logging.getLogger(__name__)
 
 
-def call(setting, method, path, *, payload=None, params=None, headers=None, success=(0, "0")):
+def call(
+    setting,
+    method,
+    path,
+    *,
+    payload=None,
+    params=None,
+    headers=None,
+    success=(0, "0"),
+    failure_messages=None,
+):
     base = getattr(settings, setting, "").rstrip("/")
     if not base:
         raise UpstreamError(f"{setting} 未配置")
@@ -26,6 +36,11 @@ def call(setting, method, path, *, payload=None, params=None, headers=None, succ
             body = result.json()
         code = body.get("code", body.get("header", {}).get("code"))
         if code not in success:
+            message = body.get("message", body.get("header", {}).get("message"))
+            if isinstance(message, str) and failure_messages:
+                for (failure_code, prefix), safe_message in failure_messages.items():
+                    if code == failure_code and message.startswith(prefix):
+                        raise UpstreamError(safe_message)
             raise UpstreamError(f"{setting} 返回失败")
         return body.get("data", body.get("payload"))
     except (httpx.HTTPError, ValueError, TypeError, AttributeError) as exc:

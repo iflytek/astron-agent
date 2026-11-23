@@ -1,22 +1,262 @@
 """Private files belong to publication callers, never to the publishing resource owner."""
 
+import hashlib
 import io
+import logging
+import re
+import uuid
+from datetime import timedelta
+from pathlib import PurePosixPath
 
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
 from django.http import FileResponse, Http404
+from minio.commonconfig import ENABLED, Filter
+from minio.error import MinioException, S3Error
+from minio.lifecycleconfig import Expiration, LifecycleConfig, Rule
+from urllib3.exceptions import HTTPError
 
 from astron_console.agents import files
 from astron_console.agents.models import Agent, AgentFile
 from astron_console.http import api_endpoint
 from astron_console.knowledge import storage
 from astron_console.knowledge.clients import ResourceServiceError
-from astron_console.resources.common import UpstreamError, upstream_errors
+from astron_console.resources.common import UpstreamError, text, upstream_errors
 from astron_console.spaces.permissions import ResourceScope, resolve_scope
 
 from .models import PublicFileGrant, PublicRunGrant, ShareRecord
 from .runtime_authorization import check_grant
 from .services import require_publication
 from .tenant import authenticate
+
+logger = logging.getLogger(__name__)
+WORKFLOW_FILE_PREFIX = "workflow-upload:"
+WORKFLOW_FILE_KEY_PREFIX = "published-workflow-inputs/"
+WORKFLOW_FILE_DOWNLOAD_RE = re.compile(
+    rf"https?://[^/\s]+/[^/\s]+/{WORKFLOW_FILE_KEY_PREFIX}[0-9a-f]{{32}}/input\.[a-z0-9]+\?[^\s<>\"']+"
+)
+# Reserve space under the reverse proxy's 20 MiB multipart request limit.
+WORKFLOW_FILE_MAX_BYTES = 19 * 1024 * 1024
+WORKFLOW_FILE_LIFECYCLE_RULE = "expire-published-workflow-inputs"
+WORKFLOW_FILE_EXTENSIONS = {
+    "image": {"jpg", "jpeg", "png", "bmp"},
+    "pdf": {"pdf"},
+    "doc": {"doc", "docx"},
+    "ppt": {"ppt", "pptx"},
+    "excel": {"xls", "xlsx", "csv"},
+    "txt": {"txt"},
+    "audio": {"wav", "mp3", "flac", "m4a", "aac", "ogg", "wma", "midi"},
+    "video": {"mp4", "avi", "mov", "wmv", "flv", "mkv"},
+    "subtitle": {"srt", "vtt", "ass", "ssa"},
+}
+
+
+def workflow_input_bucket():
+    digest = hashlib.sha256(storage.bucket().encode()).hexdigest()[:20]
+    return f"astron-workflow-input-{digest}"
+
+
+def ensure_workflow_input_bucket(bucket):
+    sdk = storage.client()
+    if not sdk.bucket_exists(bucket):
+        try:
+            sdk.make_bucket(bucket)
+        except S3Error as exc:
+            if exc.code != "BucketAlreadyOwnedByYou":
+                raise
+    lifecycle = sdk.get_bucket_lifecycle(bucket)
+    if lifecycle is None:
+        sdk.set_bucket_lifecycle(
+            bucket,
+            LifecycleConfig(
+                [
+                    Rule(
+                        ENABLED,
+                        rule_filter=Filter(prefix=WORKFLOW_FILE_KEY_PREFIX),
+                        rule_id=WORKFLOW_FILE_LIFECYCLE_RULE,
+                        expiration=Expiration(days=2),
+                    ),
+                ]
+            ),
+        )
+    elif not any(
+        rule.rule_id == WORKFLOW_FILE_LIFECYCLE_RULE
+        and rule.status == ENABLED
+        and rule.rule_filter is not None
+        and rule.rule_filter.prefix == WORKFLOW_FILE_KEY_PREFIX
+        and rule.expiration is not None
+        and rule.expiration.days == 2
+        for rule in lifecycle.rules
+    ):
+        raise ResourceServiceError("工作流输入文件存储桶缺少过期规则")
+
+
+def workflow_file_fields(candidate):
+    start = next(
+        (
+            node
+            for node in candidate.definition.get("graph", {}).get("nodes", [])
+            if node["id"].startswith("node-start::")
+        ),
+        {},
+    )
+    return {
+        item["name"]: item
+        for item in start.get("data", {}).get("outputs", [])
+        if item.get("fileType") == "file"
+    }
+
+
+def workflow_file_binding(publication_id, candidate_id, uid, space_id, share_id, field):
+    return [publication_id, candidate_id, uid, space_id, share_id, field]
+
+
+@api_endpoint(["POST"])
+@upstream_errors
+def upload_workflow_input(request, bot_id):
+    from .public_runtime import browser_publication
+
+    publication, share_id = browser_publication(request, bot_id)
+    if publication.candidate.resource_kind != "workflow":
+        raise Http404
+    caller = resolve_scope(request)
+    field = text(request.payload, "field", required=True, limit=255)
+    definition = workflow_file_fields(publication.candidate).get(field)
+    if definition is None:
+        raise ValidationError("该发布版本未定义此文件输入")
+    categories = definition.get("allowedFileType") or []
+    category = categories[0] if isinstance(categories, list) and categories else ""
+    upload = request.FILES.get("file")
+    limit = 3 * 1024 * 1024 if category == "image" else WORKFLOW_FILE_MAX_BYTES
+    if not upload or not 0 < upload.size <= limit:
+        raise ValidationError(f"请选择不超过{limit // (1024 * 1024)}MB的文件")
+    suffix = PurePosixPath(upload.name).suffix.lstrip(".").lower()
+    if suffix not in WORKFLOW_FILE_EXTENSIONS.get(category, set()):
+        raise ValidationError("文件类型与工作流输入不匹配")
+    key = f"{WORKFLOW_FILE_KEY_PREFIX}{uuid.uuid4().hex}/input.{suffix}"
+    signer = TimestampSigner(salt="publishing.workflow-input")
+    token = signer.sign_object(
+        {
+            "binding": workflow_file_binding(
+                publication.pk,
+                publication.candidate_id,
+                caller.uid,
+                caller.space_id,
+                share_id,
+                field,
+            ),
+            "key": key,
+        }
+    )
+    try:
+        bucket = workflow_input_bucket()
+        ensure_workflow_input_bucket(bucket)
+        storage.put(key, upload, upload.size, "application/octet-stream", bucket)
+    except (MinioException, HTTPError, OSError, ResourceServiceError) as exc:
+        logger.warning("Workflow upload storage unavailable type=%s", type(exc).__name__)
+        raise UpstreamError("工作流输入文件存储失败，请重试") from None
+    logger.info(
+        "Published workflow input uploaded publication=%s candidate=%s size=%s",
+        publication.pk,
+        publication.candidate_id,
+        upload.size,
+    )
+    return {"reference": WORKFLOW_FILE_PREFIX + token}
+
+
+def workflow_file_key(reference, binding):
+    signer = TimestampSigner(salt="publishing.workflow-input")
+    try:
+        data = signer.unsign_object(reference.removeprefix(WORKFLOW_FILE_PREFIX), max_age=86400)
+    except SignatureExpired:
+        raise ValidationError("工作流输入文件已过期，请重新上传") from None
+    except BadSignature:
+        raise PermissionDenied from None
+    if data["binding"] != binding:
+        raise PermissionDenied
+    return data["key"]
+
+
+def map_workflow_file_inputs(candidate, inputs, transform):
+    if not isinstance(inputs, dict):
+        return inputs
+    result = inputs.copy()
+    fields = workflow_file_fields(candidate)
+    for field, value in inputs.items():
+        uses_reference = is_workflow_file_reference(value) or (
+            isinstance(value, list) and any(is_workflow_file_reference(item) for item in value)
+        )
+        if not uses_reference:
+            continue
+        definition = fields.get(field)
+        if definition is None:
+            raise PermissionDenied
+        kind = (definition.get("schema") or {}).get("type", "string")
+        if isinstance(value, list) != (kind in {"array", "array-string"}):
+            raise ValidationError("工作流文件输入格式无效")
+        if isinstance(value, list):
+            result[field] = [
+                transform(field, item) if is_workflow_file_reference(item) else item
+                for item in value
+            ]
+        else:
+            result[field] = transform(field, value)
+    return result
+
+
+def is_workflow_file_reference(value):
+    return isinstance(value, str) and value.startswith(WORKFLOW_FILE_PREFIX)
+
+
+def validate_workflow_file_inputs(publication, uid, space_id, share_id, inputs):
+    def validate(field, ref):
+        workflow_file_key(
+            ref,
+            workflow_file_binding(
+                publication.pk, publication.candidate_id, uid, space_id, share_id, field
+            ),
+        )
+        return ref
+
+    map_workflow_file_inputs(publication.candidate, inputs, validate)
+
+
+def resolve_workflow_file_inputs(grant, inputs):
+    if grant.identity_kind != "console" or grant.candidate.resource_kind != "workflow":
+        return inputs
+
+    def signed_url(field, ref):
+        key = workflow_file_key(
+            ref,
+            workflow_file_binding(
+                grant.publication_id,
+                grant.candidate_id,
+                grant.caller_uid,
+                grant.caller_space_id,
+                grant.share_id,
+                field,
+            ),
+        )
+        try:
+            return storage.client().presigned_get_object(
+                workflow_input_bucket(), key, expires=timedelta(minutes=35)
+            )
+        except (MinioException, HTTPError, OSError, ResourceServiceError):
+            raise ValidationError("无法读取工作流输入文件，请重新上传") from None
+
+    return map_workflow_file_inputs(grant.candidate, inputs, signed_url)
+
+
+def hide_workflow_file_references(inputs):
+    if isinstance(inputs, dict):
+        return {key: hide_workflow_file_references(value) for key, value in inputs.items()}
+    if isinstance(inputs, list):
+        return [hide_workflow_file_references(value) for value in inputs]
+    if is_workflow_file_reference(inputs):
+        return "[已上传文件]"
+    return (
+        WORKFLOW_FILE_DOWNLOAD_RE.sub("[已上传文件]", inputs) if isinstance(inputs, str) else inputs
+    )
 
 
 def file_data(row):

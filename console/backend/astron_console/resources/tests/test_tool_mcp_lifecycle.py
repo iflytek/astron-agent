@@ -103,6 +103,22 @@ class ToolMcpLifecycleTests(TestCase):
         self.assertEqual(row.name, "MCP")
         self.assertIn("example.com/mcp?", row.sort_link)
 
+    def test_mcp_credential_reveals_only_one_parameter_to_editor(self):
+        row = self.mcp(parameters='{"apiKey":"mcp-key","apiToken":"mcp-token"}')
+        url = f"/resources/mcp/{row.pk}"
+        self.assertNotIn(b"mcp-token", self.client.get(url).content)
+        result = self.write("post", f"{url}/credential", {"field": "apiKey"})
+        self.assertEqual(result.json()["data"], {"value": "mcp-key"})
+        self.assertIn("no-store", result.headers["Cache-Control"])
+        self.assertEqual(
+            self.write("post", f"{url}/credential", {"field": "serverUrl"}).status_code, 404
+        )
+        another = User.objects.create_user(id="other", username="other")
+        UserProfile.objects.create(uid=another.pk, username=another.username)
+        self.client.force_login(another)
+        result = self.write("post", f"{url}/credential", {"field": "apiKey"})
+        self.assertEqual(result.status_code, 403)
+
     def test_public_mcp_url_is_visible_and_editable_after_save(self):
         row = self.mcp()
         row.sort_link = "https://mcp.deepwiki.com/mcp"

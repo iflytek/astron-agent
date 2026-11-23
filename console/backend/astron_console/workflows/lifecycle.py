@@ -67,25 +67,31 @@ def conversation_history(scope, workflow, chat_id, version_id):
     ).exclude(context_id__in=PublicRunGrant.objects.values("root_id"))
     if not rows.exists():
         raise ValidationError("对话不存在或不可继续，请开启新对话")
+    return conversation_messages(rows)
+
+
+def conversation_messages(rows, *, transform_inputs=None, transform_output=None):
     # The node-level round limit is applied by core/workflow. Bound the snapshot
     # to the editor's maximum and never trust client-supplied transcript contents.
     messages = []
     for previous in reversed(
         list(rows.filter(status="completed").order_by("-create_time", "-id")[:20])
     ):
-        question = previous.inputs.get("AGENT_USER_INPUT")
-        if question is None and len(previous.inputs) == 1:
-            question = next(iter(previous.inputs.values()))
+        inputs = transform_inputs(previous.inputs) if transform_inputs else previous.inputs
+        question = inputs.get("AGENT_USER_INPUT")
+        if question is None and len(inputs) == 1:
+            question = next(iter(inputs.values()))
         if question is None:
-            question = json.dumps(previous.inputs, ensure_ascii=False)
+            question = json.dumps(inputs, ensure_ascii=False)
         elif not isinstance(question, str):
             question = json.dumps(question, ensure_ascii=False)
-        if not previous.output:
+        answer = transform_output(previous) if transform_output else previous.output
+        if not answer:
             continue
         messages.extend(
             [
                 {"role": "user", "content": question, "content_type": "text"},
-                {"role": "assistant", "content": previous.output, "content_type": "text"},
+                {"role": "assistant", "content": answer, "content_type": "text"},
             ]
         )
     return messages
@@ -104,6 +110,7 @@ def prepare_run(
     version_id=None,
     execution_snapshots=None,
     conversation_id=None,
+    published_history=None,
 ):
     scope = active_scope(scope.uid, scope.space_id)
     workflow = get_workflow(scope, workflow.flow_id, EXECUTE)
@@ -187,6 +194,8 @@ def prepare_run(
                 if retry_of
                 else conversation_history(scope, workflow, conversation_id, version_id)
                 if kind == "workflow" and not parent_context
+                else (published_history or [])
+                if kind == "published"
                 else []
             ),
         )
@@ -244,16 +253,20 @@ def core_payload(run):
     for node in protocol["data"]["nodes"]:
         if node["id"].startswith("ifly-code::"):
             node["data"]["nodeParam"]["sandbox"]["console"] = True
-    from astron_console.publishing.runtime_authorization import caller_uid
+    from astron_console.publishing.public_files import resolve_workflow_file_inputs
+    from astron_console.publishing.runtime_authorization import check_root
 
-    subject = caller_uid(checked_root(run.context_id))
+    root = checked_root(run.context_id)
+    grant = check_root(root)
+    subject = grant.caller_uid if grant is not None else root.uid
+    inputs = resolve_workflow_file_inputs(grant, run.inputs) if grant is not None else run.inputs
     return {
         "protocol": protocol,
         "chat": {
             "flow_id": str(workflow.flow_id),
             "uid": subject,
             "stream": True,
-            "parameters": run.inputs,
+            "parameters": inputs,
             "chat_id": run.chat_id,
             "history": run.history_messages,
             "ext": {"console_context": {"run_id": run.pk, "root_id": run.context_id}},
@@ -345,7 +358,9 @@ def reconcile(run):
     return run
 
 
-async def stream_run(run, *, resume_content=None):
+async def stream_run(run, *, resume_content=None, resume_event_type="resume"):
+    from astron_console.publishing.public_files import hide_workflow_file_references
+
     status, error = "interrupted", "upstream_disconnected"
     source = task = None
     paused = stopped = False
@@ -361,7 +376,11 @@ async def stream_run(run, *, resume_content=None):
         else:
             await sync_to_async(reauthorize)(run)
             path = "/workflow/v1/debug/resume"
-            payload = {"event_id": run.event_id, "event_type": "resume", "content": resume_content}
+            payload = {
+                "event_id": run.event_id,
+                "event_type": resume_event_type,
+                "content": resume_content,
+            }
         source = upstream(path, payload)
         while True:
             control = await sync_to_async(control_state)(run.pk, run.context_id)
@@ -390,6 +409,8 @@ async def stream_run(run, *, resume_content=None):
             chunk = json.loads(raw)
             if not isinstance(chunk, dict):
                 raise ValueError("Invalid workflow event")
+            if run.kind == "published":
+                chunk = hide_workflow_file_references(chunk)
             # Runtime events contain outputs, never request model credentials/config.
             run.events.append(chunk)
             if len(run.events) > 20000 or len(json.dumps(run.events)) > 8000000:

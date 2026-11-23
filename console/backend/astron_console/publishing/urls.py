@@ -3,6 +3,7 @@ from django.urls import path
 from . import gateway, public_files, public_runtime, views
 
 urlpatterns = [
+    path("published/<int:bot_id>/workflow-files", public_files.upload_workflow_input),
     path("published/<int:bot_id>/files", public_files.upload),
     path("published/<int:bot_id>/files/<str:file_id>", public_files.download),
     path("published/workflow-artifacts/<int:artifact_id>", public_files.workflow_download),

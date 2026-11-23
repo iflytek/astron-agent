@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.http import Http404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
 
 from astron_console.http import api_endpoint
 
@@ -219,6 +220,16 @@ def detail(request):
         return official_data(row)
     row, _ = owned(request, Model, request.GET.get("modelId"), READ)
     return model_data(row)
+
+
+@never_cache
+@api_endpoint(["POST"])
+def reveal_credential(request, pk):
+    row, scope = owned(request, Model, pk, WRITE)
+    if row.type != 1 or not row.api_key:
+        raise Http404
+    logger.info("Model credential viewed id=%s uid=%s space=%s", row.pk, scope.uid, scope.space_id)
+    return {"value": row.api_key}
 
 
 def populate(row, payload):

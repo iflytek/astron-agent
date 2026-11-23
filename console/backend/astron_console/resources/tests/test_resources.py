@@ -73,6 +73,14 @@ class ResourceTests(TransactionTestCase):
         self.assertEqual(result.json()["data"]["uid"], "legacy-owner")
         self.assertNotIn(b"retained-secret", result.content)
 
+    def test_model_credential_requires_resource_write_access(self):
+        url = f"/api/model/{self.model.pk}/credential"
+        result = self.write("post", url, {})
+        self.assertEqual(result.json()["data"], {"value": "retained-secret"})
+        self.assertIn("no-store", result.headers["Cache-Control"])
+        self.client.force_login(self.other)
+        self.assertEqual(self.write("post", url, {}).status_code, 403)
+
     def test_model_list_filters_before_pagination_and_retains_search(self):
         local = Model.objects.create(
             uid=self.user.pk, name="Retained local", type=2, remark="deployment"
@@ -391,6 +399,59 @@ class ResourceTests(TransactionTestCase):
             404,
         )
 
+    def test_sandbox_credential_read_checks_scope_and_keeps_masked_save(self):
+        personal = SandboxConfig.objects.create(uid=self.user.pk, api_key="personal-key")
+        space = Space.objects.create(name="Shared", uid=self.other.pk)
+        SpaceMember.objects.create(space_id=space.pk, uid=self.user.pk, role=3)
+        SpacePermission.objects.update_or_create(
+            permission_key="ToolBoxController_getDetail_GET", defaults={"member": True}
+        )
+        SpacePermission.objects.update_or_create(
+            permission_key="ToolBoxController_updateTool_PUT", defaults={"member": False}
+        )
+        SandboxConfig.objects.create(uid=self.other.pk, space_id=space.pk, api_key="shared-key")
+        url = "/skill-sandbox/credential"
+        headers = {"HTTP_SPACE_ID": str(space.pk)}
+        scope_read = self.client.get("/skill-sandbox/config", **headers)
+        self.assertEqual(scope_read.json()["data"]["apiKey"], "********")
+        self.assertEqual(self.write("post", url, {}, **headers).status_code, 403)
+        result = self.write("post", url, {})
+        self.assertEqual(result.json()["data"], {"value": "personal-key"})
+        self.assertIn("no-store", result.headers["Cache-Control"])
+        result = self.write(
+            "put",
+            "/skill-sandbox/config",
+            {"apiKey": "********", "apiKeyMasked": True, "timeoutSeconds": 90},
+        )
+        self.assertEqual(result.json()["data"]["apiKey"], "********")
+        personal.refresh_from_db()
+        self.assertEqual(personal.api_key, "personal-key")
+
+    def test_platform_credential_reveal_returns_only_allowed_field_to_admin(self):
+        ConfigInfo.objects.create(
+            category="PLATFORM_ACCOUNT",
+            code="KNOWLEDGE_PLATFORM",
+            is_valid=1,
+            value=json.dumps(
+                {"ragflow": {"baseUrl": "https://example.com", "apiToken": "platform-secret"}}
+            ),
+        )
+        config = "/api/platform-account/knowledge_platform"
+        url = f"{config}/credential"
+        self.assertEqual(self.write("post", url, {"field": "apiToken"}).status_code, 403)
+        self.user.is_superuser = True
+        self.user.save(update_fields=["is_superuser"])
+        self.assertNotIn(b"platform-secret", self.client.get(config).content)
+        self.assertEqual(self.client.get(url, {"field": "apiToken"}).status_code, 405)
+        self.assertEqual(self.write("post", url, {"field": "baseUrl"}).status_code, 400)
+        result = self.write("post", url, {"field": "apiToken"})
+        self.assertEqual(result.json()["data"], {"value": "platform-secret"})
+        self.assertIn("no-store", result.headers["Cache-Control"])
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        result = csrf_client.post(url, {"field": "apiToken"}, content_type="application/json")
+        self.assertEqual(result.status_code, 403)
+
     def test_sandbox_connection_failure_not_success(self):
         with patch("e2b.Sandbox.create", side_effect=Exception("credential-secret")):
             result = self.write(
@@ -605,10 +666,48 @@ class ResourceTests(TransactionTestCase):
             result.json()["data"]["schema"]["components"]["securitySchemes"]["X-Key"]["x-value"],
             "******",
         )
+        revealed = self.write("post", f"/resources/tools/{row.pk}/credential", {"field": "X-Key"})
+        self.assertEqual(revealed.json()["data"], {"value": "old-key"})
+        self.assertIn("no-store", revealed.headers["Cache-Control"])
         with patch("astron_console.resources.clients.call", return_value={}) as call:
             result = self.write("post", f"/resources/tools/{row.pk}/debug", {})
         self.assertEqual(result.status_code, 200, result.content)
         self.assertEqual(call.call_args.kwargs["payload"]["header"]["X-Key"], "old-key")
+
+    def test_tool_draft_credential_reveals_and_preserves_the_displayed_value(self):
+        draft = json.loads(json.dumps(SCHEMA))
+        draft["security"] = [{"apiKey": []}]
+        draft["components"]["securitySchemes"]["apiKey"]["x-value"] = "draft-key"
+        row = Tool.objects.create(
+            user_id=self.user.pk,
+            name="Shared tool",
+            schema=json.dumps(SCHEMA),
+            temporary_data=json.dumps({"schema": draft}),
+            deleted=0,
+            is_public=True,
+        )
+        url = f"/resources/tools/{row.pk}"
+        detail = self.client.get(url)
+        self.assertNotIn(b"draft-key", detail.content)
+        self.assertEqual(
+            self.write("post", f"{url}/credential", {"field": "apiKey"}).json()["data"],
+            {"value": "draft-key"},
+        )
+        draft["components"]["securitySchemes"]["apiKey"]["x-value"] = "******"
+        result = self.write(
+            "put",
+            url,
+            {"name": "Draft", "description": "Draft", "schema": draft, "draft": True},
+        )
+        self.assertEqual(result.status_code, 200)
+        row.refresh_from_db()
+        saved = json.loads(row.temporary_data)["schema"]["components"]["securitySchemes"]
+        self.assertEqual(saved["apiKey"]["x-value"], "draft-key")
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(
+            self.write("post", f"{url}/credential", {"field": "apiKey"}).status_code, 403
+        )
 
     def test_mcp_details_do_not_expose_upstream_bearer_url(self):
         row = McpConfig.objects.create(

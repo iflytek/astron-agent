@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
+import { ApiCallDialog, type ApiCallTarget } from './api-call-guide';
 import styles from './editor-publish-menu.module.scss';
 
 interface EditorPublishMenuProps {
@@ -55,6 +56,7 @@ export default function EditorPublishMenu({
   const [appsRevision, setAppsRevision] = useState(0);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState('');
+  const [calling, setCalling] = useState<ApiCallTarget | null>(null);
   const generation = useRef(0);
   const submitting = useRef(false);
   const publishingChange = useRef(onPublishingChange);
@@ -67,6 +69,7 @@ export default function EditorPublishMenu({
     setApps([]);
     setAppId('');
     setError('');
+    setCalling(null);
     setPublishing(false);
     return (): void => {
       generation.current += 1;
@@ -143,6 +146,9 @@ export default function EditorPublishMenu({
       );
       if (currentGeneration !== generation.current) return;
       setChannel(null);
+      if (channel === 'API' && !result.approvalRequired) {
+        setCalling({ botId: bot.botId, appId });
+      }
       message.success(
         result.approvalRequired
           ? '已提交发布审批，审批通过后新版本生效。'
@@ -286,6 +292,9 @@ export default function EditorPublishMenu({
           <Alert className="mt-3" type="error" showIcon message={error} />
         )}
       </Modal>
+      {calling && (
+        <ApiCallDialog target={calling} onClose={() => setCalling(null)} />
+      )}
     </>
   );
 }

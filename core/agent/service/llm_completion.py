@@ -205,9 +205,15 @@ class LLMCompletion:
 
     async def _produce(self, queue: asyncio.Queue[object]) -> None:
         config = self.inputs.model_config_inputs
+        trace_messages = [message.model_dump() for message in self.inputs.messages]
+        for message in trace_messages:
+            if isinstance(message["content"], list):
+                for block in message["content"]:
+                    if block.get("type") in {"image", "audio", "video"}:
+                        block.pop("base64", None)
         attributes = langfuse_observation_attributes(
             "generation",
-            input_value=[message.model_dump() for message in self.inputs.messages],
+            input_value=trace_messages,
             model=config.domain,
             model_parameters=self.inputs.parameters.model_dump(exclude_none=True),
             metadata={

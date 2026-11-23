@@ -8,14 +8,17 @@ from unittest.mock import AsyncMock
 import pytest
 
 from workflow.engine.callbacks.openai_types_sse import GenerateUsage
+from workflow.engine.entities.node_entities import NodeType
 from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.entities.workflow_dsl import WorkflowDSL
+from workflow.engine.node import NodeExecutionTemplate, SparkFlowEngineNode
 from workflow.engine.nodes.agent.agent_node import AgentNode
 from workflow.engine.nodes.entities.node_run_result import (
     NodeRunResult,
     WorkflowNodeExecutionStatus,
 )
 from workflow.engine.nodes.llm.spark_llm_node import SparkLLMNode
+from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
 from workflow.service import flow_service
 from workflow.utils.trace_sanitization import serialize_trace_payload
@@ -80,6 +83,50 @@ def test_trace_payload_redacts_presigned_urls_inside_serialized_json() -> None:
         "downloadUrl": "[REDACTED_PRESIGNED_URL]",
         "sandbox": {"uid": "user-1"},
     }
+
+
+@pytest.mark.asyncio
+async def test_node_telemetry_redacts_presigned_urls_and_preserves_result() -> None:
+    signed_url = (
+        f"http://minio:9000/console/published-workflow-inputs/{'a' * 32}/input.txt"
+        "?X-Amz-Signature=test-signature"
+    )
+    unrelated = "https://objects.example/private/a.md?X-Amz-Signature=unrelated"
+    long_text = "a" * 16000 + unrelated
+    node = SparkFlowEngineNode.model_construct(
+        node_id=f"{NodeType.LLM.value}::test",
+        node_instance=SimpleNamespace(),
+        node_log=NodeLog(sid="test"),
+    )
+    result = NodeRunResult(
+        node_id=node.node_id,
+        node_type=NodeType.LLM.value,
+        alias_name="Test",
+        status=WorkflowNodeExecutionStatus.SUCCEEDED,
+        inputs={"file": signed_url},
+        outputs={"attachments": [{"downloadUrl": signed_url}], "text": long_text},
+        raw_output=f"Download {signed_url}",
+    )
+    span = AsyncMock(spec=Span)
+
+    node.gather_node_event_log(result)
+    await NodeExecutionTemplate(node)._log_success_result(result, span)
+
+    assert node.node_log.data.input_vars[0].value == "[REDACTED_PRESIGNED_URL]"
+    assert node.node_log.data.output_vars[0].value == (
+        "[{'downloadUrl': '[REDACTED_PRESIGNED_URL]'}]"
+    )
+    assert node.node_log.data.output_vars[1].value == long_text
+    assert node.node_log.llm_output == "Download [REDACTED_PRESIGNED_URL]"
+    span_payload = json.loads(
+        span.add_info_events_async.await_args.args[0]["node_result"]
+    )
+    assert span_payload["outputs"]["attachments"] == [
+        {"downloadUrl": "[REDACTED_PRESIGNED_URL]"}
+    ]
+    assert span_payload["outputs"]["text"] == long_text
+    assert result.inputs["file"] == signed_url
+    assert result.outputs["attachments"][0]["downloadUrl"] == signed_url
 
 
 @pytest.mark.asyncio

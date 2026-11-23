@@ -330,6 +330,76 @@ class PublicExecutionTests(TestCase):
         self.assertEqual(self.client.get(f"/workflow/runs/{run.pk}").status_code, 404)
         self.assertEqual(grant.root_id, run.context_id)
 
+    @patch("astron_console.publishing.services.validate_graph")
+    def test_market_workflow_continuation_only_includes_callers_completed_turn(self, _validate):
+        from astron_console.workflows.management_views import create_workflow
+
+        workflow = create_workflow(self.scope, {"name": "market conversation"})
+        bot = services.bind_workflow(self.scope, workflow.pk)
+        result = services.submit(self.scope, bot.pk, "MARKET")
+        publication = Publication.objects.get(pk=result["publicationId"])
+        payload = {"inputs": {"message": "first"}, "sessionId": "original"}
+        first, _, _ = public_runtime.prepare_public(publication, self.viewer.pk, payload)
+        first.status, first.output = "completed", "reply"
+        first.save(update_fields=["status", "output"])
+
+        continued, _, _ = public_runtime.prepare_public(publication, self.viewer.pk, payload)
+        self.assertEqual(
+            [item["content"] for item in continued.history_messages], ["first", "reply"]
+        )
+        other, _, _ = public_runtime.prepare_public(publication, self.stranger.pk, payload)
+        self.assertEqual(other.history_messages, [])
+
+        first.output = '{"result":"structured"}{"result":"structured"}'
+        first.events = [
+            {
+                "workflow_step": {"node": {"id": "message::info"}},
+                "choices": [{"delta": {"content": "需要保留的消息"}}],
+            },
+            {
+                "workflow_step": {
+                    "node": {
+                        "id": "node-end::done",
+                        "ext": {"answer_mode": 0},
+                        "outputs": {"result": "structured"},
+                    }
+                }
+            },
+        ]
+        first.save(update_fields=["output", "events"])
+
+        continued.status = "paused"
+        continued.events = [
+            {
+                "choices": [{"finish_reason": "interrupt"}],
+                "event_data": {
+                    "need_reply": False,
+                    "value": {"content": "任选一项", "option": [{"id": "A", "text": "Option A"}]},
+                },
+            }
+        ]
+        continued.save(update_fields=["status", "events"])
+        history = self.client.get(f"/published/{bot.pk}/history").json()["data"]
+        self.assertIn("需要保留的消息", history[0]["answer"])
+        self.assertEqual(history[0]["answer"].count('"result": "structured"'), 1)
+        self.assertEqual(history[-1]["interrupt"]["options"], [{"id": "A", "text": "Option A"}])
+        bad_option = self.client.post(
+            f"/published/runs/{continued.pk}/resume",
+            {"content": "unknown"},
+            content_type="application/json",
+        )
+        self.assertEqual(bad_option.status_code, 400)
+        with patch("astron_console.publishing.public_runtime.stream_run") as stream:
+            response = self.client.post(
+                f"/published/runs/{continued.pk}/resume",
+                {"content": ""},
+                content_type="application/json",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            stream.call_args.kwargs, {"resume_content": "", "resume_event_type": "ignore"}
+        )
+
     def test_api_stop_requires_original_app_and_cancels_paused_workflow(self):
         from astron_console.publishing.models import PublicationCandidate
         from astron_console.workflows.management_views import create_workflow

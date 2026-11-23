@@ -64,6 +64,9 @@ class MemoryTests(TransactionTestCase):
         self.assertEqual(memory.decrypt(cipher), original)
         self.config.api_key_ciphertext = cipher
         self.config.save()
+        revealed = self.client.post(f"/agents/{self.agent.pk}/memory/credential")
+        self.assertEqual(revealed.json()["data"], {"value": original})
+        self.assertIn("no-store", revealed.headers["Cache-Control"])
         response = self.client.put(
             f"/agents/{self.agent.pk}/memory/config",
             json.dumps({"enabled": False}),
@@ -74,6 +77,27 @@ class MemoryTests(TransactionTestCase):
         self.assertEqual(self.config.api_key_ciphertext, cipher)
         self.assertNotIn(cipher.encode(), response.content)
         self.assertNotIn(original.encode(), response.content)
+
+    def test_credential_requires_agent_write_access(self):
+        space = Space.objects.create(uid=self.user.pk, name="space")
+        SpaceMember.objects.create(uid=self.user.pk, space_id=space.pk, role=3)
+        SpacePermission.objects.update_or_create(
+            permission_key="MyBotController_getBotDetail_POST", defaults={"member": True}
+        )
+        SpacePermission.objects.update_or_create(
+            permission_key="BotCreateController_updateBot_POST", defaults={"member": False}
+        )
+        self.agent.space_id = space.pk
+        self.agent.save()
+        self.config.space_id = space.pk
+        self.config.save()
+        url = f"/agents/{self.agent.pk}/memory"
+        headers = {"HTTP_SPACE_ID": str(space.pk)}
+        response = self.client.get(f"{url}/config", **headers)
+        self.assertTrue(response.json()["data"]["hasApiKey"])
+        with patch.object(memory, "decrypt") as decrypt:
+            self.assertEqual(self.client.post(f"{url}/credential", **headers).status_code, 403)
+            decrypt.assert_not_called()
 
     def test_scoped_list_and_delete_cannot_cross_space(self):
         self.remote.get_all.return_value = {
