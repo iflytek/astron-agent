@@ -50,4 +50,10 @@ dependencies = [
     "langchain-google-genai==4.4.2",
     "jsonschema>=4.25,<5",
     "httpx-sse==0.4.3",
+    "pyyaml>=6,<7",
+]
+
+[dependency-groups]
+dev = [
+    "types-pyyaml>=6.0.12.20261122",
 ]

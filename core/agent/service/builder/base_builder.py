@@ -10,7 +10,6 @@ from agent.domain.models.providers import ModelHandle, create_provider_model
 from agent.infra.app_auth import MaasAuth
 from agent.service.plugin.link import LinkPlugin, LinkPluginFactory
 from agent.service.plugin.mcp import McpPlugin, McpPluginFactory
-from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from agent.service.plugin.workflow import WorkflowPlugin, WorkflowPluginFactory
 
 
@@ -45,23 +44,20 @@ class BaseApiBuilder(BaseModel):
         mcp_server_ids: list,
         mcp_server_urls: list,
         workflow_ids: list,
-        skills: list | None = None,
         console_context: dict | None = None,
-    ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]]:
+    ) -> list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]]:
 
         with self.span.start("BuildPlugins") as sp:
             mcp_server_urls = [url for url in mcp_server_urls if url and url.strip()]
 
-            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]] = (
-                []
-            )
+            plugins: list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]] = []
             if tool_ids:
                 link_tools = await LinkPluginFactory(
                     app_id=self.app_id, uid=self.uid, tool_ids=tool_ids
                 ).gen(sp)
                 plugins.extend(
                     cast(
-                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]],
                         link_tools,
                     )
                 )
@@ -74,7 +70,7 @@ class BaseApiBuilder(BaseModel):
                 ).gen(sp)
                 plugins.extend(
                     cast(
-                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]],
                         mcp_tools,
                     )
                 )
@@ -88,17 +84,8 @@ class BaseApiBuilder(BaseModel):
                 ).gen(sp)
                 plugins.extend(
                     cast(
-                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
+                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin]],
                         workflow_tools,
-                    )
-                )
-
-            if skills:
-                skill_tools = SkillPluginFactory(skills=skills).gen()
-                plugins.extend(
-                    cast(
-                        list[Union[LinkPlugin, McpPlugin, WorkflowPlugin, SkillPlugin]],
-                        skill_tools,
                     )
                 )
 
@@ -107,7 +94,6 @@ class BaseApiBuilder(BaseModel):
                     "link-tool-count": len(tool_ids),
                     "mcp-server-count": len(mcp_server_ids) + len(mcp_server_urls),
                     "workflow-count": len(workflow_ids),
-                    "skill-count": len(skills or []),
                     "built-plugin-count": len(plugins),
                 }
             )

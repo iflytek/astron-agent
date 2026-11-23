@@ -1,22 +1,23 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import mimetypes
 import os
 import posixpath
 import shlex
 import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 import aiohttp
-from common.otlp.trace.span import Span
+from e2b import CommandExitException
 from loguru import logger
 from openai import BaseModel
 from pydantic import Field
 
-from agent.service.plugin.base import PluginResponse
 from agent.service.plugin.skill_resource_security import (
     MAX_SKILL_RESOURCE_BYTES,
     MAX_SKILL_RESOURCE_COUNT,
@@ -55,6 +56,7 @@ SANDBOX_INITIALIZATION_ERROR = "Sandbox initialization failed"
 RUNTIME_CONFIG_REQUEST_TIMEOUT_SECONDS = 10
 MAX_SANDBOX_TIMEOUT_SECONDS = 600
 MAX_ARTIFACT_RELATIVE_PATH_BYTES = 4096
+MAX_ARTIFACT_SCAN_ENTRIES = 4096
 MAX_ARTIFACT_SCAN_OUTPUT_BYTES = (
     MAX_ARTIFACT_FILES_PER_RUN + 1
 ) * MAX_ARTIFACT_RELATIVE_PATH_BYTES * 6 + 4096
@@ -65,20 +67,23 @@ MAX_SANDBOX_COMMAND_OUTPUT_BYTES = 1024 * 1024
 SANDBOX_OUTPUT_TRUNCATED_MARKER = "\n...[output truncated]"
 
 _ARTIFACT_SCAN_HELPER = r"""
+import hashlib
 import json
 import os
 import sys
 
 root = sys.argv[1]
 limit = int(sys.argv[2])
-excluded = set(json.loads(sys.argv[3]))
+excluded = json.loads(sys.argv[3])
 max_path_bytes = int(sys.argv[4])
+entry_limit = int(sys.argv[5]) if len(sys.argv) > 5 else 4096
+known = json.loads(sys.argv[6]) if len(sys.argv) > 6 else {}
 found = []
-files_seen = 0
+entries_seen = 0
 
 def walk(directory, relative_dir, depth):
-    global files_seen
-    if files_seen >= limit:
+    global entries_seen
+    if len(found) >= limit or entries_seen >= entry_limit:
         return
     try:
         entries = os.scandir(directory)
@@ -86,8 +91,9 @@ def walk(directory, relative_dir, depth):
         return
     with entries:
         for entry in entries:
-            if files_seen >= limit:
+            if len(found) >= limit or entries_seen >= entry_limit:
                 return
+            entries_seen += 1
             relative = entry.name if not relative_dir else relative_dir + "/" + entry.name
             if len(relative.encode("utf-8", "surrogateescape")) > max_path_bytes:
                 continue
@@ -96,10 +102,12 @@ def walk(directory, relative_dir, depth):
                     if not entry.name.startswith(".") and depth < 5:
                         walk(entry.path, relative, depth + 1)
                 elif entry.is_file(follow_symlinks=False):
-                    files_seen += 1
-                    if not entry.name.startswith(".") and relative not in excluded:
-                        size = entry.stat(follow_symlinks=False).st_size
-                        found.append({"path": relative, "size": size})
+                    key = hashlib.sha256(relative.encode("utf-8", "surrogateescape")).hexdigest()
+                    if not entry.name.startswith(".") and key not in excluded:
+                        info = entry.stat(follow_symlinks=False)
+                        version = [info.st_size, info.st_ctime_ns, info.st_ino]
+                        if known.get(key) != version:
+                            found.append({"path": relative, "size": info.st_size, "version": version})
             except OSError:
                 continue
 
@@ -118,12 +126,24 @@ destination = sys.argv[2]
 max_bytes = int(sys.argv[3])
 source_fd = None
 destination_fd = None
+directory_fd = None
 try:
     os.makedirs(os.path.dirname(destination), mode=0o700, exist_ok=True)
     os.chmod(os.path.dirname(destination), 0o700)
     source_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NONBLOCK", 0)
     source_flags |= getattr(os, "O_NOFOLLOW", 0)
-    source_fd = os.open(source, source_flags)
+    # Walk each parent with O_NOFOLLOW so sandbox work cannot redirect a
+    # privileged snapshot through a symlink between enumeration and open.
+    parts = source.split('/')[1:]
+    if not source.startswith('/') or any(part in ('', '.', '..') for part in parts):
+        raise OSError
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    directory_fd = os.open('/', directory_flags)
+    for part in parts[:-1]:
+        child_fd = os.open(part, directory_flags, dir_fd=directory_fd)
+        os.close(directory_fd)
+        directory_fd = child_fd
+    source_fd = os.open(parts[-1], source_flags, dir_fd=directory_fd)
     if not stat.S_ISREG(os.fstat(source_fd).st_mode):
         raise OSError
     destination_flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_CLOEXEC", 0)
@@ -154,6 +174,8 @@ finally:
         os.close(source_fd)
     if destination_fd is not None:
         os.close(destination_fd)
+    if directory_fd is not None:
+        os.close(directory_fd)
 """.strip()
 
 
@@ -315,14 +337,25 @@ async def _scan_artifact_candidates(
     output_dir: str,
     excluded_paths: set[str],
     timeout_seconds: int,
+    known_versions: dict[str, list[int]] | None = None,
 ) -> list[dict[str, Any]]:
+    def path_key(path: str) -> str:
+        return hashlib.sha256(path.encode("utf-8", "surrogateescape")).hexdigest()
+
     command = _bounded_helper_command(
         _ARTIFACT_SCAN_HELPER,
         [
             output_dir,
             str(MAX_ARTIFACT_FILES_PER_RUN + 1),
-            json.dumps(sorted(excluded_paths), ensure_ascii=True),
+            json.dumps(sorted(path_key(path) for path in excluded_paths)),
             str(MAX_ARTIFACT_RELATIVE_PATH_BYTES),
+            str(MAX_ARTIFACT_SCAN_ENTRIES),
+            json.dumps(
+                {
+                    path_key(path): version
+                    for path, version in (known_versions or {}).items()
+                }
+            ),
         ],
         MAX_ARTIFACT_SCAN_OUTPUT_BYTES,
     )
@@ -431,11 +464,14 @@ async def _run_command_with_bounded_output(
         f"> {shlex.quote(stdout_path)} 2> {shlex.quote(stderr_path)}"
     )
     try:
-        result = await sandbox.commands.run(
-            wrapped_command,
-            cwd=cwd,
-            timeout=timeout_seconds,
-        )
+        try:
+            result = await sandbox.commands.run(
+                wrapped_command,
+                cwd=cwd,
+                timeout=timeout_seconds,
+            )
+        except CommandExitException as exc:
+            result = exc
         stdout_bytes, stdout_truncated = await _read_bounded_snapshot(
             sandbox,
             stdout_path,
@@ -461,83 +497,6 @@ async def _run_command_with_bounded_output(
                 pass
 
 
-class SkillSandboxRunner(BaseModel):
-    skill_id: str
-    resources: list[Any] = Field(default_factory=list)
-    sandbox_config: "SkillSandboxConfig | None" = None
-
-    async def run(self, action_input: dict[str, Any], span: Span) -> PluginResponse:
-        with span.start(f"RunSkill-{self.skill_id}") as sp:
-            command = str(action_input.get("command") or "").strip()
-            working_dir = "."
-            output_dir = "."
-            sp.add_info_events(
-                {
-                    "skill_id": self.skill_id,
-                    "command_bytes": len(command.encode("utf-8")),
-                    "configured": self._is_configured(),
-                }
-            )
-            if not self._is_configured():
-                return self._unsupported_response()
-
-            if not command:
-                return PluginResponse(
-                    code=40024,
-                    result={
-                        "skill_id": self.skill_id,
-                        "configured": True,
-                        "error": "command_required",
-                    },
-                )
-
-            request = SandboxExecutionRequest(
-                skill_id=self.skill_id,
-                command=command,
-                stdin=action_input.get("stdin"),
-                working_dir=working_dir,
-                output_dir=output_dir,
-                resources=self.resources,
-            )
-            provider = E2BSandboxProvider(self.sandbox_config)
-            result = await provider.execute(request)
-            stdout = str(result.get("stdout") or "")
-            try:
-                result["result_json"] = json.loads(stdout) if stdout else None
-            except json.JSONDecodeError:
-                result["result_json"] = None
-            result["skill_id"] = self.skill_id
-            return PluginResponse(
-                code=0 if result.get("exit_code") == 0 else 40024, result=result
-            )
-
-    def _is_configured(self) -> bool:
-        return self.sandbox_config is not None and self.sandbox_config.enabled
-
-    def _unsupported_response(self) -> PluginResponse:
-        return PluginResponse(
-            code=40024,
-            result={
-                "skill_id": self.skill_id,
-                "configured": False,
-                "message": SCRIPT_SANDBOX_UNCONFIGURED_MESSAGE,
-            },
-        )
-
-    def _normalize_relative_path(self, value: Any, default: str) -> str:
-        path = str(value or default).strip().replace("\\", "/")
-        if not path or path == ".":
-            return "."
-        normalized = posixpath.normpath(path)
-        if (
-            normalized.startswith("/")
-            or normalized == ".."
-            or normalized.startswith("../")
-        ):
-            raise ValueError("Path must stay inside the Skill workspace")
-        return normalized
-
-
 class SkillSandboxConfig(BaseModel):
     enabled: bool = False
     console: bool = False
@@ -559,6 +518,22 @@ class SandboxExecutionRequest(BaseModel):
     working_dir: str = "."
     output_dir: str = "output"
     resources: list[Any] = Field(default_factory=list)
+
+
+@dataclass
+class ArtifactBudget:
+    """Track uploaded output versions and the remaining budget of an Agent run."""
+
+    skill_ids: dict[str, str]
+    versions: dict[str, list[int]] = field(default_factory=dict)
+    uploaded_count: int = 0
+    uploaded_bytes: int = 0
+
+    def record(self, path: str, version: Any, size: int) -> None:
+        if isinstance(version, list) and len(version) == 3:
+            self.versions[path] = version
+        self.uploaded_count += 1
+        self.uploaded_bytes += size
 
 
 class E2BSandboxProvider:
@@ -667,6 +642,8 @@ class E2BSandboxProvider:
         output_dir: str,
         request: SandboxExecutionRequest,
         execution_timeout: int | None = None,
+        *,
+        budget: ArtifactBudget | None = None,
     ) -> list[dict[str, Any]]:
         if not await sandbox.files.exists(output_dir):
             return []
@@ -681,6 +658,7 @@ class E2BSandboxProvider:
                 output_dir,
                 resource_paths,
                 scan_timeout,
+                **({"known_versions": budget.versions} if budget is not None else {}),
             )
         except RuntimeError:
             logger.warning(
@@ -689,9 +667,8 @@ class E2BSandboxProvider:
             )
             return []
         artifacts: list[dict[str, Any]] = []
-        uploader = ArtifactUploader(self.config, request.skill_id)
-        candidates = 0
-        total_artifact_bytes = 0
+        candidates = budget.uploaded_count if budget else 0
+        total_artifact_bytes = budget.uploaded_bytes if budget else 0
         for item in scan_items:
             relative_path = item.get("path")
             raw_size = item.get("size")
@@ -699,6 +676,12 @@ class E2BSandboxProvider:
                 continue
             if self._should_skip_artifact(relative_path, resource_paths):
                 continue
+            skill_id = request.skill_id
+            if budget is not None:
+                skill_id = budget.skill_ids.get(
+                    relative_path.split("/", 1)[0], skill_id
+                )
+            uploader = ArtifactUploader(self.config, skill_id)
             candidates += 1
             if candidates > MAX_ARTIFACT_FILES_PER_RUN:
                 logger.warning(
@@ -714,6 +697,8 @@ class E2BSandboxProvider:
                 "file_name": file_name,
                 "file_size": file_size if file_size is not None else 0,
             }
+            if budget is not None:
+                artifact["path"] = relative_path
             if file_size is None:
                 artifact["upload_error"] = ARTIFACT_FILE_SIZE_INVALID_ERROR
                 artifacts.append(artifact)
@@ -751,6 +736,10 @@ class E2BSandboxProvider:
                             content_type=self._guess_content_type(file_name),
                         )
                     )
+                    if budget is not None:
+                        budget.record(
+                            relative_path, item.get("version"), len(file_bytes)
+                        )
                 except _ArtifactReadLimitExceeded:
                     total_artifact_bytes = min(
                         MAX_ARTIFACT_TOTAL_SIZE_BYTES,
@@ -774,9 +763,8 @@ class E2BSandboxProvider:
                 artifact["upload_error"] = ARTIFACT_UPLOAD_CONFIG_ERROR
             artifacts.append(artifact)
         logger.info(
-            "Skill sandbox artifact scan finished: skill_id={}, upload_configured={}, candidates={}, artifacts={}",
+            "Skill sandbox artifact scan finished: skill_id={}, candidates={}, artifacts={}",
             request.skill_id,
-            uploader.is_configured(),
             candidates,
             len(artifacts),
         )

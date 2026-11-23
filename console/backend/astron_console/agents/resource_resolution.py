@@ -6,6 +6,12 @@ from django.db.models import Q
 from astron_console.http import api_endpoint
 from astron_console.knowledge import storage
 from astron_console.knowledge.models import Document, Repo, SkillFile
+from astron_console.knowledge.skill_packages import (
+    SKILL_ENTRY_NAME,
+    SkillPackages,
+    is_skill_entry,
+    validate_skill_package,
+)
 from astron_console.resources.clients import normalize_provider
 from astron_console.resources.common import http_url, parsed
 from astron_console.resources.models import McpConfig, Model, SandboxConfig, Tool
@@ -79,51 +85,35 @@ def repo_query(scope):
     )
 
 
-def skill_payload(row, scope):
-    query = scope_queryset(SkillFile.objects.filter(deleted=False), scope)
-    if row.name != "SKILL.md" or row.entry_type != "file" or not row.object_key:
-        raise ValidationError("Skill必须引用有效的SKILL.md")
-    entries = list(query)
-    children = {}
-    for item in entries:
-        children.setdefault(item.parent_id, []).append(item)
-    resources = []
+def skill_rows(query, values):
+    unique = {}
+    for value in values:
+        row = select(query, value, "fileId", "skillId", "skill_id")
+        if not is_skill_entry(row) or not row.object_key:
+            raise ValidationError("Skill必须引用有效的SKILL.md")
+        unique.setdefault(row.pk, row)
+    return list(unique.values())
 
-    def visit(parent, prefix, seen):
-        if parent in seen:
-            raise ValidationError("Skill目录关系无效")
-        for item in children.get(parent, []):
-            if item.pk == row.pk:
-                continue
-            if not item.name or "/" in item.name or item.name in (".", ".."):
-                raise ValidationError("Skill文件名无效")
-            path = prefix + item.name
-            if item.entry_type == "folder":
-                visit(item.pk, path + "/", seen | {parent})
-            elif item.object_key:
-                resources.append(
-                    {
-                        "path": path,
-                        "name": item.name,
-                        "download_url": storage.download(item.object_key),
-                        "file_ext": item.file_ext or "",
-                        "file_size": item.file_size or 0,
-                    }
-                )
 
-    # A root SKILL.md does not gain access to unrelated root skills/files.
-    if row.parent_id:
-        visit(row.parent_id, "", set())
-    sandbox = scope_queryset(
-        SandboxConfig.objects.filter(deleted=False, enabled=True), scope
-    ).first()
+def skill_payload(row, packages, sandbox):
+    resources = packages.resources(row)
+    validate_skill_package(row, resources)
     return {
         "skill_id": str(row.pk),
         "name": row.skill_name or row.name,
         "description": (row.skill_description or "")[:1024],
         "download_url": storage.download(row.object_key),
-        "resources": resources,
-        "sandbox": {"enabled": bool(sandbox), "space_id": str(scope.space_id or "")},
+        "resources": [
+            {
+                "path": path,
+                "name": item.name,
+                "download_url": storage.download(item.object_key),
+                "file_ext": item.file_ext or "",
+                "file_size": item.file_size or 0,
+            }
+            for path, item in resources
+        ],
+        "sandbox": sandbox,
     }
 
 
@@ -178,12 +168,14 @@ def resolve_resources(scope, definition, *, runtime=True):
     skills = refs(definition.get("skills"))
     if skills:
         query = scope_queryset(SkillFile.objects.filter(deleted=False), scope)
-        for value in skills:
-            row = select(query, value, "fileId", "skillId", "skill_id")
-            if row.name != "SKILL.md" or row.entry_type != "file":
-                raise ValidationError("Skill必须引用SKILL.md")
-            if runtime:
-                plugin["skills"].append(skill_payload(row, scope))
+        rows = skill_rows(query, skills)
+        if runtime:
+            packages = SkillPackages(query)
+            enabled = scope_queryset(
+                SandboxConfig.objects.filter(deleted=False, enabled=True), scope
+            ).exists()
+            sandbox = {"enabled": enabled, "space_id": str(scope.space_id or "")}
+            plugin["skills"] = [skill_payload(row, packages, sandbox) for row in rows]
     repos = refs(definition.get("repoIds"))
     if repos:
         query = repo_query(scope)
@@ -271,7 +263,15 @@ def resources(request, agent_id):
         ),
         (
             "skills",
-            lambda: scope_queryset(SkillFile.objects.filter(deleted=False, name="SKILL.md"), scope),
+            lambda: scope_queryset(
+                SkillFile.objects.filter(
+                    deleted=False,
+                    name=SKILL_ENTRY_NAME,
+                    entry_type="file",
+                    object_key__isnull=False,
+                ).exclude(object_key=""),
+                scope,
+            ),
             "skill_name",
         ),
         ("repos", lambda: repo_query(scope), "name"),
@@ -300,10 +300,7 @@ def snapshot_references(scope, definition):
     resolve_resources(scope, result, runtime=False)
     result["tools"] = [select_tool(tool_query(scope), x).pk for x in refs(result.get("tools"))]
     skill_query = scope_queryset(SkillFile.objects.filter(deleted=False), scope)
-    result["skills"] = [
-        select(skill_query, x, "fileId", "skillId", "skill_id").pk
-        for x in refs(result.get("skills"))
-    ]
+    result["skills"] = [row.pk for row in skill_rows(skill_query, refs(result.get("skills")))]
     result["repoIds"] = [
         select(repo_query(scope), x, "repoId").pk for x in refs(result.get("repoIds"))
     ]

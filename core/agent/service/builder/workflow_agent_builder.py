@@ -13,6 +13,7 @@ from agent.engine.deepagents_runner import DeepAgentsRunner
 from agent.exceptions.plugin_exc import KnowledgeQueryExc
 from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.knowledge import KnowledgePluginFactory
+from agent.service.plugin.skill_sandbox import SkillSandboxConfig
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 
@@ -43,14 +44,13 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             )
 
             try:
-                skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
-                self._inject_skill_runtime_context(skills)
+                skills = self.inputs.plugin.skills
+                sandbox_config = self._skill_sandbox_config()
                 plugins = await self.build_plugins(
                     tool_ids=self.inputs.plugin.tools,
                     mcp_server_ids=self.inputs.plugin.mcp_server_ids,
                     mcp_server_urls=self.inputs.plugin.mcp_server_urls,
                     workflow_ids=self.inputs.plugin.workflow_ids,
-                    skills=skills,
                     console_context=self.inputs.meta_data.console_context,
                 )
                 metadata_list, knowledge = await self.query_knowledge_by_workflow(
@@ -59,6 +59,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 engine = DeepAgentsRunner(
                     model_handle=model,
                     plugins=plugins,
+                    skills=skills,
+                    skill_sandbox_config=sandbox_config,
                     chat_history=self.inputs.get_chat_history(),
                     reasoning_instruction=self.inputs.instruction.reasoning,
                     answer_instruction=self.inputs.instruction.answer,
@@ -74,56 +76,34 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 await model.aclose()
                 raise
 
-    def _inject_skill_runtime_context(self, skills: list[dict[str, Any]]) -> None:
-        for skill in skills:
-            sandbox = skill.get("sandbox")
-            if not isinstance(sandbox, dict) or not sandbox:
-                continue
-            for untrusted_key in (
-                "provider",
-                "apiKey",
-                "api_key",
-                "timeoutSeconds",
-                "timeout_seconds",
-                "allowInternetAccess",
-                "allow_internet_access",
-                "runtimeConfigUrl",
-                "runtime_config_url",
-                "artifactUploadUrl",
-                "artifact_upload_url",
-                "artifactUploadToken",
-                "artifact_upload_token",
-                "runtimeCredentialToken",
-                "runtime_credential_token",
-                "workflowId",
-                "flowId",
-                "runId",
-                "nodeId",
-            ):
-                sandbox.pop(untrusted_key, None)
-            context = self.inputs.meta_data.console_context
-            if context and any(
-                not isinstance(context.get(key), str) or not context[key]
-                for key in ("run_id", "root_id")
-            ):
-                raise ValueError("Console artifact execution context is incomplete")
-            if context and context["run_id"] != self.inputs.meta_data.run_id:
-                raise ValueError("Console artifact run identity does not match")
-            sandbox["console"] = bool(context)
-            sandbox["root_id"] = context.get("root_id", "")
-            sandbox["uid"] = self.inputs.meta_data.execution_uid or self.inputs.uid
-            sandbox["artifact_uid"] = self.inputs.uid
-            sandbox["workflow_id"] = self.inputs.meta_data.workflow_id
-            sandbox["run_id"] = (
-                self.inputs.meta_data.run_id or self.inputs.meta_data.caller_sid
-            )
-            sandbox["node_id"] = self.inputs.meta_data.node_id
-            sandbox["agent_id"] = self.inputs.meta_data.agent_id
-            sandbox["session_id"] = self.inputs.meta_data.session_id
-            if context or self.inputs.meta_data.agent_id:
-                # Console owns the execution scope; never trust Skill JSON.
-                sandbox["space_id"] = self.inputs.meta_data.space_id
-                sandbox["spaceId"] = self.inputs.meta_data.space_id
+    def _skill_sandbox_config(self) -> SkillSandboxConfig | None:
+        # Use the trusted execution scope instead of copying fields from Skill JSON.
+        if not any(
+            skill.sandbox.get("enabled") is True for skill in self.inputs.plugin.skills
+        ):
+            return None
+        metadata = self.inputs.meta_data
+        context = metadata.console_context
+        if context and any(
+            not isinstance(context.get(key), str) or not context[key]
+            for key in ("run_id", "root_id")
+        ):
+            raise ValueError("Console artifact execution context is incomplete")
+        if context and context["run_id"] != metadata.run_id:
+            raise ValueError("Console artifact run identity does not match")
+        return SkillSandboxConfig(
+            enabled=True,
+            console=bool(context),
+            root_id=context.get("root_id", ""),
+            uid=str(metadata.execution_uid or self.inputs.uid),
+            artifact_uid=str(self.inputs.uid),
+            workflow_id=str(metadata.workflow_id or ""),
+            run_id=str(metadata.run_id or metadata.caller_sid),
+            node_id=str(metadata.node_id or ""),
+            agent_id=str(metadata.agent_id or ""),
+            session_id=str(metadata.session_id or ""),
+            space_id=str(metadata.space_id or ""),
+        )
 
     async def query_knowledge_by_workflow(
         self, knowledge_list: list[CustomCompletionPluginKnowledgeInputs], span: Span

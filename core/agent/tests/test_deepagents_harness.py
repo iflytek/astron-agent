@@ -706,3 +706,100 @@ def test_same_name_tools_from_distinct_resources_have_stable_aliases(
     assert [tool.name for tool in forward] == [tool.name for tool in reversed(reverse)]
     with pytest.raises(ValueError):
         build_plugin_tools([first, first], context[0])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sandbox_enabled", [False, True])
+async def test_native_skills_disclose_only_metadata_and_use_shared_tools(
+    context: Any, monkeypatch: pytest.MonkeyPatch, sandbox_enabled: bool
+) -> None:
+    from deepagents.backends.protocol import ExecuteResponse
+
+    from agent.api.schemas.workflow_agent_inputs import (
+        CustomCompletionPluginSkillInputs,
+    )
+    from agent.engine.skill_sandbox import NativeSkillSandbox
+    from agent.service.plugin.skill_sandbox import SkillSandboxConfig
+
+    content = {
+        "entry": b"---\nname: csv-check\ndescription: Inspect CSV headers\n---\nPrivate instructions",
+        "reference": b"Required columns: year, month",
+        "legacy": b"Legacy Skill body",
+        "header-only": b"---\nname: header-only\ndescription: Header ends at EOF\n---",
+    }
+
+    async def download(session: Any, url: str, limit: int) -> bytes:
+        return content[url]
+
+    captured = []
+
+    async def execute(
+        self: Any, command: str, timeout: int | None = None
+    ) -> ExecuteResponse:
+        captured.append(command)
+        return ExecuteResponse(output="Script ran", exit_code=0)
+
+    monkeypatch.setattr(
+        "agent.engine.skill_files.validate_skill_resource_url", lambda url: url
+    )
+    monkeypatch.setattr("agent.engine.skill_files.download_skill_resource", download)
+    monkeypatch.setattr(NativeSkillSandbox, "aexecute", execute)
+    skill = CustomCompletionPluginSkillInputs(
+        name="csv-check",
+        skill_id="1",
+        download_url="entry",
+        resources=[
+            CustomCompletionPluginSkillInputs.ResourceInputs(
+                path="references/columns.md", download_url="reference"
+            )
+        ],
+    )
+    legacy = CustomCompletionPluginSkillInputs(
+        name="Legacy Workflow",
+        description="Older Skill still works",
+        skill_id="2",
+        download_url="legacy",
+    )
+
+    header_only = CustomCompletionPluginSkillInputs(
+        name="header-only",
+        skill_id="3",
+        download_url="header-only",
+    )
+
+    turns = [
+        call("read_file", "read-entry", {"file_path": "/skills/csv-check/SKILL.md"}),
+        call(
+            "read_file",
+            "read-reference",
+            {"file_path": "/skills/csv-check/references/columns.md"},
+        ),
+    ]
+    if sandbox_enabled:
+        turns.append(call("execute", "run", {"command": "echo hello"}))
+    turns.extend([answer("ready"), answer("done")])
+    runner, model = engine(
+        turns,
+        skills=[skill, skill, legacy, header_only],
+        skill_sandbox_config=(
+            SkillSandboxConfig(enabled=True) if sandbox_enabled else None
+        ),
+    )
+
+    span, trace, _ = context
+    responses = [response async for response in runner.run(span, trace)]
+    prompt = str(model.prompts[0][0].content)
+    assert "Inspect CSV headers" in prompt and "Older Skill still works" in prompt
+    assert "Header ends at EOF" in prompt
+    assert "Private instructions" not in prompt and "Required columns" not in prompt
+    assert not any(
+        name.startswith(("read_skill_", "run_skill_")) for name in model.bindings[0]
+    )
+    assert "read_file" in model.bindings[0]
+    assert ("execute" in model.bindings[0]) is sandbox_enabled
+    tool_results = [r.content for r in responses if r.typ == "tool_result"]
+    assert "Private instructions" in str(tool_results[0].action_output)
+    assert "Required columns" in str(tool_results[1].action_output)
+    assert captured == (["echo hello"] if sandbox_enabled else [])
+    if sandbox_enabled:
+        assert "Script ran" in str(tool_results[2].action_output)

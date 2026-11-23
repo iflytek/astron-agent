@@ -50,6 +50,7 @@ dependencies = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "redis-py-cluster" },
     { name = "snowflake-id" },
     { name = "sqlalchemy" },
@@ -58,6 +59,11 @@ dependencies = [
     { name = "uvicorn" },
     { name = "websocket-client" },
     { name = "websockets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -99,6 +105,7 @@ requires-dist = [
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-mock", specifier = ">=3.12.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
+    { name = "pyyaml", specifier = ">=6,<7" },
     { name = "redis-py-cluster", specifier = ">=2.1.3" },
     { name = "snowflake-id", specifier = ">=1.0.2" },
     { name = "sqlalchemy", specifier = "==2.0.30" },
@@ -108,6 +115,9 @@ requires-dist = [
     { name = "websocket-client", specifier = "==1.8.0" },
     { name = "websockets", specifier = ">=15,<16" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "types-pyyaml", specifier = ">=6.0.12.20261122" }]
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -3125,6 +3135,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ee/9f/c5201d42a484c061e528825fc8e2d565f5abd50a4ced6fb7d29c4ec99b2b/truststore-0.10.5.tar.gz", hash = "sha256:30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd", size = 28091, upload-time = "2026-10-12T22:27:31.808Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/51/e9/3a7820be2bb0fe53b6bc9c3be26d3d1158004e4c3ab953aa6840b955b1e9/truststore-0.10.5-py3-none-any.whl", hash = "sha256:9aaaedaefaf06d8b206278cf8b5012bc897f485a874503501e12d776df78951c", size = 19017, upload-time = "2026-10-12T22:27:30.377Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20261122"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3d/fe/e4d32b089d06f3b5d2f3f1909b1cb450ce2e18ea6e2c1863d2b29ad0090e/types_pyyaml-6.0.12.20261122.tar.gz", hash = "sha256:7fa577c893a1db255cbb02320884ffcb97b7a219fe515bec6c5f15d5d3af41ed", size = 19093, upload-time = "2026-11-22T08:57:28.481Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4c/71/8dc5553ca25c3a4799ce789f8300d2c3933d427585222c431c77450ed60d/types_pyyaml-6.0.12.20261122-py3-none-any.whl", hash = "sha256:689fbbe883b60471166dede9dba6ac0dbdbcf0ea98062d7ec195430f5bbdb009", size = 21356, upload-time = "2026-11-22T08:57:27.509Z" },
 ]
 
 [[package]]

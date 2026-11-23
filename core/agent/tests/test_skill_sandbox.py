@@ -1,4 +1,4 @@
-"""Test SkillPlugin and SkillPluginFactory"""
+"""Exercise E2B Skill sandbox and artifact helpers."""
 
 import json
 import subprocess
@@ -6,13 +6,11 @@ import sys
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from common.otlp import sid as sid_module
-from common.otlp.trace.span import Span
 
-from agent.service.plugin.skill import SkillPlugin, SkillPluginFactory
 from agent.service.plugin.skill_resource_security import (
     SKILL_RESOURCE_TRUSTED_BUCKET_ENV,
     SKILL_RESOURCE_TRUSTED_ORIGIN_ENV,
@@ -52,45 +50,6 @@ from agent.service.plugin.skill_sandbox import (
     _runtime_config_query,
 )
 
-_SIGV4_QUERY = (
-    "X-Amz-Algorithm=AWS4-HMAC-SHA256&"
-    "X-Amz-Credential=test%2F20260824%2Fus-east-1%2Fs3%2Faws4_request&"
-    "X-Amz-Date=20260824T000000Z&X-Amz-Expires=300&"
-    "X-Amz-SignedHeaders=host&X-Amz-Signature=" + "a" * 64
-)
-_SKILL_URL = f"https://example.com/console-oss/skill-files/user/skill.md?{_SIGV4_QUERY}"
-_REFERENCE_URL = (
-    f"https://example.com/console-oss/skill-files/user/beijing.md?{_SIGV4_QUERY}"
-)
-_SCRIPT_URL = (
-    f"https://example.com/console-oss/skill-files/user/clean.py?{_SIGV4_QUERY}"
-)
-
-
-class _FakeStreamingContent:
-    def __init__(self, value: bytes) -> None:
-        self.value = value
-
-    async def iter_chunked(self, _size: int) -> Any:
-        yield self.value
-
-
-class _FakeDownloadResponse:
-    def __init__(self, value: str) -> None:
-        self._value = value.encode()
-        self.content = _FakeStreamingContent(self._value)
-        self.content_length = len(self._value)
-        self.status = 200
-
-    async def __aenter__(self) -> "_FakeDownloadResponse":
-        return self
-
-    async def __aexit__(self, *args: Any) -> None:
-        return None
-
-    def raise_for_status(self) -> None:
-        return None
-
 
 @dataclass
 class _DummySidGen:
@@ -111,242 +70,7 @@ def _setup_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(SKILL_RESOURCE_TRUSTED_BUCKET_ENV, "console-oss")
 
 
-class TestSkillPluginFactory:
-    """Test SkillPluginFactory class"""
-
-    @pytest.fixture
-    def factory(self) -> SkillPluginFactory:
-        """Create Factory instance for testing"""
-        return SkillPluginFactory(
-            skills=[
-                {
-                    "skill_id": "skill-1",
-                    "name": "ui-ux-pro-max",
-                    "description": "Design reference skill",
-                    "download_url": _SKILL_URL,
-                    "resources": [
-                        {
-                            "path": "references/beijing.md",
-                            "name": "beijing.md",
-                            "download_url": _REFERENCE_URL,
-                            "file_ext": "md",
-                            "file_size": 128,
-                        }
-                    ],
-                }
-            ]
-        )
-
-    def test_gen(self, factory: SkillPluginFactory) -> None:
-        """Test generating SkillPlugin"""
-        plugins = factory.gen()
-
-        assert len(plugins) == 2
-        assert isinstance(plugins[0], SkillPlugin)
-        assert plugins[0].name == "read_skill_skill-1"
-        assert plugins[0].typ == "skill"
-        assert plugins[1].name == "run_skill_skill-1"
-        assert plugins[1].typ == "skill"
-        assert "working_dir" not in plugins[1].schema_template
-        assert "output_dir" not in plugins[1].schema_template
-
-    def test_gen_rejects_invalid_skills(self) -> None:
-        """Test rejecting incomplete configured skills"""
-        factory = SkillPluginFactory(
-            skills=[
-                {
-                    "skill_id": "skill-1",
-                    "name": "missing-download-url",
-                },
-                {
-                    "name": "missing-id",
-                    "download_url": _SKILL_URL,
-                },
-            ]
-        )
-
-        with pytest.raises(ValueError):
-            factory.gen()
-
-    def test_sandbox_config_ignores_untrusted_payload_credentials(self) -> None:
-        """Runtime payload credentials are not retained in the sandbox model."""
-        factory = SkillPluginFactory(skills=[])
-
-        config = factory._normalize_sandbox_config(
-            {
-                "provider": "e2b",
-                "enabled": True,
-                "artifactUploadUrl": "http://hub/internal-upload",
-                "artifactUploadToken": "payload-token-must-not-be-used",
-                "apiKey": "legacy-api-key-must-not-be-used",
-                "api_key": "legacy-snake-api-key-must-not-be-used",
-                "runtimeConfigUrl": "https://attacker.example/runtime-config",
-                "runtime_config_url": "https://attacker.example/snake-runtime-config",
-                "runtimeCredentialToken": "payload-runtime-token-must-not-be-used",
-                "runtime_credential_token": "snake-runtime-token-must-not-be-used",
-                "workflowId": "flow-1",
-                "uid": "user-1",
-            }
-        )
-
-        assert config is not None
-        dumped = config.model_dump()
-        assert "provider" not in dumped
-        assert "timeout_seconds" not in dumped
-        assert "allow_internet_access" not in dumped
-        assert "artifact_upload_url" not in dumped
-        assert "artifact_upload_token" not in dumped
-        assert "api_key" not in dumped
-        assert "runtime_config_url" not in dumped
-        assert "runtime_credential_token" not in dumped
-
-    @pytest.mark.asyncio
-    async def test_runner_reads_skill_content(
-        self, factory: SkillPluginFactory
-    ) -> None:
-        """Test downloading full skill content on demand"""
-        plugin = factory.gen()[0]
-        span = Span(app_id="test_app", uid="test_uid")
-
-        def mock_get(
-            *args: Any, **kwargs: Any
-        ) -> _FakeDownloadResponse:  # noqa: ANN001
-            return _FakeDownloadResponse("# Skill\n\nFull content")
-
-        with patch("aiohttp.ClientSession.get", new=mock_get):
-            response = await plugin.run({}, span)
-
-        assert response.result["skill_id"] == "skill-1"
-        assert response.result["name"] == "ui-ux-pro-max"
-        assert response.result["description"] == "Design reference skill"
-        assert response.result["content"] == "# Skill\n\nFull content"
-        assert response.result["resources"] == [
-            {
-                "path": "references/beijing.md",
-                "name": "beijing.md",
-                "file_ext": "md",
-                "file_size": 128,
-            }
-        ]
-
-    @pytest.mark.asyncio
-    async def test_runner_reads_skill_resource_by_path(
-        self, factory: SkillPluginFactory
-    ) -> None:
-        """Test downloading referenced skill resource on demand"""
-        plugin = factory.gen()[0]
-        span = Span(app_id="test_app", uid="test_uid")
-
-        def mock_get(
-            *args: Any, **kwargs: Any
-        ) -> _FakeDownloadResponse:  # noqa: ANN001
-            url = str(args[1]) if len(args) > 1 else ""
-            return _FakeDownloadResponse(
-                "北京参考内容" if "beijing.md" in url else "# Skill\n\nFull content"
-            )
-
-        with patch("aiohttp.ClientSession.get", new=mock_get):
-            response = await plugin.run({"path": "references/beijing.md"}, span)
-
-        assert response.result["skill_id"] == "skill-1"
-        assert response.result["path"] == "references/beijing.md"
-        assert response.result["content"] == "北京参考内容"
-
-    @pytest.mark.asyncio
-    async def test_run_skill_returns_fixed_message_without_sandbox_config(
-        self, factory: SkillPluginFactory
-    ) -> None:
-        """Test executable skill tool returns a stable model-readable message."""
-        plugin = factory.gen()[1]
-        span = Span(app_id="test_app", uid="test_uid")
-
-        response = await plugin.run({"command": "python -m scripts.clean"}, span)
-
-        assert response.result == {
-            "skill_id": "skill-1",
-            "configured": False,
-            "message": (
-                "当前环境未配置脚本沙箱，暂不支持直接执行 Skill 脚本。"
-                "你可以向用户说明需要管理员在资源管理中配置脚本沙箱后才能运行。"
-            ),
-        }
-
-    @pytest.mark.asyncio
-    async def test_run_skill_executes_configured_sandbox_provider(self) -> None:
-        """Test executable skill tool delegates command execution to sandbox provider."""
-        factory = SkillPluginFactory(
-            skills=[
-                {
-                    "skill_id": "skill-1",
-                    "name": "script-skill",
-                    "download_url": _SKILL_URL,
-                    "sandbox": {
-                        "provider": "local",
-                        "enabled": True,
-                        "api_key": "legacy-api-key-must-not-be-used",
-                        "runtimeConfigUrl": "https://attacker.example/runtime-config",
-                        "workflowId": "flow-1",
-                        "timeout_seconds": 12,
-                        "allow_internet_access": False,
-                    },
-                    "resources": [
-                        {
-                            "path": "scripts/clean.py",
-                            "download_url": _SCRIPT_URL,
-                            "file_ext": "py",
-                            "file_size": 64,
-                        }
-                    ],
-                }
-            ]
-        )
-        plugin = factory.gen()[1]
-        span = Span(app_id="test_app", uid="test_uid")
-
-        class FakeProvider:
-            def __init__(self, config: Any) -> None:
-                self.config = config
-
-            async def execute(self, request: Any) -> dict[str, Any]:
-                assert request.command == "python -m scripts.clean"
-                assert request.stdin == {"value": 1}
-                assert request.working_dir == "."
-                assert request.output_dir == "."
-                assert request.resources[0].path == "scripts/clean.py"
-                assert self.config.workflow_id == "flow-1"
-                assert "provider" not in self.config.model_dump()
-                assert "timeout_seconds" not in self.config.model_dump()
-                assert "allow_internet_access" not in self.config.model_dump()
-                assert "api_key" not in self.config.model_dump()
-                assert "runtime_config_url" not in self.config.model_dump()
-                return {
-                    "sandbox_provider": "e2b",
-                    "configured": True,
-                    "command": request.command,
-                    "working_dir": request.working_dir,
-                    "exit_code": 0,
-                    "stdout": '{"ok": true}',
-                    "stderr": "",
-                    "artifacts": [],
-                }
-
-        with patch(
-            "agent.service.plugin.skill_sandbox.E2BSandboxProvider", FakeProvider
-        ):
-            response = await plugin.run(
-                {
-                    "command": "python -m scripts.clean",
-                    "stdin": {"value": 1},
-                    "working_dir": "scripts",
-                    "output_dir": "output",
-                },
-                span,
-            )
-
-        assert response.result["configured"] is True
-        assert response.result["sandbox_provider"] == "e2b"
-        assert response.result["result_json"] == {"ok": True}
-
+class TestSkillSandbox:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("config", "expected_params"),

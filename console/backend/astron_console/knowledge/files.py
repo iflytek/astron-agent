@@ -9,18 +9,22 @@ import mimetypes
 import re
 import uuid
 import zipfile
+from contextlib import contextmanager
 from datetime import timedelta
+from itertools import pairwise
 from pathlib import PurePosixPath
 from urllib.parse import quote
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import connection, transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.http import FileResponse, Http404, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
+from astron_console.accounts.models import User
 from astron_console.http import api_endpoint
+from astron_console.spaces.models import Space
 from astron_console.spaces.permissions import (
     ResourceScope,
     resolve_scope,
@@ -35,6 +39,15 @@ from . import clients, storage
 from .artifact_queries import exclude_public_artifacts
 from .common import dump, filename, number, payload, save, text
 from .models import Artifact, SkillFile, WorkflowIdentity
+from .skill_packages import (
+    MAX_SKILL_FILE_BYTES,
+    MAX_SKILL_RESOURCES,
+    SKILL_ENTRY_NAME,
+    SkillPackages,
+    is_skill_entry,
+    validate_attachment_limits,
+    validate_skill_file_size,
+)
 
 logger = logging.getLogger(__name__)
 SKILL_EXTENSIONS = {
@@ -73,28 +86,28 @@ def skill_scope(request):
     return scope
 
 
-def skill_entry(request, id):
-    row = (
-        scope_queryset(SkillFile.objects.filter(deleted=False), skill_scope(request))
-        .filter(pk=number(id))
-        .first()
-    )
+def skill_entry(query, id):
+    row = query.filter(pk=number(id)).first()
     if not row:
         raise Http404()
     return row
 
 
-def parent_skill(request, id):
+def parent_skill(query, id):
     parent = number(id, 0, minimum=0)
-    if parent and skill_entry(request, parent).entry_type != "folder":
+    if parent and skill_entry(query, parent).entry_type != "folder":
         raise ValidationError("父节点不是目录")
     return parent
 
 
-def unique_skill(request, parent, name, exclude=None):
-    query = scope_queryset(
-        SkillFile.objects.filter(parent_id=parent, name=name, deleted=False), skill_scope(request)
-    )
+def skill_siblings(query, parent):
+    if not parent:
+        return query.filter(Q(parent_id=0) | Q(parent_id__isnull=True))
+    return query.filter(parent_id=parent)
+
+
+def unique_skill(query, parent, name, exclude=None):
+    query = skill_siblings(query, parent).filter(name=name)
     if exclude:
         query = query.exclude(pk=exclude)
     if query.exists():
@@ -112,12 +125,73 @@ def skill_name(name):
     return name
 
 
-def write_skill(row, content):
+def skill_content_bytes(content):
     if not isinstance(content, str):
         raise ValidationError("内容必须是文本")
     encoded = content.encode("utf-8")
-    if len(encoded) > 5 * 1024 * 1024:
-        raise ValidationError("Skill文件超过5MB")
+    validate_skill_file_size(len(encoded))
+    return encoded
+
+
+def skill_content_text(value):
+    validate_skill_file_size(len(value))
+    try:
+        return value.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValidationError("Skill文件不是UTF-8文本") from None
+
+
+def read_skill(row):
+    validate_skill_file_size(row.file_size or 0)
+    return skill_content_text(storage.read(row.object_key))
+
+
+def update_skill_metadata(row, content):
+    row.skill_name = ""
+    row.skill_description = ""
+    if not is_skill_entry(row):
+        return
+    row.skill_name = "SKILL"
+    front = re.match(r"\A---[ \t]*\r?\n(.*?)^---[ \t]*(?:\r?\n|\Z)", content, re.M | re.S)
+    if front:
+        for key, field in (("name", "skill_name"), ("description", "skill_description")):
+            value = re.search(rf"^{key}:[ \t]*(.+)$", front[1], re.M)
+            if value:
+                setattr(row, field, value[1].strip(" \t\r\"'"))
+
+
+def remove_skill_object(key):
+    try:
+        storage.remove(key)
+    except clients.ResourceServiceError:
+        logger.exception("Skill object cleanup failed key=%s", key)
+
+
+@contextmanager
+def skill_transaction(scope, query):
+    new_keys = []
+    try:
+        with transaction.atomic():
+            # Serialize mutations even when the scope has no Skill rows yet.
+            if scope.space_id:
+                Space.objects.select_for_update().only("pk").get(pk=scope.space_id)
+            else:
+                User.objects.select_for_update().only("pk").get(pk=scope.uid)
+            before = SkillPackages(query.all()).attachment_usage()
+            yield new_keys
+            after = SkillPackages(query.all()).attachment_usage()
+            for skill_id, (count, size) in after.items():
+                # Existing oversized packages may be repaired in several edits.
+                validate_attachment_limits(count, size, previous=before.get(skill_id, (0, 0)))
+    except Exception:
+        for key in new_keys:
+            remove_skill_object(key)
+        raise
+
+
+def write_skill(row, content, new_keys):
+    encoded = skill_content_bytes(content)
+    update_skill_metadata(row, content)
     old = row.object_key
     scope = (
         "space-" + str(row.space_id)
@@ -125,49 +199,32 @@ def write_skill(row, content):
         else "user-" + hashlib.sha256(row.uid.encode()).hexdigest()[:24]
     )
     key = "skill-files/" + scope + "/" + uuid.uuid4().hex + "/" + row.name
+    new_keys.append(key)
     storage.put(key, io.BytesIO(encoded), len(encoded), "text/plain; charset=utf-8")
     row.object_key = key
     row.file_size = len(encoded)
     row.content_type = "text/plain; charset=utf-8"
     row.file_ext = row.name.rsplit(".", 1)[-1].lower()
-    if row.name == "SKILL.md":
-        row.skill_name = "SKILL"
-        row.skill_description = ""
-        if content.startswith("---\n"):
-            front = content.split("---", 2)[1]
-            for key_name, target in [("name", "skill_name"), ("description", "skill_description")]:
-                found = re.search(r"^" + key_name + r":\s*(.+)$", front, re.M)
-                if found:
-                    setattr(row, target, found[1].strip(" \"'"))
-    try:
-        save(row)
-    except Exception:
-        storage.remove(key)
-        raise
+    save(row)
     if old and old != key:
-        storage.remove(old)
+        transaction.on_commit(lambda: remove_skill_object(old))
     return row
 
 
-def skill_dump(row, content=False):
+def skill_dump(row, content=None):
     result = dump(row)
-    result["skillEntry"] = row.name == "SKILL.md" and row.entry_type == "file"
+    result["skillEntry"] = is_skill_entry(row)
     if row.entry_type == "file":
         result["downloadUrl"] = storage.download(row.object_key, name=row.name)
-        if content:
-            try:
-                result["content"] = storage.read(row.object_key).decode("utf-8")
-            except UnicodeDecodeError:
-                raise ValidationError("Skill文件不是UTF-8文本") from None
+        if content is not None:
+            result["content"] = content
     else:
         result["children"] = []
     return result
 
 
-def new_skill(request, parent, name, content=None):
-    name = filename(name) if content is None else skill_name(name)
-    unique_skill(request, parent, name)
-    scope = skill_scope(request)
+def new_skill(query, scope, parent, name, new_keys, content=None):
+    unique_skill(query, parent, name)
     row = SkillFile(
         uid=scope.uid,
         space_id=scope.space_id,
@@ -175,7 +232,7 @@ def new_skill(request, parent, name, content=None):
         name=name,
         entry_type="folder" if content is None else "file",
     )
-    return save(row) if content is None else write_skill(row, content)
+    return save(row) if content is None else write_skill(row, content, new_keys)
 
 
 def delete_skill(row, entries, seen=None):
@@ -186,10 +243,11 @@ def delete_skill(row, entries, seen=None):
     for child in entries:
         if child.parent_id == row.pk:
             delete_skill(child, entries, seen)
-    if row.object_key:
-        storage.remove(row.object_key)
     row.deleted = True
     save(row)
+    if row.object_key:
+        key = row.object_key
+        transaction.on_commit(lambda: remove_skill_object(key))
 
 
 def skill_tree(entries, keyword=""):
@@ -214,163 +272,166 @@ def skill_tree(entries, keyword=""):
     return roots
 
 
+def importable_skills(entries, keyword):
+    lookup = {row.pk: row for row in entries}
+    packages = SkillPackages(entries)
+    result = []
+    for row in entries:
+        if not is_skill_entry(row) or not row.object_key:
+            continue
+        if (
+            keyword
+            and keyword.lower()
+            not in ((row.skill_name or "") + " " + (row.skill_description or "")).lower()
+        ):
+            continue
+        result.append(
+            {
+                "id": row.pk,
+                "parentId": row.parent_id,
+                "folderName": lookup[row.parent_id].name if row.parent_id in lookup else "",
+                "fileName": row.name,
+                "name": row.skill_name or row.name,
+                "description": row.skill_description or "",
+                "downloadUrl": storage.download(row.object_key, name=row.name),
+                "resources": [
+                    {
+                        "path": path,
+                        "name": item.name,
+                        "downloadUrl": storage.download(item.object_key, name=item.name),
+                        "fileExt": item.file_ext or "",
+                        "fileSize": item.file_size or 0,
+                    }
+                    for path, item in packages.resources(row)
+                ],
+                "updateTime": row.update_time,
+            }
+        )
+    return result
+
+
+def skill_upload_plan(request, directory):
+    uploaded = request.FILES.getlist("files")
+    if not uploaded or len(uploaded) > MAX_SKILL_RESOURCES:
+        raise ValidationError("请选择1到100个文件")
+    paths = [file.name for file in uploaded]
+    if directory:
+        paths = request.POST.getlist("paths")
+        raw_paths = request.POST.get("pathsJson")
+        if not raw_paths and len(paths) == 1 and paths[0].startswith("["):
+            raw_paths = paths[0]
+        if raw_paths:
+            try:
+                paths = json.loads(raw_paths)
+            except ValueError:
+                raise ValidationError("无效上传路径") from None
+        if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+            raise ValidationError("无效上传路径")
+        if len(paths) != len(uploaded):
+            raise ValidationError("路径与文件数量不一致")
+    plan = {}
+    for file, path in zip(uploaded, paths, strict=True):
+        validate_skill_file_size(file.size)
+        segments = path.split("/")
+        parts = (*map(filename, segments[:-1]), skill_name(segments[-1]))
+        if parts in plan:
+            raise ValidationError("同一目录存在重名文件")
+        skill_content_text(file.read(MAX_SKILL_FILE_BYTES + 1))
+        file.seek(0)
+        plan[parts] = file
+    if any(following[: len(parts)] == parts for parts, following in pairwise(sorted(plan))):
+        raise ValidationError("路径被文件占用")
+    return plan
+
+
+def upload_skill_files(query, scope, parent, plan, new_keys):
+    result = []
+    for parts, file in plan.items():
+        directory_id = parent
+        for folder in parts[:-1]:
+            entry = skill_siblings(query, directory_id).filter(name=folder).first()
+            if entry and entry.entry_type != "folder":
+                raise ValidationError("路径被文件占用")
+            if entry is None:
+                entry = new_skill(query, scope, directory_id, folder, new_keys)
+            directory_id = entry.pk
+        content = skill_content_text(file.read(MAX_SKILL_FILE_BYTES + 1))
+        row = new_skill(query, scope, directory_id, parts[-1], new_keys, content)
+        result.append(skill_dump(row))
+    return result
+
+
 @api_endpoint(["GET", "POST", "PUT", "DELETE"])
 @clients.service_errors
 def skills(request, action="delete"):
     p = payload(request)
     scope = skill_scope(request)
-    if action in ("tree", "importable"):
-        entries = list(
-            scope_queryset(SkillFile.objects.filter(deleted=False), scope).order_by(
-                "sort_order", "id"
-            )
-        )
-        lookup = {r.pk: r for r in entries}
-        if action == "tree":
-            return skill_tree(entries, p.get("keyword", ""))
-        result = []
-        for row in entries:
-            if row.name != "SKILL.md" or row.entry_type != "file":
-                continue
-            if (
-                p.get("keyword")
-                and p["keyword"].lower()
-                not in ((row.skill_name or "") + " " + (row.skill_description or "")).lower()
-            ):
-                continue
-            resources = []
-            for item in entries:
-                if item.entry_type != "file" or item.pk == row.pk:
-                    continue
-                path = [item.name]
-                parent = item.parent_id
-                seen = set()
-                while parent != row.parent_id and parent in lookup and parent not in seen:
-                    seen.add(parent)
-                    path.insert(0, lookup[parent].name)
-                    parent = lookup[parent].parent_id
-                if parent == row.parent_id:
-                    resources.append(
-                        {
-                            "path": "/".join(path),
-                            "name": item.name,
-                            "downloadUrl": storage.download(item.object_key, name=item.name),
-                            "fileExt": item.file_ext,
-                            "fileSize": item.file_size,
-                        }
-                    )
-            result.append(
-                {
-                    "id": row.pk,
-                    "parentId": row.parent_id,
-                    "folderName": lookup[row.parent_id].name if row.parent_id in lookup else "",
-                    "fileName": row.name,
-                    "name": row.skill_name or row.name,
-                    "description": row.skill_description or "",
-                    "downloadUrl": storage.download(row.object_key, name=row.name),
-                    "resources": resources,
-                    "updateTime": row.update_time,
-                }
-            )
-        return result
-    if action == "content" and request.method == "GET":
-        return skill_dump(skill_entry(request, p.get("id")), True)
+    query = scope_queryset(SkillFile.objects.filter(deleted=False), scope)
+    if action == "tree":
+        return skill_tree(list(query.order_by("sort_order", "id")), p.get("keyword", ""))
+    if action == "importable":
+        return importable_skills(list(query.order_by("sort_order", "id")), p.get("keyword", ""))
     if request.method == "GET":
-        raise ValidationError("修改需要POST、PUT或DELETE")
-    if action in ("folder", "file"):
-        return skill_dump(
-            new_skill(
-                request,
-                parent_skill(request, p.get("parentId")),
-                p.get("name"),
-                None if action == "folder" else p.get("content", ""),
-            ),
-            action == "file",
-        )
+        if action != "content":
+            raise ValidationError("修改需要POST、PUT或DELETE")
+        row = skill_entry(query, p.get("id"))
+        return skill_dump(row, read_skill(row) if row.entry_type == "file" else None)
     if action in ("upload", "upload-directory"):
-        uploaded = request.FILES.getlist("files")
-        if not uploaded or len(uploaded) > 100:
-            raise ValidationError("请选择1到100个文件")
-        paths = request.POST.getlist("paths")
-        if request.POST.get("pathsJson"):
-            try:
-                paths = json.loads(request.POST["pathsJson"])
-            except ValueError:
-                raise ValidationError("无效上传路径") from None
-        if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
-            raise ValidationError("无效上传路径")
-        if len(paths) == 1 and paths[0].startswith("["):
-            try:
-                paths = json.loads(paths[0])
-            except ValueError:
-                raise ValidationError("无效上传路径") from None
-        if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
-            raise ValidationError("无效上传路径")
-        if action == "upload-directory" and len(paths) != len(uploaded):
-            raise ValidationError("路径与文件数量不一致")
-        result = []
-        for index, file in enumerate(uploaded):
-            if file.size > 5 * 1024 * 1024:
-                raise ValidationError("Skill文件超过5MB")
-            try:
-                content = file.read().decode("utf-8")
-            except UnicodeDecodeError:
-                raise ValidationError("Skill仅支持UTF-8文本") from None
-            parent = parent_skill(request, p.get("parentId"))
-            name = file.name
-            if action == "upload-directory":
-                parts = paths[index].split("/")
-                if any(not x or x in (".", "..") or "\\" in x for x in parts):
-                    raise ValidationError("无效目录路径")
-                name = parts[-1]
-                for part in parts[:-1]:
-                    existing = scope_queryset(
-                        SkillFile.objects.filter(parent_id=parent, name=part, deleted=False), scope
-                    ).first()
-                    if existing and existing.entry_type != "folder":
-                        raise ValidationError("路径被文件占用")
-                    parent = (existing or new_skill(request, parent, part)).pk
-            result.append(skill_dump(new_skill(request, parent, name, content)))
-        return (
-            {
-                "tree": skill_tree(
-                    list(
-                        scope_queryset(SkillFile.objects.filter(deleted=False), scope).order_by(
-                            "sort_order", "id"
-                        )
-                    )
-                ),
-                "uploadedNodes": result,
-                "skippedFiles": [],
-            }
-            if action == "upload-directory"
-            else result
-        )
-    row = skill_entry(request, p.get("id"))
+        directory = action == "upload-directory"
+        plan = skill_upload_plan(request, directory)
+        with skill_transaction(scope, query) as new_keys:
+            parent = parent_skill(query, p.get("parentId"))
+            result = upload_skill_files(query, scope, parent, plan, new_keys)
+            if directory:
+                return {
+                    "tree": skill_tree(list(query.order_by("sort_order", "id"))),
+                    "uploadedNodes": result,
+                    "skippedFiles": [],
+                }
+            return result
+    with skill_transaction(scope, query) as new_keys:
+        return mutate_skill(query, scope, p, action, new_keys)
+
+
+def mutate_skill(query, scope, params, action, new_keys):
+    if action in ("folder", "file"):
+        parent = parent_skill(query, params.get("parentId"))
+        if action == "folder":
+            name = filename(params.get("name"))
+            return skill_dump(new_skill(query, scope, parent, name, new_keys))
+        name = skill_name(params.get("name"))
+        content = params.get("content", "")
+        return skill_dump(new_skill(query, scope, parent, name, new_keys, content), content)
+    row = skill_entry(query, params.get("id"))
     if action == "content":
         if row.entry_type != "file":
             raise ValidationError("不能写入目录内容")
-        return skill_dump(write_skill(row, p.get("content", "")), True)
+        content = params.get("content", "")
+        return skill_dump(write_skill(row, content, new_keys), content)
     if action == "rename":
-        name = filename(p.get("name")) if row.entry_type == "folder" else skill_name(p.get("name"))
-        unique_skill(request, row.parent_id, name, row.pk)
+        rename = filename if row.entry_type == "folder" else skill_name
+        name = rename(params.get("name"))
+        unique_skill(query, row.parent_id, name, row.pk)
         row.name = name
+        if row.entry_type == "file":
+            row.file_ext = name.rsplit(".", 1)[-1].lower()
+            update_skill_metadata(row, read_skill(row) if name == SKILL_ENTRY_NAME else "")
         save(row)
     elif action == "move":
-        parent = parent_skill(request, p.get("targetParentId"))
+        parent = parent_skill(query, params.get("targetParentId"))
         cursor = parent
         seen = set()
         while cursor:
             if cursor == row.pk or cursor in seen:
                 raise ValidationError("不能移动到自身或子目录")
             seen.add(cursor)
-            cursor = skill_entry(request, cursor).parent_id
-        unique_skill(request, parent, row.name, row.pk)
+            cursor = skill_entry(query, cursor).parent_id
+        unique_skill(query, parent, row.name, row.pk)
         row.parent_id = parent
-        row.sort_order = number(p.get("sortOrder"), 0, minimum=0)
+        row.sort_order = number(params.get("sortOrder"), 0, minimum=0)
         save(row)
     elif action == "delete":
-        delete_skill(row, list(scope_queryset(SkillFile.objects.filter(deleted=False), scope)))
+        delete_skill(row, list(query))
         return None
     else:
         raise Http404()

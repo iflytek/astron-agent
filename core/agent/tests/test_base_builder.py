@@ -15,18 +15,6 @@ from agent.domain.models.providers import ModelHandle
 from agent.infra.app_auth import MaasAuth
 from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.base import BasePlugin
-from agent.service.plugin.skill_resource_security import (
-    SKILL_RESOURCE_TRUSTED_BUCKET_ENV,
-    SKILL_RESOURCE_TRUSTED_ORIGIN_ENV,
-)
-
-_SIGV4_QUERY = (
-    "X-Amz-Algorithm=AWS4-HMAC-SHA256&"
-    "X-Amz-Credential=test%2F20260824%2Fus-east-1%2Fs3%2Faws4_request&"
-    "X-Amz-Date=20260824T000000Z&X-Amz-Expires=300&"
-    "X-Amz-SignedHeaders=host&X-Amz-Signature=" + "a" * 64
-)
-_SKILL_URL = f"https://example.com/console-oss/skill-files/user/skill.md?{_SIGV4_QUERY}"
 
 
 @dataclass
@@ -123,35 +111,6 @@ class TestBaseApiBuilder:
             plugins = await builder.build_plugins([], [], [], ["workflow1"])
 
             assert len(plugins) > 0
-
-    @pytest.mark.asyncio
-    async def test_build_plugins_with_skills(
-        self, builder: BaseApiBuilder, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Test building plugins (skills)"""
-        monkeypatch.setenv(SKILL_RESOURCE_TRUSTED_ORIGIN_ENV, "https://example.com")
-        monkeypatch.setenv(SKILL_RESOURCE_TRUSTED_BUCKET_ENV, "console-oss")
-        plugins = await builder.build_plugins(
-            [],
-            [],
-            [],
-            [],
-            skills=[
-                {
-                    "skill_id": "skill-1",
-                    "name": "ui-ux-pro-max",
-                    "description": "Design reference skill",
-                    "download_url": _SKILL_URL,
-                }
-            ],
-        )
-
-        assert len(plugins) == 2
-        assert [plugin.typ for plugin in plugins] == ["skill", "skill"]
-        assert [plugin.name for plugin in plugins] == [
-            "read_skill_skill-1",
-            "run_skill_skill-1",
-        ]
 
     @pytest.mark.asyncio
     async def test_build_plugins_filters_empty_mcp_urls(
