@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>管理栏 · 应用管理</title>
+  <g fill="none" stroke="#45597D" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4.1" y="4.1" width="5.65" height="5.65" rx="1.12" fill="#CDD9EF"/>
+    <rect x="14.25" y="4.1" width="5.65" height="5.65" rx="1.12"/>
+    <rect x="4.1" y="14.25" width="5.65" height="5.65" rx="1.12"/>
+    <path d="m14.1 17.05 1.65 1.65 4.1-4.1" stroke="#60799F" stroke-width="1.85"/>
+  </g>
+</svg>

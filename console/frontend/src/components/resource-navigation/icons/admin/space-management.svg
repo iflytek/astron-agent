@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>空间管理</title>
+  <g fill="none" stroke="#45597D" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.7 4.15H6.15c-1.1 0-2 .9-2 2V8.7m11.15-4.55h2.55c1.1 0 2 .9 2 2V8.7m0 6.6v2.55c0 1.1-.9 2-2 2H15.3m-6.6 0H6.15c-1.1 0-2-.9-2-2V15.3"/>
+    <rect x="8.3" y="8.3" width="7.4" height="7.4" rx="1.55" fill="#CDD9EF"/>
+  </g>
+</svg>

@@ -1,16 +1,34 @@
 import { useEffect, useState, type FormEvent, type ReactElement } from 'react';
+import {
+  ArrowLeftOutlined,
+  ArrowRightOutlined,
+  LockOutlined,
+  LogoutOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
+import logo from '@/assets/imgs/sidebar/agentLog.svg';
+import defaultAvatar from '@/components/resource-navigation/icons/footer/user-avatar.svg';
 import { accountRequest, AccountRequestError } from '@/utils/session';
 import { resetAccountState } from '@/utils/account-state';
 import type { User } from '@/store/user-store';
 import styles from './index.module.scss';
 
 type Mode = 'login' | 'register' | 'reset' | 'account';
+type Action = 'credentials' | 'profile' | 'password' | 'logout';
+type Feedback = { action: Action; error?: string; notice?: string };
 
 const titles: Record<Mode, string> = {
-  login: '登录 Astron Agent',
+  login: '登录工作空间',
   register: '创建账号',
   reset: '设置新密码',
   account: '我的账号',
+};
+
+const descriptions: Record<Mode, string> = {
+  login: '登录后，在同一工作空间构建、调试和发布。',
+  register: '创建账号，开始使用 Astron Agent。',
+  reset: '使用管理员提供的重设链接设置密码。',
+  account: '管理个人资料与登录安全。',
 };
 
 const loginDestination = (): string => {
@@ -24,24 +42,25 @@ const loginDestination = (): string => {
 };
 
 export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState<Action>();
+  const [feedback, setFeedback] = useState<Feedback>();
+  const [loadError, setLoadError] = useState('');
   const [user, setUser] = useState<User>();
+  const [failedAvatar, setFailedAvatar] = useState<string>();
   const [loading, setLoading] = useState(mode === 'account');
   const [revision, setRevision] = useState(0);
   const [resetParams] = useState(
     () => new URLSearchParams(window.location.hash.slice(1))
   );
 
-  useEffect(() => {
+  useEffect((): (() => void) | undefined => {
     if (mode === 'reset') {
       window.history.replaceState(null, '', window.location.pathname);
     }
     if (mode !== 'account') return;
     let ignore = false;
     setLoading(true);
-    setError('');
+    setLoadError('');
     accountRequest<User>('/user-info/me')
       .then(value => {
         if (!ignore) setUser(value);
@@ -52,7 +71,7 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
           resetAccountState();
           window.location.replace('/login');
         } else {
-          setError(
+          setLoadError(
             reason instanceof Error ? reason.message : '无法读取账号资料'
           );
         }
@@ -65,18 +84,22 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
     };
   }, [mode, revision]);
 
-  const run = async (action: () => Promise<void>): Promise<void> => {
-    setBusy(true);
-    setError('');
-    setNotice('');
+  const run = async (
+    action: Action,
+    request: () => Promise<void>
+  ): Promise<void> => {
+    setBusy(action);
+    setFeedback(undefined);
     try {
-      await action();
+      await request();
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : '操作失败，请稍后重试'
-      );
+      setFeedback({
+        action,
+        error:
+          reason instanceof Error ? reason.message : '操作失败，请稍后重试',
+      });
     } finally {
-      setBusy(false);
+      setBusy(undefined);
     }
   };
 
@@ -85,14 +108,17 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
   ): Promise<void> => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
-    await run(async () => {
+    await run('credentials', async () => {
       if (mode === 'reset') {
         await accountRequest('/auth/reset-password', {
           ...data,
           uid: resetParams.get('uid'),
           token: resetParams.get('token'),
         });
-        setNotice('密码已设置，请使用用户名和新密码登录。');
+        setFeedback({
+          action: 'credentials',
+          notice: '密码已设置，请使用用户名和新密码登录。',
+        });
       } else {
         await accountRequest(`/auth/${mode}`, data);
         resetAccountState();
@@ -106,9 +132,9 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
   ): Promise<void> => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
-    await run(async () => {
+    await run('profile', async () => {
       setUser(await accountRequest<User>('/user-info/update', data));
-      setNotice('资料已保存');
+      setFeedback({ action: 'profile', notice: '资料已保存。' });
     });
   };
 
@@ -118,86 +144,253 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
     event.preventDefault();
     const form = event.currentTarget;
     const data = Object.fromEntries(new FormData(form));
-    await run(async () => {
+    await run('password', async () => {
       await accountRequest('/auth/change-password', data);
       form.reset();
-      setNotice('密码已修改，其他登录会话已失效。');
+      setFeedback({
+        action: 'password',
+        notice: '密码已修改，其他登录会话已失效。',
+      });
     });
   };
 
-  return (
-    <main className={styles.page}>
-      <section
-        className={`${styles.card} ${mode === 'account' ? styles.accountCard : ''}`}
-      >
-        <a className={styles.brand} href="/">
-          Astron Agent
-        </a>
-        <h1>{titles[mode]}</h1>
-        <p className={styles.intro}>
-          {mode === 'login'
-            ? '登录后，在同一工作空间构建、调试和发布。'
-            : mode === 'account'
-              ? '管理个人资料与登录安全。'
-              : mode === 'register'
-                ? '创建账号，开始使用 Astron Agent。'
-                : '使用管理员提供的重设链接设置密码。'}
-        </p>
-        {error && (
-          <p className={styles.error} role="alert">
-            {error}
-            {mode === 'account' && !user && (
+  const renderFeedback = (action: Action): ReactElement | null => {
+    if (feedback?.action !== action) return null;
+    return feedback.error ? (
+      <p className={styles.error} role="alert">
+        {feedback.error}
+      </p>
+    ) : (
+      <p className={styles.notice} role="status">
+        {feedback.notice}
+      </p>
+    );
+  };
+
+  const brand = (
+    <a className={styles.brand} href="/">
+      <img src={logo} alt="" width="28" height="28" />
+      Astron Agent
+    </a>
+  );
+
+  if (mode === 'account') {
+    const avatar =
+      user?.avatar && user.avatar !== failedAvatar
+        ? user.avatar
+        : defaultAvatar;
+    return (
+      <main className={styles.page}>
+        <div className={styles.accountLayout}>
+          <header className={styles.accountHeader}>{brand}</header>
+          <div className={styles.accountHeading}>
+            <div>
+              <h1>{titles.account}</h1>
+              <p className={styles.intro}>{descriptions.account}</p>
+            </div>
+            <a className={styles.outlineButton} href="/home">
+              <ArrowLeftOutlined aria-hidden="true" />
+              进入控制台
+            </a>
+          </div>
+          {loading && (
+            <p role="status" className={styles.loading}>
+              正在加载账号资料…
+            </p>
+          )}
+          {loadError && (
+            <div className={styles.error}>
+              <p role="alert">{loadError}</p>
               <button
                 type="button"
+                className={styles.outlineButton}
                 onClick={() => setRevision(value => value + 1)}
               >
                 重新加载
               </button>
-            )}
-          </p>
-        )}
-        {mode === 'account' && loading && (
-          <p role="status" className={styles.hint}>
-            正在加载账号资料…
-          </p>
-        )}
-        {notice && (
-          <p className={styles.notice} role="status">
-            {notice}
-          </p>
-        )}
+            </div>
+          )}
+          {user && (
+            <div className={styles.accountSurface}>
+              <div className={styles.identity}>
+                <img
+                  src={avatar}
+                  alt=""
+                  width="54"
+                  height="54"
+                  onError={() => setFailedAvatar(user.avatar)}
+                />
+                <div className={styles.identityText}>
+                  <strong>{user.nickname || user.username}</strong>
+                  <span>登录账号 · {user.username}</span>
+                </div>
+              </div>
+              <div className={styles.accountForms}>
+                <section aria-labelledby="account-profile">
+                  <h2 id="account-profile">
+                    <UserOutlined aria-hidden="true" />
+                    个人资料
+                  </h2>
+                  <form key={user.uid} onSubmit={submitProfile}>
+                    <label>
+                      昵称
+                      <input
+                        name="nickname"
+                        defaultValue={user.nickname}
+                        maxLength={255}
+                      />
+                    </label>
+                    <label>
+                      头像地址
+                      <input
+                        name="avatar"
+                        type="url"
+                        defaultValue={user.avatar}
+                        maxLength={512}
+                        placeholder="https://…"
+                      />
+                    </label>
+                    <button
+                      className={styles.primaryButton}
+                      type="submit"
+                      disabled={!!busy}
+                    >
+                      {busy === 'profile' ? '正在保存…' : '保存资料'}
+                    </button>
+                    {renderFeedback('profile')}
+                  </form>
+                </section>
+                <section aria-labelledby="account-password">
+                  <h2 id="account-password">
+                    <LockOutlined aria-hidden="true" />
+                    修改密码
+                  </h2>
+                  <form onSubmit={submitPassword}>
+                    <label>
+                      原密码
+                      <input
+                        name="oldPassword"
+                        type="password"
+                        autoComplete="current-password"
+                        maxLength={1024}
+                        required
+                      />
+                    </label>
+                    <label>
+                      新密码
+                      <input
+                        name="password"
+                        type="password"
+                        autoComplete="new-password"
+                        minLength={12}
+                        maxLength={1024}
+                        aria-describedby="account-password-guide"
+                        required
+                      />
+                    </label>
+                    <div className={styles.hint} id="account-password-guide">
+                      至少 12 位，避免常见密码或只使用数字。
+                    </div>
+                    <label>
+                      确认新密码
+                      <input
+                        name="passwordConfirm"
+                        type="password"
+                        autoComplete="new-password"
+                        minLength={12}
+                        maxLength={1024}
+                        required
+                      />
+                    </label>
+                    <button
+                      className={styles.primaryButton}
+                      type="submit"
+                      disabled={!!busy}
+                    >
+                      {busy === 'password' ? '正在修改…' : '修改密码'}
+                    </button>
+                    {renderFeedback('password')}
+                  </form>
+                </section>
+              </div>
+              <footer className={styles.accountFooter}>
+                {renderFeedback('logout')}
+                <button
+                  className={styles.outlineButton}
+                  type="button"
+                  disabled={!!busy}
+                  onClick={() =>
+                    void run('logout', async () => {
+                      await accountRequest('/auth/logout', {});
+                      resetAccountState();
+                      window.location.replace('/login');
+                    })
+                  }
+                >
+                  <LogoutOutlined aria-hidden="true" />
+                  {busy === 'logout' ? '正在退出…' : '退出登录'}
+                </button>
+              </footer>
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
 
-        {mode !== 'account' && !(mode === 'reset' && notice) && (
-          <form onSubmit={submitCredentials}>
-            {mode !== 'reset' && (
+  return (
+    <main className={`${styles.page} ${styles.accessPage}`}>
+      <div className={styles.accessLayout}>
+        <div className={styles.brandPanel}>
+          {brand}
+          <div className={styles.art} aria-hidden="true">
+            <span className={styles.orbit} />
+            <span className={styles.orbitCross} />
+            <img src={logo} alt="" width="88" height="88" />
+          </div>
+        </div>
+        <section
+          className={styles.accessContent}
+          aria-labelledby="access-title"
+        >
+          <h1 id="access-title">{titles[mode]}</h1>
+          <p className={styles.intro}>{descriptions[mode]}</p>
+          {renderFeedback('credentials')}
+          {!(mode === 'reset' && feedback?.notice) && (
+            <form onSubmit={submitCredentials}>
+              {mode !== 'reset' && (
+                <label>
+                  用户名
+                  <input
+                    name="username"
+                    autoComplete="username"
+                    maxLength={150}
+                    required
+                  />
+                </label>
+              )}
               <label>
-                用户名
+                {mode === 'reset' ? '新密码' : '密码'}
                 <input
-                  name="username"
-                  autoComplete="username"
-                  maxLength={150}
+                  name="password"
+                  type="password"
+                  autoComplete={
+                    mode === 'login' ? 'current-password' : 'new-password'
+                  }
+                  minLength={mode === 'login' ? 1 : 12}
+                  maxLength={1024}
+                  aria-describedby={
+                    mode === 'login' ? undefined : 'access-password-guide'
+                  }
                   required
                 />
               </label>
-            )}
-            <label>
-              {mode === 'reset' ? '新密码' : '密码'}
-              <input
-                name="password"
-                type="password"
-                autoComplete={
-                  mode === 'login' ? 'current-password' : 'new-password'
-                }
-                minLength={mode === 'login' ? 1 : 12}
-                maxLength={1024}
-                required
-              />
-            </label>
-            {mode !== 'login' && (
-              <>
-                <p className={styles.hint}>
-                  至少 12 位，请避免常见密码或只使用数字。
-                </p>
+              {mode !== 'login' && (
+                <span className={styles.hint} id="access-password-guide">
+                  至少 12 位，避免常见密码或只使用数字。
+                </span>
+              )}
+              {mode !== 'login' && (
                 <label>
                   确认密码
                   <input
@@ -209,125 +402,39 @@ export default function AccountAccess({ mode }: { mode: Mode }): ReactElement {
                     required
                   />
                 </label>
-              </>
-            )}
-            <button type="submit" disabled={busy}>
-              {busy
-                ? '处理中…'
-                : mode === 'login'
-                  ? '登录'
-                  : mode === 'register'
-                    ? '注册'
-                    : '设置密码'}
-            </button>
-          </form>
-        )}
-
-        {mode === 'login' && (
-          <p className={styles.links}>
-            没有账号？<a href="/register">立即注册</a>
-            <span>忘记密码或首次启用旧账号，请联系管理员获取重设链接。</span>
-          </p>
-        )}
-        {(mode === 'register' || mode === 'reset') && (
-          <p className={styles.links}>
-            <a href="/login">返回登录</a>
-          </p>
-        )}
-
-        {mode === 'account' && user && (
-          <>
-            <p className={styles.hint}>登录账号：{user.username}</p>
-            <div className={styles.accountForms}>
-              <section>
-                <h2>个人资料</h2>
-                <form key={user.uid} onSubmit={submitProfile}>
-                  <label>
-                    昵称
-                    <input
-                      name="nickname"
-                      defaultValue={user.nickname}
-                      maxLength={255}
-                    />
-                  </label>
-                  <label>
-                    头像地址
-                    <input
-                      name="avatar"
-                      type="url"
-                      defaultValue={user.avatar}
-                      maxLength={512}
-                      placeholder="https://…"
-                    />
-                  </label>
-                  <button type="submit" disabled={busy}>
-                    保存资料
-                  </button>
-                </form>
-              </section>
-              <section>
-                <h2>修改密码</h2>
-                <p className={styles.hint}>
-                  至少 12 位，避免常见密码或只使用数字。
-                </p>
-                <form onSubmit={submitPassword}>
-                  <label>
-                    原密码
-                    <input
-                      name="oldPassword"
-                      type="password"
-                      autoComplete="current-password"
-                      maxLength={1024}
-                      required
-                    />
-                  </label>
-                  <label>
-                    新密码
-                    <input
-                      name="password"
-                      type="password"
-                      autoComplete="new-password"
-                      minLength={12}
-                      maxLength={1024}
-                      required
-                    />
-                  </label>
-                  <label>
-                    确认新密码
-                    <input
-                      name="passwordConfirm"
-                      type="password"
-                      autoComplete="new-password"
-                      minLength={12}
-                      maxLength={1024}
-                      required
-                    />
-                  </label>
-                  <button type="submit" disabled={busy}>
-                    修改密码
-                  </button>
-                </form>
-              </section>
-            </div>
-            <div className={styles.links}>
-              <a href="/home">进入控制台</a>
+              )}
               <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    await accountRequest('/auth/logout', {});
-                    resetAccountState();
-                    window.location.replace('/login');
-                  })
-                }
+                className={styles.primaryButton}
+                type="submit"
+                disabled={!!busy}
               >
-                退出登录
+                {busy
+                  ? '处理中…'
+                  : mode === 'login'
+                    ? '登录'
+                    : mode === 'register'
+                      ? '注册'
+                      : '设置密码'}
+                <ArrowRightOutlined aria-hidden="true" />
               </button>
-            </div>
-          </>
-        )}
-      </section>
+            </form>
+          )}
+          <footer className={styles.accessFooter}>
+            {mode === 'login' ? (
+              <>
+                <p>
+                  没有账号？ <a href="/register">立即注册</a>
+                </p>
+                <p className={styles.hint}>
+                  忘记密码或首次启用旧账号？请联系管理员获取重设链接。
+                </p>
+              </>
+            ) : (
+              <a href="/login">返回登录</a>
+            )}
+          </footer>
+        </section>
+      </div>
     </main>
   );
 }

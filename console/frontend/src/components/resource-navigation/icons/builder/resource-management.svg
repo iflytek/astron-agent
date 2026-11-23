@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>资源管理</title>
+  <g fill="none" stroke="#246583" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4.15" y="7.8" width="15.7" height="12.05" rx="2.15" fill="#ADE0EC" fill-opacity=".52"/>
+    <path d="M4.65 7.75V6.1a1.4 1.4 0 0 1 1.4-1.4h4.08l1.8 2"/>
+    <path d="M7.9 12.35h8.2m-8.2 3.6h5.2" stroke="#33819D"/>
+  </g>
+</svg>

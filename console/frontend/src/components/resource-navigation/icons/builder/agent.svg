@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>Agent</title>
+  <g fill="none" stroke="#4F46AD" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4.8" y="7.6" width="14.4" height="11.2" rx="3.5" fill="#CFCAFA" fill-opacity=".56"/>
+    <path d="M12 5v2.55M4.8 11.65H3.2v3.3h1.6m14.4-3.3h1.6v3.3h-1.6m-10.65.45c.7.65 2.25.65 2.95 0"/>
+    <circle cx="12" cy="4.55" r="1.05" fill="#4F46AD" stroke="none"/>
+    <circle cx="9" cy="12.5" r="1.05" fill="#4F46AD" stroke="none"/>
+    <circle cx="15" cy="12.5" r="1.05" fill="#4F46AD" stroke="none"/>
+  </g>
+</svg>

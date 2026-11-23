@@ -1,20 +1,11 @@
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { Badge, Drawer, Select } from 'antd';
 import {
-  ApartmentOutlined,
-  AppstoreOutlined,
   BellOutlined,
-  BookOutlined,
-  DatabaseOutlined,
-  FolderOutlined,
   MenuFoldOutlined,
   MenuOutlined,
   MenuUnfoldOutlined,
-  RobotOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  UploadOutlined,
 } from '@ant-design/icons';
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
@@ -22,6 +13,29 @@ import useUserStore from '@/store/user-store';
 import NoticeModal from '@/components/sidebar/notice-modal';
 import { getMessageCountApi } from '@/services/notification';
 import logo from '@/assets/imgs/sidebar/agentLog.svg';
+import buildModule from './icons/primary/build.svg';
+import resourcesModule from './icons/primary/resources.svg';
+import publishModule from './icons/primary/publish.svg';
+import modelsModule from './icons/primary/models.svg';
+import marketModule from './icons/primary/market.svg';
+import adminModule from './icons/primary/admin.svg';
+import agent from './icons/builder/agent.svg';
+import workflow from './icons/builder/workflow.svg';
+import resourceManagement from './icons/builder/resource-management.svg';
+import workspaceModels from './icons/builder/workspace-model-management.svg';
+import providerModels from './icons/models/provider-model-management.svg';
+import appPublish from './icons/publish/app-publish.svg';
+import releaseApps from './icons/publish/release-app-management.svg';
+import agentMarket from './icons/market/agent-market.svg';
+import toolMarket from './icons/market/tool-market.svg';
+import spaceManagement from './icons/admin/space-management.svg';
+import invitations from './icons/admin/invite.svg';
+import teamManagement from './icons/admin/team-management.svg';
+import newTeam from './icons/admin/new-team.svg';
+import adminApps from './icons/admin/admin-app-management.svg';
+import platformAccount from './icons/admin/platform-account.svg';
+import defaultAvatar from './icons/footer/user-avatar.svg';
+import developerDocs from './icons/footer/developer-docs.svg';
 import styles from './index.module.scss';
 
 interface SpaceOption {
@@ -46,6 +60,9 @@ export default function ResourceNavigation(): ReactElement {
   const { spaceId, enterpriseId, setSpaceStore } = useSpaceStore();
   const user = useUserStore(state => state.user);
   const { pathname } = useLocation();
+  const [failedAvatar, setFailedAvatar] = useState<string>();
+  const avatar =
+    user.avatar && user.avatar !== failedAvatar ? user.avatar : defaultAvatar;
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [teams, setTeams] = useState<SpaceOption[]>([]);
   const [error, setError] = useState('');
@@ -53,6 +70,7 @@ export default function ResourceNavigation(): ReactElement {
   const [unreadCount, setUnreadCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileTrigger = useRef<HTMLButtonElement>(null);
   useEffect(() => setMobileOpen(false), [pathname]);
 
   useEffect((): (() => void) => {
@@ -149,67 +167,83 @@ export default function ResourceNavigation(): ReactElement {
       id: 'build',
       label: '构建',
       path: '/space/agent',
-      icon: <RobotOutlined />,
+      icon: buildModule,
     },
     {
       id: 'resources',
       label: '资源',
       path: '/resource/knowledge',
-      icon: <FolderOutlined />,
+      icon: resourcesModule,
     },
     {
       id: 'publishing',
       label: '发布',
       path: '/management/release',
-      icon: <UploadOutlined />,
+      icon: publishModule,
     },
     {
       id: 'models',
       label: '模型',
       path: '/management/model',
-      icon: <DatabaseOutlined />,
+      icon: modelsModule,
     },
     {
       id: 'market',
       label: '市场',
       path: '/store/agent',
-      icon: <AppstoreOutlined />,
+      icon: marketModule,
     },
     {
       id: 'management',
       label: '管理',
       path: '/space',
-      icon: <SettingOutlined />,
+      icon: adminModule,
     },
   ];
-  const managementLinks: Array<[string, string]> = [
-    ['/space', '空间管理'],
-    ['/space/invitations', '邀请'],
+  const managementLinks = [
+    ['/space', '空间管理', spaceManagement],
+    ['/space/invitations', '邀请', invitations],
     [
       enterpriseId ? `/enterprise/${enterpriseId}/space` : '/team/create/2',
       '团队管理',
+      teamManagement,
     ],
-    ['/team/create/2', '新建团队'],
-    ['/management/app', '应用管理'],
-    ['/management/platform-account', '平台账户'],
-  ];
-  const link = (
-    path: string,
-    label: string,
-    icon?: ReactElement
-  ): ReactElement => (
-    <NavLink
-      key={`${path}-${label}`}
-      to={path}
-      end={path === '/space'}
-      className={({ isActive }) =>
-        `${styles.item} ${isActive || (path === '/space' && pathname.startsWith('/space/space-detail/')) ? styles.active : ''}`
-      }
-    >
-      {icon}
-      {label}
-    </NavLink>
-  );
+    ['/team/create/2', '新建团队', newTeam],
+    ['/management/app', '应用管理', adminApps],
+    ['/management/platform-account', '平台账户', platformAccount],
+  ] as const;
+  const link = (path: string, label: string, icon?: string): ReactElement => {
+    const content = (
+      <>
+        {icon && <img className={styles.itemIcon} src={icon} alt="" />}
+        <span>{label}</span>
+      </>
+    );
+    if (path === '/space' && pathname.startsWith('/space/space-detail/')) {
+      return (
+        <Link
+          key={path}
+          to={path}
+          aria-current="location"
+          className={`${styles.item} ${styles.active}`}
+        >
+          {content}
+        </Link>
+      );
+    }
+    return (
+      <NavLink
+        key={`${path}-${label}`}
+        to={path}
+        end={path === '/space'}
+        className={({ isActive }) =>
+          `${styles.item} ${isActive ? styles.active : ''}`
+        }
+      >
+        {content}
+      </NavLink>
+    );
+  };
   const navigation = (mobile = false): ReactElement => (
     <div
       className={`${styles.navigation} ${!mobile && collapsed ? styles.collapsed : ''}`}
@@ -222,16 +256,16 @@ export default function ResourceNavigation(): ReactElement {
         >
           <img src={logo} alt="" />
         </Link>
-        <nav className={styles.modules}>
+        <nav className={styles.modules} aria-label="主模块">
           {modules.map(module => (
             <Link
+              onClick={mobile ? (): void => setMobileOpen(false) : undefined}
               key={module.id}
               to={module.path}
-              title={module.label}
-              aria-current={section === module.id ? 'page' : undefined}
+              aria-current={section === module.id ? 'true' : undefined}
               className={`${styles.module} ${section === module.id ? styles.selected : ''}`}
             >
-              {module.icon}
+              <img src={module.icon} alt="" width="24" height="24" />
               <span>{module.label}</span>
             </Link>
           ))}
@@ -243,6 +277,9 @@ export default function ResourceNavigation(): ReactElement {
               className={styles.railButton}
               aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
               aria-expanded={!collapsed}
+              aria-controls={
+                collapsed ? undefined : 'desktop-context-navigation'
+              }
               onClick={() => setCollapsed(value => !value)}
             >
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -264,18 +301,20 @@ export default function ResourceNavigation(): ReactElement {
             title={user.nickname || user.username || '我的账号'}
             aria-label="我的账号"
           >
-            {user.avatar ? (
-              <img src={user.avatar} alt="" />
-            ) : (
-              <span>
-                {(user.nickname || user.username || '我').slice(0, 1)}
-              </span>
-            )}
+            <img
+              src={avatar}
+              alt=""
+              onError={() => setFailedAvatar(user.avatar)}
+            />
           </Link>
         </div>
       </aside>
       {(mobile || !collapsed) && (
-        <aside className={styles.context} aria-label="空间导航">
+        <aside
+          id={mobile ? undefined : 'desktop-context-navigation'}
+          className={styles.context}
+          aria-label="空间导航"
+        >
           <Link to="/space/agent" className={styles.wordmark}>
             Astron Agent
           </Link>
@@ -341,12 +380,12 @@ export default function ResourceNavigation(): ReactElement {
               {section === 'build' && (
                 <>
                   <p className={styles.groupLabel}>应用构建</p>
-                  {link('/space/agent', 'Agent', <RobotOutlined />)}
-                  {link('/space/workflows', '工作流', <ApartmentOutlined />)}
+                  {link('/space/agent', 'Agent', agent)}
+                  {link('/space/workflows', '工作流', workflow)}
                   <div className={styles.divider} />
                   <p className={styles.groupLabel}>空间资源</p>
-                  {link('/resource/knowledge', '资源管理', <FolderOutlined />)}
-                  {link('/management/model', '模型管理', <DatabaseOutlined />)}
+                  {link('/resource/knowledge', '资源管理', resourceManagement)}
+                  {link('/management/model', '模型管理', workspaceModels)}
                 </>
               )}
               {section === 'resources' && (
@@ -358,28 +397,28 @@ export default function ResourceNavigation(): ReactElement {
               {section === 'market' && (
                 <>
                   <p className={styles.groupLabel}>发现与复用</p>
-                  {link('/store/agent', 'Agent 市场', <RobotOutlined />)}
-                  {link('/store/plugin', '工具市场', <AppstoreOutlined />)}
+                  {link('/store/agent', 'Agent 市场', agentMarket)}
+                  {link('/store/plugin', '工具市场', toolMarket)}
                 </>
               )}
               {section === 'publishing' && (
                 <>
                   <p className={styles.groupLabel}>发布管理</p>
-                  {link('/management/release', '应用发布', <UploadOutlined />)}
-                  {link('/management/app', '应用管理', <AppstoreOutlined />)}
+                  {link('/management/release', '应用发布', appPublish)}
+                  {link('/management/app', '应用管理', releaseApps)}
                 </>
               )}
               {section === 'models' && (
                 <>
                   <p className={styles.groupLabel}>模型管理</p>
-                  {link('/management/model', '模型管理', <DatabaseOutlined />)}
+                  {link('/management/model', '模型管理', providerModels)}
                 </>
               )}
               {section === 'management' && (
                 <>
                   <p className={styles.groupLabel}>空间与团队</p>
-                  {managementLinks.map(([path, label]) =>
-                    link(path, label, <TeamOutlined />)
+                  {managementLinks.map(([path, label, icon]) =>
+                    link(path, label, icon)
                   )}
                 </>
               )}
@@ -391,7 +430,7 @@ export default function ResourceNavigation(): ReactElement {
             target="_blank"
             rel="noreferrer"
           >
-            <BookOutlined />
+            <img className={styles.itemIcon} src={developerDocs} alt="" />
             开发文档
           </a>
         </aside>
@@ -404,22 +443,40 @@ export default function ResourceNavigation(): ReactElement {
       <div className={styles.mobileBar}>
         <button
           type="button"
+          ref={mobileTrigger}
           aria-label="打开导航"
+          aria-expanded={mobileOpen}
+          aria-haspopup="dialog"
           onClick={() => setMobileOpen(true)}
         >
           <MenuOutlined />
         </button>
-        <Link to="/space/agent">Astron Agent</Link>
-        <Link to="/account" aria-label="我的账号">
-          <SettingOutlined />
+        <Link to="/space/agent" className={styles.mobileBrand}>
+          <img src={logo} alt="" />
+          Astron Agent
+        </Link>
+        <Link
+          to="/account"
+          className={styles.mobileAccount}
+          aria-label="我的账号"
+        >
+          <img
+            src={avatar}
+            alt=""
+            onError={() => setFailedAvatar(user.avatar)}
+          />
         </Link>
       </div>
       <Drawer
-        title="工作空间"
+        title={<span id="mobile-navigation-title">工作空间</span>}
+        aria-labelledby="mobile-navigation-title"
         placement="left"
-        width={292}
+        width="min(292px, 100%)"
         open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
+        onClose={() => {
+          setMobileOpen(false);
+          mobileTrigger.current?.focus({ preventScroll: true });
+        }}
         destroyOnClose
         styles={{ body: { padding: 0 } }}
       >
