@@ -91,9 +91,9 @@
 - DAG scheduling and streaming execution events
 - Visual workflow runtime debugging
 
-**Tech Stack**: FastAPI, SQLModel, SQLAlchemy 2.0, Kafka (event streaming), LangChain
+**Tech Stack**: FastAPI, SQLModel, SQLAlchemy 2.0, LangChain
 
-**Execution path**: Console invokes the workflow service over HTTP/SSE; Agent nodes call `core/agent`. Kafka carries execution logs using the configured `KAFKA_TOPIC`.
+**Execution path**: Console invokes the workflow service over HTTP/SSE; Agent nodes call `core/agent`.
 
 ---
 
@@ -215,7 +215,7 @@ Console owns space membership, roles, and resource authorization.
 - Unified logging system
 - OSS (MinIO) object storage integration
 
-**Tech Stack**: Python, SQLModel, Redis Client, Kafka Client, OpenTelemetry
+**Tech Stack**: Python, SQLModel, Redis Client, OpenTelemetry
 
 **Core Value**: Provide unified infrastructure abstraction for all Python microservices
 
@@ -227,9 +227,6 @@ Console owns space membership, roles, and resource authorization.
 - **MySQL**: Console accounts, DB-backed sessions, configuration, releases, and execution records; service-specific structured data
 - **Redis**: Cache, rate limits, and execution event registry
 - **PostgreSQL**: Optional auxiliary database
-
-### Message Queue
-- **Kafka**: Execution log reporting. Topic names come from each service’s configuration (`KAFKA_TOPIC`); HTTP/SSE carries the main execution calls.
 
 ### Object Storage
 - **MinIO**: File storage service (PUT/GET operations)
@@ -283,7 +280,6 @@ Common Services Layer
 Data & Messaging Layer
     ├── MySQL (Relational Database)
     ├── Redis (Cache/Events)
-    ├── Kafka (Event Streaming)
     └── MinIO (Object Storage)
 
 External Services
@@ -302,7 +298,6 @@ External Services
 | Agent → Console | Internal HTTP APIs | Scoped runtime configuration and resource access |
 | Core Services → MySQL | MySQL drivers / SQLAlchemy | Data persistence |
 | Core Services → Redis | Redis Protocol | Cache and execution events |
-| Core Services → Kafka | Kafka Protocol | Execution log reporting |
 | Core Services → MinIO | MinIO API (PUT/GET) | File upload/download |
 | Plugins → External Services | HTTP/gRPC | External API calls |
 
@@ -322,7 +317,7 @@ External Services
 | **Plugin: AI Tools** | Common, IFLYTEX API | Agent, Workflow |
 | **Plugin: RPA** | Common, RPA Executors | Agent, Workflow |
 | **Plugin: Link** | Common | Agent, Workflow |
-| **Common Module** | MySQL, Redis, Kafka, MinIO | All Python services |
+| **Common Module** | MySQL, Redis, MinIO | All Python services |
 
 ---
 
@@ -343,7 +338,6 @@ External Services
 | **Common** | Common Module | Python | Python 3.11+ |
 | **Data** | MySQL | Relational Database | MySQL 5.7+ |
 | | Redis | Cache/In-memory DB | Redis 6.0+ |
-| | Kafka | Message Queue | Kafka 2.5.0+ |
 | | MinIO | Object Storage | MinIO 8.5.10 |
 
 ---

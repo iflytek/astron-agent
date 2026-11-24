@@ -91,9 +91,9 @@
 - DAG 调度与流式执行事件
 - 工作流可视化运行时调试
 
-**技术栈**：FastAPI、SQLModel、SQLAlchemy 2.0、Kafka（事件流）、LangChain
+**技术栈**：FastAPI、SQLModel、SQLAlchemy 2.0、LangChain
 
-**执行链路**：Console 通过 HTTP/SSE 调用工作流服务；Agent 节点调用 `core/agent`。Kafka 按 `KAFKA_TOPIC` 配置上报执行日志。
+**执行链路**：Console 通过 HTTP/SSE 调用工作流服务；Agent 节点调用 `core/agent`。
 
 ---
 
@@ -215,7 +215,7 @@
 - 统一日志系统
 - OSS（MinIO）对象存储集成
 
-**技术栈**：Python、SQLModel、Redis Client、Kafka Client、OpenTelemetry
+**技术栈**：Python、SQLModel、Redis Client、OpenTelemetry
 
 **核心价值**：为所有 Python 微服务提供统一的基础设施抽象
 
@@ -227,9 +227,6 @@
 - **MySQL**：Console 账号、数据库会话、配置、发布版本、执行记录，以及各服务的结构化数据
 - **Redis**：缓存、限流与执行事件注册表
 - **PostgreSQL**：可选的辅助数据库
-
-### 消息队列
-- **Kafka**：执行日志上报。Topic 名由服务配置（`KAFKA_TOPIC`）决定；主执行调用使用 HTTP/SSE。
 
 ### 对象存储
 - **MinIO**：文件存储服务（PUT/GET 操作）
@@ -283,7 +280,6 @@ Common Services（公共服务层）
 Data & Messaging（数据和消息层）
     ├── MySQL (关系数据库)
     ├── Redis (缓存/事件)
-    ├── Kafka (事件流)
     └── MinIO (对象存储)
 
 External Services（外部服务）
@@ -302,7 +298,6 @@ External Services（外部服务）
 | Agent → Console | 内部 HTTP API | 带作用域的运行配置与资源访问 |
 | Core Services → MySQL | MySQL 驱动 / SQLAlchemy | 数据持久化 |
 | Core Services → Redis | Redis Protocol | 缓存与执行事件 |
-| Core Services → Kafka | Kafka Protocol | 执行日志上报 |
 | Core Services → MinIO | MinIO API (PUT/GET) | 文件上传下载 |
 | Plugins → External Services | HTTP/gRPC | 外部 API 调用 |
 
@@ -322,7 +317,7 @@ External Services（外部服务）
 | **Plugin: AI Tools** | Common, IFLYTEX API | Agent, Workflow |
 | **Plugin: RPA** | Common, RPA Executors | Agent, Workflow |
 | **Plugin: Link** | Common | Agent, Workflow |
-| **Common Module** | MySQL, Redis, Kafka, MinIO | 所有 Python 服务 |
+| **Common Module** | MySQL, Redis, MinIO | 所有 Python 服务 |
 
 ---
 
@@ -343,7 +338,6 @@ External Services（外部服务）
 | **公共** | Common Module | Python | Python 3.11+ |
 | **数据** | MySQL | 关系数据库 | MySQL 5.7+ |
 | | Redis | 缓存/内存数据库 | Redis 6.0+ |
-| | Kafka | 消息队列 | Kafka 2.5.0+ |
 | | MinIO | 对象存储 | MinIO 8.5.10 |
 
 ---

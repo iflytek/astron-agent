@@ -56,7 +56,7 @@ docker compose up -d --build
 
 
 **Important Configuration Notes:**
-- Elasticsearch is used by default. To use opensearch or infinity, modify the DOC_ENGINE configuration in .env
+- The optional RAGFlow stack uses Elasticsearch as its default document engine. Set `DOC_ENGINE` in `docker/ragflow/.env` to select OpenSearch or Infinity.
 - GPU acceleration is supported, start with `docker-compose-gpu.yml`
 
 ### Step 3: Review optional access and integration settings

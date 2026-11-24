@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render-only positive and negative tests for tenant bootstrap credentials."""
 
+import hashlib
 import re
 import shutil
 import subprocess
@@ -40,29 +41,14 @@ EXPECTED_TENANT_ENV: Mapping[str, Mapping[str, str]] = {
         "APP_MANAGE_PLAT_KEY": MANAGED_KEY,
         "APP_MANAGE_PLAT_SECRET": MANAGED_SECRET_KEY,
     },
-    "astron-agent-console-hub": {
-        **TENANT_ENV,
-        "APP_APIKEY": MANAGED_KEY,
-        "APP_API_SECRET": MANAGED_SECRET_KEY,
-        "COMMON_APIKEY": MANAGED_KEY,
-        "COMMON_API_SECRET": MANAGED_SECRET_KEY,
-        "MAAS_API_KEY": MANAGED_KEY,
-        "MAAS_API_SECRET": MANAGED_SECRET_KEY,
-        "MAAS_CONSUMER_KEY": MANAGED_KEY,
-        "MAAS_CONSUMER_SECRET": MANAGED_SECRET_KEY,
-    },
+    "astron-agent-console-hub": TENANT_ENV,
 }
 
 EXPECTED_ID_ENV: Mapping[str, Sequence[str]] = {
     "astron-agent-core-tenant": ("TENANT_ID",),
     "astron-agent-core-agent": ("TENANT_ID",),
     "astron-agent-core-workflow": ("TENANT_ID",),
-    "astron-agent-console-hub": (
-        "TENANT_ID",
-        "COMMON_APPID",
-        "MAAS_APP_ID",
-        "MAAS_CONSUMER_ID",
-    ),
+    "astron-agent-console-hub": ("TENANT_ID",),
 }
 
 
@@ -619,6 +605,7 @@ def _verify_default_render() -> None:
     if tenant_key == tenant_secret:
         raise VerificationError("managed tenant credentials are not independent")
     _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
+    _verify_fresh_install(rendered)
     _verify_managed_workflow_internal_auth(rendered)
     _verify_workflow_ingress_gateway_headers(rendered)
     _verify_agent_ingress_routes(rendered)
@@ -627,6 +614,62 @@ def _verify_default_render() -> None:
         "astron-agent-console-hub-artifact-upload",
         "astron-agent-console-hub-sandbox-runtime-credential",
     )
+
+
+def _verify_fresh_install(rendered: str) -> None:
+    namespace = "astron-agent"
+    secret = _find_document(rendered, "Secret", "astron-agent-minio-credentials")
+    credentials = _secret_string_data(secret)
+    access_key = credentials.get("root-user", "")
+    secret_key = credentials.get("root-password", "")
+    if not re.fullmatch(r"[A-Za-z0-9]{24}", access_key) or not re.fullmatch(
+        r"[A-Za-z0-9]{48}", secret_key
+    ):
+        raise VerificationError("default MinIO credentials must pass the startup policy")
+    checksum = hashlib.sha256(
+        f"astron-agent-minio-credentials:root-user:root-password:{access_key}:{secret_key}".encode()
+    ).hexdigest()
+    for kind, component in (
+        ("Deployment", "console-hub"),
+        ("Deployment", "core-aitools"),
+        ("Deployment", "core-workflow"),
+        ("StatefulSet", "minio"),
+    ):
+        workload = _find_document(rendered, kind, f"{namespace}-{component}")
+        if f'checksum/object-storage-secret: "{checksum}"' not in workload:
+            raise VerificationError("MinIO and its clients must use the same Secret revision")
+
+    tenant = _find_document(rendered, "Deployment", f"{namespace}-core-tenant")
+    _, environment = _main_container_environment(tenant)
+    if environment.get("DATABASE_DB_TYPE", {}).get("value") != "mysql":
+        raise VerificationError("Tenant must receive the Python database configuration")
+    if not re.search(r"startupProbe:\s+httpGet:\s+path: /ping", tenant):
+        raise VerificationError("Tenant must have a startup probe that gates liveness")
+
+    for component in ("core-knowledge", "core-workflow", "core-aitools"):
+        workload = _find_document(rendered, "Deployment", f"{namespace}-{component}")
+        _, environment = _main_container_environment(workload)
+        if any(
+            environment.get(key, {}).get("value") != expected
+            for key, expected in {
+                "MYSQL_HOST": f"{namespace}-mysql",
+                "CONSOLE_MYSQL_DB": "astron_console",
+                "REDIS_ADDR": f"{namespace}-redis:6379",
+            }.items()
+        ):
+            raise VerificationError(f"Console platform account settings missing in {component}")
+
+
+def _verify_platform_redis_db_override() -> None:
+    rendered = _render((
+        "--set", "consoleHub.env.redisDatabaseConsole=4",
+        "--set", "coreKnowledge.env.redisDatabaseConsole=0",
+    ))
+    for component, expected in (("core-knowledge", "0"), ("core-workflow", "4")):
+        deployment = _find_document(rendered, "Deployment", f"astron-agent-{component}")
+        _, environment = _main_container_environment(deployment)
+        if environment.get("REDIS_DATABASE_CONSOLE", {}).get("value") != expected:
+            raise VerificationError(f"Incorrect platform Redis database for {component}")
 
 
 def _verify_sandbox_bindings(rendered: str, artifact_secret: str, runtime_secret: str) -> None:
@@ -756,7 +799,15 @@ def _verify_console_internal_hosts() -> None:
         secret = environment.get("TENANT_SECRET", {})
         if not secret.get("secret_name") or not secret.get("secret_key"):
             raise VerificationError("Console tenant credential must retain its existing Secret binding")
-        if environment["CONSOLE_ALLOWED_HOSTS"]["value"] != public_hosts + "," + service_host:
+        expected_hosts = {
+            *public_hosts.split(","),
+            "localhost",
+            "127.0.0.1",
+            "astron-agent.example.com",
+            service_host,
+            f"{service_host}.astron-agent.svc.cluster.local",
+        }
+        if set(environment["CONSOLE_ALLOWED_HOSTS"]["value"].split(",")) != expected_hosts:
             raise VerificationError("Console must preserve public hosts and add its actual internal service host")
         for consumer in ("core-agent", "core-workflow"):
             deployment = _find_document(rendered, "Deployment", fullname + "-" + consumer)
@@ -850,60 +901,6 @@ def _verify_workflow_managed_upgrade_render() -> None:
     _verify_managed_workflow_internal_auth(rendered)
 
 
-def _verify_legacy_compatibility_overrides_are_ignored() -> None:
-    override_paths = (
-        "coreTenant.env.tenantKey",
-        "coreTenant.env.tenantSecret",
-        "coreAgent.env.tenantKey",
-        "coreAgent.env.tenantSecret",
-        "coreAgent.env.appAuthApiKey",
-        "coreAgent.env.appAuthSecret",
-        "coreWorkflow.env.tenantKey",
-        "coreWorkflow.env.tenantSecret",
-        "coreWorkflow.env.appManagePlatKey",
-        "coreWorkflow.env.appManagePlatSecret",
-        "consoleHub.env.tenantKey",
-        "consoleHub.env.tenantSecret",
-        "consoleHub.env.appApikey",
-        "consoleHub.env.appApiSecret",
-    )
-    arguments: List[str] = []
-    for index, path in enumerate(override_paths):
-        arguments.extend(
-            (
-                "--set-string",
-                f"{path}={LEGACY_KEY if index % 2 == 0 else LEGACY_SECRET}",
-            )
-        )
-    rendered = _render(arguments)
-    if LEGACY_KEY in rendered or LEGACY_SECRET in rendered:
-        raise VerificationError(
-            "legacy compatibility values bypassed tenant Secret binding"
-        )
-    _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
-
-
-def _verify_legacy_custom_pair_is_preserved() -> None:
-    """Keep strong credentials configured through pre-tenantBootstrap values."""
-    custom_key = "U" * 48
-    custom_secret = "V" * 48
-    rendered = _render(
-        (
-            "--set-string",
-            f"consoleHub.env.tenantKey={custom_key}",
-            "--set-string",
-            f"consoleHub.env.tenantSecret={custom_secret}",
-        )
-    )
-    values = _secret_string_data(_find_document(rendered, "Secret", MANAGED_SECRET))
-    if (
-        values.get(MANAGED_KEY) != custom_key
-        or values.get(MANAGED_SECRET_KEY) != custom_secret
-    ):
-        raise VerificationError("legacy custom tenant pair was not preserved")
-    _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
-
-
 def _verify_negative_renders() -> int:
     strong_key = "K" * 48
     strong_secret = "S" * 48
@@ -940,11 +937,9 @@ def _verify_negative_renders() -> int:
             "--set-string",
             f"tenantBootstrap.secret={strong_secret}",
         ),
-        (
-            "--set-string",
-            f"consoleHub.env.tenantKey={strong_key}",
-        ),
         ("--set-string", "tenantBootstrap.tenantId=changed"),
+        ("--set", "minio.enabled=false"),
+        ("--set-string", "minio.auth.rootUser=minioadmin,minio.auth.rootPassword=minioadmin123"),
         (
             "--set-string",
             "tenantBootstrap.existingSecret.name=external",
@@ -1020,10 +1015,7 @@ def _verify_lookup_and_seed_sources() -> None:
             raise VerificationError(
                 "managed workflow Secret upgrade validation is incomplete"
             )
-    for sql_path in (
-        CHART / "files" / "mysql" / "tenant.sql",
-        CHART / "files" / "mysql" / "workflow.sql",
-    ):
+    for sql_path in (CHART / "files" / "mysql").glob("*.sql"):
         sql = sql_path.read_text()
         if LEGACY_KEY in sql or LEGACY_SECRET in sql:
             raise VerificationError(
@@ -1044,6 +1036,7 @@ def main() -> int:
         _verify_docker_agent_proxy(docker_nginx)
         _verify_docker_host_regressions(docker_nginx)
         _verify_default_render()
+        _verify_platform_redis_db_override()
         _verify_console_internal_hosts()
         _verify_workflow_mcp_routing()
         _verify_builtin_tool_routing()
@@ -1052,8 +1045,6 @@ def main() -> int:
         _verify_external_secret_render()
         _verify_workflow_external_secret_render()
         _verify_workflow_managed_upgrade_render()
-        _verify_legacy_compatibility_overrides_are_ignored()
-        _verify_legacy_custom_pair_is_preserved()
         negative_count = _verify_negative_renders()
     except VerificationError as exc:
         print(f"tenant bootstrap Helm gate: FAIL: {exc}", file=sys.stderr)
@@ -1066,7 +1057,7 @@ def main() -> int:
         return 1
     print(
         "tenant bootstrap Helm gate: PASS "
-        f"(10 positive modes, 4 tenant consumers, 3 workflow consumers, "
+        f"(9 positive modes, 4 tenant consumers, 3 workflow consumers, "
         f"{negative_count} negative cases, 2 Docker Host regressions, "
         "Docker/Helm Agent SSE and internal-route contracts)"
     )

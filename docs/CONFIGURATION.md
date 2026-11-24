@@ -51,12 +51,11 @@ Configuration items in this document are marked as follows:
 ## 1. Middleware Configuration Module
 
 > **Independent Deployment Note**:
-> - If using Docker Compose one-click deployment, the following configurations can use container names (such as `postgres`, `mysql`, `redis`, `kafka`, `minio`) as host addresses
+> - If using Docker Compose one-click deployment, the following configurations can use container names (such as `postgres`, `mysql`, `redis`, `minio`) as host addresses
 > - If middleware services are **deployed separately** (not in the same Docker network), you need to replace the container names in the following configurations with actual IP addresses or domain names, and synchronize the corresponding connection information (such as username, password, port, etc.):
 >   - PostgreSQL related: `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, etc.
 >   - MySQL related: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_URL`, etc.
 >   - Redis related: `REDIS_ADDR`, `REDIS_HOST`, `REDIS_PASSWORD`, `REDIS_PORT`, etc.
->   - Kafka related: `KAFKA_SERVERS` and authentication information (if needed)
 >   - MinIO related: `OSS_ENDPOINT`, `OSS_DOWNLOAD_HOST`, `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET`, etc.
 >
 > **MinIO defaults**:
@@ -84,9 +83,9 @@ Configuration items in this document are marked as follows:
 | REDIS_ADDR | Use Default | string | Redis connection address (standalone mode) | redis:6379 |
 | REDIS_HOST | Use Default | string | Redis host address | redis |
 | REDIS_PORT | Use Default | int | Redis port number | 6379 |
-| KAFKA_ENABLE | Use Default | bool | Send execution logs to external Kafka | 0 |
+| KAFKA_ENABLE | Use Default | bool | Enable optional execution log export to external Kafka | 0 |
 | KAFKA_TIMEOUT | Use Default | int | Kafka connection timeout (seconds) | 60 |
-| KAFKA_SERVERS | Use Default | string | External Kafka broker addresses reachable from the service containers | kafka:29092 |
+| KAFKA_SERVERS | When enabled | string | External Kafka broker addresses reachable from the service containers | — |
 | MINIO_ROOT_USER | Use Default | string | Bundled MinIO administrator username; override when exposing MinIO externally | minioadmin |
 | MINIO_ROOT_PASSWORD | Use Default | string | Bundled MinIO administrator password; override when exposing MinIO externally | minioadmin123 |
 | EXPOSE_MINIO_PORT | Use Default | int | Host loopback-only MinIO API maintenance port (`127.0.0.1` binding is fixed by Compose) | 18998 |
@@ -219,7 +218,7 @@ Tenant runs on Python 3.11 and loads MySQL and startup credentials before servin
 | AGENT_MYSQL_DB | Required | string | MySQL database name used by Agent module | agent |
 | UPLOAD_NODE_TRACE | Required | bool | Whether to upload node trace data | true |
 | UPLOAD_METRICS | Required | bool | Whether to upload metrics data | true |
-| AGENT_KAFKA_TOPIC | Required | string | Kafka topic name used by Agent | spark-agent-builder |
+| AGENT_KAFKA_TOPIC | Optional | string | Kafka topic name used by Agent | spark-agent-builder |
 | GET_LINK_URL | Required | url | API address to get tool link | http://core-link:18888/api/v1/tools |
 | VERSIONS_LINK_URL | Required | url | API address to get tool version | http://core-link:18888/api/v1/tools/versions |
 | RUN_LINK_URL | Required | url | API address to run tool | http://core-link:18888/api/v1/tools/http_run |
@@ -258,7 +257,7 @@ Tenant runs on Python 3.11 and loads MySQL and startup credentials before servin
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
 | WORKFLOW_MYSQL_DB | Required | string | MySQL database name used by Workflow module | workflow |
-| WORKFLOW_KAFKA_TOPIC | Required | string | Kafka topic name used by Workflow | spark-agent-builder |
+| WORKFLOW_KAFKA_TOPIC | Optional | string | Kafka topic name used by Workflow | spark-agent-builder |
 | RUNTIME_ENV | Required | string | Runtime environment (dev/test/prod) | dev |
 | CODE_EXEC_TYPE | Use Default | string | Isolated code executor. The built-in LangChain/Pyodide sandbox is enabled by default and needs no external credentials. E2B is optional and takes priority when enabled for a workflow; iFly and iFly-v2 remain optional remote executors. `disabled` explicitly disables code nodes and `local` is rejected. | langchain |
 | CODE_EXEC_TIMEOUT_SEC | Use Default | int | Maximum built-in sandbox execution time in seconds (bounded to 1-600) | 10 |

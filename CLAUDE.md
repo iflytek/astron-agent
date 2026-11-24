@@ -56,12 +56,11 @@ Astron Agent is an enterprise-grade Agentic Workflow development platform. It in
 - Console Backend -> Core Services: HTTP/REST, SSE
 - Workflow -> Agent / Knowledge / Plugins / Database: HTTP, SSE
 - Agent -> Console: internal configuration and resource APIs
-- Core Services -> Kafka: execution log reporting
 
 ## Important Notes
 
 - Before making any changes, clearly identify the target module along with its complete call chain and upstream/downstream dependencies. For cross‑service changes, explicitly document the invocation path and dependency direction. Direct modifications to shared layers are strictly prohibited without a thorough impact assessment.
-- If Kafka, Redis, MinIO, or authentication is involved, evaluate the impact on other services first.
+- If Redis, MinIO, or authentication is involved, evaluate the impact on other services first.
 - **Always prioritize official frameworks, SDKs, and APIs.** When an official framework, SDK, or API exists for a task, you MUST use it instead of hand-rolling a custom implementation, reimplementing existing capabilities, or calling lower-level interfaces directly. Only fall back to a custom approach when no official option covers the need, and state explicitly why the official option was insufficient.
 - If it is a complete feature request or a complex bug, add logs at key points as much as reasonably possible to help with troubleshooting, but do not add excessive logging.
 

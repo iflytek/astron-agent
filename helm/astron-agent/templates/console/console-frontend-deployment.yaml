@@ -28,7 +28,7 @@ spec:
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         ports:
         - name: http
-          containerPort: {{ .Values.consoleFrontend.service.port }}
+          containerPort: 1881
           protocol: TCP
         livenessProbe:
           tcpSocket:

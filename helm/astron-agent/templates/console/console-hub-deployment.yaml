@@ -1,4 +1,42 @@
 {{- if .Values.consoleHub.enabled }}
+{{- $fullname := include "astron-agent.fullname" . }}
+{{- $dependencies := dict }}
+{{- if .Values.mysql.enabled }}
+{{- $_ := set $dependencies (printf "%s-mysql" $fullname) 3306 }}
+{{- end }}
+{{- if .Values.redis.enabled }}
+{{- $_ := set $dependencies (printf "%s-redis" $fullname) 6379 }}
+{{- end }}
+{{- if .Values.minio.enabled }}
+{{- $_ := set $dependencies (printf "%s-minio" $fullname) .Values.minio.service.apiPort }}
+{{- end }}
+{{- $serviceHost := printf "%s-console-hub" $fullname }}
+{{- $serviceFqdn := printf "%s.%s.svc.%s" $serviceHost .Release.Namespace .Values.global.clusterDomain }}
+{{- $publicOrigin := default .Values.global.hostBaseAddress .Values.consoleHub.auth.publicOrigin }}
+{{- $cookieSecure := .Values.consoleHub.auth.cookieSecure | toString }}
+{{- if eq $cookieSecure "" }}
+{{- $cookieSecure = hasPrefix "https://" $publicOrigin | toString }}
+{{- end }}
+{{- $csrfOrigins := compact (list $publicOrigin .Values.consoleHub.auth.csrfTrustedOrigins) }}
+{{- $allowedHosts := list "localhost" "127.0.0.1" $serviceHost $serviceFqdn }}
+{{- if .Values.consoleHub.auth.allowedHosts }}
+{{- $allowedHosts = append $allowedHosts .Values.consoleHub.auth.allowedHosts }}
+{{- end }}
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+{{- $allowedHosts = append $allowedHosts (replace "*." "." .host) }}
+{{- end }}
+{{- end }}
+{{- $serviceDefaults := dict
+    "mysqlHost" (printf "%s-mysql" $fullname)
+    "redisHost" (printf "%s-redis" $fullname)
+    "agentUrl" (include "astron-agent.coreAgent.url" .)
+    "workflowUrl" (include "astron-agent.coreWorkflow.url" .)
+    "knowledgeUrl" (printf "%s/knowledge" (include "astron-agent.coreKnowledge.url" .))
+    "toolUrl" (include "astron-agent.coreLink.url" .)
+    "toolRpaUrl" (include "astron-agent.coreRpa.url" .)
+    "sparkDbUrl" (include "astron-agent.coreDatabase.url" .)
+}}
 {{- $workflowAuthSecretName := include "astron-agent.workflowInternalAuthSecretName" . }}
 {{- $workflowAuthSecretKey := include "astron-agent.workflowInternalAuthSecretKey" . }}
 {{- $tenantBootstrapSecretName := include "astron-agent.tenantBootstrapSecretName" . }}
@@ -38,25 +76,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-      - name: wait-for-dependencies
-        image: busybox:1.35
-        command:
-        - sh
-        - -c
-        - |
-          echo "Waiting for infrastructure services..."
-          until nslookup {{ include "astron-agent.fullname" . }}-mysql.{{ .Release.Namespace }}.svc.cluster.local && \
-                nslookup {{ include "astron-agent.fullname" . }}-redis.{{ .Release.Namespace }}.svc.cluster.local; do
-            echo "Services not ready yet, waiting...";
-            sleep 5;
-          done
-          {{- if .Values.minio.enabled }}
-          until nslookup {{ include "astron-agent.fullname" . }}-minio.{{ .Release.Namespace }}.svc.cluster.local; do
-            echo "MinIO is not ready yet, waiting...";
-            sleep 5;
-          done
-          {{- end }}
-          echo "All infrastructure services are ready!"
+      {{- if $dependencies }}
+      {{- include "astron-agent.waitForDependencies" $dependencies | nindent 6 }}
+      {{- end }}
       - name: validate-object-storage-credentials
         image: busybox:1.35
         imagePullPolicy: IfNotPresent
@@ -104,40 +126,25 @@ spec:
               name: {{ required "consoleHub.auth.existingSecret is required" .Values.consoleHub.auth.existingSecret | quote }}
               key: {{ .Values.consoleHub.auth.secretKey | quote }}
         - name: CONSOLE_ALLOWED_HOSTS
-          value: {{ printf "%s,%s-console-hub" .Values.consoleHub.auth.allowedHosts (include "astron-agent.fullname" .) | quote }}
+          value: {{ join "," $allowedHosts | quote }}
         - name: CONSOLE_PUBLIC_ORIGIN
-          value: {{ .Values.consoleHub.auth.publicOrigin | quote }}
+          value: {{ $publicOrigin | quote }}
         - name: CONSOLE_CSRF_TRUSTED_ORIGINS
-          value: {{ .Values.consoleHub.auth.csrfTrustedOrigins | quote }}
+          value: {{ join "," $csrfOrigins | quote }}
         - name: CONSOLE_COOKIE_SECURE
-          value: {{ .Values.consoleHub.auth.cookieSecure | quote }}
+          value: {{ $cookieSecure | quote }}
         - name: CONSOLE_TRUSTED_PROXIES
           value: {{ .Values.consoleHub.auth.trustedProxies | quote }}
         {{- range $key, $value := .Values.consoleHub.env }}
-        {{- if eq $key "mysqlHost" }}
-        - name: MYSQL_HOST
-          value: {{ default (printf "%s-mysql" (include "astron-agent.fullname" $)) $value | quote }}
-        {{- else if eq $key "agentUrl" }}
-        - name: AGENT_URL
-          value: {{ default (printf "http://%s-core-agent:%d" (include "astron-agent.fullname" $) ($.Values.coreAgent.service.port | int)) $value | quote }}
-        {{- else if eq $key "workflowUrl" }}
-        - name: WORKFLOW_URL
-          value: {{ printf "http://%s-core-workflow:%d" (include "astron-agent.fullname" $) ($.Values.coreWorkflow.service.port | int) | quote }}
-        {{- else if eq $key "redisHost" }}
-        - name: REDIS_HOST
-          value: {{ printf "%s-redis" (include "astron-agent.fullname" $) | quote }}
-        {{- else if eq $key "consoleDomain" }}
-        - name: CONSOLE_DOMAIN
-          value: {{ $.Values.global.hostBaseAddress | quote }}
+        {{- if hasKey $serviceDefaults $key }}
+        - name: {{ upper (snakecase $key) }}
+          value: {{ default (get $serviceDefaults $key) $value | quote }}
         {{- else if eq $key "ossEndpoint" }}
         - name: {{ upper (snakecase $key) }}
           value: {{ include "astron-agent.minioEndpoint" $ | quote }}
         {{- else if eq $key "ossRemoteEndpoint" }}
         - name: {{ upper (snakecase $key) }}
           value: {{ include "astron-agent.minioPublicEndpoint" $ | quote }}
-        {{- else if eq $key "botApiMaasBaseUrl" }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ printf "%s/workflow/v1/chat/completions" $.Values.global.hostBaseAddress | quote }}
         {{- else if eq $key "mysqlPassword" }}
         - name: {{ upper (snakecase $key) }}
           valueFrom:
@@ -162,30 +169,15 @@ spec:
             secretKeyRef:
               name: {{ include "astron-agent.minioSecretName" $ }}
               key: {{ include "astron-agent.minioSecretPasswordKey" $ }}
-        {{- else if has $key (list "tenantId" "tenantKey" "tenantSecret" "appApikey" "appApiSecret") }}
-        {{/* The canonical TENANT_* variables are injected once below. */}}
-        {{- else if has $key (list "commonAppid" "maasAppId" "maasConsumerId") }}
-        - name: {{ upper (snakecase $key) }}
-          value: {{ include "astron-agent.tenantBootstrapID" $ | quote }}
-        {{- else if has $key (list "commonApikey" "maasApiKey" "maasConsumerKey") }}
-        - name: {{ upper (snakecase $key) }}
-          valueFrom:
-            secretKeyRef:
-              name: {{ $tenantBootstrapSecretName }}
-              key: {{ $tenantBootstrapKeyKey }}
-        {{- else if has $key (list "commonApiSecret" "maasApiSecret" "maasConsumerSecret") }}
-        - name: {{ upper (snakecase $key) }}
-          valueFrom:
-            secretKeyRef:
-              name: {{ $tenantBootstrapSecretName }}
-              key: {{ $tenantBootstrapSecretKey }}
+        {{- else if has $key (list "tenantId" "tenantKey" "tenantSecret") }}
+        {{/* The canonical TENANT_* variables are injected below. */}}
         {{- else }}
         - name: {{ upper (snakecase $key) }}
           value: {{ $value | quote }}
         {{- end }}
         {{- end }}
         - name: TENANT_URL
-          value: {{ printf "http://%s-core-tenant:%v" (include "astron-agent.fullname" .) .Values.coreTenant.service.port | quote }}
+          value: {{ include "astron-agent.coreTenant.url" . | quote }}
         - name: TENANT_ID
           value: {{ include "astron-agent.tenantBootstrapID" . | quote }}
         - name: TENANT_KEY
@@ -194,16 +186,6 @@ spec:
               name: {{ $tenantBootstrapSecretName }}
               key: {{ $tenantBootstrapKeyKey }}
         - name: TENANT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ $tenantBootstrapSecretName }}
-              key: {{ $tenantBootstrapSecretKey }}
-        - name: APP_APIKEY
-          valueFrom:
-            secretKeyRef:
-              name: {{ $tenantBootstrapSecretName }}
-              key: {{ $tenantBootstrapKeyKey }}
-        - name: APP_API_SECRET
           valueFrom:
             secretKeyRef:
               name: {{ $tenantBootstrapSecretName }}
@@ -225,7 +207,7 @@ spec:
               key: {{ $workflowAuthSecretKey | quote }}
         ports:
         - name: http
-          containerPort: {{ .Values.consoleHub.service.port }}
+          containerPort: 8080
           protocol: TCP
         livenessProbe:
           tcpSocket:

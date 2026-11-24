@@ -56,7 +56,7 @@ docker compose up -d --build
 
 
 **重要配置说明：**
-- 默认使用 Elasticsearch，如需使用 opensearch、infinity，请修改 .env 中的 DOC_ENGINE 配置
+- 可选的 RAGFlow 部署默认使用 Elasticsearch 作为文档检索引擎。可在 `docker/ragflow/.env` 中设置 `DOC_ENGINE`，切换到 OpenSearch 或 Infinity。
 - 支持GPU加速，使用 `docker-compose-gpu.yml` 启动
 
 ### 第三步：了解可选的访问与集成配置

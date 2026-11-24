@@ -46,12 +46,11 @@
 ## 1. 中间件配置模块
 
 > **独立部署说明**:
-> - 如果使用 Docker Compose 一键部署，以下配置中使用容器名（如 `postgres`、`mysql`、`redis`、`kafka`、`minio`）作为主机地址即可
+> - 如果使用 Docker Compose 一键部署，以下配置中使用容器名（如 `postgres`、`mysql`、`redis`、`minio`）作为主机地址即可
 > - 如果中间件服务**单独部署**（不在同一 Docker 网络中），需要将以下配置中的容器名修改为实际的 IP 地址或域名，并同步修改对应的连接信息（如用户名、密码、端口等）：
 >   - PostgreSQL 相关：`POSTGRES_HOST`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_PORT` 等
 >   - MySQL 相关：`MYSQL_HOST`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_URL` 等
 >   - Redis 相关：`REDIS_ADDR`、`REDIS_HOST`、`REDIS_PASSWORD`、`REDIS_PORT` 等
->   - Kafka 相关：`KAFKA_SERVERS` 及认证信息（如需要）
 >   - MinIO 相关：`OSS_ENDPOINT`、`OSS_DOWNLOAD_HOST`、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET` 等
 >
 > **MinIO 默认配置**：
@@ -79,9 +78,9 @@
 | REDIS_ADDR | 使用默认 | string | Redis 连接地址(单机模式) | redis:6379 |
 | REDIS_HOST | 使用默认 | string | Redis 主机地址 | redis |
 | REDIS_PORT | 使用默认 | int | Redis 端口号 | 6379 |
-| KAFKA_ENABLE | 使用默认 | bool | 向外部 Kafka 上报执行日志 | 0 |
+| KAFKA_ENABLE | 使用默认 | bool | 可选的外部 Kafka 执行日志上报 | 0 |
 | KAFKA_TIMEOUT | 使用默认 | int | Kafka 连接超时时间(秒) | 60 |
-| KAFKA_SERVERS | 使用默认 | string | 服务容器可访问的外部 Kafka 地址列表 | kafka:29092 |
+| KAFKA_SERVERS | 启用时填写 | string | 服务容器可访问的外部 Kafka 地址列表 | — |
 | MINIO_ROOT_USER | 使用默认 | string | 内置 MinIO 管理员用户名；对外提供 MinIO 服务时应覆盖 | minioadmin |
 | MINIO_ROOT_PASSWORD | 使用默认 | string | 内置 MinIO 管理员密码；对外提供 MinIO 服务时应覆盖 | minioadmin123 |
 | EXPOSE_MINIO_PORT | 使用默认 | int | 仅绑定宿主机回环地址的 MinIO API 运维端口（Compose 固定绑定 `127.0.0.1`） | 18998 |
@@ -214,7 +213,7 @@ Tenant 使用 Python 3.11，在提供 HTTP 服务前初始化 MySQL 和启动凭
 | AGENT_MYSQL_DB | 必填 | string | Agent 模块使用的 MySQL 数据库名称 | agent |
 | UPLOAD_NODE_TRACE | 必填 | bool | 是否上传节点追踪数据 | true |
 | UPLOAD_METRICS | 必填 | bool | 是否上传指标数据 | true |
-| AGENT_KAFKA_TOPIC | 必填 | string | Agent 使用的 Kafka 主题名称 | spark-agent-builder |
+| AGENT_KAFKA_TOPIC | 可选 | string | Agent 使用的 Kafka 主题名称 | spark-agent-builder |
 | GET_LINK_URL | 必填 | url | 获取工具链接的接口地址 | http://core-link:18888/api/v1/tools |
 | VERSIONS_LINK_URL | 必填 | url | 获取工具版本的接口地址 | http://core-link:18888/api/v1/tools/versions |
 | RUN_LINK_URL | 必填 | url | 运行工具的接口地址 | http://core-link:18888/api/v1/tools/http_run |
@@ -253,7 +252,7 @@ Tenant 使用 Python 3.11，在提供 HTTP 服务前初始化 MySQL 和启动凭
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
 | WORKFLOW_MYSQL_DB | 必填 | string | Workflow 模块使用的 MySQL 数据库名称 | workflow |
-| WORKFLOW_KAFKA_TOPIC | 必填 | string | Workflow 使用的 Kafka 主题名称 | spark-agent-builder |
+| WORKFLOW_KAFKA_TOPIC | 可选 | string | Workflow 使用的 Kafka 主题名称 | spark-agent-builder |
 | RUNTIME_ENV | 必填 | string | 运行环境(dev/test/prod) | dev |
 | CODE_EXEC_TYPE | 使用默认值 | string | 代码节点隔离执行器。默认启用内置 LangChain/Pyodide 沙箱，无需外部服务或凭据；工作流启用 E2B 后优先使用 E2B；iFly、iFly-v2 为可选远程执行器。显式设为 `disabled` 可禁用代码节点，`local` 永不支持。 | langchain |
 | CODE_EXEC_TIMEOUT_SEC | 使用默认值 | int | 内置沙箱单次执行最长时间（限制为 1-600 秒） | 10 |

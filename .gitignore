@@ -77,6 +77,7 @@ loop/project-development/*
 loop/project-development/astron-agent-docs/*
 !loop/project-development/astron-agent-docs/python-tenant/
 !loop/project-development/astron-agent-docs/python-console/
+!loop/project-development/astron-agent-docs/helm-deployment/
 
 # =============================================================================
 # Development Tools & IDEs

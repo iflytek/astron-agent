@@ -24,17 +24,6 @@ data:
   {{- end }}
 ---
 {{- end }}
-{{- if .Values.coreTenant.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "astron-agent.fullname" . }}-core-tenant-config
-  labels:
-    {{- include "astron-agent.labels" . | nindent 4 }}
-data:
-  config.toml: {{ .Files.Get "files/config/tenant/config.toml" | quote }}
----
-{{- end }}
 {{- if .Values.coreDatabase.enabled }}
 apiVersion: v1
 kind: ConfigMap

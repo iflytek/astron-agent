@@ -1,135 +1,22 @@
-============================================================
-   ___        _                      ___                  _
-  / _ \      | |                    / _ \                | |
- / /_\ \ ___ | |_  _ __  ___  _ __ / /_\ \  __ _   ___  _ __ | |_
- |  _  |/ __|| __|| '__|/ _ \| '_ \|  _  | / _` | / _ \| '_ \| __|
- | | | |\__ \| |_ | |  | (_) | | | | | | || (_| ||  __/| | | | |_
- \_| |_/|___/ \__||_|   \___/|_| |_\_| |_/ \__, | \___||_| |_|\__|
-                                            __/ |
-                                           |___/
-============================================================
+Astron Agent release {{ .Release.Name }} is configured in namespace {{ .Release.Namespace }}.
 
-🎉 Astron Agent has been deployed successfully!
+kubectl get pods,pvc -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+{{- if and .Values.ingress.enabled .Values.consoleFrontend.enabled .Values.consoleHub.enabled }}
 
-Chart: {{ .Chart.Name }} {{ .Chart.Version }}
-Release: {{ .Release.Name }}
-Namespace: {{ .Release.Namespace }}
+Console URL
+{{ default .Values.global.hostBaseAddress .Values.consoleHub.auth.publicOrigin }}
+{{- else if .Values.consoleFrontend.enabled }}
 
-============================================================
-📋 Service Information
-============================================================
-
-{{- if .Values.ingress.enabled }}
-
-1. Ingress (External Access):
-   {{- range .Values.ingress.hosts }}
-   https://{{ .host }}
-   {{- end }}
-
-   SECURITY BOUNDARY:
-   Service-only Console APIs are routed by longer regex paths to a selectorless
-   deny Service before the generic /console-api route. No snippet annotation is
-   required. With a non-ingress-nginx controller, verify equivalent longest-path
-   ordering or set ingress.enabled=false and use an explicit public-path allowlist.
+Frontend-only port forward
+kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-console-frontend 1881:{{ .Values.consoleFrontend.service.port }}
 {{- end }}
+{{- if .Values.consoleHub.enabled }}
 
-{{- if .Values.consoleFrontend.enabled }}
-
-2. Console Frontend:
-   Access Console Frontend using port-forward:
-
-   kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-console-frontend {{ .Values.consoleFrontend.service.port }}:{{ .Values.consoleFrontend.service.port }}
-   echo "Console Frontend: http://localhost:{{ .Values.consoleFrontend.service.port }}"
+Console requires Secret {{ .Values.consoleHub.auth.existingSecret }} with key {{ .Values.consoleHub.auth.secretKey }}.
 {{- end }}
-
 {{- if .Values.minio.enabled }}
 
-3. MinIO Console:
-   {{- if and .Values.minio.consoleService.enabled (eq .Values.minio.consoleService.type "NodePort") }}
-   The MinIO console was explicitly exposed via NodePort:
-   - Console Port: {{ .Values.minio.consoleService.nodePort }}
-   {{- else if .Values.minio.consoleService.enabled }}
-   Access MinIO console using port-forward:
-
-   kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "astron-agent.fullname" . }}-minio-console {{ .Values.minio.consoleService.port }}:{{ .Values.minio.consoleService.port }}
-   echo "MinIO Console: http://localhost:{{ .Values.minio.consoleService.port }}"
-   {{- else }}
-   The MinIO console Service is disabled. Port-forward the StatefulSet only for local maintenance:
-
-   kubectl port-forward --namespace {{ .Release.Namespace }} statefulset/{{ include "astron-agent.fullname" . }}-minio 9001:9001
-   {{- end }}
-
-   Credentials are stored in Secret {{ include "astron-agent.minioSecretName" . }}
-   (keys {{ include "astron-agent.minioSecretUserKey" . }} and {{ include "astron-agent.minioSecretPasswordKey" . }}).
-   Secret values are intentionally never printed by Helm.
+MinIO console for local maintenance
+kubectl port-forward -n {{ .Release.Namespace }} statefulset/{{ include "astron-agent.fullname" . }}-minio 9001:9001
+Credentials are in Secret {{ include "astron-agent.minioSecretName" . }}.
 {{- end }}
-
-============================================================
-🔍 Check Deployment Status
-============================================================
-
-Monitor all pods:
-kubectl get pods --namespace {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
-
-Check specific components:
-- Infrastructure: kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/component=postgres,mysql,redis,minio
-- Core Services: kubectl get pods -n {{ .Release.Namespace }} | grep core-
-- Console: kubectl get pods -n {{ .Release.Namespace }} | grep console
-
-============================================================
-📝 Important Notes
-============================================================
-
-1. Database Initialization:
-   - PostgreSQL and MySQL will initialize on first startup
-   - Check logs if services are not starting: kubectl logs -n {{ .Release.Namespace }} <pod-name>
-
-2. Storage:
-   {{- if .Values.global.storageClass }}
-   - Using StorageClass: {{ .Values.global.storageClass }}
-   {{- else }}
-   - Using default StorageClass
-   {{- end }}
-   - Verify PVCs: kubectl get pvc -n {{ .Release.Namespace }}
-
-3. Configuration:
-   - Update configuration in values.yaml and upgrade:
-     helm upgrade {{ .Release.Name }} . -n {{ .Release.Namespace }}
-
-4. Secrets:
-   - Default passwords are used for demo purposes
-   - IMPORTANT: Change passwords in production!
-   - Update secrets: kubectl edit secret -n {{ .Release.Namespace }}
-
-5. Authentication:
-   - Console uses internal username/password registration and database sessions.
-   - Configure consoleHub.auth and its persistent Secret before startup.
-   - Existing users retain their IDs and require an operator-issued password reset.
-
-============================================================
-📚 Useful Commands
-============================================================
-
-# View logs
-kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} --tail=100 -f
-
-# Restart a specific component
-kubectl rollout restart deployment/{{ include "astron-agent.fullname" . }}-<component> -n {{ .Release.Namespace }}
-
-# Scale a deployment
-kubectl scale deployment/{{ include "astron-agent.fullname" . }}-<component> --replicas=<count> -n {{ .Release.Namespace }}
-
-# Uninstall
-helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
-
-============================================================
-🔗 Resources
-============================================================
-
-Documentation: https://github.com/iflytek/astron-agent
-Issues: https://github.com/iflytek/astron-agent/issues
-Community: Join our community for support
-
-============================================================
-
-Happy building with Astron Agent! 🚀

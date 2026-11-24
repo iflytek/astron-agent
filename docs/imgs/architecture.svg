@@ -41,17 +41,14 @@
 <text x="68" y="714" class="body">Database: tables &amp; SQL    |    Tenant: application credentials    |    External models &amp; optional Mem0</text>
 <path d="M350 575 V628" class="line"/>
 <path d="M850 575 V628" class="line"/>
-<rect x="48" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<rect x="48" y="785" width="360" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
 <text x="68" y="817" class="heading">MySQL</text>
 <text x="68" y="846" class="body">Data · DB sessions</text>
-<rect x="331" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
-<text x="351" y="817" class="heading">Redis</text>
-<text x="351" y="846" class="body">Cache · Limits · Events</text>
-<rect x="614" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
-<text x="634" y="817" class="heading">MinIO</text>
-<text x="634" y="846" class="body">Files &amp; artifacts</text>
-<rect x="897" y="785" width="255" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
-<text x="917" y="817" class="heading">Kafka</text>
-<text x="917" y="846" class="body">Execution logs</text>
+<rect x="420" y="785" width="360" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="440" y="817" class="heading">Redis</text>
+<text x="440" y="846" class="body">Cache · Limits · Events</text>
+<rect x="792" y="785" width="360" height="80" rx="12" fill="#fff" stroke="#cbd7e5"/>
+<text x="812" y="817" class="heading">MinIO</text>
+<text x="812" y="846" class="body">Files &amp; artifacts</text>
 <text x="48" y="766" class="label">Console and core services use the infrastructure required by each domain.</text>
 </svg>
