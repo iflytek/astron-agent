@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.core.exceptions import PermissionDenied
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
 from astron_console.accounts.models import User, UserProfile
@@ -60,7 +60,7 @@ class SpacesTests(TestCase):
         return item
 
     def test_invalid_and_foreign_context(self):
-        for sid in ("not-id", "0", "-1", "1.5"):
+        for sid in ("not-id", "0", "-1", "1.5", "²", "9" * 5000):
             self.assertEqual(self.call("/space/detail", sid=sid, method="get").status_code, 400)
         self.assertEqual(
             self.call(
@@ -161,6 +161,143 @@ class SpacesTests(TestCase):
             SpaceMember.objects.filter(uid=self.other.pk, space_id=self.space.pk).exists()
         )
 
+    def test_invitation_list_filters_by_effective_expiry(self):
+        expired = Invitation.objects.create(
+            type=1,
+            space_id=self.space.pk,
+            invitee_uid=self.other.pk,
+            expire_time=timezone.now() - timedelta(seconds=1),
+        )
+        active = Invitation.objects.create(
+            type=1,
+            space_id=self.space.pk,
+            invitee_uid=self.other.pk,
+            expire_time=timezone.now() + timedelta(days=1),
+        )
+        for status, item in ((1, active), (5, expired)):
+            response = self.call(
+                "/invite-record/space-invite-list", {"status": status}, sid=self.space.pk
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+            rows = response.json()["data"]["records"]
+            self.assertEqual([(row["id"], row["status"]) for row in rows], [(item.pk, status)])
+
+    @override_settings(CONSOLE_SPACE_LIMITS={"enterprise": {"user_count": 2}})
+    def test_existing_team_member_can_join_space_at_team_capacity(self):
+        enterprise = self.enterprise()
+        self.space.enterprise_id = enterprise.pk
+        self.space.save()
+        SpaceMember.objects.filter(space_id=self.space.pk, uid=self.member.pk).delete()
+        response = self.call(
+            "/invite-record/space-invite",
+            {"members": [{"uid": self.member.pk, "role": 3}]},
+            sid=self.space.pk,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        invitation_id = response.json()["data"][0]
+        response = self.call("/space-user/get-user-limit", sid=self.space.pk, method="get")
+        self.assertEqual(response.json()["data"], {"total": 2, "used": 2, "remain": 0})
+        response = self.call(
+            "/invite-record/accept-invite", {"inviteId": invitation_id}, user=self.member
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(EnterpriseMember.objects.filter(enterprise_id=enterprise.pk).count(), 2)
+        self.assertTrue(
+            SpaceMember.objects.filter(space_id=self.space.pk, uid=self.member.pk, role=3).exists()
+        )
+
+    def test_team_workspace_external_invites_require_team_authorization(self):
+        enterprise = self.enterprise()
+        self.space.enterprise_id = enterprise.pk
+        self.space.save()
+        SpaceMember.objects.filter(space_id=self.space.pk, uid=self.member.pk).update(role=2)
+        payload = {"members": [{"uid": self.other.pk, "role": 3}]}
+        response = self.call(
+            "/invite-record/space-invite", payload, user=self.member, sid=self.space.pk
+        )
+        self.assertEqual(response.status_code, 403)
+        response = self.call(
+            "/invite-record/space-invite", payload, user=self.owner, sid=self.space.pk
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        invitation_id = response.json()["data"][0]
+        response = self.call(
+            "/invite-record/accept-invite", {"inviteId": invitation_id}, user=self.other
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(
+            EnterpriseMember.objects.filter(
+                enterprise_id=enterprise.pk, uid=self.other.pk, role=3
+            ).exists()
+        )
+        self.assertTrue(
+            SpaceMember.objects.filter(space_id=self.space.pk, uid=self.other.pk, role=3).exists()
+        )
+
+    def test_pending_admin_invitation_tracks_current_authority(self):
+        enterprise = self.enterprise()
+        self.space.enterprise_id = enterprise.pk
+        self.space.save()
+        response = self.call(
+            "/invite-record/space-invite",
+            {"members": [{"uid": self.other.pk, "role": 2}]},
+            sid=self.space.pk,
+        )
+        invitation_id = response.json()["data"][0]
+        response = self.call(
+            "/space-user/transfer-space", {"uid": self.member.pk}, sid=self.space.pk
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        response = self.call(
+            "/invite-record/accept-invite", {"inviteId": invitation_id}, user=self.other
+        )
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(EnterpriseMember.objects.filter(uid=self.other.pk).exists())
+
+    def test_leaving_team_revokes_pending_enrollment_and_stale_visit(self):
+        enterprise = self.enterprise()
+        self.space.enterprise_id = enterprise.pk
+        self.space.save()
+        self.call("/space/visit-space", {"spaceId": self.space.pk}, user=self.member)
+        invitation = Invitation.objects.create(
+            type=2,
+            enterprise_id=enterprise.pk,
+            inviter_uid=self.owner.pk,
+            invitee_uid=self.member.pk,
+            expire_time=timezone.now() + timedelta(days=1),
+        )
+        response = self.call("/enterprise-user/quit-enterprise", eid=enterprise.pk)
+        self.assertEqual(response.status_code, 200, response.content)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.status, 4)
+        self.assertFalse(
+            SpaceMember.objects.filter(space_id=self.space.pk, uid=self.member.pk).exists()
+        )
+        response = self.call("/space/get-last-visit-space", method="get")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIsNone(response.json()["data"])
+
+    def test_team_context_without_space_does_not_select_personal_resources(self):
+        enterprise = self.enterprise()
+        response = self.call("/publish/bots", eid=enterprise.pk, method="get")
+        self.assertEqual(response.status_code, 403)
+
+    def test_detail_capabilities_match_database_policy(self):
+        enterprise = self.enterprise()
+        self.space.enterprise_id = enterprise.pk
+        self.space.save()
+        EnterprisePermission.objects.filter(
+            permission_key="EnterpriseController_updateName_POST"
+        ).update(staff=True)
+        detail = self.call(
+            "/enterprise/detail", user=self.member, eid=enterprise.pk, method="get"
+        ).json()["data"]
+        self.assertTrue(detail["canUpdateName"])
+        self.assertFalse(detail["canUpdateAvatar"])
+        space_detail = self.call("/space/detail", sid=self.space.pk, method="get").json()["data"]
+        self.assertFalse(space_detail["canEdit"])
+        self.assertFalse(space_detail["canDelete"])
+
     def test_cross_space_invitation_revoke(self):
         foreign = Space.objects.create(name="other", uid=self.other.pk)
         item = Invitation.objects.create(
@@ -234,6 +371,19 @@ class SpacesTests(TestCase):
             SpaceMember.objects.get(space_id=self.space.pk, uid=self.member.pk).role, 3
         )
 
+    def test_team_owner_can_join_a_team_space_directly_as_admin(self):
+        enterprise = self.enterprise()
+        workspace = Space.objects.create(
+            name="团队空间", uid=self.member.pk, enterprise_id=enterprise.pk, type=4
+        )
+        SpaceMember.objects.create(space_id=workspace.pk, uid=self.member.pk, role=1)
+        response = self.call(
+            "/apply-record/join-enterprise-space", {"spaceId": workspace.pk}, eid=enterprise.pk
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(SpaceMember.objects.get(space_id=workspace.pk, uid=self.owner.pk).role, 2)
+        self.assertFalse(Application.objects.filter(space_id=workspace.pk).exists())
+
     def test_enterprise_context_mismatch(self):
         enterprise = self.enterprise()
         self.assertEqual(
@@ -258,6 +408,19 @@ class SpacesTests(TestCase):
 
     def test_soft_delete_preserves_members(self):
         ids = list(SpaceMember.objects.filter(space_id=self.space.pk).values_list("pk", flat=True))
+        now = timezone.now()
+        expired = Invitation.objects.create(
+            type=1,
+            space_id=self.space.pk,
+            invitee_uid=self.other.pk,
+            expire_time=now - timedelta(days=1),
+        )
+        pending = Invitation.objects.create(
+            type=1,
+            space_id=self.space.pk,
+            invitee_uid=self.other.pk,
+            expire_time=now + timedelta(days=1),
+        )
         result = self.call(f"/space/delete-personal-space?spaceId={self.space.pk}", method="delete")
         self.assertEqual(result.status_code, 200, result.content)
         self.assertEqual(Space.objects.get(pk=self.space.pk).deleted, 1)
@@ -267,6 +430,11 @@ class SpacesTests(TestCase):
         )
         self.assertEqual(
             self.call("/space/detail", sid=self.space.pk, method="get").status_code, 404
+        )
+        inbox = self.call("/invite-record/my-invitations", user=self.other, method="get")
+        self.assertEqual(
+            {row["id"]: row["status"] for row in inbox.json()["data"]},
+            {expired.pk: 5, pending.pk: 4},
         )
 
     def test_notification_visibility_and_broadcast_read(self):

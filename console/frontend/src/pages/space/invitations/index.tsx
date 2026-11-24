@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Empty, Spin, Tag } from 'antd';
 import { Link } from 'react-router-dom';
 import http from '@/utils/http';
+import eventBus from '@/utils/event-bus';
 import styles from './index.module.scss';
 
 type Invitation = {
@@ -56,6 +57,7 @@ export default function Invitations() {
       await http.post(
         `/invite-record/${accept ? 'accept' : 'refuse'}-invite?inviteId=${id}`
       );
+      if (accept) eventBus.emit('spaceList');
       setRevision(value => value + 1);
     } catch (reason) {
       setActionError(

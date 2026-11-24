@@ -23,8 +23,9 @@ import CusCheckBox from './cus-check-box';
 import emptyImg from '@/assets/imgs/space/empty.png';
 import creatorImg from '@/assets/imgs/space/person-space-icon.svg';
 
-import { searchInviteUsers, getUserLimit } from './config';
+import { searchInviteUsers, getPersonalSpaceLimit } from './config';
 import { MEMBER_ROLE } from '@/pages/space/config';
+import { useUserStoreHook } from '@/hooks/use-user-store';
 import type {
   InviteUser as User,
   SelectedInviteUser as SelectedUser,
@@ -33,22 +34,26 @@ import type {
 interface AddMemberModalProps {
   title?: React.ReactNode;
   inviteType?: 'enterprise' | 'space';
+  isTeamSpace?: boolean;
   open: boolean;
   onClose: () => void;
   onSubmit: (values: SelectedUser[]) => void;
-  maxMembers?: number; // 最大成员数量
   initialUsers?: User[]; // 初始用户列表（用于批量导入）
 }
+
+const MAX_INVITATIONS_PER_REQUEST = 500;
 
 const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
   ({
     inviteType = 'enterprise',
+    isTeamSpace = false,
     open,
     onClose,
     onSubmit,
     initialUsers = [],
   }) => {
     const { t } = useTranslation();
+    const { isOwner, isSuperAdmin } = useUserStoreHook();
     const [searchValue, setSearchValue] = useState<string>('');
     const [lastSearchedValue, setLastSearchedValue] = useState<string>(''); // 添加这行
     const [allChecked, setAllChecked] = useState<boolean>(false);
@@ -59,16 +64,24 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
     const isOpen = useRef(open);
     isOpen.current = open;
     const [searchError, setSearchError] = useState('');
-    const [maxMembers, setMaxMembers] = useState<number>(48);
+    const [remainingSeats, setRemainingSeats] = useState(0);
+    const usesTeamSeats = inviteType === 'enterprise' || isTeamSpace;
+    const maxMembers = usesTeamSeats
+      ? MAX_INVITATIONS_PER_REQUEST
+      : Math.min(remainingSeats, MAX_INVITATIONS_PER_REQUEST);
 
     useEffect(() => {
       sequence.current += 1;
       setSearchError('');
       setLoading(false);
+      let ignore = false;
       if (open) {
-        void updateMaxMembers().catch(() =>
-          message.error('无法读取成员限制，请关闭后重试。')
-        );
+        setRemainingSeats(0);
+        if (!usesTeamSeats) {
+          void getPersonalSpaceLimit().then(limit => {
+            if (!ignore) setRemainingSeats(limit);
+          });
+        }
         setSearchValue('');
         setLastSearchedValue('');
       } else {
@@ -80,14 +93,10 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
         setUserList([]);
       }
       return () => {
+        ignore = true;
         sequence.current += 1;
       };
-    }, [open]);
-
-    const updateMaxMembers = useCallback(async () => {
-      const maxNums: number = await getUserLimit(inviteType);
-      setMaxMembers(maxNums);
-    }, [inviteType]);
+    }, [open, usesTeamSeats]);
 
     // 搜索用户接口调用
     const searchUsers = useCallback(
@@ -409,7 +418,14 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
               {t('space.selected')}
               {selectedUsers.length}
               <span className={styles.maxValue}>
-                {t('space.maxValue', { count: maxMembers })}
+                {t(
+                  usesTeamSeats
+                    ? 'space.invitationBatchLimit'
+                    : 'space.maxValue',
+                  {
+                    count: maxMembers,
+                  }
+                )}
               </span>
             </div>
 
@@ -418,6 +434,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
                 <SelectedUserItem
                   key={user.uid}
                   user={user}
+                  canInviteAdmin={isOwner || isSuperAdmin}
                   handleRoleChange={handleRoleChange}
                   handleRemoveUser={handleRemoveUser}
                 />

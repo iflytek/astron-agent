@@ -5,9 +5,10 @@ import { useTranslation } from 'react-i18next';
 import SpaceCard from '../space-card';
 import Empty from '../empty';
 import styles from './index.module.scss';
-import useSpaceStore from '@/store/space-store';
-import { visitSpace, joinEnterpriseSpace } from '@/services/space';
+import { joinEnterpriseSpace } from '@/services/space';
 import { shouldShowRequestError } from '@/utils/http-error';
+import { SpaceType } from '@/types/permission';
+import eventBus from '@/utils/event-bus';
 
 interface SpaceItem {
   id: string;
@@ -27,6 +28,7 @@ interface SpaceListProps {
   dataSource: SpaceItem[];
   loading: boolean;
   activeTab: string;
+  spaceType: SpaceType;
   refresh?: () => void;
   staticSize?: boolean;
   prefix?: React.ReactNode;
@@ -42,23 +44,19 @@ const SpaceList: React.FC<SpaceListProps> = ({
   prefix,
   suffix,
   emptyText,
+  spaceType,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { spaceType, setSpaceId, setSpaceName, setSpaceAvatar } =
-    useSpaceStore();
   const handleButtonClick = useCallback(
     async (action: string, space: SpaceItem) => {
       try {
         if (action === 'enter') {
-          await visitSpace(space.id);
-          setSpaceId(space.id);
-          setSpaceName(space.name);
-          setSpaceAvatar(space.avatarUrl || '');
           navigate(`/space/space-detail/${space.id}`);
         } else if (action === 'join') {
           await joinEnterpriseSpace({ spaceId: `${space.id}` });
           message.success(t('space.applySuccess'));
+          eventBus.emit('spaceList');
           refresh?.();
         }
       } catch (error: unknown) {
@@ -66,7 +64,7 @@ const SpaceList: React.FC<SpaceListProps> = ({
           message.error(t('space.accessSpaceFailed'));
       }
     },
-    [navigate, setSpaceId, setSpaceName, setSpaceAvatar, refresh, t]
+    [navigate, refresh, t]
   );
 
   if (loading)

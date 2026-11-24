@@ -28,14 +28,13 @@ def identifier(value, *, required=False):
         if required:
             raise ValidationError("缺少资源标识")
         return None
-    if (
-        isinstance(value, bool)
-        or not str(value).isdigit()
-        or int(value) < 1
-        or int(value) > 9223372036854775807
-    ):
+    digits = str(value)
+    if not digits.isascii() or not digits.isdecimal():
         raise ValidationError("无效的资源标识")
-    return int(value)
+    digits = digits.lstrip("0")
+    if not digits or len(digits) > 19 or int(digits) > 9223372036854775807:
+        raise ValidationError("无效的资源标识")
+    return int(digits)
 
 
 def space_membership(uid, space_id):
@@ -67,6 +66,8 @@ def resolve_scope(request, *, require_space=False):
     eid = identifier(request.headers.get("enterprise-id"))
     if eid:
         enterprise_membership(request.user.pk, eid)
+        if sid is None:
+            raise PermissionDenied("请先选择团队空间")
     if sid:
         space, _ = space_membership(request.user.pk, sid)
         if eid is not None and space.enterprise_id != eid:
@@ -101,6 +102,14 @@ def require_enterprise_permission(uid, enterprise_id, permission_key):
     ):
         raise PermissionDenied("团队服务已到期")
     return member
+
+
+def permits(check, uid, container_id, key):
+    try:
+        check(uid, container_id, key)
+    except PermissionDenied:
+        return False
+    return True
 
 
 def scope_queryset(queryset, scope, *, uid_field="uid", space_field="space_id"):

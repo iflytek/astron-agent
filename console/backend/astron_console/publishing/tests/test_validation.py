@@ -161,11 +161,8 @@ class PublicationValidationTests(TransactionTestCase):
                     tenant.create_app(self.owner.pk, name, description)
             remote.assert_not_called()
             self.assertFalse(AppOperation.objects.exists())
-        results = [
-            {"app_id": "created-remotely"},
-            [{"auth_list": [{"api_key": "key", "api_secret": "secret"}]}],
-        ]
-        with patch("astron_console.publishing.tenant.call", side_effect=results) as remote:
+        result = {"app_id": "created-remotely", "api_key": "key", "api_secret": "secret"}
+        with patch("astron_console.publishing.tenant.call", return_value=result) as remote:
             with patch(
                 "astron_console.publishing.tenant.App.objects.create",
                 side_effect=DataError("local write failed"),
@@ -177,7 +174,33 @@ class PublicationValidationTests(TransactionTestCase):
             self.assertFalse(App.objects.exists())
             with self.assertRaises(ValidationError):
                 tenant.create_app(self.owner.pk, "n" * 128, "d" * 512, "operation")
-            self.assertEqual(remote.call_count, 2)
+            self.assertEqual(remote.call_count, 1)
+
+    def test_app_creation_uses_owner_namespace_and_returned_credentials(self):
+        responses = [
+            {"app_id": "owner-app", "api_key": "owner-key", "api_secret": "owner-secret"},
+            {"app_id": "member-app", "api_key": "member-key", "api_secret": "member-secret"},
+            {"app_id": "owner-other", "api_key": "other-key", "api_secret": "other-secret"},
+        ]
+        with patch("astron_console.publishing.tenant.call", side_effect=responses) as remote:
+            owner_app = tenant.create_app(self.owner.pk, "same name", "", "owner-app")
+            member_app = tenant.create_app(self.member.pk, "same name", "", "member-app")
+            tenant.create_app(self.owner.pk, "another name", "", "owner-other")
+            with self.assertRaisesMessage(ValidationError, "应用名称已存在"):
+                tenant.create_app(self.owner.pk, "same name", "", "owner-repeat")
+
+        self.assertEqual(owner_app.uid, self.owner.pk)
+        self.assertEqual(owner_app.app_key, "owner-key")
+        self.assertEqual(member_app.uid, self.member.pk)
+        self.assertEqual(member_app.app_secret, "member-secret")
+        self.assertEqual(
+            [request.args[1:] for request in remote.call_args_list], [("POST", "/v2/app")] * 3
+        )
+        owner_channel, member_channel, other_channel = [
+            request.kwargs["payload"]["cloud_id"] for request in remote.call_args_list
+        ]
+        self.assertNotEqual(owner_channel, member_channel)
+        self.assertEqual(owner_channel, other_channel)
 
     def test_approval_text_respects_retained_512_column_before_remote_validation(self):
         with self.assertRaises(ValidationError):

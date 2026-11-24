@@ -3,10 +3,7 @@ import useSpaceStore from '@/store/space-store';
 import { getEnterpriseJoinList } from '@/services/enterprise';
 import { defaultEnterpriseAvatar } from '@/constants/config';
 import { useCallback, useMemo } from 'react';
-import {
-  checkNeedCreateTeam,
-  visitEnterprise as visitEnterpriseApi,
-} from '@/services/enterprise';
+import { checkNeedCreateTeam } from '@/services/enterprise';
 import { getCorporateCount } from '@/services/space';
 
 export const useEnterprise = (navigate?: any) => {
@@ -15,9 +12,8 @@ export const useEnterprise = (navigate?: any) => {
     setJoinedEnterpriseList,
     setSpaceStatistics,
     spaceStatistics,
-    setEnterpriseInfo,
   } = useEnterpriseStore();
-  const { spaceType, setEnterpriseId, setSpaceType } = useSpaceStore();
+  const { spaceType } = useSpaceStore();
 
   const isTeamSpaceEmpty = useMemo(() => {
     return spaceType === 'team' && !spaceStatistics?.joined;
@@ -75,48 +71,12 @@ export const useEnterprise = (navigate?: any) => {
     }
   }, [setSpaceStatistics, spaceType]);
 
-  const handleTeamChoose = async () => {
-    setEnterpriseInfo({
-      id: '',
-      logoUrl: '',
-      avatarUrl: '',
-      name: '',
-      role: 0,
-      roleTypeText: '',
-      officerName: '',
-      orgId: '',
-      serviceType: 1,
-      uid: '',
-      createTime: '',
-      updateTime: '',
-      expireTime: '',
-    });
-    await visitEnterprise('');
-    setEnterpriseId('');
-    setSpaceType('personal');
-    sessionStorage.removeItem('space-storage');
-    window.location.href = '/space';
-  };
-
-  const visitEnterprise = useCallback(async (enterpriseId: string) => {
-    try {
-      const res: any = await visitEnterpriseApi(enterpriseId);
-    } catch (err: any) {
-      if (err?.code === 62002 || err?.code === 67002) {
-        handleTeamChoose();
-        return;
-      }
-      console.log(err, 'visitEnterprise err');
-    }
-  }, []);
-
   const returnValues = useMemo(
     () => ({
       joinedEnterpriseList,
       getJoinedEnterpriseList,
       checkNeedCreateTeamFn,
       getEnterpriseSpaceCount,
-      visitEnterprise,
       isTeamSpaceEmpty,
     }),
     [
@@ -124,7 +84,6 @@ export const useEnterprise = (navigate?: any) => {
       getJoinedEnterpriseList,
       checkNeedCreateTeamFn,
       getEnterpriseSpaceCount,
-      visitEnterprise,
       isTeamSpaceEmpty,
     ]
   );

@@ -671,6 +671,7 @@ const SpaceDetail: React.FC = () => {
       {/* 弹窗组件 */}
       <AddMemberModal
         inviteType="space"
+        isTeamSpace={Boolean(spaceInfo.enterpriseId)}
         open={showAddMemberModal}
         onClose={handleAddMemberModalClose}
         onSubmit={handleAddMemberModalSubmit}
@@ -679,6 +680,7 @@ const SpaceDetail: React.FC = () => {
       <SpaceModal
         open={showEditModal}
         mode="edit"
+        enterpriseId={String(spaceInfo.enterpriseId || '')}
         initialData={{ ...spaceInfo }}
         onClose={handleEditModalClose}
         onSuccess={loadSpaceInfo}

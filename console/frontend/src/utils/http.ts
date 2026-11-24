@@ -270,8 +270,15 @@ export function getCookie(cookieName: string): string {
  * @returns
  */
 const generateReqKey = (config: AxiosRequestConfig): string => {
-  const { method, url, params, data } = config;
-  return [method, url, qs.stringify(params), qs.stringify(data)].join('&');
+  const { method, url, params, data, headers } = config;
+  return [
+    method,
+    url,
+    headers?.['space-id'],
+    headers?.['enterprise-id'],
+    qs.stringify(params),
+    qs.stringify(data),
+  ].join('&');
 };
 
 /**
@@ -333,15 +340,15 @@ const specialRequestUrl = [
 // 请求拦截器
 axios.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    removePendingRequest(config); // 检查是否存在重复请求，若存在则取消已发的请求
-    addPendingRequest(config); // 把当前请求信息添加到pendingRequest对象中
     config.headers = config.headers || {};
     config.headers.clientType = '11'; //手动设置clientType getCookie("clientType")拿到的和星火一样
     config.headers.Channel = getCookie('channel');
-    if (useSpaceStore.getState().spaceType === 'team') {
-      config.headers['enterprise-id'] = useSpaceStore.getState().enterpriseId;
-    }
-    config.headers['space-id'] = useSpaceStore.getState().spaceId;
+    const scope = useSpaceStore.getState();
+    config.headers['enterprise-id'] ??=
+      scope.spaceType === 'team' ? scope.enterpriseId : '';
+    config.headers['space-id'] ??= scope.spaceId;
+    removePendingRequest(config); // 检查同一范围内的重复请求
+    addPendingRequest(config);
     config.headers.clientType = '11'; //手动设置clientType
     config.headers.Channel = getCookie('channel');
     const csrfToken = await ensureCsrfToken();

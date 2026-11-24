@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import hmac
 import json
@@ -21,12 +20,10 @@ from workflow.extensions.fastapi.base import (
     CHAT_OPEN_API_PATHS,
     JSONResponseBase,
 )
-from workflow.extensions.middleware.getters import get_cache_service
 from workflow.extensions.otlp.trace.span import Span
 from workflow.utils.credentials import (
     MAX_CREDENTIAL_FILE_BYTES,
     TENANT_INTERNAL_API_KEY_HEADER,
-    credential_cache_key,
     credential_from_env_or_file,
 )
 
@@ -39,7 +36,6 @@ WORKFLOW_INTERNAL_API_KEY_MAX_FILE_BYTES = MAX_CREDENTIAL_FILE_BYTES
 WORKFLOW_GATEWAY_TIMESTAMP_HEADER = "X-Workflow-Gateway-Timestamp"
 WORKFLOW_GATEWAY_SIGNATURE_HEADER = "X-Workflow-Gateway-Signature"
 WORKFLOW_GATEWAY_SIGNATURE_MAX_AGE_SECONDS = 60
-VERIFIED_CREDENTIAL_CACHE_PREFIX = "workflow:app:verified_credential:v3"
 APP_MANAGE_CREDENTIAL_MIN_LENGTH = 32
 APP_MANAGE_CREDENTIAL_MAX_LENGTH = 50
 PUBLISHED_LEGACY_TENANT_API_KEY = "7b709739e8da44536127a333c7603a83"
@@ -273,14 +269,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 err_msg="authorization header is invalid",
             )
 
-        credential_cache_digest = credential_cache_key(credential.strip())
-
-        app_id = await asyncio.to_thread(
-            self._get_app_id_with_cache, credential_cache_digest
-        )
-        if app_id:
-            return app_id
-
+        # Tenant is authoritative on every request so revocation is effective
+        # as soon as the updated application or key state is committed.
         base_url = os.getenv("APP_MANAGE_PLAT_BASE_URL", "").rstrip("/")
         url = f"{base_url}/v2/app/key/verify"
         async with httpx.AsyncClient() as client:
@@ -324,32 +314,4 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 err_msg="appid is null",
                 cause_error=json.dumps(resp.json(), ensure_ascii=False),
             )
-        await asyncio.to_thread(
-            self._set_app_id_with_cache, credential_cache_digest, app_id
-        )
         return app_id
-
-    def _get_app_id_with_cache(self, credential_cache_key: str) -> str:
-        """
-        Get the app id with cache
-
-        :param credential_cache_key: PBKDF2-HMAC digest of the complete credential pair
-        :return: The app id
-        """
-        cache_service = get_cache_service()
-        app_id: str = cache_service[
-            f"{VERIFIED_CREDENTIAL_CACHE_PREFIX}:{credential_cache_key}"
-        ]
-        return app_id
-
-    def _set_app_id_with_cache(self, credential_cache_key: str, app_id: str) -> None:
-        """
-        Set the app id with cache
-
-        :param credential_cache_key: PBKDF2-HMAC digest of the complete credential pair
-        :param app_id: The app id
-        """
-        cache_service = get_cache_service()
-        cache_service[f"{VERIFIED_CREDENTIAL_CACHE_PREFIX}:{credential_cache_key}"] = (
-            app_id
-        )

@@ -12,6 +12,7 @@ import PersonalSpaceCard from './components/personal-space-card';
 import styles from './index.module.scss';
 import { getAllSpace } from '@/services/space';
 import { useTranslation } from 'react-i18next';
+import { SpaceType } from '@/types/permission';
 
 interface SpaceItem {
   id: string;
@@ -160,6 +161,7 @@ const SpaceManage: React.FC = () => {
               dataSource={spaceList}
               loading={loading}
               activeTab={activeTab}
+              spaceType={SpaceType.PERSONAL}
               emptyText={
                 searchValue ? '没有匹配的空间，请调整搜索条件。' : undefined
               }
@@ -176,9 +178,8 @@ const SpaceManage: React.FC = () => {
       <SpaceModal
         open={showCreateModal}
         mode="create"
+        enterpriseId=""
         onClose={handleCreateModalClose}
-        onSuccess={getSpaceList}
-        // onSubmit={handleCreateModalSubmit}
       />
     </div>
   );

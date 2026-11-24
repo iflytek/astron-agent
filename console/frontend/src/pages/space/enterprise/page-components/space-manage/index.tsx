@@ -10,14 +10,16 @@ import SpaceModal from '@/components/space/space-modal';
 import SpaceTab from '@/components/space/space-tab';
 
 import styles from './index.module.scss';
-import { ModuleType, OperationType } from '@/types/permission';
+import { ModuleType, OperationType, SpaceType } from '@/types/permission';
 
 import { getAllCorporateList, getJoinedCorporateList } from '@/services/space';
 import { useEnterprise } from '@/hooks/use-enterprise';
+import { useParams } from 'react-router-dom';
 
 import { SpaceItem } from '@/types/space';
 
 const SpaceManage: React.FC = () => {
+  const { enterpriseId = '' } = useParams();
   const activeTabRef = useRef<string>('all');
   const [searchValue, setSearchValue] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
@@ -28,23 +30,27 @@ const SpaceManage: React.FC = () => {
   const searchRef = useRef('');
   const { getJoinedEnterpriseList } = useEnterprise();
 
-  const querySpaceList = useCallback(async (name = searchRef.current) => {
-    const current = ++sequence.current;
-    setLoading(true);
-    setError('');
-    try {
-      const query =
-        activeTabRef.current === 'all'
-          ? getAllCorporateList
-          : getJoinedCorporateList;
-      const result = await query({ name });
-      if (current === sequence.current) setSpaceList(result || []);
-    } catch (reason) {
-      if (current === sequence.current) setError('无法读取空间列表，请重试。');
-    } finally {
-      if (current === sequence.current) setLoading(false);
-    }
-  }, []);
+  const querySpaceList = useCallback(
+    async (name = searchRef.current) => {
+      const current = ++sequence.current;
+      setLoading(true);
+      setError('');
+      try {
+        const query =
+          activeTabRef.current === 'all'
+            ? getAllCorporateList
+            : getJoinedCorporateList;
+        const result = await query({ name, enterpriseId });
+        if (current === sequence.current) setSpaceList(result || []);
+      } catch (reason) {
+        if (current === sequence.current)
+          setError('无法读取空间列表，请重试。');
+      } finally {
+        if (current === sequence.current) setLoading(false);
+      }
+    },
+    [enterpriseId]
+  );
 
   useEffect(() => {
     void querySpaceList();
@@ -94,12 +100,6 @@ const SpaceManage: React.FC = () => {
   const handleCreateModalClose = () => {
     setShowCreateModal(false);
   };
-
-  // const handleCreateModalSubmit = (values: any) => {
-  //   // TODO: 实现创建空间功能
-  //   console.log('创建空间:', values);
-  //   setShowCreateModal(false);
-  // };
 
   return (
     <div className={styles.enterpriseManage}>
@@ -169,6 +169,7 @@ const SpaceManage: React.FC = () => {
               dataSource={spaceList}
               loading={loading}
               activeTab={activeTabRef.current}
+              spaceType={SpaceType.ENTERPRISE}
               refresh={querySpaceList}
             />
           )}
@@ -178,12 +179,12 @@ const SpaceManage: React.FC = () => {
       <SpaceModal
         open={showCreateModal}
         mode="create"
+        enterpriseId={enterpriseId}
         onClose={handleCreateModalClose}
         onSuccess={() => {
           querySpaceList();
           getJoinedEnterpriseList();
         }}
-        // onSubmit={handleCreateModalSubmit}
       />
     </div>
   );

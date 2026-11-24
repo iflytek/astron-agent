@@ -9,6 +9,7 @@ from astron_console.agents.models import Agent, AgentFavorite, AgentVersion
 from astron_console.publishing import services
 from astron_console.publishing.models import App, Publication, PublicationCandidate, WorkflowBot
 from astron_console.publishing.views import projection
+from astron_console.spaces.models import Space, SpaceMember, SpacePermission
 from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.management_views import create_workflow
 
@@ -163,6 +164,30 @@ class CatalogTests(TestCase):
             "/publish/bots", {"includeWorkflows": "true", "size": 1, "page": 2}
         )
         self.assertEqual(len(response.json()["data"]["records"]), 1)
+
+    def test_combined_catalog_respects_each_resource_list_policy(self):
+        space = Space.objects.create(name="Team workspace", uid="other-owner")
+        SpaceMember.objects.create(space_id=space.pk, uid=self.user.pk, role=3)
+        self.agent.space_id = space.pk
+        self.agent.save(update_fields=["space_id"])
+        self.workflow.space_id = space.pk
+        self.workflow.save(update_fields=["space_id"])
+        SpacePermission.objects.filter(permission_key="MyBotController_getCreatedList_POST").update(
+            member=False
+        )
+        response = self.client.get(
+            "/publish/bots", {"includeWorkflows": "true"}, HTTP_SPACE_ID=str(space.pk)
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        rows = response.json()["data"]["records"]
+        self.assertEqual([row["resourceKind"] for row in rows], ["workflow"])
+        SpacePermission.objects.filter(permission_key="WorkflowController_list_GET").update(
+            member=False
+        )
+        response = self.client.get(
+            "/publish/bots", {"includeWorkflows": "true"}, HTTP_SPACE_ID=str(space.pk)
+        )
+        self.assertEqual(response.status_code, 403)
 
     @patch("astron_console.publishing.services.validate_graph")
     def test_workflow_publication_freezes_category_and_republish_updates_market(self, validate):

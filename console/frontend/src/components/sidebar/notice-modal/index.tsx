@@ -32,8 +32,10 @@ const renderSpecialMsg = (item: Notification) => {
   try {
     const payload = JSON.parse(item?.payload || '{}');
     if (
+      item.templateCode === 'RESOURCE_INVITATION' ||
       payload.inviteId ||
-      (item?.type?.toUpperCase() === 'SYSTEM' && payload.outlink)
+      (typeof payload.outlink === 'string' &&
+        payload.outlink.startsWith('/sharepage?'))
     ) {
       return <a href="/space/invitations">查看并处理我的邀请</a>;
     }

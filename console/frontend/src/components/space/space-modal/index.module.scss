@@ -78,30 +78,6 @@
       display: flex;
       justify-content: flex-end;
       gap: 12px;
-      position: relative;
-      .upgradeButton {
-        position: absolute;
-        z-index: 999;
-        right: 0;
-        top: -15px;
-        font-size: 12px;
-        font-weight: 500;
-        line-height: 22px;
-        width: 53px;
-        height: 22px;
-        text-align: center;
-        color: #ffffff;
-        cursor: pointer;
-        border-radius: 12px;
-        background: linear-gradient(
-          235deg,
-          #e77dff 0%,
-          #e77dff 0%,
-          #925eff 54%,
-          #316ef9 101%
-        );
-        box-shadow: 0px 2px 4px 0px rgba(124, 61, 255, 0.37);
-      }
     }
 
     :global {

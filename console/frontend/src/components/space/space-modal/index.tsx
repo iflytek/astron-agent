@@ -8,11 +8,15 @@ import styles from './index.module.scss';
 import UploadAvatar from './upload-avatar';
 import ButtonGroup from '@/components/button-group';
 import type { ButtonConfig } from '@/components/button-group';
-import { useSpaceType } from '@/hooks/use-space-type';
 import useSpaceStore from '@/store/space-store';
-import ComboModal from '@/components/combo-modal';
-import { getMyCreateSpace, visitSpace } from '@/services/space';
-import { getUserMeta } from '@/services/order';
+import {
+  checkSpaceName,
+  createCorporateSpace,
+  createPersonalSpace,
+  updateCorporateSpace,
+  updatePersonalSpace,
+} from '@/services/space';
+import eventBus from '@/utils/event-bus';
 import { patterns } from '@/utils/pattern';
 
 const { TextArea } = Input;
@@ -20,9 +24,9 @@ const { TextArea } = Input;
 interface SpaceModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit?: (values: any) => void;
   onSuccess?: () => void;
   mode?: 'create' | 'edit';
+  enterpriseId: string;
   initialData?: {
     name?: string;
     description?: string;
@@ -42,13 +46,12 @@ const defaultAvatar =
 const SpaceModal: React.FC<SpaceModalProps> = ({
   open,
   onClose,
-  onSubmit,
   onSuccess,
   mode = 'create',
+  enterpriseId,
   initialData,
 }) => {
   const { t } = useTranslation();
-  const { checkName, createSpace, editSpace } = useSpaceType();
   const [form] = Form.useForm();
   const [avatarUrl, setAvatarUrl] = useState<string>(
     initialData?.avatarUrl || defaultAvatar
@@ -57,61 +60,51 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
   const [description, setDescription] = useState<string>(
     initialData?.description || ''
   );
-  const { spaceType, setSpaceName, setSpaceAvatar, setSpaceId } =
-    useSpaceStore();
-  const [comboModalVisible, setComboModalVisible] = useState<boolean>(false); //套餐弹窗
-  const [isNeedUpgrade, setIsNeedUpgrade] = useState<boolean>(false); //是否需要升级
-
+  const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
     if (open && initialData) {
       setAvatarUrl(initialData.avatarUrl || defaultAvatar);
       setName(initialData.name || '');
       setDescription(initialData.description || '');
     }
-    // if (open) {
-    //   getIsNeedUpgrade();
-    // }
   }, [open, initialData]);
 
-  // 🎯 策略模式：将不同模式的处理逻辑抽取为独立的处理器
-  const modeHandlers = {
-    create: {
-      handler: createSpace,
-      postProcess: async (res: any) => {
-        setSpaceId(res);
-        await visitSpace(res);
-      },
-    },
-    edit: {
-      handler: editSpace,
-      postProcess: async () => {
-        // 编辑模式无需额外处理
-      },
-    },
-  };
-
-  const defaultSubmitHandle = async (data: Record<string, any>) => {
-    const checkParams = {
-      name,
-      id: mode === 'create' ? '' : initialData?.id,
-    };
-    const checkRes = await checkName(checkParams);
-
-    if (checkRes) {
-      console.log(t('space.spaceNameExists'));
+  const defaultSubmitHandle = async (values: FormValues) => {
+    const editId = mode === 'edit' ? String(initialData?.id || '') : '';
+    if (await checkSpaceName({ name: values.name, id: editId })) {
       throw new Error(t('space.spaceNameExists'));
     }
 
-    // 🎯 使用策略模式统一处理
-    const currentHandler = modeHandlers[mode as keyof typeof modeHandlers];
-    const res: any = await currentHandler.handler({
-      ...initialData,
-      ...data,
-    });
-    await currentHandler.postProcess(res);
+    if (mode === 'create') {
+      if (enterpriseId) {
+        await createCorporateSpace(values, enterpriseId);
+      } else {
+        await createPersonalSpace(values);
+      }
+    } else {
+      const data = { ...values, id: editId };
+      if (enterpriseId) {
+        await updateCorporateSpace(data, enterpriseId, editId);
+      } else {
+        await updatePersonalSpace(data, editId);
+      }
+      const selected = useSpaceStore.getState();
+      if (
+        selected.spaceId === editId &&
+        selected.enterpriseId === enterpriseId
+      ) {
+        selected.setSpaceStore({
+          spaceName: values.name,
+          spaceAvatar: values.avatarUrl,
+        });
+      }
+    }
+    eventBus.emit('spaceList');
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const values = await form.validateFields();
       // 将头像地址添加到提交数据中
@@ -120,67 +113,20 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
         avatarUrl,
       };
 
-      if (onSubmit) {
-        onSubmit(submitData);
-      } else {
-        await defaultSubmitHandle(submitData);
-        message.success(
-          mode === 'create'
-            ? t('space.createSuccess')
-            : t('space.updateSuccess')
-        );
-        handleCancel();
-        onSuccess?.();
-        setSpaceAvatar(avatarUrl);
-        setSpaceName(name);
-      }
+      await defaultSubmitHandle(submitData);
+      message.success(
+        mode === 'create' ? t('space.createSuccess') : t('space.updateSuccess')
+      );
+      handleCancel();
+      onSuccess?.();
     } catch (error: any) {
       shouldShowRequestError(error) &&
         message.error(error?.msg || error?.message || t('space.createFailed'));
       console.error('表单验证失败:', error);
+    } finally {
+      setSubmitting(false);
     }
   };
-
-  //判断用户是否需要升级
-  // const getIsNeedUpgrade = async () => {
-  //   try {
-  //     const spaceList: any = await getMyCreateSpace();
-  //     // const userCombo: any = await getUserMeta();
-
-  //     // // 检查 userCombo 是否为数组，并包含 FREE_EDITION
-  //     // const hasFreeEdition = Array.isArray(userCombo)
-  //     //   ? userCombo.some(item => item.menu === 'FREE_EDITION')
-  //     //   : userCombo.menu === 'FREE_EDITION';
-  //     // TODO: 测试环境，暂时设置为true
-  //     const hasFreeEdition = true;
-  //     // // 检查 userCombo 是否为数组，并包含 PERSONAL_EDITION
-  //     // const hasPersonalEdition = Array.isArray(userCombo)
-  //     //   ? userCombo.some(item => item.menu === 'PERSONAL_EDITION')
-  //     //   : userCombo.menu === 'PERSONAL_EDITION';
-  //     // TODO: 测试环境，暂时设置为true
-  //     const hasPersonalEdition = true;
-  //     if (
-  //       hasFreeEdition &&
-  //       spaceList?.length >= 1 &&
-  //       spaceType === 'personal' &&
-  //       mode === 'create'
-  //     ) {
-  //       // 免费版：拥有1个及以上owner空间就需要升级
-  //       setIsNeedUpgrade(true);
-  //     } else if (
-  //       hasPersonalEdition &&
-  //       spaceType === 'personal' &&
-  //       spaceList?.length >= 10 &&
-  //       mode === 'create'
-  //     ) {
-  //       // 个人版：拥有10个及以上owner空间且spaceType为personal才需要升级
-  //       setIsNeedUpgrade(true);
-  //     }
-  //   } catch (error: any) {
-  //     console.log(error, 'error');
-  //     message.error(error?.msg || error?.desc);
-  //   }
-  // };
 
   const handleCancel = () => {
     form.resetFields();
@@ -199,20 +145,10 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
     },
     {
       key: 'submit',
-      text:
-        isNeedUpgrade && mode === 'create'
-          ? t('space.createLimitReached')
-          : mode === 'create'
-            ? t('space.confirm')
-            : t('space.save'),
-      type: isNeedUpgrade && mode === 'create' ? 'default' : 'primary',
-      disabled: isNeedUpgrade && mode === 'create',
-      onClick: () => {
-        if (isNeedUpgrade && mode === 'create') {
-          return;
-        }
-        handleSubmit();
-      },
+      text: mode === 'create' ? t('space.confirm') : t('space.save'),
+      type: 'primary',
+      loading: submitting,
+      onClick: () => void handleSubmit(),
     },
   ];
 
@@ -295,26 +231,11 @@ const SpaceModal: React.FC<SpaceModalProps> = ({
 
           <Form.Item className={styles.footerItem}>
             <div className={styles.buttonGroup}>
-              {isNeedUpgrade && (
-                <div
-                  className={styles.upgradeButton}
-                  onClick={() => {
-                    setComboModalVisible(true);
-                    onClose();
-                  }}
-                >
-                  {t('space.goUpgrade')}
-                </div>
-              )}
               <ButtonGroup buttons={buttons} size="large" />
             </div>
           </Form.Item>
         </Form>
       </Modal>
-      <ComboModal
-        visible={comboModalVisible}
-        onCancel={() => setComboModalVisible(false)}
-      />
     </>
   );
 };

@@ -162,6 +162,25 @@ def test_creation_checks_duplicate_name_before_normalizing_channel(
         assert verify(client, response["data"])["data"]["cloud_id"] == "0"
 
 
+def test_duplicate_app_name_matches_literal_name_in_same_namespace(
+    mysql: tuple[Settings, Engine],
+) -> None:
+    settings, _ = mysql
+    with TestClient(
+        create_app_server(settings),
+        headers={"X-Tenant-Internal-Key": settings.bootstrap.secret},
+    ) as client:
+        create_demo(client, "sample-1")
+        literal = create_demo(client, "sample%")
+        duplicate = client.post(PREFIX, json={**OWNER, "app_name": "sample%"})
+        assert duplicate.json()["code"] == 3007
+        other = client.post(
+            PREFIX, json={**OWNER, "app_name": "sample%", "cloud_id": "another-owner"}
+        ).json()
+        assert other["code"] == 0
+        assert other["data"]["app_id"] != literal["app_id"]
+
+
 def prepare_legacy(settings: Settings, admin: Engine) -> None:
     with admin.begin() as connection:
         connection.exec_driver_sql(f"CREATE DATABASE {settings.database.database}")

@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, message, Tooltip } from 'antd';
 import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import SpaceButton from '@/components/button-group/space-button';
-import { ModuleType, OperationType } from '@/types/permission';
+import eventBus from '@/utils/event-bus';
 import styles from './index.module.scss';
 
 import creator from '@/assets/imgs/space/creator.png';
@@ -20,7 +20,14 @@ import UploadImage from '../upload-image';
 
 const InfoHeader = () => {
   const {
-    info: { name, officerName, roleTypeText, serviceType, avatarUrl },
+    info: {
+      name,
+      officerName,
+      roleTypeText,
+      avatarUrl,
+      canUpdateName,
+      canUpdateAvatar,
+    },
     setEnterpriseInfo,
   } = useEnterpriseStore();
   const { getJoinedEnterpriseList } = useEnterprise();
@@ -59,6 +66,7 @@ const InfoHeader = () => {
       message.success('修改成功');
       setIsEditing(false);
       getJoinedEnterpriseList();
+      eventBus.emit('spaceList');
     } catch (err: any) {
       shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
     }
@@ -94,14 +102,18 @@ const InfoHeader = () => {
   return (
     <div className={styles.infoHeader} ref={infoContentRef}>
       <div className={styles.teamAvatar}>
-        <button
-          type="button"
-          className={styles.avatarAction}
-          aria-label="更换团队头像"
-          onClick={() => setTriggerChild(true)}
-        >
+        {canUpdateAvatar ? (
+          <button
+            type="button"
+            className={styles.avatarAction}
+            aria-label="更换团队头像"
+            onClick={() => setTriggerChild(true)}
+          >
+            <img src={avatarUrl} alt="" />
+          </button>
+        ) : (
           <img src={avatarUrl} alt="团队头像" />
-        </button>
+        )}
       </div>
 
       <div className={styles.teamInfo}>
@@ -165,21 +177,19 @@ const InfoHeader = () => {
               >
                 <h2 className={styles.teamNameText}>{name}</h2>
               </Tooltip>
-              <SpaceButton
-                config={{
-                  key: 'edit',
-                  text: '',
-                  tooltip: '修改团队名称',
-                  icon: <EditOutlined />,
-                  type: 'text',
-                  size: 'small',
-                  onClick: handleEdit,
-                  permission: {
-                    module: ModuleType.SPACE,
-                    operation: OperationType.ENTERPRISE_EDIT,
-                  },
-                }}
-              />
+              {canUpdateName && (
+                <SpaceButton
+                  config={{
+                    key: 'edit',
+                    text: '',
+                    tooltip: '修改团队名称',
+                    icon: <EditOutlined />,
+                    type: 'text',
+                    size: 'small',
+                    onClick: handleEdit,
+                  }}
+                />
+              )}
             </div>
           )}
         </div>
@@ -199,6 +209,7 @@ const InfoHeader = () => {
               message.success('头像已上传!');
               setEnterpriseInfo({ avatarUrl: res });
               getJoinedEnterpriseList();
+              eventBus.emit('spaceList');
             })
             .catch(e => {
               shouldShowRequestError(e) &&

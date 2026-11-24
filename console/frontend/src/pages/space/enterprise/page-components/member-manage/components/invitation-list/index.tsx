@@ -139,18 +139,6 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
       [getStatusTag, t]
     );
 
-    // 处理重发邀请
-    const handleResend = useCallback(
-      (record: InvitationData) => {
-        message.success(
-          t('common.invitationResentToUser', {
-            username: record.inviteeNickname,
-          })
-        );
-      },
-      [t]
-    );
-
     // 处理取消邀请
     const handleCancel = useCallback(
       async (record: InvitationData) => {
@@ -163,18 +151,6 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
         } finally {
           tableRef.current?.reload();
         }
-      },
-      [t]
-    );
-
-    // 处理删除邀请记录
-    const handleDelete = useCallback(
-      (record: InvitationData) => {
-        message.success(
-          t('common.invitationRecordDeleted', {
-            username: record.inviteeNickname,
-          })
-        );
       },
       [t]
     );
@@ -211,7 +187,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
           return buttons;
         },
       }),
-      [handleResend, handleCancel, handleDelete, t]
+      [handleCancel, t]
     );
 
     return (

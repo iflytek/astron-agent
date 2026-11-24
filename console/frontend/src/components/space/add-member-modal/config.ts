@@ -1,20 +1,11 @@
 import { shouldShowRequestError } from '@/utils/http-error';
-import {
-  getEnterpriseSearchUsername,
-  getEnterpriseUserLimit,
-} from '@/services/enterprise';
+import { getEnterpriseSearchUsername } from '@/services/enterprise';
 import { getSpaceSearchUsername, getSpaceUserLimit } from '@/services/space';
 import { message } from 'antd';
 
 const methodMap = {
-  enterprise: {
-    search: getEnterpriseSearchUsername,
-    limit: getEnterpriseUserLimit,
-  },
-  space: {
-    search: getSpaceSearchUsername,
-    limit: getSpaceUserLimit,
-  },
+  enterprise: getEnterpriseSearchUsername,
+  space: getSpaceSearchUsername,
 };
 
 // 查询邀请列表
@@ -22,7 +13,7 @@ export const searchInviteUsers = async (
   params: any,
   inviteType: string = 'enterprise'
 ) => {
-  const searchFn = methodMap[inviteType as keyof typeof methodMap].search;
+  const searchFn = methodMap[inviteType as keyof typeof methodMap];
 
   try {
     const res = await searchFn(params);
@@ -39,13 +30,9 @@ export const searchInviteUsers = async (
 };
 
 // 添加成员数量限制
-export const getUserLimit = async (
-  inviteType: string = 'enterprise'
-): Promise<number> => {
+export const getPersonalSpaceLimit = async (): Promise<number> => {
   try {
-    const res = (await methodMap[
-      inviteType as keyof typeof methodMap
-    ].limit()) as unknown as { remain: number };
+    const res = (await getSpaceUserLimit()) as unknown as { remain: number };
     return res.remain;
   } catch (err) {
     return 0;

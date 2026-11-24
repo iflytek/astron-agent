@@ -23,14 +23,12 @@ interface Member {
 interface TransferOwnershipModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: { memberId: string }) => void;
   onSuccess?: () => void;
 }
 
 const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
   open,
   onClose,
-  onSubmit,
   onSuccess,
 }) => {
   const { t } = useTranslation();

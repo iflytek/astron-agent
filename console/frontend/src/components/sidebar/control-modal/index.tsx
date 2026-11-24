@@ -16,9 +16,7 @@ import { Popover, Tooltip } from 'antd';
 import useSpaceStore from '@/store/space-store';
 import useEnterpriseStore from '@/store/enterprise-store';
 import { useSpaceType } from '@/hooks/use-space-type';
-import { useEnterprise } from '@/hooks/use-enterprise';
 import { useTranslation } from 'react-i18next';
-import { visitSpace } from '@/services/space';
 import { handleLogout } from '@/utils/auth';
 import LanguageSwitcher from '@/components/language-switcher';
 
@@ -43,11 +41,9 @@ const ControlModal = ({
   const [showSpacePopover, setShowSpacePopover] = useState(false);
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { spaceType, spaceId, enterpriseId, setSpaceType, setEnterpriseId } =
+  const { spaceType, spaceId, enterpriseId, setSpaceType, resetSpace } =
     useSpaceStore();
-  const { handleTeamSwitch, getLastVisitSpace, isTeamSpace } =
-    useSpaceType(navigate);
-  const { visitEnterprise } = useEnterprise();
+  const { handleTeamSwitch, isTeamSpace } = useSpaceType(navigate);
 
   // 根据spaceType统一获取当前空间列表和配置
   const spaceConfig = useMemo(() => {
@@ -84,7 +80,7 @@ const ControlModal = ({
     });
     setShowSpacePopover(false);
   };
-  const handleTeamChoose = async () => {
+  const handleTeamChoose = () => {
     setEnterpriseInfo({
       id: '',
       logoUrl: '',
@@ -100,12 +96,9 @@ const ControlModal = ({
       updateTime: '',
       expireTime: '',
     });
-    await visitEnterprise('');
-    setEnterpriseId('');
+    resetSpace();
     setShowSpacePopover(false);
-    setSpaceType('personal');
     navigate('/space/agent');
-    getLastVisitSpace();
     onClose?.();
   };
   // 选择空间弹窗内容

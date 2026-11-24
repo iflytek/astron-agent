@@ -11,6 +11,7 @@ import warningImg from '@/assets/imgs/space/warning.png';
 import { useNavigate } from 'react-router-dom';
 import { leaveSpace } from '@/services/space';
 import { useSpaceType } from '@/hooks/use-space-type';
+import eventBus from '@/utils/event-bus';
 interface LeaveSpaceModalProps {
   open: boolean;
   onClose: () => void;
@@ -34,6 +35,7 @@ const LeaveSpaceModal: React.FC<LeaveSpaceModalProps> = ({
       .then(() => {
         message.success(t('space.leaveSpaceSuccess'));
         deleteSpaceCb();
+        eventBus.emit('spaceList');
         onClose();
       })
       .catch((err: any) => {

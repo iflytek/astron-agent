@@ -10,6 +10,7 @@ import {
 import http from '@/utils/http';
 import useSpaceStore from '@/store/space-store';
 import useUserStore from '@/store/user-store';
+import eventBus from '@/utils/event-bus';
 import NoticeModal from '@/components/sidebar/notice-modal';
 import { getMessageCountApi } from '@/services/notification';
 import logo from '@/assets/imgs/sidebar/agentLog.svg';
@@ -66,6 +67,7 @@ export default function ResourceNavigation(): ReactElement {
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [teams, setTeams] = useState<SpaceOption[]>([]);
   const [error, setError] = useState('');
+  const [scopeRevision, setScopeRevision] = useState(0);
   const [notices, setNotices] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
@@ -73,31 +75,69 @@ export default function ResourceNavigation(): ReactElement {
   const mobileTrigger = useRef<HTMLButtonElement>(null);
   useEffect(() => setMobileOpen(false), [pathname]);
 
-  useEffect((): (() => void) => {
-    let ignore = false;
+  useEffect(() => {
+    const refresh = () => setScopeRevision(value => value + 1);
+    eventBus.on('spaceList', refresh);
+    return () => {
+      eventBus.off('spaceList', refresh);
+    };
+  }, []);
+
+  useEffect(() => {
     setSpaces([]);
     setTeams([]);
+    setUnreadCount(0);
+  }, [user.uid]);
+
+  useEffect((): (() => void) => {
+    let ignore = false;
     setError('');
     if (!user.uid)
       return () => {
         ignore = true;
       };
-    http
-      .get<unknown, SpaceOption[]>('/space/accessible-list')
-      .then(items => {
-        if (!ignore) setSpaces(items);
-      })
-      .catch(() => {
-        if (!ignore) setError('无法读取空间列表，请刷新重试。');
-      });
-    http
-      .get<unknown, SpaceOption[]>('/enterprise/join-list')
-      .then(items => {
-        if (!ignore) setTeams(items);
-      })
-      .catch(() => {
-        if (!ignore) setError('无法读取团队列表，请刷新重试。');
-      });
+    void Promise.allSettled([
+      http.get<unknown, SpaceOption[]>('/space/accessible-list'),
+      http.get<unknown, SpaceOption[]>('/enterprise/join-list'),
+    ]).then(([spaceResult, teamResult]) => {
+      if (ignore) return;
+      const selected = useSpaceStore.getState();
+      if (spaceResult.status === 'fulfilled') {
+        setSpaces(spaceResult.value);
+        const available = spaceResult.value.some(
+          item =>
+            String(item.id) === String(selected.spaceId) &&
+            String(item.enterpriseId || '') ===
+              String(selected.enterpriseId || '')
+        );
+        if (selected.spaceId && !available) {
+          selected.setSpaceStore({
+            spaceId: '',
+            spaceName: '',
+            spaceAvatar: '',
+          });
+          useUserStore.getState().clearUserRole();
+        }
+      }
+      if (teamResult.status === 'fulfilled') {
+        setTeams(teamResult.value);
+        if (
+          selected.enterpriseId &&
+          !teamResult.value.some(
+            item => String(item.id) === String(selected.enterpriseId)
+          )
+        ) {
+          selected.resetSpace();
+          useUserStore.getState().clearUserRole();
+        }
+      }
+      if (
+        spaceResult.status === 'rejected' ||
+        teamResult.status === 'rejected'
+      ) {
+        setError('无法更新空间或团队列表。');
+      }
+    });
     void getMessageCountApi()
       .then(count => {
         if (!ignore) setUnreadCount(count);
@@ -108,7 +148,7 @@ export default function ResourceNavigation(): ReactElement {
     return () => {
       ignore = true;
     };
-  }, [user.uid]);
+  }, [user.uid, scopeRevision]);
 
   const selectSpace = (value: string): void => {
     const selected = spaces.find(item => String(item.id) === value);
@@ -366,7 +406,13 @@ export default function ResourceNavigation(): ReactElement {
             </div>
             {error && (
               <p role="alert" className={styles.error}>
-                {error}
+                {error}{' '}
+                <button
+                  type="button"
+                  onClick={() => setScopeRevision(value => value + 1)}
+                >
+                  重试
+                </button>
               </p>
             )}
             <nav

@@ -43,9 +43,9 @@ function fixture() {
       },
     },
     '@/services/space': {
-      getSpaceDetail: () => {
+      getSpaceDetail: id => {
         const d = deferred();
-        spaces.push(d);
+        spaces.push({ ...d, id });
         return d.promise;
       },
       visitSpace: async id => {
@@ -53,9 +53,9 @@ function fixture() {
       },
     },
     '@/services/enterprise': {
-      getEnterpriseDetail: () => {
+      getEnterpriseDetail: id => {
         const d = deferred();
-        enterprises.push(d);
+        enterprises.push({ ...d, id });
         return d.promise;
       },
     },
@@ -259,6 +259,8 @@ test('direct URL/refresh waits for UID then loads owner role, and rechecks when 
   assert.equal(f.spaces.length, 0);
   f.user.setState({ user: { uid: 'owner-uid' } });
   render();
+  assert.equal(f.spaces[0].id, '18');
+  assert.equal(f.space.getState().spaceId, '');
   f.spaces[0].resolve(detail('18'));
   await settle();
   assert.equal(render().spaceInfo.userRole, 1);
@@ -297,11 +299,33 @@ test('late details from an old account or URL cannot replace the active space or
   assert.equal(f.user.getState().getUserRole().roleType, f.RoleType.MEMBER);
   assert.deepEqual(f.visits, ['19']);
   h.render(() => useSpaceInfo('20'));
+  assert.equal(f.spaces[2].id, '20');
+  assert.equal(f.space.getState().spaceId, '19');
   f.space.getState().setSpaceStore({ spaceId: '21' });
   f.spaces[2].resolve(detail('20'));
   await settle();
   assert.equal(f.space.getState().spaceId, '21');
   assert.equal(f.user.getState().getUserRole(), null);
+});
+
+test('inaccessible space details preserve the previously validated workspace', async () => {
+  const f = fixture();
+  const h = hookHarness();
+  const { useSpaceInfo } = f.load(
+    'pages/space/space-detail/use-space-info.ts',
+    { react: h.hooks }
+  );
+  selectRole(f, 'owner-uid', f.RoleType.SUPER_ADMIN);
+  const render = () => h.render(() => useSpaceInfo('19'));
+  render();
+  assert.equal(f.space.getState().spaceId, '18');
+  f.spaces[0].reject(new Error('Forbidden'));
+  await settle();
+  assert.equal(render().loading, false);
+  assert.ok(render().error);
+  assert.equal(f.space.getState().spaceId, '18');
+  assert.equal(f.space.getState().enterpriseId, '4');
+  assert.deepEqual(f.visits, []);
 });
 
 test('owner buttons/tabs survive profile refresh, member controls stay restricted, and scope mismatch fails closed', async () => {
@@ -401,6 +425,8 @@ test('enterprise detail is also bound to UID and route, ignoring old team respon
   f.user.setState({ user: { uid: 'new-member' } });
   enterpriseId = '5';
   h.render(Index);
+  assert.equal(f.enterprises[1].id, '5');
+  assert.equal(f.space.getState().enterpriseId, '');
   f.enterprises[1].resolve({ id: '5', role: 3 });
   await settle();
   f.enterprises[0].resolve({ id: '4', role: 1 });

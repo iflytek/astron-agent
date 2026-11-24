@@ -26,6 +26,7 @@ from .models import (
 from .permissions import (
     enterprise_membership,
     identifier,
+    permits,
     require_enterprise_permission,
     require_space_permission,
     resolve_scope,
@@ -35,7 +36,12 @@ from .services import (
     add_member,
     create_invites,
     decide_invitation,
+    enterprise_invitations,
+    expired_invitations,
     limit_for,
+    live_invitations,
+    lock_enterprise,
+    lock_space,
     member_limit,
     notify,
     profile,
@@ -146,27 +152,28 @@ def invitation_data(invite):
             ).exists()
         ),
     )
-    if invite.status == 1 and invite.expire_time and invite.expire_time <= timezone.now():
+    if invite.status == 1 and (not invite.expire_time or invite.expire_time <= timezone.now()):
         result["status"] = 5
     return result
 
 
-def enterprise_context(request, action, *, controller="EnterpriseController", method=None):
+def enterprise_context(request, action, *, controller="EnterpriseController"):
     eid = identifier(request.headers.get("enterprise-id"), required=True)
-    Enterprise.objects.select_for_update().filter(pk=eid).first()
+    enterprise_membership(request.user.pk, eid)
+    enterprise = lock_enterprise(eid)
     member = require_enterprise_permission(
-        request.user.pk, eid, f"{controller}_{camel(action)}_{method or request.method}"
+        request.user.pk, eid, f"{controller}_{camel(action)}_{request.method}"
     )
-    return Enterprise.objects.get(pk=eid), member
+    return enterprise, member
 
 
-def space_context(request, action, *, controller="SpaceController", method=None):
+def space_context(request, action, *, controller="SpaceController"):
     scope = resolve_scope(request, require_space=True)
-    Space.objects.select_for_update().filter(pk=scope.space_id).first()
+    space = lock_space(scope.space_id)
     member = require_space_permission(
-        scope.uid, scope.space_id, f"{controller}_{camel(action)}_{method or request.method}"
+        scope.uid, space.pk, f"{controller}_{camel(action)}_{request.method}"
     )
-    return Space.objects.get(pk=scope.space_id), member
+    return space, member
 
 
 SPACE_METHODS = {
@@ -211,8 +218,10 @@ def spaces(request, action):
             .exists()
         )
     if action == "accessible-list":
-        ids = SpaceMember.objects.filter(uid=uid).values("space_id")
-        enterprise_ids = EnterpriseMember.objects.filter(uid=uid).values("enterprise_id")
+        ids = SpaceMember.objects.filter(uid=uid, role__in=(1, 2, 3)).values("space_id")
+        enterprise_ids = EnterpriseMember.objects.filter(uid=uid, role__in=(1, 2, 3)).values(
+            "enterprise_id"
+        )
         query = Space.objects.filter(pk__in=ids, deleted=0).filter(
             Q(enterprise_id__isnull=True)
             | Q(
@@ -223,16 +232,14 @@ def spaces(request, action):
         )
         return [space_data(item, uid) for item in query.order_by("name")]
     if action in ("create-personal-space", "create-corporate-space"):
-        # Lock the actor to serialize quota/name/owner checks for this user's creations.
-        UserProfile.objects.select_for_update().get(uid=uid)
         enterprise = None
         if action == "create-corporate-space":
             enterprise, _ = enterprise_context(request, action, controller="SpaceController")
-            Enterprise.objects.select_for_update().get(pk=enterprise.pk)
             kind = "team" if enterprise.service_type == 1 else "enterprise"
             query = Space.objects.filter(enterprise_id=enterprise.pk, deleted=0)
             space_type = 3 if kind == "team" else 4
         else:
+            UserProfile.objects.select_for_update().get(uid=uid)
             user = profile(uid)
             space_type = 2 if user.enterprise_service_type else 1
             kind = "pro" if space_type == 2 else "free"
@@ -261,20 +268,20 @@ def spaces(request, action):
     if action == "visit-space":
         sid = identifier(values.get("spaceId"))
         if sid is None:
-            request.session["last_space_id"] = None
-            request.session["last_enterprise_id"] = None
+            request.session.pop("last_space_id", None)
             return None
         space, _ = space_membership(uid, sid)
         SpaceMember.objects.filter(space_id=sid, uid=uid).update(last_visit_time=timezone.now())
         request.session["last_space_id"] = sid
-        request.session["last_enterprise_id"] = space.enterprise_id
         return space_data(space, uid)
     if action == "get-last-visit-space":
         sid = request.session.get("last_space_id")
-        if sid and SpaceMember.objects.filter(space_id=sid, uid=uid).exists():
-            space = Space.objects.filter(pk=sid, deleted=0).first()
-            if space:
-                space_membership(uid, sid)
+        if sid:
+            try:
+                space, _ = space_membership(uid, sid)
+            except (Http404, PermissionDenied):
+                request.session.pop("last_space_id", None)
+            else:
                 return space_data(space, uid)
         return None
     if action in ("recent-visit-list", "personal-list", "personal-self-list"):
@@ -304,19 +311,41 @@ def spaces(request, action):
             query = query.filter(name__icontains=values["name"])
         return [space_data(item, uid) for item in query.order_by("-id")]
     if action == "detail":
-        space, _ = space_context(request, action)
-        return space_data(space, uid)
+        space, member = space_context(request, action)
+        if space.enterprise_id:
+            can_edit = permits(
+                require_enterprise_permission,
+                uid,
+                space.enterprise_id,
+                "SpaceController_updateCorporateSpace_POST",
+            )
+            can_delete = permits(
+                require_enterprise_permission,
+                uid,
+                space.enterprise_id,
+                "SpaceController_deleteCorporateSpace_DELETE",
+            )
+        else:
+            can_edit = permits(
+                require_space_permission, uid, space.pk, "SpaceController_updatePersonalSpace_POST"
+            )
+            can_delete = member.role == 1
+        return {**space_data(space, uid), "canEdit": can_edit, "canDelete": can_delete}
     sid = identifier(values.get("id", values.get("spaceId")), required=True)
-    space = Space.objects.select_for_update().filter(pk=sid, deleted=0).first()
-    if not space:
-        raise Http404()
     if "corporate" in action:
         enterprise, _ = enterprise_context(request, action, controller="SpaceController")
-        if space.enterprise_id != enterprise.pk:
-            raise PermissionDenied("空间不属于此团队")
+        space = (
+            Space.objects.select_for_update()
+            .filter(pk=sid, enterprise_id=enterprise.pk, deleted=0)
+            .first()
+        )
+        if not space:
+            raise Http404("空间不属于此团队")
     else:
-        if space.enterprise_id is not None:
+        space, member = space_membership(uid, sid)
+        if space.enterprise_id:
             raise PermissionDenied("请使用团队空间操作")
+        space = lock_space(sid)
         _, member = space_membership(uid, sid)
         if action == "update-personal-space":
             scope = resolve_scope(request, require_space=True)
@@ -327,7 +356,13 @@ def spaces(request, action):
             raise PermissionDenied("只有空间所有者可以删除")
     if action.startswith("delete-"):
         space.deleted = 1
-        Invitation.objects.filter(space_id=sid, status=1).update(status=4)
+        now = timezone.now()
+        Invitation.objects.filter(live_invitations(now), space_id=sid, type=1).update(
+            status=4, update_time=now
+        )
+        Application.objects.filter(space_id=sid, status=1).update(
+            status=3, audit_uid=uid, audit_time=now, update_time=now
+        )
         # Do not cascade into Agent/workflow or object storage during the resource migration.
         logger.info("Space soft deleted id=%s uid=%s", sid, uid)
     else:
@@ -343,7 +378,6 @@ def spaces(request, action):
 
 
 ENTERPRISE_METHODS = {
-    "visit-enterprise": "POST",
     "check-need-create-team": "GET",
     "check-certification": "GET",
     "create": "POST",
@@ -383,15 +417,12 @@ def enterprises(request, action):
         return enterprise.org_id is not None
     if action == "join-list":
         query = Enterprise.objects.filter(
-            deleted=0, pk__in=EnterpriseMember.objects.filter(uid=uid).values("enterprise_id")
+            deleted=0,
+            pk__in=EnterpriseMember.objects.filter(uid=uid, role__in=(1, 2, 3)).values(
+                "enterprise_id"
+            ),
         )
         return [enterprise_data(item, uid) for item in query.order_by("-id")]
-    if action == "visit-enterprise":
-        eid = identifier(values.get("enterpriseId"))
-        if eid:
-            enterprise_membership(uid, eid)
-        request.session["last_enterprise_id"] = eid
-        return True
     if action == "create":
         UserProfile.objects.select_for_update().get(uid=uid)
         name = text(values.get("name"), 50, required=True)
@@ -409,8 +440,18 @@ def enterprises(request, action):
         return enterprise.pk
     enterprise, _ = enterprise_context(request, action)
     if action == "detail":
-        return enterprise_data(enterprise, uid)
-    enterprise = Enterprise.objects.select_for_update().get(pk=enterprise.pk)
+        return {
+            **enterprise_data(enterprise, uid),
+            **{
+                f"canUpdate{field}": permits(
+                    require_enterprise_permission,
+                    uid,
+                    enterprise.pk,
+                    f"EnterpriseController_update{field}_POST",
+                )
+                for field in ("Name", "Avatar", "Logo")
+            },
+        }
     if action == "update-name":
         name = text(values.get("name"), 50, required=True)
         if Enterprise.objects.filter(name=name, deleted=0).exclude(pk=enterprise.pk).exists():
@@ -444,9 +485,10 @@ def members(request, kind, action):
     check_method(request, action, MEMBER_METHODS)
     uid, values = request.user.pk, params(request)
     if kind == "space":
+        if action == "quit-enterprise":
+            raise Http404()
         container, actor = space_context(request, action, controller="SpaceUserController")
         model, field = SpaceMember, "space_id"
-        Space.objects.select_for_update().get(pk=container.pk)
     else:
         if action in ("quit-space", "list-space-member", "transfer-space", "enterprise-add"):
             raise Http404()
@@ -454,7 +496,6 @@ def members(request, kind, action):
             request, action, controller="EnterpriseUserController"
         )
         model, field = EnterpriseMember, "enterprise_id"
-        Enterprise.objects.select_for_update().get(pk=container.pk)
     query = model.objects.filter(**{field: container.pk}).order_by("role", "id")
     if action == "get-user-limit":
         return (
@@ -482,11 +523,15 @@ def members(request, kind, action):
         role = values.get("role")
         if str(role) not in ("2", "3"):
             raise ValidationError("无效成员角色")
+        if str(role) == "2" and actor.role != 1:
+            raise PermissionDenied("只有所有者可添加管理员")
         if query.filter(uid=target_uid).exists():
             raise ValidationError("用户已经是空间成员")
-        if member_limit(space=container)["remain"] < 1:
-            raise ValidationError("成员名额不足")
         add_member(model, field, container.pk, target_uid, int(role))
+        now = timezone.now()
+        Application.objects.filter(space_id=container.pk, apply_uid=target_uid, status=1).update(
+            status=2, audit_uid=uid, audit_time=now, update_time=now
+        )
         return True
     target = query.select_for_update().filter(uid=target_uid).first()
     if not target:
@@ -496,6 +541,7 @@ def members(request, kind, action):
             raise PermissionDenied("只有所有者可以转让给其他成员")
         if not container.enterprise_id:
             raise ValidationError("个人空间不支持转让")
+        enterprise_membership(target_uid, container.enterprise_id)
         actor.role = 2
         actor.save(update_fields=["role"])
         target.role = 1
@@ -514,6 +560,7 @@ def members(request, kind, action):
         target.update_time = timezone.now()
         target.save(update_fields=["role", "update_time"])
     else:
+        now = timezone.now()
         if kind == "enterprise":
             spaces_owned = Space.objects.filter(enterprise_id=container.pk, deleted=0)
             if SpaceMember.objects.filter(
@@ -523,6 +570,19 @@ def members(request, kind, action):
             SpaceMember.objects.filter(
                 space_id__in=spaces_owned.values("id"), uid=target_uid
             ).delete()
+            invitations_to_close = enterprise_invitations(container.pk)
+            applications_to_close = Application.objects.filter(
+                space_id__in=spaces_owned.values("id")
+            )
+        else:
+            invitations_to_close = Invitation.objects.filter(type=1, space_id=container.pk)
+            applications_to_close = Application.objects.filter(space_id=container.pk)
+        invitations_to_close.filter(
+            Q(inviter_uid=target_uid) | Q(invitee_uid=target_uid), live_invitations(now)
+        ).update(status=4, update_time=now)
+        applications_to_close.filter(apply_uid=target_uid, status=1).update(
+            status=3, audit_uid=uid, audit_time=now, update_time=now
+        )
         target.delete()
     logger.info(
         "Membership changed kind=%s id=%s action=%s actor=%s target=%s",
@@ -580,11 +640,9 @@ def invitations(request, action):
     if enterprise_kind:
         container, actor = enterprise_context(request, action, controller="InviteRecordController")
         field, model = "enterprise_id", EnterpriseMember
-        Enterprise.objects.select_for_update().get(pk=container.pk)
     else:
         container, actor = space_context(request, action, controller="InviteRecordController")
         field, model = "space_id", SpaceMember
-        Space.objects.select_for_update().get(pk=container.pk)
     query = Invitation.objects.filter(**{field: container.pk}, type=2 if enterprise_kind else 1)
     if action.startswith("revoke-"):
         invite = (
@@ -594,17 +652,25 @@ def invitations(request, action):
         )
         if not invite:
             raise Http404()
-        if invite.status != 1:
-            raise ValidationError("邀请已经处理")
+        now = timezone.now()
+        if invite.status != 1 or not invite.expire_time or invite.expire_time <= now:
+            raise ValidationError("邀请已处理或已过期")
         invite.status = 4
-        invite.update_time = timezone.now()
+        invite.update_time = now
         invite.save(update_fields=["status", "update_time"])
         return True
     if action.endswith("invite-list"):
         if values.get("nickname"):
             query = query.filter(invitee_nickname__icontains=values["nickname"])
         if values.get("status") not in (None, "", "all", "0", 0):
-            query = query.filter(status=identifier(values["status"]))
+            status = identifier(values["status"])
+            now = timezone.now()
+            if status == 1:
+                query = query.filter(live_invitations(now))
+            elif status == 5:
+                query = query.filter(Q(status=5) | expired_invitations(now))
+            else:
+                query = query.filter(status=status)
         return pagination(query.order_by("-id"), values, invitation_data)
     if action.endswith("-invite"):
         targets = values.get("members")
@@ -710,8 +776,7 @@ def applications(request, action):
                 )
         return True
     space, _ = space_context(request, action, controller="ApplyRecordController")
-    Space.objects.select_for_update().get(pk=space.pk)
-    query = Application.objects.filter(space_id=space.pk)
+    query = Application.objects.filter(space_id=space.pk, enterprise_id=space.enterprise_id)
     if action == "page":
         if values.get("status") not in (None, "", "all", "0", 0):
             query = query.filter(status=identifier(values["status"]))

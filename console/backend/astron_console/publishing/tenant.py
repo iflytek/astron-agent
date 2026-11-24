@@ -1,7 +1,9 @@
 """Tenant's existing API is authoritative for application identity and key revocation."""
 
+import logging
 import re
 import secrets
+from hashlib import sha256
 
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -12,6 +14,8 @@ from astron_console.resources.common import UpstreamError
 from astron_console.workflows.authorization import active_scope
 
 from .models import App, AppOperation
+
+logger = logging.getLogger(__name__)
 
 
 def headers():
@@ -95,19 +99,20 @@ def create_app(uid, name, description, request_id=None):
                 "app_name": name,
                 "app_desc": description,
                 "dev_id": 1,
-                "cloud_id": "0",
+                # Tenant uses channel as part of the app-name namespace. A digest
+                # fits its retained column even for a 128-character legacy UID.
+                "cloud_id": f"console:{sha256(uid.encode()).hexdigest()}",
             },
             headers=headers(),
         )
         app_id = data.get("app_id") if isinstance(data, dict) else None
-        if not app_id:
+        if not isinstance(app_id, str) or not 0 < len(app_id) <= 255:
             raise UpstreamError("租户应用创建响应缺少应用标识")
         AppOperation.objects.filter(pk=operation.pk).update(app_id=app_id)
-        details = call(
-            "TENANT_URL", "GET", "/v2/app/details", params={"app_ids": app_id}, headers=headers()
-        )
-        auth = details[0]["auth_list"][0]
-        if not auth.get("api_key") or not auth.get("api_secret"):
+        api_key, api_secret = data.get("api_key"), data.get("api_secret")
+        if not all(
+            isinstance(value, str) and 0 < len(value) <= 255 for value in (api_key, api_secret)
+        ):
             raise UpstreamError("租户应用凭据不完整")
         with transaction.atomic():
             app = App.objects.create(
@@ -115,11 +120,16 @@ def create_app(uid, name, description, request_id=None):
                 app_name=name,
                 app_describe=description,
                 app_id=app_id,
-                app_key=auth["api_key"],
-                app_secret=auth["api_secret"],
+                app_key=api_key,
+                app_secret=api_secret,
             )
             AppOperation.objects.filter(pk=operation.pk).update(status="SUCCEEDED")
         return app
-    except (UpstreamError, DatabaseError, IndexError, KeyError, TypeError, AttributeError):
+    except (UpstreamError, DatabaseError) as exc:
         AppOperation.objects.filter(pk=operation.pk).update(status="UNKNOWN")
+        logger.warning(
+            "Tenant app creation requires reconciliation operation=%s error=%s",
+            operation.pk,
+            type(exc).__name__,
+        )
         raise UpstreamError("应用创建结果待核验，未自动重复执行") from None

@@ -60,7 +60,7 @@ def reject_duplicate_name(
 ) -> None:
     query = select(apps.c.app_id).where(
         apps.c.dev_id == dev_id,
-        apps.c.app_name.like(name),
+        apps.c.app_name == name,
         apps.c.source == source,
         apps.c.channel_id == channel,
         apps.c.is_delete.is_(False),

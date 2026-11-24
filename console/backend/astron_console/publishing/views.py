@@ -11,10 +11,17 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 
 from astron_console.accounts.deployment import public_origin
+from astron_console.agents.definitions import LIST as AGENT_LIST
 from astron_console.agents.models import Agent, AgentFavorite, AgentRun, AgentVersion
 from astron_console.http import api_endpoint
 from astron_console.resources.common import number, serialize, text, upstream_errors
-from astron_console.spaces.permissions import resolve_scope, scope_queryset
+from astron_console.spaces.permissions import (
+    permits,
+    require_space_permission,
+    resolve_scope,
+    scope_queryset,
+)
+from astron_console.workflows.management_views import LIST as WORKFLOW_LIST
 from astron_console.workflows.models import Workflow, WorkflowRun, WorkflowVersion
 from astron_console.workflows.protocol import schema as workflow_schema
 
@@ -77,7 +84,7 @@ def projection(publication, uid=None):
     }
 
 
-def bot_data(bot):
+def bot_data(bot, scope):
     publications = list(
         Publication.objects.filter(bot_id=bot.pk, active=True).select_related("candidate")
     )
@@ -92,9 +99,17 @@ def bot_data(bot):
     workflow = None
     if bot.version != 1:
         binding = WorkflowBot.objects.filter(bot_id=bot.pk).first()
-        workflow = Workflow.objects.filter(
-            flow_id=binding.flow_id if binding else bot.maas_bot_id, deleted=False
+        workflow = scope_queryset(
+            Workflow.objects.filter(
+                flow_id=binding.flow_id if binding else bot.maas_bot_id, deleted=False
+            ),
+            scope,
         ).first()
+    approvals = Approval.objects.filter(
+        resource_id=str(bot.pk), space_id=bot.space_id, deleted=0, approval_status="PENDING"
+    )
+    if scope.space_id is None or services.requires_approval(scope):
+        approvals = approvals.filter(requester_uid=scope.uid)
     return {
         "legacyPublicationIssues": issues,
         "botId": bot.pk,
@@ -119,14 +134,7 @@ def bot_data(bot):
             }
             for row in publications
         ],
-        "pendingApprovals": list(
-            Approval.objects.filter(
-                resource_id=str(bot.pk),
-                space_id=bot.space_id,
-                deleted=0,
-                approval_status="PENDING",
-            ).values("id", "publish_type", "target_id")
-        ),
+        "pendingApprovals": list(approvals.values("id", "publish_type", "target_id")),
         "legacyPublicationNeedsReview": bool(legacy and legacy.bot_status and not publications),
     }
 
@@ -135,21 +143,32 @@ def bot_data(bot):
 def bots(request, bot_id=None):
     scope = resolve_scope(request)
     if bot_id is not None:
-        return bot_data(services.get_bot(scope, bot_id))
+        return bot_data(services.get_bot(scope, bot_id), scope)
+    can_list_agents = can_list_workflows = True
+    if scope.space_id:
+        can_list_agents = permits(require_space_permission, scope.uid, scope.space_id, AGENT_LIST)
+        can_list_workflows = permits(
+            require_space_permission, scope.uid, scope.space_id, WORKFLOW_LIST
+        )
+        if not (can_list_agents or can_list_workflows):
+            raise PermissionDenied
     query = scope_queryset(Agent.objects.filter(is_delete=0), scope)
+    if not can_list_agents:
+        query = query.exclude(version=1)
+    if not can_list_workflows:
+        query = query.filter(version=1)
     search = request.GET.get("search") or request.GET.get("name")
-    if search:
-        query = query.filter(bot_name__icontains=search)
     if request.GET.get("includeWorkflows") == "true":
         # Read-only union: opening the catalog must not create workflow bindings.
         agents = query.filter(version=1)
         workflows = scope_queryset(Workflow.objects.filter(deleted=False), scope)
         if search:
+            agents = agents.filter(bot_name__icontains=search)
             workflows = workflows.filter(name__icontains=search)
         kind = request.GET.get("resourceKind")
-        if kind == "agent":
+        if kind == "agent" or not can_list_workflows:
             workflows = workflows.none()
-        elif kind == "workflow":
+        if kind == "workflow":
             agents = agents.none()
         identities = (
             agents.annotate(resource_kind=models.Value("agent"))
@@ -165,12 +184,12 @@ def bots(request, bot_id=None):
         def resource_data(identity):
             key, _, resource_kind = identity
             if resource_kind == "agent":
-                return bot_data(Agent.objects.get(pk=key))
+                return bot_data(agents.get(pk=key), scope)
             workflow = workflows.get(pk=key)
             binding = WorkflowBot.objects.filter(flow_id=workflow.flow_id).first()
-            bot = Agent.objects.filter(pk=binding.bot_id, is_delete=0).first() if binding else None
+            bot = query.filter(pk=binding.bot_id).exclude(version=1).first() if binding else None
             if bot:
-                return bot_data(bot)
+                return bot_data(bot, scope)
             return {
                 "botId": None,
                 "botName": workflow.name,
@@ -184,7 +203,9 @@ def bots(request, bot_id=None):
             }
 
         return paginated(identities, request.GET, resource_data)
-    return paginated(query.order_by("-id"), request.GET, bot_data)
+    if search:
+        query = query.filter(bot_name__icontains=search)
+    return paginated(query.order_by("-id"), request.GET, lambda bot: bot_data(bot, scope))
 
 
 @api_endpoint(["POST"])
@@ -765,10 +786,11 @@ def workflow_publish(request):
 
 @api_endpoint(["POST"])
 def workflow_binding(request):
+    scope = resolve_scope(request)
     bot = services.bind_workflow(
-        resolve_scope(request), request.payload.get("flowId") or request.payload.get("workflowId")
+        scope, request.payload.get("flowId") or request.payload.get("workflowId")
     )
-    return bot_data(bot)
+    return bot_data(bot, scope)
 
 
 @api_endpoint(["GET"])

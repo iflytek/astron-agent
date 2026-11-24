@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Popover, Modal, message } from 'antd';
 import { menuList } from '@/constants';
 import useUserStore from '@/store/user-store';
-import eventBus from '@/utils/event-bus';
 import { jumpToLogin } from '@/utils/http';
 import { checkUserInfo } from '@/services/spark-common';
 import useChat from '@/hooks/use-chat';
@@ -176,6 +175,7 @@ const EnterpriseSpaceEmptyMenu: FC<EnterpriseSpaceEmptyMenuProps> = ({
       {isOwner ? ownerMenu : otherMenu}
       <SpaceModal
         open={showCreateModal}
+        enterpriseId={String(enterpriseId || '')}
         onClose={() => {
           setShowCreateModal(false);
         }}
@@ -458,6 +458,7 @@ const SpaceButton: FC<{
   t,
 }) => {
   const [isShowAddSpace, setIsShowAddSpace] = useState(false);
+  const enterpriseId = useSpaceStore(state => state.enterpriseId);
 
   return (
     <>
@@ -531,10 +532,8 @@ const SpaceButton: FC<{
       <SpaceModal
         open={isShowAddSpace}
         mode="create"
+        enterpriseId={spaceType === 'team' ? String(enterpriseId || '') : ''}
         onClose={() => setIsShowAddSpace(false)}
-        onSuccess={() => {
-          eventBus.emit('spaceList');
-        }}
       />
     </>
   );

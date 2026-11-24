@@ -16,6 +16,8 @@ export interface SpaceInfo {
   ownerName: string;
   userRole: number;
   enterpriseId?: string;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
 interface UseSpaceInfoReturn {
@@ -41,21 +43,21 @@ export const useSpaceInfo = (
     setSpaceInfo(null);
     setError('');
     if (!uid || !spaceId) return;
-    useSpaceStore.getState().setSpaceStore({
-      spaceId,
-      enterpriseId: '',
-      spaceName: '',
-      spaceAvatar: '',
-      spaceType: 'personal',
-    });
+    const selected = useSpaceStore.getState();
     const isCurrent = (): boolean =>
-      current === sequence.current &&
-      useUserStore.getState().user.uid === uid &&
-      useSpaceStore.getState().spaceId === spaceId;
+      current === sequence.current && useUserStore.getState().user.uid === uid;
     setLoading(true);
     try {
-      const result = (await getSpaceDetail()) as unknown as SpaceInfo;
+      const result = (await getSpaceDetail(spaceId)) as unknown as SpaceInfo;
       if (!isCurrent()) return;
+      const active = useSpaceStore.getState();
+      if (
+        active.spaceId !== selected.spaceId ||
+        active.enterpriseId !== selected.enterpriseId
+      ) {
+        setError('当前空间已切换，请重试。');
+        return;
+      }
       const team = Boolean(result.enterpriseId);
       const enterpriseId = result.enterpriseId
         ? String(result.enterpriseId)
@@ -64,6 +66,8 @@ export const useSpaceInfo = (
         spaceId: String(result.id),
         spaceName: result.name,
         enterpriseId,
+        enterpriseName:
+          enterpriseId === selected.enterpriseId ? selected.enterpriseName : '',
         spaceType: team ? 'team' : 'personal',
         spaceAvatar: result.avatarUrl || '',
       });
@@ -76,7 +80,7 @@ export const useSpaceInfo = (
           enterpriseId
         );
       setSpaceInfo(result);
-      await visitSpace(spaceId);
+      void visitSpace(spaceId).catch(() => undefined);
     } catch (error) {
       if (isCurrent()) {
         setSpaceInfo(null);

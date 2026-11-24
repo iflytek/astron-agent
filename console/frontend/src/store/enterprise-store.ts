@@ -14,6 +14,9 @@ export interface EnterpriseInfo {
   createTime: string;
   updateTime: string;
   expireTime: string;
+  canUpdateName?: boolean;
+  canUpdateAvatar?: boolean;
+  canUpdateLogo?: boolean;
 }
 
 export interface SpaceStatistics {

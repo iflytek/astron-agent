@@ -30,21 +30,30 @@ export default function Index() {
     useUserStore.getState().clearUserRole();
     useEnterpriseStore.getState().clearEnterpriseData();
     if (!uid || !enterpriseId) return;
+    const selected = useSpaceStore.getState();
     const isCurrent = (): boolean =>
-      !ignore &&
-      useUserStore.getState().user.uid === uid &&
-      useSpaceStore.getState().enterpriseId === enterpriseId &&
-      useSpaceStore.getState().spaceId === '';
-    useSpaceStore.getState().setSpaceStore({
-      enterpriseId: enterpriseId || '',
-      spaceId: '',
-      spaceName: '',
-      spaceType: 'team',
-    });
-    getEnterpriseDetail()
+      !ignore && useUserStore.getState().user.uid === uid;
+    getEnterpriseDetail(enterpriseId)
       .then(result => {
         if (!isCurrent()) return;
+        const active = useSpaceStore.getState();
+        if (
+          active.spaceId !== selected.spaceId ||
+          active.enterpriseId !== selected.enterpriseId
+        ) {
+          setLoadedId(identity);
+          setError('当前团队已切换，请重试。');
+          return;
+        }
         const detail = result as unknown as EnterpriseInfo;
+        useSpaceStore.getState().setSpaceStore({
+          enterpriseId,
+          enterpriseName: detail.name,
+          spaceId: '',
+          spaceName: '',
+          spaceAvatar: '',
+          spaceType: 'team',
+        });
         useUserStore
           .getState()
           .setUserRole(

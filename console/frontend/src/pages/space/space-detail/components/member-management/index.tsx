@@ -181,6 +181,7 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
       key: 'role',
       render: (role: string, record: Member) => {
         const showText =
+          Number(roleTypeToRole(permissionInfo?.userRole.roleType)) !== 1 ||
           role == OWNER_ROLE ||
           String(record.uid) === user.uid ||
           Number(roleTypeToRole(permissionInfo?.userRole.roleType)) >=
@@ -197,8 +198,8 @@ const MemberManagement: React.FC<MemberManagementProps> = ({
         return (
           <Select
             aria-label={`${record.nickname || record.uid} 的角色`}
-            value={role}
-            onChange={value => handleRoleChange(record.uid, value)}
+            value={Number(role)}
+            onChange={value => handleRoleChange(record.uid, String(value))}
             className={styles.roleSelect}
             popupMatchSelectWidth={false}
           >
