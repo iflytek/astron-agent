@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" role="img">
+  <title>用户头像</title>
+  <g fill="none" stroke="#4F46AD" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="18" cy="18" r="16.4" fill="#EEECFE" stroke="#E1DDFC" stroke-width=".8"/>
+    <path d="M7.4 27.7c1.78-3.43 5.17-5.55 10.6-5.55s8.82 2.12 10.6 5.55a14.35 14.35 0 0 1-21.2 0Z" fill="#CFCAFA" stroke="none"/>
+    <path d="M8.35 27.7a10.3 10.3 0 0 1 6.45-4.38l3.2 2.3 3.2-2.3a10.3 10.3 0 0 1 6.45 4.38 13.5 13.5 0 0 1-19.3 0Z" fill="#4F46AD" stroke="none"/>
+    <path d="M12.25 14.05a5.75 5.75 0 0 1 11.5 0v3.15a5.75 5.75 0 0 1-11.5 0Z" fill="#FFFBF9" stroke-width="1.25"/>
+    <path d="M11.85 13.7c0-3.48 2.72-6.1 6.15-6.1s6.15 2.62 6.15 6.1v1.37c-2.7-.06-4.5-1.16-5.76-2.96-1.4 1.54-3.87 2.43-6.54 2.45Z" fill="#4F46AD" stroke="none"/>
+    <circle cx="15.88" cy="16.7" r=".65" fill="#4F46AD" stroke="none"/>
+    <circle cx="20.12" cy="16.7" r=".65" fill="#4F46AD" stroke="none"/>
+    <path d="M16.95 19.55a1.69 1.69 0 0 0 2.1 0" stroke="#6D60CB" stroke-width=".95"/>
+  </g>
+</svg>

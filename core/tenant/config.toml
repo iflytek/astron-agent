@@ -1,11 +1,10 @@
 [service]
 port = 5052
-location = "ss"
 
 [database]
 dbType = "mysql"
-username = "root"
-password = "123456"
+username = ""
+password = ""
 url = "(localhost:3306)/tenant"
 maxOpenConns = 10
 maxIdleConns = 5

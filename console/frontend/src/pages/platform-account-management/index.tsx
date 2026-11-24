@@ -5,7 +5,9 @@ import {
   RobotOutlined,
 } from '@ant-design/icons';
 import {
+  Alert,
   Button,
+  Empty,
   Form,
   Input,
   InputNumber,
@@ -17,13 +19,17 @@ import {
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   getPlatformAccountCards,
+  revealPlatformCredential,
   savePlatformAccountConfig,
 } from '@/services/platform-account';
+import SavedCredentialInput from '@/components/saved-credential-input';
 import {
   PlatformAccountCard,
   PlatformAccountConfig,
   PlatformAccountType,
 } from '@/types/platform-account';
+import { errorText } from '@/pages/agents/errors';
+import styles from './index.module.scss';
 
 const CARD_META: Record<
   PlatformAccountType,
@@ -52,7 +58,10 @@ const CARD_META: Record<
 
 const PlatformAccountManagement = (): React.ReactElement => {
   const [cards, setCards] = useState<PlatformAccountCard[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [revision, setRevision] = useState(0);
   const [saving, setSaving] = useState(false);
   const [activeCard, setActiveCard] = useState<PlatformAccountCard | null>(
     null
@@ -64,21 +73,28 @@ const PlatformAccountManagement = (): React.ReactElement => {
     [activeCard]
   );
 
-  const loadCards = async (): Promise<void> => {
-    setLoading(true);
-    try {
-      const data = await getPlatformAccountCards();
-      setCards(data);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void loadCards();
-  }, []);
+    let active = true;
+    setLoading(true);
+    setError('');
+    getPlatformAccountCards()
+      .then(data => {
+        if (active) setCards(data);
+      })
+      .catch(reason => {
+        if (active) setError(errorText(reason));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [revision]);
 
   const openConfig = (card: PlatformAccountCard): void => {
+    setSaveError('');
+    form.resetFields();
     setActiveCard(card);
     form.setFieldsValue(card.config || {});
   };
@@ -87,13 +103,21 @@ const PlatformAccountManagement = (): React.ReactElement => {
     if (!activeCard) {
       return;
     }
-    const values = await form.validateFields();
+    let values: PlatformAccountConfig;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return;
+    }
     setSaving(true);
+    setSaveError('');
     try {
       await savePlatformAccountConfig(activeCard.type, values);
       message.success('配置已保存');
       setActiveCard(null);
-      await loadCards();
+      setRevision(value => value + 1);
+    } catch (reason) {
+      setSaveError(errorText(reason));
     } finally {
       setSaving(false);
     }
@@ -103,6 +127,16 @@ const PlatformAccountManagement = (): React.ReactElement => {
     if (!activeCard) {
       return null;
     }
+    const credential = (field: string): React.ReactElement => (
+      <SavedCredentialInput
+        placeholder="请输入"
+        disabled={saving}
+        maskedValue="******"
+        loadSaved={signal =>
+          revealPlatformCredential(activeCard.type, field, signal)
+        }
+      />
+    );
     switch (activeCard.type) {
       case 'iflytek_open_platform':
         return (
@@ -119,28 +153,28 @@ const PlatformAccountManagement = (): React.ReactElement => {
               label="PLATFORM_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('platformApiKey')}
             </Form.Item>
             <Form.Item
               name={['iflytekOpenPlatform', 'platformApiSecret']}
               label="PLATFORM_API_SECRET"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('platformApiSecret')}
             </Form.Item>
             <Form.Item
               name={['iflytekOpenPlatform', 'sparkApiPassword']}
               label="SPARK_API_PASSWORD"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkApiPassword')}
             </Form.Item>
             <Form.Item
               name={['iflytekOpenPlatform', 'sparkRtasrApiKey']}
               label="SPARK_RTASR_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkRtasrApiKey')}
             </Form.Item>
           </>
         );
@@ -166,7 +200,7 @@ const PlatformAccountManagement = (): React.ReactElement => {
               label="AI_ABILITY_CHAT_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('apiKey')}
             </Form.Item>
           </>
         );
@@ -185,14 +219,14 @@ const PlatformAccountManagement = (): React.ReactElement => {
               label="SPARK_VIRTUAL_MAN_API_KEY"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkVirtualManApiKey')}
             </Form.Item>
             <Form.Item
               name={['virtualMan', 'sparkVirtualManApiSecret']}
               label="SPARK_VIRTUAL_MAN_API_SECRET"
               rules={[{ required: true }]}
             >
-              <Input.Password placeholder="请输入" />
+              {credential('sparkVirtualManApiSecret')}
             </Form.Item>
           </>
         );
@@ -212,7 +246,7 @@ const PlatformAccountManagement = (): React.ReactElement => {
               name={['knowledgePlatform', 'ragflow', 'apiToken']}
               label="RAGFLOW_API_TOKEN"
             >
-              <Input.Password placeholder="请输入" />
+              {credential('apiToken')}
             </Form.Item>
             <Form.Item
               name={['knowledgePlatform', 'ragflow', 'timeout']}
@@ -243,59 +277,92 @@ const PlatformAccountManagement = (): React.ReactElement => {
   };
 
   return (
-    <div className="h-full overflow-auto bg-[#f7f8fa] px-8 py-7">
-      <div className="mb-6">
-        <h1 className="m-0 text-2xl font-semibold text-[#202124]">
-          平台账号管理
-        </h1>
-      </div>
-      <Spin spinning={loading}>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
-          {cards.map(card => (
-            <button
-              key={card.type}
-              type="button"
-              onClick={() => openConfig(card)}
-              className="min-h-[168px] rounded-lg border border-[#e5e7eb] bg-white p-5 text-left shadow-sm transition hover:border-[#4f46e5] hover:shadow-md"
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <div>
+          <h1>平台账号管理</h1>
+          <p>管理平台能力的连接配置与鉴权凭证。</p>
+        </div>
+        <Button
+          disabled={loading}
+          onClick={() => setRevision(value => value + 1)}
+        >
+          刷新
+        </Button>
+      </header>
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message={error}
+          action={
+            <Button
+              size="small"
+              onClick={() => setRevision(value => value + 1)}
             >
+              重试
+            </Button>
+          }
+        />
+      )}
+      <Spin spinning={loading}>
+        <div className={styles.grid} aria-busy={loading}>
+          {cards.map(card => (
+            <article key={card.type} className={styles.card}>
               <div className="mb-4 flex items-start justify-between gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#eef2ff] text-xl text-[#4338ca]">
-                  {CARD_META[card.type].icon}
-                </div>
+                <div className={styles.icon}>{CARD_META[card.type].icon}</div>
                 <Tag color={card.configured ? 'green' : 'default'}>
                   {card.configured ? '已配置' : '未配置'}
                 </Tag>
               </div>
-              <div className="text-lg font-semibold text-[#202124]">
-                {card.name}
-              </div>
-              <div className="mt-2 text-sm leading-6 text-[#6b7280]">
-                {CARD_META[card.type].desc}
-              </div>
-              <div className="mt-5">
-                <Button type="primary">
+              <h2>{card.name}</h2>
+              <p>{CARD_META[card.type].desc}</p>
+              <div className={styles.footer}>
+                <Button
+                  onClick={() => openConfig(card)}
+                  aria-label={`${card.configured ? '修改' : '配置'}${card.name}`}
+                >
                   {card.configured ? '修改配置' : '去配置'}
                 </Button>
               </div>
-            </button>
+            </article>
           ))}
         </div>
+        {!loading && !error && !cards.length && (
+          <Empty description="暂无平台账号配置" />
+        )}
       </Spin>
 
       <Modal
         title={modalTitle}
         open={!!activeCard}
-        onCancel={() => setActiveCard(null)}
+        onCancel={() => !saving && setActiveCard(null)}
         onOk={handleSave}
         confirmLoading={saving}
+        cancelButtonProps={{ disabled: saving }}
+        maskClosable={!saving}
+        okText="保存配置"
+        cancelText="取消"
         destroyOnClose
         width={720}
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <p className={styles.hint}>
+          点击眼睛查看已保存的凭证。重新隐藏后可编辑，保存时保留未修改的凭证。
+        </p>
+        {saveError && (
+          <Alert type="error" showIcon message={saveError} className="mb-4" />
+        )}
+        <Form
+          form={form}
+          layout="vertical"
+          preserve={false}
+          disabled={saving}
+          labelWrap
+        >
           {renderForm()}
         </Form>
       </Modal>
-    </div>
+    </main>
   );
 };
 

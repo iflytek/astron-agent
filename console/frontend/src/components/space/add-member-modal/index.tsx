@@ -1,11 +1,13 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useState,
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   KeyboardEvent,
 } from 'react';
-import { Modal, Input, Checkbox, Button, Select, Avatar, message } from 'antd';
+import { Alert, Modal, Button, message } from 'antd';
 import { useDebounceFn } from 'ahooks';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -21,8 +23,9 @@ import CusCheckBox from './cus-check-box';
 import emptyImg from '@/assets/imgs/space/empty.png';
 import creatorImg from '@/assets/imgs/space/person-space-icon.svg';
 
-import { searchInviteUsers, getUserLimit } from './config';
+import { searchInviteUsers, getPersonalSpaceLimit } from './config';
 import { MEMBER_ROLE } from '@/pages/space/config';
+import { useUserStoreHook } from '@/hooks/use-user-store';
 import type {
   InviteUser as User,
   SelectedInviteUser as SelectedUser,
@@ -31,33 +34,54 @@ import type {
 interface AddMemberModalProps {
   title?: React.ReactNode;
   inviteType?: 'enterprise' | 'space';
+  isTeamSpace?: boolean;
   open: boolean;
   onClose: () => void;
   onSubmit: (values: SelectedUser[]) => void;
-  maxMembers?: number; // 最大成员数量
   initialUsers?: User[]; // 初始用户列表（用于批量导入）
 }
+
+const MAX_INVITATIONS_PER_REQUEST = 500;
 
 const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
   ({
     inviteType = 'enterprise',
+    isTeamSpace = false,
     open,
     onClose,
     onSubmit,
     initialUsers = [],
   }) => {
     const { t } = useTranslation();
+    const { isOwner, isSuperAdmin } = useUserStoreHook();
     const [searchValue, setSearchValue] = useState<string>('');
     const [lastSearchedValue, setLastSearchedValue] = useState<string>(''); // 添加这行
     const [allChecked, setAllChecked] = useState<boolean>(false);
     const [selectedUsers, setSelectedUsers] = useState<SelectedUser[]>([]);
     const [userList, setUserList] = useState<User[]>(initialUsers);
     const [loading, setLoading] = useState<boolean>(false);
-    const [maxMembers, setMaxMembers] = useState<number>(48);
+    const sequence = useRef(0);
+    const isOpen = useRef(open);
+    isOpen.current = open;
+    const [searchError, setSearchError] = useState('');
+    const [remainingSeats, setRemainingSeats] = useState(0);
+    const usesTeamSeats = inviteType === 'enterprise' || isTeamSpace;
+    const maxMembers = usesTeamSeats
+      ? MAX_INVITATIONS_PER_REQUEST
+      : Math.min(remainingSeats, MAX_INVITATIONS_PER_REQUEST);
 
     useEffect(() => {
+      sequence.current += 1;
+      setSearchError('');
+      setLoading(false);
+      let ignore = false;
       if (open) {
-        updateMaxMembers();
+        setRemainingSeats(0);
+        if (!usesTeamSeats) {
+          void getPersonalSpaceLimit().then(limit => {
+            if (!ignore) setRemainingSeats(limit);
+          });
+        }
         setSearchValue('');
         setLastSearchedValue('');
       } else {
@@ -68,16 +92,18 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
         setAllChecked(false);
         setUserList([]);
       }
-    }, [open]);
-
-    const updateMaxMembers = useCallback(async () => {
-      const maxNums: number = await getUserLimit(inviteType);
-      setMaxMembers(maxNums);
-    }, [inviteType]);
+      return () => {
+        ignore = true;
+        sequence.current += 1;
+      };
+    }, [open, usesTeamSeats]);
 
     // 搜索用户接口调用
     const searchUsers = useCallback(
       async (searchKeyword: string) => {
+        const current = ++sequence.current;
+        const isCurrent = () => current === sequence.current && isOpen.current;
+        setSearchError('');
         // 移除对空字符串的检查，允许空搜索
         setLoading(true);
         setLastSearchedValue(searchKeyword.trim());
@@ -93,16 +119,16 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
             { username: searchKeyword },
             inviteType
           );
+          if (!isCurrent()) return;
           const users = (res || []).map(user => ({
             ...user,
             avatar: user.avatar || creatorImg,
           }));
           setUserList(users);
         } catch (error: any) {
-          message.error(error?.msg || error?.desc);
-          setUserList([]);
+          if (isCurrent()) setSearchError('搜索用户失败，请重试。');
         } finally {
-          setLoading(false);
+          if (isCurrent()) setLoading(false);
         }
       },
       [inviteType]
@@ -329,7 +355,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
                 placeholder={t('space.searchUsername')}
                 value={searchValue}
                 onChange={handleSearch}
-                onKeyPress={handleKeyPress}
+                onSearch={value => void searchUsers(value)}
                 className={styles.searchInput}
               />
             </div>
@@ -349,7 +375,18 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
               )}
 
               <div className={styles.userList}>
-                {loading ? (
+                {searchError ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message={searchError}
+                    action={
+                      <Button onClick={() => void searchUsers(searchValue)}>
+                        重试
+                      </Button>
+                    }
+                  />
+                ) : loading ? (
                   <div className={styles.emptyState}>
                     <span className={styles.emptyText}>
                       {t('space.searching')}
@@ -381,7 +418,14 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
               {t('space.selected')}
               {selectedUsers.length}
               <span className={styles.maxValue}>
-                {t('space.maxValue', { count: maxMembers })}
+                {t(
+                  usesTeamSeats
+                    ? 'space.invitationBatchLimit'
+                    : 'space.maxValue',
+                  {
+                    count: maxMembers,
+                  }
+                )}
               </span>
             </div>
 
@@ -390,6 +434,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = React.memo(
                 <SelectedUserItem
                   key={user.uid}
                   user={user}
+                  canInviteAdmin={isOwner || isSuperAdmin}
                   handleRoleChange={handleRoleChange}
                   handleRemoveUser={handleRemoveUser}
                 />

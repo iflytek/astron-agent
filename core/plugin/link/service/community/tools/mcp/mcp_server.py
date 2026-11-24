@@ -5,8 +5,9 @@ It handles tool listing, tool execution, and server management operations with p
 error handling, observability tracing, and security validations.
 """
 
+import asyncio
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple
 
 from common.otlp.log_trace.node_trace_log import NodeTraceLog, Status
 from common.otlp.metrics.meter import Meter
@@ -19,10 +20,8 @@ from plugin.link.api.schemas.community.tools.mcp.mcp_tools_schema import (
     MCPCallToolData,
     MCPCallToolRequest,
     MCPCallToolResponse,
-    MCPImageResponse,
     MCPInfo,
     MCPItemInfo,
-    MCPTextResponse,
     MCPToolListData,
     MCPToolListRequest,
     MCPToolListResponse,
@@ -42,6 +41,9 @@ from plugin.link.service.community.tools.mcp.mcp_transport import (
 )
 from plugin.link.utils.errors.code import ErrCode
 from plugin.link.utils.sid.sid_generator2 import new_sid
+
+_DISCOVERY_BUDGET_SECONDS = 20.0
+_DISCOVERY_CLEANUP_SECONDS = 2.0
 
 
 async def _reject_unsafe_mcp_url(url: str) -> ErrCode | None:
@@ -119,15 +121,26 @@ async def _connect_and_get_tools(
     try:
         async with initialized_mcp_session(url, transport) as (session, _):
             try:
-                tools_result = await session.list_tools()
-                tools_dict = tools_result.model_dump()["tools"]
+                tools_dict = []
+                cursor = None
+                seen_cursors: set[str] = set()
+                while True:
+                    page = (
+                        await session.list_tools(cursor=cursor)
+                        if cursor
+                        else await session.list_tools()
+                    )
+                    page_data = page.model_dump()
+                    tools_dict.extend(page_data["tools"])
+                    cursor = page_data.get("nextCursor")
+                    if not cursor:
+                        break
+                    if cursor in seen_cursors:
+                        raise ValueError("MCP returned a repeated pagination cursor")
+                    seen_cursors.add(cursor)
                 tools = []
                 for tool in tools_dict:
-                    tool_info = MCPInfo(
-                        name=tool.get("name", "No name available"),
-                        description=tool.get("description", "No description available"),
-                        inputSchema=tool.get("inputSchema"),
-                    )
+                    tool_info = MCPInfo.model_validate(tool)
                     tools.append(tool_info)
 
                 success = ErrCode.SUCCESSES
@@ -167,6 +180,110 @@ async def _connect_and_get_tools(
         )
 
 
+async def _cancel_discovery_tasks(
+    tasks: list[asyncio.Task[None]], deadline: float
+) -> None:
+    """Close SDK contexts in their owning tasks, including stalled termination."""
+    pending = {task for task in tasks if not task.done()}
+    for task in pending:
+        task.cancel()
+    try:
+        if pending:
+            await asyncio.wait(
+                pending, timeout=max(0.0, deadline - asyncio.get_running_loop().time())
+            )
+    finally:
+        # SDK Streamable HTTP termination sends DELETE while unwinding. A second
+        # cancellation interrupts a stalled DELETE after its cleanup allowance.
+        for task in pending:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+
+async def _discover_servers(
+    list_info: MCPToolListRequest, span_context: Any
+) -> list[MCPItemInfo]:
+    # The budget covers queued connections too, leaving room below the caller's
+    # 30s timeout for cancellation, response serialization and network overhead.
+    deadline = asyncio.get_running_loop().time() + _DISCOVERY_BUDGET_SECONDS
+    semaphore = asyncio.Semaphore(4)
+    targets = [("id", value) for value in dict.fromkeys(list_info.mcp_server_ids or [])]
+    targets += [
+        ("url", value)
+        for value in dict.fromkeys(list_info.mcp_server_urls or [])
+        if value.strip()
+    ]
+
+    results: list[MCPItemInfo | None] = [None] * len(targets)
+    started = [False] * len(targets)
+
+    def failed(index: int, failure: str, message: str) -> MCPItemInfo:
+        kind, value = targets[index]
+        # The request-local index identifies URL targets without logging secrets.
+        logger.warning(
+            "MCP discovery failed; target={} kind={} type={}", index, kind, failure
+        )
+        err = ErrCode.MCP_SERVER_CONNECT_ERR
+        identity = {"server_id" if kind == "id" else "server_url": value}
+        return MCPItemInfo(
+            **identity, server_status=err.code, server_message=message, tools=[]
+        )
+
+    async def discover(index: int, kind: str, value: str) -> None:
+        try:
+            async with semaphore:
+                started[index] = True
+                if kind == "id":
+                    results[index] = await _process_mcp_server_by_id(
+                        value, span_context, list_info.transport
+                    )
+                else:
+                    results[index] = await _process_mcp_server_by_url(
+                        value, list_info.transport
+                    )
+        except Exception as exc:
+            results[index] = failed(
+                index, type(exc).__name__, ErrCode.MCP_SERVER_CONNECT_ERR.msg
+            )
+
+    tasks = [
+        asyncio.create_task(discover(index, kind, value))
+        for index, (kind, value) in enumerate(targets)
+    ]
+    if not tasks:
+        return []
+    try:
+        await asyncio.wait(
+            tasks,
+            timeout=max(
+                0.0,
+                deadline
+                - _DISCOVERY_CLEANUP_SECONDS
+                - asyncio.get_running_loop().time(),
+            ),
+        )
+    finally:
+        await _cancel_discovery_tasks(tasks, deadline)
+
+    return [
+        (
+            result
+            if result is not None
+            else failed(
+                index,
+                "TimeoutError" if started[index] else "QueueTimeout",
+                (
+                    "MCP discovery timed out; retry the connection"
+                    if started[index]
+                    else "MCP discovery budget exhausted before connection started; retry"
+                ),
+            )
+        )
+        for index, result in enumerate(results)
+    ]
+
+
 async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListResponse:
     """
     Get the list of tools.
@@ -185,9 +302,12 @@ async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListRespon
 
     with span.start(func_name="tool_list") as span_context:
         logger.info(
-            {"mcp api, tool_list router usr_input": list_info.model_dump_json()}
+            "MCP discovery started; servers={}",
+            len(mcp_server_ids or []) + len(mcp_server_urls or []),
         )
-        span_context.add_info_events({"usr_input": list_info.model_dump_json()})
+        span_context.add_info_events(
+            {"server_count": len(mcp_server_ids or []) + len(mcp_server_urls or [])}
+        )
         span_context.set_attributes(attributes={"tool_id": "tool_list"})
         node_trace = NodeTraceLog(
             service_id="",
@@ -198,27 +318,11 @@ async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListRespon
             sub="spark-link",
             caller="tool_list",
             log_caller="",
-            question=list_info.model_dump_json(),
+            question="MCP tool discovery",
         )
         m = Meter(app_id=span_context.app_id, func="tool_list")
 
-        items = []
-
-        # Process IDs
-        if mcp_server_ids:
-            for mcp_server_id in mcp_server_ids:
-                item = await _process_mcp_server_by_id(
-                    mcp_server_id, span_context, list_info.transport
-                )
-                items.append(item)
-
-        # Process URLs
-        if mcp_server_urls:
-            for url in mcp_server_urls:
-                if not url.strip():
-                    continue
-                item = await _process_mcp_server_by_url(url, list_info.transport)
-                items.append(item)
+        items = await _discover_servers(list_info, span_context)
 
         success = ErrCode.SUCCESSES
         result = MCPToolListResponse(
@@ -227,10 +331,10 @@ async def tool_list(list_info: MCPToolListRequest = Body()) -> MCPToolListRespon
             sid=session_id,
             data=MCPToolListData(servers=items),
         )
-        span_context.add_info_events({"tool_list_result": result.model_dump_json()})
+        span_context.add_info_events({"server_count": len(items)})
         if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
             m.in_success_count()
-            node_trace.answer = result.model_dump_json()
+            node_trace.answer = "MCP discovery completed"
             node_trace.service_id = "tool_list"
             node_trace.log_caller = "mcp_type"
             node_trace.status = Status(
@@ -247,7 +351,7 @@ def _create_error_response(err: ErrCode, session_id: str) -> MCPCallToolResponse
         code=err.code,
         message=err.msg,
         sid=session_id,
-        data=MCPCallToolData(isError=None, content=None),
+        data=MCPCallToolData(isError=True, content=[]),
     )
 
 
@@ -275,32 +379,17 @@ async def _execute_tool_call(
     node_trace: NodeTraceLog,
     mcp_server_id: str,
     m: Meter,
-) -> Union[
-    Tuple[bool, List[Union[MCPTextResponse, MCPImageResponse]]],
-    Tuple[MCPCallToolResponse, None],
-]:
-    """Execute the actual tool call and process response."""
+) -> MCPCallToolData | MCPCallToolResponse:
+    """Preserve the official SDK result rather than reimplementing content DTOs."""
     try:
         call_result = await session.call_tool(tool_name, arguments=tool_args)
-        call_dict = call_result.model_dump()
-        is_error = call_dict["isError"]
-        content = []
-
-        for data in call_dict["content"]:
-            if data["type"] == "text":
-                text = MCPTextResponse(text=data["text"])
-                content.append(text)
-            elif data["type"] == "image":
-                image = MCPImageResponse(data=data["data"], mineType=data["mineType"])
-                content.append(image)
-
-        return is_error, content
+        return MCPCallToolData.model_validate(call_result.model_dump())
     except Exception:
         err = ErrCode.MCP_SERVER_CALL_TOOL_ERR
         span_context.add_error_event(err.msg)
         span_context.set_status(OTelStatus(StatusCode.ERROR))
         _log_error_to_kafka(err, node_trace, mcp_server_id, m)
-        return _create_error_response(err, session_id), None
+        return _create_error_response(err, session_id)
 
 
 async def _call_mcp_tool(
@@ -328,16 +417,15 @@ async def _call_mcp_tool(
                 m,
             )
 
-            if isinstance(call_result[0], MCPCallToolResponse):
-                return call_result[0]
+            if isinstance(call_result, MCPCallToolResponse):
+                return call_result
 
-            is_error, content = call_result
             success = ErrCode.SUCCESSES
             return MCPCallToolResponse(
                 code=success.code,
                 message=success.msg,
                 sid=session_id,
-                data=MCPCallToolData(isError=is_error, content=content),
+                data=call_result,
             )
     except MCPTransportError as error:
         err = _transport_error_code(error)
@@ -396,10 +484,8 @@ async def call_tool(call_info: MCPCallToolRequest = Body()) -> MCPCallToolRespon
         span.sid = session_id
 
     with span.start(func_name="call_tool") as span_context:
-        logger.info(
-            {"mcp api, call_tool router usr_input": call_info.model_dump_json()}
-        )
-        span_context.add_info_events({"usr_input": call_info.model_dump_json()})
+        logger.info("MCP call started; server_id={}, tool={}", mcp_server_id, tool_name)
+        span_context.add_info_events({"tool_name": tool_name})
         span_context.set_attributes(attributes={"tool_id": str(mcp_server_id)})
         node_trace = NodeTraceLog(
             service_id="",
@@ -410,7 +496,7 @@ async def call_tool(call_info: MCPCallToolRequest = Body()) -> MCPCallToolRespon
             sub="spark-link",
             caller="call_tool",
             log_caller="",
-            question=call_info.model_dump_json(),
+            question=tool_name,
         )
         m = Meter(app_id=span_context.app_id, func="call_tool")
 
@@ -433,19 +519,26 @@ async def call_tool(call_info: MCPCallToolRequest = Body()) -> MCPCallToolRespon
             m,
             call_info.transport,
         )
-        span_context.add_info_events({"call_tool_result": result.model_dump_json()})
-        # Log success if the call succeeded
-        if result.code == ErrCode.SUCCESSES.code:
-            if os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1":
-                m.in_success_count()
-                node_trace.answer = result.model_dump_json()
-                node_trace.service_id = mcp_server_id
-                node_trace.log_caller = "mcp_type"
-                node_trace.status = Status(
-                    code=ErrCode.SUCCESSES.code,
-                    message=ErrCode.SUCCESSES.msg,
-                )
-                send_telemetry_sync(node_trace)
+        span_context.add_info_events(
+            {"code": result.code, "is_error": result.data.isError}
+        )
+        if result.code == ErrCode.SUCCESSES.code and result.data.isError:
+            span_context.set_status(OTelStatus(StatusCode.ERROR))
+            _log_error_to_kafka(
+                ErrCode.MCP_SERVER_CALL_TOOL_ERR, node_trace, mcp_server_id, m
+            )
+        elif (
+            result.code == ErrCode.SUCCESSES.code
+            and os.getenv(const.OTLP_ENABLE_KEY, "0").lower() == "1"
+        ):
+            m.in_success_count()
+            node_trace.answer = "MCP call completed"
+            node_trace.service_id = mcp_server_id
+            node_trace.log_caller = "mcp_type"
+            node_trace.status = Status(
+                code=ErrCode.SUCCESSES.code, message=ErrCode.SUCCESSES.msg
+            )
+            send_telemetry_sync(node_trace)
 
         return result
 

@@ -5,6 +5,8 @@ import { fetchSseWithContext } from '../src/utils/sse-request.ts';
 import {
   createWorkflowSseLifecycle,
   isTerminalWorkflowSseErrorFrame,
+  readWorkflowFrameStatus,
+  stopWorkflowSse,
 } from '../src/components/workflow/store/workflow-sse.ts';
 
 const originalDocument = globalThis.document;
@@ -14,6 +16,7 @@ globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
   hidden: false,
+  cookie: 'astron_csrf=current-csrf-token',
 };
 globalThis.window = {
   clearTimeout: globalThis.clearTimeout,
@@ -42,12 +45,12 @@ const requestPaths = [
   '/workflow/resume',
 ];
 
-const captureRequest = async (path, getContext) => {
+const captureRequest = async (path, getContext, method = 'POST') => {
   let capturedRequest;
 
   await fetchSseWithContext(path, {
     getContext,
-    method: 'POST',
+    method,
     openWhenHidden: true,
     onerror(error) {
       throw error;
@@ -55,6 +58,7 @@ const captureRequest = async (path, getContext) => {
     fetch: async (input, init) => {
       capturedRequest = {
         input: input.toString(),
+        method: init?.method,
         headers: new globalThis.Headers(init?.headers),
       };
 
@@ -74,7 +78,6 @@ const captureRequest = async (path, getContext) => {
 test('all chat SSE requests use the latest team-space context', async () => {
   let currentContext = {
     languageCode: 'zh-CN',
-    accessToken: 'old-token',
     spaceId: '',
     spaceType: 'personal',
     enterpriseId: '',
@@ -83,7 +86,6 @@ test('all chat SSE requests use the latest team-space context', async () => {
 
   currentContext = {
     languageCode: 'en-US',
-    accessToken: 'latest-token',
     spaceId: '42',
     spaceType: 'team',
     enterpriseId: '7',
@@ -95,7 +97,8 @@ test('all chat SSE requests use the latest team-space context', async () => {
     assert.equal(request.input, path);
     assert.equal(request.headers.get('accept'), 'text/event-stream');
     assert.equal(request.headers.get('accept-language'), 'en-US');
-    assert.equal(request.headers.get('authorization'), 'Bearer latest-token');
+    assert.equal(request.headers.get('authorization'), null);
+    assert.equal(request.headers.get('x-csrftoken'), 'current-csrf-token');
     assert.equal(request.headers.get('space-id'), '42');
     assert.equal(request.headers.get('enterprise-id'), '7');
   }
@@ -104,7 +107,6 @@ test('all chat SSE requests use the latest team-space context', async () => {
 test('non-team SSE requests omit stale enterprise context', async () => {
   const request = await captureRequest('/chat-message/chat', () => ({
     languageCode: 'zh-CN',
-    accessToken: 'test-token',
     spaceId: '42',
     spaceType: 'personal',
     enterpriseId: 'stale-enterprise',
@@ -117,7 +119,6 @@ test('non-team SSE requests omit stale enterprise context', async () => {
     '/chat-message/re-answer',
     () => ({
       languageCode: 'zh-CN',
-      accessToken: 'test-token',
       spaceId: '',
       spaceType: 'personal',
       enterpriseId: '',
@@ -200,6 +201,66 @@ test('an active stream that closes early is finalized only once', () => {
   assert.equal(finalizeCount, 1);
 });
 
+test('omitted core finish fields are running frames and node stops stay node-local', () => {
+  assert.deepEqual(readWorkflowFrameStatus({ choices: [{}] }), {
+    flowResult: null,
+    nodeStatus: null,
+  });
+  assert.deepEqual(
+    readWorkflowFrameStatus({
+      choices: [{ delta: { content: '' } }],
+      workflow_step: {
+        node: { id: 'question-answer::1', finish_reason: 'stop' },
+      },
+    }),
+    { flowResult: null, nodeStatus: 'stop' }
+  );
+});
+
+test('explicit stop waits for durable cancellation before disconnecting', async () => {
+  const controller = new AbortController();
+  let acknowledge;
+  let stopped;
+  const pending = stopWorkflowSse({
+    requestStop: () =>
+      new Promise(resolve => {
+        acknowledge = resolve;
+      }),
+    controller,
+    isCurrent: () => true,
+    onStopped: result => {
+      stopped = result.status;
+    },
+  });
+  assert.equal(controller.signal.aborted, false);
+  acknowledge({ status: 'cancelled' });
+  await pending;
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(stopped, 'cancelled');
+});
+
+test('failed or obsolete stop cannot disconnect the active stream', async () => {
+  const controller = new AbortController();
+  await assert.rejects(
+    stopWorkflowSse({
+      requestStop: async () => {
+        throw new Error('denied');
+      },
+      controller,
+      isCurrent: () => true,
+      onStopped: () => assert.fail('failed stop must remain retryable'),
+    })
+  );
+  assert.equal(controller.signal.aborted, false);
+  await stopWorkflowSse({
+    requestStop: async () => ({ status: 'completed' }),
+    controller,
+    isCurrent: () => false,
+    onStopped: () => assert.fail('stale stop must not change the next run'),
+  });
+  assert.equal(controller.signal.aborted, false);
+});
+
 test('a synchronous workflow business-error frame is terminal', () => {
   assert.equal(
     isTerminalWorkflowSseErrorFrame({
@@ -216,4 +277,52 @@ test('a synchronous workflow business-error frame is terminal', () => {
     false
   );
   assert.equal(isTerminalWorkflowSseErrorFrame({ code: 0 }), false);
+});
+
+test('knowledge document search sends authenticated team context on its GET stream', async () => {
+  const request = await captureRequest(
+    '/file/search-file?repoId=91',
+    () => ({
+      languageCode: 'zh-CN',
+      spaceId: '42',
+      spaceType: 'team',
+      enterpriseId: '7',
+    }),
+    'GET'
+  );
+  assert.equal(request.method, 'GET');
+  assert.equal(request.headers.get('space-id'), '42');
+  assert.equal(request.headers.get('enterprise-id'), '7');
+  assert.equal(request.headers.get('authorization'), null);
+});
+
+test('failed knowledge stream ends instead of retrying a forbidden request', async () => {
+  let calls = 0;
+  await assert.rejects(
+    fetchSseWithContext('/file/search-file?repoId=91', {
+      getContext: () => ({
+        languageCode: 'zh-CN',
+        spaceId: '42',
+        spaceType: 'team',
+        enterpriseId: '7',
+      }),
+      method: 'GET',
+      openWhenHidden: true,
+      fetch: async () => {
+        calls += 1;
+        return new Response('{}', {
+          status: 403,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+      async onopen(response) {
+        if (!response.ok) throw new Error('forbidden');
+      },
+      onerror(error) {
+        throw error;
+      },
+    }),
+    /forbidden/
+  );
+  assert.equal(calls, 1);
 });

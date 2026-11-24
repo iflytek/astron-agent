@@ -28,10 +28,8 @@ Pre-commit is a framework for managing and maintaining multi-language pre-commit
 
 Ensure you have the following installed:
 
-- Python 3.9+
-- Node.js 18+ (for TypeScript/JavaScript checks)
-- Go 1.21+ (for Go checks)
-- Java 21+ and Maven 3.8+ (for Java checks)
+- Python 3.11+
+- Node.js 20+ (for TypeScript/JavaScript checks)
 
 ### Install pre-commit
 
@@ -125,21 +123,11 @@ pre-commit autoupdate
 | `prettier-check` | Check code formatting | console/frontend/src |
 | `eslint-check` | Lint for code issues | console/frontend/src |
 
-### Go Checks
+Tenant Python files use the `tenant-python-check` hook.
 
-| Hook | Description | Scope |
-|------|-------------|-------|
-| `golangci-lint` | Comprehensive linting | core/tenant |
-| `go-fmt-check` | Check gofmt formatting | core/tenant |
-| `go-imports-check` | Check goimports formatting | core/tenant |
-| `go-vet` | Check for suspicious code | core/tenant |
+### Python Console
 
-### Java Checks
-
-| Hook | Description | Scope |
-|------|-------------|-------|
-| `spotless-check` | Check Google Java Format | console/backend |
-| `checkstyle` | Check code style | console/backend |
+`console-ruff-check` runs the locked Ruff lint and format checks for `console/backend`. Run Django tests and migration checks using the [backend commands](../console/backend/README.md).
 
 ### Security
 
@@ -182,28 +170,6 @@ npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}"
 
 # Fix linting issues (auto-fixable only)
 npx eslint "src/**/*.{ts,tsx}" --fix
-```
-
-### Go
-
-```bash
-cd core/tenant
-
-# Fix formatting
-gofmt -w .
-goimports -w .
-
-# Or use gofumpt for stricter formatting
-gofumpt -w .
-```
-
-### Java
-
-```bash
-cd console/backend
-
-# Fix formatting with Spotless
-mvn spotless:apply
 ```
 
 ## Configuration
@@ -269,17 +235,11 @@ python3 -m flake8 --version
 npx prettier --version
 npx eslint --version
 
-# Check Go tools
-golangci-lint --version
-gofmt -help
-
-# Check Java tools
-mvn --version
 ```
 
 #### 2. Hook takes too long
 
-Some hooks (like Java checks) can be slow. They run only when relevant files change.
+Hooks run only when matching files change. Run an individual hook to isolate a slow check.
 
 #### 3. False positives in gitleaks
 

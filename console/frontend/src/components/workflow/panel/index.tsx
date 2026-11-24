@@ -1,7 +1,12 @@
 import React, { useState, useMemo, memo, useEffect } from 'react';
 import { Panel, MiniMap } from 'reactflow';
 import type { ReactFlowInstance } from 'reactflow';
-import { Tooltip, Popover } from 'antd';
+import { Button, Dropdown, Tooltip, Popover } from 'antd';
+import {
+  EllipsisOutlined,
+  FullscreenOutlined,
+  PictureOutlined,
+} from '@ant-design/icons';
 import { cloneDeep } from 'lodash';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import dagre from 'dagre';
@@ -308,132 +313,105 @@ function FlowControls({
   );
   const undo = currentStore(state => state.undo);
   return (
-    <div className="flex items-center gap-4">
-      <Tooltip title={t('workflow.promptDebugger.locateInitialNode')}>
-        <img
-          src={Icons.panel.flowPosition}
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={() => positionStartNode()}
-        />
-      </Tooltip>
-      {!canvasesDisabled && (
-        <Tooltip title={t('workflow.promptDebugger.clearCanvas')}>
-          <img
-            src={Icons.panel.flowClear}
-            className="w-4 h-4 cursor-pointer"
-            alt=""
-            onClick={() => setClearFlowCanvasModalInfo({ open: true })}
-          />
-        </Tooltip>
-      )}
-      {!canvasesDisabled && currentFlow?.publishedData && (
-        <Tooltip title={t('workflow.promptDebugger.restoreToOnlineVersion')}>
-          <img
-            src={Icons.panel.flowReduction}
-            className="w-4 h-4 cursor-pointer"
-            alt=""
-            onClick={() => handleFlowReduction()}
-          />
-        </Tooltip>
-      )}
-      {!canvasesDisabled && (
-        <Tooltip title={t('workflow.promptDebugger.createCopy')}>
-          <img
-            src={Icons.panel.flowCopy}
-            className="w-4 h-4 cursor-pointer"
-            alt=""
-            onClick={() => handleCopyFlow()}
-          />
-        </Tooltip>
-      )}
-      <Tooltip title={t('workflow.promptDebugger.viewThumbnail')}>
-        <img
-          src={Icons.panel.flowAbbreviation}
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={() => viewAbbreviation()}
-        />
-      </Tooltip>
-      <Tooltip title={t('workflow.promptDebugger.adaptiveView')}>
-        <img
-          src={Icons.panel.flowAdaptive}
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={() => viewAdaptive()}
-        />
-      </Tooltip>
-      <Tooltip title={t('workflow.promptDebugger.optimizeLayout')}>
-        <img
-          src={Icons.panel.flowOptimizeLayout}
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={() => optimizeLayout()}
-        />
-      </Tooltip>
-      <Tooltip
-        title={
-          edgeType === 'curve'
-            ? t('workflow.promptDebugger.switchToPolyline')
-            : t('workflow.promptDebugger.switchToCurve')
-        }
+    <div className="workflow-canvas-controls flex items-center gap-1">
+      <Button
+        type="text"
+        aria-label={t('workflow.promptDebugger.viewThumbnail')}
+        title={t('workflow.promptDebugger.viewThumbnail')}
+        icon={<PictureOutlined />}
+        onClick={viewAbbreviation}
+      />
+      <Button
+        type="text"
+        aria-label={t('workflow.promptDebugger.adaptiveView')}
+        title={t('workflow.promptDebugger.adaptiveView')}
+        icon={<FullscreenOutlined />}
+        onClick={viewAdaptive}
+      />
+      <Dropdown
+        trigger={['click']}
+        placement="topRight"
+        menu={{
+          items: [
+            {
+              key: 'locate',
+              label: t('workflow.promptDebugger.locateInitialNode'),
+              onClick: positionStartNode,
+            },
+            {
+              key: 'layout',
+              label: t('workflow.promptDebugger.optimizeLayout'),
+              onClick: optimizeLayout,
+            },
+            {
+              key: 'edge',
+              label:
+                edgeType === 'curve'
+                  ? t('workflow.promptDebugger.switchToPolyline')
+                  : t('workflow.promptDebugger.switchToCurve'),
+              onClick: () =>
+                changeEdgeLine(edgeType === 'curve' ? 'polyline' : 'curve'),
+            },
+            {
+              key: 'mode',
+              label: autonomousMode
+                ? t('workflow.promptDebugger.switchToFollowMode')
+                : t('workflow.promptDebugger.switchToAutonomousMode'),
+              onClick: handleSwitchMode,
+            },
+            {
+              key: 'remarks',
+              label: showNodeRemarks
+                ? t('workflow.promptDebugger.hideNodeRemarks')
+                : t('workflow.promptDebugger.showNodeRemarks'),
+              onClick: handleRemarkNodeVisible,
+            },
+            ...(!historyVersion && historys?.length > 0
+              ? [
+                  {
+                    key: 'undo',
+                    label: t('workflow.promptDebugger.undo'),
+                    onClick: undo,
+                  },
+                ]
+              : []),
+            ...(!canvasesDisabled
+              ? [
+                  { type: 'divider' as const },
+                  {
+                    key: 'copy',
+                    label: t('workflow.promptDebugger.createCopy'),
+                    onClick: handleCopyFlow,
+                  },
+                  ...(currentFlow?.publishedData
+                    ? [
+                        {
+                          key: 'restore',
+                          label: t(
+                            'workflow.promptDebugger.restoreToOnlineVersion'
+                          ),
+                          onClick: handleFlowReduction,
+                        },
+                      ]
+                    : []),
+                  {
+                    key: 'clear',
+                    danger: true,
+                    label: t('workflow.promptDebugger.clearCanvas'),
+                    onClick: () => setClearFlowCanvasModalInfo({ open: true }),
+                  },
+                ]
+              : []),
+          ],
+        }}
       >
-        <img
-          src={
-            edgeType === 'curve'
-              ? Icons.panel.flowCurve
-              : Icons.panel.flowPolyline
-          }
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={() =>
-            changeEdgeLine(edgeType === 'curve' ? 'polyline' : 'curve')
-          }
+        <Button
+          type="text"
+          aria-label="更多画布操作"
+          title="更多画布操作"
+          icon={<EllipsisOutlined />}
         />
-      </Tooltip>
-      {!historyVersion && historys?.length > 0 && (
-        <Tooltip title={t('workflow.promptDebugger.undo')}>
-          <img
-            src={Icons.panel.revocation}
-            className="w-4 h-4 cursor-pointer"
-            alt=""
-            onClick={e => {
-              e.stopPropagation();
-              undo();
-            }}
-          />
-        </Tooltip>
-      )}
-      <Tooltip
-        title={
-          autonomousMode
-            ? t('workflow.promptDebugger.switchToFollowMode')
-            : t('workflow.promptDebugger.switchToAutonomousMode')
-        }
-      >
-        <img
-          src={
-            autonomousMode ? Icons.panel.autonomousMode : Icons.panel.followMode
-          }
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={() => handleSwitchMode()}
-        />
-      </Tooltip>
-      <Tooltip
-        title={
-          showNodeRemarks
-            ? t('workflow.promptDebugger.hideNodeRemarks')
-            : t('workflow.promptDebugger.showNodeRemarks')
-        }
-      >
-        <img
-          src={Icons.panel.remark}
-          className="w-4 h-4 cursor-pointer"
-          alt=""
-          onClick={handleRemarkNodeVisible}
-        />
-      </Tooltip>
+      </Dropdown>
     </div>
   );
 }
@@ -462,64 +440,62 @@ function FlowToolbar({
 }: FlowToolbarProps): React.ReactElement {
   const { t } = useTranslation();
   return (
-    <Panel position="bottom-center">
-      <Panel position="bottom-center">
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <div className="flex-shrink-0 p-1.5 bg-[#fff] rounded-lg flex items-center gap-2 pr-5">
-            <ModeControls />
-            <ZoomControls
-              zoom={zoom}
-              setZoom={setZoom}
-              reactFlowInstance={reactFlowInstance}
-            />
-            <FlowControls
-              positionStartNode={positionStartNode}
-              handleFlowReduction={handleFlowReduction}
-              handleCopyFlow={handleCopyFlow}
-              viewAbbreviation={viewAbbreviation}
-              viewAdaptive={viewAdaptive}
-              optimizeLayout={optimizeLayout}
-              changeEdgeLine={changeEdgeLine}
-              historys={historys}
-              historyVersion={historyVersion}
-              autonomousMode={autonomousMode}
-              handleSwitchMode={handleSwitchMode}
-              showNodeRemarks={showNodeRemarks}
-              handleRemarkNodeVisible={handleRemarkNodeVisible}
-            />
-          </div>
-          <a
-            href="https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html"
-            target="_blank"
-          >
-            <Tooltip
-              open={needGuide && showBeginnerGuide ? true : false}
-              overlayClassName="blue-tooltip"
-              title={
-                <div className="relative text-xs">
-                  {t('workflow.promptDebugger.beginnerGuide')}
-                  <img
-                    src={Icons.panel.beginnerGuideClose}
-                    className="absolute w-2.5 h-2.5 cursor-pointer top-[-5px] right-[-20px]"
-                    alt=""
-                    onClick={() => setShowBeginnerGuide(false)}
-                  />
-                </div>
-              }
-            >
-              <Tooltip title={t('workflow.promptDebugger.helpDocument')}>
-                <div className="p-4 bg-[#fff] rounded-lg flex items-center gap-2 h-[52px] flex-shrink-0">
-                  <img
-                    src={Icons.panel.flowHelpDoc}
-                    className="w-4 h-4 flex-shrink-0"
-                    alt=""
-                  />
-                </div>
-              </Tooltip>
-            </Tooltip>
-          </a>
+    <Panel position="bottom-left" className="workflow-canvas-toolbar">
+      <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="workflow-canvas-toolbar-main flex-shrink-0 bg-[#fff] flex items-center gap-2">
+          <ModeControls />
+          <ZoomControls
+            zoom={zoom}
+            setZoom={setZoom}
+            reactFlowInstance={reactFlowInstance}
+          />
+          <FlowControls
+            positionStartNode={positionStartNode}
+            handleFlowReduction={handleFlowReduction}
+            handleCopyFlow={handleCopyFlow}
+            viewAbbreviation={viewAbbreviation}
+            viewAdaptive={viewAdaptive}
+            optimizeLayout={optimizeLayout}
+            changeEdgeLine={changeEdgeLine}
+            historys={historys}
+            historyVersion={historyVersion}
+            autonomousMode={autonomousMode}
+            handleSwitchMode={handleSwitchMode}
+            showNodeRemarks={showNodeRemarks}
+            handleRemarkNodeVisible={handleRemarkNodeVisible}
+          />
         </div>
-      </Panel>
+        <a
+          href="https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html"
+          target="_blank"
+        >
+          <Tooltip
+            open={needGuide && showBeginnerGuide ? true : false}
+            overlayClassName="blue-tooltip"
+            title={
+              <div className="relative text-xs">
+                {t('workflow.promptDebugger.beginnerGuide')}
+                <img
+                  src={Icons.panel.beginnerGuideClose}
+                  className="absolute w-2.5 h-2.5 cursor-pointer top-[-5px] right-[-20px]"
+                  alt=""
+                  onClick={() => setShowBeginnerGuide(false)}
+                />
+              </div>
+            }
+          >
+            <Tooltip title={t('workflow.promptDebugger.helpDocument')}>
+              <div className="workflow-canvas-help bg-[#fff] rounded-lg flex items-center justify-center flex-shrink-0">
+                <img
+                  src={Icons.panel.flowHelpDoc}
+                  className="w-4 h-4 flex-shrink-0"
+                  alt=""
+                />
+              </div>
+            </Tooltip>
+          </Tooltip>
+        </a>
+      </div>
     </Panel>
   );
 }

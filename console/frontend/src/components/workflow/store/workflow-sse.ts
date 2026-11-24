@@ -14,6 +14,32 @@ export interface WorkflowSseLifecycle<TMessage> {
 const normalizeError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 
+export const readWorkflowFrameStatus = (data: {
+  choices?: { finish_reason?: string | null }[];
+  workflow_step?: { node?: { id?: string; finish_reason?: string | null } };
+}): { flowResult: string | null; nodeStatus: string | null } => ({
+  flowResult: data.choices?.[0]?.finish_reason ?? null,
+  nodeStatus: data.workflow_step?.node?.finish_reason ?? null,
+});
+
+/** Persist explicit cancellation before disconnecting the execution stream. */
+export const stopWorkflowSse = async <T>({
+  requestStop,
+  controller,
+  isCurrent,
+  onStopped,
+}: {
+  requestStop: () => Promise<T>;
+  controller?: AbortController;
+  isCurrent: () => boolean;
+  onStopped: (result: T) => void;
+}): Promise<void> => {
+  const result = await requestStop();
+  if (!isCurrent()) return;
+  controller?.abort();
+  onStopped(result);
+};
+
 export const throwFatalWorkflowSseError = (error: unknown): never => {
   throw normalizeError(error);
 };

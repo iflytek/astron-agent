@@ -106,3 +106,17 @@ class TestBaseInputsHelpers:
     def test_get_chat_history_single_message(self) -> None:
         inputs = BaseInputs(uid="u1", messages=[LLMMessage(role="user", content="q1")])
         assert inputs.get_chat_history() == []
+
+
+def test_console_identity_preserves_full_uid_and_stable_agent_scope() -> None:
+    request = BaseInputs(
+        uid="u" * 128,
+        messages=[LLMMessage(role="user", content="hi")],
+        meta_data=MetaDataInputs(
+            agent_id="42", space_id=5, source="console-chat", session_id="session"
+        ),
+    )
+    assert request.uid == "u" * 128
+    assert request.meta_data.workflow_id == ""
+    assert request.meta_data.agent_id == "42"
+    assert request.meta_data.space_id == 5

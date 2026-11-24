@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>工具</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E9F7EF" stroke="#D0EBDC"/>
+  <g fill="none" stroke="#187953" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19.43 7.82a5.2 5.2 0 0 0-6.22 6.75L7.68 20.1a2.84 2.84 0 1 0 4.02 4.02l5.53-5.53a5.2 5.2 0 0 0 6.75-6.22l-3.6 3.3-2.82-.8-.8-2.82 2.67-4.23Z" fill="#187953" stroke="none"/>
+    <circle cx="9.86" cy="21.95" r="1.12" fill="#E9F7EF" stroke="none"/>
+  </g>
+</svg>

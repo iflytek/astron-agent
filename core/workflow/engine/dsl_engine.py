@@ -843,8 +843,14 @@ class WorkflowEngine(BaseModel):
                 # Execute the workflow
                 return await self._execute_workflow_internal(span_context)
         except asyncio.exceptions.CancelledError:
-            for task in self.engine_ctx.dfs_tasks:
+            tasks = [
+                task
+                for task in self.engine_ctx.dfs_tasks
+                if task is not asyncio.current_task()
+            ]
+            for task in tasks:
                 task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
             raise
 
     async def _execute_workflow_internal(self, span: Span) -> NodeRunResult:

@@ -1,0 +1,255 @@
+.http-config-editor.resource-http-config {
+  display: block;
+  min-width: 0;
+  color: #18243d;
+}
+.http-config-editor.http-config-editor label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  gap: 6px;
+  font-size: 13px;
+}
+.http-config-editor .resource-config-endpoint {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 96px minmax(220px, 1.25fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.http-config-editor.http-config-editor > label {
+  display: flex;
+  flex-direction: column;
+  max-width: 420px;
+  margin-bottom: 16px;
+}
+.http-config-tabs > .ant-tabs-nav {
+  margin: 0;
+}
+.http-config-tabs .ant-tabs-tab {
+  padding: 12px 0;
+}
+.http-config-editor .http-config-panel {
+  min-width: 0;
+  padding-top: 16px;
+}
+.http-config-panel[hidden] {
+  display: none;
+}
+.http-config-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 32px;
+  color: #18243d;
+  font-size: 14px;
+  font-weight: 600;
+}
+.http-config-editor .http-config-panel > p,
+.http-config-editor .http-config-advanced p {
+  margin: 4px 0 12px;
+  color: #607089;
+  font-size: 12px;
+  line-height: 20px;
+}
+.http-config-panel {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.http-config-table-head,
+.http-config-row {
+  display: grid;
+  grid-template-columns:
+    minmax(150px, 1.1fr) 88px minmax(120px, 0.85fr) minmax(170px, 1.3fr)
+    40px 30px 30px;
+  align-items: center;
+  gap: 8px;
+  min-width: 760px;
+}
+.http-config-table-head {
+  padding: 8px 0;
+  border-top: 1px solid #e8edf5;
+  border-bottom: 1px solid #e8edf5;
+  color: #607089;
+  font-size: 12px;
+}
+.http-config-table-head > span:nth-child(5) {
+  text-align: center;
+}
+.http-config-row {
+  padding: 7px 0;
+  border-bottom: 1px solid #e8edf5;
+}
+.http-config-row .ant-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #18243d;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+}
+.http-config-row .ant-input:hover {
+  border-color: #dfe6f1;
+}
+.http-config-row .ant-input:focus {
+  border-color: #315ff4;
+  outline: 2px solid #e7eeff;
+  outline-offset: 0;
+  box-shadow: none;
+}
+.http-config-row .ant-input::placeholder {
+  color: #607089;
+  opacity: 1;
+}
+.http-config-row .resource-config-type[data-type='string'] {
+  color: #177344;
+}
+.http-config-row .resource-config-type[data-type='integer'],
+.http-config-row .resource-config-type[data-type='number'] {
+  color: #9b2974;
+}
+.http-config-row .resource-config-type[data-type='boolean'] {
+  color: #8a5500;
+}
+.http-config-row .resource-config-type[data-type='object'],
+.http-config-row .resource-config-type[data-type='array'] {
+  color: #3159d9;
+}
+.http-config-editor .http-config-row .resource-config-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  margin: 0;
+}
+.http-config-editor .ant-btn.resource-config-remove,
+.http-config-editor .ant-btn.resource-config-edit,
+.http-config-editor .ant-btn.resource-config-icon-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 32px;
+  padding: 0;
+  color: #607089;
+  border: 0;
+  box-shadow: none;
+}
+.http-config-editor
+  .http-config-panel-heading
+  .ant-btn.resource-config-icon-add {
+  position: static;
+  color: #3159d9;
+}
+.http-config-editor .resource-config-remove:not(:disabled):hover {
+  color: #b42318;
+  background: #fff1f0;
+}
+.http-config-editor .ant-btn.http-config-complex,
+.http-config-editor .ant-btn.resource-config-add {
+  height: 32px;
+  padding: 0 7px;
+  color: #3159d9;
+  box-shadow: none;
+  font-size: 13px;
+}
+.http-config-row .resource-config-shared {
+  grid-column: 1 / 7;
+  padding: 8px 0;
+  margin: 0;
+  color: #607089;
+  font-size: 13px;
+}
+.http-config-editor .http-config-panel > .resource-config-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.http-config-editor .resource-config-auth {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(200px, 2fr);
+  gap: 16px;
+  max-width: 760px;
+  margin: 16px 0;
+}
+.http-config-advanced {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid #e8edf5;
+}
+.http-config-advanced > summary {
+  padding: 4px 0;
+  color: #607089;
+  font-size: 12px;
+  cursor: pointer;
+}
+.http-config-advanced textarea {
+  margin-top: 12px;
+}
+.http-config-editor .resource-config-select {
+  width: 100%;
+  min-width: 0;
+}
+.http-config-editor .http-config-row .resource-select .ant-select-selector {
+  border-color: transparent;
+  background: transparent;
+  padding-inline: 7px;
+  height: 32px;
+  box-shadow: none;
+}
+.http-config-editor
+  .http-config-row
+  .resource-select:hover
+  .ant-select-selector {
+  border-color: #dfe6f1;
+}
+.http-config-editor .http-config-row .ant-select-focused .ant-select-selector {
+  border-color: #315ff4;
+}
+.http-config-editor .resource-config-select:focus-visible,
+.http-config-advanced summary:focus-visible {
+  outline: 2px solid #315ff4;
+  outline-offset: 2px;
+}
+@media (max-width: 700px) {
+  .http-config-editor .resource-config-endpoint {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+  .http-config-server {
+    grid-column: 1 / -1;
+  }
+  .http-config-editor .resource-config-auth {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .http-config-panel-heading {
+    gap: 8px;
+  }
+}
+.http-config-editor.http-config-editor > .http-config-model-description {
+  max-width: 760px;
+}
+.http-config-body-options {
+  margin-top: 16px;
+  font-size: 12px;
+  color: #607089;
+}
+.http-config-body-options > summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.http-config-editor .http-config-body-options .resource-config-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  color: #18243d;
+}

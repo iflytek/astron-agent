@@ -1,63 +1,52 @@
-import { memo, FC, useRef, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
-
+import { memo, type FC, useRef } from 'react';
 import { jumpToLogin } from '@/utils/http';
 import { useRpaPage } from './hooks/use-rpa-page';
 import useUserStore from '@/store/user-store';
 import { ModalForm } from './components/modal-form';
 import { RpaDetailFormInfo } from '@/types/rpa';
-import ResourceEmpty from '../resource-empty';
-import SiderContainer from '@/components/sider-container';
 import CardItem from './components/card-item';
-
+import {
+  ResourceCatalog,
+  resourceStyles as styles,
+} from '../knowledge-page/resource-surface';
 const RpaPage: FC = () => {
-  const { t } = useTranslation();
   const modalFormRef = useRef<{
     showModal: (values?: RpaDetailFormInfo) => void;
   }>(null);
-  const { rpas, refresh, searchValue } = useRpaPage(modalFormRef);
+  const page = useRpaPage(modalFormRef);
   const user = useUserStore(state => state.user);
-
-  const rightContent = useMemo(
-    () => (
-      <div className="h-full w-full">
-        {rpas.length === 0 ? (
-          <ResourceEmpty
-            description={
-              searchValue ? t('rpa.noSearchResults') : t('rpa.emptyDescription')
-            }
-            buttonText={t('rpa.createRpa')}
-            onCreate={() => {
-              if (!user?.login && !user?.uid) {
-                return jumpToLogin();
-              }
-              modalFormRef.current?.showModal();
-            }}
-          />
-        ) : (
-          <div className="grid lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3 3xl:grid-cols-3 gap-6">
-            {rpas.map(rpa => (
-              <CardItem
-                rpa={rpa}
-                key={rpa.id}
-                user={user}
-                refresh={refresh}
-                showModal={values => modalFormRef.current?.showModal(values)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    ),
-    [rpas, user, searchValue, refresh, modalFormRef, t]
-  );
-
+  const create = (): void => {
+    if (!user?.login && !user?.uid) return jumpToLogin();
+    modalFormRef.current?.showModal();
+  };
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
-      <SiderContainer rightContent={rightContent} />
-      <ModalForm ref={modalFormRef} refresh={refresh} />
-    </div>
+    <>
+      <ResourceCatalog
+        title="RPA"
+        description="管理自动化助手连接，查看机器人资源并运行任务。"
+        search={page.searchValue}
+        onSearch={page.search}
+        onCreate={create}
+        createText="新建 RPA"
+        onRefresh={page.refresh}
+        loading={page.loading}
+        error={page.error}
+        empty={!page.rpas.length}
+      >
+        <div className={styles.grid}>
+          {page.rpas.map(rpa => (
+            <CardItem
+              key={rpa.id}
+              rpa={rpa}
+              user={user}
+              refresh={page.refresh}
+              showModal={values => modalFormRef.current?.showModal(values)}
+            />
+          ))}
+        </div>
+      </ResourceCatalog>
+      <ModalForm ref={modalFormRef} refresh={page.refresh} />
+    </>
   );
 };
-
 export default memo(RpaPage);

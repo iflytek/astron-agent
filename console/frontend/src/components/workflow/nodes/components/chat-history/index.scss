@@ -1,0 +1,34 @@
+.node-info-edit-container {
+  .workflow-history-toggle,
+  .workflow-history-rounds {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #526580;
+    font-size: 12px;
+  }
+  .workflow-history-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid #dfe6f1;
+    color: #18243d;
+    label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+    p {
+      margin: 4px 0 0;
+      color: #607089;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    .ant-input-number {
+      width: 74px;
+      flex-shrink: 0;
+    }
+  }
+}

@@ -7,8 +7,11 @@ import {
   removeTextNodeConfig,
   getFlowDetail,
   initFlowData,
+  adoptWorkflowDraft,
+  hasUnsavedCurrentFlow,
   autoSaveCurrentFlow,
   flushCurrentFlow,
+  saveAdvancedConfig,
   checkFlow,
   canPublishSetNot,
   setModels,
@@ -16,7 +19,6 @@ import {
   getCurrentStore,
   setFlowResult,
   setTextNodeConfigList,
-  setAgentStrategy,
   setKnowledgeProStrategy,
   resetCurrentFlowSave,
 } from './flow-manager-function';
@@ -78,7 +80,6 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   }): void => set({ clearFlowCanvasModalInfo }),
   setTextNodeConfigList: (change): void =>
     setTextNodeConfigList(change, get, set),
-  setAgentStrategy: (change): void => setAgentStrategy(change, get, set),
   setKnowledgeProStrategy: (change): void =>
     setKnowledgeProStrategy(change, get, set),
   setNodeList: (change): void => {
@@ -106,10 +107,6 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   setIteratorId: (iteratorId: string): void => set({ iteratorId }),
   setShowIterativeModal: (showIterativeModal: boolean): void =>
     set({ showIterativeModal }),
-  setSelectAgentPromptModalInfo: (selectAgentPromptModalInfo: {
-    open: boolean;
-    nodeId: string;
-  }): void => set({ selectAgentPromptModalInfo }),
   setDefaultValueModalInfo: (change): void => {
     const defaultValueModalInfo =
       typeof change === 'function'
@@ -160,14 +157,16 @@ const useFlowsManagerStore = create<FlowsManagerStoreType>((set, get) => ({
   setIsLoading: (isLoading: boolean): void => set({ isLoading }),
   setLoadingModels: (loadingModels: boolean): void => set({ loadingModels }),
   setEdgeType: (edgeType: string): void => set({ edgeType }),
-  setFlowChatResultOpen: (flowChatResultOpen: boolean): void =>
-    set({ flowChatResultOpen }),
   setWorkflowTracePanelOpen: (workflowTracePanelOpen: boolean): void =>
     set({ workflowTracePanelOpen }),
   getFlowDetail: (): void => getFlowDetail(get),
   initFlowData: (id): Promise<void> => initFlowData(id, set),
+  adoptWorkflowDraft: (flow): void => adoptWorkflowDraft(flow, set),
+  hasUnsavedCurrentFlow: (): boolean => hasUnsavedCurrentFlow(get),
   autoSaveCurrentFlow: (): void => autoSaveCurrentFlow(get),
   flushCurrentFlow: (): Promise<void> => flushCurrentFlow(get),
+  saveAdvancedConfig: (patch, delayed, generation): void =>
+    saveAdvancedConfig(get, patch, delayed, generation),
   checkFlow: (): boolean => checkFlow(get),
   resetFlowsManager: (): void => {
     resetCurrentFlowSave();

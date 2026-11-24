@@ -10,8 +10,10 @@ from agent.api.schemas.workflow_agent_inputs import (
     CustomCompletionPluginKnowledgeInputs,
 )
 from agent.engine.deepagents_runner import DeepAgentsRunner
+from agent.exceptions.plugin_exc import KnowledgeQueryExc
 from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.knowledge import KnowledgePluginFactory
+from agent.service.plugin.skill_sandbox import SkillSandboxConfig
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
 
 
@@ -42,14 +44,14 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             )
 
             try:
-                skills = [skill.model_dump() for skill in self.inputs.plugin.skills]
-                self._inject_skill_runtime_context(skills)
+                skills = self.inputs.plugin.skills
+                sandbox_config = self._skill_sandbox_config()
                 plugins = await self.build_plugins(
                     tool_ids=self.inputs.plugin.tools,
                     mcp_server_ids=self.inputs.plugin.mcp_server_ids,
                     mcp_server_urls=self.inputs.plugin.mcp_server_urls,
                     workflow_ids=self.inputs.plugin.workflow_ids,
-                    skills=skills,
+                    console_context=self.inputs.meta_data.console_context,
                 )
                 metadata_list, knowledge = await self.query_knowledge_by_workflow(
                     self.inputs.plugin.knowledge, sp
@@ -57,6 +59,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 engine = DeepAgentsRunner(
                     model_handle=model,
                     plugins=plugins,
+                    skills=skills,
+                    skill_sandbox_config=sandbox_config,
                     chat_history=self.inputs.get_chat_history(),
                     reasoning_instruction=self.inputs.instruction.reasoning,
                     answer_instruction=self.inputs.instruction.answer,
@@ -72,35 +76,34 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 await model.aclose()
                 raise
 
-    def _inject_skill_runtime_context(self, skills: list[dict[str, Any]]) -> None:
-        for skill in skills:
-            sandbox = skill.get("sandbox")
-            if not isinstance(sandbox, dict) or not sandbox:
-                continue
-            for untrusted_key in (
-                "provider",
-                "apiKey",
-                "api_key",
-                "timeoutSeconds",
-                "timeout_seconds",
-                "allowInternetAccess",
-                "allow_internet_access",
-                "runtimeConfigUrl",
-                "runtime_config_url",
-                "artifactUploadUrl",
-                "artifact_upload_url",
-                "artifactUploadToken",
-                "artifact_upload_token",
-                "runtimeCredentialToken",
-                "runtime_credential_token",
-            ):
-                sandbox.pop(untrusted_key, None)
-            sandbox["uid"] = self.inputs.uid
-            sandbox["workflow_id"] = self.inputs.meta_data.workflow_id
-            sandbox["run_id"] = (
-                self.inputs.meta_data.run_id or self.inputs.meta_data.caller_sid
-            )
-            sandbox["node_id"] = self.inputs.meta_data.node_id
+    def _skill_sandbox_config(self) -> SkillSandboxConfig | None:
+        # Use the trusted execution scope instead of copying fields from Skill JSON.
+        if not any(
+            skill.sandbox.get("enabled") is True for skill in self.inputs.plugin.skills
+        ):
+            return None
+        metadata = self.inputs.meta_data
+        context = metadata.console_context
+        if context and any(
+            not isinstance(context.get(key), str) or not context[key]
+            for key in ("run_id", "root_id")
+        ):
+            raise ValueError("Console artifact execution context is incomplete")
+        if context and context["run_id"] != metadata.run_id:
+            raise ValueError("Console artifact run identity does not match")
+        return SkillSandboxConfig(
+            enabled=True,
+            console=bool(context),
+            root_id=context.get("root_id", ""),
+            uid=str(metadata.execution_uid or self.inputs.uid),
+            artifact_uid=str(self.inputs.uid),
+            workflow_id=str(metadata.workflow_id or ""),
+            run_id=str(metadata.run_id or metadata.caller_sid),
+            node_id=str(metadata.node_id or ""),
+            agent_id=str(metadata.agent_id or ""),
+            session_id=str(metadata.session_id or ""),
+            space_id=str(metadata.space_id or ""),
+        )
 
     async def query_knowledge_by_workflow(
         self, knowledge_list: list[CustomCompletionPluginKnowledgeInputs], span: Span
@@ -112,7 +115,15 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             if not tasks:
                 return [], ""
 
-            results = await asyncio.gather(*tasks)
+            pending = [asyncio.create_task(task) for task in tasks]
+            try:
+                results = await asyncio.gather(*pending)
+            finally:
+                # gather does not cancel siblings when one retrieval fails.
+                for task in pending:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
             metadata_list, _ = self._process_knowledge_results(results)
             backgrounds = self._extract_backgrounds(metadata_list)
 
@@ -135,6 +146,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             "3": "Ragflow-RAG",
         }
         tasks = []
+        if any(not item.match.repo_ids for item in knowledge_list):
+            raise KnowledgeQueryExc()
 
         for knowledge in knowledge_list:
             repo_ids = knowledge.match.repo_ids or []
@@ -151,10 +164,6 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     "dataset_ids": dataset_ids,
                 }
             )
-
-            if not (repo_ids or doc_ids):
-                span.add_info_events({"skip_reason": "no repo_ids or doc_ids"})
-                continue
 
             top_k = knowledge.top_k or 3
             score_threshold = 0.3
@@ -188,7 +197,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
         metadata_map: dict[str, list[dict[str, str]]] = {}
 
         for resp in results:
-            for result in resp.get("data", {}).get("results", []):
+            KnowledgePluginFactory.validate_response(resp)
+            for result in resp["data"]["results"]:
                 title = result.get("title", "")
                 source_id = result.get("docId", "")
                 content = result.get("content", "")

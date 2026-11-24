@@ -710,7 +710,7 @@ const translation = {
     chatDebugger: {
       dialogue: '调试与预览',
       runResult: '运行结果',
-      keepOnly10DialogueRecords: '当前只保留10条调试记录',
+      debugHistory: '调试记录',
       multiParamWorkflowOnlySupportDebugAndPublishAsAPI:
         '多入参工作流仅支持调试和发布为API，无用户对话页',
       switchToUserDialoguePage: '用户对话页预览',

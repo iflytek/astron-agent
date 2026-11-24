@@ -1,11 +1,11 @@
 import React from 'react';
 import { useMemoizedFn } from 'ahooks';
-import { Table, Input, Select, InputNumber } from 'antd';
+import { Table, Input, Select, InputNumber, Button } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 import { cloneDeep } from 'lodash';
 import { useTranslation } from 'react-i18next';
 import inputErrorMsg from '@/assets/svgs/input-error.svg';
 import formSelect from '@/assets/imgs/common/arrow-down.png';
-import remove from '@/assets/imgs/common/input-remove.png';
 import { ModelConfigParam } from '@/types/model';
 
 // 参数名称列组件
@@ -28,6 +28,7 @@ const ParamNameColumn = ({
   return (
     <div className="w-full flex flex-col gap-1">
       <Input
+        aria-label={t('model.pleaseEnterParameterName')}
         placeholder={t('model.pleaseEnterParameterName')}
         className="global-input params-input inline-input"
         value={record.key}
@@ -77,6 +78,7 @@ const ParamDescColumn = ({
     <div className="w-full flex flex-col gap-1">
       <Input
         title={detail ? record.name : undefined}
+        aria-label={t('model.pleaseEnterParameterDescription')}
         placeholder={t('model.pleaseEnterParameterDescription')}
         className="global-input params-input inline-input"
         value={record.name}
@@ -561,9 +563,12 @@ function ModelParamsTable({
               record: ModelConfigParam
             ): React.JSX.Element => (
               <div className="flex items-center gap-1 h-[40px]">
-                <img
-                  className="w-4 h-4 cursor-pointer"
-                  src={remove}
+                <Button
+                  type="text"
+                  danger
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  aria-label={`删除参数 ${record.key || record.name || ''}`}
                   onClick={() => {
                     setModelParams(
                       cloneDeep(
@@ -571,7 +576,6 @@ function ModelParamsTable({
                       )
                     );
                   }}
-                  alt=""
                 />
               </div>
             ),

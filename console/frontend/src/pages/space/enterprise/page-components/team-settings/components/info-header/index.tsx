@@ -1,12 +1,12 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useRef, useEffect } from 'react';
 import { Input, Button, message, Tooltip } from 'antd';
 import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import SpaceButton from '@/components/button-group/space-button';
-import { ModuleType, OperationType } from '@/types/permission';
+import eventBus from '@/utils/event-bus';
 import styles from './index.module.scss';
 
 import creator from '@/assets/imgs/space/creator.png';
-import defaultUploadIcon from '@/assets/imgs/space/upload.png';
 import yes from '@/assets/imgs/personal-center/yes.svg';
 import no from '@/assets/imgs/personal-center/no.svg';
 import useEnterpriseStore from '@/store/enterprise-store';
@@ -20,13 +20,19 @@ import UploadImage from '../upload-image';
 
 const InfoHeader = () => {
   const {
-    info: { name, officerName, roleTypeText, serviceType, avatarUrl },
+    info: {
+      name,
+      officerName,
+      roleTypeText,
+      avatarUrl,
+      canUpdateName,
+      canUpdateAvatar,
+    },
     setEnterpriseInfo,
   } = useEnterpriseStore();
   const { getJoinedEnterpriseList } = useEnterprise();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [reUploadImg, setReUploadImg] = useState(false);
   const [triggerChild, setTriggerChild] = useState(false);
   const [inputWidth, setInputWidth] = useState(200); // 默认宽度
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -60,8 +66,9 @@ const InfoHeader = () => {
       message.success('修改成功');
       setIsEditing(false);
       getJoinedEnterpriseList();
+      eventBus.emit('spaceList');
     } catch (err: any) {
-      message.error(err?.msg || err?.desc);
+      shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
     }
   };
 
@@ -95,25 +102,18 @@ const InfoHeader = () => {
   return (
     <div className={styles.infoHeader} ref={infoContentRef}>
       <div className={styles.teamAvatar}>
-        {reUploadImg && (
-          <div
-            className={styles.up_hover_btn}
-            onMouseLeave={() => setReUploadImg(false)}
+        {canUpdateAvatar ? (
+          <button
+            type="button"
+            className={styles.avatarAction}
+            aria-label="更换团队头像"
             onClick={() => setTriggerChild(true)}
           >
-            <img
-              className={styles.up_hover_icon}
-              src={defaultUploadIcon}
-              onClick={() => setReUploadImg(false)}
-              alt=""
-            />
-          </div>
+            <img src={avatarUrl} alt="" />
+          </button>
+        ) : (
+          <img src={avatarUrl} alt="团队头像" />
         )}
-        <img
-          src={avatarUrl}
-          alt="团队头像"
-          onMouseEnter={() => setReUploadImg(true)}
-        />
       </div>
 
       <div className={styles.teamInfo}>
@@ -149,12 +149,14 @@ const InfoHeader = () => {
                   type="text"
                   icon={<img src={no} alt="" />}
                   onClick={handleCancel}
+                  aria-label="取消修改名称"
                   className={styles.cancelBtn}
                 />
                 <Button
                   type="text"
                   icon={<img src={yes} alt="" />}
                   onClick={handleConfirm}
+                  aria-label="保存团队名称"
                   className={styles.confirmBtn}
                 />
               </div>
@@ -175,20 +177,19 @@ const InfoHeader = () => {
               >
                 <h2 className={styles.teamNameText}>{name}</h2>
               </Tooltip>
-              <SpaceButton
-                config={{
-                  key: 'edit',
-                  text: '',
-                  icon: <EditOutlined />,
-                  type: 'text',
-                  size: 'small',
-                  onClick: handleEdit,
-                  permission: {
-                    module: ModuleType.SPACE,
-                    operation: OperationType.ENTERPRISE_EDIT,
-                  },
-                }}
-              />
+              {canUpdateName && (
+                <SpaceButton
+                  config={{
+                    key: 'edit',
+                    text: '',
+                    tooltip: '修改团队名称',
+                    icon: <EditOutlined />,
+                    type: 'text',
+                    size: 'small',
+                    onClick: handleEdit,
+                  }}
+                />
+              )}
             </div>
           )}
         </div>
@@ -208,9 +209,11 @@ const InfoHeader = () => {
               message.success('头像已上传!');
               setEnterpriseInfo({ avatarUrl: res });
               getJoinedEnterpriseList();
+              eventBus.emit('spaceList');
             })
             .catch(e => {
-              message.error(e?.msg || '上传失败或套餐已过期');
+              shouldShowRequestError(e) &&
+                message.error(e?.msg || '上传失败或套餐已过期');
             });
         }}
         onClose={() => {

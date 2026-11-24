@@ -1,0 +1,294 @@
+.resource-schema-fields {
+  max-width: 100%;
+  margin: 12px 0 20px;
+  overflow-x: auto;
+  color: #18243d;
+  scrollbar-color: #c5cede #f6f8fd;
+  scrollbar-width: thin;
+}
+
+.resource-schema-fields .resource-schema-table {
+  --schema-columns: minmax(120px, 0.85fr) 84px minmax(180px, 1.2fr)
+    minmax(130px, 1fr);
+  min-width: 620px;
+}
+
+.resource-schema-fields .resource-schema-columns,
+.resource-schema-fields .resource-field.resource-schema-row {
+  display: grid;
+  grid-template-columns: var(--schema-columns);
+  gap: 12px;
+  align-items: center;
+  min-height: 48px;
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e8edf5;
+}
+
+.resource-schema-fields .resource-schema-columns {
+  min-height: 36px;
+  padding-block: 7px;
+  background: #f6f8fd;
+  color: #526580;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.resource-schema-fields .resource-field.resource-schema-row > label {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  color: #18243d;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.resource-schema-fields .resource-field-required {
+  color: #d54941;
+}
+
+.resource-schema-fields .resource-field-hint {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  color: #526580;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.resource-schema-fields .resource-field-kind {
+  color: #315ff4;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.resource-schema-fields .resource-field-kind-string {
+  color: #19724a;
+}
+
+.resource-schema-fields .resource-field-kind-number,
+.resource-schema-fields .resource-field-kind-integer {
+  color: #9f347b;
+}
+
+.resource-schema-fields input,
+.resource-schema-fields textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid #dfe6f1;
+  border-radius: 5px;
+  outline: none;
+  background: #fff;
+  color: #18243d;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  box-shadow: none;
+}
+
+.resource-schema-fields textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.resource-schema-fields input::placeholder,
+.resource-schema-fields textarea::placeholder {
+  color: #607089;
+}
+
+.resource-schema-fields input:disabled,
+.resource-schema-fields textarea:disabled {
+  background: #f6f8fd;
+  color: #718198;
+}
+
+.resource-schema-fields input:focus-visible,
+.resource-schema-fields textarea:focus-visible,
+.resource-schema-fields button:focus-visible {
+  outline: 2px solid #315ff4;
+  outline-offset: 2px;
+}
+
+.resource-schema-fields .resource-field.resource-field-type {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.resource-schema-fields .resource-field-type > label,
+.resource-schema-fields .resource-field-root > legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.resource-schema-fields .resource-field-type > .resource-select-wrap {
+  width: 100%;
+  max-width: 110px;
+}
+.resource-schema-fields .resource-field-type .ant-select-selector {
+  padding-inline: 6px;
+  font-size: 12px;
+}
+
+.resource-schema-fields .resource-field-group {
+  position: relative;
+  min-width: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.resource-schema-fields .resource-field-group > legend {
+  width: 100%;
+  margin: 0;
+  padding: 6px 140px 6px 12px;
+  color: #18243d;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.resource-schema-fields .resource-field-root {
+  margin-top: 0;
+}
+
+.resource-schema-fields .resource-field-group .resource-field-group {
+  margin-left: 12px;
+  border-left: 1px solid #dfe6f1;
+}
+
+.resource-schema-fields .resource-field-group > .resource-field-hint {
+  padding: 0 12px 8px;
+}
+
+.resource-schema-fields .resource-field-container-kind {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  width: 110px;
+}
+
+.resource-schema-fields .resource-field-root > .resource-field-container-kind {
+  position: static;
+  margin: 8px 12px;
+}
+
+.resource-schema-fields .resource-field-link,
+.resource-schema-fields .resource-field-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #315ff4;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.resource-schema-fields .resource-field-link:hover,
+.resource-schema-fields .resource-field-icon:hover {
+  background: #eef3ff;
+}
+
+.resource-schema-fields .resource-field-icon {
+  width: 32px;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.resource-schema-fields .resource-field-remove {
+  margin: 8px 0 0;
+  color: #607089;
+}
+
+.resource-schema-fields .resource-field-remove:hover {
+  background: #fff1f0;
+  color: #c73c35;
+}
+
+.resource-schema-fields .resource-field-link:disabled,
+.resource-schema-fields .resource-field-icon:disabled {
+  background: transparent;
+  color: #8c99ad;
+  cursor: not-allowed;
+}
+
+.resource-schema-fields .resource-field-group > .resource-field-link {
+  margin: 0 12px 4px;
+}
+
+.resource-schema-fields .resource-field-array-row {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 0;
+}
+
+.resource-schema-fields .resource-field-array-row > .resource-field,
+.resource-schema-fields .resource-field-array-row > .resource-field-group,
+.resource-schema-fields .resource-field-array-row > .resource-field-union {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.resource-schema-fields .resource-field-group > .resource-field-create {
+  margin: 4px 12px;
+}
+
+.resource-schema-fields .resource-field-add {
+  display: grid;
+  grid-template-columns: 120px minmax(180px, 320px) 32px;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 12px;
+}
+
+.resource-schema-fields .resource-field-add > label {
+  display: block;
+  margin: 0;
+  color: #526580;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.resource-schema-fields .resource-field-add > .resource-field-create {
+  margin: 0;
+}
+
+.resource-schema-fields .resource-field-optional {
+  margin: 4px 0;
+}
+
+.resource-schema-fields .resource-field-optional > summary {
+  padding: 8px 12px;
+  color: #315ff4;
+  font-size: 13px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.resource-schema-fields .resource-field-kind-stack {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}

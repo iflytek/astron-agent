@@ -1,23 +1,19 @@
-import { FC } from 'react';
+import { type FC, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Dropdown, message, Modal } from 'antd';
-import { EllipsisIcon } from '@/components/svg-icons/model';
-
+import { Alert, Button, Modal } from 'antd';
+import { RobotOutlined } from '@ant-design/icons';
 import { RpaInfo, RpaDetailFormInfo } from '@/types/rpa';
 import { User } from '@/store/user-store';
 import { jumpToLogin } from '@/utils/http';
 import { deleteRpa, getRpaDetail } from '@/services/rpa';
-
-import styles from './index.module.scss';
-
+import styles from '../../../knowledge-page/components/card-item/index.module.scss';
 interface CardItemProps {
   rpa: RpaInfo;
   user: User;
   refresh: () => void;
   showModal: (values?: RpaDetailFormInfo) => void;
 }
-
 export const CardItem: FC<CardItemProps> = ({
   rpa,
   user,
@@ -26,104 +22,88 @@ export const CardItem: FC<CardItemProps> = ({
 }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
-
-  const actions = new Map([
-    [
-      'edit',
-      async (record: RpaInfo) => {
-        const result = await getRpaDetail(record.id);
-        const formData = {
-          id: result.id,
-          platformId: result.platformId,
-          assistantName: result.assistantName,
-          icon: result.icon,
-          ...(result.fields || {}),
-        } as RpaDetailFormInfo;
-        showModal(formData);
-      },
-    ],
-    [
-      'delete',
-      (record: RpaInfo) => {
-        Modal.confirm({
-          title: t('rpa.deleteRpa'),
-          content: t('rpa.deleteRpaConfirm'),
-          onOk: () =>
-            deleteRpa(record.id).then(() => {
-              refresh?.();
-            }),
-        });
-      },
-    ],
-  ]);
-
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const edit = async (): Promise<void> => {
+    if (!user?.login && !user?.uid) return jumpToLogin();
+    setBusy(true);
+    setError('');
+    try {
+      const result = await getRpaDetail(rpa.id);
+      showModal({
+        id: result.id,
+        platformId: result.platformId,
+        assistantName: result.assistantName,
+        icon: result.icon,
+        ...(result.fields || {}),
+      } as RpaDetailFormInfo);
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : '配置加载失败，请重新点击编辑。'
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  const open = (): void => {
+    if (rpa.status === 0) {
+      if (!user?.login && !user?.uid) return jumpToLogin();
+      showModal();
+    } else navigate(`/resource/rpa/detail/${rpa.id}`);
+  };
   return (
-    <div
-      className={styles.cardItem}
-      key={rpa.id}
-      onClick={() => {
-        if (rpa.status == 0) {
-          if (!user?.login && !user?.uid) {
-            return jumpToLogin();
-          }
-          showModal?.();
-        } else {
-          navigate(`/resource/rpa/detail/${rpa.id}`);
-        }
-      }}
-    >
+    <article className={styles.cardItem}>
       <div className={styles.header}>
-        <span className="w-12 h-12 flex items-center justify-center rounded-lg overflow-hidden">
-          {rpa.icon && (
-            <img src={rpa?.icon} className="w-[48px] h-[48px]" alt="" />
-          )}
+        {rpa.icon ? (
+          <img src={rpa.icon} className={styles.folderIcon} alt="" />
+        ) : (
+          <RobotOutlined className={styles.folderIcon} />
+        )}
+        <button className={`${styles.title} text-left`} onClick={open}>
+          {rpa.assistantName || rpa.name}
+        </button>
+      </div>
+      <p className={styles.description} title={rpa.remarks || ''}>
+        {rpa.remarks || '暂无说明'}
+      </p>
+      <div className={styles.stats}>
+        <span>{rpa.userName || 'RPA'}</span>
+        <span>
+          {t('rpa.robotResource')}: {rpa.robotCount || 0}
         </span>
-        <div className="flex flex-col gap-[2px] flex-1 overflow-hidden">
-          <div className={styles.title} title={rpa.assistantName}>
-            {rpa.assistantName}
-          </div>
-          <div className={styles.subTitle} title={rpa.userName || ''}>
-            {rpa.userName}
-          </div>
-        </div>
       </div>
-      <div className={styles.content} title={rpa.remarks || ''}>
-        {rpa.remarks || ''}
-      </div>
-      <div className={styles.footer}>
-        <div className={styles.footer_left}>
-          <span>科大讯飞</span>
-          <span className={styles.divider}></span>
-          <span>
-            {t('rpa.robotResource')}: {rpa.robotCount || 0}个
-          </span>
-        </div>
-        <Dropdown
-          className={styles.footer_right}
-          menu={{
-            onClick: ({ key, domEvent }) => {
-              domEvent.stopPropagation();
-              actions.get(key)?.(rpa);
-            },
-            items: [
-              {
-                label: <span className="text-[#6356EA]">{t('rpa.edit')}</span>,
-                key: 'edit',
-              },
-              {
-                label: <span className="text-red-500">{t('rpa.delete')}</span>,
-                key: 'delete',
-              },
-            ],
-          }}
+      {error && <Alert type="error" message={error} />}
+      <footer className={styles.footer}>
+        <Button
+          type="text"
+          danger
+          disabled={busy}
+          onClick={() =>
+            Modal.confirm({
+              title: t('rpa.deleteRpa'),
+              content: t('rpa.deleteRpaConfirm'),
+              okText: t('common.delete'),
+              cancelText: t('common.cancel'),
+              okButtonProps: { danger: true },
+              onOk: () =>
+                deleteRpa(rpa.id).then(() => {
+                  refresh();
+                }),
+            })
+          }
         >
-          <span onClick={e => e.stopPropagation()}>
-            <EllipsisIcon style={{ color: '#7F7F7F' }} />
-          </span>
-        </Dropdown>
-      </div>
-    </div>
+          {t('rpa.delete')}
+        </Button>
+        <Button type="text" loading={busy} onClick={() => void edit()}>
+          {t('rpa.edit')}
+        </Button>
+        <Button type="link" onClick={open}>
+          查看详情
+        </Button>
+      </footer>
+    </article>
   );
 };
-
 export default CardItem;

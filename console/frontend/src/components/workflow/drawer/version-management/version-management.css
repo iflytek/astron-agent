@@ -1,61 +1,92 @@
-.version-list .ant-timeline-item-content .ant-card {
-  width: 260px;
-  top: 8px;
-  border-radius: 12px;
-  background: #ffffff;
-  box-sizing: border-box;
-  border: 1px solid #e4eaff;
+.workflow-version-drawer {
+  color: #18243d;
 }
-.version-list .ant-timeline-item {
-  padding-bottom: 30px;
+.workflow-version-drawer .ant-drawer-body {
+  padding: 20px 24px;
 }
-.version-list .ant-timeline-item-content .ant-card .ant-card-head {
-  min-height: 24px;
-  padding: 6px 12px;
-  border: none;
+.workflow-version-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #dfe6f1;
+}
+.workflow-version-context strong {
   font-size: 14px;
-  color: #333333;
-  font-weight: normal;
 }
-.version-list .ant-timeline-item-content .ant-card .ant-card-body {
-  min-height: 24px;
-  padding: 0px;
-  border: none;
+.workflow-version-context p {
   font-size: 12px;
-  font-weight: normal;
-  color: #7f7f7f;
+  color: #607089;
+  margin: 6px 0 0;
 }
-.version-list .ant-timeline-item-head{
-  padding: 0px;
-  padding-left: 4px;
+.workflow-version-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 20px 0 8px;
 }
-.version-list .ant-timeline-item-tail{
-  left: 6px;
+.workflow-version-list-heading h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
 }
-.version-list .ant-timeline-item-tail{
-  border-inline-start:2px solid #E4EAFF;
+.workflow-version-list-heading span {
+  color: #607089;
+  margin-left: 6px;
+  font-weight: 400;
 }
-.test {
-  padding-top: 4px;
+.workflow-version-list article {
+  border-bottom: 1px solid #dfe6f1;
+  padding: 18px 0;
 }
-.feedback-list .ant-timeline-item-head {
-  padding: 4px 0 0 4px;
+.workflow-version-list article.is-selected {
+  background: #f6f8fd;
+  margin-inline: -12px;
+  padding-inline: 12px;
 }
-.version-feedback-tabs .ant-tabs-content-holder {
-  flex: 1;
-  overflow-y: auto;
+.workflow-version-identity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
-.version-feedback-tabs .ant-tabs-nav::before {
-  display: none;
+.workflow-version-identity h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
-.version-feedback-tabs .ant-tabs-nav .ant-tabs-ink-bar {
-  border-radius: 4px;
-  background: #6356EA;
+.workflow-version-list time {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #607089;
+  font-variant-numeric: tabular-nums;
 }
-.version-feedback-tabs .ant-tabs-nav .ant-tabs-tab {
-  padding: 6px 0;
-  color: #7f7f7f;
+.workflow-version-list details {
+  font-size: 12px;
+  color: #607089;
+  margin-top: 8px;
 }
-.version-feedback-tabs .ant-tabs-nav .ant-tabs-tab:hover {
-  color: #6356EA;
+.workflow-version-list summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.workflow-version-list code {
+  display: block;
+  padding-top: 6px;
+  overflow-wrap: anywhere;
+}
+.workflow-version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+.workflow-version-drawer .ant-pagination {
+  margin-top: 20px;
+}
+.workflow-version-drawer .ant-alert {
+  margin-bottom: 16px;
 }

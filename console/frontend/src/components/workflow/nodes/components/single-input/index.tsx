@@ -1,7 +1,7 @@
 import type { NodeComponentProps } from '@/components/workflow/nodes/types';
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox } from 'antd';
+import { Switch } from 'antd';
 import { FLowCollapse } from '@/components/workflow/ui';
 import ChatHistory from '@/components/workflow/nodes/components/chat-history';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
@@ -29,35 +29,24 @@ export const EnabledChatHistory = ({
   }
   return (
     <div
-      style={{
-        pointerEvents: canvasesDisabled ? 'none' : 'auto',
-      }}
+      className="workflow-history-toggle"
+      onClick={event => event.stopPropagation()}
     >
-      <div
-        className="flex items-center gap-1.5 text-[#999999] text-xs cursor-pointer"
-        onClick={e => {
-          e.stopPropagation();
-          handleChangeNodeParam((data, value) => {
-            if (data?.nodeParam?.enableChatHistoryV2) {
-              data.nodeParam.enableChatHistoryV2.isEnabled = value;
-            } else {
-              data.nodeParam.enableChatHistoryV2 = {
-                isEnabled: value,
-              };
-            }
-          }, !data.nodeParam?.enableChatHistoryV2?.isEnabled);
-        }}
-      >
-        <Checkbox
-          checked={nodeParam?.enableChatHistoryV2?.isEnabled}
-          style={{
-            width: '16px',
-            height: '16px',
-            background: '#F9FAFB',
-          }}
-        />
-        <span>{t('workflow.nodes.decisionMakingNode.chatHistory')}</span>
-      </div>
+      <span>{t('workflow.nodes.decisionMakingNode.chatHistory')}</span>
+      <Switch
+        size="small"
+        aria-label="对话历史"
+        disabled={canvasesDisabled}
+        checked={Boolean(nodeParam?.enableChatHistoryV2?.isEnabled)}
+        onChange={enabled =>
+          handleChangeNodeParam((node, value) => {
+            node.nodeParam.enableChatHistoryV2 = {
+              isEnabled: value,
+              rounds: node.nodeParam.enableChatHistoryV2?.rounds ?? 1,
+            };
+          }, enabled)
+        }
+      />
     </div>
   );
 };

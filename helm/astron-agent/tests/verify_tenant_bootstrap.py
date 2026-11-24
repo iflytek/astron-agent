@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import Dict, List, Mapping, Sequence, Tuple
 
 CHART = Path(__file__).resolve().parent.parent
@@ -39,29 +40,14 @@ EXPECTED_TENANT_ENV: Mapping[str, Mapping[str, str]] = {
         "APP_MANAGE_PLAT_KEY": MANAGED_KEY,
         "APP_MANAGE_PLAT_SECRET": MANAGED_SECRET_KEY,
     },
-    "astron-agent-console-hub": {
-        **TENANT_ENV,
-        "APP_APIKEY": MANAGED_KEY,
-        "APP_API_SECRET": MANAGED_SECRET_KEY,
-        "COMMON_APIKEY": MANAGED_KEY,
-        "COMMON_API_SECRET": MANAGED_SECRET_KEY,
-        "MAAS_API_KEY": MANAGED_KEY,
-        "MAAS_API_SECRET": MANAGED_SECRET_KEY,
-        "MAAS_CONSUMER_KEY": MANAGED_KEY,
-        "MAAS_CONSUMER_SECRET": MANAGED_SECRET_KEY,
-    },
+    "astron-agent-console-hub": TENANT_ENV,
 }
 
 EXPECTED_ID_ENV: Mapping[str, Sequence[str]] = {
     "astron-agent-core-tenant": ("TENANT_ID",),
     "astron-agent-core-agent": ("TENANT_ID",),
     "astron-agent-core-workflow": ("TENANT_ID",),
-    "astron-agent-console-hub": (
-        "TENANT_ID",
-        "COMMON_APPID",
-        "MAAS_APP_ID",
-        "MAAS_CONSUMER_ID",
-    ),
+    "astron-agent-console-hub": ("TENANT_ID",),
 }
 
 
@@ -251,14 +237,304 @@ def _verify_workflow_ingress_gateway_headers(rendered: str) -> None:
     expected = (
         "nginx.ingress.kubernetes.io/auth-response-headers: "
         '"X-Consumer-Username,X-Workflow-Gateway-Timestamp,'
-        'X-Workflow-Gateway-Signature"'
+        'X-Workflow-Gateway-Signature,X-Workflow-Internal-Key"'
     )
     if expected not in ingress:
         raise VerificationError(
             "workflow Ingress signed identity headers are incomplete"
         )
-    if "X-Workflow-Internal-Key" in ingress:
-        raise VerificationError("workflow Ingress exposes the raw internal key")
+    if "-core-workflow" in ingress:
+        raise VerificationError("public API must resolve execution through Console")
+    expected_paths = {
+        "/workflow/v1/chat/completions$", "/workflow/v1/resume$",
+        "/workflow/v1/stop$", "/agent/v1/chat/completions$",
+    }
+    routes = re.findall(
+        r"^\s+- path:\s*([^\n]+)\n\s+pathType:\s*(\S+)\n"
+        r"\s+backend:\n\s+service:\n\s+name:\s*(\S+)", ingress, re.M
+    )
+    if {path.strip('"') for path, _, _ in routes} != expected_paths:
+        raise VerificationError("public API allowlist must contain only anchored documented paths")
+    if any(kind != "ImplementationSpecific" or backend != "astron-agent-console-hub"
+           for _, kind, backend in routes):
+        raise VerificationError("public API routes must all target Console through anchored regexes")
+    auth_url = (
+        'nginx.ingress.kubernetes.io/auth-url: "http://'
+        'astron-agent-console-hub.astron-agent.svc.cluster.local:8080'
+        '/internal/gateway/auth/workflow"'
+    )
+    if 'nginx.ingress.kubernetes.io/auth-method: "GET"' not in ingress or auth_url not in ingress:
+        raise VerificationError("public API routes require Console gateway authentication")
+    for path in PUBLIC_API_DENIED_PATHS:
+        if any(re.match("^" + pattern.strip('"'), path, re.I) for pattern, _, _ in routes):
+            raise VerificationError("public API Ingress exposes a private or suffixed route: " + path)
+
+
+PUBLIC_API_DENIED_PATHS = (
+    "/workflow/v1/console/run", "/workflow/v1/console/events/run/cancel",
+    "/workflow/v1/debug/resume", "/agent/v1/custom/chat/completions",
+    "/workflow/v1/stop/", "/workflow/v1/stop/extra", "/workflow/v1/stopping",
+    "/workflow/v1/resume/extra", "/agent/v1/stop", "/agent/v1/resume",
+    "/workflow/v1/chat/completions/extra", "/agent/v1/chat/completions/extra",
+)
+
+
+CONSOLE_INTERNAL_PATHS = (
+    "/console-api/internal/gateway/auth/workflow",
+    "/console-api/workflow/artifacts/internal-upload",
+    "/console-api/workflow/artifacts/console-upload",
+    "/console-api/skill-sandbox/internal-runtime-config",
+    "/console-api/agents/internal/resolve",
+    "/console-api/agents/artifacts/internal-upload",
+)
+AGENT_STREAM_PATH = "/console-api/agents/147/sessions/test-session/stream"
+
+
+def _verify_docker_agent_proxy(source: str) -> None:
+    # These locations have no nested blocks. Model exact-match priority and
+    # proxy_pass's implicit slash redirect before selecting a longest prefix.
+    locations = re.findall(
+        r"location\s+(?:(\^~|=)\s+)?(/[^\s{]*)\s*\{([^{}]*)\}", source
+    )
+    for _, prefix, block in locations:
+        if (
+            "proxy_pass http://console-hub:8080" in block
+            and prefix != "/_gateway_auth/workflow"
+            and "proxy_set_header Host $http_host;" not in block
+        ):
+            raise VerificationError(
+                "Docker Console proxy must preserve original Host including port: " + prefix
+            )
+
+    def selected(uri: str) -> Tuple[str, str, str]:
+        path = urlsplit(uri).path
+        exact = next((row for row in locations if row[0] == "=" and row[1] == path), None)
+        if exact:
+            return exact
+        # Official ngx_http_core_module: a slash-ending proxied prefix returns
+        # 301 for the slashless URI unless an exact location handles it first.
+        if any(
+            row[0] != "=" and row[1] == path + "/" and "proxy_pass " in row[2]
+            for row in locations
+        ):
+            raise VerificationError("Docker Agent collection would receive Nginx's implicit 301")
+        matches = [
+            row for row in locations if path.startswith(row[1]) and row[0] != "="
+        ]
+        if not matches:
+            raise VerificationError("Docker console API route is missing")
+        return max(matches, key=lambda row: len(row[1]))
+
+    for api_path in ("/workflow/v1/chat/completions", "/workflow/v1/resume",
+                     "/agent/v1/chat/completions", "/workflow/v1/stop"):
+        modifier, prefix, block = selected(api_path)
+        required = (
+            "proxy_pass http://console-hub:8080" + api_path + ";",
+            "auth_request /_gateway_auth/workflow;",
+            "proxy_set_header Authorization $http_authorization;",
+            'proxy_set_header X-Consumer-Username "";',
+            'proxy_set_header X-Workflow-Internal-Key "";',
+            'proxy_set_header X-Workflow-Gateway-Timestamp "";',
+            'proxy_set_header X-Workflow-Gateway-Signature "";',
+            "proxy_buffering off;",
+            "proxy_read_timeout 30s;" if api_path.endswith("/stop") else "proxy_read_timeout 1800s;",
+        )
+        if modifier != "=" or prefix != api_path or any(v not in block for v in required):
+            raise VerificationError("public API must authenticate through Console and strip service identity: " + api_path)
+    for api_path in PUBLIC_API_DENIED_PATHS:
+        _, _, block = selected(api_path)
+        if "return 404;" not in block:
+            raise VerificationError("private Core execution route is exposed: " + api_path)
+
+    for method in ("GET", "POST"):
+        for query in ("", "?page=1&name=test%20agent", "?source=create"):
+            uri = "/console-api/agents" + query
+            modifier, prefix, block = selected(uri)
+            expected = (
+                "proxy_pass http://console-hub:8080/agents;",
+                "proxy_set_header Host $http_host;",
+                "proxy_set_header X-Real-IP $remote_addr;",
+                "proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+                "proxy_set_header X-Forwarded-Proto $scheme;",
+                "proxy_connect_timeout 30s;",
+                "proxy_send_timeout 30s;",
+                "proxy_read_timeout 30s;",
+            )
+            if (
+                modifier != "=" or prefix != "/console-api/agents"
+                or any(value not in block for value in expected)
+            ):
+                raise VerificationError(f"Docker {method} {uri} must proxy directly to /agents")
+            # A literal proxy_pass URI without '?' preserves the query; default
+            # method/body forwarding must not be overridden for POST creation.
+            if re.search(
+                r"\b(?:return|rewrite|proxy_method|proxy_set_body)\b"
+                r"|proxy_pass_request_body\s+off\b", block
+            ):
+                raise VerificationError("Docker Agent collection must preserve method/body/query without redirect")
+
+    modifier, prefix, block = selected(AGENT_STREAM_PATH)
+    expected = (
+        "proxy_pass http://console-hub:8080/agents/;",
+        "proxy_buffering off;",
+        "proxy_cache off;",
+        "proxy_http_version 1.1;",
+        "proxy_send_timeout 1800s;",
+        "proxy_read_timeout 1800s;",
+        "add_header X-Accel-Buffering 'no';",
+    )
+    if (
+        modifier != "^~" or prefix != "/console-api/agents/"
+        or any(x not in block for x in expected)
+    ):
+        raise VerificationError(
+            "Docker Agent SSE route must rewrite to /agents/ with unbuffered 1800s timeouts"
+        )
+    modifier, prefix, block = selected("/console-api/published/42/stream")
+    if (
+        modifier != "^~" or prefix != "/console-api/published/"
+        or any(value not in block for value in (
+            "proxy_pass http://console-hub:8080/published/;",
+            "proxy_buffering off;", "proxy_cache off;",
+            "proxy_http_version 1.1;", "proxy_send_timeout 1800s;",
+            "proxy_read_timeout 1800s;", "add_header X-Accel-Buffering 'no';",
+        ))
+    ):
+        raise VerificationError("Docker published chat must preserve the unbuffered 1800s SSE contract")
+    if "/console-api/chat-message/" in source:
+        raise VerificationError("obsolete direct core chat-message route remains")
+    _, generic_prefix, generic_block = selected("/console-api/models")
+    if generic_prefix != "/console-api/" or any(
+        f"proxy_{kind}_timeout 30s;" not in generic_block
+        for kind in ("connect", "send", "read")
+    ):
+        raise VerificationError("ordinary Docker console API timeouts must remain 30s")
+    for path in CONSOLE_INTERNAL_PATHS:
+        for suffix in ("", "/", "/extra.css"):
+            modifier, prefix, block = selected(path + suffix)
+            if (
+                modifier != "^~" or prefix != path
+                or "return 404;" not in block or "proxy_pass" in block
+            ):
+                raise VerificationError(
+                    "Docker internal console API is not denied before proxy/static routing"
+                )
+
+
+def _verify_docker_host_regressions(source: str) -> None:
+    # $host drops a published port such as :18888, causing same-origin CSRF
+    # checks and generated API URLs to disagree with the browser's address.
+    for replacement in ("proxy_set_header Host $host;", ""):
+        broken = source.replace("proxy_set_header Host $http_host;", replacement)
+        try:
+            _verify_docker_agent_proxy(broken)
+        except VerificationError as exc:
+            if "preserve original Host including port" not in str(exc):
+                raise
+        else:
+            raise VerificationError("Docker Host regression was not detected")
+
+
+def _verify_agent_ingress_routes(rendered: str) -> None:
+    routes = []
+    for document in _documents(rendered):
+        if _kind(document) != "Ingress":
+            continue
+        for path, path_type, backend in re.findall(
+            r"^\s+- path:\s*([^\n]+)\n\s+pathType:\s*(\S+)\n"
+            r"\s+backend:\n\s+service:\n\s+name:\s*(\S+)", document, re.M
+        ):
+            routes.append((path.strip('"'), path_type, backend, document))
+    # ingress-nginx orders regex locations by descending path length, first match wins.
+    routes.sort(key=lambda row: len(row[0]), reverse=True)
+
+    def selected(path: str) -> Tuple[str, str, str, str]:
+        for route in routes:
+            if re.match("^" + route[0], path, re.I):
+                return route
+        raise VerificationError("rendered console Ingress route is missing")
+
+    path, path_type, backend, document = selected(AGENT_STREAM_PATH)
+    expected = (
+        'nginx.ingress.kubernetes.io/use-regex: "true"',
+        'nginx.ingress.kubernetes.io/proxy-buffering: "off"',
+        'nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"',
+        'nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"',
+    )
+    if (
+        path_type != "ImplementationSpecific" or backend != "astron-agent-console-hub"
+        or any(x not in document for x in expected)
+    ):
+        raise VerificationError(
+            "Agent Ingress must select the unbuffered 1800s /agents/ rewrite"
+        )
+    rewrite = re.search(
+        r"nginx.ingress.kubernetes.io/rewrite-target:\s*([^\n]+)", document
+    )
+    if not rewrite:
+        raise VerificationError("Agent Ingress rewrite-target is missing")
+    target = rewrite.group(1).strip('"')
+    # Match the public GET/POST URLs used by the Console against the rendered
+    # ingress capture groups. Django's collection is /agents without a slash.
+    cases = (
+        ("GET", "/console-api/agents", "/agents"),
+        ("POST", "/console-api/agents", "/agents"),
+        ("GET", "/console-api/agents?page=1", "/agents"),
+        ("GET", "/console-api/agents/147", "/agents/147"),
+        ("POST", "/console-api/agents/147/sessions", "/agents/147/sessions"),
+        ("POST", AGENT_STREAM_PATH, "/agents/147/sessions/test-session/stream"),
+        ("GET", "/console-api/agents/", "/agents/"),
+    )
+    for method, uri, expected_path in cases:
+        request_path = urlsplit(uri).path
+        chosen_path, _, chosen_backend, chosen_document = selected(request_path)
+        if chosen_document != document or chosen_backend != "astron-agent-console-hub":
+            raise VerificationError(f"Agent Ingress does not handle {method} {uri}")
+        match = re.match("^" + chosen_path, request_path, re.I)
+        rewritten = re.sub(
+            r"\$(\d+)", lambda group: match.group(int(group.group(1))) or "", target
+        )
+        if rewritten != expected_path:
+            raise VerificationError(f"Agent Ingress rewrite changes {method} {uri}")
+    for unrelated in ("/console-api/agents-extra", "/console-api/agentsX", "/console-api/agents.json"):
+        if selected(unrelated)[3] == document:
+            raise VerificationError("Agent Ingress regex must retain the slash/end boundary")
+    published_path = "/console-api/published/42/stream"
+    chosen_path, chosen_type, chosen_backend, chosen_document = selected(published_path)
+    if (
+        chosen_type != "ImplementationSpecific"
+        or chosen_backend != "astron-agent-console-hub"
+        or any(value not in chosen_document for value in expected)
+    ):
+        raise VerificationError("published chat Ingress must preserve the unbuffered 1800s SSE contract")
+    published_rewrite = re.search(
+        r"nginx.ingress.kubernetes.io/rewrite-target:\s*([^\n]+)", chosen_document
+    )
+    if not published_rewrite:
+        raise VerificationError("published chat Ingress rewrite-target is missing")
+    published_match = re.match("^" + chosen_path, published_path, re.I)
+    rewritten = re.sub(
+        r"\$(\d+)",
+        lambda group: published_match.group(int(group.group(1))) or "",
+        published_rewrite.group(1).strip('"'),
+    )
+    if rewritten != "/published/42/stream":
+        raise VerificationError("published chat Ingress must preserve the upstream stream path")
+    if "/console-api/chat-message" in rendered:
+        raise VerificationError("obsolete direct core chat-message route remains")
+    for internal in CONSOLE_INTERNAL_PATHS:
+        for suffix in ("", "/", "/extra.css"):
+            _, path_type, backend, _ = selected(internal + suffix)
+            if (
+                path_type != "ImplementationSpecific"
+                or backend != "astron-agent-console-api-deny"
+            ):
+                raise VerificationError(
+                    "internal console Ingress must select deny before Agent/generic routes"
+                )
+    deny = _find_document(rendered, "Service", "astron-agent-console-api-deny")
+    if re.search(r"^\s+selector:", deny, re.M):
+        raise VerificationError("internal console deny Service must have no selected upstream")
 
 
 def _verify_workflow_internal_auth_bindings(
@@ -275,6 +551,7 @@ def _verify_workflow_internal_auth_bindings(
         if (
             entry.get("secret_name") != secret_name
             or entry.get("secret_key") != secret_key
+            or "WORKFLOW_INTERNAL_API_KEY_FILE" in environment
         ):
             raise VerificationError(
                 f"workflow internal Secret binding mismatch: {deployment_name}"
@@ -329,8 +606,250 @@ def _verify_default_render() -> None:
     if tenant_key == tenant_secret:
         raise VerificationError("managed tenant credentials are not independent")
     _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
+    _verify_fresh_install(rendered)
     _verify_managed_workflow_internal_auth(rendered)
     _verify_workflow_ingress_gateway_headers(rendered)
+    _verify_agent_ingress_routes(rendered)
+    _verify_sandbox_bindings(
+        rendered,
+        "astron-agent-console-hub-artifact-upload",
+        "astron-agent-console-hub-sandbox-runtime-credential",
+    )
+
+
+def _verify_fresh_install(rendered: str) -> None:
+    namespace = "astron-agent"
+    secret = _find_document(rendered, "Secret", "astron-agent-minio-credentials")
+    credentials = _secret_string_data(secret)
+    access_key = credentials.get("root-user", "")
+    secret_key = credentials.get("root-password", "")
+    if not re.fullmatch(r"[A-Za-z0-9]{24}", access_key) or not re.fullmatch(
+        r"[A-Za-z0-9]{48}", secret_key
+    ):
+        raise VerificationError("default MinIO credentials must pass the startup policy")
+    checksums = _object_storage_checksums(rendered)
+    if len(checksums) != 1:
+        raise VerificationError("MinIO and its clients must use the same Secret revision")
+
+    fixture_user = "test-fixture-storage-user"
+    fixture_password = "test-fixture-storage-password"
+    fixture = _render([
+        "--set-string", f"minio.auth.rootUser={fixture_user}",
+        "--set-string", f"minio.auth.rootPassword={fixture_password}",
+    ])
+    # Known rollout checksum for the fixed test fixture above.
+    expected = "e0a172a0fba35ad4a84382f7035108a756bfd77a5c3e0455c6dce145f88935f6"
+    if _object_storage_checksums(fixture) != {expected}:
+        raise VerificationError("MinIO Secret revision must match the configured credentials")
+
+    _verify_fresh_install_services(rendered, namespace)
+
+
+def _object_storage_checksums(rendered: str) -> set[str]:
+    checksums = set()
+    for kind, component in (
+        ("Deployment", "console-hub"),
+        ("Deployment", "core-aitools"),
+        ("Deployment", "core-workflow"),
+        ("StatefulSet", "minio"),
+    ):
+        workload = _find_document(rendered, kind, f"astron-agent-{component}")
+        checksum = re.search(r'^\s*checksum/object-storage-secret: "([0-9a-f]{64})"$', workload, re.M)
+        if checksum is None:
+            raise VerificationError(f"{component} is missing the MinIO Secret revision")
+        checksums.add(checksum.group(1))
+    return checksums
+
+
+def _verify_fresh_install_services(rendered: str, namespace: str) -> None:
+    tenant = _find_document(rendered, "Deployment", f"{namespace}-core-tenant")
+    _, environment = _main_container_environment(tenant)
+    if environment.get("DATABASE_DB_TYPE", {}).get("value") != "mysql":
+        raise VerificationError("Tenant must receive the Python database configuration")
+    if not re.search(r"startupProbe:\s+httpGet:\s+path: /ping", tenant):
+        raise VerificationError("Tenant must have a startup probe that gates liveness")
+
+    for component in ("core-knowledge", "core-workflow", "core-aitools"):
+        workload = _find_document(rendered, "Deployment", f"{namespace}-{component}")
+        _, environment = _main_container_environment(workload)
+        if any(
+            environment.get(key, {}).get("value") != expected
+            for key, expected in {
+                "MYSQL_HOST": f"{namespace}-mysql",
+                "CONSOLE_MYSQL_DB": "astron_console",
+                "REDIS_ADDR": f"{namespace}-redis:6379",
+            }.items()
+        ):
+            raise VerificationError(f"Console platform account settings missing in {component}")
+
+
+def _verify_platform_redis_db_override() -> None:
+    rendered = _render((
+        "--set", "consoleHub.env.redisDatabaseConsole=4",
+        "--set", "coreKnowledge.env.redisDatabaseConsole=0",
+    ))
+    for component, expected in (("core-knowledge", "0"), ("core-workflow", "4")):
+        deployment = _find_document(rendered, "Deployment", f"astron-agent-{component}")
+        _, environment = _main_container_environment(deployment)
+        if environment.get("REDIS_DATABASE_CONSOLE", {}).get("value") != expected:
+            raise VerificationError(f"Incorrect platform Redis database for {component}")
+
+
+def _verify_sandbox_bindings(rendered: str, artifact_secret: str, runtime_secret: str) -> None:
+    for deployment_name in WORKFLOW_CONSUMERS:
+        deployment = _find_document(rendered, "Deployment", deployment_name)
+        _, environment = _main_container_environment(deployment)
+        for name, secret, key in (
+            ("SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN", artifact_secret, "artifact-upload-token"),
+            (
+                "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN",
+                runtime_secret,
+                "sandbox-runtime-credential-token",
+            ),
+        ):
+            binding = environment.get(name, {})
+            if (
+                binding.get("secret_name") != secret
+                or binding.get("secret_key") != key
+                or name + "_FILE" in environment
+            ):
+                raise VerificationError(
+                    "sandbox credentials must use the same Secret environment bindings"
+                )
+    console = _find_document(rendered, "Deployment", "astron-agent-console-hub")
+    for setting in ("runAsNonRoot: true", "runAsUser: 10001", "runAsGroup: 10001"):
+        if setting not in console:
+            raise VerificationError("Console non-root identity is missing")
+
+
+def _verify_sandbox_external_secrets() -> None:
+    rendered = _render(
+        (
+            "--set-string",
+            "consoleHub.artifactUpload.existingSecret=retained-artifact",
+            "--set-string",
+            "consoleHub.sandboxRuntimeCredential.existingSecret=retained-runtime",
+        )
+    )
+    _verify_sandbox_bindings(rendered, "retained-artifact", "retained-runtime")
+    for name in (
+        "astron-agent-console-hub-artifact-upload",
+        "astron-agent-console-hub-sandbox-runtime-credential",
+    ):
+        try:
+            _find_document(rendered, "Secret", name)
+        except VerificationError:
+            continue
+        raise VerificationError("existing sandbox Secret must not be replaced")
+
+
+def _verify_builtin_tool_routing() -> None:
+    for fullname, port, override, expected in (
+        ("astron-agent", "18668", "", "http://astron-agent-core-aitools:18668"),
+        ("custom-release", "28668", "", "http://custom-release-core-aitools:28668"),
+        ("custom-release", "28668", "https://aitools.example.org/", "https://aitools.example.org"),
+    ):
+        rendered = _render((
+            "--set-string", f"fullnameOverride={fullname}",
+            "--set", f"coreAitools.service.port={port}",
+            "--set-string", f"coreLink.env.aitoolsBaseUrl={override}",
+        ))
+        service = _find_document(rendered, "Service", fullname + "-core-aitools")
+        if not re.search(rf"port: {port}\b", service):
+            raise VerificationError("AI Tools Service port must match its Link URL")
+        aitools = _find_document(rendered, "Deployment", fullname + "-core-aitools")
+        _, aitools_env = _main_container_environment(aitools)
+        if aitools_env["SERVICE_PORT"].get("value") != port:
+            raise VerificationError("AI Tools listener must match its Service port")
+        deployment = _find_document(rendered, "Deployment", fullname + "-core-link")
+        names, environment = _main_container_environment(deployment)
+        endpoints = environment["PRIVATE_ENDPOINT_ALLOW_LIST"].get("value", "").split(",")
+        expected_endpoints = {
+            f"{expected}/aitools/v1/{path}"
+            for path in ("smarttts", "image_generate", "image_understanding", "ocr")
+        }
+        if (names.count("AITOOLS_BASE_URL") != 1 or names.count("PRIVATE_ENDPOINT_ALLOW_LIST") != 1
+            or environment["AITOOLS_BASE_URL"].get("value") != expected
+            or len(endpoints) != 4 or set(endpoints) != expected_endpoints):
+            raise VerificationError("Link built-in catalog and exact private endpoints must agree")
+    explicit = "http://private.example.org:8080/one-exact-path"
+    rendered = _render(("--set-string", f"coreLink.env.privateEndpointAllowList={explicit}"))
+    deployment = _find_document(rendered, "Deployment", "astron-agent-core-link")
+    _, environment = _main_container_environment(deployment)
+    if environment["PRIVATE_ENDPOINT_ALLOW_LIST"].get("value") != explicit:
+        raise VerificationError("Link explicit private endpoint override must be preserved")
+
+
+def _verify_workflow_mcp_routing() -> None:
+    for fullname, port, override, expected in (
+        ("astron-agent", "18888", "", "http://astron-agent-core-link:18888"),
+        ("custom-release", "28888", "", "http://custom-release-core-link:28888"),
+        ("custom-release", "28888", "https://link.example.org", "https://link.example.org"),
+    ):
+        rendered = _render((
+            "--set-string", f"fullnameOverride={fullname}",
+            "--set", f"coreLink.service.port={port}",
+            "--set-string", f"coreWorkflow.env.mcpBaseUrl={override}",
+        ))
+        _find_document(rendered, "Service", fullname + "-core-link")
+        deployment = _find_document(rendered, "Deployment", fullname + "-core-workflow")
+        names, environment = _main_container_environment(deployment)
+        if names.count("MCP_BASE_URL") != 1 or environment["MCP_BASE_URL"].get("value") != expected:
+            raise VerificationError("workflow MCP URL must follow the Link service or explicit override")
+
+
+def _verify_console_internal_hosts() -> None:
+    public_hosts = "public.example.org,198.51.100.8"
+    for fullname in ("astron-agent", "custom-release"):
+        rendered = _render((
+            "--set-string", "consoleHub.auth.allowedHosts=public.example.org\\,198.51.100.8",
+            "--set-string", f"fullnameOverride={fullname}",
+            "--set", "coreTenant.service.port=15052",
+            "--set", "coreAgent.service.port=17871",
+        ))
+        service_host = fullname + "-console-hub"
+        _find_document(rendered, "Service", service_host)
+        console = _find_document(rendered, "Deployment", service_host)
+        _, environment = _main_container_environment(console)
+        agent_host = fullname + "-core-agent"
+        _find_document(rendered, "Service", agent_host)
+        if environment.get("AGENT_URL", {}).get("value") != f"http://{agent_host}:17871":
+            raise VerificationError("Console Agent URL must follow the actual Service name and port")
+        tenant_host = fullname + "-core-tenant"
+        _find_document(rendered, "Service", tenant_host)
+        if environment.get("TENANT_URL", {}).get("value") != f"http://{tenant_host}:15052":
+            raise VerificationError("Console tenant URL must follow the actual Service name and port")
+        secret = environment.get("TENANT_SECRET", {})
+        if not secret.get("secret_name") or not secret.get("secret_key"):
+            raise VerificationError("Console tenant credential must retain its existing Secret binding")
+        expected_hosts = {
+            *public_hosts.split(","),
+            "localhost",
+            "127.0.0.1",
+            "astron-agent.example.com",
+            service_host,
+            f"{service_host}.astron-agent.svc.cluster.local",
+        }
+        if set(environment["CONSOLE_ALLOWED_HOSTS"]["value"].split(",")) != expected_hosts:
+            raise VerificationError("Console must preserve public hosts and add its actual internal service host")
+        for consumer in ("core-agent", "core-workflow"):
+            deployment = _find_document(rendered, "Deployment", fullname + "-" + consumer)
+            _, environment = _main_container_environment(deployment)
+            keys = ["SKILL_SANDBOX_RUNTIME_CONFIG_URL", "SKILL_SANDBOX_ARTIFACT_UPLOAD_URL"]
+            if consumer == "core-workflow":
+                keys.append("MODEL_RUNTIME_CONFIG_URL")
+            for key in keys:
+                if urlsplit(environment[key]["value"]).hostname != service_host:
+                    raise VerificationError("internal caller URL is inconsistent with Console allowed hosts")
+
+    rendered = _render((
+        "--set-string", "consoleHub.env.agentUrl=https://agent.example.org/runtime",
+        "--set-string", "fullnameOverride=custom-release",
+    ))
+    console = _find_document(rendered, "Deployment", "custom-release-console-hub")
+    _, environment = _main_container_environment(console)
+    if environment.get("AGENT_URL", {}).get("value") != "https://agent.example.org/runtime":
+        raise VerificationError("explicit Console Agent URL must be preserved")
 
 
 def _verify_explicit_render() -> None:
@@ -405,60 +924,6 @@ def _verify_workflow_managed_upgrade_render() -> None:
     _verify_managed_workflow_internal_auth(rendered)
 
 
-def _verify_legacy_compatibility_overrides_are_ignored() -> None:
-    override_paths = (
-        "coreTenant.env.tenantKey",
-        "coreTenant.env.tenantSecret",
-        "coreAgent.env.tenantKey",
-        "coreAgent.env.tenantSecret",
-        "coreAgent.env.appAuthApiKey",
-        "coreAgent.env.appAuthSecret",
-        "coreWorkflow.env.tenantKey",
-        "coreWorkflow.env.tenantSecret",
-        "coreWorkflow.env.appManagePlatKey",
-        "coreWorkflow.env.appManagePlatSecret",
-        "consoleHub.env.tenantKey",
-        "consoleHub.env.tenantSecret",
-        "consoleHub.env.appApikey",
-        "consoleHub.env.appApiSecret",
-    )
-    arguments: List[str] = []
-    for index, path in enumerate(override_paths):
-        arguments.extend(
-            (
-                "--set-string",
-                f"{path}={LEGACY_KEY if index % 2 == 0 else LEGACY_SECRET}",
-            )
-        )
-    rendered = _render(arguments)
-    if LEGACY_KEY in rendered or LEGACY_SECRET in rendered:
-        raise VerificationError(
-            "legacy compatibility values bypassed tenant Secret binding"
-        )
-    _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
-
-
-def _verify_legacy_custom_pair_is_preserved() -> None:
-    """Keep strong credentials configured through pre-tenantBootstrap values."""
-    custom_key = "U" * 48
-    custom_secret = "V" * 48
-    rendered = _render(
-        (
-            "--set-string",
-            f"consoleHub.env.tenantKey={custom_key}",
-            "--set-string",
-            f"consoleHub.env.tenantSecret={custom_secret}",
-        )
-    )
-    values = _secret_string_data(_find_document(rendered, "Secret", MANAGED_SECRET))
-    if (
-        values.get(MANAGED_KEY) != custom_key
-        or values.get(MANAGED_SECRET_KEY) != custom_secret
-    ):
-        raise VerificationError("legacy custom tenant pair was not preserved")
-    _verify_consumers(rendered, MANAGED_SECRET, MANAGED_KEY, MANAGED_SECRET_KEY)
-
-
 def _verify_negative_renders() -> int:
     strong_key = "K" * 48
     strong_secret = "S" * 48
@@ -495,11 +960,9 @@ def _verify_negative_renders() -> int:
             "--set-string",
             f"tenantBootstrap.secret={strong_secret}",
         ),
-        (
-            "--set-string",
-            f"consoleHub.env.tenantKey={strong_key}",
-        ),
         ("--set-string", "tenantBootstrap.tenantId=changed"),
+        ("--set", "minio.enabled=false"),
+        ("--set-string", "minio.auth.rootUser=minioadmin,minio.auth.rootPassword=minioadmin123"),
         (
             "--set-string",
             "tenantBootstrap.existingSecret.name=external",
@@ -575,10 +1038,7 @@ def _verify_lookup_and_seed_sources() -> None:
             raise VerificationError(
                 "managed workflow Secret upgrade validation is incomplete"
             )
-    for sql_path in (
-        CHART / "files" / "mysql" / "tenant.sql",
-        CHART / "files" / "mysql" / "workflow.sql",
-    ):
+    for sql_path in (CHART / "files" / "mysql").glob("*.sql"):
         sql = sql_path.read_text()
         if LEGACY_KEY in sql or LEGACY_SECRET in sql:
             raise VerificationError(
@@ -595,13 +1055,19 @@ def main() -> int:
         if lint.returncode != 0:
             raise VerificationError("Helm lint failed")
         _verify_lookup_and_seed_sources()
+        docker_nginx = (CHART.parent.parent / "docker/astronAgent/nginx/nginx.conf").read_text()
+        _verify_docker_agent_proxy(docker_nginx)
+        _verify_docker_host_regressions(docker_nginx)
         _verify_default_render()
+        _verify_platform_redis_db_override()
+        _verify_console_internal_hosts()
+        _verify_workflow_mcp_routing()
+        _verify_builtin_tool_routing()
+        _verify_sandbox_external_secrets()
         _verify_explicit_render()
         _verify_external_secret_render()
         _verify_workflow_external_secret_render()
         _verify_workflow_managed_upgrade_render()
-        _verify_legacy_compatibility_overrides_are_ignored()
-        _verify_legacy_custom_pair_is_preserved()
         negative_count = _verify_negative_renders()
     except VerificationError as exc:
         print(f"tenant bootstrap Helm gate: FAIL: {exc}", file=sys.stderr)
@@ -614,8 +1080,9 @@ def main() -> int:
         return 1
     print(
         "tenant bootstrap Helm gate: PASS "
-        f"(7 positive modes, 4 tenant consumers, 3 workflow consumers, "
-        f"{negative_count} negative cases)"
+        f"(9 positive modes, 4 tenant consumers, 3 workflow consumers, "
+        f"{negative_count} negative cases, 2 Docker Host regressions, "
+        "Docker/Helm Agent SSE and internal-route contracts)"
     )
     return 0
 

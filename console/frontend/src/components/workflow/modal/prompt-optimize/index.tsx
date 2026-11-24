@@ -6,7 +6,7 @@ import { Input, Button, Spin } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 import { Icons } from '@/components/workflow/icons';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 const { TextArea } = Input;
@@ -63,7 +63,7 @@ function PromptModal(): React.ReactElement {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: getAuthorization(),
+        'X-CSRFToken': getCsrfToken(),
       },
       signal: controllerRef.current.signal,
       body: JSON.stringify({ prompt: promptData, name: currentFlow?.name }),

@@ -16,7 +16,7 @@ export const getAgentPublishStatus = async (
 };
 
 /** ## 发布类型枚举 */
-export type PublishType = 'MARKET' | 'API' | 'MCP' | 'WECHAT' | 'FEISHU';
+export type PublishType = 'MARKET' | 'API' | 'WECHAT';
 
 /** ## 发布动作枚举 */
 export type PublishAction = 'PUBLISH' | 'OFFLINE';
@@ -29,28 +29,11 @@ export interface MarketPublishData {
   reason?: string;
 }
 
-/** ## MCP发布数据 */
-export interface MCPPublishData {
-  serverName?: string;
-  description?: string;
-  content?: string;
-  icon?: string;
-  args?: string;
-  reason?: string;
-}
-
 /** ## 微信发布数据 */
 export interface WechatPublishData {
   appId: string;
   redirectUrl?: string;
   menuConfig?: string;
-  reason?: string;
-}
-
-/** ## 飞书发布数据 */
-export interface FeishuPublishData {
-  appId: string;
-  appSecret?: string;
   reason?: string;
 }
 
@@ -68,9 +51,7 @@ export interface APIPublishData {
 /** ## 发布数据联合类型 */
 export type PublishData =
   | MarketPublishData
-  | MCPPublishData
   | WechatPublishData
-  | FeishuPublishData
   | APIPublishData;
 
 /** ## 发布请求参数 */
@@ -223,7 +204,7 @@ export const getAgentSummaryData = async (botId: number): Promise<void> => {
 
 /** ## get Agent preparation data
  * @param botId Agent ID -- url use
- * @param type Publish type -- 'MARKET', 'API', 'MCP', 'WECHAT', 'FEISHU'
+ * @param type Publish type -- 'MARKET', 'API', 'WECHAT'
  * @returns Agent preparation data
  */
 export const getPreparationData = async (

@@ -12,7 +12,7 @@ import MonacoEditor from '@/components/monaco-editor';
 import { useMemoizedFn } from 'ahooks';
 import JsonMonacoEditor from '@/components/monaco-editor/JsonMonacoEditor';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
-import { getFixedUrl, getAuthorization } from '@/components/workflow/utils';
+import { getFixedUrl, getCsrfToken } from '@/components/workflow/utils';
 
 // 类型导入
 import {
@@ -250,7 +250,7 @@ const useAICodeInputBox = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: getAuthorization(),
+          'X-CSRFToken': getCsrfToken(),
         },
         body: JSON.stringify(params),
         signal: controllerRef.current.signal,
@@ -551,11 +551,18 @@ const IOTestPanel = ({
       uid: user?.uid.toString(),
       flow_id: currentFlow?.flowId,
       node_id: nodeId,
+      version: useFlowsManager.getState().historyVersion
+        ? useFlowsManager.getState().historyVersionData?.versionNum
+        : undefined,
     };
     codeRun(params)
       .then((res: CodeRunResponse): void => {
         if (res.code === 0) {
-          setOutput(JSON.stringify(res?.data, null, 2));
+          setOutput(
+            typeof res.data === 'string'
+              ? res.data
+              : JSON.stringify(res.data, null, 2)
+          );
           message.success(res?.message);
           setErrCodeMsg('');
           setCodeRunningStatus('success');

@@ -1,0 +1,38 @@
+[
+  {
+    "name": "speaker.lingFeiZhe",
+    "cover_url": "https://1024-cdn.xfyun.cn/2022_1024%2Fcms%2F16824985943686779%2Flfc.png",
+    "voice_type": "x4_lingfeizhe_oral",
+    "sort": 0,
+    "speaker_type": "NORMAL",
+    "exquisite": 0,
+    "deleted": 0
+  },
+  {
+    "name": "speaker.lingXiaoQi",
+    "cover_url": "https://1024-cdn.xfyun.cn/2022_1024%2Fcms%2F16824985943709826%2Flxq.png",
+    "voice_type": "x4_lingxiaoqi_oral",
+    "sort": 0,
+    "speaker_type": "NORMAL",
+    "exquisite": 0,
+    "deleted": 0
+  },
+  {
+    "name": "speaker.lingXiaoTang",
+    "cover_url": "https://1024-cdn.xfyun.cn/2022_1024%2Fcms%2F16824985943709826%2Flxq.png",
+    "voice_type": "x5_lingxiaotang_flow",
+    "sort": 0,
+    "speaker_type": "NORMAL",
+    "exquisite": 1,
+    "deleted": 0
+  },
+  {
+    "name": "speaker.lingXiaoYue",
+    "cover_url": "https://1024-cdn.xfyun.cn/2022_1024%2Fcms%2F16824985943709826%2Flxq.png",
+    "voice_type": "x5_lingxiaoyue_flow",
+    "sort": 0,
+    "speaker_type": "NORMAL",
+    "exquisite": 1,
+    "deleted": 0
+  }
+]

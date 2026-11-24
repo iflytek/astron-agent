@@ -202,7 +202,7 @@ class MaasAuth(BaseModel):
                 raise AppAuthFailedExc(app_detail.get("message", ""))
 
             data = app_detail.get("data", [])
-            if len(data) == 0:
+            if not data or data[0].get("is_disable"):
                 raise AppAuthFailedExc(self.app_id_not_found_msg)
 
             auth_list = data[0].get("auth_list", [])

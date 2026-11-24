@@ -1,21 +1,85 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import React, { useMemo, useEffect, useState } from 'react';
-import { Drawer } from 'antd';
+import { Button, Drawer, Empty, Tabs, Tag } from 'antd';
+import { CloseOutlined } from '@ant-design/icons';
+import { useAuthoringDrawerStyle } from '../../hooks/use-authoring-drawer-style';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { useMemoizedFn } from 'ahooks';
 import NodeOperation from '@/components/workflow/nodes/components/node-operation';
 import { Label } from '@/components/workflow/nodes/node-common';
-import cloneDeep from 'lodash/cloneDeep';
 import { nodeTypeComponentMap } from '@/components/workflow/constant';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 
-// 类型导入
-import { RootStyle } from '@/components/workflow/types';
+import type { WorkflowNode } from '@/components/workflow/types/domain';
+import './index.scss';
 
-// 从统一的图标管理中导入
-import { Icons } from '@/components/workflow/icons';
+const formatResult = (value: unknown): string =>
+  typeof value === 'string' ? value : (JSON.stringify(value, null, 2) ?? '');
 
-// 获取 Node Detail 模块的图标
-const icons = Icons.nodeDetail;
+function LastNodeRun({ node }: { node?: WorkflowNode }): React.ReactElement {
+  const result = node?.data.debuggerResult;
+  const status = node?.data.status;
+  if (!status && !result) {
+    return (
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="还没有运行记录。测试工作流或该节点后，可在这里查看输入和输出。"
+      />
+    );
+  }
+  const blocks: Array<[string, unknown]> = [
+    ['输入', result?.input],
+    ['输出', result?.output],
+    ['原始输出', result?.rawOutput],
+    ['思考过程', result?.reasoningContent],
+    ['回复内容', result?.answerContent],
+    ['错误信息', result?.errorOutputs],
+  ];
+  return (
+    <div className="workflow-node-last-run">
+      <div className="workflow-node-run-summary" role="status">
+        {status && (
+          <Tag
+            color={
+              status === 'success'
+                ? 'success'
+                : status === 'failed'
+                  ? 'error'
+                  : status === 'cancel'
+                    ? 'default'
+                    : 'processing'
+            }
+          >
+            {status === 'success'
+              ? '运行成功'
+              : status === 'failed'
+                ? '运行失败'
+                : status === 'cancel'
+                  ? '已停止'
+                  : '运行中'}
+          </Tag>
+        )}
+        {result?.timeCost != null && <span>{result.timeCost}s</span>}
+        {result?.tokenCost != null && <span>{result.tokenCost} Tokens</span>}
+      </div>
+      {(result?.failedReason || result?.cancelReason) && (
+        <p className="workflow-node-run-message" role="status">
+          {result.failedReason || result.cancelReason}
+        </p>
+      )}
+      {blocks
+        .filter(
+          ([, value]) => value !== undefined && value !== null && value !== ''
+        )
+        .map(([label, value]) => (
+          <section key={label} className="workflow-node-result-section">
+            <h3>{label}</h3>
+            <pre tabIndex={0}>{formatResult(value)}</pre>
+          </section>
+        ))}
+    </div>
+  );
+}
 
 function index(): React.ReactElement {
   const nodeInfoEditDrawerlInfo = useFlowsManager(
@@ -29,25 +93,10 @@ function index(): React.ReactElement {
     state => state.setUpdateNodeInputData
   );
   const nodes = currentStore(state => state.nodes);
-  const [rootStyle, setRootStyle] = useState<RootStyle>({
-    height: (window?.innerHeight ?? 0) - 80,
-    top: 80,
-    right: 0,
-  });
-
-  useEffect(() => {
-    const handleResize = (): void => {
-      setRootStyle({
-        height: (window?.innerHeight ?? 0) - 80,
-        top: 80,
-        right: 0,
-      });
-    };
-    window.addEventListener('resize', handleResize);
-    return (): void => {
-      window.removeEventListener('resize', handleResize);
-    };
-  }, []);
+  const rootStyle = useAuthoringDrawerStyle();
+  const [activeTab, setActiveTab] = useState('settings');
+  const close = (): void =>
+    setNodeInfoEditDrawerlInfo({ open: false, nodeId: '' });
 
   const nodeInfo = useMemo(() => {
     return nodes?.find(item => item?.id === nodeInfoEditDrawerlInfo.nodeId);
@@ -55,6 +104,7 @@ function index(): React.ReactElement {
 
   useEffect(() => {
     setUpdateNodeInputData(updateNodeInputData => !updateNodeInputData);
+    setActiveTab('settings');
   }, [nodeInfoEditDrawerlInfo.nodeId]);
 
   const {
@@ -81,23 +131,29 @@ function index(): React.ReactElement {
 
   return (
     <Drawer
-      rootClassName={`advanced-configuration-container node-info-edit-container ${
+      rootClassName={`workflow-authoring-drawer advanced-configuration-container node-info-edit-container ${
         isCodeNode ? 'code-node-edit-container' : ''
       }`}
       placement="right"
       open={nodeInfoEditDrawerlInfo?.open}
       rootStyle={rootStyle}
       mask={false}
+      title="节点配置"
+      onClose={close}
     >
-      <div className="w-full p-[14px] pb-[6px] sticky top-0 bg-white z-10">
-        <div className="w-full flex items-center gap-3 justify-between">
-          <div className="flex items-center gap-3">
-            <img src={nodeIcon} className="w-[18px] h-[18px]" alt="" />
+      <div className="workflow-node-panel-header">
+        <div className="workflow-node-panel-identity">
+          <div className="workflow-node-panel-name">
+            <WorkflowNodeIcon
+              nodeType={nodeInfo?.id.split('::')[0] || ''}
+              src={nodeIcon}
+              className="workflow-node-panel-icon"
+            />
             {nodeInfo && (
               <Label
                 data={nodeInfo.data}
                 id={nodeInfo.id}
-                maxWidth={250}
+                maxWidth={300}
                 labelInput="labelInput1"
               />
             )}
@@ -111,25 +167,37 @@ function index(): React.ReactElement {
                 labelInput="labelInput1"
               />
             )}
-            <img
-              src={icons.close}
-              className="w-3 h-3 cursor-pointer"
-              alt=""
-              onClick={(e: React.MouseEvent<HTMLImageElement>) => {
-                e.stopPropagation();
-                setNodeInfoEditDrawerlInfo(
-                  cloneDeep({
-                    open: false,
-                    nodeId: '',
-                  })
-                );
-              }}
+            <Button
+              type="text"
+              aria-label="关闭节点配置"
+              icon={<CloseOutlined />}
+              onClick={close}
             />
           </div>
         </div>
-        <p className="text-desc max-w-[500px] ">{nodeDesciption}</p>
+        <p className="workflow-node-panel-description">{nodeDesciption}</p>
       </div>
-      {renderComponent()}
+      <Tabs
+        className="workflow-node-panel-tabs"
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          {
+            key: 'settings',
+            label: '配置',
+            children: (
+              <div className="workflow-node-settings" key={nodeInfo?.id}>
+                {renderComponent()}
+              </div>
+            ),
+          },
+          {
+            key: 'last-run',
+            label: '最近运行',
+            children: <LastNodeRun node={nodeInfo} />,
+          },
+        ]}
+      />
     </Drawer>
   );
 }

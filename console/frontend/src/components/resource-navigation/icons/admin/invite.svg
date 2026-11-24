@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>邀请</title>
+  <g fill="none" stroke="#355A9E" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.25 17.95H5.8a2.05 2.05 0 0 1-2.05-2.05V8.1A2.05 2.05 0 0 1 5.8 6.05h12.4a2.05 2.05 0 0 1 2.05 2.05v3.3" fill="#C5D8FD" fill-opacity=".57"/>
+    <path d="m4.2 7.65 6.38 4.83a2.2 2.2 0 0 0 2.84 0l6.38-4.83" stroke="#5479BA"/>
+    <path d="M16.2 16.2h4.8m-2.4-2.4v4.8"/>
+  </g>
+</svg>

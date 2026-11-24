@@ -67,6 +67,8 @@
 
 ### 方式一：Docker Compose（推荐快速体验）
 
+> 启动后访问控制台，点击注册创建账号并登录。详细配置见[部署指南](DEPLOYMENT_GUIDE.md)。
+
 ```bash
 # 克隆项目
 git clone https://github.com/iflytek/astron-agent.git
@@ -74,32 +76,18 @@ git clone https://github.com/iflytek/astron-agent.git
 # 进入 astronAgent 目录
 cd astron-agent/docker/astronAgent
 
-# 复制环境变量配置
-cp .env.example .env
-
-# 环境变量配置
-vim .env
+docker compose up -d --build
 ```
 
-环境变量配置请参考文档：[DEPLOYMENT_GUIDE_WITH_AUTH.md](https://github.com/iflytek/astron-agent/blob/main/docs/zh/DEPLOYMENT_GUIDE_WITH_AUTH.md#%E7%AC%AC%E4%BA%8C%E6%AD%A5%E9%85%8D%E7%BD%AE-astronagent-%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F)
-
-```bash
-# 启动所有服务，无需构建额外的密码检查镜像。
-docker compose -f docker-compose-with-auth.yaml up -d
-```
+默认启动无需复制或编辑 `.env`，也无需填写任何环境变量。启动后访问 `http://localhost/`，远程访问使用 `http://<服务器IP>/`，默认端口为 80；点击注册创建账号并登录。自定义域名、HTTPS 和外部服务按需参阅[部署指南](DEPLOYMENT_GUIDE.md)。
 
 #### 📊 服务访问地址
 
 启动完成后，您可以通过以下地址访问各项服务：
 
-**认证服务**
-- **Casdoor 管理界面**：http://localhost:8000
 
 **AstronAgent**
 - **应用前端(nginx代理)**：http://localhost/
-
-**说明**
-- Casdoor默认的登录账户名：`admin`，密码：`123`
 
 ### 方式二：Helm（适用于 Kubernetes 环境）
 
@@ -113,7 +101,7 @@ docker compose -f docker-compose-with-auth.yaml up -d
 
 ---
 
-> 📖 完整的部署说明和配置详情，请查看[部署指南](DEPLOYMENT_GUIDE_WITH_AUTH.md)
+> 📖 完整的部署说明和配置详情，请查看[部署指南](DEPLOYMENT_GUIDE.md)
 
 ## 📖 使用星辰Agent云服务
 

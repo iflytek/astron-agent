@@ -6,14 +6,88 @@ including uniqueness, format validation, and performance testing.
 """
 
 import time
+from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import Mock, patch
 
 import pytest
+from snowflake import SnowflakeGenerator  # type: ignore
 
+from common.utils import snowfake
 from common.utils.snowfake import get_id
 
 
 class TestSnowfake:
     """Test cases for snowfake ID generator."""
+
+    def test_sequence_exhaustion_waits_for_next_millisecond(self) -> None:
+        """Use the real SDK at its sequence limit without relying on CPU speed."""
+        with patch("snowflake.snowflake.time", return_value=1000.0) as clock:
+            generator = SnowflakeGenerator(17, seq=4094)
+            with patch.object(snowfake, "gen", generator):
+                last_id = get_id()
+                with patch.object(snowfake.time, "sleep") as sleep:
+                    sleep.side_effect = lambda _: setattr(
+                        clock, "return_value", 1000.002
+                    )
+                    next_id = get_id()
+
+                sleep.assert_called_once_with(0.001)
+                assert isinstance(next_id, int)
+                assert next_id > last_id
+
+    def test_clock_rollback_waits_for_recovery(self) -> None:
+        """A temporary clock rollback must never escape as a None ID."""
+        with patch("snowflake.snowflake.time", return_value=1000.0) as clock:
+            generator = SnowflakeGenerator(17)
+            with patch.object(snowfake, "gen", generator):
+                previous_id = get_id()
+                clock.return_value = 999.0
+                with patch.object(snowfake.time, "sleep") as sleep:
+                    sleep.side_effect = lambda _: setattr(
+                        clock, "return_value", 1000.002
+                    )
+                    next_id = get_id()
+
+                sleep.assert_called_once_with(0.001)
+                assert isinstance(next_id, int)
+                assert next_id > previous_id
+
+    def test_prolonged_clock_rollback_times_out_and_can_recover(self) -> None:
+        """Bound rollback waiting using monotonic time and release the lock."""
+        with patch("snowflake.snowflake.time", return_value=1000.0) as clock:
+            generator = SnowflakeGenerator(17)
+            with patch.object(snowfake, "gen", generator):
+                previous_id = get_id()
+                clock.return_value = 999.0
+                with (
+                    patch.object(
+                        snowfake.time, "monotonic", side_effect=[0.0, 0.0, 1.0]
+                    ),
+                    patch.object(snowfake.time, "sleep") as sleep,
+                ):
+                    with pytest.raises(TimeoutError, match="system clock"):
+                        get_id()
+                sleep.assert_called_once_with(0.001)
+
+                assert not snowfake.lock.locked()
+                clock.return_value = 1000.002
+                assert get_id() > previous_id
+
+    def test_sdk_errors_propagate_and_release_lock(self) -> None:
+        """SDK failures must stay visible instead of entering the retry loop."""
+        generator = Mock()
+        generator.__next__ = Mock(side_effect=OverflowError("timestamp exhausted"))
+        with patch.object(snowfake, "gen", generator):
+            with pytest.raises(OverflowError, match="timestamp exhausted"):
+                get_id()
+        assert not snowfake.lock.locked()
+
+    def test_concurrent_generation_is_unique(self) -> None:
+        """Exercise the shared generator under actual thread contention."""
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            ids = list(executor.map(lambda _: get_id(), range(16000)))
+        assert all(isinstance(value, int) for value in ids)
+        assert len(set(ids)) == len(ids)
 
     def test_get_id_returns_integer(self) -> None:
         """Test get_id returns integer type."""

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>空间资源 · 模型管理</title>
+  <g fill="none" stroke="#65479B" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m12 3.3 5.55 3.1v5.7L12 15.2l-5.55-3.1V6.4Z" fill="#E0CEF9" fill-opacity=".6"/>
+    <path d="m6.45 6.4 5.55 3.1 5.55-3.1M12 9.5v5.7m-7.5.75 7.5 4.1 7.5-4.1"/>
+  </g>
+</svg>

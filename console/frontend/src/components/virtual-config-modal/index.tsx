@@ -26,7 +26,10 @@ import voiceIcon from '@/assets/imgs/virtual-config-modal/voice-icon.svg';
 import voiceActionIcon from '@/assets/imgs/workflow/edit-voice.svg';
 import defaultModalAvatar from '@/assets/imgs/virtual-config-modal/default-modal-avatar.png';
 import defaultModalAvatarPreview from '@/assets/imgs/virtual-config-modal/default-modal-avatar-preview.png';
-import { getBotType, getSceneList } from '@/services/spark-common';
+import { getSceneList } from '@/services/spark-common';
+import { getAgentType } from '@/services/agent-square';
+import type { BotType } from '@/types/agent-square';
+import { getAllModels } from '@/services/model';
 import { getVcnList } from '@/services/chat';
 import styles from './index.module.scss';
 import { aiGenPrologue } from '@/services/spark-common';
@@ -44,9 +47,9 @@ interface HeaderFeedbackModalProps {
   visible: boolean;
   formValues?: FormValues;
   onCancel: () => void;
-  onSubmit: (data: FormValues) => void; //表单提交
+  onSubmit: (data: FormValues) => void | Promise<void>; //表单提交
 }
-interface FormValues {
+export interface FormValues {
   name: string;
   botType: number;
   avatar: string;
@@ -106,9 +109,26 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
+  const generationPending = useRef(false);
+  const [modelId, setModelId] = useState<number>();
+  const [generationModels, setGenerationModels] = useState<
+    Array<{ id: number; name: string }>
+  >([]);
+  const [modelError, setModelError] = useState('');
+  const [generationError, setGenerationError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const submitPending = useRef(false);
+  const handleCancel = (): void => {
+    if (!submitPending.current && !generationPending.current) onCancel();
+  };
   const [form] = Form.useForm();
   //类型列表
-  const [botTypeList, setBotTypeList] = useState<any>([]);
+  const [botTypeList, setBotTypeList] = useState<BotType[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
+  const [voiceError, setVoiceError] = useState('');
+  const [avatarError, setAvatarError] = useState('');
   // 头像加载完成后再展示，避免加载过程出现破损图
   const [avatarLoaded, setAvatarLoaded] = useState<boolean>(false);
 
@@ -201,40 +221,8 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
   const [officialVcnList, setOfficialVcnList] = useState<VcnItem[]>([]);
   const [mySpeaker, setMySpeaker]: any = useState([]); //我的发音人数组
 
-  const defVcnList = [
-    {
-      avatar:
-        'https://openres.xfyun.cn/xfyundoc/2024-10-21/0969f0d7-519b-45c0-b006-2765fa8f79f7/1729496233283/lingxiaoyue.jpg',
-      defaultVCN: 'x5_lingxiaoyue_flow',
-      gender: t('virtualConfig.defVcnList.gender1'),
-      name: t('virtualConfig.defVcnList.name1'),
-      posture: t('virtualConfig.defVcnList.posture'),
-      sceneId: 'avatar_wmy001',
-      type: [t('virtualConfig.defVcnList.scene')],
-      sampleAvatar:
-        'https://openres.xfyun.cn/xfyundoc/2024-10-21/0969f0d7-519b-45c0-b006-2765fa8f79f7/1729496233283/lingxiaoyue.jpg',
-    },
-    {
-      avatar:
-        'https://openres.xfyun.cn/xfyundoc/2025-01-10/072d1c04-b23b-4feb-9728-091207773145/1736479064040/20250110-111727.jpg',
-      defaultVCN: 'x5_lingfeiyi_flow',
-      gender: t('virtualConfig.defVcnList.gender2'),
-      name: t('virtualConfig.defVcnList.name2'),
-      posture: t('virtualConfig.defVcnList.posture'),
-      sceneId: 'avatar_lfy',
-      type: [t('virtualConfig.defVcnList.scene')],
-      sampleAvatar:
-        'https://openres.xfyun.cn/xfyundoc/2025-01-10/072d1c04-b23b-4feb-9728-091207773145/1736479064040/20250110-111727.jpg',
-    },
-  ];
-  const currentAvatarList = useMemo(
-    () => (sceneMode === 0 ? avatarList : defVcnList),
-    [sceneMode, avatarList, defVcnList]
-  );
-  const currentType = useMemo(
-    () => (sceneMode === 0 ? selectedAvatar : callSceneId),
-    [sceneMode, avatarList, defVcnList]
-  );
+  const currentAvatarList = avatarList;
+  const currentType = Number(sceneMode) === 0 ? selectedAvatar : '';
   useEffect(() => {
     if (formValues) {
       form.setFieldValue('name', formValues.name);
@@ -285,7 +273,28 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     setTempSelectedAvatar(currentType || '');
     setTempSelectedVoice(selectedVoice);
     setAvatarModalVisible(true);
-  }, [sceneMode, selectedAvatar, callSceneId, selectedVoice]);
+  }, [currentType, selectedVoice]);
+
+  const confirmAvatarSelection = (): void => {
+    const selected = avatarList.find(
+      item => item.sceneId === tempSelectedAvatar
+    );
+    if (!selected) {
+      setAvatarError('请先选择一个可用形象；若目录为空，请重试加载。');
+      return;
+    }
+    setAvatarError('');
+    setSelectedAvatar(selected.sceneId);
+    setSceneMode(0);
+    setSceneVcn(selected.defaultVCN || '');
+    if (tempSelectedVoice) setSelectedVoice(tempSelectedVoice);
+    else if (
+      selected.defaultVCN &&
+      voiceOptions.some(v => v.id === selected.defaultVCN)
+    )
+      setSelectedVoice(selected.defaultVCN);
+    setAvatarModalVisible(false);
+  };
 
   /**
    * 切换语音折叠
@@ -324,6 +333,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     avatar?: string;
     botDesc?: string;
   }) => {
+    if (submitPending.current) return;
     const name = (values?.name ?? '').trim();
     const botDesc = (values?.botDesc ?? '').trim();
 
@@ -336,8 +346,14 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       message.error(t('virtualConfig.rulesDesc'));
       return;
     }
+    if (botDesc.length > 255) {
+      message.error('简介最多255个字符。');
+      return;
+    }
 
-    setLoading(true);
+    submitPending.current = true;
+    setSubmitting(true);
+    setSubmitError('');
     try {
       const botTypeNum =
         typeof values?.botType === 'number'
@@ -370,9 +386,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
         },
       };
 
-      onSubmit?.(fields);
-
-      setLoading(false);
+      await onSubmit(fields);
     } catch (err) {
       const msg =
         typeof err === 'object' &&
@@ -380,57 +394,85 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
         'message' in (err as Record<string, unknown>)
           ? String((err as Record<string, unknown>).message)
           : t('virtualConfig.submitFailed');
-      message.error(msg);
-      setLoading(false);
+      setSubmitError(msg);
     } finally {
-      setLoading(false);
+      submitPending.current = false;
+      setSubmitting(false);
     }
   };
   /**
    * AI 生成描述
    */
-  const aiGen = (): void => {
-    const cur = form.getFieldValue('botDesc');
-    if (!cur) {
-      message.warning(t('virtualConfig.rulesContent'));
+  const aiGen = async (): Promise<void> => {
+    if (generationPending.current || submitPending.current) return;
+    const name = String(form.getFieldValue('name') || '').trim();
+    if (!name || !modelId) {
+      setGenerationError(
+        !name ? '请先填写名称。' : '请选择生成简介使用的模型。'
+      );
       return;
     }
+    generationPending.current = true;
+    setGenerationError('');
     setLoading(true);
-    aiGenPrologue({ name: cur })
-      .then(res => {
-        const text = typeof res === 'string' ? res : JSON.stringify(res);
-        console.log(res, 'text', text, form);
-        form.setFieldValue('botDesc', text);
-      })
-      .catch(err => {
-        message.error(err?.message || t('virtualConfig.aiGenFailed'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    try {
+      const description = await aiGenPrologue({ name, modelId });
+      if (typeof description !== 'string' || !description.trim())
+        throw new Error('未返回有效简介，请重试。');
+      form.setFieldValue('botDesc', description);
+    } catch (error) {
+      setGenerationError(
+        error instanceof Error ? error.message : '简介生成失败，请重试。'
+      );
+    } finally {
+      generationPending.current = false;
+      setLoading(false);
+    }
+  };
+  const getGenerationModels = async (): Promise<void> => {
+    setModelError('');
+    try {
+      const models = await getAllModels({ type: 0, filter: 0 });
+      setGenerationModels(
+        models
+          .filter(model => model.enabled)
+          .map(({ id, name }) => ({ id, name }))
+      );
+    } catch {
+      setModelError('简介生成模型加载失败，请重试。');
+    }
   };
   //获取类型列表
-  const getBotTypeList = async () => {
-    let res: any = await getBotType();
-    res = res.filter((item: any) => item.key !== 25);
-    setBotTypeList(res);
+  const getBotTypeList = async (): Promise<void> => {
+    setCategoriesLoading(true);
+    setCategoryError('');
+    try {
+      const categories = await getAgentType();
+      if (!Array.isArray(categories)) throw new Error('Invalid categories');
+      setBotTypeList(categories.filter(item => Number(item.typeKey) !== 25));
+    } catch {
+      setCategoryError('分类加载失败，请重试。');
+    } finally {
+      setCategoriesLoading(false);
+    }
   };
   //获取形象列表
-  const getAvatarList = async () => {
+  const getAvatarList = async (): Promise<void> => {
+    setAvatarError('');
     try {
       const res = await getSceneList();
-      const list: SceneItem[] = Array.isArray(res) ? (res as SceneItem[]) : [];
+      if (!Array.isArray(res)) throw new Error('Invalid avatars');
+      const list = res as SceneItem[];
       setAvatarList(list);
-      if (!selectedAvatar && list.length > 0) {
-        setSelectedAvatar(list[0]!.sceneId || '');
-        setSceneVcn(list[0]!.defaultVCN || '');
+      if (!formValues?.talkAgentConfig && list.length > 0) {
+        setSelectedAvatar(current => current || list[0]!.sceneId || '');
+        setSceneVcn(current => current || list[0]!.defaultVCN || '');
       }
       if (list.length === 0) {
         message.info(t('virtualConfig.noAvatar'));
       }
-    } catch (e) {
-      // message.error('获取形象列表失败');
-      setAvatarList([]);
+    } catch {
+      setAvatarError('虚拟人形象加载失败，请重试。');
     }
   };
   /** 头像筛选后的列表（基于选择） */
@@ -499,13 +541,22 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
     });
   }, [avatarList, genderFilter, postureFilter, typeFilter, sceneMode]);
 
+  const getVoiceList = async (): Promise<void> => {
+    setVoiceError('');
+    try {
+      const voices = await getVcnList();
+      if (!Array.isArray(voices)) throw new Error('Invalid voices');
+      setOfficialVcnList(voices);
+      if (!formValues?.talkAgentConfig)
+        setSelectedVoice(current => current || voices[0]?.voiceType || '');
+    } catch {
+      setVoiceError('音色加载失败，请重试。');
+    }
+  };
+
   useEffect(() => {
-    getVcnList()
-      .then((res: VcnItem[]) => {
-        setOfficialVcnList(res);
-        setSelectedVoice(res[0]?.voiceType || '');
-      })
-      .catch(err => {});
+    void getVoiceList();
+    void getGenerationModels();
     getAvatarList();
     getBotTypeList();
     if (!avatarIcon?.length) {
@@ -533,20 +584,42 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
       width={680}
       open={visible}
       centered
-      onCancel={onCancel}
+      onCancel={handleCancel}
+      closable={!submitting && !loading}
+      keyboard={!submitting && !loading}
       destroyOnClose
       maskClosable={false}
       footer={null}
       styles={{ body: { padding: 0, maxHeight: '70vh', overflow: 'auto' } }}
     >
-      <Spin spinning={loading} tip={t('virtualConfig.generate') + '...'}>
+      <Spin
+        spinning={loading || submitting}
+        tip={submitting ? '正在保存…' : t('virtualConfig.generate') + '...'}
+      >
         <div className={styles.modal_content}>
           <div className={styles.title}>{t('virtualConfig.baseConfig')}</div>
+          {[
+            { error: categoryError, retry: getBotTypeList },
+            { error: avatarError, retry: getAvatarList },
+            { error: voiceError, retry: getVoiceList },
+            { error: modelError, retry: getGenerationModels },
+          ].map(
+            ({ error, retry }) =>
+              error && (
+                <div key={error} role="alert" className="mb-2 text-red-600">
+                  {error}
+                  <Button size="small" onClick={() => void retry()}>
+                    重试
+                  </Button>
+                </div>
+              )
+          )}
           <div className={styles.scrollable_content}>
             <Form
               form={form}
               preserve={false}
               onFinish={handleSubmit}
+              disabled={submitting || loading}
               style={{ position: 'relative' }}
             >
               <div className={styles.sectionHeader}>
@@ -624,15 +697,12 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                     className={styles.inputField}
                     placeholder={t('virtualConfig.placeholderType')}
                     options={botTypeList}
+                    loading={categoriesLoading}
+                    notFoundContent={categoryError || '暂无分类'}
                     fieldNames={{ label: 'typeName', value: 'typeKey' }}
                     allowClear
                     showSearch
-                    optionFilterProp="label"
-                    filterOption={(input, option) => {
-                      const label =
-                        typeof option?.name === 'string' ? option.name : '';
-                      return label.toLowerCase().includes(input.toLowerCase());
-                    }}
+                    optionFilterProp="typeName"
                   />
                 </Form.Item>
               </div>
@@ -647,23 +717,41 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
               >
                 <Input.TextArea
                   showCount
-                  maxLength={200}
+                  maxLength={255}
                   className={styles.input_area}
                   autoSize={{ minRows: 7, maxRows: 7 }}
                   placeholder={t('virtualConfig.placeholderDescription')}
                 />
               </Form.Item>
-              <div className={styles.inputBottom}>
-                <div
-                  className={styles.aiBottom}
-                  onClick={() => {
-                    aiGen();
-                  }}
+              <div className="flex items-center gap-2 mb-3">
+                <Select
+                  aria-label="生成简介使用的模型"
+                  placeholder="选择生成简介使用的模型"
+                  className="flex-1"
+                  value={modelId}
+                  onChange={setModelId}
+                  options={generationModels.map(model => ({
+                    label: model.name,
+                    value: model.id,
+                  }))}
+                  showSearch
+                  optionFilterProp="label"
+                  allowClear
+                />
+                <Button
+                  onClick={() => void aiGen()}
+                  loading={loading}
+                  disabled={submitting}
                 >
-                  <img src={Ai_img} alt="" />
-                  <span>{t('virtualConfig.aiGenerate')}</span>
-                </div>
+                  <img src={Ai_img} alt="" className="w-4 h-4" />
+                  {t('virtualConfig.aiGenerate')}
+                </Button>
               </div>
+              {generationError && (
+                <p role="alert" className="mb-3 text-red-600">
+                  {generationError}
+                </p>
+              )}
 
               {/* 声音和形象 */}
               <div className={styles.sectionHeader}>
@@ -691,7 +779,6 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                     onChange={checked => {
                       setEnableAvatar(checked);
                       if (checked) {
-                        setSceneMode(0);
                         form.setFieldValue('interactType', 2);
                         setEnableAvatar(checked);
                       } else {
@@ -709,32 +796,11 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                 <div className={styles.sectionHeaderHelp}>
                   {t('virtualConfig.virtualHumanTip2')}
                 </div>
-                {/* 播报通话开关 */}
-
-                <div className={styles.toggleSwitch}>
-                  <div
-                    className={`${styles.toggleSwitchItem} ${sceneMode === 0 ? styles.toggleSwitchItemActive : ''}`}
-                    onClick={() => {
-                      setSceneMode(0);
-                      setSelectedAvatar(
-                        selectedAvatar || avatarList[0]!.sceneId
-                      );
-                      setSceneVcn(avatarList[0]!.defaultVCN || '');
-                    }}
-                  >
-                    {t('virtualConfig.broadcast')}
+                {Number(sceneMode) === 1 && (
+                  <div role="alert" className="mb-3 text-amber-700">
+                    此旧通话形象不支持当前虚拟人播放。原配置已保留，请选择目录中的形象并确认更换。
                   </div>
-                  <div
-                    className={`${styles.toggleSwitchItem} ${sceneMode === 1 ? styles.toggleSwitchItemActive : ''}`}
-                    onClick={() => {
-                      setSceneMode(1);
-                      setCallSceneId(callSceneId || defVcnList[0]!.sceneId);
-                      setSceneVcn(defVcnList[0]!.defaultVCN || '');
-                    }}
-                  >
-                    {t('virtualConfig.call')}
-                  </div>
-                </div>
+                )}
 
                 {/* 形象选择 */}
                 {enableAvatar && (
@@ -771,9 +837,11 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                           />
                           <div className={styles.summaryName}>
                             <div className={styles.summaryNameText}>
-                              {currentAvatarList.find(
-                                a => a.sceneId === currentType
-                              )?.name ?? t('virtualConfig.defaultAvatar')}
+                              {Number(sceneMode) === 1
+                                ? '旧通话形象（需重新选择）'
+                                : (currentAvatarList.find(
+                                    a => a.sceneId === currentType
+                                  )?.name ?? t('virtualConfig.defaultAvatar'))}
                             </div>
                             {/* <div className={styles.summaryNameSub}>
                               <img src={summaryIcon} alt="" />
@@ -906,11 +974,22 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                       <div className={styles.avatarModalTitle}>
                         {t('virtualConfig.avatarModal.chooseAvatar')}
                       </div>
+                      {avatarError && (
+                        <div role="alert" className="text-red-600">
+                          {avatarError}
+                          <Button
+                            size="small"
+                            onClick={() => void getAvatarList()}
+                          >
+                            重试加载
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     {
                       <div className={styles.avatarModalBody}>
                         <div className={styles.avatarListPane}>
-                          {sceneMode === 0 && (
+                          {
                             <div className={styles.avatarFilterRow}>
                               <span className={styles.filterLabel}>
                                 {t('virtualConfig.avatarModal.filterByType')}
@@ -1044,7 +1123,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                                 }
                               />
                             </div>
-                          )}
+                          }
 
                           <div className={styles.avatarGrid}>
                             {filteredAvatarList.map(a => {
@@ -1083,7 +1162,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                                   }}
                                 >
                                   <div
-                                    className={`${styles.avatarItemThumb} ${active ? styles.avatarItemActive : ''} ${sceneMode === 0 ? '' : styles.avatarItemDisabled}`}
+                                    className={`${styles.avatarItemThumb} ${active ? styles.avatarItemActive : ''}`}
                                     aria-hidden="true"
                                   >
                                     <img
@@ -1147,7 +1226,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                             </div>
 
                             <img
-                              className={`${styles.avatarPreviewImage} ${sceneMode === 0 ? '' : styles.avatarPreviewImageXuniren}`}
+                              className={styles.avatarPreviewImage}
                               src={
                                 currentAvatarList.find(
                                   a =>
@@ -1176,32 +1255,7 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                     >
                       {t('virtualConfig.avatarModal.cancel')}
                     </Button>
-                    <Button
-                      type="primary"
-                      onClick={() => {
-                        // 确认提交临时选择
-                        if (tempSelectedAvatar) {
-                          if (sceneMode === 0) {
-                            setSelectedAvatar(tempSelectedAvatar);
-                          } else if (sceneMode === 1) {
-                            setCallSceneId(tempSelectedAvatar);
-                          }
-                        }
-                        if (tempSelectedVoice) {
-                          setSelectedVoice(tempSelectedVoice);
-                        } else {
-                          // 若未选临时音色但形象有默认音色且在可选列表中，则应用之
-                          const cur = avatarList.find(
-                            a => a.sceneId === tempSelectedAvatar
-                          );
-                          const vcn = cur?.defaultVCN;
-                          if (vcn && voiceOptions.some(v => v.id === vcn)) {
-                            setSelectedVoice(vcn);
-                          }
-                        }
-                        setAvatarModalVisible(false);
-                      }}
-                    >
+                    <Button type="primary" onClick={confirmAvatarSelection}>
                       {t('virtualConfig.avatarModal.confirm')}
                     </Button>
                   </div>
@@ -1262,16 +1316,25 @@ const VirtualConfig: React.FC<HeaderFeedbackModalProps> = ({
                     </div>
                   </div>
                 )}
+                {submitError && (
+                  <p role="alert" className="text-red-600">
+                    {submitError}
+                  </p>
+                )}
                 <div className={styles.footerContinerRight}>
-                  <div
+                  <Button
                     className={styles.cancelBtn}
-                    onClick={() => {
-                      onCancel();
-                    }}
+                    disabled={submitting || loading}
+                    onClick={handleCancel}
                   >
                     {t('virtualConfig.cancel')}
-                  </div>
-                  <Button className={styles.submitBtn} htmlType="submit">
+                  </Button>
+                  <Button
+                    className={styles.submitBtn}
+                    htmlType="submit"
+                    loading={submitting}
+                    disabled={loading}
+                  >
                     {t('virtualConfig.submitBtn')}
                   </Button>
                 </div>

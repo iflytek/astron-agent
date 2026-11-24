@@ -6,8 +6,7 @@
  * @Description: http请求工具
  */
 import axios from 'axios';
-import { Base64 } from 'js-base64';
-import { casdoorSdk } from '@/config';
+import { ensureCsrfToken } from './session';
 import qs from 'qs';
 import { message } from 'antd';
 import packageJson from '../../package.json';
@@ -51,13 +50,6 @@ const localeConfig: {
   [key: string]: Record<string, string>;
 };
 
-const getRuntimeBaseURL = (): string | undefined => {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-  return window.__APP_CONFIG__?.BASE_URL;
-};
-
 const switchPersonal = (): void => {
   useSpaceStore.setState({
     spaceId: '',
@@ -85,11 +77,6 @@ export const downloadFileWithHeaders = (
   const spaceId = useSpaceStore.getState().spaceId;
   if (spaceId) {
     xhr.setRequestHeader('space-id', spaceId);
-  }
-
-  const accessToken = localStorage.getItem('accessToken');
-  if (accessToken) {
-    xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`);
   }
 
   // 添加enterprise-id (如果是团队空间)
@@ -171,10 +158,18 @@ export const initServerError = (
       message: '尚未登录，请重新登录',
     };
   }
+  const payload = response?.data as
+    | { code?: number; message?: string }
+    | undefined;
   return {
-    code: 100,
+    code:
+      typeof payload?.code === 'number'
+        ? payload.code
+        : response?.status || 100,
     message:
-      localeConfig?.[currentLang]?.serverWrong || '服务器开小差了~稍后再试',
+      typeof payload?.message === 'string' && payload.message
+        ? payload.message
+        : localeConfig?.[currentLang]?.serverWrong || '服务器开小差了~稍后再试',
   };
 };
 /**
@@ -275,8 +270,15 @@ export function getCookie(cookieName: string): string {
  * @returns
  */
 const generateReqKey = (config: AxiosRequestConfig): string => {
-  const { method, url, params, data } = config;
-  return [method, url, qs.stringify(params), qs.stringify(data)].join('&');
+  const { method, url, params, data, headers } = config;
+  return [
+    method,
+    url,
+    headers?.['space-id'],
+    headers?.['enterprise-id'],
+    qs.stringify(params),
+    qs.stringify(data),
+  ].join('&');
 };
 
 /**
@@ -336,73 +338,26 @@ const specialRequestUrl = [
 ];
 
 // 请求拦截器
-let refreshingPromise: Promise<void> | null = null;
-
-const decodeJwtExp = (token: string): number | null => {
-  try {
-    const payloadPart = token.split('.')[1] || '';
-    const json = Base64.decode(
-      payloadPart.replace(/-/g, '+').replace(/_/g, '/')
-    );
-    const payload = JSON.parse(json) as { exp?: number };
-    return typeof payload.exp === 'number' ? payload.exp : null;
-  } catch {
-    return null;
-  }
-};
-
-const isAccessTokenExpired = (token: string | null): boolean => {
-  if (!token) return true;
-  const exp = decodeJwtExp(token);
-  if (!exp) return true;
-  const nowMs = Date.now();
-  return nowMs >= exp * 1000 - 30_000; // 提前30秒刷新
-};
-
 axios.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    removePendingRequest(config); // 检查是否存在重复请求，若存在则取消已发的请求
-    addPendingRequest(config); // 把当前请求信息添加到pendingRequest对象中
     config.headers = config.headers || {};
     config.headers.clientType = '11'; //手动设置clientType getCookie("clientType")拿到的和星火一样
     config.headers.Channel = getCookie('channel');
-    if (useSpaceStore.getState().spaceType === 'team') {
-      config.headers['enterprise-id'] = useSpaceStore.getState().enterpriseId;
-    }
-    config.headers['space-id'] = useSpaceStore.getState().spaceId;
+    const scope = useSpaceStore.getState();
+    config.headers['enterprise-id'] ??=
+      scope.spaceType === 'team' ? scope.enterpriseId : '';
+    config.headers['space-id'] ??= scope.spaceId;
+    removePendingRequest(config); // 检查同一范围内的重复请求
+    addPendingRequest(config);
     config.headers.clientType = '11'; //手动设置clientType
     config.headers.Channel = getCookie('channel');
-    // 刷新 token（PKCE 模式）
-    const currentAccessToken = localStorage.getItem('accessToken');
-    const currentRefreshToken = localStorage.getItem('refreshToken');
-
-    if (currentRefreshToken && isAccessTokenExpired(currentAccessToken)) {
-      if (!refreshingPromise) {
-        refreshingPromise = casdoorSdk
-          .refreshAccessToken(currentRefreshToken)
-          .then((resp: unknown) => {
-            const r = resp as { access_token?: string; refresh_token?: string };
-            if (r?.access_token) {
-              localStorage.setItem('accessToken', r.access_token);
-            }
-            if (r?.refresh_token) {
-              localStorage.setItem('refreshToken', r.refresh_token);
-            }
-          })
-          .catch(() => {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('refreshToken');
-          })
-          .finally(() => {
-            refreshingPromise = null;
-          });
-      }
-      await refreshingPromise;
-    }
-
-    const latestAccessToken = localStorage.getItem('accessToken');
-    if (latestAccessToken) {
-      config.headers['Authorization'] = 'Bearer ' + latestAccessToken;
+    const csrfToken = await ensureCsrfToken();
+    if (
+      !['get', 'head', 'options'].includes(
+        config.method?.toLowerCase() || 'get'
+      )
+    ) {
+      config.headers['X-CSRFToken'] = csrfToken;
     }
     // 确保每个请求都使用最新的语言设置
     config.headers['Accept-Language'] = getLanguageCode();
@@ -425,61 +380,22 @@ axios.interceptors.response.use(
     }
     return result.data;
   },
-  (err: AxiosError) => {
-    removePendingRequest(err.config || {}); // 从pendingRequest对象中移除请求
-    if (axios.isCancel(err)) {
-      // eslint-disable-next-line no-console
-      console.warn(`已取消的重复请求：${err.message}`);
+  (reason: unknown) => {
+    if (axios.isCancel(reason)) {
+      return Promise.reject(reason);
     }
-    return Promise.reject(initServerError(err)); //处理服务器错误如400，401，404等
+    const err = reason as AxiosError;
+    removePendingRequest(err.config); // 从pendingRequest对象中移除请求
+    const error = initServerError(err);
+    // HTTP failures follow the same global feedback path as business errors.
+    // Authentication failures are handled by the login redirect above.
+    if (err.response && err.response.status !== 401) {
+      message.error(error.message);
+    }
+    return Promise.reject(error);
   }
 );
 
-//根据环境设置baseURL：本地localhost走 /xingchen-api，dev环境和test环境分别对应不同服务器
-const getBaseURL = (): string => {
-  const mode = import.meta.env.MODE;
-  const VITE_TEST_URL = import.meta.env.VITE_TEST_URL;
-  const VITE_DEV_URL = import.meta.env.VITE_DEV_URL;
-  console.log('VITE_TEST_URL', VITE_TEST_URL);
-  console.log('VITE_DEV_URL', VITE_DEV_URL);
-
-  if (mode === 'production') {
-    return '/console-api';
-  }
-
-  const runtimeBaseUrl = getRuntimeBaseURL();
-  if (runtimeBaseUrl) {
-    return runtimeBaseUrl;
-  }
-
-  // 在客户端环境下检查是否为localhost
-  if (
-    typeof window !== 'undefined' &&
-    window.location.hostname === 'localhost'
-  ) {
-    return '/xingchen-api';
-  }
-
-  // 从环境变量读取baseURL
-  const baseUrlFromEnv =
-    import.meta.env.CONSOLE_API_URL || import.meta.env.VITE_BASE_URL;
-  if (baseUrlFromEnv) {
-    return baseUrlFromEnv;
-  }
-
-  // 兜底逻辑：通过import.meta.env.MODE获取构建时的环境模式
-  switch (mode) {
-    case 'development':
-      return 'http://172.29.202.54:8080';
-    case 'test':
-      return 'http://172.29.201.92:8080';
-    default:
-      // production和其他环境保持原有逻辑
-      return 'http://172.29.201.92:8080';
-  }
-};
-
-export const baseURL = getBaseURL();
-
+export const baseURL = '/console-api';
 axios.defaults.baseURL = baseURL;
 export default axios;

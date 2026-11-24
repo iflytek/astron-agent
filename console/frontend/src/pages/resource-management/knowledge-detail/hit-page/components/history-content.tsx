@@ -38,18 +38,18 @@ export const HistoryContent: FC<{
 }) => {
   const { t } = useTranslation();
   return (
-    <div className="pt-4 flex flex-1 overflow-hidden">
+    <div className="pt-4 flex flex-1 flex-col lg:flex-row overflow-auto gap-5 min-h-0">
       <div
-        className="h-full flex flex-col overflow-auto pr-6 border-r border-[#E2E8FF]"
+        className="w-full lg:w-[35%] lg:h-full flex flex-col overflow-auto lg:pr-5 lg:border-r border-[#dfe6f1] shrink-0"
         ref={historyRef}
         onScroll={handleScroll}
-        style={{ width: '35%' }}
       >
         <div className="w-full">
           <div className="text-second text-lg font-medium shrink-0">
             {t('knowledge.queryText')}
           </div>
           <TextArea
+            aria-label={t('knowledge.queryText')}
             value={searchValue}
             onChange={event => setSearchValue(event.target.value)}
             placeholder={t('knowledge.pleaseEnter')}
@@ -66,6 +66,7 @@ export const HistoryContent: FC<{
               type="primary"
               onClick={searchAnswer}
               className="primary-btn w-[82px] h-10 px-4 flex items-center justify-center gap-1 mt-3"
+              loading={searching}
               disabled={!searchValue || searching}
             >
               <img src={hit} className="w-4 h-4" alt="" />
@@ -83,7 +84,7 @@ export const HistoryContent: FC<{
             </div>
           </div>
           <div className="mt-3 w-full flex-1 flex flex-col">
-            <div className="w-full flex px-5 py-[18px] bg-[#f9fafb] text-[#a4a4a4] text-xs font-medium">
+            <div className="w-full flex px-5 py-[18px] bg-[#f9fafb] text-[#607089] text-xs font-medium">
               <span style={{ flex: 2 }}>{t('knowledge.queryTextHeader')}</span>
               <span style={{ flex: 1 }}>{t('knowledge.testTime')}</span>
             </div>
@@ -92,6 +93,14 @@ export const HistoryContent: FC<{
                 <div
                   key={index}
                   className="flex items-center px-5 py-2.5 text-second font-medium border-b border-[#e9eff6] cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSearchValue(item.query || '');
+                    }
+                  }}
                   onClick={() => setSearchValue(item.query || '')}
                 >
                   <span
@@ -110,12 +119,12 @@ export const HistoryContent: FC<{
           </div>
         </div>
       </div>
-      <div className="h-full" style={{ width: '65%' }}>
+      <div className="w-full lg:flex-1 min-w-0 lg:h-full">
         {!searching &&
           (!answers.length ? (
             <div className="mt-[80px] flex flex-col justify-center items-center">
               <img src={target} className="w-16 h-16" alt="" />
-              <p className="mt-8 text-base text-[#C0C4CC] font-medium">
+              <p className="mt-8 text-base text-[#607089] font-medium">
                 {t('knowledge.hitKnowledgeParagraphsWillShowHere')}
               </p>
             </div>
@@ -156,7 +165,7 @@ export const HistoryContent: FC<{
                           percent={item.score * 100}
                         />
                         <span
-                          className="text-[#6356EA] font-medium ml-2"
+                          className="text-[#315ff4] font-medium ml-2"
                           style={{
                             fontFamily: 'SF Pro Text, SF Pro Text-600',
                             fontStyle: 'italic',

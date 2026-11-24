@@ -7,9 +7,11 @@ from typing import Any
 
 import pytest
 
-from agent.service.plugin.skill import SkillPluginFactory
+from agent.api.schemas.workflow_agent_inputs import CustomCompletionPluginSkillInputs
+from agent.engine.skill_files import _materialize_skills
+from agent.exceptions.agent_exc import AgentExc
 from agent.service.plugin.skill_resource_security import (
-    MAX_SKILL_TEXT_BYTES,
+    MAX_SKILL_RESOURCE_BYTES,
     SKILL_RESOURCE_ERROR,
     SKILL_RESOURCE_TRUSTED_BUCKET_ENV,
     SKILL_RESOURCE_TRUSTED_ORIGIN_ENV,
@@ -75,31 +77,28 @@ def test_invalid_resource_urls_fail_before_network(url: str) -> None:
         validate_skill_resource_url(url)
 
 
-def test_malicious_bot_skill_is_removed_without_creating_http_session(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.asyncio
+async def test_untrusted_skill_resource_is_rejected_before_download(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     class UnexpectedSession:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
-            raise AssertionError("invalid bot payload must not create an HTTP session")
+            raise AssertionError("invalid resource must not create an HTTP session")
 
     monkeypatch.setattr("aiohttp.ClientSession", UnexpectedSession)
-    factory = SkillPluginFactory(
-        skills=[
-            {
-                "skillId": "42",
-                "name": "attacker",
-                "downloadUrl": "http://169.254.169.254/latest/meta-data",
-                "resources": [
-                    {
-                        "path": "payload.py",
-                        "downloadUrl": "http://127.0.0.1/admin",
-                    }
-                ],
-            }
-        ]
+    skill = CustomCompletionPluginSkillInputs(
+        skill_id="42",
+        name="example",
+        download_url=_VALID_URL,
+        resources=[
+            CustomCompletionPluginSkillInputs.ResourceInputs(
+                path="script.py", download_url="http://example.com/script.py"
+            )
+        ],
     )
 
-    assert factory.gen() == []
+    with pytest.raises(AgentExc, match=SKILL_RESOURCE_ERROR):
+        await _materialize_skills(tmp_path, [skill])
 
 
 @pytest.mark.asyncio
@@ -141,11 +140,11 @@ class _Chunks:
 async def test_unknown_length_response_is_streamed_with_hard_limit() -> None:
     response = SimpleNamespace(
         content_length=None,
-        content=_Chunks([b"a" * MAX_SKILL_TEXT_BYTES, b"b"]),
+        content=_Chunks([b"a" * MAX_SKILL_RESOURCE_BYTES, b"b"]),
     )
 
     with pytest.raises(RuntimeError, match=SKILL_RESOURCE_ERROR):
-        await read_bounded_response(response, MAX_SKILL_TEXT_BYTES)
+        await read_bounded_response(response, MAX_SKILL_RESOURCE_BYTES)
 
 
 @pytest.mark.asyncio
@@ -180,6 +179,37 @@ async def test_redirect_response_is_not_followed_or_read() -> None:
     session: Any = FakeSession()
 
     with pytest.raises(RuntimeError, match=SKILL_RESOURCE_ERROR):
-        await download_skill_resource(session, _VALID_URL, MAX_SKILL_TEXT_BYTES)
+        await download_skill_resource(session, _VALID_URL, MAX_SKILL_RESOURCE_BYTES)
 
     assert session.requests == [(_VALID_URL, {"allow_redirects": False})]
+
+
+@pytest.mark.asyncio
+async def test_skill_files_are_read_only_and_colliding_names_remain_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agent.engine.skill_files import skill_backend
+
+    async def download(session: Any, url: str, limit: int) -> bytes:
+        return b"---\nname: same\ndescription: Original\n---\nBody"
+
+    monkeypatch.setattr("agent.engine.skill_files.download_skill_resource", download)
+    skills = [
+        CustomCompletionPluginSkillInputs(
+            skill_id=str(i), name="same", download_url=_VALID_URL
+        )
+        for i in range(2)
+    ]
+    async with skill_backend(skills, None) as backend:
+        listing = await backend.als("/skills")
+        assert listing.entries is not None
+        assert {item["path"].rstrip("/") for item in listing.entries} == {
+            "/skills/same",
+            "/skills/same-2",
+        }
+        target = "/skills/same/SKILL.md"
+        assert (await backend.awrite(target, "replace")).error
+        assert (await backend.aedit(target, "Original", "replace")).error
+        assert (await backend.adelete(target)).error
+        assert (await backend.aupload_files([(target, b"replace")]))[0].error
+        assert "Original" in str(await backend.aread(target))

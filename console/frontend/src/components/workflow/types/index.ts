@@ -55,6 +55,8 @@ export type FlowType = {
   avatarIcon: string;
   status: number;
   color: string;
+  category?: string | number | null;
+  favorite?: boolean;
   edgeType: string;
   evalSetId?: string;
   evalPageFirstTime?: boolean;

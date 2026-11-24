@@ -10,15 +10,21 @@ from agent.exceptions.agent_exc import AgentInternalExc
 class MetaDataInputs(BaseModel):
     """extra inputs"""
 
+    console_context: dict[str, Any] = Field(default_factory=dict)
     caller: str = Field(default="chat_open_api")
     caller_sid: str = Field(default="")
     workflow_id: str = Field(default="")
     run_id: str = Field(default="")
     node_id: str = Field(default="")
+    agent_id: str = Field(default="", max_length=128)
+    execution_uid: str = Field(default="", max_length=128)
+    space_id: int | None = Field(default=None, ge=1)
+    source: str = Field(default="", max_length=64)
+    session_id: str = Field(default="", max_length=128)
 
 
 class BaseInputs(BaseModel):
-    uid: str = Field(default="", description="uid", max_length=64)
+    uid: str = Field(default="", description="uid", max_length=128)
     messages: list[LLMMessage]
     stream: bool = Field(default=False)
     meta_data: MetaDataInputs = Field(default_factory=MetaDataInputs)

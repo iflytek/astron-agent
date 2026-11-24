@@ -735,7 +735,26 @@ class CodeArtifactUploader:
     def __init__(self, sandbox_config: dict[str, Any]) -> None:
         self.sandbox_config = sandbox_config
 
+    def _console_identity(self) -> dict[str, Any] | None:
+        if not self.sandbox_config.get("console"):
+            return None
+        context = self.sandbox_config.get("artifact_context")
+        if (
+            not isinstance(context, dict)
+            or any(
+                not isinstance(context.get(key), str) or not context[key]
+                for key in ("root_id", "uid")
+            )
+            or any(
+                not self.sandbox_config.get(key)
+                for key in ("run_id", "node_id", "workflow_id")
+            )
+        ):
+            raise RuntimeError(SANDBOX_RUNTIME_CONFIG_ERROR)
+        return context
+
     def is_configured(self) -> bool:
+        self._console_identity()
         if not self.sandbox_config.get("workflow_id") or not self.sandbox_config.get(
             "uid"
         ):
@@ -751,9 +770,20 @@ class CodeArtifactUploader:
     ) -> dict[str, Any]:
         artifact_upload_url = _load_artifact_upload_url()
         artifact_upload_token = _load_artifact_upload_token()
+        context = self._console_identity()
         form = aiohttp.FormData()
+        if context is not None:
+            artifact_upload_url = (
+                urlsplit(artifact_upload_url)
+                ._replace(path="/workflow/artifacts/console-upload")
+                .geturl()
+            )
+            form.add_field("rootId", context["root_id"])
         form.add_field("flowId", str(self.sandbox_config.get("workflow_id") or ""))
-        form.add_field("uid", str(self.sandbox_config.get("uid") or ""))
+        form.add_field(
+            "uid",
+            context["uid"] if context else str(self.sandbox_config.get("uid") or ""),
+        )
         if self.sandbox_config.get("space_id"):
             form.add_field("spaceId", str(self.sandbox_config["space_id"]))
         if self.sandbox_config.get("run_id"):

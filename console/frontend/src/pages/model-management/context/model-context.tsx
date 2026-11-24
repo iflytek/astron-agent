@@ -3,6 +3,7 @@ import React, {
   useContext,
   useReducer,
   useMemo,
+  useRef,
   ReactNode,
 } from 'react';
 import { ModelInfo, CategoryNode } from '@/types/model';
@@ -13,6 +14,7 @@ interface ModelState {
   models: ModelInfo[];
   categoryList: CategoryNode[];
   loading: boolean;
+  error: string;
   shelfOffModels: ModelInfo[];
 
   // 筛选状态
@@ -35,6 +37,7 @@ type ModelAction =
   | { type: 'SET_MODELS'; payload: ModelInfo[] }
   | { type: 'SET_CATEGORY_LIST'; payload: CategoryNode[] }
   | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_ERROR'; payload: string }
   | { type: 'SET_SHELF_OFF_MODELS'; payload: ModelInfo[] }
   | { type: 'SET_CHECKED_LEAVES'; payload: CategoryNode[] }
   | { type: 'SET_CONTEXT_LENGTH'; payload?: number }
@@ -52,7 +55,8 @@ type ModelAction =
 const initialState: ModelState = {
   models: [],
   categoryList: [],
-  loading: false,
+  loading: true,
+  error: '',
   shelfOffModels: [],
   checkedLeaves: [],
   contextLength: undefined,
@@ -73,6 +77,8 @@ const modelReducer = (state: ModelState, action: ModelAction): ModelState => {
       return { ...state, models: action.payload };
     case 'SET_CATEGORY_LIST':
       return { ...state, categoryList: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
     case 'SET_SHELF_OFF_MODELS':
@@ -106,11 +112,13 @@ const modelReducer = (state: ModelState, action: ModelAction): ModelState => {
 
 // Context类型定义
 interface ModelContextValue {
+  modelRequest: React.MutableRefObject<AbortController | null>;
   state: ModelState;
   actions: {
     setModels: (models: ModelInfo[]) => void;
     setCategoryList: (categories: CategoryNode[]) => void;
     setLoading: (loading: boolean) => void;
+    setError: (error: string) => void;
     setShelfOffModels: (models: ModelInfo[]) => void;
     setCheckedLeaves: (leaves: CategoryNode[]) => void;
     setContextLength: (length?: number) => void;
@@ -137,6 +145,8 @@ interface ModelProviderProps {
 
 export const ModelProvider: React.FC<ModelProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(modelReducer, initialState);
+  // Initialization and modal/card refreshes share one active list request.
+  const modelRequest = useRef<AbortController | null>(null);
 
   const actions = useMemo(
     () => ({
@@ -144,6 +154,8 @@ export const ModelProvider: React.FC<ModelProviderProps> = ({ children }) => {
         dispatch({ type: 'SET_MODELS', payload: models }),
       setCategoryList: (categories: CategoryNode[]): void =>
         dispatch({ type: 'SET_CATEGORY_LIST', payload: categories }),
+      setError: (error: string): void =>
+        dispatch({ type: 'SET_ERROR', payload: error }),
       setLoading: (loading: boolean): void =>
         dispatch({ type: 'SET_LOADING', payload: loading }),
       setShelfOffModels: (models: ModelInfo[]): void =>
@@ -177,6 +189,7 @@ export const ModelProvider: React.FC<ModelProviderProps> = ({ children }) => {
     () => ({
       state,
       actions,
+      modelRequest,
     }),
     [state, actions]
   );

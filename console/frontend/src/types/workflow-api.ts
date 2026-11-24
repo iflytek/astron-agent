@@ -16,12 +16,27 @@ export interface WorkflowListParams {
   page?: number;
   pageSize?: number;
   search?: string;
+  favorite?: boolean;
+  category?: number | string | null;
   status?: number;
   flowId?: string;
 }
 
 /** WorkflowDialog stores its question and answer as JSON strings. */
 export interface WorkflowDialogue {
+  runId?: string;
+  eventId?: string;
+  interrupt?: {
+    event_id?: string;
+    node_id?: string;
+    need_reply?: boolean;
+    value?: {
+      type?: string;
+      option?: import('@/components/workflow/types/drawer/chat-debugger').OptionItem[];
+    };
+  };
+  status?: string;
+  resolvedAgents?: Record<string, { agentId: number; versionId: number }>;
   id: string;
   workflowId: string;
   chatId: string;
@@ -35,27 +50,6 @@ export interface WorkflowDialogue {
 
 export interface WorkflowModelsResponse {
   workflow: { modelList: WorkflowModel[] }[];
-}
-
-/** PromptTemplate after listPagePromptTemplate expands its prompt JSON. */
-export interface AgentPromptTemplate {
-  id: number;
-  name: string;
-  description: string;
-  adaptationModel: string;
-  maxLoopCount: number;
-  characterSettings: string;
-  thinkStep: string;
-  userQuery: string;
-  createdTime?: string;
-  updatedTime?: string;
-  inputs: { name: string }[];
-  jsonAdaptationModel?: Record<string, unknown>;
-}
-
-export interface AgentPromptPage {
-  pageData: AgentPromptTemplate[];
-  totalCount: number;
 }
 
 /** McpServerTool, including the snake_case JSON names declared by the backend. */

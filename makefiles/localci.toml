@@ -1,7 +1,7 @@
 [meta]
 version = 1
 
-[[java.apps]]
+[[python.apps]]
 name = "console-backend"
 dir = "console/backend"
 enabled = true
@@ -11,7 +11,7 @@ name = "console-frontend"
 dir = "console/frontend"
 enabled = true
 
-[[go.apps]]
+[[python.apps]]
 name = "core-tenant"
 dir = "core/tenant"
 enabled = true

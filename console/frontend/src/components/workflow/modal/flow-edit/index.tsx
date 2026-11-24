@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Input, Button, Select, message } from 'antd';
+import { Input, Button, Image, Select, message } from 'antd';
+import workflowAvatar from '@/assets/imgs/avatars/agent-workflow-avatar.svg';
 import { useTranslation } from 'react-i18next';
 import { saveFlowAPI } from '@/services/flow';
+import { shouldShowRequestError } from '@/utils/http-error';
 import { getAgentType } from '@/services/agent-square';
 import MoreIcons from './more-icons';
 import globalStore from '@/store/global-store';
@@ -16,7 +18,7 @@ import flowIdCopyIcon from '@/assets/imgs/workflow/flowId-copy-icon.svg';
 
 const { TextArea } = Input;
 
-type EditableFlow = FlowType & { category?: string | number };
+type EditableFlow = FlowType;
 interface EditFlowFormProps {
   typeList: { label: string; value: string | number }[];
   tempFlow: EditableFlow;
@@ -40,13 +42,22 @@ const EditFlowForm = ({
             <span>{t('workflow.nodes.flowModal.workflowName')}</span>
           </div>
           <div className="flex items-center mt-1.5">
-            <div
-              className={`w-10 h-10 flex justify-center items-center rounded-lg mr-3 cursor-pointer`}
-              style={{
-                background: `url(${tempFlow.avatarIcon}) no-repeat center / cover`,
-              }}
+            <button
+              type="button"
+              aria-label="更换工作流图标"
+              className="w-10 h-10 flex-shrink-0 flex justify-center items-center rounded-lg mr-3 cursor-pointer"
+              style={{ backgroundColor: tempFlow.color || undefined }}
               onClick={() => setShowModal(true)}
-            ></div>
+            >
+              <Image
+                preview={false}
+                width={40}
+                height={40}
+                src={tempFlow.avatarIcon || workflowAvatar}
+                fallback={workflowAvatar}
+                alt="工作流图标"
+              />
+            </button>
             <Input
               value={tempFlow?.name}
               maxLength={20}
@@ -153,8 +164,9 @@ function EditModal({
       flowId: tempFlow?.flowId,
       name: tempFlow?.name,
       description: tempFlow?.description,
-      avatarIcon: tempFlow.avatarIcon,
-      color: tempFlow.color,
+      avatarIcon: tempFlow.avatarIcon ?? undefined,
+      avatarColor:
+        tempFlow.color !== currentFlow.color ? tempFlow.color : undefined,
       category: tempFlow.category,
     };
     saveFlowAPI(params)
@@ -164,18 +176,26 @@ function EditModal({
           previousFlow
             ? {
                 ...previousFlow,
-                name: tempFlow.name,
-                description: tempFlow.description,
-                updateTime: tempFlow.updateTime,
-                avatarIcon: tempFlow.avatarIcon,
-                color: tempFlow.color,
-                category: tempFlow.category,
+                name: data.name,
+                description: data.description,
+                updateTime: data.updateTime,
+                avatarIcon: data.avatarIcon,
+                color: data.color,
+                category: data.category,
               }
             : previousFlow
         );
       })
+      .catch(error => {
+        // Keep the form open; response errors are already shown by HTTP.
+        if (shouldShowRequestError(error)) {
+          message.error(
+            error instanceof Error ? error.message : '工作流保存失败'
+          );
+        }
+      })
       .finally(() => setLoading(false));
-  }, [tempFlow]);
+  }, [tempFlow, currentFlow.color]);
 
   const canSubmit = useMemo(() => {
     return !loading && tempFlow?.name?.trim() && tempFlow?.description?.trim();
@@ -205,7 +225,7 @@ function EditModal({
                   avatarIcon: appIcon.value ?? tempFlow.avatarIcon,
                 }))
               }
-              botColor={currentFlow?.color}
+              botColor={tempFlow?.color}
               setBotColor={value =>
                 setTempFlow(tempFlow => ({
                   ...tempFlow,

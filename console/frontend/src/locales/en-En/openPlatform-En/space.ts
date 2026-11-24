@@ -142,6 +142,7 @@ const translation = {
   searching: 'Searching...',
   selected: 'Selected: ',
   maxValue: '(Max {{count}})',
+  invitationBatchLimit: '(Up to {{count}} per invitation batch)',
 
   // SpaceList
   applySuccess: 'Application successful',

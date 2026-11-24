@@ -1,10 +1,14 @@
+import {
+  readHistoryAnswer,
+  readHistoryQuestion,
+  workflowRetryPath,
+} from './workflow-history';
 import type { EventSourceMessage } from '@microsoft/fetch-event-source';
 import type { WorkflowNode, WorkflowEdge } from '../types/domain';
 import type {
   ResponseResult,
   ResumeChatParams,
   WorkflowChatParams,
-  ChatDebuggerAdvancedConfig,
   BuildFlowParams,
 } from '../types';
 import type {
@@ -16,16 +20,8 @@ import type {
 import React from 'react';
 import { ChatListItem } from '../types';
 
-import {
-  getDialogueAPI,
-  saveDialogueAPI,
-  getInputsType,
-  addComparisons,
-  buildFlowAPI,
-  workflowDialogClear,
-  workflowDeleteComparisons,
-} from '@/services/flow';
-import { nextQuestionAdvice } from '@/services/common';
+import { getDialogueAPI, stopWorkflowRun, buildFlowAPI } from '@/services/flow';
+import { message } from 'antd';
 import { v4 as uuid } from 'uuid';
 import { moveToPosition } from './flow-function';
 import {
@@ -47,7 +43,8 @@ import { getFixedUrl } from '@/components/workflow/utils';
 import {
   createWorkflowSseLifecycle,
   isTerminalWorkflowSseErrorFrame,
-  throwFatalWorkflowSseError,
+  readWorkflowFrameStatus,
+  stopWorkflowSse,
   type WorkflowSseLifecycle,
 } from './workflow-sse';
 import { fetchSseWithContext } from '@/utils/sse-request';
@@ -70,6 +67,7 @@ interface RunDebuggerOptions {
   set: ChatSetter;
   enters?: StartNodeType[];
   regen?: boolean;
+  retryId?: string;
 }
 
 const initInterruptChat: InterruptChatType = {
@@ -112,14 +110,18 @@ export const initialStatus: ChatState = {
   suggestProblem: [],
   userWheel: false,
   deleteAllModal: false,
-  chatIdRef: uuid().replace(/-/g, ''),
+  chatIdRef: '',
+  conversationScope: '',
+  historyStatus: 'idle',
+  runId: '',
+  runStatus: '',
+  stopRequested: false,
 };
 
 const getWorkflowSseContext = () => {
   const { spaceId, spaceType, enterpriseId } = useSpaceStore.getState();
   return {
     languageCode: getLanguageCode(),
-    accessToken: localStorage.getItem('accessToken'),
     spaceId,
     spaceType,
     enterpriseId,
@@ -132,50 +134,130 @@ export const handleChatTypeChange = (type: string, set: ChatSetter) => {
   });
 };
 
+let historyGeneration = 0;
+
+const currentConversationScope = (id?: string): string => {
+  const manager = useFlowsManager.getState();
+  return JSON.stringify([
+    String(id ?? manager.currentFlow?.id ?? ''),
+    manager.historyVersion ? 'version' : 'draft',
+    manager.historyVersion
+      ? (manager.historyVersionData?.versionNum ?? '')
+      : '',
+  ]);
+};
+
+const conversationReady = (get: ChatGetter): boolean => {
+  const state = get();
+  return (
+    state.historyStatus === 'ready' &&
+    state.conversationScope === currentConversationScope()
+  );
+};
+
 const getDialogues = (
   id: string,
   set: ChatSetter,
-  shouldAddDivider = false
+  _shouldAddDivider = false,
+  get?: ChatGetter
 ): void => {
-  getDialogueAPI(id, 1).then(data => {
-    const chatList: ChatListItem[] = [];
-    let chatId = data?.[0]?.chatId || null;
-    data?.forEach(chat => {
-      const currentChatId = chat?.chatId;
-      if (currentChatId !== chatId) {
-        chatList.unshift({
-          id: uuid(),
-          type: 'divider',
-        });
-      }
-
-      chatList.unshift({
-        ...chat,
-        id: chat?.id,
-        type: 'answer',
-        messageContent: JSON.parse(chat?.answer)?.messageContent || '',
-        reasoningContent: JSON.parse(chat?.answer)?.reasoningContent || '',
-        content: JSON.parse(chat?.answer)?.content || '',
-        option: JSON.parse(chat?.answer)?.option,
-      });
-      chatList.unshift({
-        ...chat,
-        id: uuid(),
-        type: 'ask',
-        inputs: JSON.parse(chat?.question),
-      });
-      chatId = currentChatId;
-    });
-    if (shouldAddDivider && data.length !== 0) {
-      chatList.push({
-        id: uuid(),
-        type: 'divider',
-      });
-    }
-    set({
-      chatList,
-    });
+  const generation = ++historyGeneration;
+  const manager = useFlowsManager.getState();
+  const version = manager.historyVersion
+    ? manager.historyVersionData?.versionNum
+    : undefined;
+  const scope = currentConversationScope(id);
+  const previous = get?.();
+  const scopeChanged = previous?.conversationScope !== scope;
+  if (scopeChanged) previous?.controllerRef?.abort();
+  set({
+    chatList: [],
+    chatIdRef: '',
+    conversationScope: scope,
+    historyStatus: 'loading',
+    runId: '',
+    runStatus: '',
+    interruptChat: { ...initInterruptChat },
+    debuggering: false,
+    messageNodeTextQueue: '',
+    endNodeReasoningTextQueue: '',
+    endNodeTextQueue: '',
+    stopRequested: false,
+    controllerRef: scopeChanged ? undefined : previous?.controllerRef,
+    ...(scopeChanged ? { userInput: '' } : {}),
   });
+  getDialogueAPI(id, 1, version)
+    .then(data => {
+      if (generation !== historyGeneration) return;
+      if (currentConversationScope() !== scope) return;
+      // Reopen the latest conversation in chronological order. Previous sessions
+      // remain available as execution records, without fake message separators.
+      const latest = data[data.length - 1];
+      const conversation = latest?.chatId
+        ? data.filter(item => item.chatId === latest.chatId)
+        : data;
+      const chatList: ChatListItem[] = [];
+      conversation.forEach(chat => {
+        chatList.push({
+          ...chat,
+          id: uuid(),
+          type: 'ask',
+          inputs: readHistoryQuestion(chat.question).map(input => ({
+            ...input,
+            default: input.default as StartNodeType['default'],
+            required: false,
+            validationSchema: null,
+            errorMsg: '',
+            originErrorMsg: '',
+          })),
+        });
+        chatList.push({
+          ...chat,
+          id: chat.id,
+          type: 'answer',
+          ...readHistoryAnswer(chat.answer),
+          option: readHistoryAnswer(chat.answer)
+            .option as ChatListItem['option'],
+        });
+      });
+      const paused = conversation.find(
+        item => item.status === 'paused' && item.runId && item.eventId
+      );
+      set({
+        chatList,
+        conversationScope: scope,
+        historyStatus: 'ready',
+        chatIdRef: latest?.runId && latest?.chatId ? latest.chatId : '',
+        ...(paused
+          ? {
+              runId: paused.runId,
+              runStatus: 'paused',
+              interruptChat: {
+                eventId: paused.eventId || '',
+                interrupt: true,
+                nodeId: paused.interrupt?.node_id || '',
+                type: paused.interrupt?.value?.type || '',
+                option: paused.interrupt?.value?.option || null,
+                needReply: paused.interrupt?.need_reply ?? true,
+              },
+            }
+          : {
+              runId: '',
+              runStatus: '',
+              interruptChat: { ...initInterruptChat },
+            }),
+      });
+      if (paused) useFlowsManager.getState().setCanvasesDisabled(true);
+    })
+    .catch(() => {
+      if (
+        generation !== historyGeneration ||
+        currentConversationScope() !== scope
+      )
+        return;
+      set({ historyStatus: 'error' });
+      message.error('无法读取工作流历史，请重试或开启新对话');
+    });
 };
 const handleMoveToPosition = (
   id: string | undefined,
@@ -229,6 +311,54 @@ const pushContentToAnswer = (
 ): void => {
   get()[key] = get()[key] + (content ?? '');
 };
+
+/** Preserve already received text before a terminal action stops queue playback. */
+const drainQueuedAnswer = (get: ChatGetter, set: ChatSetter): void => {
+  const state = get();
+  const queued = {
+    messageContent: state.messageNodeTextQueue,
+    reasoningContent: state.endNodeReasoningTextQueue,
+    content: state.endNodeTextQueue,
+  };
+  if (!Object.values(queued).some(Boolean)) return;
+  let answerIndex = -1;
+  for (let index = state.chatList.length - 1; index >= 0; index--) {
+    const item = state.chatList[index];
+    if (
+      item?.type === 'answer' &&
+      (!state.runId || !item.runId || item.runId === state.runId)
+    ) {
+      answerIndex = index;
+      break;
+    }
+  }
+  if (answerIndex !== -1) {
+    for (const key of [
+      'messageContent',
+      'reasoningContent',
+      'content',
+    ] as const) {
+      state.chatInfoRef.answer[key] =
+        (state.chatInfoRef.answer[key] ?? '') + queued[key];
+    }
+  }
+  set({
+    messageNodeTextQueue: '',
+    endNodeReasoningTextQueue: '',
+    endNodeTextQueue: '',
+    chatList: state.chatList.map((item, index) =>
+      index === answerIndex
+        ? {
+            ...item,
+            messageContent: (item.messageContent ?? '') + queued.messageContent,
+            reasoningContent:
+              (item.reasoningContent ?? '') + queued.reasoningContent,
+            content: (item.content ?? '') + queued.content,
+          }
+        : item
+    ),
+  });
+};
 const clearNodeStatus = (get: ChatGetter): void => {
   if (get().userInput) {
     get().setUserInput('');
@@ -247,21 +377,23 @@ const clearNodeStatus = (get: ChatGetter): void => {
     }))
   );
 };
-const handleSaveDialogue = (get: ChatGetter, set: ChatSetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  const params = {
-    chatId: get().chatIdRef,
-    type: 1,
-    workflowId: currentFlow?.id,
-    sid: get().chatInfoRef?.sid,
-    questionItem: JSON.stringify(get().chatInfoRef?.question),
-    answerItem: JSON.stringify(get().chatInfoRef?.answerItem),
-    question: JSON.stringify(get().chatInfoRef?.question),
-    answer: JSON.stringify(get().chatInfoRef?.answer),
-  };
-  saveDialogueAPI(params).then(
-    () => currentFlow?.id && getDialogues(currentFlow.id, set)
-  );
+const handleSaveDialogue = (get: ChatGetter, _set: ChatSetter): void => {
+  // The server already persists execution events and answers. Keep the live
+  // transcript mounted after a turn instead of clearing it to reload history.
+  // Opening the drawer or switching workflow/version still loads server history.
+  const { runId, runStatus } = get();
+  if (
+    runId &&
+    ['completed', 'failed', 'cancelled', 'interrupted'].includes(runStatus)
+  ) {
+    get().setChatList(items =>
+      items.map(item =>
+        item.type === 'answer' && item.runId === runId
+          ? { ...item, status: runStatus }
+          : item
+      )
+    );
+  }
   get().chatInfoRef = cloneDeep(initChatInfo);
 };
 const handleAuditFailed = (
@@ -329,10 +461,9 @@ const handleFlowStop = (data: WebSocketMessageData, get: ChatGetter): void => {
   handleMessageEnd(data, get);
 };
 const extractNodeInfo = (data: WebSocketMessageData) => {
-  const flowResult = data.choices?.[0]?.['finish_reason'];
+  const { flowResult, nodeStatus } = readWorkflowFrameStatus(data);
   const node = data?.['workflow_step']?.node;
   const nodeId = node?.id;
-  const nodeStatus = node?.['finish_reason'];
   const content = data.choices?.[0]?.delta?.content;
   const responseResult: ResponseResult = {
     timeCost: node?.['executed_time'],
@@ -448,7 +579,12 @@ const handleFinishedNode = (
     currentNode.data.status = 'failed';
     currentNode.data.debuggerResult.failedReason = responseResult?.failedReason;
   }
-  if (nodeId?.startsWith('node-end') && responseResult?.answerMode === 0) {
+  if (
+    nodeId?.startsWith('node-end') &&
+    responseResult?.answerMode === 0 &&
+    !responseResult.nodeAnswerContent &&
+    !beforeContent
+  ) {
     pushContentToAnswer(
       'endNodeTextQueue',
       JSON.stringify(responseResult?.outputs),
@@ -531,7 +667,71 @@ const handleMessage = (
   set: ChatSetter
 ): void => {
   if (!e.data || !isJSON(e.data)) return;
-  const data: WebSocketMessageData = JSON.parse(e.data);
+  const frame = JSON.parse(e.data);
+  if (e.event === 'run') {
+    const runId = String(frame.runId || frame.id || '');
+    set({
+      runId,
+      runStatus: frame.status || 'running',
+      ...(typeof frame.chatId === 'string' ? { chatIdRef: frame.chatId } : {}),
+    });
+    get().setChatList(items =>
+      items.map((item, index) =>
+        index === items.length - 1
+          ? {
+              ...item,
+              runId,
+              status: frame.status,
+              resolvedAgents: frame.resolvedAgents,
+            }
+          : item
+      )
+    );
+    if (get().stopRequested && runId) get().handleStopConversation();
+    return;
+  }
+  if (e.event === 'run-end') {
+    set({ runStatus: frame.status });
+    get().setChatList(items =>
+      items.map(item =>
+        item.runId === frame.runId ? { ...item, status: frame.status } : item
+      )
+    );
+    if (frame.status !== 'paused' && get().wsMessageStatus !== 'end') {
+      handleFlowStop(
+        {
+          code: frame.status === 'completed' ? 0 : -1,
+          message: frame.error || frame.status,
+        },
+        get
+      );
+    }
+    if (frame.status !== 'paused') {
+      set({ stopRequested: false });
+      const manager = useFlowsManager.getState();
+      manager.setFlowResult({
+        ...manager.flowResult,
+        status:
+          frame.status === 'completed'
+            ? 'success'
+            : frame.status === 'cancelled' || frame.status === 'interrupted'
+              ? frame.status
+              : 'failed',
+      });
+    }
+    if (
+      typeof frame.durationMs === 'number' &&
+      Number.isFinite(frame.durationMs)
+    ) {
+      const manager = useFlowsManager.getState();
+      manager.setFlowResult({
+        ...manager.flowResult,
+        timeCost: (Math.max(0, frame.durationMs) / 1000).toString(),
+      });
+    }
+    return;
+  }
+  const data: WebSocketMessageData = frame;
   const { flowResult, nodeId, nodeStatus, responseResult } =
     extractNodeInfo(data);
   get().chatInfoRef.sid = data?.id;
@@ -566,33 +766,23 @@ const handleMessage = (
     handleFlowStop(data, get);
   }
 };
-const handleRunningNodeStatus = (): void => {
+const handleRunningNodeStatus = (completed = false): void => {
   const setNodes = useFlowStore.getState().setNodes;
   setNodes(nodes => {
     nodes.forEach(node => {
       if (node?.data?.status === 'running') {
-        (node.data.debuggerResult ??= {}).cancelReason = i18n.t(
-          'workflow.nodes.chatDebugger.workflowTerminated'
-        );
-        node.data.status = 'cancel';
+        if (!completed) {
+          (node.data.debuggerResult ??= {}).cancelReason = i18n.t(
+            'workflow.nodes.chatDebugger.workflowTerminated'
+          );
+        }
+        // A completed run can beat its final node frame; clear the pending
+        // indicator without inventing a node result or claiming cancellation.
+        node.data.status = completed ? '' : 'cancel';
       }
     });
     return cloneDeep(nodes);
   });
-};
-const handleSynchronizeDataToXfyun = (): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  const extension = currentFlow?.ext;
-  if (!extension || !isJSON(extension)) return;
-  const parsed: unknown = JSON.parse(extension);
-  if (typeof parsed !== 'object' || parsed === null || !('botId' in parsed))
-    return;
-  const botId = parsed.botId;
-  if (typeof botId !== 'string' && typeof botId !== 'number') return;
-  const params = {
-    botId,
-  };
-  getInputsType(params);
 };
 const handleMessageEnd = (
   data: WebSocketMessageData,
@@ -623,7 +813,7 @@ const handleMessageEnd = (
   );
   !historyVersion && setCanvasesDisabled(false);
   get().setInterruptChat({ ...initInterruptChat });
-  handleRunningNodeStatus();
+  handleRunningNodeStatus(data.code === 0);
 };
 const createActiveWorkflowSseLifecycle = (
   controller: AbortController,
@@ -651,6 +841,9 @@ const handleResumeChat = (
   get: ChatGetter,
   set: ChatSetter
 ): void => {
+  if (!conversationReady(get)) return;
+  if (get().stopRequested || get().runStatus === 'stopping') return;
+  historyGeneration += 1;
   const currentFlow = useFlowsManager.getState().currentFlow;
   const nodes = useFlowStore.getState().nodes;
   const edges = useFlowStore.getState().edges;
@@ -659,6 +852,7 @@ const handleResumeChat = (
   set({
     wsMessageStatus: 'start',
     debuggering: true,
+    stopRequested: false,
     controllerRef: controller,
   });
   pushAskToChatList(
@@ -684,14 +878,16 @@ const handleResumeChat = (
   pushAnswerToChatList(get);
   const url = getFixedUrl('/workflow/resume');
   const params: ResumeChatParams = {
+    runId: get().runId,
     flow_id: currentFlow?.flowId,
     eventId: get().interruptChat?.eventId,
     eventType: content ? 'resume' : 'ignore',
     content,
   };
   if (get().versionId) {
-    params.version = get().versionId;
-    params.promptDebugger = true;
+    params.version =
+      useFlowsManager.getState().historyVersionData?.versionNum ||
+      get().versionId;
   }
   const sseLifecycle = createActiveWorkflowSseLifecycle(
     controller,
@@ -717,7 +913,9 @@ const handleResumeChat = (
       sseLifecycle.onClose();
     },
     onmessage(e) {
-      sseLifecycle.onMessage(e);
+      if (e.event === 'run-end' && get().controllerRef === controller)
+        handleMessage(nodes, edges, e, get, set);
+      else sseLifecycle.onMessage(e);
     },
   }).catch(() => undefined);
   clearNodeStatus(get);
@@ -726,11 +924,21 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
   const { nodes, edges, get, set, enters, regen = false } = obj;
   const currentFlow = useFlowsManager.getState().currentFlow;
   const historyVersion = useFlowsManager.getState().historyVersion;
-  const url = getFixedUrl('/workflow/chat');
+  const retryId = regen ? obj.retryId : '';
+  if (regen && !retryId) {
+    get().setDebuggering(false);
+    message.error('此历史没有可重试的运行标识，请发起新运行');
+    return;
+  }
+  const url = getFixedUrl(
+    retryId ? workflowRetryPath(retryId) : '/workflow/chat'
+  );
   get().controllerRef?.abort();
   const controller = new AbortController();
   set({
     controllerRef: controller,
+    runId: '',
+    runStatus: 'running',
   });
   const inputs: Record<string, unknown> = {};
   const enterlist = enters ?? get().startNodeParams;
@@ -765,8 +973,9 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
     regen,
   };
   if (historyVersion) {
-    params.version = get().versionId;
-    params.promptDebugger = true;
+    params.version =
+      useFlowsManager.getState().historyVersionData?.versionNum ||
+      get().versionId;
   }
   const sseLifecycle = createActiveWorkflowSseLifecycle(
     controller,
@@ -792,27 +1001,12 @@ const runDebugger = (obj: RunDebuggerOptions): void => {
       sseLifecycle.onClose();
     },
     onmessage(e) {
-      sseLifecycle.onMessage(e);
+      if (e.event === 'run-end' && get().controllerRef === controller)
+        handleMessage(nodes, edges, e, get, set);
+      else sseLifecycle.onMessage(e);
     },
   }).catch(() => undefined);
   clearNodeStatus(get);
-};
-const advancedConfig = (): ChatDebuggerAdvancedConfig => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  if (currentFlow?.advancedConfig && isJSON(currentFlow?.advancedConfig)) {
-    const parsedConfig = JSON.parse(currentFlow?.advancedConfig);
-    return {
-      suggestedQuestionsAfterAnswer: {
-        enabled: parsedConfig?.suggestedQuestionsAfterAnswer?.enabled ?? true,
-      },
-    };
-  } else {
-    return {
-      suggestedQuestionsAfterAnswer: {
-        enabled: true,
-      },
-    };
-  }
 };
 const handleRunDebugger = ({
   nodes,
@@ -822,105 +1016,107 @@ const handleRunDebugger = ({
   inputs,
   regen = false,
 }: RunDebuggerOptions & { inputs?: StartNodeType[] }): void => {
+  if (!conversationReady(get)) return;
+  const generation = ++historyGeneration;
+  const scope = currentConversationScope();
+  const retryId = regen ? get().runId : '';
+  set({
+    conversationScope: currentConversationScope(),
+    historyStatus: 'ready',
+    runId: '',
+    runStatus: 'preparing',
+    stopRequested: false,
+    debuggering: true,
+  });
   const currentFlow = useFlowsManager.getState().currentFlow;
   const setCanPublish = useFlowsManager.getState().setCanPublish;
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
-  const suggestedQuestion =
-    inputs?.[0]?.default ?? get().startNodeParams[0]?.default;
-  if (
-    typeof suggestedQuestion === 'string' &&
-    advancedConfig()?.suggestedQuestionsAfterAnswer?.enabled &&
-    get().startNodeParams?.length === 1
-  ) {
-    get().setSuggestLoading(true);
-    nextQuestionAdvice({
-      question: suggestedQuestion,
-    })
-      .then(data => {
-        get().setSuggestProblem(() => data);
-      })
-      .finally(() => get().setSuggestLoading(false));
-  } else {
-    get().setSuggestProblem(() => []);
-  }
+  get().setSuggestProblem(() => []);
   get().buildPassRef = false;
-  let params: BuildFlowParams;
-  let api: (params: BuildFlowParams) => Promise<unknown>;
-  if (useFlowsManager.getState().historyVersion) {
-    get().versionId = uuid();
-    params = {
-      flowId: currentFlow?.flowId,
-      name: currentFlow?.name,
-      data: {
-        nodes: nodes?.map(({ nodeType, ...reset }) => ({
+  const params: BuildFlowParams = {
+    id: currentFlow?.id,
+    flowId: currentFlow?.flowId,
+    name: currentFlow?.name,
+    description: currentFlow?.description,
+    data: {
+      nodes: nodes?.map(({ nodeType, ...reset }) => {
+        const node = {
           ...reset,
           data: {
             ...reset?.data,
             updatable: false,
           },
-        })),
-        edges: edges?.map(({ style, animated, ...reset }) => reset),
-      },
-      version: get().versionId,
-    };
-    api = addComparisons;
-  } else {
-    params = {
-      id: currentFlow?.id,
-      flowId: currentFlow?.flowId,
-      name: currentFlow?.name,
-      description: currentFlow?.description,
-      data: {
-        nodes: nodes?.map(({ nodeType, ...reset }) => {
-          const node = {
-            ...reset,
-            data: {
-              ...reset?.data,
-              updatable: false,
-            },
-          };
-          Reflect.deleteProperty(node.data, 'debuggerResult');
-          return node;
-        }),
-        edges: edges?.map(({ style, animated, ...reset }) => reset),
-      },
-    };
-    api = buildFlowAPI;
-  }
-  api(params).then(() => {
-    setCanPublish(true);
-    setShowNodeList(false);
-    set({
-      preRunningNodeIds: [],
-      buildPassRef: true,
-      userWheel: false,
+        };
+        Reflect.deleteProperty(node.data, 'debuggerResult');
+        return node;
+      }),
+      edges: edges?.map(({ style, animated, ...reset }) => reset),
+    },
+  };
+  const ready =
+    regen || historyVersion ? Promise.resolve() : buildFlowAPI(params);
+  ready
+    .then(() => {
+      if (
+        generation !== historyGeneration ||
+        currentConversationScope() !== scope ||
+        !conversationReady(get)
+      )
+        return;
+      if (get().stopRequested) {
+        finishStopConversation(get, set, 'cancelled');
+        return;
+      }
+      setCanPublish(true);
+      setShowNodeList(false);
+      set({
+        preRunningNodeIds: [],
+        buildPassRef: true,
+        userWheel: false,
+      });
+      setFlowResult({
+        status: 'running',
+        timeCost: '',
+        totalTokens: '',
+      });
+      const nodeId = nodes?.find(node => node?.nodeType === 'node-start')?.id;
+      pushAskToChatList(inputs, nodes, nodeId, get);
+      !historyVersion && setCanvasesDisabled(true);
+      pushAnswerToChatList(get);
+      runDebugger({
+        nodes,
+        edges,
+        get,
+        set,
+        enters: inputs,
+        regen,
+        retryId,
+      });
+    })
+    .catch(() => {
+      if (
+        generation !== historyGeneration ||
+        currentConversationScope() !== scope
+      )
+        return;
+      set({ debuggering: false, stopRequested: false, runStatus: 'failed' });
+      setCanvasesDisabled(false);
+      setShowNodeList(true);
+      setFlowResult({ status: 'failed', timeCost: '', totalTokens: '' });
     });
-    setFlowResult({
-      status: 'running',
-      timeCost: '',
-      totalTokens: '',
-    });
-    const nodeId = nodes?.find(node => node?.nodeType === 'node-start')?.id;
-    pushAskToChatList(inputs, nodes, nodeId, get);
-    !historyVersion && setCanvasesDisabled(true);
-    pushAnswerToChatList(get);
-    runDebugger({
-      nodes,
-      edges,
-      get,
-      set,
-      enters: inputs,
-      regen,
-    });
-    //同步数据到开放平台
-    handleSynchronizeDataToXfyun();
-  });
 };
 const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
-  const setFlowResult = useFlowsManager.getState().setFlowResult;
+  if (
+    get().debuggering ||
+    get().interruptChat.interrupt ||
+    get().runStatus === 'stopping'
+  ) {
+    get().handleStopConversation();
+    return;
+  }
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
   get().preRunningNodeIds = [];
@@ -929,18 +1125,13 @@ const clearData = (setOpen: (open: boolean) => void, get: ChatGetter): void => {
     get().setUserInput('');
   }
   setOpen(false);
-  if (get().debuggering) {
-    setFlowResult({
-      status: '',
-      timeCost: '',
-      totalTokens: '',
-    });
-  }
   setShowNodeList(true);
   setCanvasesDisabled(false);
 };
 
 const canRunDebugger = (get: ChatGetter): boolean => {
+  if (!conversationReady(get)) return false;
+  if (get().stopRequested || get().runStatus === 'stopping') return false;
   if (!get().debuggering && get().interruptChat?.type === 'option')
     return false;
   if (
@@ -1023,7 +1214,7 @@ const handleEnterKey = (
         set,
         inputs: [
           {
-            name: 'AGENT_USER_INPUT',
+            name: get().startNodeParams[0]?.name || 'AGENT_USER_INPUT',
             type: 'string',
             default: get().userInput,
             description: i18n.t(
@@ -1073,44 +1264,25 @@ const resetNodesAndEdges = (
   };
 };
 
-const handleStopConversation = (get: ChatGetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
+const finishStopConversation = (
+  get: ChatGetter,
+  set: ChatSetter,
+  status: string
+): void => {
   const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
   const historyVersion = useFlowsManager.getState().historyVersion;
   const setShowNodeList = useFlowsManager.getState().setShowNodeList;
   const setEdges = useFlowStore.getState().setEdges;
   const setFlowResult = useFlowsManager.getState().setFlowResult;
-  get().chatIdRef = uuid().replace(/-/g, '');
-  if (get().interruptChat?.interrupt) {
-    const url = getFixedUrl('/workflow/resume');
-    const params = {
-      flow_id: currentFlow?.flowId,
-      eventId: get().interruptChat?.eventId,
-      eventType: 'abort',
-    };
-    void fetchSseWithContext(url, {
-      getContext: getWorkflowSseContext,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(params),
-      openWhenHidden: true,
-      onerror(error) {
-        throwFatalWorkflowSseError(error);
-      },
-    }).catch(error =>
-      console.error('[Workflow SSE] Abort request failed', error)
-    );
-  }
-  get().setChatList(chatList => [
-    ...chatList,
-    {
-      id: uuid(),
-      type: 'divider',
-    },
-  ]);
+  drainQueuedAnswer(get, set);
+  set({
+    debuggering: false,
+    stopRequested: false,
+    wsMessageStatus: 'end',
+    runStatus: status,
+  });
   get().setInterruptChat({ ...initInterruptChat });
+  get().handleSaveDialogue();
   !historyVersion && setCanvasesDisabled(false);
   setShowNodeList(true);
   setEdges(edges =>
@@ -1124,34 +1296,54 @@ const handleStopConversation = (get: ChatGetter): void => {
     }))
   );
   setFlowResult({
-    status: '',
+    status: status === 'completed' ? 'success' : status,
     timeCost: '',
     totalTokens: '',
   });
+  handleRunningNodeStatus(status === 'completed');
 };
 
-const deleteAllChat = (get: ChatGetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  const historyVersion = useFlowsManager.getState().historyVersion;
-  const setCanvasesDisabled = useFlowsManager.getState().setCanvasesDisabled;
-  if (!currentFlow?.id) return;
-  workflowDialogClear(currentFlow.id, 1).then(() => {
-    get().chatIdRef = uuid().replace(/-/g, '');
-    get().setDeleteAllModal(false);
-    get().setChatList([]);
-    get().setInterruptChat({ ...initInterruptChat });
-    !historyVersion && setCanvasesDisabled(false);
+const handleStopConversation = (get: ChatGetter, set: ChatSetter): void => {
+  set({ stopRequested: true });
+  const runId = get().runId;
+  // A stop before the first run frame waits for the authoritative run ID.
+  if (!runId || get().runStatus === 'stopping') return;
+  const controller = get().controllerRef;
+  const flowId = useFlowsManager.getState().currentFlow?.id;
+  const previousStatus = get().runStatus;
+  const isCurrent = (): boolean =>
+    get().controllerRef === controller &&
+    useFlowsManager.getState().currentFlow?.id === flowId;
+  set({ runStatus: 'stopping' });
+  void stopWorkflowSse({
+    requestStop: () => stopWorkflowRun(runId),
+    controller,
+    isCurrent,
+    onStopped: result => finishStopConversation(get, set, result.status),
+  }).catch(() => {
+    if (!isCurrent()) return;
+    set({ stopRequested: false, runStatus: previousStatus });
+    message.error('停止请求失败，请重试');
   });
 };
 
-const handleWorkflowDeleteComparisons = (get: ChatGetter): void => {
-  const currentFlow = useFlowsManager.getState().currentFlow;
-  if (!get().versionId) return;
-  const parmas = {
-    flowId: currentFlow?.flowId,
-    version: get().versionId,
-  };
-  workflowDeleteComparisons(parmas);
+// The single New conversation action resets context, retaining server run records.
+const deleteAllChat = (get: ChatGetter): void => {
+  if (get().debuggering || get().interruptChat.interrupt || get().stopRequested)
+    return;
+  historyGeneration += 1;
+  get().chatIdRef = '';
+  get().conversationScope = currentConversationScope();
+  get().historyStatus = 'ready';
+  get().runId = '';
+  get().runStatus = '';
+  get().messageNodeTextQueue = '';
+  get().endNodeReasoningTextQueue = '';
+  get().endNodeTextQueue = '';
+  get().setUserInput('');
+  get().setDeleteAllModal(false);
+  get().setChatList([]);
+  get().setInterruptChat({ ...initInterruptChat });
 };
 
 const setChatList = (
@@ -1233,6 +1425,7 @@ const setDebuggering = (
 ): void => {
   const newChange =
     typeof change === 'function' ? change(get().debuggering) : change;
+  if (!newChange) drainQueuedAnswer(get, set);
   set({
     debuggering: newChange,
   });
@@ -1310,7 +1503,6 @@ export {
   handleEnterKey,
   handleStopConversation,
   deleteAllChat,
-  handleWorkflowDeleteComparisons,
   resetNodesAndEdges,
   setChatList,
   setStartNodeParams,

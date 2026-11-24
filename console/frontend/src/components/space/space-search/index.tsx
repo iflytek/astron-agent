@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Input } from 'antd';
 import styles from './index.module.scss';
-import search from '@/assets/imgs/file/icon_zhishi_search.png';
+import { SearchOutlined } from '@ant-design/icons';
 import classNames from 'classnames';
 
 interface SpaceSearchProps {
@@ -69,18 +69,21 @@ const SpaceSearch: React.FC<SpaceSearchProps> = ({
         className
       )}
     >
-      <img
-        src={search}
+      <button
+        type="button"
         className={styles.searchIcon}
-        alt="搜索"
+        aria-label="搜索"
         onClick={handleSearch}
-      />
+      >
+        <SearchOutlined />
+      </button>
       <Input
         className={classNames(
           styles.searchInput,
           (expand || !retractable) && styles.expanded,
           !(expand || !retractable) && styles.collapsed
         )}
+        aria-label={placeholder}
         placeholder={expand || !retractable ? placeholder : ''}
         value={value}
         onChange={handleChange}

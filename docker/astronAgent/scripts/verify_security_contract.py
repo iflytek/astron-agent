@@ -13,6 +13,7 @@ import sys
 import tempfile
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 from typing import (
     Any,
     Callable,
@@ -40,6 +41,14 @@ WORKFLOW_PLACEHOLDER = "CHANGE_ME_WORKFLOW_INTERNAL_API_KEY"
 
 GENERATED_CREDENTIALS = (
     {
+        "volume": "console_signing_secrets",
+        "init_target": "/secrets/console",
+        "consumer_target": "/app/secrets/console",
+        "consumers": {
+            "console-hub": {"CONSOLE_SECRET_KEY_FILE": "/app/secrets/console/secret-key"},
+        },
+    },
+    {
         "volume": "workflow_internal_secrets",
         "init_target": "/secrets/workflow",
         "consumer_target": "/app/secrets/workflow",
@@ -54,7 +63,11 @@ GENERATED_CREDENTIALS = (
                     "/app/secrets/workflow/workflow-internal-api-key"
                 ),
             },
-            "console-hub": {},
+            "console-hub": {
+                "WORKFLOW_INTERNAL_API_KEY_FILE": (
+                    "/app/secrets/workflow/workflow-internal-api-key"
+                ),
+            },
         },
     },
     {
@@ -76,7 +89,9 @@ GENERATED_CREDENTIALS = (
                 "APP_MANAGE_PLAT_KEY_FILE": "/app/secrets/tenant/tenant-key",
                 "APP_MANAGE_PLAT_SECRET_FILE": ("/app/secrets/tenant/tenant-secret"),
             },
-            "console-hub": {},
+            "console-hub": {
+                "TENANT_SECRET_FILE": "/app/secrets/tenant/tenant-secret",
+            },
         },
     },
 )
@@ -96,8 +111,10 @@ FORBIDDEN_INLINE_CREDENTIALS = {
         "WORKFLOW_INTERNAL_API_KEY",
     ),
     "console-hub": (
+        "CONSOLE_SECRET_KEY",
         "TENANT_KEY",
         "TENANT_SECRET",
+        "TENANT_INTERNAL_API_KEY",
         "WORKFLOW_INTERNAL_API_KEY",
     ),
 }
@@ -108,12 +125,14 @@ CREDENTIALS = (
         "target": "/app/secrets/artifact",
         "file_env": "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE",
         "file_path": "/app/secrets/artifact/artifact-upload-token",
+        "init_target": "/secrets/artifact",
     },
     {
         "volume": "sandbox_runtime_credential_secrets",
         "target": "/app/secrets/runtime",
         "file_env": "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE",
         "file_path": "/app/secrets/runtime/sandbox-runtime-credential-token",
+        "init_target": "/secrets/runtime",
     },
 )
 
@@ -167,11 +186,12 @@ def _select_compose_command(compose_file: Path) -> Sequence[str]:
     )
 
 
-def _render_compose(compose_file: Path) -> Mapping[str, Any]:
+def _render_compose(compose_file: Path, environment: Optional[Mapping[str, str]] = None) -> Mapping[str, Any]:
     base_command = _select_compose_command(compose_file)
     completed = subprocess.run(
         list(base_command) + ["-f", compose_file.name, "config", "--format", "json"],
         cwd=str(compose_file.parent),
+        env={**os.environ, **(environment or {})},
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
@@ -185,6 +205,99 @@ def _render_compose(compose_file: Path) -> Mapping[str, Any]:
     if not isinstance(rendered, dict):
         raise GateError("Docker Compose config returned an unexpected JSON root")
     return rendered
+
+
+def validate_zero_configuration(compose_file: Path) -> None:
+    """Render without shell overrides or .env, then check connected defaults."""
+    command = list(_select_compose_command(compose_file))
+    clean_environment = {name: os.environ[name] for name in ("PATH", "HOME") if name in os.environ}
+    completed = subprocess.run(
+        command + ["--env-file", os.devnull, "-f", str(compose_file), "config", "--format", "json"],
+        cwd=str(compose_file.parent), env=clean_environment,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=False,
+    )
+    if completed.returncode or completed.stderr.strip():
+        raise GateError("bare Compose config failed or emitted configuration warnings")
+    config = json.loads(completed.stdout)
+    errors = validate_contract(config)
+    if errors:
+        raise GateError("bare Compose security contract failed")
+    services = config["services"]
+    hub = services["console-hub"]["environment"]
+    for name in ("CONSOLE_ALLOWED_HOSTS", "CONSOLE_PUBLIC_ORIGIN", "CONSOLE_CSRF_TRUSTED_ORIGINS", "CONSOLE_COOKIE_SECURE"):
+        if hub.get(name) != "":
+            raise GateError(f"bare Compose {name} must select automatic defaults")
+    expected_urls = {
+        "KNOWLEDGE_URL": "http://core-knowledge:20010/knowledge",
+        "TOOL_URL": "http://core-link:18888",
+        "SPARK_DB_URL": "http://core-database:7990",
+        "AGENT_URL": "http://core-agent:17870",
+        "TENANT_URL": "http://core-tenant:5052",
+    }
+    if any(hub.get(name) != value for name, value in expected_urls.items()):
+        raise GateError("bare Compose Console downstream URLs are incomplete")
+    if services["core-tenant"]["environment"]["DATABASE_URL"] != "(mysql:3306)/tenant":
+        raise GateError("bare Compose tenant database must use bundled MySQL")
+    if services["core-agent"]["environment"]["APP_AUTH_HOST"] != "core-tenant:5052":
+        raise GateError("bare Compose Agent authentication must use the tenant port")
+    redis_password = services["redis"]["environment"]["REDIS_PASSWORD"]
+    mysql_password = services["mysql"]["environment"]["MYSQL_ROOT_PASSWORD"]
+    for service in services.values():
+        environment = service.get("environment", {})
+        if "REDIS_PASSWORD" in environment and environment["REDIS_PASSWORD"] != redis_password:
+            raise GateError("bare Compose Redis client credentials disagree")
+        if "MYSQL_PASSWORD" in environment and environment["MYSQL_PASSWORD"] != mysql_password:
+            raise GateError("bare Compose MySQL client credentials disagree")
+        if "OSS_BUCKET_NAME" in environment and not environment["OSS_BUCKET_NAME"]:
+            raise GateError("bare Compose object-storage bucket is missing")
+        if "REDIS_DATABASE_CONSOLE" in environment and environment["REDIS_DATABASE_CONSOLE"] != "1":
+            raise GateError("bare Compose Console Redis database differs from .env.example")
+    workflow = services["core-workflow"]["environment"]
+    for name in ("KNOWLEDGE_BASE_URL", "PLUGIN_BASE_URL", "MCP_BASE_URL", "WORKFLOW_BASE_URL", "APP_MANAGE_PLAT_BASE_URL", "AGENT_BASE_URL", "PGSQL_BASE_URL", "RPA_BASE_URL"):
+        if not urlsplit(workflow[name]).port:
+            raise GateError("bare Compose workflow downstream port is missing")
+    if workflow["MCP_BASE_URL"] != "http://core-link:18888":
+        raise GateError("bare Compose workflow MCP must route through Core Link")
+    validate_builtin_tool_routing(services["core-link"]["environment"], "http://core-aitools:18668")
+
+
+def validate_builtin_tool_routing(environment: Mapping[str, Any], base_url: str) -> None:
+    expected = {
+        f"{base_url}/aitools/v1/{path}"
+        for path in ("smarttts", "image_generate", "image_understanding", "ocr")
+    }
+    endpoints = environment.get("PRIVATE_ENDPOINT_ALLOW_LIST", "").split(",")
+    if environment.get("AITOOLS_BASE_URL") != base_url or len(endpoints) != 4 or set(endpoints) != expected:
+        raise GateError("Link built-in catalog URL and four exact private endpoints must agree")
+
+
+def validate_builtin_tool_overrides(compose_file: Path) -> None:
+    for overrides, expected in (
+        ({"AITOOLS_BASE_URL": "", "CORE_AITOOLS_PORT": "28668"}, "http://core-aitools:28668"),
+        ({"AITOOLS_BASE_URL": "https://aitools.example.org", "CORE_AITOOLS_PORT": "28668"}, "https://aitools.example.org"),
+    ):
+        config = _render_compose(compose_file, {**overrides, "PRIVATE_ENDPOINT_ALLOW_LIST": ""})
+        validate_builtin_tool_routing(config["services"]["core-link"]["environment"], expected)
+    explicit = "http://private.example.org:8080/one-exact-path"
+    config = _render_compose(compose_file, {"PRIVATE_ENDPOINT_ALLOW_LIST": explicit})
+    if config["services"]["core-link"]["environment"].get("PRIVATE_ENDPOINT_ALLOW_LIST") != explicit:
+        raise GateError("Link explicit private endpoint configuration must be preserved")
+
+
+def validate_workflow_mcp_routing(compose_file: Path) -> None:
+    """Render overrides without starting containers or printing environment data."""
+    cases = (
+        ({"MCP_BASE_URL": "", "CORE_LINK_PORT": "28888"}, "http://core-link:28888"),
+        (
+            {"MCP_BASE_URL": "https://link.example.org", "CORE_LINK_PORT": "28888"},
+            "https://link.example.org",
+        ),
+    )
+    for overrides, expected in cases:
+        config = _render_compose(compose_file, overrides)
+        workflow = config["services"]["core-workflow"]["environment"]
+        if workflow.get("MCP_BASE_URL") != expected:
+            raise GateError("workflow MCP routing must preserve Link port and explicit URL overrides")
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -285,9 +398,7 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
             )
 
     command = init_service.get("command")
-    command_text = (
-        "\n".join(command) if isinstance(command, list) else str(command or "")
-    )
+    command_text = "\n".join(command) if isinstance(command, list) else str(command or "")
     for required_fragment in (
         "umask 077",
         "/dev/urandom",
@@ -338,9 +449,15 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
             for env_name, expected_path in expected_environment.items():
                 if environment.get(env_name) != expected_path:
                     errors.append(
-                        f"services.{service_name}.environment.{env_name}: "
-                        "missing or unexpected"
+                        f"services.{service_name}.environment.{env_name}: missing or unexpected"
                     )
+
+    for service_name, service in services.items():
+        if service_name not in (INTERNAL_CREDENTIAL_INIT, "console-hub") and any(
+            mount.get("source") == "console_signing_secrets"
+            for mount in service.get("volumes", []) if isinstance(mount, dict)
+        ):
+            errors.append(f"services.{service_name}.volumes: Console signing key must remain private")
 
     for service_name in INTERNAL_CREDENTIAL_CONSUMERS:
         service = _mapping(services.get(service_name))
@@ -369,13 +486,27 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
     for service_name in SERVICES:
         service = _mapping(services.get(service_name))
         environment = _mapping(service.get("environment"))
+        if "10001" not in [str(group) for group in service.get("group_add", [])]:
+            errors.append(f"services.{service_name}.group_add: missing credential read group")
 
         for credential in CREDENTIALS:
+            init_mounts = _mounts(init_service, credential["init_target"])
+            if (
+                len(init_mounts) != 1
+                or init_mounts[0].get("source") != credential["volume"]
+                or init_mounts[0].get("read_only", False)
+            ):
+                errors.append(
+                    f"services.{INTERNAL_CREDENTIAL_INIT}.volumes[{credential['init_target']}]: expected rw credential volume"
+                )
             env_name = credential["file_env"]
+            if env_name.removesuffix("_FILE") in environment:
+                errors.append(
+                    f"services.{service_name}.environment.{env_name}: expected file-only credential"
+                )
             if environment.get(env_name) != credential["file_path"]:
                 errors.append(
-                    f"services.{service_name}.environment.{env_name}: "
-                    "missing or unexpected"
+                    f"services.{service_name}.environment.{env_name}: missing or unexpected"
                 )
 
             target = credential["target"]
@@ -386,13 +517,10 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
                 continue
 
             mount = matching_mounts[0]
-            if (
-                mount.get("type") != "volume"
-                or mount.get("source") != credential["volume"]
-            ):
+            if mount.get("type") != "volume" or mount.get("source") != credential["volume"]:
                 errors.append(f"{mount_field}.source/type: unexpected named volume")
 
-            expected_read_only = service_name in CONSUMERS
+            expected_read_only = True
             actual_read_only = mount.get("read_only", False) is True
             if actual_read_only != expected_read_only:
                 expected_mode = "ro" if expected_read_only else "rw"
@@ -404,8 +532,7 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
         for env_name, expected_url in INTERNAL_URLS.items():
             if environment.get(env_name) != expected_url:
                 errors.append(
-                    f"services.{service_name}.environment.{env_name}: "
-                    "missing or unexpected"
+                    f"services.{service_name}.environment.{env_name}: missing or unexpected"
                 )
 
         hub_dependency = _mapping(
@@ -413,16 +540,24 @@ def validate_contract(config: Mapping[str, Any]) -> List[str]:
         )
         if hub_dependency.get("condition") != "service_healthy":
             errors.append(
-                f"services.{service_name}.depends_on.console-hub: "
-                "expected service_healthy"
+                f"services.{service_name}.depends_on.console-hub: expected service_healthy"
             )
         if hub_dependency.get("required") is False:
             errors.append(
-                f"services.{service_name}.depends_on.console-hub.required: "
-                "must not be false"
+                f"services.{service_name}.depends_on.console-hub.required: must not be false"
             )
 
     hub = _mapping(services.get("console-hub"))
+    # Django settings always include internal service names; blank public hosts
+    # intentionally select automatic localhost/IP handling.
+    allowed_hosts = ["console-hub", "localhost", "127.0.0.1"] + str(
+        _mapping(hub.get("environment")).get("CONSOLE_ALLOWED_HOSTS", "")
+    ).split(",")
+    for service_name in CONSUMERS:
+        environment = _mapping(_mapping(services.get(service_name)).get("environment"))
+        for name in (*INTERNAL_URLS, "MODEL_RUNTIME_CONFIG_URL"):
+            if name in environment and urlsplit(environment[name]).hostname not in allowed_hosts:
+                errors.append("services.console-hub.environment.CONSOLE_ALLOWED_HOSTS: missing internal caller host")
     healthcheck = hub.get("healthcheck")
     healthcheck_field = "services.console-hub.healthcheck"
     if not isinstance(healthcheck, dict):
@@ -455,9 +590,7 @@ def _set_mount_mode(
     raise GateError("negative self-test fixture is incomplete")
 
 
-def _negative_cases() -> (
-    Sequence[Tuple[str, Callable[[MutableMapping[str, Any], str], None], str]]
-):
+def _negative_cases() -> Sequence[Tuple[str, Callable[[MutableMapping[str, Any], str], None], str]]:
     def wrong_token_path(config: MutableMapping[str, Any], marker: str) -> None:
         config["services"]["core-agent"]["environment"][
             "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN_FILE"
@@ -468,11 +601,23 @@ def _negative_cases() -> (
             "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE", None
         )
 
+    def missing_console_workflow_key(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"].pop(
+            "WORKFLOW_INTERNAL_API_KEY_FILE", None
+        )
+
     def writable_consumer(config: MutableMapping[str, Any], _marker: str) -> None:
         _set_mount_mode(config, "core-workflow", "/app/secrets/artifact", False)
 
-    def readonly_producer(config: MutableMapping[str, Any], _marker: str) -> None:
-        _set_mount_mode(config, "console-hub", "/app/secrets/runtime", True)
+    def missing_console_tenant_key(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"].pop("TENANT_SECRET_FILE", None)
+
+    def writable_console(config: MutableMapping[str, Any], _marker: str) -> None:
+        _set_mount_mode(config, "console-hub", "/app/secrets/runtime", False)
+
+    def missing_read_group(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"].pop("group_add", None)
+
 
     def wrong_internal_url(config: MutableMapping[str, Any], marker: str) -> None:
         config["services"]["core-agent"]["environment"][
@@ -515,23 +660,15 @@ def _negative_cases() -> (
     ) -> None:
         config["services"]["core-agent"]["environment"]["APP_AUTH_SECRET"] = marker
 
-    def missing_credential_init_dependency(
-        config: MutableMapping[str, Any], _marker: str
-    ) -> None:
-        config["services"]["core-tenant"]["depends_on"].pop(
-            INTERNAL_CREDENTIAL_INIT, None
+    def missing_credential_init_dependency(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["core-tenant"]["depends_on"].pop(INTERNAL_CREDENTIAL_INIT, None)
+
+    def wrong_credential_init_dependency(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["depends_on"][INTERNAL_CREDENTIAL_INIT]["condition"] = (
+            "service_started"
         )
 
-    def wrong_credential_init_dependency(
-        config: MutableMapping[str, Any], _marker: str
-    ) -> None:
-        config["services"]["console-hub"]["depends_on"][INTERNAL_CREDENTIAL_INIT][
-            "condition"
-        ] = "service_started"
-
-    def merged_generated_volumes(
-        config: MutableMapping[str, Any], _marker: str
-    ) -> None:
+    def merged_generated_volumes(config: MutableMapping[str, Any], _marker: str) -> None:
         workflow_name = config["volumes"]["workflow_internal_secrets"].get(
             "name", "workflow_internal_secrets"
         )
@@ -568,7 +705,29 @@ def _negative_cases() -> (
             "true",
         ]
 
+    def writable_console_key(config: MutableMapping[str, Any], _marker: str) -> None:
+        _set_mount_mode(config, "console-hub", "/app/secrets/console", False)
+
+    def missing_console_key_file(config: MutableMapping[str, Any], _marker: str) -> None:
+        config["services"]["console-hub"]["environment"].pop("CONSOLE_SECRET_KEY_FILE", None)
+
+    def inline_console_key(config: MutableMapping[str, Any], marker: str) -> None:
+        config["services"]["console-hub"]["environment"]["CONSOLE_SECRET_KEY"] = marker
+
     return (
+        ("writable-console-key", writable_console_key, "services.console-hub.volumes[/app/secrets/console].mode"),
+        ("missing-console-key-file", missing_console_key_file, "services.console-hub.environment.CONSOLE_SECRET_KEY_FILE"),
+        ("inline-console-key", inline_console_key, "services.console-hub.environment.CONSOLE_SECRET_KEY"),
+        (
+            "missing-console-workflow-key-file",
+            missing_console_workflow_key,
+            "services.console-hub.environment.WORKFLOW_INTERNAL_API_KEY_FILE",
+        ),
+        (
+            "missing-console-tenant-secret-file",
+            missing_console_tenant_key,
+            "services.console-hub.environment.TENANT_SECRET_FILE",
+        ),
         (
             "wrong-token-file-path",
             wrong_token_path,
@@ -585,10 +744,11 @@ def _negative_cases() -> (
             "services.core-workflow.volumes[/app/secrets/artifact].mode",
         ),
         (
-            "readonly-producer-volume",
-            readonly_producer,
+            "writable-console-volume",
+            writable_console,
             "services.console-hub.volumes[/app/secrets/runtime].mode",
         ),
+        ("missing-credential-read-group", missing_read_group, "services.console-hub.group_add"),
         (
             "wrong-internal-url",
             wrong_internal_url,
@@ -698,20 +858,28 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
 
     service = _mapping(_mapping(config.get("services")).get(INTERNAL_CREDENTIAL_INIT))
     command = service.get("command")
-    if (
-        not isinstance(command, list)
-        or len(command) < 3
-        or not isinstance(command[2], str)
-    ):
+    if not isinstance(command, list) or len(command) < 3 or not isinstance(command[2], str):
         raise GateError("credential lifecycle shell command is incomplete")
 
     with tempfile.TemporaryDirectory(prefix="astron-credential-") as temporary:
         root = Path(temporary)
         workflow_directory = root / "workflow"
         tenant_directory = root / "tenant"
+        sandbox_files = (
+            root / "artifact" / "artifact-upload-token",
+            root / "runtime" / "sandbox-runtime-credential-token",
+        )
         script = command[2].replace("$$", "$")
         script = script.replace("/secrets/workflow", str(workflow_directory))
         script = script.replace("/secrets/tenant", str(tenant_directory))
+        script = script.replace("/secrets/artifact", str(root / "artifact"))
+        script = script.replace("/secrets/runtime", str(root / "runtime"))
+        script = script.replace("/secrets/console", str(root / "console"))
+        console_file = root / "console" / "secret-key"
+        # Unprivileged host tests cover bytes/modes, not kernel ownership. The
+        # Docker lifecycle below executes the unmodified chown as root and reads
+        # the volume from UID/GID 10001; it is required in the Linux CI gate.
+        script = 'chown() { [ "$1" = "0:10001" ]; }\n' + script
 
         def run_initializer(
             environment: Mapping[str, str], should_succeed: bool
@@ -719,7 +887,13 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
             completed = subprocess.run(
                 ["/bin/sh", "-ec", script],
                 cwd=temporary,
-                env={**os.environ, **environment},
+                env={
+                    **os.environ,
+                    "CONFIGURED_CONSOLE_SECRET_KEY": "",
+                    "CONFIGURED_ARTIFACT_TOKEN": "",
+                    "CONFIGURED_RUNTIME_TOKEN": "",
+                    **environment,
+                },
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 universal_newlines=True,
@@ -824,6 +998,78 @@ def exercise_shell_credential_lifecycle(config: Mapping[str, Any]) -> None:
         if snapshot() != initial_snapshot:
             raise GateError("credential shell lifecycle did not reuse generated values")
 
+        def console_snapshot() -> bytes:
+            if (
+                console_file.stat().st_mode & 0o777 != 0o440
+                or console_file.parent.stat().st_mode & 0o777 != 0o750
+            ):
+                raise GateError("Console signing key permissions are incorrect")
+            value = console_file.read_bytes()
+            if len(value.strip()) < 50 or len(value.splitlines()) != 1:
+                raise GateError("Console signing key is malformed")
+            return value
+
+        first_console = console_snapshot()
+        run_initializer(empty_environment, True)
+        if console_snapshot() != first_console:
+            raise GateError("Console signing key changed on restart")
+        run_initializer({**empty_environment, "CONFIGURED_CONSOLE_SECRET_KEY": "X" * 64}, False)
+        if console_snapshot() != first_console:
+            raise GateError("conflicting Console override changed the signing key")
+        console_file.unlink()
+        # Import an existing deployment key, including punctuation used by Django.
+        existing_key = "existing-deployment-secret-!@#$%^&*()_+" * 2
+        override = {**empty_environment, "CONFIGURED_CONSOLE_SECRET_KEY": existing_key}
+        run_initializer(override, True)
+        imported_console = console_snapshot()
+        if imported_console != (existing_key + "\n").encode():
+            raise GateError("Console environment signing key was not imported")
+        run_initializer(override, True)
+        run_initializer(empty_environment, True)
+        if console_snapshot() != imported_console:
+            raise GateError("imported Console key changed after removing the override")
+        for invalid in ("short", "X" * 64 + "\nY"):
+            console_file.unlink(missing_ok=True)
+            run_initializer({**empty_environment, "CONFIGURED_CONSOLE_SECRET_KEY": invalid}, False)
+            if console_file.exists():
+                raise GateError("invalid Console signing key was persisted")
+        console_file.symlink_to(sandbox_files[0])
+        run_initializer(empty_environment, False)
+        console_file.unlink()
+        console_file.write_text("corrupt")
+        run_initializer(empty_environment, False)
+        if console_file.read_text() != "corrupt":
+            raise GateError("corrupt Console key was silently rotated")
+        console_file.unlink()
+        run_initializer(empty_environment, True)
+
+        def sandbox_snapshot() -> Tuple[bytes, ...]:
+            for path in sandbox_files:
+                if (
+                    path.stat().st_mode & 0o777 != 0o440
+                    or path.parent.stat().st_mode & 0o777 != 0o750
+                ):
+                    raise GateError("sandbox credential permissions are incorrect")
+            return tuple(path.read_bytes() for path in sandbox_files)
+
+        generated_sandbox = sandbox_snapshot()
+        if len(set(generated_sandbox)) != 2 or any(
+            len(value.strip()) < 32 for value in generated_sandbox
+        ):
+            raise GateError("sandbox generated credentials are missing or not independent")
+        # Simulate the exact old Java modes and retain bytes including newline.
+        retained_sandbox = (b"A" * 64 + b"\n", b"R" * 64 + b"\n")
+        for path, value in zip(sandbox_files, retained_sandbox):
+            path.chmod(0o600)
+            path.write_bytes(value)
+            path.parent.chmod(0o700)
+        run_initializer(empty_environment, True)
+        if sandbox_snapshot() != retained_sandbox:
+            raise GateError("sandbox migration changed retained credential bytes")
+        run_initializer({**empty_environment, "CONFIGURED_ARTIFACT_TOKEN": "X" * 64}, False)
+        if sandbox_snapshot() != retained_sandbox:
+            raise GateError("conflicting sandbox override changed retained credentials")
+
         legacy_files = (
             (workflow_directory / "workflow-internal-api-key", WORKFLOW_PLACEHOLDER),
             (tenant_directory / "tenant-key", LEGACY_TENANT_KEY),
@@ -903,9 +1149,12 @@ def _credential_environment(
     workflow_key: str = "", tenant_key: str = "", tenant_secret: str = ""
 ) -> Mapping[str, str]:
     return {
+        "CONSOLE_SECRET_KEY": "",
         "WORKFLOW_INTERNAL_API_KEY": workflow_key,
         "TENANT_KEY": tenant_key,
         "TENANT_SECRET": tenant_secret,
+        "SKILL_SANDBOX_ARTIFACT_UPLOAD_TOKEN": "",
+        "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN": "",
     }
 
 
@@ -994,13 +1243,15 @@ def exercise_credential_lifecycle(compose_file: Path) -> None:
                 f"credential lifecycle initializer did not {expectation} as expected"
             )
 
-    def run_volume_script(script: str) -> subprocess.CompletedProcess[str]:
+    def run_volume_script(script: str, user: str = "0:0") -> subprocess.CompletedProcess[str]:
         return _run_quiet(
             prefix
             + [
                 "run",
                 "--rm",
                 "--no-deps",
+                "--user",
+                user,
                 "--entrypoint",
                 "/bin/sh",
                 INTERNAL_CREDENTIAL_INIT,
@@ -1027,10 +1278,82 @@ def exercise_credential_lifecycle(compose_file: Path) -> None:
     empty_environment = _credential_environment()
     try:
         run_initializer(empty_environment, True)
+        sandbox_read = r"""
+for directory in /secrets/artifact /secrets/runtime; do
+  [ "$(stat -c '%u:%g:%a' "$directory")" = '0:10001:750' ] || exit 50
+done
+for file in /secrets/artifact/artifact-upload-token /secrets/runtime/sandbox-runtime-credential-token; do
+  [ "$(stat -c '%u:%g:%a' "$file")" = '0:10001:440' ] || exit 51
+  [ -r "$file" ] && [ ! -w "$file" ] || exit 52
+  [ "$(wc -c < "$file")" -ge 32 ] || exit 53
+  sha256sum "$file" | cut -d ' ' -f 1
+done
+"""
+
+        def sandbox_snapshot() -> str:
+            # Actual kernel access checks for Console and a different consumer UID.
+            console = run_volume_script(sandbox_read, "10001:10001")
+            consumer = run_volume_script(sandbox_read, "20002:10001")
+            if console.returncode or consumer.returncode or console.stdout != consumer.stdout:
+                raise GateError("sandbox credentials are not readable by non-root consumers")
+            hashes = console.stdout.splitlines()
+            if len(hashes) != 2 or hashes[0] == hashes[1]:
+                raise GateError("sandbox credentials are not independent")
+            return console.stdout
+
+        console_read = r"""
+[ "$(stat -c '%u:%g:%a' /secrets/console)" = '0:10001:750' ] || exit 54
+file=/secrets/console/secret-key
+[ "$(stat -c '%u:%g:%a' "$file")" = '0:10001:440' ] || exit 55
+[ -r "$file" ] && [ ! -w "$file" ] || exit 56
+[ "$(wc -c < "$file")" -ge 50 ] || exit 57
+sha256sum "$file" | cut -d ' ' -f 1
+"""
+        def console_snapshot() -> str:
+            completed = run_volume_script(console_read, "10001:10001")
+            if completed.returncode or not re.fullmatch(r"[0-9a-f]{64}\n", completed.stdout):
+                raise GateError("Console signing key must be readable only through its restricted group")
+            outsider = run_volume_script("test ! -r /secrets/console/secret-key", "20002:20002")
+            if outsider.returncode:
+                raise GateError("Console signing key is readable outside its group")
+            return completed.stdout
+
+        first_console = console_snapshot()
+        first_sandbox = sandbox_snapshot()
         first_snapshot = snapshot()
         run_initializer(empty_environment, True)
         if snapshot() != first_snapshot:
             raise GateError("generated credentials were not reused on restart")
+        if console_snapshot() != first_console:
+            raise GateError("Console signing key changed on restart")
+        run_initializer({**empty_environment, "CONSOLE_SECRET_KEY": "X" * 64}, False)
+        if console_snapshot() != first_console:
+            raise GateError("Console conflicting override changed the signing key")
+        if sandbox_snapshot() != first_sandbox:
+            raise GateError("sandbox generated credentials changed on restart")
+
+        # Reproduce the old Java root-owned 0700/0600 volume state exactly.
+        seeded = run_volume_script("""
+chmod 0600 /secrets/artifact/artifact-upload-token /secrets/runtime/sandbox-runtime-credential-token
+printf '%s\\n' 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' > /secrets/artifact/artifact-upload-token
+printf '%s\\n' 'RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR' > /secrets/runtime/sandbox-runtime-credential-token
+chown -R 0:0 /secrets/artifact /secrets/runtime
+chmod 0700 /secrets/artifact /secrets/runtime
+""")
+        if seeded.returncode:
+            raise GateError("old sandbox volume fixture setup failed")
+        run_initializer(empty_environment, True)
+        expected_sandbox = (
+            "\n".join(hashlib.sha256(value * 64 + b"\n").hexdigest() for value in (b"A", b"R"))
+            + "\n"
+        )
+        if sandbox_snapshot() != expected_sandbox:
+            raise GateError("sandbox migration changed old token bytes")
+        run_initializer(
+            {**empty_environment, "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN": "X" * 64}, False
+        )
+        if sandbox_snapshot() != expected_sandbox:
+            raise GateError("sandbox conflict changed old token bytes")
 
         seed_legacy = f"""
 umask 077
@@ -1095,7 +1418,7 @@ printf '%s\\n' '{LEGACY_TENANT_SECRET}' > /secrets/tenant/tenant-secret
 
 def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
     default_compose_file = (
-        Path(__file__).resolve().parent.parent / "docker-compose-with-auth.yaml"
+        Path(__file__).resolve().parent.parent / "docker-compose.yaml"
     )
     parser = argparse.ArgumentParser(
         description="Verify sandbox credential and health contracts in rendered Compose JSON."
@@ -1104,7 +1427,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         "--compose-file",
         type=Path,
         default=default_compose_file,
-        help="Compose entrypoint (default: docker-compose-with-auth.yaml next to scripts/)",
+        help="Compose entrypoint (default: docker-compose.yaml next to scripts/)",
     )
     parser.add_argument(
         "--exercise-credential-lifecycle",
@@ -1125,6 +1448,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 1
 
     try:
+        validate_zero_configuration(compose_file)
+        validate_workflow_mcp_routing(compose_file)
+        validate_builtin_tool_overrides(compose_file)
         config = _render_compose(compose_file)
         errors = validate_contract(config)
         if errors:
@@ -1132,6 +1458,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 print(f"security contract gate: FAIL: {error}", file=sys.stderr)
             return 1
         run_negative_self_tests(config)
+        public_hosts = "public.example.org,198.51.100.8"
+        public_config = _render_compose(compose_file, {"CONSOLE_ALLOWED_HOSTS": public_hosts})
+        if public_config["services"]["console-hub"]["environment"]["CONSOLE_ALLOWED_HOSTS"] != public_hosts:
+            raise GateError("configured public hosts were not preserved")
+        tenant_config = _render_compose(compose_file, {
+            "CORE_TENANT_PORT": "15052", "TENANT_URL": "",
+        })
+        if tenant_config["services"]["console-hub"]["environment"].get("TENANT_URL") != "http://core-tenant:15052":
+            raise GateError("Console tenant URL must follow CORE_TENANT_PORT")
+        override_config = _render_compose(compose_file, {
+            "TENANT_URL": "https://tenant.example.org", "CORE_TENANT_PORT": "15052",
+        })
+        if override_config["services"]["console-hub"]["environment"].get("TENANT_URL") != "https://tenant.example.org":
+            raise GateError("explicit Console tenant URL was not preserved")
         exercise_shell_credential_lifecycle(config)
         if args.exercise_credential_lifecycle:
             exercise_credential_lifecycle(compose_file)
@@ -1147,8 +1487,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     print(
         "security contract gate: PASS "
-        f"(5 services, 4 independent credential volumes, "
-        f"{len(_negative_cases())} negative cases, shell lifecycle exercised"
+        f"(5 services, 5 independent credential volumes, "
+        f"{len(_negative_cases())} negative cases, bare Compose, shell lifecycle exercised"
         + (
             ", credential lifecycle exercised"
             if args.exercise_credential_lifecycle

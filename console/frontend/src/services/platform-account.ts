@@ -25,6 +25,18 @@ export async function savePlatformAccountConfig(
   return await http.put(`/api/platform-account/${type}`, config);
 }
 
+export function revealPlatformCredential(
+  type: PlatformAccountType,
+  field: string,
+  signal: AbortSignal
+): Promise<{ value: string }> {
+  return http.post(
+    `/api/platform-account/${type}/credential`,
+    { field },
+    { signal }
+  );
+}
+
 export async function getPlatformAccountRuntimeConfig(): Promise<PlatformAccountRuntimeConfig> {
   return await http.get('/api/platform-account/runtime-config');
 }

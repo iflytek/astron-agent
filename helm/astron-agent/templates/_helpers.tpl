@@ -48,59 +48,20 @@ app.kubernetes.io/name: {{ include "astron-agent.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-Create the name of the service account to use
-*/}}
-{{- define "astron-agent.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "astron-agent.fullname" .) .Values.serviceAccount.name }}
-{{- else }}
-{{- default "default" .Values.serviceAccount.name }}
-{{- end }}
-{{- end }}
-
-{{/*
-PostgreSQL host
-*/}}
-{{- define "astron-agent.postgresql.host" -}}
-{{- if .Values.postgresql.enabled }}
-{{- printf "%s-postgres" (include "astron-agent.fullname" .) }}
-{{- else }}
-{{- .Values.postgresql.external.host }}
-{{- end }}
-{{- end }}
-
-{{/*
-MySQL host
-*/}}
-{{- define "astron-agent.mysql.host" -}}
-{{- if .Values.mysql.enabled }}
-{{- printf "%s-mysql" (include "astron-agent.fullname" .) }}
-{{- else }}
-{{- .Values.mysql.external.host }}
-{{- end }}
-{{- end }}
-
-{{/*
-Redis host
-*/}}
-{{- define "astron-agent.redis.host" -}}
-{{- if .Values.redis.enabled }}
-{{- printf "%s-redis" (include "astron-agent.fullname" .) }}
-{{- else }}
-{{- .Values.redis.external.host }}
-{{- end }}
-{{- end }}
-
-{{/*
-Casdoor host
-*/}}
-{{- define "astron-agent.casdoor.host" -}}
-{{- if .Values.casdoor.enabled }}
-{{- printf "%s-casdoor" (include "astron-agent.fullname" .) }}
-{{- else }}
-{{- .Values.casdoor.external.host }}
-{{- end }}
+{{/* Wait for managed Services to have a reachable listener before starting the app. */}}
+{{- define "astron-agent.waitForDependencies" -}}
+- name: wait-for-dependencies
+  image: busybox:1.35
+  command:
+    - sh
+    - -ec
+    - |
+      {{- range $service, $port := . }}
+      until nc -z -w 2 {{ $service | quote }} {{ $port }}; do
+        echo "Waiting for {{ $service }}:{{ $port }}..."
+        sleep 5
+      done
+      {{- end }}
 {{- end }}
 
 {{/*
@@ -128,6 +89,20 @@ Core service URLs - 用于生成完整的服务 URL（包括协议和端口）
 
 {{- define "astron-agent.coreAgent.url" -}}
 {{- printf "http://%s-core-agent:%d" (include "astron-agent.fullname" .) (.Values.coreAgent.service.port | int) }}
+{{- end }}
+
+{{/* Link discovery and private HTTP exceptions must share the same AI Tools origin. */}}
+{{- define "astron-agent.coreLink.aitoolsUrl" -}}
+{{- default (include "astron-agent.coreAitools.url" .) .Values.coreLink.env.aitoolsBaseUrl | trimSuffix "/" -}}
+{{- end }}
+
+{{- define "astron-agent.coreLink.builtinEndpoints" -}}
+{{- $base := include "astron-agent.coreLink.aitoolsUrl" . -}}
+{{- $endpoints := list -}}
+{{- range $path := list "smarttts" "image_generate" "image_understanding" "ocr" -}}
+{{- $endpoints = append $endpoints (printf "%s/aitools/v1/%s" $base $path) -}}
+{{- end -}}
+{{- join "," $endpoints -}}
 {{- end }}
 
 {{- define "astron-agent.coreKnowledge.url" -}}
@@ -159,16 +134,47 @@ Core service URLs - 用于生成完整的服务 URL（包括协议和端口）
 {{- required "minio.auth.rootPasswordKey is required" (get $auth "rootPasswordKey") -}}
 {{- end }}
 
-{{/* Stable non-secret rollout marker for the shared object-storage Secret. */}}
+{{- define "astron-agent.minioManagedCredentials" -}}
+{{- if not (hasKey . "minioManagedCredentials") -}}
+{{- $user := .Values.minio.auth.rootUser | toString -}}
+{{- $password := .Values.minio.auth.rootPassword | toString -}}
+{{- if and (not $user) (not $password) -}}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace (include "astron-agent.minioSecretName" .) -}}
+{{- $data := dict -}}
+{{- if $existing -}}{{- $data = default (dict) $existing.data -}}{{- end -}}
+{{- $user = get $data (include "astron-agent.minioSecretUserKey" .) | b64dec -}}
+{{- $password = get $data (include "astron-agent.minioSecretPasswordKey" .) | b64dec -}}
+{{- if ne (include "astron-agent.minioCredentialsValid" (list $user $password)) "true" -}}
+{{- $user = randAlphaNum 24 -}}
+{{- $password = randAlphaNum 48 -}}
+{{- end -}}
+{{- else if ne (include "astron-agent.minioCredentialsValid" (list $user $password)) "true" -}}
+{{- fail "minio.auth.rootUser and minio.auth.rootPassword must be distinct strong credentials, or both empty for automatic generation" -}}
+{{- end -}}
+{{- $_ := set . "minioManagedCredentials" (dict "user" $user "password" $password) -}}
+{{- end -}}
+{{- .minioManagedCredentials | toJson -}}
+{{- end }}
+
+{{- define "astron-agent.minioCredentialsValid" -}}
+{{- $user := index . 0 -}}
+{{- $password := index . 1 -}}
+{{- and (ge (len $user) 8) (ge (len $password) 16) (ne $user $password)
+    (not (regexMatch "^(minioadmin|admin|administrator|root|changeme|change_me.*)$" (lower $user)))
+    (not (regexMatch "^(minioadmin|minioadmin123|admin|admin123|password|password123|changeme|change_me.*)$" (lower $password))) -}}
+{{- end }}
+
+{{/* Roll workloads when their shared credentials change. */}}
 {{- define "astron-agent.minioSecretChecksum" -}}
-{{- $auth := default (dict) .Values.minio.auth -}}
-{{- $existing := default "" (get $auth "existingSecret") | toString | trim -}}
-{{- if $existing -}}
-{{- printf "%s:%s:%s:%s" $existing (include "astron-agent.minioSecretUserKey" .) (include "astron-agent.minioSecretPasswordKey" .) (default "" (get $auth "existingSecretChecksum")) | sha256sum -}}
+{{- $auth := .Values.minio.auth -}}
+{{- $name := include "astron-agent.minioSecretName" . -}}
+{{- $userKey := include "astron-agent.minioSecretUserKey" . -}}
+{{- $passwordKey := include "astron-agent.minioSecretPasswordKey" . -}}
+{{- if $auth.existingSecret -}}
+{{- printf "%s:%s:%s:%s" $name $userKey $passwordKey $auth.existingSecretChecksum | sha256sum -}}
 {{- else -}}
-{{- $rootUser := required "minio.auth.rootUser is required when minio.auth.existingSecret is empty" (get $auth "rootUser") | toString -}}
-{{- $rootPassword := required "minio.auth.rootPassword is required when minio.auth.existingSecret is empty" (get $auth "rootPassword") | toString -}}
-{{- printf "%s:%s:%s:%s:%s" (include "astron-agent.minioSecretName" .) (include "astron-agent.minioSecretUserKey" .) (include "astron-agent.minioSecretPasswordKey" .) $rootUser $rootPassword | sha256sum -}}
+{{- $credentials := include "astron-agent.minioManagedCredentials" . | fromJson -}}
+{{- printf "%s:%s:%s:%s:%s" $name $userKey $passwordKey $credentials.user $credentials.password | sha256sum -}}
 {{- end -}}
 {{- end }}
 
@@ -179,6 +185,9 @@ Core service URLs - 用于生成完整的服务 URL（包括协议和端口）
 {{- $endpoint = printf "http://%s-minio:%d" (include "astron-agent.fullname" .) (.Values.minio.service.apiPort | int) -}}
 {{- else -}}
 {{- $external := default (dict) .Values.minio.external -}}
+{{- if not (trim .Values.minio.auth.existingSecret) -}}
+{{- fail "minio.auth.existingSecret is required when an enabled service uses external object storage" -}}
+{{- end -}}
 {{- $endpoint = required "minio.external.endpoint is required when minio.enabled=false and an enabled service uses object storage" (get $external "endpoint") | toString | trim -}}
 {{- end -}}
 {{- if not (regexMatch "^https?://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9._-]+)(:[0-9]+)?/?$" $endpoint) -}}
@@ -278,65 +287,19 @@ Validate the shared tenant bootstrap configuration. Credentials are capped at
 50 characters because Workflow's legacy app schema stores each value in a
 varchar(50). Exact published legacy defaults are never accepted as overrides.
 */}}
-{{- define "astron-agent.tenantBootstrapConfiguredKey" -}}
-{{- $config := default (dict) .Values.tenantBootstrap -}}
-{{- $rawKey := default "" (get $config "key") | toString -}}
-{{- $rawSecret := default "" (get $config "secret") | toString -}}
-{{- $external := default (dict) (get $config "existingSecret") -}}
-{{- $externalName := default "" (get $external "name") | toString | trim -}}
-{{- $key := $rawKey -}}
-{{- if and (not $rawKey) (not $rawSecret) (not $externalName) -}}
-{{- $consoleHub := default (dict) .Values.consoleHub -}}
-{{- $legacyEnv := default (dict) (get $consoleHub "env") -}}
-{{- $legacyKey := default "" (get $legacyEnv "tenantKey") | toString -}}
-{{- $legacySecret := default "" (get $legacyEnv "tenantSecret") | toString -}}
-{{- if not (and (eq $legacyKey "7b709739e8da44536127a333c7603a83") (eq $legacySecret "NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy")) -}}
-{{- $key = $legacyKey -}}
-{{- end -}}
-{{- end -}}
-{{- $key -}}
-{{- end }}
-
-{{- define "astron-agent.tenantBootstrapConfiguredSecret" -}}
-{{- $config := default (dict) .Values.tenantBootstrap -}}
-{{- $rawKey := default "" (get $config "key") | toString -}}
-{{- $rawSecret := default "" (get $config "secret") | toString -}}
-{{- $external := default (dict) (get $config "existingSecret") -}}
-{{- $externalName := default "" (get $external "name") | toString | trim -}}
-{{- $secret := $rawSecret -}}
-{{- if and (not $rawKey) (not $rawSecret) (not $externalName) -}}
-{{- $consoleHub := default (dict) .Values.consoleHub -}}
-{{- $legacyEnv := default (dict) (get $consoleHub "env") -}}
-{{- $legacyKey := default "" (get $legacyEnv "tenantKey") | toString -}}
-{{- $legacySecret := default "" (get $legacyEnv "tenantSecret") | toString -}}
-{{- if not (and (eq $legacyKey "7b709739e8da44536127a333c7603a83") (eq $legacySecret "NjhmY2NmM2NkZDE4MDFlNmM5ZjcyZjMy")) -}}
-{{- $secret = $legacySecret -}}
-{{- end -}}
-{{- end -}}
-{{- $secret -}}
-{{- end }}
-
 {{- define "astron-agent.tenantBootstrapValidate" -}}
 {{- $config := default (dict) .Values.tenantBootstrap -}}
 {{- $tenantID := default "680ab54f" (get $config "tenantId") | toString -}}
 {{- if ne $tenantID "680ab54f" -}}
 {{- fail "tenantBootstrap.tenantId must remain 680ab54f because persisted bootstrap data refers to this stable ID" -}}
 {{- end -}}
-{{- $rawKey := default "" (get $config "key") | toString -}}
-{{- $rawSecret := default "" (get $config "secret") | toString -}}
-{{- if ne (not $rawKey) (not $rawSecret) -}}
+{{- $key := default "" (get $config "key") | toString -}}
+{{- $secret := default "" (get $config "secret") | toString -}}
+{{- if ne (not $key) (not $secret) -}}
 {{- fail "tenantBootstrap.key and tenantBootstrap.secret must be set together" -}}
 {{- end -}}
-{{- $key := include "astron-agent.tenantBootstrapConfiguredKey" . -}}
-{{- $secret := include "astron-agent.tenantBootstrapConfiguredSecret" . -}}
 {{- $external := default (dict) (get $config "existingSecret") -}}
 {{- $externalName := default "" (get $external "name") | toString | trim -}}
-{{- if and $key (not $secret) -}}
-{{- fail "tenantBootstrap.key and tenantBootstrap.secret must be set together" -}}
-{{- end -}}
-{{- if and $secret (not $key) -}}
-{{- fail "tenantBootstrap.key and tenantBootstrap.secret must be set together" -}}
-{{- end -}}
 {{- if $key -}}
 {{- if or (lt (len $key) 32) (gt (len $key) 50) (not (regexMatch "^[A-Za-z0-9._~-]+$" $key)) -}}
 {{- fail "tenantBootstrap.key must contain 32-50 safe characters" -}}
@@ -370,8 +333,8 @@ varchar(50). Exact published legacy defaults are never accepted as overrides.
 {{- define "astron-agent.tenantBootstrapSecretName" -}}
 {{- include "astron-agent.tenantBootstrapValidate" . -}}
 {{- $config := default (dict) .Values.tenantBootstrap -}}
-{{- $key := include "astron-agent.tenantBootstrapConfiguredKey" . -}}
-{{- $secret := include "astron-agent.tenantBootstrapConfiguredSecret" . -}}
+{{- $key := default "" (get $config "key") | toString -}}
+{{- $secret := default "" (get $config "secret") | toString -}}
 {{- $external := default (dict) (get $config "existingSecret") -}}
 {{- $externalName := default "" (get $external "name") | toString | trim -}}
 {{- if or $key $secret (not $externalName) -}}
@@ -383,7 +346,7 @@ varchar(50). Exact published legacy defaults are never accepted as overrides.
 
 {{- define "astron-agent.tenantBootstrapSecretKeyKey" -}}
 {{- $config := default (dict) .Values.tenantBootstrap -}}
-{{- $key := include "astron-agent.tenantBootstrapConfiguredKey" . -}}
+{{- $key := default "" (get $config "key") | toString -}}
 {{- $external := default (dict) (get $config "existingSecret") -}}
 {{- $externalName := default "" (get $external "name") | toString | trim -}}
 {{- if or $key (not $externalName) -}}tenant-key{{- else -}}
@@ -393,7 +356,7 @@ varchar(50). Exact published legacy defaults are never accepted as overrides.
 
 {{- define "astron-agent.tenantBootstrapSecretSecretKey" -}}
 {{- $config := default (dict) .Values.tenantBootstrap -}}
-{{- $secret := include "astron-agent.tenantBootstrapConfiguredSecret" . -}}
+{{- $secret := default "" (get $config "secret") | toString -}}
 {{- $external := default (dict) (get $config "existingSecret") -}}
 {{- $externalName := default "" (get $external "name") | toString | trim -}}
 {{- if or $secret (not $externalName) -}}tenant-secret{{- else -}}
@@ -409,8 +372,8 @@ be regenerated. A valid managed pair is hashed and reused across live upgrades.
 {{- define "astron-agent.tenantBootstrapSecretChecksum" -}}
 {{- include "astron-agent.tenantBootstrapValidate" . -}}
 {{- $config := default (dict) .Values.tenantBootstrap -}}
-{{- $key := include "astron-agent.tenantBootstrapConfiguredKey" . -}}
-{{- $secret := include "astron-agent.tenantBootstrapConfiguredSecret" . -}}
+{{- $key := default "" (get $config "key") | toString -}}
+{{- $secret := default "" (get $config "secret") | toString -}}
 {{- $external := default (dict) (get $config "existingSecret") -}}
 {{- $externalName := default "" (get $external "name") | toString | trim -}}
 {{- $secretName := include "astron-agent.tenantBootstrapSecretName" . -}}

@@ -1,6 +1,13 @@
+import { useWorkflowExecutionView } from '../../hooks/use-workflow-execution-view';
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, message, Spin } from 'antd';
+import {
+  CloseOutlined,
+  PlusOutlined,
+  SendOutlined,
+  StopOutlined,
+} from '@ant-design/icons';
 import { cloneDeep } from 'lodash';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
@@ -10,16 +17,17 @@ import {
   generateDefaultInput,
   generateValidationSchema,
 } from '@/components/workflow/utils/reactflowUtils';
-import DeleteChatHistory from '@/components/workflow/modal/delete-chat-history';
 import ChatContent from './components/chat-content';
 import ChatInput from './components/chat-input';
-import { getPublicResult } from '@/services/common';
 import useChatStore from '@/components/workflow/store/use-chat-store';
 import type { FlowType } from '@/components/workflow/types';
 import type { WorkflowNode } from '@/components/workflow/types/domain';
 import type { ChatStoreType } from '@/components/workflow/types/zustand/chat';
-import { appendChatReply, readConfigObject } from './chat-state';
-import useChat from '@/hooks/use-chat';
+import {
+  appendChatReply,
+  createStartInputInitializer,
+  readConfigObject,
+} from './chat-state';
 import useChatStores from '@/store/chat-store';
 // 类型导入
 import {
@@ -30,7 +38,9 @@ import {
 
 // 从统一的图标管理中导入
 import { Icons } from '@/components/workflow/icons';
-import VmsInteractionCmp from '@/components/vms-interaction-cmp';
+import VmsInteractionCmp, {
+  type VirtualAvatarHandle,
+} from '@/components/vms-interaction-cmp';
 import './index.scss';
 // 获取 Chat Debugger 模块的图标
 const icons = Icons.chatDebugger;
@@ -55,27 +65,9 @@ const initInterruptChat: InterruptChatType = {
   needReply: true,
 };
 
-interface VirtualAvatarHandle {
-  instance?: {
-    writeText: (
-      text: string,
-      options?: {
-        tts?: { vcn: string };
-        avatar_dispatch?: { interactive_mode: number };
-      }
-    ) => Promise<unknown>;
-  };
-  dispose: () => void;
-  initAvatar: (options: {
-    sdkAvatarInfo: { avatar_id: string };
-    sdkTTSInfo: { vcn: string };
-  }) => Promise<void>;
-}
-
 type ChatFooterProps = Pick<
   ChatStoreType,
   | 'debuggering'
-  | 'setDeleteAllModal'
   | 'handleResumeChat'
   | 'resetNodesAndEdges'
   | 'handleRunDebugger'
@@ -91,7 +83,6 @@ type ChatFooterProps = Pick<
 const ChatFooter = ({
   trialRun,
   debuggering,
-  setDeleteAllModal,
   t,
   clearData,
   handleResumeChat,
@@ -102,35 +93,28 @@ const ChatFooter = ({
   userInput,
 }: ChatFooterProps): React.ReactElement | null => {
   const canRunDebugger = useChatStore(state => state.canRunDebugger);
-  const canRunChat = useMemo(
-    () => canRunDebugger(),
-    [debuggering, startNodeParams]
-  );
+  const stopRequested = useChatStore(state => state.stopRequested);
+  const historyStatus = useChatStore(state => state.historyStatus);
+  const canRunChat = canRunDebugger();
   if (!trialRun) return null;
   return (
-    <div className="flex items-center justify-between mt-4 px-5">
-      {!debuggering ? (
-        <Button
-          type="text"
-          className="origin-btn px-[26px]"
-          onClick={() => setDeleteAllModal(true)}
-        >
-          {t('workflow.nodes.chatDebugger.clearDialogue')}
-        </Button>
-      ) : (
-        <div className="h-1"></div>
-      )}
+    <div className="workflow-debugger-footer">
       <div className="flex items-center gap-2.5">
-        <Button
-          type="text"
-          className="origin-btn px-[24px]"
-          onClick={() => clearData()}
-        >
-          {t('common.cancel')}
-        </Button>
+        {(debuggering || interruptChat.interrupt) && (
+          <Button
+            icon={<StopOutlined />}
+            disabled={stopRequested}
+            loading={stopRequested}
+            onClick={() => clearData()}
+          >
+            {stopRequested ? '正在停止…' : '停止运行'}
+          </Button>
+        )}
         <Button
           type="primary"
-          className="px-[24px] flex items-center gap-2"
+          className="workflow-chat-send"
+          loading={historyStatus === 'loading'}
+          icon={<SendOutlined />}
           onClick={() => {
             if (startNodeParams?.length === 1 || interruptChat?.interrupt) {
               if (interruptChat?.interrupt) {
@@ -139,7 +123,7 @@ const ChatFooter = ({
                 const { nodes, edges } = resetNodesAndEdges();
                 handleRunDebugger(nodes, edges, [
                   {
-                    name: 'AGENT_USER_INPUT',
+                    name: startNodeParams[0]?.name || 'AGENT_USER_INPUT',
                     type: 'string',
                     default: userInput,
                     description: t(
@@ -159,7 +143,6 @@ const ChatFooter = ({
           }}
           disabled={!canRunChat}
         >
-          <img src={icons.trialRun} className="w-3 h-3" alt="" />
           <span>{t('workflow.nodes.chatDebugger.send')}</span>
         </Button>
       </div>
@@ -171,21 +154,16 @@ const useChatDebuggerEffect = (
   currentFlow: FlowType | undefined,
   open: boolean,
   startNode: WorkflowNode | undefined,
-  setShowChatDebuggerPage: (show: boolean) => void,
   setStartNodeParams: ChatStoreType['setStartNodeParams'],
   vmsInteractionCmpRef: React.RefObject<VirtualAvatarHandle>,
   vmsInteractiveRefStatus: string
 ): void => {
   const isMounted = useRef<boolean>(false);
-  const historyVersion = useFlowsManager(state => state.historyVersion);
+  const initializeInputs = useRef(createStartInputInitializer());
   const flowResult = useFlowsManager(state => state.flowResult);
-  const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const setInterruptChat = useChatStore(state => state.setInterruptChat);
   const clearNodeStatus = useChatStore(state => state.clearNodeStatus);
   const handleSaveDialogue = useChatStore(state => state.handleSaveDialogue);
-  const handleWorkflowDeleteComparisons = useChatStore(
-    state => state.handleWorkflowDeleteComparisons
-  );
   const debuggering = useChatStore(state => state.debuggering);
   const buildPassRef = useChatStore(state => state.buildPassRef);
   const getTextQueueContent = useChatStore(state => state.getTextQueueContent);
@@ -193,6 +171,10 @@ const useChatDebuggerEffect = (
   const isChatEnd = useChatStore(state => state.isChatEnd);
   const setDebuggering = useChatStore(state => state.setDebuggering);
   const getDialogues = useChatStore(state => state.getDialogues);
+  const historyVersion = useFlowsManager(state => state.historyVersion);
+  const historyVersionNum = useFlowsManager(
+    state => state.historyVersionData?.versionNum
+  );
   const setChatList = useChatStore(state => state.setChatList);
   const chatInfoRef = useChatStore(state => state.chatInfoRef);
   const interruptChat = useChatStore(state => state.interruptChat);
@@ -205,7 +187,6 @@ const useChatDebuggerEffect = (
   useEffect(() => {
     if (!flowResult?.status) {
       controllerRef?.abort();
-      handleWorkflowDeleteComparisons();
       setWsMessageStatus('end');
       setInterruptChat({ ...initInterruptChat });
       setNodes(old => {
@@ -226,23 +207,24 @@ const useChatDebuggerEffect = (
   }, [flowResult?.status, currentFlow?.flowId]);
   useEffect(() => {
     currentFlow?.id && getDialogues(currentFlow?.id, true);
-  }, [currentFlow?.id]);
+  }, [currentFlow?.id, historyVersion, historyVersionNum]);
   useEffect(() => {
     const handleBeforeUnload = (): void => {
       useChatStore.getState().controllerRef?.abort();
-      handleWorkflowDeleteComparisons();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return (): void => {
       clearNodeStatus();
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleWorkflowDeleteComparisons();
       useChatStore.getState().controllerRef?.abort();
     };
   }, [currentFlow?.flowId]);
   useEffect(() => {
-    open &&
-      !isMounted.current &&
+    initializeInputs.current(
+      open,
+      currentFlow?.flowId,
+      startNode?.data?.outputs
+    ) &&
       setStartNodeParams(
         startNode?.data?.outputs?.map(input => {
           const errorMsg =
@@ -276,7 +258,7 @@ const useChatDebuggerEffect = (
           };
         }) || []
       );
-  }, [startNode, open]);
+  }, [startNode, open, currentFlow?.flowId]);
   useEffect(() => {
     if (isMounted.current) {
       !debuggering && buildPassRef && handleSaveDialogue();
@@ -284,30 +266,6 @@ const useChatDebuggerEffect = (
       isMounted.current = true;
     }
   }, [debuggering]);
-  useEffect(() => {
-    if (historyVersion && historyVersionData?.name && currentFlow?.flowId) {
-      const params = {
-        flowId: currentFlow?.flowId,
-        name: historyVersionData?.name,
-      };
-      getPublicResult(params)
-        .then(data => {
-          setShowChatDebuggerPage(
-            Array.isArray(data) &&
-              data.some(
-                (item: unknown) =>
-                  typeof item === 'object' &&
-                  item !== null &&
-                  'publishResult' in item &&
-                  item.publishResult === '成功'
-              )
-          );
-        })
-        .catch(error => {
-          message.error('获取发布结果详情失败:', error);
-        });
-    }
-  }, [historyVersion, historyVersionData, currentFlow?.flowId]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
     if (debuggering) {
@@ -410,6 +368,10 @@ const useChatDebuggerContent = ({
   }, [nodes]);
   const talkAgentConfig = useMemo(() => {
     const config = readConfigObject(currentFlow?.flowConfig);
+    const sceneMode = Number(config.sceneMode) === 1 ? 1 : 0;
+    const sceneId = typeof config.sceneId === 'string' ? config.sceneId : '';
+    const callSceneId =
+      typeof config.callSceneId === 'string' ? config.callSceneId : '';
     return {
       interactType:
         typeof config.interactType === 'number' ||
@@ -417,7 +379,12 @@ const useChatDebuggerContent = ({
           ? config.interactType
           : undefined,
       sceneEnable: config.sceneEnable,
-      sceneId: typeof config.sceneId === 'string' ? config.sceneId : undefined,
+      sceneMode,
+      sceneId,
+      callSceneId,
+      // Legacy call avatars belong to SparkOS, not the Avatar SDK asset catalog.
+      // Retain their configuration, but never send them or fall back to another face.
+      avatarId: sceneMode === 0 ? sceneId : '',
       vcn: typeof config.vcn === 'string' ? config.vcn : '',
     };
   }, [currentFlow?.flowConfig]);
@@ -434,13 +401,10 @@ export function ChatDebuggerContent({
   open,
   setOpen,
 }: ChatDebuggerContentProps): React.ReactElement {
-  const { handleFlowToChat } = useChat();
   const { t } = useTranslation();
-  const currentFlow = useFlowsManager(state => state.currentFlow);
+  const currentFlow = useWorkflowExecutionView();
   const userInput = useChatStore(state => state.userInput);
   const setUserInput = useChatStore(state => state.setUserInput);
-  const historyVersion = useFlowsManager(state => state.historyVersion);
-  const historyVersionData = useFlowsManager(state => state.historyVersionData);
   const chatType = useChatStore(state => state.chatType);
   const startNodeParams = useChatStore(state => state.startNodeParams);
   const setStartNodeParams = useChatStore(state => state.setStartNodeParams);
@@ -449,12 +413,12 @@ export function ChatDebuggerContent({
   const debuggering = useChatStore(state => state.debuggering);
   const userWheel = useChatStore(state => state.userWheel);
   const setUserWheel = useChatStore(state => state.setUserWheel);
-  const deleteAllModal = useChatStore(state => state.deleteAllModal);
-  const setDeleteAllModal = useChatStore(state => state.setDeleteAllModal);
   const suggestLoading = useChatStore(state => state.suggestLoading);
   const suggestProblem = useChatStore(state => state.suggestProblem);
   const interruptChat = useChatStore(state => state.interruptChat);
   const deleteAllChat = useChatStore(state => state.deleteAllChat);
+  const historyStatus = useChatStore(state => state.historyStatus);
+  const getDialogues = useChatStore(state => state.getDialogues);
   const clearData = useChatStore(state => state.clearData);
   const handleResumeChat = useChatStore(state => state.handleResumeChat);
   const resetNodesAndEdges = useChatStore(state => state.resetNodesAndEdges);
@@ -466,16 +430,15 @@ export function ChatDebuggerContent({
   const handleChatTypeChange = useChatStore(
     state => state.handleChatTypeChange
   );
-  const [showChatDebuggerPage, setShowChatDebuggerPage] =
-    useState<boolean>(true);
-  const { startNode, trialRun, multiParams, xfYunBot, talkAgentConfig } =
-    useChatDebuggerContent({
-      currentFlow,
-    });
+  const { startNode, trialRun, talkAgentConfig } = useChatDebuggerContent({
+    currentFlow,
+  });
   const interactType = Number(talkAgentConfig?.interactType);
   const hasVirtualScene = talkAgentConfig?.sceneEnable === 1;
   const [callStatus, setCallStatus] = useState('hangup');
   const [loadingVms, setLoadingVms] = useState<boolean>(false);
+  const [avatarError, setAvatarError] = useState('');
+  const [avatarRetry, setAvatarRetry] = useState(0);
   const vmsInteractionCmpRef = useRef<VirtualAvatarHandle>(null);
   const vmsInteractiveRefStatus = useChatStores(
     state => state.vmsInteractiveRefStatus
@@ -498,87 +461,84 @@ export function ChatDebuggerContent({
       handleChatTypeChange('text');
       setCallStatus('hangup');
     }
-    sdkTTSInfo.vcn = talkAgentConfig?.vcn;
-    //如果开启了虚拟人，可能是语音通话虚拟人，也可能是语音通话，但是都需要初始化虚拟人必要的参数
-    if (!hasVirtualScene) {
-      vmsInteractionCmpRef?.current?.instance &&
-        vmsInteractionCmpRef?.current?.dispose();
-      sdkAvatarInfo.avatar_id = '';
-      setVmsInteractiveRefStatus('init');
-      chatAnswer = '';
-      return;
+  }, [interactType, handleChatTypeChange, open]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const avatar = vmsInteractionCmpRef.current;
+    // This invalidates both a ready SDK and any pending signature/start request.
+    avatar?.dispose();
+    sdkAvatarInfo.avatar_id = '';
+    sdkTTSInfo.vcn = talkAgentConfig.vcn;
+    chatAnswer = '';
+    setAvatarError('');
+    setLoadingVms(false);
+    const cleanup = (): void => {
+      cancelled = true;
+      avatar?.dispose();
+    };
+    if (!open || chatType !== 'vms' || !hasVirtualScene) return cleanup;
+    if (talkAgentConfig.sceneMode === 1) {
+      setAvatarError(
+        '旧通话形象不支持当前虚拟人播放，请在设置中选择目录形象。'
+      );
+      return cleanup;
     }
-    if (open) {
-      setTimeout(() => {
+    if (!talkAgentConfig.avatarId) {
+      setAvatarError('所选模式未配置虚拟人形象，请先完成设置。');
+      return cleanup;
+    }
+    if (!avatar) {
+      setAvatarError('虚拟人连接尚未就绪，请重试。');
+      return cleanup;
+    }
+    const voice = { vcn: talkAgentConfig.vcn };
+    void avatar
+      .initAvatar({
+        sdkAvatarInfo: { avatar_id: talkAgentConfig.avatarId },
+        sdkTTSInfo: voice,
+      })
+      .then(async started => {
+        if (cancelled || !started) return;
+        sdkAvatarInfo.avatar_id = talkAgentConfig.avatarId;
+        const advancedConfig = readConfigObject(currentFlow?.advancedConfig);
+        const prologue = advancedConfig.prologue as
+          | { enabled?: boolean; prologueText?: unknown }
+          | undefined;
         if (
-          sdkAvatarInfo.avatar_id !== talkAgentConfig?.sceneId &&
-          talkAgentConfig?.sceneId
+          prologue?.enabled &&
+          typeof prologue.prologueText === 'string' &&
+          prologue.prologueText
         ) {
-          sdkAvatarInfo.avatar_id = talkAgentConfig?.sceneId;
-          // getSceneList().then(data => {
-          //   const list: SceneItem[] = Array.isArray(data)
-          //     ? (data as SceneItem[])
-          //     : [];
-          //   list.find(
-          //     (item: SceneItem) => item.sceneId === talkAgentConfig?.sceneId
-          //   )?.defaultVCN &&
-          //     (sdkTTSInfo.vcn =
-          //       list.find(
-          //         (item: SceneItem) => item.sceneId === talkAgentConfig?.sceneId
-          //       )?.defaultVCN || '');
-          if (talkAgentConfig?.sceneId) {
-            vmsInteractionCmpRef?.current?.instance &&
-              vmsInteractionCmpRef?.current?.dispose();
-            chatAnswer = '';
-            setVmsInteractiveRefStatus('init');
-          }
-          interactType === 2 &&
-            vmsInteractionCmpRef?.current?.initAvatar({
-              sdkAvatarInfo,
-              sdkTTSInfo,
-            });
-          setVmsInteractiveRefStatus('init');
-          //播放开场白
-          if (currentFlow?.advancedConfig) {
-            const advancedConfig = JSON.parse(currentFlow?.advancedConfig);
-            if (
-              advancedConfig?.prologue?.enabled &&
-              advancedConfig?.prologue?.prologueText
-            ) {
-              typeof advancedConfig?.prologue?.prologueText === 'string' &&
-                vmsInteractionCmpRef?.current?.instance?.writeText(
-                  advancedConfig?.prologue?.prologueText,
-                  {
-                    tts: sdkTTSInfo,
-                  }
-                );
-            }
-          }
-          // });
-        } else {
-          if (interactType !== 2) {
-            vmsInteractionCmpRef?.current?.instance &&
-              vmsInteractionCmpRef?.current?.dispose();
-            chatAnswer = '';
-          }
+          await avatar.instance?.writeText(prologue.prologueText, {
+            tts: voice,
+          });
         }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        avatar.dispose();
+        sdkAvatarInfo.avatar_id = '';
+        setVmsInteractiveRefStatus('error');
+        setAvatarError('虚拟人连接失败，请检查配置后重试。');
       });
-    }
+    return cleanup;
   }, [
+    currentFlow?.id,
     currentFlow?.advancedConfig,
-    handleChatTypeChange,
     hasVirtualScene,
-    interactType,
+    chatType,
     open,
+    avatarRetry,
     setVmsInteractiveRefStatus,
-    talkAgentConfig?.sceneId,
-    talkAgentConfig?.vcn,
+    talkAgentConfig.sceneMode,
+    talkAgentConfig.avatarId,
+    talkAgentConfig.vcn,
   ]);
   useChatDebuggerEffect(
     currentFlow,
     open,
     startNode,
-    setShowChatDebuggerPage,
     setStartNodeParams,
     vmsInteractionCmpRef,
     vmsInteractiveRefStatus
@@ -586,10 +546,9 @@ export function ChatDebuggerContent({
 
   const closeFunction = () => {
     clearData(setOpen);
-    vmsInteractionCmpRef?.current?.instance &&
-      vmsInteractionCmpRef?.current?.dispose();
+    vmsInteractionCmpRef.current?.dispose();
     sdkAvatarInfo.avatar_id = '';
-    setVmsInteractiveRefStatus('init');
+    setVmsInteractiveRefStatus('stop');
     chatAnswer = '';
   };
   useEffect(() => {
@@ -638,7 +597,9 @@ export function ChatDebuggerContent({
                 });
               chatAnswer = chatAnswer.slice(str.length, chatAnswer.length);
             } else {
-              vmsInteractionCmpRef?.current?.instance?.writeText(chatAnswer);
+              vmsInteractionCmpRef?.current?.instance?.writeText(chatAnswer, {
+                tts: sdkTTSInfo,
+              });
             }
           }
         }
@@ -647,23 +608,13 @@ export function ChatDebuggerContent({
   }, [chatList]);
   return (
     <div
-      className="w-full h-full py-4 flex flex-col overflow-hidden"
+      className="workflow-debugger w-full h-full flex flex-col overflow-hidden"
       tabIndex={0}
       onKeyDown={e => e.stopPropagation()}
     >
-      {deleteAllModal && (
-        <DeleteChatHistory
-          setDeleteModal={setDeleteAllModal}
-          deleteChat={deleteAllChat}
-        />
-      )}
-      <div className="flex items-center justify-between px-5 z-[10]">
+      <div className="workflow-debugger-header">
         <div className="flex items-center gap-3">
-          <span className="font-semibold text-lg">
-            {trialRun
-              ? t('workflow.nodes.chatDebugger.dialogue')
-              : t('workflow.nodes.chatDebugger.runResult')}
-          </span>
+          <span className="font-semibold text-lg">测试运行</span>
         </div>
         <div className="flex items-center gap-3">
           {hasVirtualScene && (
@@ -686,57 +637,51 @@ export function ChatDebuggerContent({
               )}
             </>
           )}
-          <img
-            src={icons.close}
-            className="w-3 h-3 cursor-pointer"
-            alt=""
-            onClick={() => closeFunction()}
+          <Button
+            type="text"
+            size="small"
+            shape="circle"
+            icon={<PlusOutlined />}
+            aria-label="新对话"
+            title="新对话"
+            disabled={debuggering || interruptChat.interrupt}
+            onClick={deleteAllChat}
+          />
+          <Button
+            type="text"
+            aria-label="关闭测试运行"
+            icon={<CloseOutlined />}
+            onClick={closeFunction}
           />
         </div>
       </div>
-      <div className="flex-1 flex flex-col overflow-hidden mt-1 relative">
-        <div className="w-full flex items-center justify-between px-5">
-          <div className="flex items-center gap-2 text-desc">
-            <img src={icons.chatListTip} className="w-3 h-3 mt-0.5" alt="" />
-            <span>
-              {t('workflow.nodes.chatDebugger.keepOnly10DialogueRecords')}
-            </span>
-          </div>
-          {multiParams ? (
-            <div className="text-[#ff9a27] text-sm">
-              {t(
-                'workflow.nodes.chatDebugger.multiParamWorkflowOnlySupportDebugAndPublishAsAPI'
-              )}
-            </div>
-          ) : !showChatDebuggerPage ? (
-            <div className="text-[#ff9a27] text-sm">
-              {t('workflow.nodes.chatDebugger.versionNotPublished')}
-            </div>
-          ) : (
-            <div
-              className="flex items-center gap-2 font-medium cursor-pointer"
-              onClick={() => {
-                const params = {
-                  chatId: xfYunBot?.chatId,
-                  botId: xfYunBot?.botId,
-                  version: historyVersion
-                    ? historyVersionData?.name
-                    : 'debugger',
-                };
-                handleFlowToChat(params);
-              }}
-            >
-              <img
-                src={icons.switchUserChatPageActive}
-                className="w-[18px] h-[18px]"
-                alt=""
-              />
-              <span className="text-[#6356EA]">
-                {t('workflow.nodes.chatDebugger.switchToUserDialoguePage')}
-              </span>
-            </div>
-          )}
+      {avatarError && open && chatType === 'vms' && (
+        <div role="alert" className="relative z-[11] mx-5 my-2 text-red-600">
+          {avatarError}
+          <Button
+            className="ml-2"
+            onClick={() => setAvatarRetry(value => value + 1)}
+          >
+            重试连接
+          </Button>
         </div>
+      )}
+      <div className="flex-1 flex flex-col overflow-hidden mt-1 relative">
+        {historyStatus === 'error' && (
+          <div
+            role="alert"
+            className="mx-5 mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          >
+            历史加载失败。你可以重试，或点击右上角「新对话」。
+            <Button
+              type="link"
+              size="small"
+              onClick={() => currentFlow?.id && getDialogues(currentFlow.id)}
+            >
+              重试
+            </Button>
+          </div>
+        )}
 
         <div
           className="vms-container"
@@ -805,7 +750,6 @@ export function ChatDebuggerContent({
         <ChatFooter
           trialRun={trialRun}
           debuggering={debuggering}
-          setDeleteAllModal={setDeleteAllModal}
           t={t}
           clearData={() => clearData(setOpen)}
           handleResumeChat={handleResumeChat}

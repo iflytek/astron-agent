@@ -188,6 +188,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   const button = (
     <Button
       key={key}
+      aria-label={!text && tooltip ? tooltip : undefined}
       type={type}
       icon={icon}
       disabled={isDisabled}

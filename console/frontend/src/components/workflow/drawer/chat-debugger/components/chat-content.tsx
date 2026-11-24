@@ -1,3 +1,5 @@
+import { useWorkflowExecutionView } from '../../../hooks/use-workflow-execution-view';
+import useWorkflowChatStore from '@/components/workflow/store/use-chat-store';
 import React, {
   useEffect,
   useRef,
@@ -6,7 +8,8 @@ import React, {
   useCallback,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image, message } from 'antd';
+import { Image, message, Empty } from 'antd';
+import { LoadingOutlined } from '@ant-design/icons';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import { isJSON } from '@/utils';
 import MarkdownRender from '@/components/markdown-render';
@@ -122,39 +125,16 @@ const Prologue = ({
   );
 };
 
-const MessageDivider = ({
-  chat,
-  t,
-}: Pick<ChatContext, 'chat' | 't'>): React.ReactElement => {
-  return (
-    <div key={chat.id} className="flex items-center justify-center gap-3">
-      <img
-        src={icons.startNewConversationLeft}
-        className="w-[151px] h-[7px]"
-        alt=""
-      />
-      <span className="text-[#6356EA] font-medium">
-        {t('workflow.nodes.chatDebugger.startNewConversation')}
-      </span>
-      <img
-        src={icons.startNewConversationRight}
-        className="w-[151px] h-[7px]"
-        alt=""
-      />
-    </div>
-  );
-};
-
 const MessageAsk = ({
   chat,
   renderInputElement,
 }: Pick<ChatContext, 'chat' | 'renderInputElement'>): React.ReactElement => {
   return (
-    <div className="flex items-start gap-4" key={chat.id}>
+    <div className="workflow-chat-ask" key={chat.id}>
       <div className="flex items-center gap-4">
         <img src={icons.chatUser} className="w-9 h-9" alt="" />
       </div>
-      <div className="w-fit min-w-[50px] bg-[#6356EA] p-3 flex flex-col gap-2.5 rounded-xl overflow-hidden">
+      <div className="workflow-chat-ask-bubble w-fit min-w-[50px] p-3 flex flex-col gap-2.5 rounded-xl overflow-hidden">
         {chat?.inputs?.map((input, index) => (
           <div key={index}>
             {renderInputElement(chat as ChatListItemExtended, input)}
@@ -582,59 +562,73 @@ const MessageRegenerate = ({
 >): React.ReactElement => {
   return (
     <>
-      {!debuggering && index === chatList.length - 1 && (
-        <div className="flex items-center gap-2 ml-[52px]">
-          {!needReply && (
+      {!debuggering &&
+        index === chatList.length - 1 &&
+        chatList[index]?.status === 'paused' && (
+          <div className="flex items-center gap-2 ml-[52px]">
+            {!needReply && (
+              <div
+                className="px-4 py-1.5 text-[#7F7F7F] border border-[transparent] rounded-[16px] hover:bg-[#F8FAFF] hover:text-[#6356EA] cursor-pointer flex items-center gap-1 group"
+                onClick={() => handleResumeChat('')}
+              >
+                <img
+                  src={icons.chatIgnoreNormal}
+                  className="w-[14px] h-[14px] block group-hover:hidden"
+                  alt=""
+                />
+                <img
+                  src={icons.chatIgnoreActive}
+                  className="w-[14px] h-[14px] hidden group-hover:block"
+                  alt=""
+                />
+                <span>
+                  {t('workflow.nodes.chatDebugger.ignoreThisQuestion')}
+                </span>
+              </div>
+            )}
             <div
-              className="px-4 py-1.5 text-[#7F7F7F] border border-[transparent] rounded-[16px] hover:bg-[#F8FAFF] hover:text-[#6356EA] cursor-pointer flex items-center gap-1 group"
-              onClick={() => handleResumeChat('')}
+              className="px-4 py-1.5 text-[#7F7F7F] border border-[transparent] rounded-[16px] hover:bg-[#F8FAFF] hover:text-[#BA0000] cursor-pointer flex items-center gap-1 group"
+              onClick={handleStopConversation}
             >
               <img
-                src={icons.chatIgnoreNormal}
+                src={icons.chatEndRoundNormal}
                 className="w-[14px] h-[14px] block group-hover:hidden"
                 alt=""
               />
               <img
-                src={icons.chatIgnoreActive}
+                src={icons.chatEndRoundActive}
                 className="w-[14px] h-[14px] hidden group-hover:block"
                 alt=""
               />
-              <span>{t('workflow.nodes.chatDebugger.ignoreThisQuestion')}</span>
+              <span>
+                {t('workflow.nodes.chatDebugger.endThisRoundConversation')}
+              </span>
             </div>
-          )}
-          <div
-            className="px-4 py-1.5 text-[#7F7F7F] border border-[transparent] rounded-[16px] hover:bg-[#F8FAFF] hover:text-[#BA0000] cursor-pointer flex items-center gap-1 group"
-            onClick={handleStopConversation}
-          >
-            <img
-              src={icons.chatEndRoundNormal}
-              className="w-[14px] h-[14px] block group-hover:hidden"
-              alt=""
-            />
-            <img
-              src={icons.chatEndRoundActive}
-              className="w-[14px] h-[14px] hidden group-hover:block"
-              alt=""
-            />
-            <span>
-              {t('workflow.nodes.chatDebugger.endThisRoundConversation')}
-            </span>
           </div>
-        </div>
-      )}
-      {!debuggering && index === chatList.length - 1 && (
-        <div
-          className="flex items-center gap-1.5 text-desc cursor-pointer ml-[52px]"
-          onClick={() => {
-            setChatList(chatList => chatList.slice(0, chatList?.length - 2));
-            const { nodes, edges } = resetNodesAndEdges();
-            handleRunDebugger(nodes, edges, chatList[index - 1]?.inputs, true);
-          }}
-        >
-          <img src={icons.chatRefresh} className="w-4 h-4" alt="" />
-          <span>{t('workflow.nodes.chatDebugger.regenerate')}</span>
-        </div>
-      )}
+        )}
+      {!debuggering &&
+        index === chatList.length - 1 &&
+        !!chatList[index]?.runId &&
+        chatList[index]?.status !== 'paused' && (
+          <div
+            className="flex items-center gap-1.5 text-desc cursor-pointer ml-[52px]"
+            onClick={() => {
+              const runId = chatList[index]?.runId;
+              if (!runId) return;
+              useWorkflowChatStore.setState({ runId });
+              const { nodes, edges } = resetNodesAndEdges();
+              handleRunDebugger(
+                nodes,
+                edges,
+                chatList[index - 1]?.inputs,
+                true
+              );
+            }}
+          >
+            <img src={icons.chatRefresh} className="w-4 h-4" alt="" />
+            <span>重试此轮</span>
+          </div>
+        )}
     </>
   );
 };
@@ -682,10 +676,13 @@ const MessageReply = ({
   | 'chatType'
 >): React.ReactElement => {
   return (
-    <div className="flex flex-col gap-4 group" key={chat?.id}>
-      <div className="flex items-start gap-4">
+    <div
+      className="workflow-chat-reply flex flex-col gap-4 group"
+      key={chat?.id}
+    >
+      <div className="flex items-start gap-3">
         <div
-          className="w-[36px] h-[36px] p-2 rounded-full flex-shrink-0"
+          className="w-[28px] h-[36px] p-2 rounded-full flex-shrink-0"
           style={{
             background: `url(${currentFlow?.avatarIcon}) no-repeat center / cover`,
           }}
@@ -716,7 +713,7 @@ const MessageReply = ({
               <span>{t('workflow.nodes.chatDebugger.deepThinking')}</span>
             </div>
           )}
-          <div className="rounded-xl p-4 relative flex-1 bg-[#f7f7fa]">
+          <div className="workflow-chat-reply-bubble rounded-xl p-4 relative flex-1">
             <MessageReplyContent
               chat={chat}
               debuggering={debuggering}
@@ -729,13 +726,12 @@ const MessageReply = ({
               !chat?.messageContent &&
               !chat?.reasoningContent &&
               !chat?.content && (
-                <div className="flex items-center gap-2.5">
-                  <span>{t('workflow.nodes.chatDebugger.generating')}</span>
-                  <img
-                    src={icons.chatLoading}
-                    className="w-5 h-5 flow-rotate-center"
-                    alt=""
-                  />
+                <div
+                  className="workflow-chat-generating"
+                  role="status"
+                  aria-label={t('workflow.nodes.chatDebugger.generating')}
+                >
+                  <LoadingOutlined spin />
                 </div>
               )}
             <MessageActions
@@ -788,7 +784,7 @@ const useChatContent = ({
   chatList,
   setChatList,
 }: Pick<ChatContentProps, 'chatList' | 'setChatList'>) => {
-  const currentFlow = useFlowsManager(state => state.currentFlow);
+  const currentFlow = useWorkflowExecutionView();
   const [sid, setSid] = useState<string | undefined>('');
   const advancedConfig = useMemo<ChatContentAdvancedConfig>(() => {
     if (currentFlow?.advancedConfig && isJSON(currentFlow.advancedConfig)) {
@@ -870,7 +866,7 @@ const useChatContent = ({
           ? firstFile
           : undefined;
       const inputName = chat?.inputs?.length && chat.inputs.length > 1 && (
-        <div className="px-4 py-1 bg-[#688fff] rounded-lg text-[#fff] inline-block">
+        <div className="workflow-chat-input-name inline-block">
           {input?.name}
         </div>
       );
@@ -899,16 +895,16 @@ const useChatContent = ({
                     alt=""
                   />
                 </div>
-                <span className="text-[#fff]">{file?.name}</span>
+                <span>{file?.name}</span>
               </div>
             )}
           </div>
         );
       }
       return (
-        <div className="flex items-start gap-2.5 text-[#fff]">
+        <div className="flex items-start gap-2.5">
           {inputName}
-          <div className="flow-chat-drawer-ask inline-block flex-1 overflow-hidden min-h-[29px]">
+          <div className="workflow-chat-user-content inline-block flex-1 overflow-hidden min-h-[29px]">
             {typeof input?.default === 'string' ? (
               <MarkdownRender content={input?.default} isSending={false} />
             ) : (
@@ -1008,38 +1004,66 @@ function ChatContent({
         handleRunDebugger={handleRunDebugger}
         t={t}
       />
+      {chatList.length === 0 && !advancedConfig.prologue.prologueText && (
+        <Empty
+          className="workflow-chat-empty"
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={
+            <>
+              <strong>在这里测试你的工作流</strong>
+              <p>发送输入查看输出与执行状态，可在当前会话内继续追问。</p>
+            </>
+          }
+        />
+      )}
       {chatList.map((chat, index) =>
-        chat.type === 'divider' ? (
-          <MessageDivider key={chat.id} chat={chat} t={t} />
-        ) : chat.type === 'ask' ? (
+        chat.type === 'divider' ? null : chat.type === 'ask' ? (
           <MessageAsk
             key={chat.id}
             chat={chat}
             renderInputElement={renderInputElement}
           />
         ) : (
-          <MessageReply
-            key={chat.id}
-            chat={chat}
-            currentFlow={currentFlow}
-            debuggering={debuggering}
-            index={index}
-            chatList={chatList}
-            setSid={setSid}
-            setVisible={setVisible}
-            handleResumeChat={handleResumeChat}
-            t={t}
-            advancedConfig={advancedConfig}
-            copyData={copyData}
-            suggestLoading={suggestLoading}
-            suggestProblem={suggestProblem}
-            resetNodesAndEdges={resetNodesAndEdges}
-            handleRunDebugger={handleRunDebugger}
-            needReply={needReply}
-            handleStopConversation={handleStopConversation}
-            setChatList={setChatList}
-            chatType={chatType}
-          />
+          <div key={chat.id}>
+            {chat.status &&
+              !['completed', 'running', 'resuming'].includes(chat.status) && (
+                <div
+                  className={`workflow-chat-status is-${chat.status}`}
+                  role="status"
+                >
+                  {{
+                    failed: '运行失败，请检查运行追踪后重试',
+                    cancelled: '已停止',
+                    interrupted: '连接中断，已保留输出',
+                    paused: '等待回复后继续',
+                    running: '正在运行',
+                    resuming: '正在继续',
+                    stopping: '正在停止',
+                  }[chat.status] || '正在运行'}
+                </div>
+              )}
+            <MessageReply
+              chat={chat}
+              currentFlow={currentFlow}
+              debuggering={debuggering}
+              index={index}
+              chatList={chatList}
+              setSid={setSid}
+              setVisible={setVisible}
+              handleResumeChat={handleResumeChat}
+              t={t}
+              advancedConfig={advancedConfig}
+              copyData={copyData}
+              suggestLoading={suggestLoading}
+              suggestProblem={suggestProblem}
+              resetNodesAndEdges={resetNodesAndEdges}
+              handleRunDebugger={handleRunDebugger}
+              needReply={needReply}
+              handleStopConversation={handleStopConversation}
+              setChatList={setChatList}
+              chatType={chatType}
+            />
+          </div>
         )
       )}
       <FeedbackDialog

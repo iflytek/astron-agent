@@ -43,7 +43,7 @@ spec:
             - mysqladmin
             - ping
             - -h
-            - localhost
+            - 127.0.0.1
           initialDelaySeconds: 30
           periodSeconds: {{ .Values.mysql.healthCheck.interval }}
           timeoutSeconds: {{ .Values.mysql.healthCheck.timeout }}
@@ -54,7 +54,7 @@ spec:
             - mysqladmin
             - ping
             - -h
-            - localhost
+            - 127.0.0.1
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5

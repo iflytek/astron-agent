@@ -1,0 +1,101 @@
+.resource-param-modal .parameter-schema-object,
+.resource-param-modal .parameter-schema-array {
+  margin-top: 16px;
+  min-width: 0;
+}
+.parameter-schema-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  color: #18243d;
+  font-size: 13px;
+  font-weight: 600;
+}
+.parameter-schema-heading .ant-btn,
+.parameter-schema-row .ant-btn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: #607089;
+}
+.parameter-schema-heading .ant-btn {
+  color: #3159d9;
+}
+.parameter-schema-row .ant-btn:hover {
+  color: #b42318;
+  background: #fff1f0;
+}
+.parameter-schema-table {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+.parameter-schema-row {
+  display: grid;
+  grid-template-columns:
+    minmax(130px, 1fr) 104px minmax(110px, 0.8fr) minmax(150px, 1.2fr)
+    36px 30px;
+  gap: 8px;
+  align-items: center;
+  min-width: 690px;
+  padding: 7px 0;
+  border-bottom: 1px solid #e8edf5;
+}
+.parameter-schema-head {
+  color: #607089;
+  font-size: 12px;
+  border-top: 1px solid #e8edf5;
+}
+.parameter-schema-head > span:nth-child(5) {
+  text-align: center;
+}
+.parameter-schema-property > .parameter-schema-object,
+.parameter-schema-property > .parameter-schema-array {
+  margin: 10px 0 16px 20px;
+}
+.resource-param-modal .parameter-schema-required {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.resource-param-modal .parameter-schema-item-type {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.parameter-schema-item-type .resource-select-wrap {
+  width: 130px;
+}
+.parameter-schema-row .ant-input {
+  font-size: 13px;
+}
+.parameter-schema-muted {
+  color: #607089;
+  font-size: 12px;
+}
+.parameter-schema-error {
+  display: block;
+  color: #b42318;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.parameter-schema-row .resource-select-wrap {
+  width: 100%;
+  min-width: 0;
+}
+.resource-param-modal .parameter-schema-item-default {
+  max-width: 240px;
+  margin-top: 12px;
+}
+
+.resource-param-modal .ant-modal-body {
+  max-height: calc(100dvh - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.resource-param-modal .ant-modal {
+  max-width: calc(100vw - 32px);
+}

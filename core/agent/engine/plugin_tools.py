@@ -5,18 +5,22 @@ import inspect
 import json
 import re
 import time
+from collections import Counter
 from contextlib import aclosing
 from typing import Any
 
+from common.exceptions.base import BaseExc
 from common.otlp.trace.langfuse import langfuse_observation_attributes
 from common.otlp.trace.span import Span
 from jsonschema import Draft202012Validator
 from langchain_core.tools import StructuredTool
 from langgraph.config import get_stream_writer
+from loguru import logger
 from opentelemetry.trace import Status, StatusCode
 from referencing import Registry
 
 from agent.api.schemas.agent_response import AgentResponse, ToolExecution
+from agent.exceptions.plugin_exc import PluginExc
 from agent.service.plugin.base import BasePlugin, PluginResponse
 
 # These names belong to the Harness, even when a particular backend omits them.
@@ -50,13 +54,33 @@ def plugin_schema(plugin: BasePlugin) -> dict[str, Any]:
 
 def build_plugin_tools(plugins: list[BasePlugin], span: Span) -> list[StructuredTool]:
     names = set(RESERVED_TOOLS)
-    original_names: set[str] = set()
+    identities: set[tuple[str, ...]] = set()
+    counts = Counter(plugin.name for plugin in plugins)
     tools = []
     for plugin in plugins:
-        if not plugin.name.strip() or plugin.name in original_names:
-            raise ValueError("Empty or duplicate plugin name")
-        original_names.add(plugin.name)
+        source = str(
+            getattr(plugin, "tool_id", "")
+            or getattr(plugin, "server_id", "")
+            or getattr(plugin, "server_url", "")
+            or getattr(plugin, "flow_id", "")
+        )
+        identity = (
+            plugin.typ,
+            source,
+            str(getattr(plugin, "version", "")),
+            plugin.name,
+        )
+        if not plugin.name.strip() or identity in identities:
+            raise ValueError("Empty or duplicate plugin identity")
+        identities.add(identity)
         alias = plugin.name
+        if counts[plugin.name] > 1:
+            if not source:
+                raise ValueError("Duplicate plugins require a resource identity")
+            alias = (
+                "astron_tool_"
+                + hashlib.sha256(json.dumps(identity).encode()).hexdigest()[:24]
+            )
         if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", alias) or alias in RESERVED_TOOLS:
             alias = "astron_tool_" + hashlib.sha256(alias.encode()).hexdigest()[:24]
         if alias in names:
@@ -95,30 +119,7 @@ def _build_tool(
             observed = sp.get_otlp_span()
             response: PluginResponse | None = None
             try:
-                result = plugin.run(action_input=arguments, span=sp)
-                if inspect.isasyncgen(result):
-                    content_parts: dict[str, list[str]] = {
-                        "content": [],
-                        "reasoning_content": [],
-                    }
-                    async with aclosing(result):
-                        async for frame in result:
-                            response = frame
-                            if frame.code:
-                                break
-                            _emit_plugin_frame(frame, content_parts, writer)
-                    if response is not None and not response.code:
-                        response = response.model_copy(
-                            update={
-                                "result": {
-                                    k: "".join(v) for k, v in content_parts.items()
-                                }
-                            }
-                        )
-                else:
-                    response = await result
-                if response is None:
-                    raise ValueError("Plugin returned no result")
+                response = await _invoke_plugin(plugin, arguments, sp, writer)
                 step = _tool_execution(plugin, response, arguments, started)
                 if response.code:
                     observed.set_status(Status(StatusCode.ERROR))
@@ -133,6 +134,12 @@ def _build_tool(
                     )
                 output = {"code": response.code, "data": response.result}
                 return json.dumps(output, ensure_ascii=False), step
+            except Exception as exc:
+                logger.warning("Plugin invocation failed; type={}", type(exc).__name__)
+                code = exc.c if isinstance(exc, BaseExc) else 40024
+                # OTel sees the sanitized exception; the official error middleware
+                # turns it into a failed ToolMessage for the graph and SSE adapter.
+                raise PluginExc(code, "Tool execution failed") from None
             finally:
                 observed.set_attributes(
                     langfuse_observation_attributes(
@@ -154,6 +161,30 @@ def _build_tool(
         args_schema=schema,
         response_format="content_and_artifact",
     )
+
+
+async def _invoke_plugin(
+    plugin: BasePlugin, arguments: dict[str, Any], span: Span, writer: Any
+) -> PluginResponse:
+    result = plugin.run(action_input=arguments, span=span)
+    response: PluginResponse | None = None
+    if inspect.isasyncgen(result):
+        content_parts: dict[str, list[str]] = {"content": [], "reasoning_content": []}
+        async with aclosing(result):
+            async for frame in result:
+                response = frame
+                if frame.code:
+                    break
+                _emit_plugin_frame(frame, content_parts, writer)
+        if response is not None and not response.code:
+            response = response.model_copy(
+                update={"result": {k: "".join(v) for k, v in content_parts.items()}}
+            )
+    else:
+        response = await result
+    if response is None:
+        raise ValueError("Plugin returned no result")
+    return response
 
 
 def _emit_plugin_frame(

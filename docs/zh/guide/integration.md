@@ -2,7 +2,7 @@
 
 Astron Agent 可以通过已发布的工作流 API，为其他应用提供工作流执行能力。你的项目继续负责自己的界面和业务逻辑，Astron Agent 则在 HTTP/SSE 边界后提供工作流、模型、知识库、工具和 RPA 编排。
 
-> 这里描述的是**服务集成**，不是进程内依赖。当前面向消费者的稳定边界是 Astron Agent 网关暴露的公开工作流 API；仓库内部的 Python、Java 模块属于实现细节，并未作为稳定 SDK 包发布。
+> 这里描述的是**服务集成**，不是进程内依赖。当前面向消费者的稳定边界是 Astron Agent 网关暴露的公开工作流 API；仓库内部的 Python 模块属于实现细节，并未作为稳定 SDK 包发布。
 
 ## 适用场景
 
@@ -23,7 +23,7 @@ Astron Agent 可以通过已发布的工作流 API，为其他应用提供工作
     │  Authorization: Bearer <application-key>:<application-secret>
     ▼
 Astron Agent 网关（Nginx）
-    │  校验应用身份并转发 App ID
+    │  校验应用身份，将原凭据转发至 Django Console
     ▼
 已发布工作流
     └─ 模型 · 知识库 · 工具/MCP · RPA
@@ -45,242 +45,90 @@ Astron Agent 网关（Nginx）
 
 请将 API Secret 保存在服务端密钥管理系统中，不要写入浏览器代码、移动端安装包、源码仓库、截图或客户端可见日志。
 
-## 2. 调用已发布工作流
+## 2. 调用已发布版本
 
-公开端点为：
-
-```text
-POST <ASTRON_BASE_URL>/workflow/v1/chat/completions
-```
-
-如果控制台展示的 Service URL 与上述路径不同，请以控制台生成的完整地址为准。鉴权信息通过一个请求头传入：
-
-```http
-Authorization: Bearer <application-key>:<application-secret>
-Content-Type: application/json
-```
-
-最小请求示例：
-
-```json
-{
-  "flow_id": "<FLOW_ID>",
-  "uid": "user-123",
-  "stream": true,
-  "parameters": {
-    "query": "总结这条客户工单"
-  }
-}
-```
-
-`flow_id` 和 `parameters` 为必填项。`parameters` 内可用的字段来自工作流的开始节点，请将示例中的 `query` 替换为已发布工作流实际定义的输入。
-
-可选请求字段：
-
-| 字段 | 类型 | 用途 |
-| --- | --- | --- |
-| `uid` | string | 业务系统中的终端用户标识，最长 40 个字符。 |
-| `stream` | boolean | `true` 返回 SSE 流，`false` 返回单个 JSON；默认 `true`。 |
-| `chat_id` | string | 业务系统中的会话标识，最长 128 个字符；继续同一会话时可复用。 |
-| `history` | array | 历史消息，格式为 `{ "role": "user" | "assistant", "content": "...", "content_type": "text" }`。 |
-| `ext` | object | 随请求传入的扩展元数据。 |
-| `version` | string | 环境要求指定发布版本时使用。 |
-
-### cURL
+工作流使用 `POST /workflow/v1/chat/completions`。使用控制台生成的 Service URL 和应用凭据：
 
 ```bash
 export ASTRON_BASE_URL="https://astron.example.com"
 export ASTRON_API_KEY="replace-me"
 export ASTRON_API_SECRET="replace-me"
-export ASTRON_FLOW_ID="replace-me"
 
 curl --no-buffer \
   --request POST "$ASTRON_BASE_URL/workflow/v1/chat/completions" \
   --header "Authorization: Bearer $ASTRON_API_KEY:$ASTRON_API_SECRET" \
   --header "Content-Type: application/json" \
-  --data "{
-    \"flow_id\": \"$ASTRON_FLOW_ID\",
-    \"uid\": \"user-123\",
-    \"chat_id\": \"conversation-456\",
-    \"stream\": true,
-    \"parameters\": {
-      \"query\": \"总结这条客户工单\"
-    }
-  }"
-```
-
-### Python
-
-以下示例只使用 Python 标准库。请在后端服务中运行，不要把密钥放进浏览器端代码。
-
-```python
-import json
-import os
-import urllib.request
-
-base_url = os.environ["ASTRON_BASE_URL"].rstrip("/")
-credential = f'{os.environ["ASTRON_API_KEY"]}:{os.environ["ASTRON_API_SECRET"]}'
-payload = {
-    "flow_id": os.environ["ASTRON_FLOW_ID"],
+  --data '{
+    "flow_id": "<FLOW_ID>",
     "uid": "user-123",
-    "chat_id": "conversation-456",
-    "stream": True,
-    "parameters": {"query": "总结这条客户工单"},
-}
-
-request = urllib.request.Request(
-    f"{base_url}/workflow/v1/chat/completions",
-    data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-    headers={
-        "Authorization": f"Bearer {credential}",
-        "Content-Type": "application/json",
-        "Accept": "text/event-stream",
-    },
-    method="POST",
-)
-
-with urllib.request.urlopen(request, timeout=1800) as response:
-    for raw_line in response:
-        line = raw_line.decode("utf-8").strip()
-        if not line.startswith("data:"):
-            continue
-        event = json.loads(line.removeprefix("data:").strip())
-        if event.get("code") != 0:
-            raise RuntimeError(event.get("message", "工作流执行失败"))
-
-        choice = (event.get("choices") or [{}])[0]
-        delta = choice.get("delta") or {}
-        if delta.get("content"):
-            print(delta["content"], end="", flush=True)
-
-        finish_reason = choice.get("finish_reason")
-        if finish_reason == "stop":
-            break
-        if finish_reason == "interrupt":
-            print("\n工作流已暂停，需要用户回复。")
-            break
+    "sessionId": "conversation-456",
+    "stream": true,
+    "parameters": {"query": "总结这条客户工单"}
+  }'
 ```
 
-### Node.js 18+
+| 字段 | 含义 |
+| --- | --- |
+| `flow_id` | 已绑定到当前应用的工作流标识。 |
+| `parameters` | 开始节点输入；将 `query` 替换为已发布工作流的实际输入。 |
+| `uid` | 业务用户标识，非空字符串、最长 512 字符；省略时使用 `default`。也接受 `user`。 |
+| `sessionId` | 可选的会话关联标识，最长 96 字符。 |
+| `stream` | 布尔值，默认 `true`；`false` 等待执行结果。 |
 
-```js
-const baseUrl = process.env.ASTRON_BASE_URL.replace(/\/$/, "");
-const authorization = `Bearer ${process.env.ASTRON_API_KEY}:${process.env.ASTRON_API_SECRET}`;
+调用固定使用当前应用绑定的不可变发布版本；运行开始后，后续发布不会改变该运行。客户端不能用 `version` 切换任意草稿，也不能上传 `history` 冒充服务端会话。
 
-const response = await fetch(`${baseUrl}/workflow/v1/chat/completions`, {
-  method: "POST",
-  headers: {
-    Authorization: authorization,
-    "Content-Type": "application/json",
-    Accept: "text/event-stream"
-  },
-  body: JSON.stringify({
-    flow_id: process.env.ASTRON_FLOW_ID,
-    uid: "user-123",
-    chat_id: "conversation-456",
-    stream: true,
-    parameters: { query: "总结这条客户工单" }
-  })
-});
-
-if (!response.ok || !response.body) {
-  throw new Error(`Astron 请求失败：${response.status} ${await response.text()}`);
-}
-
-const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-let buffer = "";
-let finished = false;
-
-while (!finished) {
-  const { value, done } = await reader.read();
-  if (done) break;
-  buffer += value;
-
-  const frames = buffer.split("\n\n");
-  buffer = frames.pop() ?? "";
-
-  for (const frame of frames) {
-    const dataLine = frame.split("\n").find((line) => line.startsWith("data:"));
-    if (!dataLine) continue;
-
-    const event = JSON.parse(dataLine.slice(5).trim());
-    if (event.code !== 0) throw new Error(event.message || "工作流执行失败");
-
-    const choice = event.choices?.[0];
-    if (choice?.delta?.content) process.stdout.write(choice.delta.content);
-    if (choice?.finish_reason === "interrupt") {
-      console.log("\n工作流已暂停，需要用户回复。");
-      finished = true;
-    }
-    if (choice?.finish_reason === "stop") finished = true;
-  }
-}
-```
-
-## 3. 处理响应
-
-### 流式模式
-
-当 `stream: true` 时，响应类型为 `text/event-stream`。每一帧包含一行 `data:`，其值为 JSON。常用字段如下：
+独立 Agent 使用 `POST /agent/v1/chat/completions`，鉴权相同，正文示例：
 
 ```json
 {
-  "code": 0,
-  "message": "Success",
-  "id": "request-or-session-id",
-  "choices": [
-    {
-      "delta": {
-        "role": "assistant",
-        "content": "增量输出",
-        "reasoning_content": ""
-      },
-      "finish_reason": null
-    }
-  ],
-  "workflow_step": {
-    "seq": 3,
-    "progress": 0.5
-  }
+  "bot_id": "<BOT_ID>",
+  "user": "user-123",
+  "sessionId": "conversation-456",
+  "stream": true,
+  "messages": [{"role": "user", "content": "你好"}]
 }
 ```
 
-客户端处理规则：
+每次只传一条用户消息。同一应用、用户与 `sessionId` 延续服务端会话；运行仍在生成时不能在同一会话发起另一个运行。
 
-- `choices[0].delta.content` 非空时，将其追加到当前输出；
-- 即使 HTTP 连接已经成功建立，只要 `code != 0`，仍应按工作流错误处理；
-- `finish_reason: "ping"` 是心跳帧，可以忽略；
-- `finish_reason: "stop"` 表示执行结束；
-- 仅当工作流包含交互式暂停时，才需要处理 `finish_reason: "interrupt"`；
-- 不要将每个中间帧中的 `workflow_step` 全部字段视为稳定业务协议。
+## 3. 处理执行事件
 
-### 非流式模式
+流式响应是 SSE，客户端必须同时处理 `event:` 和 `data:`，并忽略以 `:` 开头的心跳注释。不要把所有数据帧都当作文本增量。
 
-将 `stream` 设为 `false` 可获得单个 JSON 响应。返回值仍使用相同的顶层结构，应读取 `code`、`message`、`choices` 和 `usage`，不要假设响应正文是纯文本。
+- 工作流首先发送 `event: run`，其中 `data.runId` 是控制操作使用的运行标识；执行中的内容帧可包含 `choices[0].delta.content`。
+- 工作流最后发送 `event: run-end`，以其中的 `status` 区分 `completed`、`paused`、`failed`、`cancelled`、`interrupted`。`finish_reason: interrupt` 提示暂停，但应保留运行标识并核对最终状态。
+- Agent 首先发送 `event: run`，其中 `data.id` 是控制使用的运行标识；内容增量使用 `choices[0].delta.content`。结束帧中的 `code` 和 `finish_reason` 表示结果，随后为 `data: [DONE]`；不要将 `[DONE]` 解析为 JSON。
+- HTTP 建连成功不代表执行成功。收到错误码、失败终态或缺少终态的断流时，应保留已收到内容并报告失败或中断。
 
-## 4. 恢复被中断的工作流
+`stream: false` 返回单个 JSON，包含 `runId`、`sessionId`、`status`、`code` 和 `choices[0].message.content`。仅 `status: completed` 表示成功；暂停、取消和失败不能当作完成。
 
-如果某一帧的 `finish_reason` 为 `interrupt`，请保存 `event_data.event_id`。收集用户回复后调用：
+## 4. 恢复与停止运行
 
-```text
-POST <ASTRON_BASE_URL>/workflow/v1/resume
-```
-
-使用相同的 Authorization 请求头：
+暂停的工作流使用原应用凭据恢复：
 
 ```bash
 curl --no-buffer \
   --request POST "$ASTRON_BASE_URL/workflow/v1/resume" \
   --header "Authorization: Bearer $ASTRON_API_KEY:$ASTRON_API_SECRET" \
   --header "Content-Type: application/json" \
-  --data '{
-    "event_id": "<EVENT_ID>",
-    "event_type": "resume",
-    "content": "用户回复内容"
-  }'
+  --data '{"runId":"<RUN_ID>","content":"用户回复内容"}'
 ```
 
-恢复后的响应模式与被中断的请求一致。Event ID 属于运行时状态，应尽快恢复，并将过期或已经恢复过的事件按错误处理。
+恢复始终返回 SSE，继续原运行和发布版本，不重放已完成节点。只有 `paused` 的工作流可恢复；Agent、不处于暂停状态或已失去访问权限的运行会拒绝恢复。兼容旧工作流调用方的 `event_id`，新调用方应保存并使用 `runId`。
+
+Agent 和工作流都使用以下接口停止：
+
+```bash
+curl \
+  --request POST "$ASTRON_BASE_URL/workflow/v1/stop" \
+  --header "Authorization: Bearer $ASTRON_API_KEY:$ASTRON_API_SECRET" \
+  --header "Content-Type: application/json" \
+  --data '{"runId":"<RUN_ID>"}'
+```
+
+成功响应的 `data` 包含 `id`、`status` 和 `cancelRequested`。`cancelRequested: true` 只表示已请求取消，不应立即把运行显示为已取消；以返回的实际 `status` 和原 SSE 终态为准。关闭浏览器或中止 HTTP 连接不能代替显式停止。
+
+停止和恢复均重新校验应用凭据、运行归属及当前发布权限。它们只能操作同一应用通过公开 API 创建的运行；其他应用或 Console 浏览器会话的运行不能复用。未公开的 `/workflow/v1/**`、`/agent/v1/**` 控制路径不会转发到 core。
 
 ## 生产接入检查清单
 
@@ -288,7 +136,7 @@ curl --no-buffer \
 - **凭据只放服务端。** 浏览器或移动端需要使用该能力时，先调用你自己的后端，再由后端调用 Astron Agent。
 - **按环境和消费者拆分应用。** 对需要独立轮换和撤销权限的环境或调用方，分别创建 Astron 应用和凭据。
 - **配置流式超时。** 内置网关允许长连接，但链路中的其他反向代理和客户端也必须关闭缓冲并设置合适的读取超时。
-- **使用稳定业务标识。** 从业务系统生成 `uid` 和 `chat_id`，不要在其中放入密钥或敏感个人信息。
+- **使用稳定业务标识。** 从业务系统生成 `uid` 和 `sessionId`，不要在其中放入密钥或敏感个人信息。
 - **校验工作流输入。** 将 `parameters` 视为不可信输入；传给工具、数据库或 RPA 动作前先约束类型和范围。
 - **安全记录追踪 ID。** 响应中的 `id` 可用于排障；可以记录它以及状态和耗时，但必须脱敏凭据和敏感提示词。
 - **管理工作流变更。** 开始节点的输入和结束节点的输出就是消费者协议；发布新版本前应审查字段，并用真实客户端验证。

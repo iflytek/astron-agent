@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { Handle, Position } from 'reactflow';
 import { Tooltip } from 'antd';
@@ -198,7 +199,11 @@ export const SourceHandle = ({
               }}
             >
               <div className="flex items-center gap-1.5">
-                <img src={node?.data?.icon} className="w-5 h-5" alt="" />
+                <WorkflowNodeIcon
+                  nodeType={node.idType}
+                  src={node?.data?.icon}
+                  className="w-5 h-5"
+                />
                 <span>{node?.aliasName}</span>
               </div>
               <img src={nodeListAdd} className="w-[13px] h-[13px]" alt="" />

@@ -1,13 +1,11 @@
 import React, { Suspense, JSX } from 'react';
-import { Spin } from 'antd';
+import { Skeleton } from 'antd';
 import { Routes, Route } from 'react-router-dom';
 
 const KnowledgePage = React.lazy(() => import('./knowledge-page'));
 const KnowledgeDetail = React.lazy(() => import('./knowledge-detail'));
 const UploadPage = React.lazy(() => import('./upload-page'));
-const PluginPage = React.lazy(() => import('./plugin-page'));
-const PluginDetail = React.lazy(() => import('./plugin-detail'));
-const PluginCreate = React.lazy(() => import('./plugin-create'));
+const ResourceTools = React.lazy(() => import('./resource-tools'));
 const DataBase = React.lazy(() => import('./database'));
 const DataBaseDetail = React.lazy(() => import('./database-detail'));
 const DataBaseTableAdd = React.lazy(
@@ -21,11 +19,15 @@ const SandboxPage = React.lazy(() => import('./sandbox-page'));
 
 function ResourceManagement(): JSX.Element {
   return (
-    <div className="w-full h-full overflow-hidden">
+    <div className="w-full min-h-0 flex-1 overflow-hidden flex flex-col">
       <Suspense
         fallback={
-          <div className="flex items-center justify-center w-full h-full">
-            <Spin />
+          <div
+            className="w-full p-7"
+            role="status"
+            aria-label="正在加载资源页面"
+          >
+            <Skeleton active />
           </div>
         }
       >
@@ -33,9 +35,9 @@ function ResourceManagement(): JSX.Element {
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/knowledge/detail/*" element={<KnowledgeDetail />} />
           <Route path="/knowledge/upload" element={<UploadPage />} />
-          <Route path="/plugin" element={<PluginPage />} />
-          <Route path="/plugin/detail/*" element={<PluginDetail />} />
-          <Route path="/plugin/create" element={<PluginCreate />} />
+          <Route path="/plugin" element={<ResourceTools />} />
+          <Route path="/mcp" element={<ResourceTools mode="mcp" />} />
+
           <Route path="/database" element={<DataBase />} />
           <Route path="/database/:id" element={<DataBaseDetail />} />
           <Route path="/database/:id/add" element={<DataBaseTableAdd />} />

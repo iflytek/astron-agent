@@ -1,34 +1,38 @@
 import { useMemo } from 'react';
 import useUserStore from '@/store/user-store';
+import useSpaceStore from '@/store/space-store';
 import { RoleType } from '@/types/permission';
 
 export const useUserStoreHook = () => {
-  const { user } = useUserStore();
+  const { user, getUserRole } = useUserStore();
+  useSpaceStore();
+  const role = getUserRole();
+  const roleType = role?.roleType;
+  const spaceType = role?.spaceType;
 
   const isSuperAdmin = useMemo(() => {
-    return user.roleType === RoleType.SUPER_ADMIN;
-  }, [user]);
+    return roleType === RoleType.SUPER_ADMIN;
+  }, [roleType]);
 
   const isOwner = useMemo(() => {
-    return user.roleType === RoleType.OWNER;
-  }, [user]);
+    return roleType === RoleType.OWNER;
+  }, [roleType]);
 
   const isAdmin = useMemo(() => {
-    return user.roleType === RoleType.ADMIN;
-  }, [user]);
+    return roleType === RoleType.ADMIN;
+  }, [roleType]);
 
   const isMember = useMemo(() => {
-    return user.roleType === RoleType.MEMBER;
-  }, [user]);
+    return roleType === RoleType.MEMBER;
+  }, [roleType]);
 
   const permissionParams = useMemo(() => {
-    const { spaceType, roleType } = user;
     if (!spaceType || !roleType) return undefined;
     return {
       spaceType,
       roleType,
     };
-  }, [user]);
+  }, [spaceType, roleType]);
 
   const isExpires = useMemo(() => {
     const expiresAt = user.expiresAt;

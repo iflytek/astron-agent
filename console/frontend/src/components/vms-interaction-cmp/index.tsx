@@ -1,301 +1,256 @@
 import AvatarPlatform, {
   PlayerEvents,
+  type ApiInfo,
+  type IGlobalConfig,
 } from '@/utils/avatar-sdk-web_3.1.2.1002/index.js';
 import useChatStore from '@/store/chat-store';
 import { getSignedUrl } from '@/services/spark-common';
 import { getPlatformAccountRuntimeConfig } from '@/services/platform-account';
-import { message } from 'antd';
 import React, {
   useImperativeHandle,
   forwardRef,
   useRef,
   useEffect,
 } from 'react';
-import { useTranslation } from 'react-i18next';
 
-// 虚拟人初始化鉴权参数
-const buildSdkInitAppInfoDefault = (
-  appId?: string,
-  signedUrl?: string
-): any => ({
-  serverUrl: 'wss://avatar.cn-huadong-1.xf-yun.com/v1/interact',
-  appId: appId,
-  sceneId: '',
-  signedUrl: signedUrl || '',
-});
-// 虚拟人形象参数
-const sdkAvatarInfoDefault = {
-  avatar_id: '',
-  width: 1080,
-  height: 1920,
-  mask_region: '[0,0,0,0]',
-  scale: 1,
-  move_h: 0,
-  move_v: 0,
-  audio_format: 2,
-  // gender: "男",
-  stream: {
-    alpha: 1,
-    protocol: 'xrtc',
-  },
-  // pixel_format: 6,
-};
-// 虚拟人发言人参数
-const sdkTTSInfoDefault = {
-  vcn: '',
-  speed: 50,
-  pitch: 50,
-  volume: 100,
-};
-let vmsInteractiveRefPlayer: any = null;
-
+type AvatarInstance = InstanceType<typeof AvatarPlatform>;
+type AvatarPlayer = NonNullable<AvatarInstance['player']>;
+export interface AvatarInitOptions {
+  sdkInitAppInfo?: Partial<ApiInfo>;
+  sdkAvatarInfo?: Partial<IGlobalConfig['avatar']> & {
+    stream?: IGlobalConfig['stream'];
+  };
+  sdkTTSInfo?: Partial<IGlobalConfig['tts']>;
+}
+export interface VirtualAvatarHandle {
+  readonly instance: AvatarInstance | null;
+  readonly player: AvatarPlayer | null;
+  initAvatar: (options: AvatarInitOptions) => Promise<boolean>;
+  dispose: () => void;
+  interrupt: () => void;
+  stop: () => void;
+}
 interface VmsInteractiveRefProps {
   notAllowedPlayCallback?: () => void;
   playerResumeCallback?: () => void;
-  avatarDom: HTMLDivElement;
+  avatarDom?: HTMLDivElement | null;
   styles?: React.CSSProperties;
-  sdkInitAppInfo?: {
-    serverUrl: string;
-    appId: string;
-    sceneId: string;
-    signedUrl: string;
-  };
-  sdkAvatarInfo?: {
-    avatar_id: string;
-    width: number;
-    height: number;
-    mask_region: string;
-    scale: number;
-    move_h: number;
-    move_v: number;
-    audio_format: number;
-    stream: {
-      alpha: number;
-      protocol: string;
-    };
-  };
-  sdkTTSInfo?: {
-    vcn: string;
-    speed: number;
-    pitch: number;
-    volume: number;
-  };
   loadingStatusChange?: (status: boolean) => void;
 }
+interface InitializationAttempt {
+  instance?: AvatarInstance;
+  player?: AvatarPlayer;
+}
 
-// 虚拟人交互组件
-const VmsInteractionCmp = forwardRef((props: VmsInteractiveRefProps, ref) => {
-  const { t } = useTranslation();
-  const {
-    notAllowedPlayCallback,
-    avatarDom,
-    styles,
-    playerResumeCallback,
-    loadingStatusChange,
-  } = props;
-  const vmsInteractiveRef = useRef<any>(null);
+// Each attempt owns its SDK and player, including while start() is pending.
+// Cleanup must also be safe after a late start settles on a disposed attempt.
+const releaseAttempt = (attempt: InitializationAttempt | null): void => {
+  if (!attempt) return;
+  try {
+    void attempt.instance?.interrupt().catch(() => {});
+  } catch {
+    // An SDK already destroyed by an earlier cleanup may throw synchronously.
+  }
+  for (const release of [
+    () => attempt.player?.stop(),
+    () => attempt.instance?.stop(),
+    () => attempt.instance?.destroy(),
+  ]) {
+    try {
+      release();
+    } catch {
+      // Continue releasing the remaining resources even when one is closed.
+    }
+  }
+};
+
+const VmsInteractionCmp = forwardRef<
+  VirtualAvatarHandle,
+  VmsInteractiveRefProps
+>((props, ref) => {
+  const { loadingStatusChange, notAllowedPlayCallback, playerResumeCallback } =
+    props;
+  const avatarElement = useRef<HTMLDivElement>(null);
+  const mounted = useRef(true);
+  const attemptRef = useRef<InitializationAttempt | null>(null);
+  const vmsInteractiveRef = useRef<AvatarInstance | null>(null);
+  const playerRef = useRef<AvatarPlayer | null>(null);
   const setVmsInteractiveRef = useChatStore(
     state => state.setVmsInteractiveRef
-  );
-  const setVmsInteractiveRefStatus = useChatStore(
-    state => state.setVmsInteractiveRefStatus
   );
   const setVmsInteractiveRefPlayer = useChatStore(
     state => state.setVmsInteractiveRefPlayer
   );
-  /**
-   * 加载虚拟人签名url信息，初始化虚拟人sdk实例
-   */
-  const loadSignedUrlInfo = async (): Promise<string> => {
-    try {
-      const res: any = await getSignedUrl();
-      return res;
-    } catch (error) {
-      console.error(
-        t('vmsInteractionCmp.loadVirtualHumanAvatarSignUrlFailed'),
-        error
-      );
-      message.error(t('vmsInteractionCmp.loadVirtualHumanAvatarSignUrlFailed'));
-      return '';
+  const setVmsInteractiveRefStatus = useChatStore(
+    state => state.setVmsInteractiveRefStatus
+  );
+
+  const clearPublishedInstance = (): void => {
+    const instance = vmsInteractiveRef.current;
+    if (instance && useChatStore.getState().vmsInteractiveRef === instance) {
+      setVmsInteractiveRef(null);
+      setVmsInteractiveRefPlayer(null);
+      setVmsInteractiveRefStatus('stop');
     }
+    vmsInteractiveRef.current = null;
+    playerRef.current = null;
+  };
+  const disposeVmsInteractiveRef = (): void => {
+    const attempt = attemptRef.current;
+    // Invalidate synchronously, before any asynchronous or SDK cleanup.
+    attemptRef.current = null;
+    clearPublishedInstance();
+    releaseAttempt(attempt);
+    if (!useChatStore.getState().vmsInteractiveRef)
+      setVmsInteractiveRefStatus('stop');
+    loadingStatusChange?.(false);
   };
 
-  /**
-   * @description: 初始化虚拟人实例
-   * @param {void}
-   * @return {Promise<void>}
-   * @example
-   * initAvatar()
-   */
-  const initAvatar = async ({
-    sdkInitAppInfo,
-    sdkAvatarInfo,
-    sdkTTSInfo,
-  }: {
-    sdkInitAppInfo?: any;
-    sdkAvatarInfo?: any;
-    sdkTTSInfo?: any;
-  }) => {
-    //如果不存在此虚拟人实例，开始初始化
-    if (!vmsInteractiveRef.current) {
-      loadingStatusChange?.(true);
+  const initAvatar = async (options: AvatarInitOptions): Promise<boolean> => {
+    disposeVmsInteractiveRef();
+    if (!mounted.current) return false;
+    const attempt: InitializationAttempt = {};
+    attemptRef.current = attempt;
+    const isCurrent = (): boolean =>
+      mounted.current && attemptRef.current === attempt;
+    loadingStatusChange?.(true);
+    setVmsInteractiveRefStatus('loading');
+    try {
       const [signedUrl, runtimeConfig] = await Promise.all([
-        loadSignedUrlInfo(),
+        getSignedUrl(),
         getPlatformAccountRuntimeConfig(),
       ]);
-      vmsInteractiveRef.current = new (AvatarPlatform as any)({
-        useInlinePlayer: true,
+      if (!isCurrent()) return false;
+      if (
+        typeof signedUrl !== 'string' ||
+        !signedUrl ||
+        !runtimeConfig.sparkVirtualManAppId
+      ) {
+        throw new Error('Missing virtual avatar connection configuration');
+      }
+      const instance = new AvatarPlatform({ useInlinePlayer: true });
+      attempt.instance = instance;
+      instance.setApiInfo({
+        serverUrl: 'wss://avatar.cn-huadong-1.xf-yun.com/v1/interact',
+        appId: runtimeConfig.sparkVirtualManAppId,
+        sceneId: '',
+        signedUrl,
+        ...options.sdkInitAppInfo,
       });
-      //   vmsInteractiveRef.current.on(SDKEvents.frame_start, (frameData: any) => {
-      //     loadingStatusChange?.(false);
-      //     console.log('sdk event: frameBegin', frameData);
-      //   });
-      // vmsInteractiveRef.current.on(SDKEvents.frame_stop, (frameData : any) => {
-      //     console.log('sdk event: frame_stop', frameData);
-      // });
-      vmsInteractiveRef.current.setApiInfo({
-        ...buildSdkInitAppInfoDefault(
-          runtimeConfig.sparkVirtualManAppId,
-          signedUrl
-        ),
-        ...(sdkInitAppInfo ? sdkInitAppInfo : {}),
-      });
-      //设置全局参数：形象和tts
-      vmsInteractiveRef.current.setGlobalParams({
+      const { stream = { alpha: 1, protocol: 'xrtc' }, ...avatarInfo } =
+        options.sdkAvatarInfo || {};
+      instance.setGlobalParams({
+        stream,
         avatar: {
-          ...sdkAvatarInfoDefault,
-          ...(sdkAvatarInfo ? sdkAvatarInfo : {}),
+          avatar_id: '',
+          width: 1080,
+          height: 1920,
+          mask_region: '[0,0,0,0]',
+          scale: 1,
+          move_h: 0,
+          move_v: 0,
+          audio_format: 2,
+          ...avatarInfo,
         },
-        tts: { ...sdkTTSInfoDefault, ...(sdkTTSInfo ? sdkTTSInfo : {}) },
-        avatar_dispatch: {
-          interactive_mode: 0, //此处默认追加模式
+        tts: {
+          vcn: '',
+          speed: 50,
+          pitch: 50,
+          volume: 100,
+          ...options.sdkTTSInfo,
         },
+        avatar_dispatch: { interactive_mode: 0 },
       });
-      vmsInteractiveRefPlayer =
-        vmsInteractiveRef.current?.player ||
-        vmsInteractiveRef.current.createPlayer();
-      vmsInteractiveRefPlayer?.on(PlayerEvents.play, () => {
-        console.log('sdk event: player play');
-        loadingStatusChange?.(false);
+      const player = instance.player || instance.createPlayer();
+      attempt.player = player;
+      player.on(PlayerEvents.playNotAllowed, () => {
+        if (isCurrent()) notAllowedPlayCallback?.();
       });
-      vmsInteractiveRefPlayer?.on(PlayerEvents.playNotAllowed, () => {
-        // TODO 由于浏览器限制，如果用户从未对页面进行过交互点击等操作，则无法正常自动播放音视频等
-        // 这里需要交互层面引导用户点击屏幕，然后逻辑调用resume 恢复方法
-        console.log('sdk event: player play not allowed');
-        notAllowedPlayCallback?.();
+      await instance.start({
+        wrapper: avatarElement.current || props.avatarDom || undefined,
       });
-      setVmsInteractiveRef(vmsInteractiveRef.current);
-      setVmsInteractiveRefPlayer(vmsInteractiveRefPlayer);
+      if (!isCurrent()) {
+        releaseAttempt(attempt);
+        return false;
+      }
+      // Publish only a successfully started instance. Consumers cannot send
+      // dialogue to a pending or failed connection.
+      vmsInteractiveRef.current = instance;
+      playerRef.current = player;
+      setVmsInteractiveRef(instance);
+      setVmsInteractiveRefPlayer(player);
       setVmsInteractiveRefStatus('init');
-    } else {
-      // message.warning('请勿多次初始化 或先销毁当前实例');
+      return true;
+    } catch {
+      releaseAttempt(attempt);
+      if (!isCurrent()) return false;
+      clearPublishedInstance();
+      attemptRef.current = null;
+      loadingStatusChange?.(false);
+      setVmsInteractiveRefStatus('error');
+      // SDK/upstream errors may contain signed URLs. Keep UI errors generic.
+      throw new Error('虚拟人连接失败，请检查配置后重试。');
+    } finally {
+      if (isCurrent()) loadingStatusChange?.(false);
     }
-    if (!vmsInteractiveRef.current) {
-      return message.warning(
-        t('vmsInteractionCmp.virtualHumanAvatarInitException')
-      );
-    }
-    await vmsInteractiveRef.current
-      ?.start({
-        wrapper:
-          (avatarDom as HTMLDivElement) ||
-          (document.getElementById('avatarDom') as HTMLDivElement),
-      })
-      .then(() => {
-        console.info(t('vmsInteractionCmp.virtualHumanAvatarConnectSuccess'));
-        // loadingStatusChange?.(false);
-      })
-      .catch((e: any) => {
-        // message.error('连接失败，可以打开控制台查看信息');
-        console.error(
-          t('vmsInteractionCmp.virtualHumanAvatarConnectFailed'),
-          e.code,
-          e.message,
-          e.name,
-          e.stack
-        );
-      });
-    return undefined;
   };
 
-  const disposeVmsInteractiveRef = () => {
-    vmsInteractiveRef.current?.interrupt();
-    vmsInteractiveRef.current?.stop();
-    vmsInteractiveRef.current?.destroy();
-    vmsInteractiveRef.current = null;
-    vmsInteractiveRefPlayer?.stop();
-    vmsInteractiveRefPlayer = null;
-    setVmsInteractiveRef(null);
-    setVmsInteractiveRefPlayer(null);
-    setVmsInteractiveRefStatus('stop');
+  const interrupt = (): void => {
+    const instance = vmsInteractiveRef.current;
+    if (!instance) return;
+    void instance.interrupt().catch(() => {});
+    setVmsInteractiveRefStatus('interrupt');
   };
-
-  // 暴露刷新方法给父组件
   useImperativeHandle(ref, () => ({
     initAvatar,
-    instance: vmsInteractiveRef.current,
-    player: vmsInteractiveRefPlayer,
+    get instance() {
+      return vmsInteractiveRef.current;
+    },
+    get player() {
+      return playerRef.current;
+    },
     dispose: disposeVmsInteractiveRef,
-    interrupt: () => {
-      vmsInteractiveRef.current?.interrupt();
-      setVmsInteractiveRefStatus('interrupt');
-    },
-    stop: () => {
-      vmsInteractiveRef.current?.stop();
-      setVmsInteractiveRefStatus('stop');
-    },
+    interrupt,
+    stop: disposeVmsInteractiveRef,
   }));
 
-  const handleWindowTabChange = () => {
-    // 判断页面是否从“可见”变为“不可见”（即切换到其他标签页）
-    if (document.visibilityState === 'hidden') {
-      console.log('用户已切换到其他标签页');
-      //   disposeVmsInteractiveRef();
-      vmsInteractiveRef.current?.interrupt();
-      setVmsInteractiveRefStatus('init');
-    }
-  };
-
   useEffect(() => {
-    document.body.addEventListener('click', () => {
-      vmsInteractiveRefPlayer?.resume();
-      playerResumeCallback?.();
-    });
-    document.body.addEventListener('focus', () => {
-      vmsInteractiveRefPlayer?.resume();
-      playerResumeCallback?.();
-    });
-    document.body.addEventListener('keydown', () => {
-      vmsInteractiveRefPlayer?.resume();
-      playerResumeCallback?.();
-    });
-    // 绑定 visibilitychange 事件
-    document.addEventListener('visibilitychange', handleWindowTabChange);
-
-    // 页面卸载前移除事件监听（避免内存泄漏）
-    window.addEventListener('beforeunload', function () {
-      document.removeEventListener('visibilitychange', handleWindowTabChange);
-    });
-
+    mounted.current = true;
+    const resumePlayer = (): void => {
+      const player = playerRef.current;
+      if (!player) return;
+      void player
+        .resume()
+        .then(() => {
+          if (mounted.current && playerRef.current === player)
+            playerResumeCallback?.();
+        })
+        .catch(() => {
+          if (mounted.current && playerRef.current === player)
+            notAllowedPlayCallback?.();
+        });
+    };
+    const handleVisibility = (): void => {
+      if (document.visibilityState === 'hidden') {
+        // Backgrounding interrupts playback, not the ready connection. Keep
+        // explicit user interruption separate so later answers can still play.
+        void vmsInteractiveRef.current?.interrupt().catch(() => {});
+      }
+    };
+    for (const event of ['click', 'focus', 'keydown'])
+      document.body.addEventListener(event, resumePlayer);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('beforeunload', disposeVmsInteractiveRef);
     return () => {
-      document.body.removeEventListener('click', () => {
-        vmsInteractiveRefPlayer?.resume();
-        playerResumeCallback?.();
-      });
-      document.body.removeEventListener('focus', () => {
-        vmsInteractiveRefPlayer?.resume();
-        playerResumeCallback?.();
-      });
-      document.body.removeEventListener('keydown', () => {
-        vmsInteractiveRefPlayer?.resume();
-        playerResumeCallback?.();
-      });
-
-      document.removeEventListener('visibilitychange', handleWindowTabChange);
-      window.removeEventListener('beforeunload', handleWindowTabChange);
+      mounted.current = false;
+      disposeVmsInteractiveRef();
+      for (const event of ['click', 'focus', 'keydown'])
+        document.body.removeEventListener(event, resumePlayer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', disposeVmsInteractiveRef);
     };
   }, []);
-  return <div id="avatarDom" style={styles ? styles : {}}></div>;
+  return <div ref={avatarElement} id="avatarDom" style={props.styles} />;
 });
 
 export default VmsInteractionCmp;

@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -6,7 +6,10 @@
   useState,
 } from 'react';
 import {
+  Alert,
   Button,
+  Empty,
+  Skeleton,
   Form,
   Input,
   Modal,
@@ -22,9 +25,9 @@ import {
   EditOutlined,
   FileMarkdownOutlined,
   FileOutlined,
-  FolderOpenOutlined,
   FolderOutlined,
   PlusOutlined,
+  ReloadOutlined,
   SaveOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
@@ -59,7 +62,13 @@ function SkillPage(): React.ReactElement {
     scrollToBottom: () => void;
   } | null>(null);
   const [treeData, setTreeData] = useState<SkillTreeNode[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [treeError, setTreeError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [fileLoading, setFileLoading] = useState(false);
+  const [fileError, setFileError] = useState('');
+  const treeRequest = useRef(0);
+  const fileRequest = useRef(0);
   const [keyword, setKeyword] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([]);
@@ -120,53 +129,39 @@ function SkillPage(): React.ReactElement {
     return map;
   }, [treeData]);
 
-  const selectedNode = selectedId ? nodeMap.get(selectedId) || null : null;
+  const selectedNode = selectedId
+    ? nodeMap.get(selectedId) ||
+      (currentFile?.id === selectedId ? toTreeNode(currentFile) : null)
+    : null;
 
-  const loadTree = useCallback(
-    async (
-      nextKeyword?: string,
-      nextSelectedId?: number | null
-    ): Promise<void> => {
-      const resolvedKeyword = nextKeyword ?? keywordRef.current;
-      const resolvedSelectedId =
-        typeof nextSelectedId === 'undefined'
-          ? selectedIdRef.current
-          : nextSelectedId;
-      setLoading(true);
-      try {
-        const data = await listSkillTree(resolvedKeyword || undefined);
-        const nextTreeData = data || [];
-        setTreeData(nextTreeData);
-        const existingIds = new Set(
-          flattenNodes(nextTreeData).map(node => node.id)
-        );
-        setExpandedKeys(prev =>
-          prev.filter(key => existingIds.has(Number(key)))
-        );
-        if (
-          resolvedSelectedId &&
-          !new Map(flattenNodes(nextTreeData).map(node => [node.id, node])).has(
-            resolvedSelectedId
-          )
-        ) {
-          setSelectedId(null);
-          setCurrentFile(null);
-          setEditorValue('');
-          setDirty(false);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const loadTree = useCallback(async (nextKeyword?: string): Promise<void> => {
+    const resolvedKeyword = nextKeyword ?? keywordRef.current;
+    const request = ++treeRequest.current;
+    setLoading(true);
+    setTreeError('');
+    try {
+      const data = await listSkillTree(resolvedKeyword || undefined);
+      if (request !== treeRequest.current) return;
+      const nextTreeData = data || [];
+      setTreeData(nextTreeData);
+      const existingIds = new Set(
+        flattenNodes(nextTreeData).map(node => node.id)
+      );
+      setExpandedKeys(prev => prev.filter(key => existingIds.has(Number(key))));
+    } catch {
+      if (request === treeRequest.current)
+        setTreeError('无法加载 Skill 文件，请重试。');
+    } finally {
+      if (request === treeRequest.current) setLoading(false);
+    }
+  }, []);
 
   const refreshTree = useCallback(
     async (
       nextKeyword?: string,
-      nextSelectedId?: number | null
+      _nextSelectedId?: number | null
     ): Promise<void> => {
-      await loadTree(nextKeyword, nextSelectedId);
+      await loadTree(nextKeyword);
     },
     [loadTree]
   );
@@ -189,6 +184,7 @@ function SkillPage(): React.ReactElement {
       alwaysRefresh?: boolean;
       successText: string;
     }): Promise<void> => {
+      treeRequest.current += 1;
       const normalizedTargetIds = targetIds.filter(Boolean);
       const keywordForSync =
         typeof syncKeyword === 'undefined' ? keywordRef.current : syncKeyword;
@@ -257,6 +253,7 @@ function SkillPage(): React.ReactElement {
       void loadTree(detail.value || '');
     };
     const handleCreate = (): void => {
+      if (submittingRef.current) return;
       form.resetFields();
       setDialogParentId(0);
       setDialogMode('folder');
@@ -310,17 +307,28 @@ function SkillPage(): React.ReactElement {
   };
 
   const openFile = async (id: number): Promise<void> => {
-    const detail = await getSkillFileContent(id);
-    setCurrentFile(detail);
-    setEditorValue(detail.content || '');
-    setDirty(false);
-    setMode(detail.fileExt === 'md' ? 'preview' : 'edit');
-    setTimeout(() => editorRef.current?.scrollToTop?.(), 0);
+    const request = ++fileRequest.current;
+    setFileLoading(true);
+    setFileError('');
+    try {
+      const detail = await getSkillFileContent(id);
+      if (request !== fileRequest.current) return;
+      setCurrentFile(detail);
+      setEditorValue(detail.content || '');
+      setDirty(false);
+      setMode(detail.fileExt === 'md' ? 'preview' : 'edit');
+      setTimeout(() => editorRef.current?.scrollToTop?.(), 0);
+    } catch {
+      if (request === fileRequest.current)
+        setFileError('无法加载文件内容，请重试。');
+    } finally {
+      if (request === fileRequest.current) setFileLoading(false);
+    }
   };
 
   const handleSelect = async (keys: React.Key[]): Promise<void> => {
     const targetId = Number(keys?.[0]);
-    if (!targetId || !(await ensureDiscardChanges())) {
+    if (submittingRef.current || !targetId || !(await ensureDiscardChanges())) {
       return;
     }
     setSelectedId(targetId);
@@ -331,6 +339,9 @@ function SkillPage(): React.ReactElement {
       }
       await openFile(targetId);
     } else {
+      fileRequest.current += 1;
+      setFileLoading(false);
+      setFileError('');
       setExpandedKeys(prev => mergeExpandedKeys(prev, [targetId]));
       setCurrentFile(null);
       setEditorValue('');
@@ -341,6 +352,7 @@ function SkillPage(): React.ReactElement {
   const handleSave = async (): Promise<void> => {
     if (
       submittingRef.current ||
+      fileLoading ||
       !selectedNode ||
       selectedNode.entryType !== 'file' ||
       !selectedId
@@ -349,6 +361,7 @@ function SkillPage(): React.ReactElement {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    setActionError('');
     try {
       const saved = await updateSkillFileContent({
         id: selectedId,
@@ -362,6 +375,10 @@ function SkillPage(): React.ReactElement {
       );
       safeMessage('success', 'Skill 文件已保存');
       scheduleRevalidate(keywordRef.current, selectedId);
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('操作失败，当前内容已保留，请重试。');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -372,8 +389,10 @@ function SkillPage(): React.ReactElement {
     if (submittingRef.current) {
       return;
     }
+    if (dialogMode === 'file' && !(await ensureDiscardChanges())) return;
     submittingRef.current = true;
     setSubmitting(true);
+    setActionError('');
     try {
       const values = await form.validateFields();
       const resolvedParentId =
@@ -448,8 +467,11 @@ function SkillPage(): React.ReactElement {
         safeMessage('success', '名称已更新');
         await refreshTree(keywordRef.current, selectedNode.id);
       }
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('操作失败，当前内容已保留，请重试。');
+      }
     } finally {
-      setDialogParentId(null);
       submittingRef.current = false;
       setSubmitting(false);
     }
@@ -459,6 +481,7 @@ function SkillPage(): React.ReactElement {
     if (!selectedNode || submittingRef.current) {
       return;
     }
+    setActionError('');
     setDeleteTarget(selectedNode);
   };
 
@@ -468,6 +491,7 @@ function SkillPage(): React.ReactElement {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    setActionError('');
     try {
       await deleteSkillEntry(deleteTarget.id);
       setTreeData(prev => removeTreeNode(prev, deleteTarget.id));
@@ -481,6 +505,10 @@ function SkillPage(): React.ReactElement {
       setDirty(false);
       safeMessage('success', '已删除');
       await refreshTree(keywordRef.current, null);
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('操作失败，当前内容已保留，请重试。');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -491,6 +519,7 @@ function SkillPage(): React.ReactElement {
     if (!selectedNode) {
       return;
     }
+    setActionError('');
     form.setFieldsValue({ name: selectedNode.name });
     setDialogParentId(null);
     setDialogMode('rename');
@@ -510,6 +539,7 @@ function SkillPage(): React.ReactElement {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    setActionError('');
     try {
       const uploaded = await uploadSkillFiles(parentId, Array.from(files));
 
@@ -527,6 +557,10 @@ function SkillPage(): React.ReactElement {
         selectedId: parentId,
         successText: `已上传 ${uploaded.length} 个文件`,
       });
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('操作失败，当前内容已保留，请重试。');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -542,8 +576,10 @@ function SkillPage(): React.ReactElement {
     if (submittingRef.current || !files?.length) {
       return;
     }
+    if (!(await ensureDiscardChanges())) return;
     submittingRef.current = true;
     setSubmitting(true);
+    treeRequest.current += 1;
     setDirectoryUploading(true);
     setLoading(true);
     try {
@@ -579,8 +615,8 @@ function SkillPage(): React.ReactElement {
           ? `目录上传完成，导入 ${importedFileCount} 个文件，跳过 ${skippedCount} 个不支持文件`
           : `目录上传完成，共导入 ${importedFileCount} 个文件`;
       safeMessage(importedFileCount > 0 ? 'success' : 'warning', resultText);
-    } catch (error) {
-      safeMessage('error', '目录上传失败，请稍后重试');
+    } catch {
+      setActionError('目录上传失败，请重试上传。');
     } finally {
       setLoading(false);
       setDirectoryUploading(false);
@@ -619,6 +655,7 @@ function SkillPage(): React.ReactElement {
       );
     }
     setSubmitting(true);
+    setActionError('');
     try {
       const movedNode = await moveSkillEntry({
         id: dragId,
@@ -628,6 +665,10 @@ function SkillPage(): React.ReactElement {
       setTreeData(prev => moveTreeNode(prev, movedNode));
       setExpandedKeys(prev => mergeExpandedKeys(prev, [targetParentId]));
       await refreshTree(keywordRef.current, dragId);
+    } catch (error) {
+      if (!(error && typeof error === 'object' && 'errorFields' in error)) {
+        setActionError('操作失败，当前内容已保留，请重试。');
+      }
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -638,6 +679,9 @@ function SkillPage(): React.ReactElement {
     if (!(await ensureDiscardChanges())) {
       return;
     }
+    fileRequest.current += 1;
+    setFileLoading(false);
+    setFileError('');
     setSelectedId(null);
     setCurrentFile(null);
     setEditorValue('');
@@ -647,10 +691,6 @@ function SkillPage(): React.ReactElement {
   const renderEmpty = (): React.ReactElement => (
     <div className={styles.empty}>
       <div className={styles.emptyCard}>
-        <div className={styles.eyebrow}>
-          <span className={styles.statusDot}></span>
-          Skill Filesystem
-        </div>
         <div className={styles.emptyTitle}>用文件组织你的 Agent 技能</div>
         <div className={styles.emptyDesc}>
           推荐使用“技能目录 + SKILL.md + 脚本或参考文件”的结构管理内容。 Agent
@@ -678,10 +718,6 @@ function SkillPage(): React.ReactElement {
   const renderFolderView = (): React.ReactElement => (
     <div className={styles.empty}>
       <div className={styles.emptyCard}>
-        <div className={styles.eyebrow}>
-          <FolderOpenOutlined />
-          当前目录
-        </div>
         <div className={styles.emptyTitle}>{selectedNode?.name}</div>
         <div className={styles.emptyDesc}>
           在这个目录下创建 SKILL.md、说明文档、脚本和参考资源。 当目录中存在
@@ -713,10 +749,19 @@ function SkillPage(): React.ReactElement {
           >
             上传文件
           </Button>
-          <Button icon={<EditOutlined />} onClick={handleRename}>
+          <Button
+            disabled={submitting || fileLoading}
+            icon={<EditOutlined />}
+            onClick={handleRename}
+          >
             重命名
           </Button>
-          <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
+          <Button
+            disabled={submitting || fileLoading}
+            danger
+            icon={<DeleteOutlined />}
+            onClick={handleDelete}
+          >
             删除
           </Button>
         </div>
@@ -738,7 +783,7 @@ function SkillPage(): React.ReactElement {
             {selectedNode?.skillEntry ? (
               <span className={styles.treeBadge}>SKILL</span>
             ) : null}
-            {dirty ? <span className={styles.monoTag}>UNSAVED</span> : null}
+            {dirty ? <span className={styles.monoTag}>未保存</span> : null}
           </div>
           <div className={styles.editorSub}>
             {currentFile?.skillName ? (
@@ -759,6 +804,7 @@ function SkillPage(): React.ReactElement {
         </div>
         <div className={styles.editorActions}>
           <Segmented
+            disabled={submitting || fileLoading}
             value={mode}
             onChange={value => setMode(value as 'edit' | 'preview')}
             options={[
@@ -766,10 +812,19 @@ function SkillPage(): React.ReactElement {
               { label: '预览', value: 'preview' },
             ]}
           />
-          <Button icon={<EditOutlined />} onClick={handleRename}>
+          <Button
+            disabled={submitting || fileLoading}
+            icon={<EditOutlined />}
+            onClick={handleRename}
+          >
             重命名
           </Button>
-          <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
+          <Button
+            disabled={submitting || fileLoading}
+            danger
+            icon={<DeleteOutlined />}
+            onClick={handleDelete}
+          >
             删除
           </Button>
           <Button
@@ -794,6 +849,7 @@ function SkillPage(): React.ReactElement {
                 setDirty(true);
               }}
               options={{
+                readOnly: submitting,
                 fontSize: 13,
                 wordWrap: 'on',
               }}
@@ -826,48 +882,80 @@ function SkillPage(): React.ReactElement {
         hidden
         onChange={event => void handleDirectoryUpload(event.target.files)}
       />
+      <header className={styles.pageHeader}>
+        <div>
+          <h1>Skill 文件</h1>
+          <p>用目录组织 SKILL.md、脚本和参考文件，供 Agent 按需加载。</p>
+        </div>
+        <div className={styles.headerActions}>
+          <Button
+            icon={<ReloadOutlined />}
+            loading={loading}
+            disabled={submitting || fileLoading}
+            onClick={() => void loadTree()}
+          >
+            刷新
+          </Button>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            disabled={submitting || fileLoading}
+            onClick={() => {
+              form.resetFields();
+              setDialogParentId(0);
+              setDialogMode('folder');
+            }}
+          >
+            新建文件夹
+          </Button>
+          <Button
+            icon={<UploadOutlined />}
+            loading={directoryUploading}
+            disabled={fileLoading || (submitting && !directoryUploading)}
+            onClick={() => directoryUploadRef.current?.click()}
+          >
+            上传目录
+          </Button>
+        </div>
+      </header>
+      {actionError && (
+        <Alert
+          type="error"
+          showIcon
+          message={actionError}
+          closable
+          onClose={() => setActionError('')}
+          className={styles.feedback}
+        />
+      )}
       <div className={styles.shell}>
         <div className={`${styles.panel} ${styles.sidebar}`}>
           <div className={styles.sidebarHeader}>
-            <div className={styles.eyebrow}>
-              <span className={styles.statusDot}></span>
-              Resource / Skill
-            </div>
-            <div className={styles.title}>Skill 文件系统</div>
-            <div className={styles.desc}>
-              用目录组织 `SKILL.md`、脚本和参考文件，支持在线编辑与 Agent
-              节点渐进式加载。
-            </div>
-            <div className={styles.toolbar}>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                disabled={submitting}
-                onClick={() => {
-                  form.resetFields();
-                  setDialogParentId(0);
-                  setDialogMode('folder');
-                }}
-              >
-                文件夹
-              </Button>
-              <Button
-                icon={<UploadOutlined />}
-                loading={directoryUploading}
-                disabled={submitting && !directoryUploading}
-                onClick={() => directoryUploadRef.current?.click()}
-              >
-                上传目录
-              </Button>
-            </div>
-            {loading ? (
-              <Typography.Text type="secondary">加载中...</Typography.Text>
-            ) : keyword ? (
-              <Typography.Text type="secondary">
-                当前筛选: {keyword}
-              </Typography.Text>
-            ) : null}
+            <h2 className={styles.sidebarTitle}>目录与文件</h2>
+            <Input.Search
+              aria-label="搜索 Skill 文件"
+              placeholder="搜索文件或目录"
+              allowClear
+              value={keyword}
+              onChange={event => {
+                setKeyword(event.target.value);
+                if (!event.target.value) void loadTree('');
+              }}
+              onSearch={value => void loadTree(value)}
+            />
           </div>
+          {treeError && (
+            <Alert
+              type="error"
+              showIcon
+              message={treeError}
+              action={
+                <Button loading={loading} onClick={() => void loadTree()}>
+                  重试
+                </Button>
+              }
+            />
+          )}
           <div
             className={styles.treeWrap}
             onClick={event => {
@@ -876,25 +964,55 @@ function SkillPage(): React.ReactElement {
               }
             }}
           >
-            <Tree
-              blockNode
-              draggable
-              expandedKeys={expandedKeys}
-              selectedKeys={selectedId ? [selectedId] : []}
-              treeData={toTreeData(treeData)}
-              onExpand={keys => setExpandedKeys(keys)}
-              onSelect={keys => void handleSelect(keys)}
-              onDrop={info => void onDrop(info)}
-            />
+            {loading ? (
+              <Skeleton active paragraph={{ rows: 6 }} />
+            ) : treeData.length === 0 && !treeError ? (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  keyword
+                    ? '未找到匹配的文件或目录，请调整搜索词。'
+                    : '暂无 Skill 文件，先创建文件夹或上传目录。'
+                }
+              />
+            ) : (
+              <Tree
+                aria-label="Skill 目录与文件"
+                disabled={submitting || fileLoading}
+                blockNode
+                draggable={!submitting && !fileLoading}
+                expandedKeys={expandedKeys}
+                selectedKeys={selectedId ? [selectedId] : []}
+                treeData={toTreeData(treeData)}
+                onExpand={keys => setExpandedKeys(keys)}
+                onSelect={keys => void handleSelect(keys)}
+                onDrop={info => void onDrop(info)}
+              />
+            )}
           </div>
         </div>
 
         <div className={`${styles.panel} ${styles.editorPanel}`}>
-          {!selectedNode
-            ? renderEmpty()
-            : selectedNode.entryType === 'folder'
-              ? renderFolderView()
-              : renderFileView()}
+          {fileLoading ? (
+            <div className={styles.empty}>
+              <Skeleton active />
+            </div>
+          ) : fileError && selectedId ? (
+            <Alert
+              type="error"
+              showIcon
+              message={fileError}
+              action={
+                <Button onClick={() => void openFile(selectedId)}>重试</Button>
+              }
+            />
+          ) : !selectedNode ? (
+            renderEmpty()
+          ) : selectedNode.entryType === 'folder' ? (
+            renderFolderView()
+          ) : (
+            renderFileView()
+          )}
         </div>
       </div>
 
@@ -936,14 +1054,29 @@ function SkillPage(): React.ReactElement {
         okText="确定"
         cancelText="取消"
         confirmLoading={submitting}
+        maskClosable={!submitting}
+        closable={!submitting}
         onCancel={() => {
+          if (submittingRef.current) return;
           setDialogParentId(null);
           setDialogMode(null);
           form.resetFields();
         }}
         onOk={handleDialogSubmit}
       >
-        <Form form={form} layout="vertical">
+        {actionError && (
+          <Alert
+            type="error"
+            showIcon
+            message={actionError}
+            className={styles.feedback}
+          />
+        )}
+        <Form
+          form={form}
+          layout="vertical"
+          disabled={submitting || fileLoading}
+        >
           <Form.Item
             label="名称"
             name="name"

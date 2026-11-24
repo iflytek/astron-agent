@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>知识库</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E9F7FC" stroke="#CCEAF6"/>
+  <g fill="none" stroke="#1374A3" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 10.6c-2.7-2.05-6.15-2.28-9.4-1.1v13c3.25-1.18 6.7-.95 9.4 1.1 2.7-2.05 6.15-2.28 9.4-1.1v-13c-3.25-1.18-6.7-.95-9.4 1.1Z" fill="#ceeef9"/>
+    <path d="M16 10.8v12.5"/>
+    <path d="M9.85 13.35c1-.12 1.94.01 2.83.35m-2.83 3.57c1-.12 1.94.01 2.83.35m6.64-3.92c.89-.34 1.83-.47 2.83-.35m-2.83 4.27c.89-.34 1.83-.47 2.83-.35" stroke="#419ac0" stroke-width="1.65"/>
+  </g>
+</svg>

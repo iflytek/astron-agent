@@ -27,30 +27,13 @@ import { cloneDeep } from 'lodash';
 
 import CustomNode from '@/components/workflow/nodes';
 import CustomEdge from '@/components/workflow/edges';
+import {
+  createWorkflowShortcutScope,
+  shouldIgnoreWorkflowShortcut,
+} from './keyboard-shortcuts';
 
 const nodeTypes = { custom: CustomNode };
 const edgeTypes = { customEdge: CustomEdge };
-
-const shouldIgnoreWorkflowShortcut = (event: KeyboardEvent): boolean => {
-  const target = event.target instanceof HTMLElement ? event.target : null;
-
-  if (!target) {
-    return false;
-  }
-
-  const tagName = target.tagName?.toLowerCase();
-
-  if (
-    target.isContentEditable ||
-    ['input', 'textarea', 'select'].includes(tagName)
-  ) {
-    return true;
-  }
-
-  return Boolean(
-    target.closest('.monaco-editor, .monaco-inputbox, [contenteditable="true"]')
-  );
-};
 
 interface IndexProps {
   zoom: number;
@@ -73,21 +56,8 @@ const useFlowContainerEffect = ({
   const edges = useFlowStore(state => state.edges);
   const canPublishSetNot = useFlowsManager(state => state.canPublishSetNot);
   const nodes = useFlowStore(state => state.nodes);
-  const reactFlowInstance = useFlowStore(state => state.reactFlowInstance);
-  const setZoom = useFlowStore(state => state.setZoom);
   const position = useRef({ x: 0, y: 0 });
-  const isMounted = useRef(false);
-
-  useEffect(() => {
-    if (!isMounted.current && nodes?.length > 0) {
-      reactFlowInstance?.fitView();
-      const zoom = reactFlowInstance?.getViewport()?.zoom
-        ? Math.round(reactFlowInstance?.getViewport()?.zoom * 100)
-        : 80;
-      setZoom(zoom);
-      isMounted.current = true;
-    }
-  }, [nodes, reactFlowInstance]);
+  const shortcutScope = useRef(createWorkflowShortcutScope());
 
   const handleDelete = useCallback(() => {
     if (!lastSelection) return;
@@ -112,8 +82,12 @@ const useFlowContainerEffect = ({
   }, [lastSelection, edges]);
 
   useEffect(() => {
+    const trackInteraction = (event: Event): void =>
+      shortcutScope.current.trackInteraction(event);
+    window.addEventListener('pointerdown', trackInteraction, true);
+    window.addEventListener('focusin', trackInteraction, true);
     const handleKeyDown = async (event: KeyboardEvent): Promise<void> => {
-      if (shouldIgnoreWorkflowShortcut(event)) {
+      if (shortcutScope.current.shouldIgnore(event)) {
         return;
       }
 
@@ -146,6 +120,7 @@ const useFlowContainerEffect = ({
         ['Backspace', 'Delete']?.includes(event.key) &&
         lastSelection
       ) {
+        event.preventDefault();
         handleDelete();
       }
     };
@@ -159,6 +134,8 @@ const useFlowContainerEffect = ({
     window.addEventListener('mousemove', handleMouseMove);
 
     return () => {
+      window.removeEventListener('pointerdown', trackInteraction, true);
+      window.removeEventListener('focusin', trackInteraction, true);
       startWorkflowKeydownEvent &&
         window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousemove', handleMouseMove);
@@ -200,13 +177,8 @@ function Index({ zoom, setZoom }: IndexProps): React.ReactElement {
   const handleFlowInit = useCallback(
     (instance: ReactFlowInstance): void => {
       setReactFlowInstance(instance);
-      instance.fitView();
-      const zoomLevel = instance.getViewport()?.zoom
-        ? Math.round(instance.getViewport().zoom * 100)
-        : 80;
-      setZoom(zoomLevel);
     },
-    [setReactFlowInstance, setZoom]
+    [setReactFlowInstance]
   );
 
   // =========================
@@ -284,11 +256,20 @@ function Index({ zoom, setZoom }: IndexProps): React.ReactElement {
       onDrop={handleDropAllowed}
       ref={dropZoneRef}
       id="flow-container"
+      data-workflow-canvas
+      tabIndex={0}
+      aria-label="工作流画布"
+      onPointerDown={event => {
+        if (!shouldIgnoreWorkflowShortcut(event.nativeEvent))
+          event.currentTarget.focus({ preventScroll: true });
+      }}
     >
       {lastSelection?.nodes?.length && lastSelection.nodes.length > 1 ? (
         <SelectNode lastSelection={lastSelection} />
       ) : null}
       <ReactFlow
+        fitView
+        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         minZoom={0.1}
         maxZoom={2}
         onMove={(_, viewport) => {

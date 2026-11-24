@@ -74,41 +74,27 @@ We offer two deployment methods to meet different scenarios:
 
 ### Option 1: Docker Compose (Recommended for Quick Start)
 
+> After startup, open the console and select **Register** to create an account, then sign in.
+
 ```bash
 # Clone the repository
 git clone https://github.com/iflytek/astron-agent.git
 
 # Navigate to the Docker deployment directory
-cd docker/astronAgent
+cd astron-agent/docker/astronAgent
 
-# Copy environment configuration
-cp .env.example .env
-
-# Configure environment variables
-vim .env
+docker compose up -d --build
 ```
 
-For environment variable configuration, please refer to the documentation:[DEPLOYMENT_GUIDE_WITH_AUTH.md](https://github.com/iflytek/astron-agent/blob/main/docs/DEPLOYMENT_GUIDE_WITH_AUTH.md#step-2-configure-astronagent-environment-variables)
-
-```bash
-# Complete the required private initialization/password migration first:
-# docs/CASDOOR_PASSWORD_STORAGE.md
-# Then start all services; the authentication gateway requires a passing check.
-docker compose -f docker-compose-with-auth.yaml up -d
-```
+No `.env` file needs to be copied or edited, and no environment variables need to be set. Open `http://localhost/` locally, or `http://<server-ip>/` from another machine; the default port is 80. Register an account and sign in. Optional domain, HTTPS, and external-service settings are described in the [deployment guide](docs/DEPLOYMENT_GUIDE.md).
 
 #### 📊 Service Access Addresses
 
 After startup, you can access the services at the following addresses:
 
-**Authentication Service**
-- **Casdoor Admin Interface**: http://localhost:8000
 
 **AstronAgent**
 - **Application Frontend (nginx proxy)**: http://localhost/
-
-**Note**
-- Default Casdoor login credentials: username: `admin`, password: `123`
 
 ### Option 2: Helm (For Kubernetes Environments)
 
@@ -122,7 +108,7 @@ After startup, you can access the services at the following addresses:
 
 ---
 
-> 📖 For complete deployment instructions and configuration details, see [Deployment Guide](docs/DEPLOYMENT_GUIDE_WITH_AUTH.md)
+> 📖 For complete deployment instructions and configuration details, see [Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
 
 ## 📖 Using Astron Cloud
 

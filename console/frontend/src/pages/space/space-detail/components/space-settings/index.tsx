@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { Button, Card, message } from 'antd';
+import { Button, Card } from 'antd';
 import { useTranslation } from 'react-i18next';
 
 import TransferOwnershipModal from '@/components/space/transfer-ownership-modal';
@@ -9,12 +9,7 @@ import useSpaceStore from '@/store/space-store';
 import LeaveSpaceModal from '@/components/space/leave-space-modal';
 import { usePermissions } from '@/hooks/use-permissions';
 import { ModuleType, OperationType } from '@/types/permission';
-
-interface SpaceInfo {
-  id: string;
-  name: string;
-  userRole: number;
-}
+import type { SpaceInfo } from '../../use-space-info';
 
 const SpaceSettings: React.FC<{
   spaceInfo: SpaceInfo;
@@ -58,20 +53,6 @@ const SpaceSettings: React.FC<{
     setShowTransferModal(false);
   }, []);
 
-  const handleTransferModalSubmit = useCallback(
-    (values: any) => {
-      try {
-        console.log('转让所有权:', values);
-        message.success(t('space.transferOwnershipSuccess'));
-        setShowTransferModal(false);
-      } catch (error) {
-        message.error(t('space.transferOwnershipFailed'));
-        console.error('转让所有权失败', error);
-      }
-    },
-    [t]
-  );
-
   // 删除空间
   const handleDeleteSpace = useCallback(() => {
     if (spaceInfo.userRole === 1) {
@@ -79,7 +60,7 @@ const SpaceSettings: React.FC<{
     } else {
       setShowLeaveSpaceModal(true);
     }
-  }, []);
+  }, [spaceInfo.userRole]);
 
   const handleDeleteModalClose = useCallback(() => {
     setShowDeleteModal(false);
@@ -101,11 +82,13 @@ const SpaceSettings: React.FC<{
   }, [spaceType, permissionsUtils]);
 
   const showDeleteBtn = useMemo(() => {
-    return permissionsUtils?.checks.hasModulePermission(
-      ModuleType.SPACE,
-      OperationType.SPACE_DELETE
-    );
-  }, [spaceType, permissionsUtils]);
+    return spaceInfo.userRole === 1
+      ? spaceInfo.canDelete
+      : permissionsUtils?.checks.hasModulePermission(
+          ModuleType.SPACE,
+          OperationType.SPACE_DELETE
+        );
+  }, [spaceInfo.userRole, spaceInfo.canDelete, permissionsUtils]);
 
   return (
     <div className={styles.spaceSettings}>
@@ -162,7 +145,6 @@ const SpaceSettings: React.FC<{
       <TransferOwnershipModal
         open={showTransferModal}
         onClose={handleTransferModalClose}
-        onSubmit={handleTransferModalSubmit}
         onSuccess={onRefresh}
       />
 

@@ -3,7 +3,7 @@ Authentication middleware unit tests.
 
 This module contains comprehensive unit tests for the AuthMiddleware class,
 covering all core functionality including authentication flow, header validation,
-API key verification, cache operations, and error handling scenarios.
+API key verification and error handling scenarios.
 """
 
 import hashlib
@@ -25,7 +25,6 @@ from workflow.extensions.fastapi.base import (
     JSONResponseBase,
 )
 from workflow.extensions.fastapi.middleware.auth import (
-    VERIFIED_CREDENTIAL_CACHE_PREFIX,
     WORKFLOW_GATEWAY_SIGNATURE_HEADER,
     WORKFLOW_GATEWAY_TIMESTAMP_HEADER,
     WORKFLOW_INTERNAL_API_KEY_ENV,
@@ -33,15 +32,8 @@ from workflow.extensions.fastapi.middleware.auth import (
     AuthMiddleware,
 )
 from workflow.utils.credentials import TENANT_INTERNAL_API_KEY_HEADER
-from workflow.utils.credentials import (
-    credential_cache_key as build_credential_cache_key,
-)
 
 pytestmark = pytest.mark.asyncio
-
-
-def credential_cache_key(credential: str) -> str:
-    return build_credential_cache_key(credential)
 
 
 def gateway_signature(
@@ -443,35 +435,6 @@ class TestAuthMiddleware:
 
         assert result == {}
 
-    async def test_get_app_id_with_cache(self, auth_middleware: AuthMiddleware) -> None:
-        """Test _get_app_id_with_cache method."""
-        with patch(
-            "workflow.extensions.fastapi.middleware.auth.get_cache_service"
-        ) as mock_get_cache:
-            mock_cache = {
-                f"{VERIFIED_CREDENTIAL_CACHE_PREFIX}:test_digest": "cached_app_id"
-            }
-            mock_get_cache.return_value = mock_cache
-
-            result = auth_middleware._get_app_id_with_cache("test_digest")
-
-            assert result == "cached_app_id"
-
-    async def test_set_app_id_with_cache(self, auth_middleware: AuthMiddleware) -> None:
-        """Test _set_app_id_with_cache method."""
-        with patch(
-            "workflow.extensions.fastapi.middleware.auth.get_cache_service"
-        ) as mock_get_cache:
-            mock_cache: dict = {}
-            mock_get_cache.return_value = mock_cache
-
-            auth_middleware._set_app_id_with_cache("test_digest", "test_app_id")
-
-            assert (
-                mock_cache[f"{VERIFIED_CREDENTIAL_CACHE_PREFIX}:test_digest"]
-                == "test_app_id"
-            )
-
     @pytest.mark.parametrize(
         "need_auth_paths,request_path,should_skip",
         [
@@ -725,37 +688,29 @@ class TestAuthMiddleware:
         mock_span = Mock()
         mock_span.add_info_event_async = AsyncMock()
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = None
+        with patch("httpx.AsyncClient.post") as mock_post:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "code": 0,
+                "data": {"appid": "test_app_id"},
+            }
+            mock_response.text = "success"
+            mock_post.return_value = mock_response
 
-            with patch("httpx.AsyncClient.post") as mock_post:
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {
-                    "code": 0,
-                    "data": {"appid": "test_app_id"},
-                }
-                mock_response.text = "success"
-                mock_post.return_value = mock_response
+            result = await auth_middleware._get_app_source_detail_with_api_key(
+                authorization_header, mock_span
+            )
 
-                with patch.object(auth_middleware, "_set_app_id_with_cache"):
-                    result = await auth_middleware._get_app_source_detail_with_api_key(
-                        authorization_header, mock_span
-                    )
-
-                    assert result == "test_app_id"
-                    credential = authorization_header.split(" ", 1)[1]
-                    mock_get_cache.assert_called_once_with(
-                        credential_cache_key(credential)
-                    )
-                    mock_post.assert_called_once_with(
-                        "https://api.example.com/v2/app/key/verify",
-                        json={
-                            "api_key": expected_api_key,
-                            "api_secret": expected_api_secret,
-                        },
-                        headers={},
-                    )
+            assert result == "test_app_id"
+            mock_post.assert_called_once_with(
+                "https://api.example.com/v2/app/key/verify",
+                json={
+                    "api_key": expected_api_key,
+                    "api_secret": expected_api_secret,
+                },
+                headers={},
+            )
 
     @pytest.mark.parametrize(
         "authorization_header",
@@ -788,58 +743,30 @@ class TestAuthMiddleware:
         {"APP_MANAGE_PLAT_BASE_URL": "https://api.example.com"},
         clear=False,
     )
-    async def test_get_app_source_detail_with_cache_hit(
+    async def test_get_app_source_detail_checks_current_tenant_state(
         self, auth_middleware: AuthMiddleware
     ) -> None:
-        """Test _get_app_source_detail_with_api_key returns cached result."""
-        mock_span = Mock()
+        mock_span = Mock(add_info_event_async=AsyncMock())
+        enabled = Mock(status_code=200)
+        enabled.json.return_value = {"code": 0, "data": {"appid": "test_app_id"}}
+        disabled = Mock(status_code=200)
+        disabled.json.return_value = {"code": 3003, "message": "app id not exist"}
+        authorization = "Bearer test_key:test_secret"
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = "cached_app_id"
-
-            result = await auth_middleware._get_app_source_detail_with_api_key(
-                "Bearer test_key:test_secret", mock_span
-            )
-
-            assert result == "cached_app_id"
-            mock_get_cache.assert_called_once_with(
-                credential_cache_key("test_key:test_secret")
-            )
-
-    @patch.dict(
-        os.environ,
-        {"APP_MANAGE_PLAT_BASE_URL": "https://api.example.com"},
-        clear=False,
-    )
-    async def test_cache_does_not_accept_wrong_secret_for_cached_key(
-        self, auth_middleware: AuthMiddleware
-    ) -> None:
-        mock_span = Mock()
-        mock_span.add_info_event_async = AsyncMock()
-        valid_digest = credential_cache_key("same-key:valid-secret")
-
-        def cache_lookup(digest: str) -> str | None:
-            return "cached-app" if digest == valid_digest else None
-
-        response = Mock()
-        response.status_code = 200
-        response.json.return_value = {"code": 10003, "message": "invalid credential"}
-        response.text = "invalid credential"
-
-        with patch.object(
-            auth_middleware, "_get_app_id_with_cache", side_effect=cache_lookup
-        ) as mock_get_cache, patch(
-            "httpx.AsyncClient.post", new=AsyncMock(return_value=response)
-        ) as mock_post:
-            with pytest.raises(CustomException):
+        with patch("httpx.AsyncClient.post", side_effect=[enabled, disabled]) as post:
+            assert (
                 await auth_middleware._get_app_source_detail_with_api_key(
-                    "Bearer same-key:wrong-secret", mock_span
+                    authorization, mock_span
+                )
+                == "test_app_id"
+            )
+            with pytest.raises(CustomException) as exc:
+                await auth_middleware._get_app_source_detail_with_api_key(
+                    authorization, mock_span
                 )
 
-        wrong_digest = credential_cache_key("same-key:wrong-secret")
-        assert wrong_digest != valid_digest
-        mock_get_cache.assert_called_once_with(wrong_digest)
-        mock_post.assert_awaited_once()
+        assert post.await_count == 2
+        assert exc.value.code == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
 
     @patch.dict(
         os.environ,
@@ -853,27 +780,21 @@ class TestAuthMiddleware:
         mock_span = Mock()
         mock_span.add_info_event_async = AsyncMock()
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = None
+        with patch("httpx.AsyncClient.post") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 404
+            mock_response.text = "Not found"
+            mock_get.return_value = mock_response
 
-            with patch("httpx.AsyncClient.post") as mock_get:
-                mock_response = Mock()
-                mock_response.status_code = 404
-                mock_response.text = "Not found"
-                mock_get.return_value = mock_response
-
-                with pytest.raises(CustomException) as exc_info:
-                    await auth_middleware._get_app_source_detail_with_api_key(
-                        "Bearer test_key:test_secret", mock_span
-                    )
-
-                assert (
-                    exc_info.value.code
-                    == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
+            with pytest.raises(CustomException) as exc_info:
+                await auth_middleware._get_app_source_detail_with_api_key(
+                    "Bearer test_key:test_secret", mock_span
                 )
-                mock_span.add_info_event_async.assert_called_once_with(
-                    "Application management platform credential verification completed"
-                )
+
+            assert exc_info.value.code == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
+            mock_span.add_info_event_async.assert_called_once_with(
+                "Application management platform credential verification completed"
+            )
 
     @pytest.mark.parametrize(
         "response_code,expected_error",
@@ -895,28 +816,22 @@ class TestAuthMiddleware:
         mock_span = Mock()
         mock_span.add_info_event_async = AsyncMock()
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = None
+        with patch("httpx.AsyncClient.post") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "code": response_code,
+                "message": expected_error,
+            }
+            mock_response.text = f"Response with code {response_code}"
+            mock_get.return_value = mock_response
 
-            with patch("httpx.AsyncClient.post") as mock_get:
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {
-                    "code": response_code,
-                    "message": expected_error,
-                }
-                mock_response.text = f"Response with code {response_code}"
-                mock_get.return_value = mock_response
-
-                with pytest.raises(CustomException) as exc_info:
-                    await auth_middleware._get_app_source_detail_with_api_key(
-                        "Bearer test_key:test_secret", mock_span
-                    )
-
-                assert (
-                    exc_info.value.code
-                    == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
+            with pytest.raises(CustomException) as exc_info:
+                await auth_middleware._get_app_source_detail_with_api_key(
+                    "Bearer test_key:test_secret", mock_span
                 )
+
+            assert exc_info.value.code == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
 
     @pytest.mark.parametrize(
         "response_data,expected_appid",
@@ -937,27 +852,18 @@ class TestAuthMiddleware:
         mock_span = Mock()
         mock_span.add_info_event_async = AsyncMock()
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = None
+        with patch("httpx.AsyncClient.post") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"code": 0, **response_data}
+            mock_response.text = "success"
+            mock_get.return_value = mock_response
 
-            with patch("httpx.AsyncClient.post") as mock_get:
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {"code": 0, **response_data}
-                mock_response.text = "success"
-                mock_get.return_value = mock_response
+            result = await auth_middleware._get_app_source_detail_with_api_key(
+                "Bearer test_key:test_secret", mock_span
+            )
 
-                with patch.object(
-                    auth_middleware, "_set_app_id_with_cache"
-                ) as mock_set_cache:
-                    result = await auth_middleware._get_app_source_detail_with_api_key(
-                        "Bearer test_key:test_secret", mock_span
-                    )
-
-                    assert result == expected_appid
-                    mock_set_cache.assert_called_once_with(
-                        credential_cache_key("test_key:test_secret"), expected_appid
-                    )
+            assert result == expected_appid
 
     @pytest.mark.parametrize(
         "response_data",
@@ -980,39 +886,20 @@ class TestAuthMiddleware:
         mock_span = Mock()
         mock_span.add_info_event_async = AsyncMock()
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = None
+        with patch("httpx.AsyncClient.post") as mock_get:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"code": 0, **response_data}
+            mock_response.text = "success"
+            mock_get.return_value = mock_response
 
-            with patch("httpx.AsyncClient.post") as mock_get:
-                mock_response = Mock()
-                mock_response.status_code = 200
-                mock_response.json.return_value = {"code": 0, **response_data}
-                mock_response.text = "success"
-                mock_get.return_value = mock_response
-
-                with pytest.raises(CustomException) as exc_info:
-                    await auth_middleware._get_app_source_detail_with_api_key(
-                        "Bearer test_key:test_secret", mock_span
-                    )
-
-                assert (
-                    exc_info.value.code
-                    == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
+            with pytest.raises(CustomException) as exc_info:
+                await auth_middleware._get_app_source_detail_with_api_key(
+                    "Bearer test_key:test_secret", mock_span
                 )
-                assert "appid is null" in exc_info.value.message
 
-    async def test_get_app_id_with_cache_missing_key(
-        self, auth_middleware: AuthMiddleware
-    ) -> None:
-        """Test _get_app_id_with_cache with missing cache key raises KeyError."""
-        with patch(
-            "workflow.extensions.fastapi.middleware.auth.get_cache_service"
-        ) as mock_get_cache:
-            mock_cache: dict = {}
-            mock_get_cache.return_value = mock_cache
-
-            with pytest.raises(KeyError):
-                auth_middleware._get_app_id_with_cache("nonexistent_key")
+            assert exc_info.value.code == CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR.code
+            assert "appid is null" in exc_info.value.message
 
     @patch.dict(
         os.environ,
@@ -1028,32 +915,28 @@ class TestAuthMiddleware:
         auth_middleware.api_key = "test_key"
         auth_middleware.api_secret = "test_secret"
 
-        with patch.object(auth_middleware, "_get_app_id_with_cache") as mock_get_cache:
-            mock_get_cache.return_value = None
+        with patch.object(auth_middleware, "_gen_app_auth_header") as mock_gen_auth:
+            mock_gen_auth.return_value = {"Authorization": "test_header"}
 
-            with patch.object(auth_middleware, "_gen_app_auth_header") as mock_gen_auth:
-                mock_gen_auth.return_value = {"Authorization": "test_header"}
+            with patch("httpx.AsyncClient.post") as mock_get:
+                mock_response = Mock()
+                mock_response.status_code = 200
+                mock_response.json.return_value = {
+                    "code": 0,
+                    "data": {"appid": "test_app_id"},
+                }
+                mock_response.text = "success"
+                mock_get.return_value = mock_response
 
-                with patch("httpx.AsyncClient.post") as mock_get:
-                    mock_response = Mock()
-                    mock_response.status_code = 200
-                    mock_response.json.return_value = {
-                        "code": 0,
-                        "data": {"appid": "test_app_id"},
-                    }
-                    mock_response.text = "success"
-                    mock_get.return_value = mock_response
+                await auth_middleware._get_app_source_detail_with_api_key(
+                    "Bearer test_key:test_secret", mock_span
+                )
 
-                    with patch.object(auth_middleware, "_set_app_id_with_cache"):
-                        await auth_middleware._get_app_source_detail_with_api_key(
-                            "Bearer test_key:test_secret", mock_span
-                        )
-
-                        mock_gen_auth.assert_called_once_with(
-                            "https://api.example.com/v2/app/key/verify"
-                        )
-                        mock_get.assert_called_once_with(
-                            "https://api.example.com/v2/app/key/verify",
-                            json={"api_key": "test_key", "api_secret": "test_secret"},
-                            headers={"Authorization": "test_header"},
-                        )
+                mock_gen_auth.assert_called_once_with(
+                    "https://api.example.com/v2/app/key/verify"
+                )
+                mock_get.assert_called_once_with(
+                    "https://api.example.com/v2/app/key/verify",
+                    json={"api_key": "test_key", "api_secret": "test_secret"},
+                    headers={"Authorization": "test_header"},
+                )

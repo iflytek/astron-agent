@@ -204,12 +204,19 @@ class OpenapiSchemaParser:
         for path, path_item in openapi["paths"].items():
             for method in methods:
                 if method in path_item:
-                    interfaces.append(
+                    operation = dict(path_item[method])
+                    parameters = {
+                        (p["in"], p["name"]): p for p in path_item.get("parameters", [])
+                    }
+                    parameters.update(
                         {
-                            "path": path,
-                            "method": method,
-                            "operation": path_item[method],
+                            (p["in"], p["name"]): p
+                            for p in operation.get("parameters", [])
                         }
+                    )
+                    operation["parameters"] = list(parameters.values())
+                    interfaces.append(
+                        {"path": path, "method": method, "operation": operation}
                     )
         return interfaces
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>平台账户</title>
+  <g fill="none" stroke="#65479B" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.6" y="5.8" width="16.8" height="12.4" rx="2.05" fill="#E0CEF9" fill-opacity=".48"/>
+    <circle cx="9" cy="10.45" r="1.47" fill="#65479B" stroke="none"/>
+    <path d="M6.25 15.45a2.8 2.8 0 0 1 5.5 0Z" fill="#65479B" stroke="none"/>
+    <path d="M14.15 10.6h3.3m-3.3 3.4h2.45" stroke="#7C60AD"/>
+  </g>
+</svg>

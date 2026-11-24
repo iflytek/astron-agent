@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>MCP</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#FFF4E5" stroke="#F7E3C5"/>
+  <g fill="none" stroke="#9B5809" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.5 8.1h5.35a2.3 2.3 0 0 1 2.3 2.3v1.5h1.15a1.7 1.7 0 1 1 0 3.4h-1.15v1.6a2.1 2.1 0 0 1-2.1 2.1H7.5a2.1 2.1 0 0 1-2.1-2.1v-6.7a2.1 2.1 0 0 1 2.1-2.1Z" fill="#9B5809" stroke="none"/>
+    <path d="M24.5 23.9h-5.35a2.3 2.3 0 0 1-2.3-2.3v-1.5H15.7a1.7 1.7 0 1 1 0-3.4h1.15v-1.6a2.1 2.1 0 0 1 2.1-2.1h5.55a2.1 2.1 0 0 1 2.1 2.1v6.7a2.1 2.1 0 0 1-2.1 2.1Z" fill="#F7C67B" stroke="#be8234" stroke-width="1.05"/>
+    <circle cx="10.1" cy="13.55" r="1.23" fill="#FFF4E5" stroke="none"/>
+    <circle cx="22.2" cy="18.35" r="1.23" fill="#9B5809" stroke="none"/>
+  </g>
+</svg>

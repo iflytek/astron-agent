@@ -1,0 +1,54 @@
+.workflowTrigger:global(.ant-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  padding-inline: 12px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: none;
+
+  > :global(.anticon-down) {
+    margin-inline-start: 3px;
+    font-size: 10px;
+  }
+}
+
+.workflowMenu {
+  :global(.ant-dropdown-menu) {
+    min-width: 192px;
+    padding: 6px;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgb(24 36 61 / 12%);
+  }
+
+  :global(.ant-dropdown-menu-item) {
+    gap: 10px;
+    min-height: 38px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    color: #18243d;
+    font-size: 13px;
+    line-height: 20px;
+  }
+
+  :global(.ant-dropdown-menu-item-icon) {
+    color: #607089;
+    font-size: 15px;
+  }
+
+  :global(.ant-dropdown-menu-item-active) {
+    background: #f2f5fb;
+  }
+
+  :global(.ant-dropdown-menu-item-disabled) {
+    color: #8494aa;
+  }
+
+  :global(.ant-dropdown-menu-item-divider) {
+    margin: 5px 6px;
+    background: #e8edf5;
+  }
+}

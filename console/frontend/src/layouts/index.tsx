@@ -1,13 +1,14 @@
 import React, { FC, useCallback } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Alert } from 'antd';
 import CrashErrorComponent from '@/components/crash-error-component';
-import Sidebar from '@/components/sidebar';
+import ResourceNavigation from '@/components/resource-navigation';
 import Header from '@/components/header';
+import useSpaceStore from '@/store/space-store';
 
 const hasHeaderList = [
   'knowledge',
-  'plugin',
   'database',
   'rpa',
   'skill',
@@ -22,6 +23,15 @@ interface BasicLayoutProps {
 const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const isResource = location.pathname.startsWith('/resource/');
+  const { enterpriseId, spaceId } = useSpaceStore();
+  const requiresSpace =
+    isResource ||
+    /^\/management\/(model|release)(\/|$)/.test(location.pathname) ||
+    ['/management/bot-api', '/space/agent', '/space/workflows'].includes(
+      location.pathname
+    );
+  const needsSpace = Boolean(enterpriseId && !spaceId && requiresSpace);
 
   // 如果没有显式传入 showHeader，则使用原来的逻辑判断
   const shouldShowHeader =
@@ -106,14 +116,28 @@ const BasicLayout: FC<BasicLayoutProps> = ({ showHeader }) => {
       }}
       FallbackComponent={CrashErrorComponent}
     >
-      <div className="flex h-full w-full overflow-hidden global-background">
-        <Sidebar />
+      <div className="console-shell">
+        <ResourceNavigation />
 
-        <div className="flex-1 flex flex-col overflow-hidden page-container-UI">
-          {shouldShowHeader && (
+        <div className="console-main">
+          {shouldShowHeader && !isResource && !needsSpace && (
             <Header onSearch={handleSearch} onCreate={handleCreate} />
           )}
-          <Outlet />
+          {needsSpace ? (
+            <Alert
+              className="m-4"
+              type="info"
+              showIcon
+              message="请从侧栏选择团队空间"
+              action={
+                <Link to={`/enterprise/${enterpriseId}/space`}>
+                  查看团队空间
+                </Link>
+              }
+            />
+          ) : (
+            <Outlet />
+          )}
         </div>
       </div>
     </ErrorBoundary>

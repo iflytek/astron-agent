@@ -1,12 +1,7 @@
-import React, {
-  useEffect,
-  useState,
-  useCallback,
-  useMemo,
-  useRef,
-} from 'react';
-import { Select, message } from 'antd';
-import { useParams, useNavigate } from 'react-router-dom';
+import { shouldShowRequestError } from '@/utils/http-error';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import { Alert, Button, Select, message } from 'antd';
+import { useParams } from 'react-router-dom';
 import { useDebounceFn } from 'ahooks';
 
 import SpaceTab from '@/components/space/space-tab';
@@ -22,30 +17,12 @@ import AddMemberModal from '@/components/space/add-member-modal';
 import SpaceModal from '@/components/space/space-modal';
 import { useSpaceI18n } from '@/pages/space/hooks/use-space-i18n';
 import { useTranslation } from 'react-i18next';
-import useUserStore from '@/store/user-store';
-import useSpaceStore from '@/store/space-store';
-import { SpaceType, RoleType } from '@/types/permission';
-import { roleToRoleType } from '@/pages/space/config';
-import { useSpaceType } from '@/hooks/use-space-type';
-import { useEnterprise } from '@/hooks/use-enterprise';
 import styles from './index.module.scss';
 import { TAB_KEYS, DEBOUNCE_DELAY, DEFAULT_VALUES } from '@/pages/space/config';
-import { getSpaceDetail, spaceInvite, visitSpace } from '@/services/space';
+import { spaceInvite } from '@/services/space';
+import { useSpaceInfo, type SpaceInfo } from './use-space-info';
 
 const { Option } = Select;
-
-interface SpaceInfo {
-  id: string;
-  name: string;
-  description: string;
-  avatarUrl?: string;
-  role: 'owner' | 'admin' | 'member';
-  memberCount: number;
-  totalMembers: number;
-  ownerName: string;
-  userRole: number;
-  enterpriseId?: string;
-}
 
 // 定义筛选状态接口
 interface FilterState {
@@ -275,11 +252,6 @@ const useSearchHandlers = (params: SearchHandlersParams): SearchHandlers => {
 };
 
 // 空间信息Hook返回类型
-interface UseSpaceInfoReturn {
-  spaceInfo: SpaceInfo | null;
-  loading: boolean;
-  loadSpaceInfo: () => Promise<void>;
-}
 
 // 弹窗状态Hook返回类型
 interface UseModalStatesReturn {
@@ -302,92 +274,6 @@ interface TabContentParams {
   invitationManagementRef: React.RefObject<InvitationManagementRef>;
   loadSpaceInfo: () => Promise<void>;
 }
-
-// 空间信息管理Hook
-const useSpaceInfo = (spaceId: string | undefined): UseSpaceInfoReturn => {
-  const navigate = useNavigate();
-  const { setUserRole } = useUserStore();
-  const { spaceType, setSpaceStore } = useSpaceStore();
-  const { isTeamSpace, deleteSpaceCb, handleTeamSwitch, getLastVisitSpace } =
-    useSpaceType(navigate);
-  const { isTeamSpaceEmpty } = useEnterprise();
-
-  const [spaceInfo, setSpaceInfo] = useState<SpaceInfo | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  const updateSpaceStore = useCallback(
-    async (spaceInfo: SpaceInfo): Promise<void> => {
-      const { enterpriseId: detailEnterpriseId } = spaceInfo;
-
-      if (
-        (isTeamSpace() && !detailEnterpriseId) ||
-        (detailEnterpriseId && !isTeamSpace())
-      ) {
-        await visitSpace(spaceId);
-        setSpaceStore({
-          enterpriseId: detailEnterpriseId,
-          spaceType: detailEnterpriseId ? 'team' : 'personal',
-        });
-        setTimeout(() => {
-          getLastVisitSpace();
-        });
-      }
-    },
-    [spaceId, isTeamSpace, setSpaceStore, getLastVisitSpace]
-  );
-
-  const loadSpaceInfo = useCallback(async (): Promise<void> => {
-    if (!spaceId) {
-      setLoading(false);
-      return;
-    }
-
-    setSpaceStore({ spaceId });
-
-    try {
-      setLoading(true);
-      const response = await getSpaceDetail();
-      const spaceInfo = response as unknown as SpaceInfo;
-      updateSpaceStore(spaceInfo);
-      setSpaceInfo(spaceInfo);
-      setUserRole(
-        spaceType as SpaceType,
-        roleToRoleType(spaceInfo?.userRole, isTeamSpace()) as RoleType
-      );
-    } catch (err: unknown) {
-      const error = err as { msg?: string; desc?: string };
-      message.error(error?.msg || error?.desc);
-      deleteSpaceCb();
-    } finally {
-      setLoading(false);
-    }
-  }, [
-    spaceId,
-    spaceType,
-    isTeamSpace,
-    updateSpaceStore,
-    setUserRole,
-    deleteSpaceCb,
-    setSpaceStore,
-  ]);
-
-  const checkNoTeamSpace = useCallback(() => {
-    if (isTeamSpaceEmpty) {
-      handleTeamSwitch();
-    }
-  }, [isTeamSpaceEmpty, handleTeamSwitch]);
-
-  useEffect(() => {
-    loadSpaceInfo();
-    checkNoTeamSpace();
-  }, [loadSpaceInfo, checkNoTeamSpace]);
-
-  return {
-    spaceInfo,
-    loading,
-    loadSpaceInfo,
-  };
-};
 
 // 弹窗状态管理Hook
 const useModalStates = (): UseModalStatesReturn => {
@@ -495,6 +381,7 @@ const renderMembersTabAction = (
 ): React.JSX.Element => (
   <div key={TAB_KEYS.MEMBERS} className={styles.tabActions}>
     <Select
+      aria-label={t('space.selectRole')}
       value={memberFilter.filterValue}
       onChange={searchHandlers.handleMemberRoleFilterChange}
       className={styles.filterSelect}
@@ -524,6 +411,7 @@ const renderApplyTabAction = (
 ): React.JSX.Element => (
   <div key={TAB_KEYS.APPLY} className={styles.tabActions}>
     <Select
+      aria-label={t('space.selectStatus')}
       value={applyFilter.filterValue}
       onChange={searchHandlers.handleApplyStatusFilterChange}
       className={styles.filterSelect}
@@ -553,6 +441,7 @@ const renderInvitationTabAction = (
 ): React.JSX.Element => (
   <div key={TAB_KEYS.INVITATIONS} className={styles.tabActions}>
     <Select
+      aria-label={t('space.selectStatus')}
       value={invitationFilter.filterValue}
       onChange={searchHandlers.handleInvitationStatusFilterChange}
       className={styles.filterSelect}
@@ -645,7 +534,7 @@ const SpaceDetail: React.FC = () => {
   const invitationManagementRef = useRef<InvitationManagementRef>(null);
 
   // 使用自定义 Hooks
-  const { spaceInfo, loading, loadSpaceInfo } = useSpaceInfo(spaceId);
+  const { spaceInfo, loading, error, loadSpaceInfo } = useSpaceInfo(spaceId);
 
   const {
     memberFilter,
@@ -723,7 +612,8 @@ const SpaceDetail: React.FC = () => {
         invitationManagementRef.current?.reload();
       } catch (error: unknown) {
         const err = error as { msg?: string };
-        message.error(err?.msg || messages.ERROR.MEMBER_ADD);
+        shouldShowRequestError(error) &&
+          message.error(err?.msg || messages.ERROR.MEMBER_ADD);
       }
     },
     [t, handleAddMemberModalClose, messages]
@@ -745,7 +635,16 @@ const SpaceDetail: React.FC = () => {
 
   // 如果没有空间信息，返回空内容
   if (!spaceInfo) {
-    return <div className={styles.spaceDetail}></div>;
+    return (
+      <div className={styles.spaceDetail}>
+        <Alert
+          type="error"
+          showIcon
+          message={error || '无法读取此空间。'}
+          action={<Button onClick={() => void loadSpaceInfo()}>重试</Button>}
+        />
+      </div>
+    );
   }
 
   return (
@@ -772,6 +671,7 @@ const SpaceDetail: React.FC = () => {
       {/* 弹窗组件 */}
       <AddMemberModal
         inviteType="space"
+        isTeamSpace={Boolean(spaceInfo.enterpriseId)}
         open={showAddMemberModal}
         onClose={handleAddMemberModalClose}
         onSubmit={handleAddMemberModalSubmit}
@@ -780,6 +680,7 @@ const SpaceDetail: React.FC = () => {
       <SpaceModal
         open={showEditModal}
         mode="edit"
+        enterpriseId={String(spaceInfo.enterpriseId || '')}
         initialData={{ ...spaceInfo }}
         onClose={handleEditModalClose}
         onSuccess={loadSpaceInfo}

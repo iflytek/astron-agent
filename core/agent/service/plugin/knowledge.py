@@ -70,27 +70,20 @@ class KnowledgePluginFactory(BaseModel):
             data: Dict[str, Any] = {
                 "query": self.query,
                 "topN": str(self.top_k),
-                "match": {"repoId": self.repo_ids, "threshold": self.score_threshold},
+                "match": {
+                    "repoId": self.repo_ids,
+                    "docIds": self.doc_ids,
+                    "threshold": self.score_threshold,
+                },
                 "ragType": self.rag_type,
             }
-            if self.rag_type == "CBG-RAG":
-                if "match" not in data:
-                    data["match"] = {}
-                data["match"]["docIds"] = self.doc_ids
             if self.rag_type == "Ragflow-RAG" and self.dataset_ids:
                 data["match"]["datasetId"] = self.dataset_ids
 
             sp.add_info_events({"request-data": json.dumps(data, ensure_ascii=False)})
 
             if not self.repo_ids:
-                empty_resp: Dict[str, Any] = {}
-                sp.add_info_events(
-                    {"response-data": json.dumps(empty_resp, ensure_ascii=False)}
-                )
-                retrieval_span.set_attributes(
-                    self._retrieval_attributes(output_value=empty_resp)
-                )
-                return empty_resp
+                raise KnowledgeQueryExc()
 
             try:
                 query_url = os.getenv("CHUNK_QUERY_URL")
@@ -112,6 +105,7 @@ class KnowledgePluginFactory(BaseModel):
                         response.raise_for_status()
                         if response.status == 200:
                             resp: Dict[str, Any] = await response.json()
+                            self.validate_response(resp)
                             sp.add_info_events(
                                 {"response-data": json.dumps(resp, ensure_ascii=False)}
                             )
@@ -120,9 +114,31 @@ class KnowledgePluginFactory(BaseModel):
                             )
                             return resp
 
-                        raise KnowledgeQueryExc
-            except asyncio.TimeoutError as e:
-                raise KnowledgeQueryExc from e
+                        raise KnowledgeQueryExc()
+            except (asyncio.TimeoutError, aiohttp.ClientError, ValueError, TypeError):
+                raise KnowledgeQueryExc() from None
+
+    @staticmethod
+    def validate_response(payload: Any) -> None:
+        """An empty retrieval is valid only inside a successful protocol envelope."""
+        if not isinstance(payload, dict) or type(payload.get("code")) is not int:
+            raise KnowledgeQueryExc()
+        data = payload.get("data")
+        if payload["code"] != 0 or not isinstance(data, dict):
+            raise KnowledgeQueryExc()
+        results = data.get("results")
+        if not isinstance(results, list):
+            raise KnowledgeQueryExc()
+        for result in results:
+            if (
+                not isinstance(result, dict)
+                or not isinstance(result.get("content"), str)
+                or not isinstance(result.get("docId"), str)
+                or not result["docId"]
+                or not isinstance(result.get("title", ""), str)
+                or not isinstance(result.get("references", {}), dict)
+            ):
+                raise KnowledgeQueryExc()
 
     def _headers(self) -> Dict[str, str]:
         return {"Content-Type": "application/json"}

@@ -1,3 +1,4 @@
+import { getCsrfToken } from '@/utils/session';
 import React, { useEffect, useState, useMemo } from 'react';
 import {
   Button,
@@ -528,7 +529,7 @@ function index(props: IndexProps): React.JSX.Element {
     accept: '.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff',
     beforeUpload,
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+      'X-CSRFToken': getCsrfToken(),
     },
     onChange: (info: UploadChangeParam<UploadFile>): void => {
       if (info.file.status === 'uploading') {

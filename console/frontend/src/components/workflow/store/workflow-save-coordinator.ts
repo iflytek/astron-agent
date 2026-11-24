@@ -23,6 +23,7 @@ export interface SaveCoordinator {
   schedule: () => void;
   flush: () => Promise<void>;
   reset: () => void;
+  hasPending: () => boolean;
 }
 
 export const shouldPersistWorkflowDraft = (historyVersion: boolean): boolean =>
@@ -231,5 +232,13 @@ export const createSaveCoordinator = <TValue, TResult>(
     options.onSavingChange?.(false);
   };
 
-  return { schedule, flush, reset };
+  return {
+    schedule,
+    flush,
+    reset,
+    hasPending: () =>
+      !!activeRun ||
+      timer !== undefined ||
+      requestedRevision > persistedRevision,
+  };
 };

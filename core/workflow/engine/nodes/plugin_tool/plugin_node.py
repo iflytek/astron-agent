@@ -128,6 +128,7 @@ class PluginNode(BaseNode):
                 run_url=f"{os.getenv('PLUGIN_BASE_URL')}/api/v1/tools/http_run",
                 version=self.version,
             )
+            await link.load_tools()
             action_inputs = {}
             inputs, outputs = {}, {}
             # Collect input variables from variable pool
@@ -135,7 +136,9 @@ class PluginNode(BaseNode):
                 action_inputs[identifier] = variable_pool.get_variable(
                     node_id=self.node_id, key_name=identifier, span=span
                 )
-            await span.add_info_events_async({"action_input": f"{action_inputs}"})
+            await span.add_info_events_async(
+                {"tool_id": self.pluginId, "operation": self.operationId}
+            )
             inputs = action_inputs
 
             # Find and execute the matching tool operation

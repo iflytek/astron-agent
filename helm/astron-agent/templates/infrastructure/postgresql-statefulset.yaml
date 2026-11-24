@@ -48,7 +48,7 @@ spec:
             command:
             - /bin/sh
             - -c
-            - pg_isready -U {{ .Values.postgresql.auth.username }} -d {{ .Values.postgresql.auth.database }}
+            - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
           initialDelaySeconds: 30
           periodSeconds: {{ .Values.postgresql.healthCheck.interval }}
           timeoutSeconds: {{ .Values.postgresql.healthCheck.timeout }}
@@ -58,7 +58,7 @@ spec:
             command:
             - /bin/sh
             - -c
-            - pg_isready -U {{ .Values.postgresql.auth.username }} -d {{ .Values.postgresql.auth.database }}
+            - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 5

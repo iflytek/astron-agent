@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { message, Modal, Select } from 'antd';
 import SpaceTable, {
@@ -18,11 +19,7 @@ import {
   removeEnterpriseUser,
   updateEnterpriseUserRole,
 } from '@/services/enterprise';
-import {
-  roleToRoleType,
-  roleTypeToRole,
-  SUPER_ADMIN_ROLE,
-} from '@/pages/space/config';
+import { roleToRoleType, roleTypeToRole } from '@/pages/space/config';
 import { useTranslation } from 'react-i18next';
 
 const { Option } = Select;
@@ -47,26 +44,23 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
   const tableRef = useRef<SpaceTableRef>(null);
   const { roleTextMap, memberRoleOptions } = useSpaceI18n();
   const permissionInfo = usePermissions();
+  const actorRole = Number(roleTypeToRole(permissionInfo?.userRole.roleType));
 
   // 处理角色变更
   const handleRoleChange = useCallback(
     async (memberId: string, newRole: string) => {
       try {
         // API调用
-        const res = await updateEnterpriseUserRole({
+        await updateEnterpriseUserRole({
           uid: memberId,
           role: newRole,
         });
 
         message.success(t('space.roleUpdateSuccess'));
-        // 判断如果是操作自己，则刷新页面
-        if (Number(memberId) === Number(user?.uid)) {
-          window.location.reload();
-        } else {
-          tableRef.current?.reload();
-        }
+        tableRef.current?.reload();
       } catch (error: any) {
-        message.error(error?.msg || error?.desc);
+        shouldShowRequestError(error) &&
+          message.error(error?.msg || error?.desc);
       }
     },
     [t]
@@ -109,7 +103,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
           success: true,
         };
       } catch (err: any) {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
         return {
           data: [],
           total: 0,
@@ -124,14 +118,14 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
   const handleDelete = useCallback(
     async (record: MemberData) => {
       try {
-        const res = await removeEnterpriseUser({
+        await removeEnterpriseUser({
           uid: record.uid,
         });
 
         message.success(t('common.userDeleted', { username: record.nickname }));
         tableRef.current?.reload();
       } catch (err: any) {
-        message.error(err?.msg || err?.desc);
+        shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
       }
     },
     [t]
@@ -152,13 +146,14 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         ),
       },
       {
-        title: t('common.username'),
+        title: t('space.role'),
         dataIndex: 'role',
         key: 'role',
         width: 120,
         render: (role: string, record: MemberData) => {
           const showText =
-            role == SUPER_ADMIN_ROLE ||
+            actorRole !== 1 ||
+            Number(role) <= actorRole ||
             !permissionInfo?.checks.hasModulePermission(
               ModuleType.SPACE,
               OperationType.MODIFY_MEMBER_PERMISSIONS
@@ -169,8 +164,9 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
 
           return (
             <Select
-              value={role}
-              onChange={value => handleRoleChange(record.uid, value)}
+              aria-label={`${record.nickname || record.uid} 的角色`}
+              value={Number(role)}
+              onChange={value => handleRoleChange(record.uid, String(value))}
               style={{ width: '100px' }}
               popupMatchSelectWidth={false}
             >
@@ -184,13 +180,20 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         },
       },
       {
-        title: t('common.username'),
+        title: t('space.joinTime'),
         dataIndex: 'createTime',
         key: 'createTime',
         width: 180,
       },
     ],
-    [t, getRoleText, memberRoleOptions, handleRoleChange, permissionInfo]
+    [
+      t,
+      getRoleText,
+      memberRoleOptions,
+      handleRoleChange,
+      permissionInfo,
+      actorRole,
+    ]
   );
 
   // 操作列配置
@@ -208,12 +211,9 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
             permission: {
               customCheck: () => {
                 return !!(
-                  record.role != SUPER_ADMIN_ROLE &&
-                  permissionInfo?.checks.canRemoveMembers(ModuleType.SPACE) &&
-                  !permissionInfo?.checks.canDeleteResource(
-                    ModuleType.SPACE,
-                    `${record.uid}`
-                  )
+                  actorRole < Number(record.role) &&
+                  String(record.uid) !== user.uid &&
+                  permissionInfo?.checks.canRemoveMembers(ModuleType.SPACE)
                 );
               },
             },
@@ -233,7 +233,7 @@ const MemberList: React.FC<MemberListProps> = ({ searchValue, roleFilter }) => {
         return buttons;
       },
     }),
-    [t, handleDelete]
+    [t, handleDelete, permissionInfo, actorRole, user.uid]
   );
 
   return (

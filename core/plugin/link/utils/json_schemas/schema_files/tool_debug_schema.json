@@ -22,12 +22,12 @@
       "type": "object"
     },
     "body": {
-      "type": "object"
+      "type": ["object", "null"]
     },
     "openapi_schema": {
       "type": "string"
     }
   },
-  "required": ["server", "method", "path", "query", "header", "body"]
+  "required": ["server", "method", "path", "query", "header"]
 }
 

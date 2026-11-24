@@ -1,222 +1,149 @@
 .teamCreateContainer {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  background-image: url('/src/assets/imgs/space/createTeamPageBg.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  position: relative;
+  background: #f1f5fc;
+  color: #18243d;
+  font-family: var(--console-font);
   display: flex;
   flex-direction: column;
-  padding: 20vh 24px 24px;
-
-  > * {
-    position: relative;
-    z-index: 1;
+  padding: 32px 24px 48px;
+  input {
+    caret-color: #315ff4;
+  }
+  :focus-visible {
+    outline: 2px solid #315ff4;
+    outline-offset: 3px;
   }
 }
-
 .logo {
-  position: fixed;
-  top: 32px;
-  left: 40px;
-
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto 48px;
   .logoImage {
     height: 25px;
     width: auto;
   }
 }
-
 .content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  min-width: 440px;
+  width: 100%;
+  max-width: 480px;
   margin: 0 auto;
 }
-
 .title {
-  margin-bottom: 20px;
-  font-family: PingFang SC;
-  font-size: 30px;
-  font-weight: 500;
-  line-height: normal;
-  display: flex;
-  align-items: center;
-  letter-spacing: normal;
-  color: #333333;
+  margin: 0 0 16px;
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
 }
-
 .userInfo {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 40px;
-
+  gap: 8px;
+  margin-bottom: 24px;
   .avatar {
     width: 30px;
     height: 30px;
     border-radius: 50%;
     object-fit: cover;
   }
-
   .userDetails {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 8px;
-
-    .userName {
-      font-family: PingFang-Sim;
-      font-size: 16px;
-      font-weight: 500;
-      line-height: 26px;
-      display: flex;
-      align-items: center;
-      letter-spacing: normal;
-      color: #333333;
-    }
-
-    .userRole {
-      height: 25px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0 8px;
-      border-radius: 7px;
-      background: #e4eaff;
-      font-family: PingFang-Sim;
-      font-size: 12px;
-      font-weight: normal;
-      line-height: normal;
-      text-align: justify; /* 浏览器可能不支持 */
-      letter-spacing: normal;
-      color: #6356EA;
-    }
+  }
+  .userName {
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+  .userRole {
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: #e7eeff;
+    color: #315ff4;
+    font-size: 12px;
   }
 }
-
 .formCard {
-  background: white;
-  border-radius: 16px;
-  padding: 30px;
-  width: 100%;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(20px);
+  background: #fff;
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+  padding: 28px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 28px;
-
+  gap: 24px;
   .formTitle {
-    font-family: PingFang SC;
-    font-size: 22px;
-    font-weight: 500;
-    line-height: normal;
-    display: flex;
-    align-items: center;
-    letter-spacing: normal;
-    color: #333333;
+    width: 100%;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
   }
-
   .teamIcon {
     display: flex;
+    flex-direction: column;
+    align-items: center;
     justify-content: center;
-
-    .iconPlaceholder {
-      width: 108px;
-      height: 108px;
-      border-radius: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-
-      .avatarImg {
-        width: 108px;
-        height: 108px;
-        border-radius: 16px;
-        object-fit: cover;
-      }
-
-      .upHoverBtn {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 108px;
-        height: 108px;
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid rgba(116, 135, 254, 0.37);
-        border-radius: 16px;
-        cursor: pointer;
-
-        .upHoverIcon {
-          width: 32px;
-          height: 32px;
-          border-radius: 0;
-        }
-      }
-    }
   }
-
+  .iconPlaceholder {
+    width: 80px;
+    height: 80px;
+    position: relative;
+  }
+  .avatarImg {
+    width: 80px;
+    height: 80px;
+    border-radius: 10px;
+    object-fit: cover;
+  }
+  .uploadButton {
+    margin-top: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #315ff4;
+    font: inherit;
+    cursor: pointer;
+  }
   .formFields {
     width: 100%;
-
-    .fieldGroup {
-      position: relative;
-      display: flex;
-      align-items: center;
-      border-radius: 8px;
-      background: #ffffff;
-      border: 1px solid #e4eaff;
-      font-family: PingFang SC;
-      font-size: 14px;
-      font-weight: normal;
-      line-height: 24px;
-      letter-spacing: -0.2px;
-      color: #333333;
-
-      &:focus {
-        border-color: #6366f1;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-      }
-
-      .fieldLabel {
-        flex-shrink: 0;
-        padding: 0 15px;
-        border-right: 1px solid #d8d8d8;
-      }
-
-      .fieldInput {
-        height: 48px;
-        font-size: 14px;
-
-        &::placeholder {
-          color: #b2b2b2;
-        }
-      }
-    }
   }
-
+  .fieldGroup {
+    width: 100%;
+  }
+  .fieldLabel {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  .fieldInput {
+    height: 40px;
+    border: 1px solid #dfe6f1;
+    border-radius: 7px;
+  }
   .createButton {
     height: 40px;
-    border-radius: 8px;
-    background: #6356EA;
-    border: none;
-    font-size: 16px;
-    font-weight: 500;
-
+    border-radius: 7px;
+    background: #315ff4;
+    border-color: #315ff4;
+    box-shadow: none;
     &:hover {
-      background: #1d4ed8;
+      background: #244ed6;
+      border-color: #244ed6;
     }
-
-    &:focus {
-      background: #1d4ed8;
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-    }
+  }
+}
+@media (max-width: 600px) {
+  .teamCreateContainer {
+    padding: 24px 18px;
+  }
+  .logo {
+    margin-bottom: 36px;
+  }
+  .title {
+    font-size: 26px;
+  }
+  .formCard {
+    padding: 24px 18px;
   }
 }

@@ -26,6 +26,7 @@ from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.log_trace.workflow_log import WorkflowLog
 from workflow.extensions.otlp.trace.span import Span
 from workflow.service.history_service import add_history
+from workflow.utils.trace_sanitization import redact_private_workflow_upload_urls
 
 _TOOL_NODE_TYPES = {
     NodeType.CODE.value,
@@ -519,7 +520,11 @@ class NodeExecutionTemplate:
         res_wb = result.dict()
         res_wb.update({"status": "succeed"})
         await span_context.add_info_events_async(
-            {"node_result": json.dumps(res_wb, ensure_ascii=False)}
+            {
+                "node_result": redact_private_workflow_upload_urls(
+                    json.dumps(res_wb, ensure_ascii=False)
+                )
+            }
         )
 
     async def _handle_node_end_callback(
@@ -679,19 +684,15 @@ class SparkFlowEngineNode(BaseModel):
         """
         # Process input data
         for key, value in result.inputs.items():
-            if isinstance(value, (list, dict)):
-                value = f"{value}"
-            else:
-                value = str(value)
-            self.node_log.append_input_data(key, value)
+            self.node_log.append_input_data(
+                key, redact_private_workflow_upload_urls(str(value))
+            )
 
         # Process output data
         for key, value in result.outputs.items():
-            if isinstance(value, (list, dict)):
-                value = f"{value}"
-            else:
-                value = str(value)
-            self.node_log.append_output_data(key, value)
+            self.node_log.append_output_data(
+                key, redact_private_workflow_upload_urls(str(value))
+            )
 
         # Record token consumption
         if result.token_cost:
@@ -699,7 +700,9 @@ class SparkFlowEngineNode(BaseModel):
 
         # Record LLM output
         if self.node_id.split(":")[0] in self.llm_nodes:
-            self.node_log.llm_output = result.raw_output
+            self.node_log.llm_output = redact_private_workflow_upload_urls(
+                result.raw_output
+            )
 
         try:
             self.node_log.append_config_data(self.node_instance.__dict__)

@@ -1,0 +1,112 @@
+.workflow-tool-dialog {
+  color: #18243d;
+  .ant-modal-title {
+    font-size: 18px;
+  }
+  .workflow-dialog-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 16px 0 24px;
+  }
+  .workflow-dialog-toolbar p {
+    color: #607089;
+    margin: 0;
+  }
+  .workflow-analysis-summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding-block: 8px 28px;
+    border-bottom: 1px solid #dfe6f1;
+    gap: 20px;
+  }
+  .workflow-analysis-summary > div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .workflow-analysis-summary span,
+  dt {
+    color: #607089;
+    font-size: 13px;
+  }
+  .workflow-analysis-summary strong {
+    font-size: 28px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .workflow-analysis-summary small {
+    font-size: 13px;
+    margin-left: 4px;
+    font-weight: 400;
+  }
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 24px 0 12px;
+  }
+  .workflow-analysis-states {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0 28px;
+    margin: 0;
+  }
+  .workflow-analysis-states > div {
+    display: flex;
+    justify-content: space-between;
+    padding-block: 12px;
+    border-bottom: 1px solid #edf1f7;
+  }
+  dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .workflow-analysis-usage {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 24px;
+    background: #f6f8fd;
+    padding: 16px;
+    border-radius: 8px;
+  }
+  .ant-alert {
+    margin-bottom: 16px;
+  }
+}
+.workflow-authoring .workflow-toolbar-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.workflow-authoring .workflow-header {
+  gap: 12px;
+}
+.workflow-authoring .workflow-header-actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.workflow-authoring .workflow-header > .relative {
+  flex-basis: 260px;
+}
+@media (max-width: 1100px) {
+  .workflow-authoring .workflow-toolbar-actions {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 600px) {
+  .workflow-tool-dialog .workflow-analysis-summary {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .workflow-tool-dialog .workflow-analysis-summary > div {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .workflow-tool-dialog .workflow-analysis-summary strong {
+    font-size: 22px;
+  }
+  .workflow-tool-dialog .workflow-analysis-states {
+    grid-template-columns: 1fr;
+  }
+}

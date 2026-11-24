@@ -1141,15 +1141,18 @@ async def test_code_payload_artifact_url_cannot_trigger_request_or_receive_token
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("modern", [False, True])
 async def test_code_artifact_uploader_uses_deployment_token_and_ignores_payload(
     monkeypatch: pytest.MonkeyPatch,
+    modern: bool,
 ) -> None:
     request_kwargs: dict[str, Any] = {}
+    fields: dict[str, Any] = {}
     deployment_token = "workflow-deployment-artifact-token-0001"
 
     class FakeFormData:
         def add_field(self, name: str, value: Any, **kwargs: Any) -> None:
-            return None
+            fields[name] = value
 
     class FakeResponse:
         status = 200
@@ -1200,7 +1203,13 @@ async def test_code_artifact_uploader_uses_deployment_token_and_ignores_payload(
             "artifact_upload_url": "http://hub/workflow/artifacts/internal-upload",
             "artifact_upload_token": "legacy-payload-token-must-not-be-used",
             "workflow_id": "flow-1",
-            "uid": "user-1",
+            "uid": "owner",
+            "console": modern,
+            "run_id": "durable-run",
+            "node_id": "ifly-code::one",
+            "artifact_context": (
+                {"root_id": "root", "uid": "caller"} if modern else None
+            ),
         }
     )
 
@@ -1210,8 +1219,13 @@ async def test_code_artifact_uploader_uses_deployment_token_and_ignores_payload(
         "X-Skill-Sandbox-Artifact-Token": deployment_token,
     }
     assert request_kwargs["url"] == (
-        "http://console-hub:8080/workflow/artifacts/internal-upload"
+        "http://console-hub:8080/workflow/artifacts/console-upload"
+        if modern
+        else "http://console-hub:8080/workflow/artifacts/internal-upload"
     )
+    assert fields["uid"] == ("caller" if modern else "owner")
+    assert fields["runId"] == "durable-run"
+    assert (fields.get("rootId") == "root") is modern
     assert request_kwargs["allow_redirects"] is False
 
 
@@ -1328,3 +1342,69 @@ async def test_code_artifact_upload_rejects_missing_or_short_deployment_token(
         RuntimeError, match="Artifact upload credential is missing or invalid"
     ):
         await uploader.upload("result.txt", b"done", "text/plain")
+
+
+@pytest.mark.asyncio
+async def test_console_code_sandbox_uses_durable_context_and_separate_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from workflow.engine.entities.variable_pool import ParamKey, VariablePool
+
+    executor = RecordingExecutor()
+    monkeypatch.setattr(CodeExecutorFactory, "create_executor", lambda _: executor)
+    node = CodeNode(
+        input_identifier=[],
+        output_identifier=["result"],
+        code="def main(): return {'result': 'ok'}",
+        appId="app",
+        uid="owner",
+        node_id="ifly-code::real",
+        sandbox={
+            "enabled": True,
+            "console": True,
+            "uid": "forged",
+            "runId": "trace-sid",
+            "nodeId": "forged",
+            "workflowId": "forged",
+            "spaceId": "7",
+        },
+    )
+    pool = VariablePool([])
+    pool.system_params.set(
+        ParamKey.ConsoleContext, {"run_id": "durable", "root_id": "root"}
+    )
+    pool.system_params.set(ParamKey.FlowId, "flow")
+    pool.system_params.set(ParamKey.Uid, "caller")
+    await node.execute_code({}, DummySpan(), pool)
+    config = executor.kwargs["sandbox"]
+    assert config["run_id"] == "durable" and config["node_id"] == "ifly-code::real"
+    assert config["artifact_context"] == {"uid": "caller", "root_id": "root"}
+    assert _runtime_config_query(config) == {
+        "uid": "owner",
+        "spaceId": "7",
+        "flowId": "flow",
+    }
+    with pytest.raises(CustomException):
+        node._runtime_sandbox_config(DummySpan())
+    pool.system_params.set(ParamKey.ConsoleContext, {"run_id": "durable"})
+    with pytest.raises(CustomException):
+        node._runtime_sandbox_config(DummySpan(), pool)
+
+
+@pytest.mark.parametrize(
+    "missing", ["artifact_context", "run_id", "node_id", "workflow_id"]
+)
+def test_modern_code_upload_missing_identity_cannot_use_legacy_route(
+    missing: str,
+) -> None:
+    config = {
+        "console": True,
+        "artifact_context": {"root_id": "root", "uid": "caller"},
+        "run_id": "run",
+        "node_id": "code",
+        "workflow_id": "flow",
+        "uid": "owner",
+    }
+    config.pop(missing)
+    with pytest.raises(RuntimeError, match=SANDBOX_RUNTIME_CONFIG_ERROR):
+        CodeArtifactUploader(config).is_configured()

@@ -6,7 +6,7 @@ from typing import Any, Dict, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from workflow.configs.app_config import DEFAULT_CODE_EXECUTOR_TYPE
-from workflow.engine.entities.variable_pool import VariablePool
+from workflow.engine.entities.variable_pool import ParamKey, VariablePool
 from workflow.engine.nodes.base_node import BaseNode
 from workflow.engine.nodes.code.executor.base_executor import CodeExecutorFactory
 from workflow.engine.nodes.entities.node_run_result import NodeRunResult
@@ -105,6 +105,7 @@ class CodeNode(BaseNode):
             code_result = await self.execute_code(
                 parameters=actual_parameters,
                 span_context=span,
+                variable_pool=variable_pool,
             )
 
             outputs = self._check_and_set_variable_pool(
@@ -129,7 +130,12 @@ class CodeNode(BaseNode):
                 CustomException(CodeEnum.CODE_EXECUTION_ERROR, cause_error=err), span
             )
 
-    async def execute_code(self, parameters: dict, span_context: Span) -> dict:
+    async def execute_code(
+        self,
+        parameters: dict,
+        span_context: Span,
+        variable_pool: VariablePool | None = None,
+    ) -> dict:
         """
         Execute the user-defined code with provided parameters.
 
@@ -146,7 +152,7 @@ class CodeNode(BaseNode):
         await span_context.add_info_event_async(f"runner code: {runner}")
 
         # Create appropriate code executor based on environment configuration
-        sandbox_config = self._runtime_sandbox_config(span_context)
+        sandbox_config = self._runtime_sandbox_config(span_context, variable_pool)
         executor_type = self._resolve_executor_type(sandbox_config)
         code_executor = CodeExecutorFactory.create_executor(executor_type)
         # Execute code with timeout configuration
@@ -188,10 +194,40 @@ class CodeNode(BaseNode):
             )
         return executor_type
 
-    def _runtime_sandbox_config(self, span_context: Span) -> dict[str, Any] | None:
+    def _runtime_sandbox_config(
+        self, span_context: Span, variable_pool: VariablePool | None = None
+    ) -> dict[str, Any] | None:
         if self.sandbox is None or not self.sandbox.enabled:
             return None
         data = self.sandbox.model_dump()
+        context = (
+            variable_pool.system_params.get(ParamKey.ConsoleContext, default={})
+            if variable_pool is not None
+            else {}
+        )
+        if self.sandbox.console or context:
+            from workflow.infra import console_runtime
+
+            console_runtime.validate_context(context)
+            if variable_pool is None:
+                raise console_runtime.error(
+                    "Console artifact execution context is required"
+                )
+            flow_id = variable_pool.system_params.get(ParamKey.FlowId, default="")
+            caller = variable_pool.system_params.get(ParamKey.Uid, default="")
+            if not flow_id or not caller:
+                raise console_runtime.error("Console artifact identity is incomplete")
+            # Config credentials belong to the authorized resource owner. Files
+            # belong to the caller from the authenticated Console execution.
+            data.update(
+                console=True,
+                uid=self.uid,
+                workflow_id=flow_id,
+                run_id=context["run_id"],
+                node_id=self.node_id,
+                artifact_context={"root_id": context["root_id"], "uid": caller},
+            )
+            return data
         data["uid"] = data.get("uid") or self.uid
         data["node_id"] = data.get("node_id") or self.node_id
         data["run_id"] = data.get("run_id") or getattr(span_context, "sid", "")
@@ -314,6 +350,7 @@ class CodeSandboxConfig(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     enabled: bool = False
+    console: bool = False
     workflow_id: str = Field(default="", alias="workflowId")
     run_id: str = Field(default="", alias="runId")
     node_id: str = Field(default="", alias="nodeId")

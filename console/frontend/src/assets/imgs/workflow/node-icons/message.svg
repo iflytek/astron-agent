@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>消息</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E9F6FF" stroke="#CFEAFB"/>
+  <g fill="none" stroke="#076B9D" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10.55 7.8h10.9a4.45 4.45 0 0 1 4.45 4.45v5.1a4.45 4.45 0 0 1-4.45 4.45h-6.55l-4.85 3.13a.75.75 0 0 1-1.16-.63v-2.82a4.45 4.45 0 0 1-2.79-4.13v-5.1a4.45 4.45 0 0 1 4.45-4.45Z" fill="#2588b9" stroke="none"/>
+    <path d="M11.2 12.85h9.6m-9.6 4.05h6.35" stroke="#FFF" stroke-width="1.85"/>
+  </g>
+</svg>

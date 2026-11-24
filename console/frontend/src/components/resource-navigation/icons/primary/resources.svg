@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" role="img">
+  <title>资源</title>
+  <rect x="1" y="1" width="26" height="26" rx="7.3" fill="#E9F6FB" stroke="#D8EEF7"/>
+  <g fill="none" stroke="#246583" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 2)">
+    <path d="M6.35 7V5.9c0-.84.7-1.55 1.55-1.55h3.15l1.62 1.65h5.18c.86 0 1.55.7 1.55 1.55v2.1" fill="#E9F6FB"/>
+    <path d="M4.1 9.1c0-.9.72-1.63 1.63-1.63h4.06l1.54 1.59h6.96c.93 0 1.68.75 1.68 1.68v6.84c0 .99-.8 1.79-1.79 1.79H5.89c-.99 0-1.79-.8-1.79-1.79Z" fill="#ADE0EC"/>
+    <path d="M7.3 14h5.15" stroke="#33819D"/>
+  </g>
+</svg>

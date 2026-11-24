@@ -22,7 +22,7 @@
           font-weight: 500;
           line-height: 16px;
           letter-spacing: normal;
-          color: #7F7F7F;
+          color: #607089;
         }
 
         .infoValue {
@@ -31,7 +31,7 @@
           font-weight: 500;
           line-height: 16px;
           letter-spacing: normal;
-          color: #333333;
+          color: #18243d;
           display: flex;
           align-items: center;
           gap: 8px;
@@ -44,16 +44,16 @@
             align-items: center;
             padding: 0 10px;
             border-radius: 8px;
-            background: #FFFFFF;
+            background: #ffffff;
             box-sizing: border-box;
-            border: 1px solid #D3DBF8;
+            border: 1px solid #dfe6f1;
             font-family: 苹方;
             font-size: 14px;
             font-weight: normal;
             line-height: normal;
             text-align: center;
             letter-spacing: normal;
-            color: #333333;
+            color: #18243d;
             cursor: pointer;
 
             &:hover {
@@ -80,4 +80,16 @@
   .certificationSection {
     padding: 24px 0;
   }
+}
+
+.teamInfo .basicSection .basicInfo .infoItem {
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.teamInfo .basicSection .basicInfo .infoItem .infoValue {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  flex-wrap: wrap;
+  line-height: 22px;
 }

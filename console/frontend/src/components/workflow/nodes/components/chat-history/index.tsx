@@ -1,127 +1,46 @@
-import type { DataNode } from 'antd/es/tree';
-interface HistoryTreeNode extends DataNode {
-  label: string;
-  type?: string;
-  schema?: { type: string };
-  children?: HistoryTreeNode[];
-}
+import './index.scss';
 import type { NodeComponentProps } from '@/components/workflow/nodes/types';
-import React, { useCallback } from 'react';
-import { FLowTree } from '@/components/workflow/ui';
-import { InputNumber, Tooltip } from 'antd';
-import { renderType } from '@/components/workflow/utils/reactflowUtils';
-import { cloneDeep } from 'lodash';
+import React from 'react';
+import { InputNumber } from 'antd';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
-import { useTranslation } from 'react-i18next';
+import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 
-import arrowUp from '@/assets/imgs/chat/arrow_up.png';
-import arrowDown from '@/assets/imgs/chat/arrow_down.png';
-import questionMark from '@/assets/imgs/common/questionmark.png';
-
-function index({ id, data }: NodeComponentProps): React.ReactElement {
-  const { t } = useTranslation();
-  const getCurrentStore = useFlowsManager(state => state.getCurrentStore);
-  const currentStore = getCurrentStore();
-  const autoSaveCurrentFlow = useFlowsManager(
-    state => state.autoSaveCurrentFlow
-  );
-  const canPublishSetNot = useFlowsManager(state => state.canPublishSetNot);
-  const setNode = currentStore(state => state.setNode);
-
-  const handleChangeNodeParam = useCallback(
-    (value: number | null) => {
-      setNode(id, old => {
-        if (old?.data?.nodeParam?.enableChatHistoryV2) {
-          old.data.nodeParam.enableChatHistoryV2.rounds = value;
-        } else {
-          old.data.nodeParam = {
-            ...old.data.nodeParam,
-            enableChatHistoryV2: { isEnabled: false, rounds: value },
-          };
-        }
-        return {
-          ...cloneDeep(old),
-        };
-      });
-      autoSaveCurrentFlow();
-      canPublishSetNot();
-    },
-    [id, autoSaveCurrentFlow]
-  );
-
-  const titleRender = useCallback((nodeData: HistoryTreeNode) => {
-    return (
-      <div className="flex items-center gap-2">
-        <span>{nodeData.label}</span>
-        <div className="bg-[#F0F0F0] px-2.5 py-0.5 rounded text-xs">
-          {renderType(nodeData)}
-        </div>
-      </div>
-    );
-  }, []);
-
-  const treeData: HistoryTreeNode[] = [
-    {
-      key: '1',
-      label: 'history',
-      schema: {
-        type: 'array-object',
-      },
-      children: [
-        {
-          key: '2',
-          label: 'role',
-          type: 'string',
-        },
-        {
-          key: '3',
-          label: 'content_type',
-          type: 'string',
-        },
-        {
-          key: '4',
-          label: 'content',
-          type: 'string',
-        },
-      ],
-    },
-  ];
-
+export default function ChatHistory({
+  id,
+  data,
+}: NodeComponentProps): React.ReactElement {
+  const { handleChangeNodeParam } = useNodeCommon({ id, data });
+  const disabled = useFlowsManager(state => state.canvasesDisabled);
   return (
     <div
-      className="w-full flex items-start mt-4 gap-3"
-      onClick={e => e.stopPropagation()}
-      onKeyDown={e => e.stopPropagation()}
+      className="workflow-history-setting"
+      onClick={event => event.stopPropagation()}
     >
-      <div className="w-1/3">
-        <FLowTree<HistoryTreeNode>
-          className="flow-output-tree"
-          titleRender={titleRender}
-          treeData={treeData}
-        />
+      <div>
+        <label htmlFor={`history-rounds-${id}`}>携带最近对话</label>
+        <p>每轮包含一次用户输入和工作流回复，仅在当前会话内生效。</p>
       </div>
-      <div className="flex-1 flex items-center gap-1">
-        <span className="text-xs">{t('common.conversationRounds')}</span>
-        <Tooltip
-          title={t('common.conversationRoundsDescription')}
-          overlayClassName="black-tooltip"
-        >
-          <img src={questionMark} width={16} className="ml-1" alt="" />
-        </Tooltip>
+      <div className="workflow-history-rounds">
         <InputNumber
-          value={data?.nodeParam?.enableChatHistoryV2?.rounds || 1}
-          onChange={handleChangeNodeParam}
+          id={`history-rounds-${id}`}
+          aria-label="对话历史轮数"
+          value={data.nodeParam.enableChatHistoryV2?.rounds ?? 1}
           min={1}
           max={20}
-          className="nodrag"
-          controls={{
-            upIcon: <img src={arrowUp} className="w-4 h-4" />,
-            downIcon: <img src={arrowDown} className="w-4 h-4" />,
+          precision={0}
+          disabled={disabled}
+          onChange={value => {
+            if (value === null) return;
+            handleChangeNodeParam((node, rounds) => {
+              node.nodeParam.enableChatHistoryV2 = {
+                isEnabled: true,
+                rounds: Math.min(20, Math.max(1, Math.trunc(rounds))),
+              };
+            }, value);
           }}
         />
+        <span>轮</span>
       </div>
     </div>
   );
 }
-
-export default index;

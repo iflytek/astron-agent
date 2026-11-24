@@ -1,3 +1,4 @@
+import { getCsrfToken } from '@/utils/session';
 import type { MutableRefObject } from 'react';
 import type { WorkflowReference } from '../types/domain';
 import { v4 as uuid } from 'uuid';
@@ -33,9 +34,7 @@ export const getWsFixedUrl = (path: string): string => {
   return `${baseWsURL()}${path}`;
 };
 
-export const getAuthorization = (): string => {
-  return `Bearer ${localStorage.getItem('accessToken')}`;
-};
+export { getCsrfToken } from '@/utils/session';
 
 export const handleFlowExport = (
   currentFlow: { id?: string; name?: string } | undefined
@@ -43,7 +42,7 @@ export const handleFlowExport = (
   fetch(getFixedUrl(`/workflow/export/${currentFlow?.id}`), {
     method: 'GET',
     headers: {
-      Authorization: getAuthorization(),
+      'X-CSRFToken': getCsrfToken(),
     },
   }).then(async res => {
     const blob = await res.blob();

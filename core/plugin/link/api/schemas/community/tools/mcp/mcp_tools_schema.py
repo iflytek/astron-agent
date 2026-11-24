@@ -7,6 +7,8 @@ tool listing and tool execution requests and responses.
 from enum import Enum
 from typing import Any
 
+from mcp.types import CallToolResult as MCPCallToolData
+from mcp.types import Tool as MCPInfo
 from pydantic import BaseModel
 
 
@@ -29,17 +31,6 @@ class MCPToolListRequest(BaseModel):
     mcp_server_ids: list[str] | None = None
     mcp_server_urls: list[str] | None = None
     transport: MCPTransport = MCPTransport.AUTO
-
-
-class MCPInfo(BaseModel):
-    """Information about an individual MCP tool.
-
-    Contains the tool's name, description, and input schema definition.
-    """
-
-    name: str
-    description: str | None = None
-    inputSchema: Any | None = None
 
 
 class MCPItemInfo(BaseModel):
@@ -91,39 +82,6 @@ class MCPCallToolRequest(BaseModel):
     tool_name: str
     tool_args: dict[str, Any] | None = None
     transport: MCPTransport = MCPTransport.AUTO
-
-
-class MCPTextResponse(BaseModel):
-    """Text content response from MCP tool execution.
-
-    Represents text-based output from an MCP tool call.
-    """
-
-    type: str = "text"
-    text: str
-
-
-class MCPImageResponse(BaseModel):
-    """Image content response from MCP tool execution.
-
-    Represents image-based output from an MCP tool call with
-    base64 encoded data and MIME type.
-    """
-
-    type: str = "image"
-    data: str
-    mineType: str
-
-
-class MCPCallToolData(BaseModel):
-    """Data payload for MCP tool execution response.
-
-    Contains execution status and content (text or image responses)
-    from the tool call.
-    """
-
-    isError: bool | None = None
-    content: list[MCPTextResponse | MCPImageResponse] | None = None
 
 
 class MCPCallToolResponse(BaseModel):
