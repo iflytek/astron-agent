@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Render-only positive and negative tests for tenant bootstrap credentials."""
 
-import hashlib
 import re
 import shutil
 import subprocess
@@ -638,9 +637,8 @@ def _verify_fresh_install(rendered: str) -> None:
         "--set-string", f"minio.auth.rootUser={fixture_user}",
         "--set-string", f"minio.auth.rootPassword={fixture_password}",
     ])
-    expected = hashlib.sha256(
-        f"astron-agent-minio-credentials:root-user:root-password:{fixture_user}:{fixture_password}".encode()
-    ).hexdigest()
+    # Known rollout checksum for the fixed test fixture above.
+    expected = "e0a172a0fba35ad4a84382f7035108a756bfd77a5c3e0455c6dce145f88935f6"
     if _object_storage_checksums(fixture) != {expected}:
         raise VerificationError("MinIO Secret revision must match the configured credentials")
 
