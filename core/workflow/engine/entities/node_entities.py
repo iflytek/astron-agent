@@ -76,19 +76,6 @@ class SystemVariable(Enum):
         raise ValueError(f"invalid system variable value {value}")
 
 
-class NodeRunMetadataKey(Enum):
-    """
-    Enumeration of metadata keys for node execution tracking.
-    """
-
-    TOTAL_TOKENS = "total_tokens"
-    TOTAL_PRICE = "total_price"
-    CURRENCY = "currency"
-    TOOL_INFO = "tool_info"
-    ITERATION_ID = "iteration_id"
-    ITERATION_INDEX = "iteration_index"
-
-
 # Node types that continue execution on error without streaming
 CONTINUE_ON_ERROR_NOT_STREAM_NODE_TYPE = [
     NodeType.DATABASE.value,

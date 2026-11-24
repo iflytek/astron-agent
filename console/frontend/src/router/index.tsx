@@ -30,7 +30,6 @@ const SpaceDetail = lazy(() => import('@/pages/space/space-detail'));
 const EnterpriseSpace = lazy(() => import('@/pages/space/enterprise'));
 
 const TeamCreate = lazy(() => import('@/pages/space/team-create'));
-// const SmartRedirect = lazy(() => import('@/pages/smart-redirect'));
 const ReleaseManagement = lazy(() => import('@/pages/publishing'));
 const PublishedChat = lazy(() => import('@/pages/publishing/chat'));
 const AgentMarket = lazy(() => import('@/pages/publishing/market'));

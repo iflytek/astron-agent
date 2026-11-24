@@ -79,13 +79,9 @@
 | REDIS_ADDR | 使用默认 | string | Redis 连接地址(单机模式) | redis:6379 |
 | REDIS_HOST | 使用默认 | string | Redis 主机地址 | redis |
 | REDIS_PORT | 使用默认 | int | Redis 端口号 | 6379 |
-| ELASTICSEARCH_SECURITY_ENABLED | 使用默认 | bool | Elasticsearch 是否启用安全认证 | false |
-| ES_JAVA_OPTS | 使用默认 | string | Elasticsearch JVM 参数配置 | -Xms512m -Xmx512m |
-| EXPOSE_KAFKA_PORT | 使用默认 | int | Kafka 对外暴露的端口号 | 9092 |
-| KAFKA_REPLICATION_FACTOR | 使用默认 | int | Kafka 副本因子 | 1 |
-| KAFKA_CLUSTER_ID | 使用默认 | string | Kafka 集群 ID | MkU3OEVBNTcwNTJENDM2Qk |
+| KAFKA_ENABLE | 使用默认 | bool | 向外部 Kafka 上报执行日志 | 0 |
 | KAFKA_TIMEOUT | 使用默认 | int | Kafka 连接超时时间(秒) | 60 |
-| KAFKA_SERVERS | 使用默认 | string | Kafka 服务器地址列表 | kafka:29092 |
+| KAFKA_SERVERS | 使用默认 | string | 服务容器可访问的外部 Kafka 地址列表 | kafka:29092 |
 | MINIO_ROOT_USER | 使用默认 | string | 内置 MinIO 管理员用户名；对外提供 MinIO 服务时应覆盖 | minioadmin |
 | MINIO_ROOT_PASSWORD | 使用默认 | string | 内置 MinIO 管理员密码；对外提供 MinIO 服务时应覆盖 | minioadmin123 |
 | EXPOSE_MINIO_PORT | 使用默认 | int | 仅绑定宿主机回环地址的 MinIO API 运维端口（Compose 固定绑定 `127.0.0.1`） | 18998 |
@@ -222,8 +218,6 @@ Tenant 使用 Python 3.11，在提供 HTTP 服务前初始化 MySQL 和启动凭
 | GET_LINK_URL | 必填 | url | 获取工具链接的接口地址 | http://core-link:18888/api/v1/tools |
 | VERSIONS_LINK_URL | 必填 | url | 获取工具版本的接口地址 | http://core-link:18888/api/v1/tools/versions |
 | RUN_LINK_URL | 必填 | url | 运行工具的接口地址 | http://core-link:18888/api/v1/tools/http_run |
-| GET_WORKFLOWS_URL | 必填 | url | 获取工作流的接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/sparkflow/v1/protocol/get |
-| WORKFLOW_SSE_BASE_URL | 必填 | url | 工作流 SSE(服务器推送事件)基础地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1 |
 | CHUNK_QUERY_URL | 必填 | url | 知识库分块查询接口地址(默认从 CORE_KNOWLEDGE_PORT 获取端口) | http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}/knowledge/v1/chunk/query |
 | LIST_MCP_PLUGIN_URL | 必填 | url | 列出 MCP 插件的接口地址 | http://core-link:18888/api/v1/mcp/tool_list |
 | RUN_MCP_PLUGIN_URL | 必填 | url | 运行 MCP 插件的接口地址 | http://core-link:18888/api/v1/mcp/call_tool |
@@ -296,9 +290,6 @@ Tenant 使用 Python 3.11，在提供 HTTP 服务前初始化 MySQL 和启动凭
 | WECHAT_COMPONENT_SECRET | 可选 | string | 微信第三方平台 Secret | your-wechat-secret |
 | WECHAT_TOKEN | 可选 | string | 微信消息校验 Token | your-wechat-token |
 | WECHAT_ENCODING_AES_KEY | 可选 | string | 微信消息加密密钥 | your-wechat-encoding-aes-key |
-| WORKFLOW_CHAT_URL | 必填 | url | 工作流对话接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/chat/completions |
-| WORKFLOW_DEBUG_URL | 必填 | url | 工作流调试接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/debug/chat/completions |
-| WORKFLOW_RESUME_URL | 必填 | url | 工作流恢复接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/resume |
 | TENANT_ID | 必填 | string | 租户 ID | 680ab54f |
 | TENANT_KEY | 自动生成 | secret | Compose 或 Helm 自动生成并持久化的租户 API Key；正常启动时保持留空 | 自动生成并持久化 |
 | TENANT_SECRET | 自动生成 | secret | Compose 或 Helm 自动生成并持久化的租户 Secret；正常启动时保持留空 | 自动生成并持久化 |

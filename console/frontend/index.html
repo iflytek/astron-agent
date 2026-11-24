@@ -37,14 +37,6 @@
         safeReload();
       }
 
-      function suppressAndReload(e) {
-        console.log('suppressAndReload error:', e);
-        e?.preventDefault?.();
-        e?.stopPropagation?.();
-        e?.stopImmediatePropagation?.();
-        safeReload();
-      }
-
       // 专属事件：Vite 预加载失败
       window.addEventListener('vite:preloadError', suppressAndReload, true);
 

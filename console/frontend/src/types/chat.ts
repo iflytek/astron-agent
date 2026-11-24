@@ -168,41 +168,6 @@ export interface MessageListType {
   workflowEventData?: WorkflowEventData;
 }
 
-// 溯源数据
-export interface SourceInfoItem {
-  index?: number;
-  url: string;
-  title: string;
-}
-
-// Web搜索结果项
-export interface WebSearchOutput {
-  index: number;
-  url: string;
-  title: string;
-}
-
-// Web搜索工具结果
-export interface WebSearchResult {
-  outputs: WebSearchOutput[];
-}
-
-// 工具项基础接口
-interface ToolItem {
-  deskToolName: string;
-  status: string;
-  type: string;
-}
-
-// Web搜索工具项
-interface WebSearchToolItem extends ToolItem {
-  type: 'web_search';
-  web_search: WebSearchResult;
-}
-
-// 所有工具项的联合类型
-export type ToolItemUnion = WebSearchToolItem;
-
 // 聊天数据接口
 export interface ChatData {
   chatId: number;

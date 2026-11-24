@@ -25,17 +25,6 @@ class QueryParams(TypedDict):
     flow_id: Optional[str]
 
 
-class SplitParams(TypedDict):
-    """Split parameters type definition"""
-
-    length_range: List[int]
-    overlap: int
-    resource_type: int
-    separator: List[str]
-    title_split: bool
-    cut_off: List[str]
-
-
 class CBGRAGStrategy(RAGStrategy):
     """CBG-RAG strategy implementation."""
 

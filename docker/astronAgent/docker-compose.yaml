@@ -283,70 +283,6 @@ services:
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-60}
 
-  # Elasticsearch Search Engine
-#  elasticsearch:
-#    image: elasticsearch:7.16.2
-#    container_name: astron-agent-elasticsearch
-#    environment:
-#      - discovery.type=single-node
-#      - "ES_JAVA_OPTS=${ES_JAVA_OPTS:--Xms512m -Xmx512m}"
-#      - xpack.security.enabled=${ELASTICSEARCH_SECURITY_ENABLED:-false}
-#      - cluster.name=astron-agent-cluster
-#    volumes:
-#      - elasticsearch_data:/usr/share/elasticsearch/data
-#    networks:
-#      - astron-agent-network
-#    restart: always
-#    healthcheck:
-#      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
-#      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-#      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-#      retries: ${HEALTH_CHECK_RETRIES:-60}
-
-  # Kibana (Elasticsearch Observability)
-#  kibana:
-#    image: kibana:7.16.2
-#    container_name: astron-agent-kibana
-#    environment:
-#      ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
-#      SERVER_NAME: "astron-agent-kibana"
-#    ports:
-#      - "${EXPOSE_KIBANA_PORT:-5601}:5601"
-#    networks:
-#      - astron-agent-network
-#    restart: always
-#    depends_on:
-#      elasticsearch:
-#        condition: service_healthy
-
-  # Kafka Message Queue
-#  kafka:
-#    image: apache/kafka:3.7.0
-#    container_name: astron-agent-kafka
-#    environment:
-#      KAFKA_NODE_ID: 1
-#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
-#      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093
-#      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-#      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-#      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-#      KAFKA_PROCESS_ROLES: broker,controller
-#      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
-#      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_REPLICATION_FACTOR:-1}
-#      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-MkU3OEVBNTcwNTJENDM2Qk}
-#    volumes:
-#      - kafka_data:/var/lib/kafka/data
-#    networks:
-#      - astron-agent-network
-#    restart: always
-#    healthcheck:
-#      test: ["CMD-SHELL", "netstat -tulpn | grep 29092 || exit 1"]
-#      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-#      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-#      retries: ${HEALTH_CHECK_RETRIES:-60}
-
   # Validate object-storage configuration before MinIO starts. The bundled
   # stack has zero-configuration credentials like the other private middleware
   # services; this one-shot check keeps all consumers aligned without printing
@@ -427,18 +363,6 @@ services:
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-60}
-
-  # Logstash (Kafka -> Elasticsearch)
-#  logstash:
-#    image: docker.elastic.co/logstash/logstash:7.16.2
-#    container_name: astron-agent-logstash
-#    environment:
-#      LS_JAVA_OPTS: "${LS_JAVA_OPTS:--Xms256m -Xmx256m}"
-#    volumes:
-#      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
-#    networks:
-#      - astron-agent-network
-#    restart: always
 
   # ============================================================================
   # astron-agent Core Services
@@ -1026,10 +950,6 @@ volumes:
   mysql_data:
     driver: local
   redis_data:
-    driver: local
-  elasticsearch_data:
-    driver: local
-  kafka_data:
     driver: local
   minio_data:
     driver: local

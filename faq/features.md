@@ -97,11 +97,9 @@ Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`�
 
 ## 开源版工作流有可观测性 / Trace 吗？
 
-有，默认未开启，按以下步骤启用：
+工作流编排页的「运行追踪」打开「Trace 日志」面板，读取 Console 保存的执行记录。如需向外部平台导出遥测，可配置 OTLP 或 Langfuse。
 
-1. 在 docker-compose.yaml 中取消 elasticsearch、kibana、kafka、logstash 四个组件容器的注释。
-2. 将环境变量 KAFKA_ENABLE 置为 1。
-3. 重新启动项目，即可在工作流的 Trace 日志中查看对应的调用链路。
+[Langfuse 可观测性指南](../docs/zh/guide/observability.md)
 
 ## 怎么使用 HTTPS 协议访问项目？
 
@@ -235,14 +233,7 @@ Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`�
 
 ## 工作流的调用链路日志（Trace）怎么开启？
 
-1. 在 `docker-compose.yaml` 中取消 `elasticsearch`、`kibana`、`kafka`、`logstash` 四个组件容器的注释。
-
-![取消四个可观测性组件的注释](assets/trace_compose_components.png)
-
-2. 将环境变量 `KAFKA_ENABLE` 置为 `1`。
-3. 重新启动项目，编排页右上角会出现「Trace日志」入口，点击即可查看对应的调用链路。
-
-![编排页的 Trace 日志入口](assets/trace_log_view.png)
+点击工作流编排页右上角的「运行追踪」，在「Trace 日志」面板中选择一条执行记录，即可查看节点详情。
 
 ## 标准 HTTP 插件只支持 JSON Object，但接口要求顶层是 JSON Array 怎么办？
 

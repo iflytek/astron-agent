@@ -7,9 +7,6 @@ import clsx, { ClassValue } from 'clsx';
 import {
   ChatHistoryResponse,
   MessageListType,
-  SourceInfoItem,
-  ToolItemUnion,
-  WebSearchOutput,
   UploadFileInfo,
 } from '@/types/chat';
 import Compressor from 'compressorjs';
@@ -541,31 +538,6 @@ const formatHistoryToMessages = (chatHistoryList: ChatHistoryResponse[]) => {
   return formattedMessages;
 };
 
-//转换溯源数据
-const getTraceList = (traceSource: string): SourceInfoItem[] => {
-  try {
-    const traceSourceObj: ToolItemUnion[] = JSON.parse(traceSource);
-    const sourceInfoList: SourceInfoItem[] = [];
-
-    traceSourceObj?.forEach((toolItem: ToolItemUnion) => {
-      if (toolItem.web_search?.outputs) {
-        toolItem.web_search.outputs.forEach((output: WebSearchOutput) => {
-          sourceInfoList.push({
-            index: output.index,
-            url: output.url,
-            title: output.title,
-          });
-        });
-      }
-    });
-
-    return sourceInfoList;
-  } catch (e) {
-    console.error('Failed to parse traceSource:', e);
-    return [];
-  }
-};
-
 /**
  * 压缩图片工具
  * @param imageFile 图像文件
@@ -848,7 +820,6 @@ export {
   extractAllIdsOptimized,
   convertToDesiredFormat,
   formatHistoryToMessages,
-  getTraceList,
   compressImage,
   getFileIcon,
   formatFileSize,

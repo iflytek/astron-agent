@@ -84,13 +84,9 @@ Configuration items in this document are marked as follows:
 | REDIS_ADDR | Use Default | string | Redis connection address (standalone mode) | redis:6379 |
 | REDIS_HOST | Use Default | string | Redis host address | redis |
 | REDIS_PORT | Use Default | int | Redis port number | 6379 |
-| ELASTICSEARCH_SECURITY_ENABLED | Use Default | bool | Whether Elasticsearch has security authentication enabled | false |
-| ES_JAVA_OPTS | Use Default | string | Elasticsearch JVM parameter configuration | -Xms512m -Xmx512m |
-| EXPOSE_KAFKA_PORT | Use Default | int | Kafka externally exposed port number | 9092 |
-| KAFKA_REPLICATION_FACTOR | Use Default | int | Kafka replication factor | 1 |
-| KAFKA_CLUSTER_ID | Use Default | string | Kafka cluster ID | MkU3OEVBNTcwNTJENDM2Qk |
+| KAFKA_ENABLE | Use Default | bool | Send execution logs to external Kafka | 0 |
 | KAFKA_TIMEOUT | Use Default | int | Kafka connection timeout (seconds) | 60 |
-| KAFKA_SERVERS | Use Default | string | Kafka server address list | kafka:29092 |
+| KAFKA_SERVERS | Use Default | string | External Kafka broker addresses reachable from the service containers | kafka:29092 |
 | MINIO_ROOT_USER | Use Default | string | Bundled MinIO administrator username; override when exposing MinIO externally | minioadmin |
 | MINIO_ROOT_PASSWORD | Use Default | string | Bundled MinIO administrator password; override when exposing MinIO externally | minioadmin123 |
 | EXPOSE_MINIO_PORT | Use Default | int | Host loopback-only MinIO API maintenance port (`127.0.0.1` binding is fixed by Compose) | 18998 |
@@ -227,8 +223,6 @@ Tenant runs on Python 3.11 and loads MySQL and startup credentials before servin
 | GET_LINK_URL | Required | url | API address to get tool link | http://core-link:18888/api/v1/tools |
 | VERSIONS_LINK_URL | Required | url | API address to get tool version | http://core-link:18888/api/v1/tools/versions |
 | RUN_LINK_URL | Required | url | API address to run tool | http://core-link:18888/api/v1/tools/http_run |
-| GET_WORKFLOWS_URL | Required | url | API address to get workflow (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/sparkflow/v1/protocol/get |
-| WORKFLOW_SSE_BASE_URL | Required | url | Workflow SSE (Server-Sent Events) base address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1 |
 | CHUNK_QUERY_URL | Required | url | Knowledge base chunk query API address (port defaults from CORE_KNOWLEDGE_PORT) | http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}/knowledge/v1/chunk/query |
 | LIST_MCP_PLUGIN_URL | Required | url | API address to list MCP plugins | http://core-link:18888/api/v1/mcp/tool_list |
 | RUN_MCP_PLUGIN_URL | Required | url | API address to run MCP plugin | http://core-link:18888/api/v1/mcp/call_tool |
@@ -302,9 +296,6 @@ no manual configuration change is required. To explicitly disable Code nodes, se
 | WECHAT_COMPONENT_SECRET | Optional | string | WeChat third-party platform Secret | your-wechat-secret |
 | WECHAT_TOKEN | Optional | string | WeChat message verification Token | your-wechat-token |
 | WECHAT_ENCODING_AES_KEY | Optional | string | WeChat message encryption key | your-wechat-encoding-aes-key |
-| WORKFLOW_CHAT_URL | Required | url | Workflow chat API address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/chat/completions |
-| WORKFLOW_DEBUG_URL | Required | url | Workflow debug API address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/debug/chat/completions |
-| WORKFLOW_RESUME_URL | Required | url | Workflow resume API address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/resume |
 | TENANT_ID | Required | string | Tenant ID | 680ab54f |
 | TENANT_KEY | Auto-generated | secret | Tenant API Key generated and persisted by Compose or Helm; leave empty for normal startup | generated and persisted |
 | TENANT_SECRET | Auto-generated | secret | Tenant Secret generated and persisted by Compose or Helm; leave empty for normal startup | generated and persisted |

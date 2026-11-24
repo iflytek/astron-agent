@@ -21,20 +21,6 @@ class WorkflowNodeExecutionStatus(Enum):
     CANCELLED = "cancelled"  # Node execution was cancelled
 
 
-class NodeRunOutputType(Enum):
-    """
-    Enumeration of node output data types.
-
-    This enum defines the supported data types for node outputs
-    in the workflow system.
-    """
-
-    STR = "string"  # String output type
-    INT = "integer"  # Integer output type
-    FLOAT = "number"  # Floating-point number output type
-    BOOL = "boolean"  # Boolean output type
-
-
 class NodeRunResult(BaseModel):
     """
     Result of a workflow node execution.
