@@ -17,21 +17,14 @@ from .models import TemplateGroup, WorkflowTemplate
 from .protocol import authorized_params, clean_config, iter_nodes, normalize_graph
 
 
-class PortableLoader(yaml.SafeLoader):
-    """No YAML aliases: portable graph values must form a finite JSON tree."""
-
-    def compose_node(self, parent, index):
-        if self.check_event(yaml.AliasEvent):
-            raise ValidationError("工作流YAML不支持别名")
-        return super().compose_node(parent, index)
-
-
 def parse_yaml(content):
     if len(content) > 5 * 1024 * 1024:
         raise ValidationError("工作流导入文件超过5MB")
     try:
-        value = yaml.load(content, Loader=PortableLoader)
-        # JSON serialization also excludes YAML dates, non-string map keys and recursive objects.
+        if any(isinstance(event, yaml.AliasEvent) for event in yaml.parse(content)):
+            raise ValidationError("工作流YAML不支持别名")
+        value = yaml.safe_load(content)
+        # Enforce JSON-compatible values for the workflow graph.
         value = json.loads(json.dumps(value, allow_nan=False))
     except (yaml.YAMLError, ValueError, TypeError, RecursionError) as exc:
         raise ValidationError("工作流文件不是有效的YAML/JSON") from exc

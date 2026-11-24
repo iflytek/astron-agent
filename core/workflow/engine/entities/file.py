@@ -1,8 +1,14 @@
+import asyncio
+import ipaddress
 import os
 import re
+import socket
 from typing import Mapping, Tuple
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import SplitResult, parse_qs, urljoin, urlsplit, urlunsplit
 
+import certifi
+import idna
+import urllib3
 from pydantic import BaseModel
 
 from workflow.configs import workflow_config
@@ -10,6 +16,114 @@ from workflow.engine.entities.node_entities import NodeType
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.trace.span import Span
+
+_PUBLIC_IPV6 = ipaddress.IPv6Network("2000::/3")
+_FILE_HTTP_TIMEOUT = urllib3.Timeout(connect=10, read=10)
+_MAX_FILE_REDIRECTS = 5
+
+
+def _public_file_addresses(host: str, port: int) -> list[str]:
+    addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    public_addresses: dict[str, None] = {}
+    for _, _, _, _, sockaddr in addresses:
+        address = ipaddress.ip_address(sockaddr[0])
+        if isinstance(address, ipaddress.IPv6Address):
+            if address.ipv4_mapped is not None:
+                address = address.ipv4_mapped
+            elif address not in _PUBLIC_IPV6 or address.sixtofour or address.teredo:
+                continue
+        if address.is_global and not (address.is_multicast or address.is_reserved):
+            public_addresses[str(address)] = None
+    if not public_addresses:
+        raise ValueError("File host has no public address")
+    return list(public_addresses)
+
+
+def _file_connection(
+    scheme: str, address: str, host: str, port: int
+) -> urllib3.HTTPConnectionPool:
+    if scheme == "http":
+        return urllib3.HTTPConnectionPool(address, port)
+    ca_bundle = (
+        os.getenv("REQUESTS_CA_BUNDLE")
+        or os.getenv("CURL_CA_BUNDLE")
+        or certifi.where()
+    )
+    ca_is_directory = os.path.isdir(ca_bundle)
+    tls_host = host.rstrip(".")
+    return urllib3.HTTPSConnectionPool(
+        address,
+        port,
+        server_hostname=tls_host,
+        assert_hostname=tls_host,
+        cert_reqs="CERT_REQUIRED",
+        ca_certs=None if ca_is_directory else ca_bundle,
+        ca_cert_dir=ca_bundle if ca_is_directory else None,
+    )
+
+
+def _request_file_headers(
+    method: str, path: str, origin: SplitResult, *, private: bool
+) -> tuple[int, Mapping[str, str], str | None]:
+    hostname = origin.hostname
+    if not hostname:
+        raise ValueError("File URL must have a host")
+    host = (
+        hostname if hostname.isascii() else idna.encode(hostname, uts46=True).decode()
+    )
+    port = origin.port or (443 if origin.scheme == "https" else 80)
+    authority = f"[{host}]" if ":" in host else host
+    if origin.port is not None:
+        authority = f"{authority}:{port}"
+    addresses = [host] if private else _public_file_addresses(host, port)
+    for address in addresses:
+        with _file_connection(origin.scheme, address, host, port) as pool:
+            try:
+                response = pool.urlopen(
+                    method,
+                    path,
+                    headers={"Host": authority},
+                    timeout=_FILE_HTTP_TIMEOUT,
+                    retries=False,
+                    redirect=False,
+                    preload_content=False,
+                )
+            except urllib3.exceptions.ConnectTimeoutError:
+                # NewConnectionError is also a ConnectTimeoutError in urllib3.
+                continue
+            try:
+                location = response.get_redirect_location()
+                return response.status, response.headers, location or None
+            finally:
+                response.close()
+    raise OSError("File server connection failed")
+
+
+def _read_file_headers(
+    method: str, url: str, *, storage: SplitResult | None = None
+) -> Mapping[str, str]:
+    for _ in range(_MAX_FILE_REDIRECTS + 1):
+        target = urlsplit(url)
+        origin = storage if storage is not None else target
+        if (
+            origin.scheme not in {"http", "https"}
+            or origin.username is not None
+            or origin.password is not None
+        ):
+            raise ValueError("File URL must have an HTTP(S) origin")
+
+        # Use an origin-form request target. DNS cannot change the verified address
+        # between validation and connection, and each redirect gets a new check.
+        path = urlunsplit(("", "", target.path or "/", target.query, ""))
+        status, headers, location = _request_file_headers(
+            method, path, origin, private=storage is not None
+        )
+        if 200 <= status < 300:
+            return headers
+        if storage is not None or not location:
+            raise ValueError("File server rejected the request")
+        url = urljoin(url, location)
+    raise ValueError("File URL has too many redirects")
 
 
 class FileVarInfo:
@@ -132,12 +246,16 @@ class File(BaseModel):
 
     @staticmethod
     def is_console_input_url(url: str) -> bool:
+        if not isinstance(url, str):
+            return False
         try:
             target = urlsplit(url)
             storage = urlsplit(os.getenv("OSS_ENDPOINT", ""))
             return (
                 target.scheme in {"http", "https"}
                 and (target.scheme, target.netloc) == (storage.scheme, storage.netloc)
+                and target.username is None
+                and target.password is None
                 and bool(
                     re.fullmatch(
                         r"/[^/]+/published-workflow-inputs/[0-9a-f]{32}/input\.[a-z0-9]+",
@@ -157,50 +275,43 @@ class File(BaseModel):
         :param input_file_url: URL of the file to check
         :return: File size in bytes as string
         """
-        private_input = cls.is_console_input_url(input_file_url)
+        if not isinstance(input_file_url, str):
+            raise CustomException(
+                err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
+                cause_error="File URL must be a string",
+            )
+        storage = (
+            urlsplit(os.getenv("OSS_ENDPOINT", ""))
+            if cls.is_console_input_url(input_file_url)
+            else None
+        )
         try:
-            import requests  # type: ignore
-
-            timeout = 10
-            if not private_input:
-                response = requests.head(
-                    input_file_url, allow_redirects=True, timeout=timeout
-                )
-                response.raise_for_status()
-                content_length = cls._extract_content_length(response.headers)
+            if storage is None:
+                headers = _read_file_headers("HEAD", input_file_url)
+                content_length = cls._extract_content_length(headers)
                 if content_length:
                     return content_length
 
             # MinIO signs the HTTP method. The Console gives the runtime a GET URL.
             # Also handle other OSS gateways whose HEAD lacks Content-Length.
-            response = requests.get(
-                input_file_url,
-                allow_redirects=not private_input,
-                stream=True,
-                timeout=timeout,
-            )
-            try:
-                response.raise_for_status()
-                content_length = cls._extract_content_length(response.headers)
-                if not content_length:
-                    raise CustomException(
-                        err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
-                        cause_error="File size is missing from response headers",
-                    )
-                return content_length
-            finally:
-                response.close()
-        except CustomException as err:
-            raise err
-        except Exception as e:
-            if private_input:
-                raise CustomException(
-                    err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
-                    cause_error="Unable to read the uploaded workflow input",
-                ) from None
+            headers = _read_file_headers("GET", input_file_url, storage=storage)
+        except (urllib3.exceptions.HTTPError, OSError, ValueError):
             raise CustomException(
-                err_code=CodeEnum.FILE_INVALID_TYPE_ERROR, cause_error=str(e)
-            ) from e
+                err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
+                cause_error=(
+                    "Unable to read the uploaded workflow input"
+                    if storage is not None
+                    else "Unable to read the public file URL"
+                ),
+            ) from None
+
+        content_length = cls._extract_content_length(headers)
+        if not content_length:
+            raise CustomException(
+                err_code=CodeEnum.FILE_INVALID_TYPE_ERROR,
+                cause_error="File size is missing from response headers",
+            )
+        return content_length
 
     @classmethod
     async def check_file_var_isvalid(
@@ -217,12 +328,12 @@ class File(BaseModel):
             await span_context.add_info_event_async(
                 "input file: uploaded workflow input"
                 if cls.is_console_input_url(input_file_url)
-                else f"input file url: {input_file_url}"
+                else "input file: public file URL"
             )
             await span_context.add_info_event_async(
                 f"allowed file type: {allowed_file_type}"
             )
-            file_size = int(cls.get_file_size(input_file_url))
+            file_size = int(await asyncio.to_thread(cls.get_file_size, input_file_url))
             pattern = workflow_config.file_config.get_extensions_pattern()
 
             file_extension = ""

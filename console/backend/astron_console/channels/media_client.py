@@ -87,6 +87,8 @@ def avatar_sign():
 
 
 class VoiceTraining:
+    # The provider's VoiceCloneSignature uses MD5 to sign both token and training requests.
+    # https://github.com/iflytek-op/websdk-java/blob/master/websdk-java-core/src/main/java/cn/xfyun/model/sign/VoiceCloneSignature.java
     def __init__(self):
         value = platform(fields=("platformAppId", "platformApiKey"))
         self.appid = value["platformAppId"]

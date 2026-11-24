@@ -253,7 +253,7 @@ test('knowledge references show escaped source titles and actual excerpts equall
   assert.match(markup, /&lt;script&gt;/);
   assert.doesNotMatch(
     markup,
-    /internal-document-id|chunk_context|source_id|<pre|<img|<script|<a[ >]/
+    /internal-document-id|chunk_context|source_id|<pre|<img|<script|<a[ >]/i
   );
 });
 

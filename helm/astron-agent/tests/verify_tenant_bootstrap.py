@@ -259,10 +259,12 @@ def _verify_workflow_ingress_gateway_headers(rendered: str) -> None:
     if any(kind != "ImplementationSpecific" or backend != "astron-agent-console-hub"
            for _, kind, backend in routes):
         raise VerificationError("public API routes must all target Console through anchored regexes")
-    if 'nginx.ingress.kubernetes.io/auth-method: "GET"' not in ingress or not re.search(
-        r'nginx.ingress.kubernetes.io/auth-url: "http://astron-agent-console-hub\.[^/]+/internal/gateway/auth/workflow"',
-        ingress,
-    ):
+    auth_url = (
+        'nginx.ingress.kubernetes.io/auth-url: "http://'
+        'astron-agent-console-hub.astron-agent.svc.cluster.local:8080'
+        '/internal/gateway/auth/workflow"'
+    )
+    if 'nginx.ingress.kubernetes.io/auth-method: "GET"' not in ingress or auth_url not in ingress:
         raise VerificationError("public API routes require Console gateway authentication")
     for path in PUBLIC_API_DENIED_PATHS:
         if any(re.match("^" + pattern.strip('"'), path, re.I) for pattern, _, _ in routes):
@@ -626,19 +628,42 @@ def _verify_fresh_install(rendered: str) -> None:
         r"[A-Za-z0-9]{48}", secret_key
     ):
         raise VerificationError("default MinIO credentials must pass the startup policy")
-    checksum = hashlib.sha256(
-        f"astron-agent-minio-credentials:root-user:root-password:{access_key}:{secret_key}".encode()
+    checksums = _object_storage_checksums(rendered)
+    if len(checksums) != 1:
+        raise VerificationError("MinIO and its clients must use the same Secret revision")
+
+    fixture_user = "test-fixture-storage-user"
+    fixture_password = "test-fixture-storage-password"
+    fixture = _render([
+        "--set-string", f"minio.auth.rootUser={fixture_user}",
+        "--set-string", f"minio.auth.rootPassword={fixture_password}",
+    ])
+    expected = hashlib.sha256(
+        f"astron-agent-minio-credentials:root-user:root-password:{fixture_user}:{fixture_password}".encode()
     ).hexdigest()
+    if _object_storage_checksums(fixture) != {expected}:
+        raise VerificationError("MinIO Secret revision must match the configured credentials")
+
+    _verify_fresh_install_services(rendered, namespace)
+
+
+def _object_storage_checksums(rendered: str) -> set[str]:
+    checksums = set()
     for kind, component in (
         ("Deployment", "console-hub"),
         ("Deployment", "core-aitools"),
         ("Deployment", "core-workflow"),
         ("StatefulSet", "minio"),
     ):
-        workload = _find_document(rendered, kind, f"{namespace}-{component}")
-        if f'checksum/object-storage-secret: "{checksum}"' not in workload:
-            raise VerificationError("MinIO and its clients must use the same Secret revision")
+        workload = _find_document(rendered, kind, f"astron-agent-{component}")
+        checksum = re.search(r'^\s*checksum/object-storage-secret: "([0-9a-f]{64})"$', workload, re.M)
+        if checksum is None:
+            raise VerificationError(f"{component} is missing the MinIO Secret revision")
+        checksums.add(checksum.group(1))
+    return checksums
 
+
+def _verify_fresh_install_services(rendered: str, namespace: str) -> None:
     tenant = _find_document(rendered, "Deployment", f"{namespace}-core-tenant")
     _, environment = _main_container_environment(tenant)
     if environment.get("DATABASE_DB_TYPE", {}).get("value") != "mysql":

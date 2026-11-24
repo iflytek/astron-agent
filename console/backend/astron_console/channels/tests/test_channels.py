@@ -59,6 +59,21 @@ WECHAT = {
 
 @override_settings(**WECHAT)
 class CryptoTests(SimpleTestCase):
+    def test_callback_echo_returns_the_challenge_as_plain_text(self):
+        challenge = "微信 <challenge> & confirmation"
+        encrypted, signed, timestamp, nonce = clients.encrypt(challenge)
+        plain_signature = clients.signature(WECHAT["WECHAT_TOKEN"], timestamp, nonce)
+        for params in (
+            {"echostr": challenge, "signature": plain_signature},
+            {"echostr": encrypted, "msg_signature": signed},
+        ):
+            response = self.client.get(
+                "/api/wx/callback", {"timestamp": timestamp, "nonce": nonce, **params}
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.headers["Content-Type"], "text/plain; charset=utf-8")
+            self.assertEqual(response.content.decode(), challenge)
+
     def test_signature_encryption_tamper_and_recipient(self):
         message = "<xml><Content>你好</Content></xml>"
         encrypted, signed, timestamp, nonce = clients.encrypt(message, timestamp="123", nonce="n")

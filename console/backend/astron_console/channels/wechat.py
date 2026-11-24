@@ -332,12 +332,13 @@ def callback(request, appid=None):
             timestamp, nonce = request.GET.get("timestamp", ""), request.GET.get("nonce", "")
             if request.GET.get("msg_signature"):
                 return HttpResponse(
-                    clients.verify_callback(request.GET["msg_signature"], timestamp, nonce, echo)
+                    clients.verify_callback(request.GET["msg_signature"], timestamp, nonce, echo),
+                    content_type="text/plain; charset=utf-8",
                 )
             expected = clients.signature(clients.configuration()["WECHAT_TOKEN"], timestamp, nonce)
             if not hmac.compare_digest(expected, request.GET.get("signature", "")):
                 raise ValidationError("微信签名无效")
-            return HttpResponse(echo)
+            return HttpResponse(echo, content_type="text/plain; charset=utf-8")
         if len(request.body) > 64000:
             raise ValidationError("微信消息过长")
         envelope = xml_fields(request.body.decode())
