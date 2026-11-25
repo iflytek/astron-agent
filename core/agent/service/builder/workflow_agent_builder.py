@@ -54,9 +54,15 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     workflow_ids=self.inputs.plugin.workflow_ids,
                     console_context=self.inputs.meta_data.console_context,
                 )
-                search = tavily_search_plugin()
-                if search is not None:
-                    plugins = [*plugins, search]
+                plugins = [
+                    *plugins,
+                    *(
+                        tavily_search_plugin(
+                            tool.tool_id, tool.version, tool.api_key.get_secret_value()
+                        )
+                        for tool in self.inputs.plugin.tavily
+                    ),
+                ]
                 metadata_list, knowledge = await self.query_knowledge_by_workflow(
                     self.inputs.plugin.knowledge, sp
                 )

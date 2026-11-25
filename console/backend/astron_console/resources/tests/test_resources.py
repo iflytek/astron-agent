@@ -1,11 +1,14 @@
 import json
 from unittest.mock import patch
 
+from django.core.exceptions import PermissionDenied
 from django.db import connection
 from django.test import Client, TransactionTestCase, override_settings
 
 from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.models import Agent, AgentVersion
+from astron_console.agents.resource_resolution import resolve_resources
+from astron_console.resources import tavily
 from astron_console.resources.common import UpstreamError
 from astron_console.resources.models import (
     ConfigInfo,
@@ -16,7 +19,8 @@ from astron_console.resources.models import (
     Tool,
     WorkflowScope,
 )
-from astron_console.spaces.models import Space, SpaceMember, SpacePermission
+from astron_console.spaces.models import GroupVisibility, Space, SpaceMember, SpacePermission
+from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.models import Workflow, WorkflowVersion
 
 SCHEMA = {
@@ -530,6 +534,112 @@ class ResourceTests(TransactionTestCase):
                 selected.refresh_from_db()
                 self.assertFalse(tool.deleted)
                 self.assertFalse(selected.deleted)
+
+    def test_tavily_catalog_versions_resolve_only_the_selected_credential(self):
+        catalog_url = "/resources/tools/catalog"
+        install_url = f"{catalog_url}/{tavily.CATALOG_ID}/install"
+        with patch(
+            "astron_console.resources.clients.call", side_effect=UpstreamError("Link unavailable")
+        ):
+            response = self.client.get(catalog_url)
+            self.assertEqual(response.status_code, 200, response.content)
+            catalog = response.json()["data"]
+        self.assertEqual([item["id"] for item in catalog], [tavily.CATALOG_ID])
+
+        first_key, second_key = "tvly-fixture-first", "tvly-fixture-next"
+        with patch("astron_console.resources.clients.call") as link:
+            draft = self.write("post", install_url, {}).json()["data"]
+            self.assertEqual(draft["status"], 0)
+            self.assertEqual(self.write("post", install_url, {}).json()["data"]["id"], draft["id"])
+            url = f"/resources/tools/{draft['id']}"
+            payload = {"name": tavily.NAME, "description": tavily.DESCRIPTION}
+            self.assertEqual(
+                self.write("put", url, {**payload, "schema": draft["schema"]}).status_code,
+                400,
+            )
+            schema = tavily.schema(first_key)
+            schema["servers"][0]["url"] = "https://example.com"
+            published = self.write("put", url, {**payload, "schema": schema})
+            self.assertEqual(published.status_code, 200, published.content)
+            self.assertNotIn(first_key.encode(), published.content)
+            original = published.json()["data"]
+            self.assertEqual(original["endPoint"], "https://api.tavily.com/search")
+            self.assertEqual(original["schema"], tavily.schema("******"))
+            self.assertFalse(original["marketEligible"])
+            self.assertEqual(
+                self.write("post", url + "/publish", {"public": True}).status_code, 400
+            )
+            next_version = self.write(
+                "put", url, {**payload, "schema": tavily.schema(second_key)}
+            ).json()["data"]
+            self.assertEqual(next_version["toolId"], original["toolId"])
+            self.assertNotEqual(next_version["version"], original["version"])
+            self.assertEqual(
+                self.write("put", url, {**payload, "schema": tavily.schema(first_key)}).status_code,
+                400,
+            )
+            link.assert_not_called()
+
+        scope = ResourceScope(self.user.pk, None, None)
+        selection = {"toolId": original["toolId"], "version": original["version"]}
+        definition = {"modelId": self.model.pk, "tools": [selection]}
+        plugin = resolve_resources(scope, definition)["plugin"]
+        self.assertEqual(plugin["tools"], [])
+        self.assertEqual(
+            plugin["tavily"],
+            [{"tool_id": original["toolId"], "version": original["version"], "api_key": first_key}],
+        )
+        self.assertNotIn("tavily", resolve_resources(scope, {"modelId": self.model.pk})["plugin"])
+        Tool.objects.filter(pk=original["id"]).update(is_public=True)
+        GroupVisibility.objects.create(
+            type=2, user_id=self.other.pk, relation_id=str(original["id"])
+        )
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.assertEqual(
+            self.write("post", url + "/debug", {"body": {"query": "news"}}).status_code, 403
+        )
+        unauthorized = {"tools": [selection]}
+        with self.assertRaises(PermissionDenied):
+            resolve_resources(ResourceScope(self.other.pk, None, None), unauthorized, runtime=False)
+
+    def test_tavily_tool_debug_only_sends_saved_credentials_to_core_agent(self):
+        draft = self.write("post", "/resources/tools/catalog/tavily.search/install", {}).json()[
+            "data"
+        ]
+        url = f"/resources/tools/{draft['id']}"
+        key = "tvly-fixture-debug"
+        saved = self.write(
+            "put",
+            url,
+            {
+                "name": tavily.NAME,
+                "description": tavily.DESCRIPTION,
+                "schema": tavily.schema(key),
+                "draft": True,
+            },
+        )
+        self.assertEqual(saved.status_code, 200, saved.content)
+        self.assertNotIn(key.encode(), self.client.get(url).content)
+        params = {"query": "today's news", "topic": "news"}
+        data = {"results": [{"url": "https://example.com/article"}]}
+        body = {"body": params, "header": {"Authorization": "ignored"}}
+        with patch(
+            "astron_console.resources.clients.call", return_value={"code": 0, "data": data}
+        ) as call:
+            result = self.write("post", url + "/debug", body)
+            self.assertEqual(result.status_code, 200, result.content)
+            self.assertEqual(json.loads(result.json()["data"]["text"]["text"]), data)
+            call.assert_called_once_with(
+                "AGENT_URL",
+                "POST",
+                "/agent/v1/tools/tavily/search",
+                payload={"api_key": key, "arguments": params},
+                headers={"X-Workflow-Internal-Key": "internal-key"},
+            )
+            self.client.force_login(self.other)
+            self.assertEqual(self.write("post", url + "/debug", body).status_code, 403)
+            self.assertEqual(call.call_count, 1)
 
     def test_tool_registration_and_secret_mask(self):
         with patch(

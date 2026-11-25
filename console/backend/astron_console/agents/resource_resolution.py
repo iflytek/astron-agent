@@ -12,6 +12,7 @@ from astron_console.knowledge.skill_packages import (
     is_skill_entry,
     validate_skill_package,
 )
+from astron_console.resources import tavily
 from astron_console.resources.clients import normalize_provider
 from astron_console.resources.common import http_url, parsed
 from astron_console.resources.models import McpConfig, Model, Tool
@@ -63,7 +64,8 @@ def tool_query(scope):
         type=2, user_id=scope.uid, space_id=scope.space_id
     ).values("relation_id")
     return Tool.objects.filter(deleted=0, status=1).filter(
-        Q(pk__in=owned.values("id")) | Q(is_public=True, status=1) | Q(pk__in=shared)
+        Q(pk__in=owned.values("id"))
+        | ((Q(is_public=True) | Q(pk__in=shared)) & ~Q(tool_tag=tavily.TAG))
     )
 
 
@@ -146,7 +148,16 @@ def resolve_resources(scope, definition, *, runtime=True):
             if runtime:
                 if not row.tool_id or not row.version:
                     raise ValidationError("工具缺少已同步版本")
-                plugin["tools"].append({"tool_id": row.tool_id, "version": row.version})
+                if row.tool_tag == tavily.TAG:
+                    plugin.setdefault("tavily", []).append(
+                        {
+                            "tool_id": row.tool_id,
+                            "version": row.version,
+                            "api_key": tavily.key_from_schema(parsed(row.schema)),
+                        }
+                    )
+                else:
+                    plugin["tools"].append({"tool_id": row.tool_id, "version": row.version})
     mcp = refs(definition.get("mcpServerIds"))
     if mcp:
         query = scoped(

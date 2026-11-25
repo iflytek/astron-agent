@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Union
 
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, SecretStr, StrictBool
 
 from agent.api.schemas.base_inputs import BaseInputs
 
@@ -48,7 +48,14 @@ class CustomCompletionPluginSkillInputs(BaseModel):
     resources: list[ResourceInputs] = Field(default_factory=list)
 
 
+class TavilyToolInputs(BaseModel):
+    tool_id: str = Field(min_length=1, max_length=30)
+    version: str = Field(min_length=1, max_length=100)
+    api_key: SecretStr = Field(exclude=True, repr=False)
+
+
 class CustomCompletionPluginInputs(BaseModel):
+    tavily: list[TavilyToolInputs] = Field(default_factory=list, max_length=100)
     tools: List[Union[str, Dict[str, Any]]] = Field(default_factory=list)
     mcp_server_ids: list[str] = Field(default_factory=list)
     mcp_server_urls: list[str] = Field(default_factory=list)

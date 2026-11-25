@@ -20,10 +20,16 @@ from deepagents.backends.protocol import (
     SandboxBackendProtocol,
 )
 from deepagents.middleware.filesystem import supports_execution
+from fastapi.testclient import TestClient
 
+from agent.api.schemas.workflow_agent_inputs import CustomCompletionInputs
+from agent.api.v1 import web_search as search_api
+from agent.api.v1.workflow_agent import _serialize_workflow_agent_inputs
 from agent.engine import sandbox, skill_files
 from agent.engine.workspace import AgentFilesystem, MinIOStore, MinIOWorkspace
+from agent.main import create_app
 from agent.service.plugin import web_search
+from agent.service.plugin.base import PluginResponse
 from agent.service.sandbox import AgentSandboxConfig
 
 
@@ -199,9 +205,6 @@ async def test_composite_workspace_reads_shell_files_and_keeps_minio_scoped(
 async def test_tavily_tool_bounds_results_and_uses_the_official_client(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
-    assert web_search.tavily_search_plugin() is None
-    monkeypatch.setenv("TAVILY_API_KEY", "test-key")
     valid = {
         "title": "Some news",
         "url": "https://example.com/news",
@@ -214,13 +217,15 @@ async def test_tavily_tool_bounds_results_and_uses_the_official_client(
     client.return_value.__aenter__.return_value.search = search
     monkeypatch.setattr(web_search, "AsyncTavilyClient", client)
 
-    plugin = web_search.tavily_search_plugin()
-    assert plugin is not None
+    plugin = web_search.tavily_search_plugin("tavily@id", "V1.0", "test-key")
     assert "test-key" not in plugin.schema_template
-    result = await plugin.run({"query": "news", "time_range": "day"}, None)
+    result = await plugin.run(
+        {"query": "news", "time_range": "day", "max_results": 2.0}, None
+    )
     assert result.code == 0 and result.result["results"] == [valid]
     client.assert_called_once_with(api_key="test-key")
     assert search.call_args.kwargs["search_depth"] == "basic"
+    assert type(search.call_args.kwargs["max_results"]) is int
     assert search.call_args.kwargs["filter_by_published_date"] is True
 
     search.side_effect = RuntimeError("private test-key")
@@ -230,3 +235,54 @@ async def test_tavily_tool_bounds_results_and_uses_the_official_client(
     search.side_effect = web_search.TavilyTimeoutError("private test-key")
     result = await plugin.run({"query": "news"}, None)
     assert result.code and result.result == {"error": "Web search timed out"}
+
+
+def test_internal_tavily_debug_authenticates_and_validates_before_search(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    internal_key = "internal-key-test-fixture-minimum-length"
+    vendor_key = "tvly-fixture-debug"
+    monkeypatch.setenv("WORKFLOW_INTERNAL_API_KEY", internal_key)
+    search = AsyncMock(return_value=PluginResponse(result={"results": []}))
+    monkeypatch.setattr(search_api, "_run_tavily", search)
+    client = TestClient(create_app())
+    route = "/agent/v1/tools/tavily/search"
+    headers = {"X-Workflow-Internal-Key": internal_key}
+    payload = {"api_key": vendor_key, "arguments": {"query": "news", "max_results": 11}}
+    assert client.post(route, json=payload).status_code == 401
+    invalid = client.post(route, json=payload, headers=headers)
+    assert invalid.json()["data"]["code"] == 40024
+    assert vendor_key not in invalid.text
+    malformed = client.post(route, json={"api_key": vendor_key}, headers=headers)
+    assert malformed.json()["code"] == 40002 and vendor_key not in malformed.text
+    search.assert_not_awaited()
+
+    arguments = {"query": "news", "topic": "news"}
+    valid = client.post(
+        route, json={**payload, "arguments": arguments}, headers=headers
+    )
+    assert valid.json()["data"]["data"] == {"results": []}
+    search.assert_awaited_once_with(arguments, vendor_key)
+
+
+def test_tavily_tool_credential_is_excluded_from_trace_serialization() -> None:
+    vendor_key = "tvly-fixture-trace"
+    inputs = CustomCompletionInputs.model_validate(
+        {
+            "model_config": {"domain": "test", "api": "https://example.com"},
+            "messages": [{"role": "user", "content": "news"}],
+            "max_loop_count": 5,
+            "plugin": {
+                "tavily": [
+                    {"tool_id": "tavily@id", "version": "V1.0", "api_key": vendor_key}
+                ]
+            },
+        }
+    )
+    assert inputs.plugin.tavily[0].api_key.get_secret_value() == vendor_key
+    assert vendor_key not in repr(inputs)
+    trace = _serialize_workflow_agent_inputs(inputs)
+    assert vendor_key not in trace
+    assert json.loads(trace)["plugin"]["tavily"] == [
+        {"tool_id": "tavily@id", "version": "V1.0"}
+    ]

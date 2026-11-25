@@ -177,11 +177,15 @@ def authorized_params(node, workflow, scope):
             source=normalize_provider(model.provider),
         )
     if kind == "plugin":
+        from astron_console.resources.tavily import TAG as TAVILY_TAG
+
         tool = select(tool_query(scope), params.get("pluginId"), remote="tool_id")
         if params.get("version") and str(params["version"]) != str(tool.version):
             tool = tool_query(scope).filter(tool_id=tool.tool_id, version=params["version"]).first()
         if tool is None or not tool.tool_id or not tool.version:
             raise PermissionDenied("工具版本不存在或未授权")
+        if tool.tool_tag == TAVILY_TAG:
+            raise ValidationError("请在工作流的 Agent 节点中使用 Tavily 搜索")
         if params.get("operationId") != tool.operation_id:
             raise PermissionDenied("工具操作不存在或未授权")
         params.update(pluginId=tool.tool_id, version=tool.version, appId=tool.app_id)

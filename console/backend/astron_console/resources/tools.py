@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+from uuid import uuid4
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -14,7 +15,7 @@ from astron_console.http import api_endpoint
 from astron_console.spaces.models import GroupVisibility
 from astron_console.spaces.permissions import require_resource_access, scope_queryset
 
-from . import clients
+from . import clients, tavily
 from .common import (
     UpstreamError,
     http_url,
@@ -83,6 +84,8 @@ def data(row):
     result["schema"] = scrub(stored_schema(row))
     result["authInfo"] = scrub(parsed(row.auth_info))
     result["temporaryData"] = scrub(parsed(row.temporary_data))
+    if row.tool_tag == tavily.TAG:
+        result["marketEligible"] = False
     return result
 
 
@@ -147,11 +150,14 @@ def readable(request, pk, permission=READ):
     row = Tool.objects.filter(pk=number(pk), deleted=False).first()
     if row is None:
         raise Http404
-    shared = GroupVisibility.objects.filter(
-        type=2, user_id=scope.uid, relation_id=str(row.pk), space_id=scope.space_id
-    ).exists()
-    if row.is_public or shared:
-        return row, scope
+    if row.tool_tag != tavily.TAG:
+        if (
+            row.is_public
+            or GroupVisibility.objects.filter(
+                type=2, user_id=scope.uid, relation_id=str(row.pk), space_id=scope.space_id
+            ).exists()
+        ):
+            return row, scope
     require_resource_access(
         scope, owner_uid=row.user_id, space_id=row.space_id, permission_key=permission
     )
@@ -166,7 +172,7 @@ def collection(request):
     scope = scope_for(request, "ToolBoxController_listTools_GET")
     query = Tool.objects.filter(deleted=False)
     if request.GET.get("market") == "true":
-        query = query.filter(is_public=True, status=1)
+        query = query.filter(is_public=True, status=1).exclude(tool_tag=tavily.TAG)
     else:
         query = scope_queryset(query, scope, uid_field="user_id")
     if request.GET.get("name"):
@@ -224,6 +230,11 @@ def save(request, pk=None, *, payload=None, builtin_id=None):
     payload = request.payload if payload is None else payload
     if pk is not None:
         row, scope = owned(request, Tool, pk, WRITE, uid_field="user_id", deleted="deleted")
+        if row.tool_tag == tavily.TAG:
+            with transaction.atomic():
+                tavily.lock_scope(scope)
+                row = current_tool(row.pk)
+                return save_tool(row, payload)
     else:
         scope = scope_for(request, "ToolBoxController_createTool_POST")
         row = Tool(
@@ -232,13 +243,30 @@ def save(request, pk=None, *, payload=None, builtin_id=None):
             app_id=settings.RESOURCE_APP_ID,
             deleted=False,
         )
+    return save_tool(row, payload, builtin_id)
+
+
+def current_tool(pk):
+    row = Tool.objects.filter(pk=pk, deleted=False).first()
+    if row is None:
+        raise Http404
+    return row
+
+
+def save_tool(row, payload, builtin_id=None):
     schema, operations = normalize_schema(payload.get("schema"), editable_schema(row))
-    credentials = schema_auth(schema)
     row.name = text(payload, "name", required=True, limit=64)
     row.description = text(payload, "description", required=True, limit=255)
     if builtin_id:
         row.source = 0
         row.tool_tag = "builtin:" + builtin_id
+    if row.tool_tag == tavily.TAG:
+        row.is_public = False
+        schema = tavily.schema(
+            tavily.key_from_schema(schema, required=payload.get("draft") is not True)
+        )
+        operations = [("/search", "post", "web_search")]
+    credentials = [] if row.tool_tag == tavily.TAG else schema_auth(schema)
     version = text(payload, "version", limit=100) or row.version or "V1.0"
     if payload.get("draft") is True:
         row.temporary_data = json.dumps(
@@ -266,6 +294,13 @@ def save(request, pk=None, *, payload=None, builtin_id=None):
             version = f"V{int(match.group(1)) + 1}.{match.group(2)}"
         if Tool.objects.filter(tool_id=row.tool_id, version=version, deleted=False).exists():
             raise ValidationError("工具版本已存在")
+    if row.tool_tag == tavily.TAG:
+        if row.tool_id:
+            row.pk = None
+            row.create_time = timezone.now()
+        else:
+            row.tool_id = tavily.TOOL_ID_PREFIX + uuid4().hex[:22]
+        return store_version(row, schema, operations, credentials, version)
     info = {
         "name": row.name,
         "description": row.description,
@@ -306,6 +341,10 @@ def save(request, pk=None, *, payload=None, builtin_id=None):
         row.tool_id = created[0]["id"]
         # CreateInfo has no version field; the creation response is authoritative.
         version = created[0]["version"]
+    return store_version(row, schema, operations, credentials, version)
+
+
+def store_version(row, schema, operations, credentials, version):
     row.version = version
     row.schema = json.dumps(schema, ensure_ascii=False)
     row.auth_info = json.dumps(credentials[0] if credentials else {})
@@ -328,7 +367,7 @@ def item(request, pk):
         return data(readable(request, pk)[0])
     if request.method == "PUT":
         return save(request, pk)
-    row, _ = owned(
+    row, scope = owned(
         request,
         Tool,
         pk,
@@ -336,6 +375,14 @@ def item(request, pk):
         uid_field="user_id",
         deleted="deleted",
     )
+    if row.tool_tag == tavily.TAG:
+        with transaction.atomic():
+            tavily.lock_scope(scope)
+            return delete_tool(current_tool(row.pk))
+    return delete_tool(row)
+
+
+def delete_tool(row):
     from .references import ensure_definition_unreferenced
 
     # The upstream DELETE removes all versions of this remote tool, so include
@@ -344,7 +391,7 @@ def item(request, pk):
     if row.tool_id:
         identifiers.update(Tool.objects.filter(tool_id=row.tool_id).values_list("pk", flat=True))
     ensure_definition_unreferenced("tool", identifiers)
-    if row.tool_id:
+    if row.tool_id and row.tool_tag != tavily.TAG:
         tables = connection.introspection.table_names()
         for table in ("flow_tool_rel", "bot_tool_rel"):
             if table in tables:
@@ -360,6 +407,7 @@ def item(request, pk):
             "/api/v1/tools/versions",
             params={"app_id": row.app_id, "tool_ids": [row.tool_id]},
         )
+    if row.tool_id:
         Tool.objects.filter(tool_id=row.tool_id).update(deleted=True, update_time=timezone.now())
     else:
         row.deleted = True
@@ -387,6 +435,11 @@ def reveal_credential(request, pk):
 @upstream_errors
 def debug(request, pk):
     row, scope = readable(request, pk, "ToolBoxController_debugToolV2_POST")
+    if row.tool_tag == tavily.TAG:
+        schema = stored_schema(row) if row.status == 1 else editable_schema(row)
+        result = tavily.debug(request.payload.get("body", {}), schema)
+        ToolHistory.objects.create(tool_id=row.tool_id or str(row.pk), uid=scope.uid, type=1)
+        return result
     schema = stored_schema(row)
     # Always execute the authorized persisted definition, not a client-supplied official URL.
     payload = {
@@ -452,6 +505,8 @@ def publish(request, pk):
     value = request.payload.get("public")
     if not isinstance(value, bool):
         raise ValidationError("public必须是布尔值")
+    if value and row.tool_tag == tavily.TAG:
+        raise ValidationError("Tavily 工具仅在添加它的空间内使用")
     row.is_public = value
     row.save(update_fields=["is_public"])
     return data(row)

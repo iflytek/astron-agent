@@ -65,6 +65,7 @@ type Resource = {
   };
   version?: string;
   isPublic?: boolean;
+  marketEligible?: boolean;
   favorite?: boolean;
   status?: number;
   parameters?: JsonObject;
@@ -719,7 +720,9 @@ export default function ResourceTools({
                               },
                             ]
                           : []),
-                        ...(!market && mode === 'tools'
+                        ...(!market &&
+                        mode === 'tools' &&
+                        row.marketEligible !== false
                           ? [
                               {
                                 key: 'publish',

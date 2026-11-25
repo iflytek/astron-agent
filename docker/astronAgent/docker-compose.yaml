@@ -618,7 +618,6 @@ services:
       AGENT_WORKSPACE_S3_BUCKET: "${AGENT_WORKSPACE_S3_BUCKET:-${OSS_BUCKET_CONSOLE:-console-oss}}"
       AGENT_WORKSPACE_S3_ACCESS_KEY: "${AGENT_WORKSPACE_S3_ACCESS_KEY:-${OSS_ACCESS_KEY_ID:-${MINIO_ROOT_USER:-minioadmin}}}"
       AGENT_WORKSPACE_S3_SECRET_KEY: "${AGENT_WORKSPACE_S3_SECRET_KEY:-${OSS_ACCESS_KEY_SECRET:-${MINIO_ROOT_PASSWORD:-minioadmin123}}}"
-      TAVILY_API_KEY: "${TAVILY_API_KEY:-}"
     depends_on:
       internal-credentials-init:
         condition: service_completed_successfully

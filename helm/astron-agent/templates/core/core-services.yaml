@@ -314,13 +314,6 @@ spec:
             secretKeyRef:
               name: {{ include "astron-agent.minioSecretName" $ }}
               key: {{ include "astron-agent.minioSecretPasswordKey" $ }}
-        {{- with $serviceConfig.tavilySecret }}
-        - name: TAVILY_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: {{ required "coreAgent.tavilySecret.name is required" .name | quote }}
-              key: {{ default "api-key" .key | quote }}
-        {{- end }}
         {{- end }}
         - name: LANGFUSE_ENABLED
           value: {{ $langfuseEnabled | quote }}

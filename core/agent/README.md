@@ -34,7 +34,7 @@ OpenAI / Google 请求级客户端在运行结束、异常和取消后关闭。A
 
 ### Tavily 网页搜索
 
-部署配置 `TAVILY_API_KEY` 后，Agent 可以通过官方 Tavily SDK 调用 `web_search`。Compose 从部署环境读取该变量。Helm 通过 `coreAgent.tavilySecret.name` 引用已有 Secret，键名默认为 `api-key`。工具默认使用 Basic Search，可传入新闻主题、时间范围和日期，并返回有界的标题、原文 URL、摘要和可用的发布时间。额度按部署共用。
+在工具管理的内置目录添加 Tavily 网页搜索，打开工具配置，在身份验证中填写 Tavily API Key，发布工具版本后将其加入同一空间的 Agent。Core Agent 通过官方 Tavily SDK 执行所选的工具版本。工具使用 Basic Search，支持新闻主题、时间范围和日期，并返回标题、原文 URL、摘要和可用的发布时间。工作流可通过已配置该工具的 Agent 节点调用。
 
 ### Agent 虚拟文件系统
 

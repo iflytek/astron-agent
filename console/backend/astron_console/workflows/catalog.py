@@ -169,7 +169,9 @@ def mcp_debug(request):
 
 @api_endpoint(["GET"])
 def tool_versions(request):
-    query = tool_query(scope_for(request, LIST))
+    from astron_console.resources.tavily import TAG as TAVILY_TAG
+
+    query = tool_query(scope_for(request, LIST)).exclude(tool_tag=TAVILY_TAG)
     if request.GET.get("toolId"):
         return [
             canvas_tool(row) for row in query.filter(tool_id=request.GET["toolId"]).order_by("-id")

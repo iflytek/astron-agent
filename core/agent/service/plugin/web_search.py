@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -16,7 +15,6 @@ from tavily.errors import UsageLimitExceededError
 
 from agent.service.plugin.base import BasePlugin, PluginResponse
 
-TAVILY_API_KEY_ENV = "TAVILY_API_KEY"
 MAX_RESULTS = 10
 SEARCH_SCHEMA = {
     "type": "object",
@@ -37,7 +35,8 @@ SEARCH_SCHEMA = {
 
 
 class TavilySearchPlugin(BasePlugin):
-    tool_id: str = "builtin:tavily"
+    tool_id: str
+    version: str
 
 
 def _safe_url(value: Any) -> str | None:
@@ -79,7 +78,9 @@ def _result_item(value: Any) -> dict[str, Any] | None:
 
 async def _run_tavily(arguments: dict[str, Any], api_key: str) -> PluginResponse:
     started = time.monotonic()
-    payload = {"max_results": 5, **arguments}
+    # JSON Schema integers also accept numbers like 2.0.
+    max_results = int(arguments.get("max_results", 5))
+    payload = {**arguments, "max_results": max_results}
     try:
         async with AsyncTavilyClient(api_key=api_key) as client:
             body = await client.search(
@@ -107,7 +108,7 @@ async def _run_tavily(arguments: dict[str, Any], api_key: str) -> PluginResponse
             code=40024, result={"error": "Invalid web search response"}
         )
     results: dict[str, dict[str, Any]] = {}
-    for raw in raw_results[: payload["max_results"]]:
+    for raw in raw_results[:max_results]:
         if (item := _result_item(raw)) is not None:
             results.setdefault(item["url"], item)
     logger.info(
@@ -120,16 +121,15 @@ async def _run_tavily(arguments: dict[str, Any], api_key: str) -> PluginResponse
     )
 
 
-def tavily_search_plugin() -> BasePlugin | None:
-    """Build the tool only when the deployment explicitly supplies a key."""
-    api_key = os.getenv(TAVILY_API_KEY_ENV, "").strip()
-    if not api_key:
-        return None
+def tavily_search_plugin(tool_id: str, version: str, api_key: str) -> BasePlugin:
+    """Build one explicitly selected, versioned resource."""
 
     async def run(action_input: dict[str, Any], span: Any) -> PluginResponse:
         return await _run_tavily(action_input, api_key)
 
     return TavilySearchPlugin(
+        tool_id=tool_id,
+        version=version,
         name="web_search",
         description=(
             "Search the live web for current information. For news use topic=news. "
