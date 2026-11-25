@@ -89,251 +89,22 @@ module_id varchar(50) DEFAULT NULL ）。
 - 个人空间（免费版 / 专业版）：不需要审核，调试通过后即可直接发布。
 - 团队 / 企业空间：所有者（Owner）和管理员（Admin）可直接发布；普通成员（Member）发布到智能体市场或 API 渠道时，需经所有者或管理员审核通过后才会上架。
 
-## 工作流的运行机制是怎样的？Java 和 Python 各负责什么？
+## 控制台与工作流引擎各负责什么？
 
-- Java (Console 后端 / hub 模块): 负责管理层 API，包括 CRUD、用户认证、配置管理等。
-- Python (Workflow Service): 负责工作流引擎的实际执行，解析工作流逻辑并调度节点。
+Python Console 负责账号、资源、Agent、工作流和发布的管理与授权；`core/workflow` 负责工作流编排；`core/agent` 是独立 Agent 与工作流 Agent 节点的共享执行引擎。
 
-两者默认运行在同一个 MySQL 实例上，但各自使用独立的数据库（Console 用 astron_console，工作流服务用 workflow）。
+Console 与工作流使用各自的数据库（`astron_console` 和 `workflow`），原用户 ID 与资源归属保持不变。
 
 ## 开源版工作流有可观测性 / Trace 吗？
 
-有，默认未开启，按以下步骤启用：
+工作流编排页的「运行追踪」打开「Trace 日志」面板，读取 Console 保存的执行记录。如需向外部平台导出遥测，可配置 OTLP 或 Langfuse。
 
-1. 在 docker-compose.yaml 中取消 elasticsearch、kibana、kafka、logstash 四个组件容器的注释。
-2. 将环境变量 KAFKA_ENABLE 置为 1。
-3. 重新启动项目，即可在工作流的 Trace 日志中查看对应的调用链路。
+[Langfuse 可观测性指南](../docs/zh/guide/observability.md)
 
-## 怎么使用https协议访问项目？
+## 怎么使用 HTTPS 协议访问项目？
 
-1. 修改配置文件，如图所示，添加https暴露接口，并修改CONSOLE_DOMAIN环境变量。
-![](assets/img1.png)
-![](assets/img2.png)
-2. 修改docker-compose.yaml文件中nginx容器的配置，暴露出https和casdoor的端口号，并映射https证书文件。
-![](assets/img3.png)
-3. 修改docker/astronAgent/nginx/nginx.conf配置文件以适配https协议
-```
-worker_processes auto;
-worker_rlimit_nofile 65535;
+在应用入口部署 TLS，前端和 `/console-api/` 保持同源。按 [Python Console 运维说明](../console/backend/README.md) 设置公开 origin、允许主机、可信 CSRF origin 和安全 Cookie；只信任明确配置的代理来源。登录和注册直接在应用内完成，不需要额外认证端口。
 
-events {
-    worker_connections 65535;
-    multi_accept on;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    # Log format
-    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
-                    '$status $body_bytes_sent "$http_referer" '
-                    '"$http_user_agent" "$http_x_forwarded_for"';
-
-    # Access log
-    access_log /var/log/nginx/access.log main;
-    error_log /var/log/nginx/error.log warn;
-
-    # Basic configuration
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
-
-    # Upload size limit
-    client_max_body_size 20m;
-
-    # Gzip compression
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1000;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/xml+rss
-        application/javascript
-        application/json;
-
-    server {
-        listen 80;
-        server_name localhost;
-
-        # Security headers
-        add_header X-Frame-Options "SAMEORIGIN" always;
-        add_header X-XSS-Protection "1; mode=block" always;
-        add_header X-Content-Type-Options "nosniff" always;
-
-        # Health check
-        location /nginx-health {
-            access_log off;
-            return 200 "nginx is healthy\n";
-            add_header Content-Type text/plain;
-        }
-
-        # Redirect all other HTTP traffic to HTTPS
-        location / {
-            return 301 https://$host$request_uri;
-        }
-    }
-
-    server {
-        listen 443 ssl http2;
-        server_name localhost;
-
-        ssl_certificate     /etc/nginx/certs/localhost.pem;
-        ssl_certificate_key /etc/nginx/certs/localhost-key.pem;
-        ssl_protocols       TLSv1.2 TLSv1.3;
-
-        # Security headers
-        add_header X-Frame-Options "SAMEORIGIN" always;
-        add_header X-XSS-Protection "1; mode=block" always;
-        add_header X-Content-Type-Options "nosniff" always;
-
-        # Runtime config - no cache (dynamic config file)
-        location = /runtime-config.js {
-            proxy_pass http://console-frontend:1881;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-
-            # Disable caching for runtime config
-            expires -1;
-            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
-            add_header Pragma "no-cache";
-        }
-
-        # Static resource caching
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            proxy_pass http://console-frontend:1881;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-
-        # SSE (Server-Sent Events) API proxy for workflow chat completions
-        location /workflow/v1/chat/completions {
-            proxy_pass http://core-workflow:7880/workflow/v1/chat/completions;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-
-            # SSE specific settings
-            proxy_buffering off;                    # Disable buffering for real-time data transmission
-            proxy_cache off;                        # Disable caching
-            proxy_set_header Connection '';         # SSE uses persistent connections
-            proxy_http_version 1.1;                 # Use HTTP/1.1
-            chunked_transfer_encoding on;           # Enable chunked transfer encoding
-
-            # Prevent nginx from buffering responses
-            proxy_set_header X-Accel-Buffering no;
-
-            # Timeout settings - SSE requires long-lived connections
-            proxy_connect_timeout 60s;
-            proxy_send_timeout 1800s;                # 30 minutes send timeout
-            proxy_read_timeout 1800s;                # 30 minutes read timeout
-
-            # Set correct headers for SSE
-            add_header Cache-Control 'no-cache';
-            add_header X-Accel-Buffering 'no';
-        }
-
-        # SSE (Server-Sent Events) API proxy for chat messages
-        location /console-api/chat-message/ {
-            proxy_pass http://console-hub:8080/chat-message/;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-
-            # SSE specific settings
-            proxy_buffering off;                    # Disable buffering for real-time data transmission
-            proxy_cache off;                        # Disable caching
-            proxy_set_header Connection '';         # SSE uses persistent connections
-            proxy_http_version 1.1;                 # Use HTTP/1.1
-            chunked_transfer_encoding on;           # Enable chunked transfer encoding
-
-            # Prevent nginx from buffering responses
-            proxy_set_header X-Accel-Buffering no;
-
-            # Timeout settings - SSE requires long-lived connections
-            proxy_connect_timeout 60s;
-            proxy_send_timeout 1800s;                # 30 minutes send timeout
-            proxy_read_timeout 1800s;                # 30 minutes read timeout
-
-            # Set correct headers for SSE
-            add_header Cache-Control 'no-cache';
-            add_header X-Accel-Buffering 'no';
-        }
-
-        # Backend API proxy - proxy /console-api path to console-hub
-        location /console-api/ {
-            proxy_pass http://console-hub:8080/;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-
-            # Timeout settings
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-        }
-
-        # Frontend application proxy - default proxy to console-frontend
-        location / {
-            proxy_pass http://console-frontend:1881;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-
-            # Timeout settings
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-        }
-
-        # Health check
-        location /nginx-health {
-            access_log off;
-            return 200 "nginx is healthy\n";
-            add_header Content-Type text/plain;
-        }
-    }
-
-    # Casdoor HTTPS endpoint (same cert, different port)
-    server {
-        listen 8000 ssl http2;
-        server_name localhost;
-
-        ssl_certificate     /etc/nginx/certs/localhost.pem;
-        ssl_certificate_key /etc/nginx/certs/localhost-key.pem;
-        ssl_protocols       TLSv1.2 TLSv1.3;
-
-        # Security headers
-        add_header X-Frame-Options "SAMEORIGIN" always;
-        add_header X-XSS-Protection "1; mode=block" always;
-        add_header X-Content-Type-Options "nosniff" always;
-
-        location / {
-            proxy_pass http://casdoor:8000;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-        }
-    }
-}
-```
 ## 工作流可以导入 / 导出吗？导入入口在哪里？
 
 支持。
@@ -380,7 +151,7 @@ http {
 2. 用新镜像替换 compose 中引用的官方镜像；
 3. 重新 `up -d` 使新镜像生效。
 
-后端（Java / Python 服务）的定制同理，各服务都可以按自己的 Dockerfile 重新出镜像。如果改动只覆盖了一部分文案，通常是还有其他模块（例如后端返回的文案或另一个前端子应用）没有一并重建。
+后端（Python 服务）的定制同理，各服务都可以按自己的 Dockerfile 重新出镜像。如果改动只覆盖了一部分文案，通常是还有其他模块（例如后端返回的文案或另一个前端子应用）没有一并重建。
 
 ## 在线体验、SaaS 版和开源自建版是什么关系？
 
@@ -428,7 +199,7 @@ http {
 
 ![创建并绑定应用](assets/workflow_publish_api_2.png)
 
-3. 绑定成功后即可在「服务接口认证信息」中看到接口地址、API Secret、API Key 和 API Flowid，页面还提供 python / java 的 demo 下载。
+3. 绑定成功后即可在「服务接口认证信息」中看到接口地址、API Secret、API Key 和 API Flowid，页面还提供 Python 和 HTTP 示例下载。
 
 ![获取接口地址与鉴权信息](assets/workflow_publish_api_3.png)
 
@@ -462,14 +233,7 @@ http {
 
 ## 工作流的调用链路日志（Trace）怎么开启？
 
-1. 在 `docker-compose.yaml` 中取消 `elasticsearch`、`kibana`、`kafka`、`logstash` 四个组件容器的注释。
-
-![取消四个可观测性组件的注释](assets/trace_compose_components.png)
-
-2. 将环境变量 `KAFKA_ENABLE` 置为 `1`。
-3. 重新启动项目，编排页右上角会出现「Trace日志」入口，点击即可查看对应的调用链路。
-
-![编排页的 Trace 日志入口](assets/trace_log_view.png)
+点击工作流编排页右上角的「运行追踪」，在「Trace 日志」面板中选择一条执行记录，即可查看节点详情。
 
 ## 标准 HTTP 插件只支持 JSON Object，但接口要求顶层是 JSON Array 怎么办？
 
@@ -482,9 +246,7 @@ http {
 
 ## Agent 怎么调用 RPA？
 
-1. 确认 `.env` 中的 `HOST_BASE_ADDRESS` 配置正确（远程部署时应为公网 IP / 域名，而非 `localhost`）。
-2. 使用 `docker compose -f docker-compose-with-auth-rpa.yaml up -d` 启动，该 compose 文件会同时拉起 Agent 与 RPA 后端服务，无需额外配置。
-3. 前往 [astron-rpa](https://github.com/iflytek/astron-rpa) 下载客户端，修改安装目录下 `resources` 中的配置文件指向你的 RPA 服务端地址，然后即可在客户端编排并执行机器人。
+RPA 使用外部平台既有 API Key 接入资源管理和工作流执行。外部 RPA 独立部署与登录，Astron Agent 不提供联合登录，也不修改外部 RPA 源码、镜像和部署。
 
 ## Agent 有几种接入 RAG（知识库）的方式？
 

@@ -17,10 +17,33 @@ const exports = {};
 new Function('exports', compiled)(exports);
 const {
   appendChatReply,
+  createStartInputInitializer,
   finishFileUpload,
   isStartInputValue,
   readConfigObject,
 } = exports;
+
+test('start inputs initialize after opening or delayed graph loading', () => {
+  const initialize = createStartInputInitializer();
+  const outputs = [{ name: 'question', schema: { type: 'string' } }];
+  assert.equal(initialize(false, 'flow', outputs), false);
+  assert.equal(initialize(true, 'flow', undefined), false);
+  assert.equal(initialize(true, 'flow', outputs), true);
+  assert.equal(initialize(false, 'flow', outputs), false);
+  assert.equal(initialize(true, 'flow', outputs), true);
+});
+
+test('runtime clones preserve edited inputs while flow and parameter changes reset them', () => {
+  const initialize = createStartInputInitializer();
+  const outputs = [{ name: 'question', schema: { type: 'string' } }];
+  assert.equal(initialize(true, 'flow', outputs), true);
+  assert.equal(initialize(true, 'flow', structuredClone(outputs)), false);
+  assert.equal(initialize(true, 'other-flow', outputs), true);
+  assert.equal(
+    initialize(true, 'other-flow', [...outputs, { name: 'extra' }]),
+    true
+  );
+});
 
 const createFileParam = () => ({
   name: 'attachment',

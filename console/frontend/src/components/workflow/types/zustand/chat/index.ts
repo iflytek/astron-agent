@@ -35,6 +35,11 @@ export interface ChatState {
   userWheel: boolean;
   deleteAllModal: boolean;
   chatIdRef: string;
+  conversationScope: string;
+  historyStatus: 'idle' | 'loading' | 'ready' | 'error';
+  runId: string;
+  runStatus: string;
+  stopRequested: boolean;
   controllerRef?: AbortController;
 }
 
@@ -62,7 +67,6 @@ export interface ChatStoreType extends ChatState {
   handleEnterKey: (event: KeyboardEvent<HTMLElement>) => void;
   handleStopConversation: () => void;
   deleteAllChat: () => void;
-  handleWorkflowDeleteComparisons: () => void;
   canRunDebugger: () => boolean;
   setWsMessageStatus: (status: string) => void;
   resetNodesAndEdges: () => WorkflowSnapshot;

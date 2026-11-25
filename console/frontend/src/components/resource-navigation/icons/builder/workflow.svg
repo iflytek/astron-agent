@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>工作流</title>
+  <g fill="none" stroke="#236B63" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.75 6.75h5.1a2.45 2.45 0 0 1 2.45 2.45v.9m-2.8 2.35H8.65a2.4 2.4 0 0 0-2.4 2.4v1.4"/>
+    <rect x="3.8" y="4.3" width="4.9" height="4.9" rx="1.1" fill="#BAE7DA"/>
+    <rect x="13.65" y="10.05" width="5.3" height="4.8" rx="1.1" fill="#BAE7DA"/>
+    <rect x="3.8" y="16.25" width="4.9" height="4" rx="1.1" fill="#BAE7DA"/>
+  </g>
+</svg>

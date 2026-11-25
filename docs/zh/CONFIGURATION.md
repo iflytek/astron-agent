@@ -4,18 +4,14 @@
 
 ## 快速开始
 
-### 必须手动配置的关键字段
+### 默认启动无需修改环境变量
 
-在使用 Docker Compose 部署之前，以下环境变量**必须手动配置**。详细的配置步骤和说明请参考 [部署指南](https://github.com/iflytek/astron-agent/blob/main/docs/zh/DEPLOYMENT_GUIDE.md)。
+在 `docker/astronAgent` 执行 `docker compose up -d --build`，无需复制或编辑 `.env`。默认通过 80 端口访问 `http://localhost/` 或 `http://<服务器IP>/`。内置账号和基础设施可直接使用，模型与可选外部能力在启动后按需配置。
 
-**关键配置项概览**：
+**可选覆盖与持久凭据**：
 
-- **Casdoor 认证配置**（需要部署 Casdoor 服务）:
-  - `CONSOLE_CASDOOR_URL`、`CONSOLE_CASDOOR_ID`
-  - `CONSOLE_CASDOOR_APP`、`CONSOLE_CASDOOR_ORG`
-
-- **主机地址配置**:
-  - `HOST_BASE_ADDRESS` - 设置为您的服务器地址或域名
+- **Python Console 内部账号**：参见[配置与迁移说明](../../console/backend/README.md)。签名密钥首次自动生成并复用 `console_signing_secrets` 卷，升级保留此卷。
+- **自定义域名与 HTTPS**：仅按需配置，参见下方 Console 配置项。服务器 IP 访问或可选修改 `EXPOSE_NGINX_PORT` 均无需设置固定公开 origin。
 
 - **部署内部认证（无需手动配置）**：
   - `.env` 中 `WORKFLOW_INTERNAL_API_KEY`、`TENANT_KEY`、`TENANT_SECRET`
@@ -50,12 +46,11 @@
 ## 1. 中间件配置模块
 
 > **独立部署说明**:
-> - 如果使用 Docker Compose 一键部署，以下配置中使用容器名（如 `postgres`、`mysql`、`redis`、`kafka`、`minio`）作为主机地址即可
+> - 如果使用 Docker Compose 一键部署，以下配置中使用容器名（如 `postgres`、`mysql`、`redis`、`minio`）作为主机地址即可
 > - 如果中间件服务**单独部署**（不在同一 Docker 网络中），需要将以下配置中的容器名修改为实际的 IP 地址或域名，并同步修改对应的连接信息（如用户名、密码、端口等）：
 >   - PostgreSQL 相关：`POSTGRES_HOST`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`POSTGRES_PORT` 等
 >   - MySQL 相关：`MYSQL_HOST`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_URL` 等
 >   - Redis 相关：`REDIS_ADDR`、`REDIS_HOST`、`REDIS_PASSWORD`、`REDIS_PORT` 等
->   - Kafka 相关：`KAFKA_SERVERS` 及认证信息（如需要）
 >   - MinIO 相关：`OSS_ENDPOINT`、`OSS_DOWNLOAD_HOST`、`OSS_ACCESS_KEY_ID`、`OSS_ACCESS_KEY_SECRET` 等
 >
 > **MinIO 默认配置**：
@@ -74,7 +69,7 @@
 | MYSQL_PASSWORD | 使用默认 | string | MySQL 数据库密码(默认从 MYSQL_ROOT_PASSWORD 获取) | root123 |
 | MYSQL_HOST | 使用默认 | string | MySQL 数据库主机地址 | mysql |
 | MYSQL_PORT | 使用默认 | int | MySQL 数据库端口号 | 3306 |
-| MYSQL_URL | 使用默认 | string | MySQL 数据库 JDBC 连接 URL | jdbc:mysql://mysql:3306/astron_console |
+| MYSQL_URL | 使用默认 | string | 供 core 账号配置读取器兼容的旧 JDBC 形式 URL；Console 使用 MYSQL_HOST/PORT 与 CONSOLE_MYSQL_DB | jdbc:mysql://mysql:3306/astron_console |
 | REDIS_PASSWORD | 可选 | string | Redis 密码(为空表示无密码) | (留空) |
 | REDIS_DATABASE | 使用默认 | int | Redis 数据库索引(0-15) | 0 |
 | REDIS_IS_CLUSTER | 使用默认 | bool | Redis 是否为集群模式 | false |
@@ -83,13 +78,9 @@
 | REDIS_ADDR | 使用默认 | string | Redis 连接地址(单机模式) | redis:6379 |
 | REDIS_HOST | 使用默认 | string | Redis 主机地址 | redis |
 | REDIS_PORT | 使用默认 | int | Redis 端口号 | 6379 |
-| ELASTICSEARCH_SECURITY_ENABLED | 使用默认 | bool | Elasticsearch 是否启用安全认证 | false |
-| ES_JAVA_OPTS | 使用默认 | string | Elasticsearch JVM 参数配置 | -Xms512m -Xmx512m |
-| EXPOSE_KAFKA_PORT | 使用默认 | int | Kafka 对外暴露的端口号 | 9092 |
-| KAFKA_REPLICATION_FACTOR | 使用默认 | int | Kafka 副本因子 | 1 |
-| KAFKA_CLUSTER_ID | 使用默认 | string | Kafka 集群 ID | MkU3OEVBNTcwNTJENDM2Qk |
+| KAFKA_ENABLE | 使用默认 | bool | 可选的外部 Kafka 执行日志上报 | 0 |
 | KAFKA_TIMEOUT | 使用默认 | int | Kafka 连接超时时间(秒) | 60 |
-| KAFKA_SERVERS | 使用默认 | string | Kafka 服务器地址列表 | kafka:29092 |
+| KAFKA_SERVERS | 启用时填写 | string | 服务容器可访问的外部 Kafka 地址列表 | — |
 | MINIO_ROOT_USER | 使用默认 | string | 内置 MinIO 管理员用户名；对外提供 MinIO 服务时应覆盖 | minioadmin |
 | MINIO_ROOT_PASSWORD | 使用默认 | string | 内置 MinIO 管理员密码；对外提供 MinIO 服务时应覆盖 | minioadmin123 |
 | EXPOSE_MINIO_PORT | 使用默认 | int | 仅绑定宿主机回环地址的 MinIO API 运维端口（Compose 固定绑定 `127.0.0.1`） | 18998 |
@@ -162,18 +153,15 @@
 
 ---
 
-## 4. 认证配置模块 (Casdoor)
+## 4. Python Console 内部账号
 
-| 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
-|--------|----------|------|----------|--------|
-| CONSOLE_CASDOOR_URL | 用户必填 | url | Casdoor 认证服务器地址 | http://your-casdoor-server:8000 |
-| CONSOLE_CASDOOR_ID | 用户必填 | string | Casdoor OAuth2 客户端 ID | astron-agent-client |
-| CONSOLE_CASDOOR_APP | 用户必填 | string | Casdoor 应用名称 | astron-agent-app |
-| CONSOLE_CASDOOR_ORG | 用户必填 | string | Casdoor 组织名称 | built-in |
+持久密钥、公开访问地址、允许主机、安全 Cookie、数据库与 Redis 配置统一维护在 [Python Console 运维说明](../../console/backend/README.md)。新用户使用用户名和密码注册；旧用户保留 UID，由管理员核实身份后发放重设密码链接。
 
 ---
 
 ## 5. Tenant 模块配置
+
+Tenant 使用 Python 3.11，在提供 HTTP 服务前初始化 MySQL 和启动凭据。参见 [Tenant 服务指南](../../core/tenant/README.md) 配置凭据文件和本地启动。
 
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
@@ -225,12 +213,10 @@
 | AGENT_MYSQL_DB | 必填 | string | Agent 模块使用的 MySQL 数据库名称 | agent |
 | UPLOAD_NODE_TRACE | 必填 | bool | 是否上传节点追踪数据 | true |
 | UPLOAD_METRICS | 必填 | bool | 是否上传指标数据 | true |
-| AGENT_KAFKA_TOPIC | 必填 | string | Agent 使用的 Kafka 主题名称 | spark-agent-builder |
+| AGENT_KAFKA_TOPIC | 可选 | string | Agent 使用的 Kafka 主题名称 | spark-agent-builder |
 | GET_LINK_URL | 必填 | url | 获取工具链接的接口地址 | http://core-link:18888/api/v1/tools |
 | VERSIONS_LINK_URL | 必填 | url | 获取工具版本的接口地址 | http://core-link:18888/api/v1/tools/versions |
 | RUN_LINK_URL | 必填 | url | 运行工具的接口地址 | http://core-link:18888/api/v1/tools/http_run |
-| GET_WORKFLOWS_URL | 必填 | url | 获取工作流的接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/sparkflow/v1/protocol/get |
-| WORKFLOW_SSE_BASE_URL | 必填 | url | 工作流 SSE(服务器推送事件)基础地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1 |
 | CHUNK_QUERY_URL | 必填 | url | 知识库分块查询接口地址(默认从 CORE_KNOWLEDGE_PORT 获取端口) | http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}/knowledge/v1/chunk/query |
 | LIST_MCP_PLUGIN_URL | 必填 | url | 列出 MCP 插件的接口地址 | http://core-link:18888/api/v1/mcp/tool_list |
 | RUN_MCP_PLUGIN_URL | 必填 | url | 运行 MCP 插件的接口地址 | http://core-link:18888/api/v1/mcp/call_tool |
@@ -266,7 +252,7 @@
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
 | WORKFLOW_MYSQL_DB | 必填 | string | Workflow 模块使用的 MySQL 数据库名称 | workflow |
-| WORKFLOW_KAFKA_TOPIC | 必填 | string | Workflow 使用的 Kafka 主题名称 | spark-agent-builder |
+| WORKFLOW_KAFKA_TOPIC | 可选 | string | Workflow 使用的 Kafka 主题名称 | spark-agent-builder |
 | RUNTIME_ENV | 必填 | string | 运行环境(dev/test/prod) | dev |
 | CODE_EXEC_TYPE | 使用默认值 | string | 代码节点隔离执行器。默认启用内置 LangChain/Pyodide 沙箱，无需外部服务或凭据；工作流启用 E2B 后优先使用 E2B；iFly、iFly-v2 为可选远程执行器。显式设为 `disabled` 可禁用代码节点，`local` 永不支持。 | langchain |
 | CODE_EXEC_TIMEOUT_SEC | 使用默认值 | int | 内置沙箱单次执行最长时间（限制为 1-600 秒） | 10 |
@@ -289,22 +275,20 @@
 
 | 变量名 | 配置类型 | 类型 | 用途说明 | 示例值 |
 |--------|----------|------|----------|--------|
-| HOST_BASE_ADDRESS | 用户必填 | url | 主机基础地址 | http://localhost |
-| CONSOLE_DOMAIN | 必填 | url | Console 控制台域名地址(默认从 HOST_BASE_ADDRESS 和 EXPOSE_NGINX_PORT 组合) | ${HOST_BASE_ADDRESS}:${EXPOSE_NGINX_PORT} |
+| CONSOLE_SECRET_KEY | 自动生成 | secret | 首次生成到 console_signing_secrets，Console 读取 /app/secrets/console/secret-key；首次升级导入已有密钥，冲突拒绝静默轮换 | 自动生成并持久化 |
+| CONSOLE_ALLOWED_HOSTS | 可选 | string | 默认空，接受 IP 字面值、localhost 和 console-hub；自定义域名需显式严格允许列表 | 空 |
+| CONSOLE_PUBLIC_ORIGIN | 可选 | url origin | 默认空，API 地址采用验证后的请求 origin，图片为相对链接；公众号 OAuth 需固定 HTTPS origin | 空 |
+| CONSOLE_CSRF_TRUSTED_ORIGINS | 可选 | string | 默认空，保留 Django 同源校验；确需跨源信任时才填写完整 origin | 空 |
+| CONSOLE_COOKIE_SECURE | 使用默认 | string | auto 按协议设置，HTTPS 加 Secure，HTTP 不加 | auto |
+| CONSOLE_TRUSTED_PROXIES | 可选 | string | 仅信任配置的直接代理 IP/CIDR 提供客户端/协议头，代理必须设置或覆盖这些头 | 空 |
 | OSS_REMOTE_ENDPOINT | 必填 | URL origin | Console 预签名 URL 与 Core Agent 信任校验使用的精确 origin；本地默认值可用相同签名 Host 从 Docker 宿主机和 Compose 容器访问，远程客户端必须改为单独保护的 TLS 端点 | http://minio.localhost:${EXPOSE_MINIO_PORT} |
 | OSS_BUCKET_CONSOLE | 必填 | string | Console 使用的对象存储桶名称 | console-oss |
 | OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE | 必填 | int | Console 预签名 URL 过期时间(秒) | 600 |
 | REDIS_DATABASE_CONSOLE | 必填 | int | Console 使用的 Redis 数据库索引 | 1 |
-| OAUTH2_ISSUER_URI | 必填 | url | OAuth2 颁发者 URI(默认从 CONSOLE_CASDOOR_URL 获取) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000} |
-| OAUTH2_JWK_SET_URI | 必填 | url | OAuth2 JWK 密钥集 URI(默认从 CONSOLE_CASDOOR_URL 获取) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000}/.well-known/jwks |
-| OAUTH2_AUDIENCE | 必填 | string | OAuth2 受众标识(默认从 CONSOLE_CASDOOR_ID 获取) | ${CONSOLE_CASDOOR_ID:-your-oauth2-client-id} |
 | WECHAT_COMPONENT_APPID | 可选 | string | 微信第三方平台 AppID | your-wechat-component-appid |
 | WECHAT_COMPONENT_SECRET | 可选 | string | 微信第三方平台 Secret | your-wechat-secret |
 | WECHAT_TOKEN | 可选 | string | 微信消息校验 Token | your-wechat-token |
 | WECHAT_ENCODING_AES_KEY | 可选 | string | 微信消息加密密钥 | your-wechat-encoding-aes-key |
-| WORKFLOW_CHAT_URL | 必填 | url | 工作流对话接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/chat/completions |
-| WORKFLOW_DEBUG_URL | 必填 | url | 工作流调试接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/debug/chat/completions |
-| WORKFLOW_RESUME_URL | 必填 | url | 工作流恢复接口地址(默认从 CORE_WORKFLOW_PORT 获取端口) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/resume |
 | TENANT_ID | 必填 | string | 租户 ID | 680ab54f |
 | TENANT_KEY | 自动生成 | secret | Compose 或 Helm 自动生成并持久化的租户 API Key；正常启动时保持留空 | 自动生成并持久化 |
 | TENANT_SECRET | 自动生成 | secret | Compose 或 Helm 自动生成并持久化的租户 Secret；正常启动时保持留空 | 自动生成并持久化 |
@@ -342,7 +326,6 @@
 | MAAS_MCP_REGISTER | 必填 | url | MaaS MCP 注册接口地址 | http://127.0.0.1:8080/workflow/release |
 | MAAS_WORKFLOW_CONFIG | 必填 | url | MaaS 工作流配置接口地址 | http://127.0.0.1:8080/workflow/get-flow-advanced-config |
 | BOT_API_CBM_BASE_URL | 必填 | url | Bot API CBM 基础地址(支持 ws/wss,注意 env.example 中写作 ws(s)://) | wss://spark-openapi.cn-huabei-1.xf-yun.com |
-| BOT_API_MAAS_BASE_URL | 必填 | url | Bot API MaaS 基础地址(注意 env.example 中写作 http(s)://) | https://xingchen-api.xf-yun.com |
 | TENANT_CREATE_APP | 必填 | url | 租户创建应用接口地址(默认从 CORE_TENANT_PORT 获取端口) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app |
 | TENANT_GET_APP_DETAIL | 必填 | url | 租户获取应用详情接口地址(默认从 CORE_TENANT_PORT 获取端口) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/details |
 

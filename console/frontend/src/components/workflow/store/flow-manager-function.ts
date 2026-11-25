@@ -1,9 +1,9 @@
 import type { Edge } from 'reactflow';
-import type {
-  WorkflowNode,
-  WorkflowNodeCategory,
-  WorkflowNodeData,
-} from '../types/domain';
+import { message } from 'antd';
+import { shouldShowRequestError } from '@/utils/http-error';
+import { createAdvancedConfigPersistence } from './advanced-config-persistence';
+import type { AdvancedConfigUpdate } from '../types/drawer/advanced-config';
+import type { WorkflowNode, WorkflowNodeData } from '../types/domain';
 import type {
   FlowsManagerGetter,
   FlowsManagerSetter,
@@ -12,18 +12,18 @@ import type {
 import { cloneDeep } from 'lodash';
 import { Node } from 'reactflow';
 import i18next from 'i18next';
-import { ErrNodeType } from '@/components/workflow/types';
+import { FlowType, ErrNodeType } from '@/components/workflow/types';
 import {
   getFlowDetailAPI,
   saveFlowAPI,
+  waitForWorkflowSaves,
+  hasPendingWorkflowSaves,
   flowsNodeTemplate,
   textNodeConfigList as textNodeConfigListAPI,
   textNodeConfigSave as textNodeConfigSaveAPI,
   textNodeConfigClear as textNodeConfigClearAPI,
-  getAgentStrategyAPI,
   getKnowledgeProStrategyAPI,
   getFlowModelList,
-  canPublishSetNotAPI,
 } from '@/services/flow';
 
 import { appendVariableAggregationNodeTemplate } from '../utils/variable-aggregation';
@@ -31,7 +31,7 @@ import useFlowStore from './use-flow-store';
 import useIteratorFlowStore from './use-iterator-flow-store';
 import { FlowStoreType } from '../types/zustand/flow';
 import { UseBoundStore, StoreApi } from 'zustand';
-import loopNodeIcon from '@/assets/imgs/workflow/loop-node-icon.svg';
+import { normalizeWorkflowNodeIcons } from '../nodes/node-icon-source';
 import { getActiveImportDependencyIssues } from '@/components/workflow/utils/workflow-import-dependencies';
 import {
   createSaveCoordinator,
@@ -41,6 +41,9 @@ import {
 } from './workflow-save-coordinator';
 
 export const initialStatus = {
+  draftSaveGeneration: 0,
+  draftLoaded: false,
+  initializationError: '',
   willAddNode: null, //Pending Node Information
   beforeNode: null, //Previous Node Information
   autonomousMode: false, //Whether to enable autonomous mode
@@ -48,7 +51,6 @@ export const initialStatus = {
   sparkLlmModels: [], //Spark LLM Node Model List
   decisionMakingModels: [], //Decision Node Model List
   extractorParameterModels: [], //Parameter Extractor Node Model List
-  agentModels: [], //Agent Node Model List
   knowledgeProModels: [], //Knowledge Base Pro Node Model List
   questionAnswerModels: [], //Question Answer Node Model List
   flowResult: {
@@ -62,10 +64,6 @@ export const initialStatus = {
   isLoading: true, //Initialize flow data loading
   canPublish: false, //Whether the flow can be published
   showIterativeModal: false, //Whether to display the iterative node modal
-  selectAgentPromptModalInfo: {
-    open: false,
-    nodeId: '',
-  }, //Select Agent Prompt Modal Information
   defaultValueModalInfo: {
     open: false,
     nodeId: '',
@@ -90,7 +88,6 @@ export const initialStatus = {
   }, //Code IDEA Modal Information
   iteratorId: '', //Iterator Node ID
   currentStore: undefined, //Current Store
-  flowChatResultOpen: false, //Flow Last Session Input Output Modal
   workflowTracePanelOpen: false, //Workflow Trace Panel
   edgeType: 'curve', //Edge Type
   loadingModels: false, //Load Model List
@@ -98,7 +95,6 @@ export const initialStatus = {
   showMultipleCanvasesTip: false, //Multiple Open Modal Tip
   updateNodeInputData: false, //Update Node Input Data
   textNodeConfigList: [], //Text Node Separator Configuration List
-  agentStrategy: [], //Agent Node Strategy
   knowledgeProStrategy: [], //Knowledge Base Pro Node Strategy
   openOperationResult: false, //Node Validation Result Modal
   knowledgeModalInfo: {
@@ -193,7 +189,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
     getFlowModelList(appId, 'spark-llm'),
     getFlowModelList(appId, 'decision-making'),
     getFlowModelList(appId, 'extractor-parameter'),
-    getFlowModelList(appId, 'agent'),
     getFlowModelList(appId, 'knowledge-pro-base'),
     getFlowModelList(appId, 'question-answer'),
   ])
@@ -202,7 +197,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
         sparkLlmModelsData,
         decisionMakingModelsData,
         extractorParameterModelsData,
-        agentData,
         knowledgeProData,
         questionAnswerData,
       ]) => {
@@ -220,9 +214,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
           extractorParameterModelsData?.workflow.flatMap(function (item) {
             return item.modelList;
           });
-        const agentModels = agentData?.workflow.flatMap(function (item) {
-          return item.modelList;
-        });
         const knowledgeProModels = knowledgeProData?.workflow.flatMap(
           function (item) {
             return item.modelList;
@@ -237,7 +228,6 @@ export const setModels = (appId: string, set: FlowsManagerSetter): void => {
           sparkLlmModels,
           decisionMakingModels,
           extractorParameterModels,
-          agentModels,
           knowledgeProModels,
           questionAnswerModels,
           currentStore: useFlowStore,
@@ -271,58 +261,92 @@ export const getFlowDetail = (get: FlowsManagerGetter): void => {
     })
     .finally(() => get().setIsLoading(false));
 };
-// Init Flow Data
+/** Install the authoritative response before permitting any draft saves. */
+export const adoptWorkflowDraft = (
+  flow: FlowType,
+  set: FlowsManagerSetter
+): void => {
+  const graph = JSON.parse(flow.data || '{"nodes":[],"edges":[]}');
+  if (!Array.isArray(graph.nodes) || !Array.isArray(graph.edges))
+    throw new Error('工作流图数据无效');
+  resetCurrentFlowSave();
+  set({
+    draftLoaded: false,
+    canvasesDisabled: true,
+    draftSaveGeneration: ++draftGeneration,
+  });
+  const canvas = useFlowStore.getState();
+  canvas.setNodes(
+    graph.nodes.map((node: WorkflowNode) => ({
+      ...node,
+      type: 'custom',
+      nodeType: node.id.split('::')[0] || node.nodeType,
+      selected: false,
+      data: { ...node.data, status: '' },
+    }))
+  );
+  canvas.setEdges(graph.edges);
+  loadedGraphBaseline = graphFingerprint(graph);
+  set({
+    currentFlow: { ...flow, originData: flow.data },
+    draftLoaded: true,
+    historyVersion: false,
+    historyVersionData: null,
+    initializationError: '',
+    isLoading: false,
+    canvasesDisabled: false,
+  });
+};
+
+// Loading invalidates the old canvas before any request can fail.
 export const initFlowData = async (
   id: string,
   set: FlowsManagerSetter
 ): Promise<void> => {
   resetCurrentFlowSave();
+  const generation = ++draftGeneration;
   set({
     isLoading: true,
+    draftLoaded: false,
+    initializationError: '',
+    canvasesDisabled: true,
+    currentFlow: undefined,
+    draftSaveGeneration: generation,
   });
-  const [
-    flow,
-    nodeTemplate,
-    textNodeConfigList,
-    agentStrategy,
-    knowledgeProStrategy,
-  ] = await Promise.all([
-    getFlowDetailAPI(id),
-    flowsNodeTemplate(),
-    textNodeConfigListAPI(),
-    getAgentStrategyAPI(),
-    getKnowledgeProStrategyAPI(),
-  ]);
-  const nodeList = appendVariableAggregationNodeTemplate(nodeTemplate).map(
-    (category: WorkflowNodeCategory) => ({
-      ...category,
-      nodes: category.nodes?.map(node =>
-        node?.idType === 'loop'
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                icon: loopNodeIcon,
-              },
-              icon: loopNodeIcon,
-            }
-          : node
-      ),
-    })
-  );
-
-  set({
-    currentFlow: {
-      ...flow,
-      originData: flow?.data,
-    },
-    isLoading: false,
-    nodeList,
-    textNodeConfigList,
-    agentStrategy,
-    knowledgeProStrategy,
-    controlMode: window.localStorage.getItem('controlMode') || 'mouse',
-  });
+  useFlowStore.getState().setNodes([]);
+  useFlowStore.getState().setEdges([]);
+  try {
+    const [flow, nodeTemplate, textNodeConfigList, knowledgeProStrategy] =
+      await Promise.all([
+        getFlowDetailAPI(id),
+        flowsNodeTemplate(),
+        textNodeConfigListAPI(),
+        getKnowledgeProStrategyAPI(),
+      ]);
+    if (generation !== draftGeneration) return;
+    const nodeList = normalizeWorkflowNodeIcons(
+      appendVariableAggregationNodeTemplate(nodeTemplate)
+    );
+    adoptWorkflowDraft(flow, set);
+    set({
+      nodeList,
+      textNodeConfigList,
+      knowledgeProStrategy,
+      controlMode: window.localStorage.getItem('controlMode') || 'mouse',
+    });
+  } catch (error) {
+    if (generation === draftGeneration)
+      set({
+        isLoading: false,
+        draftLoaded: false,
+        canvasesDisabled: true,
+        initializationError: '工作流加载失败，请重试或返回列表',
+      });
+    throw error;
+  } finally {
+    // A newer load owns its own loading state.
+    if (generation === draftGeneration) set({ isLoading: false });
+  }
 };
 
 interface WorkflowSaveParams {
@@ -341,13 +365,179 @@ interface WorkflowSaveResult {
   data?: string;
 }
 
+let draftGeneration = 0;
+let loadedGraphBaseline: string | undefined;
+
+// Only these editor-owned paths contain transient fields. Defaults, literal
+// content and other user JSON must retain every key, even names such as data,
+// nodes, status or *ErrMsg. This projection never changes the saved payload.
+interface GraphComparisonShape {
+  omit?: string[];
+  omitEmpty?: string[];
+  fields?: Record<string, GraphComparisonShape>;
+  items?: GraphComparisonShape;
+}
+const parameterShape: GraphComparisonShape = {
+  omit: ['nameErrMsg', 'descriptionErrMsg'],
+};
+parameterShape.fields = {
+  properties: { items: parameterShape },
+  schema: {
+    omit: ['descriptionErrMsg'],
+    fields: {
+      properties: { items: parameterShape },
+      value: { omit: ['contentErrMsg'] },
+    },
+  },
+};
+const conditionShape: GraphComparisonShape = {
+  omit: ['compareOperatorErrMsg', 'fieldErrMsg'],
+};
+const graphComparisonShape: GraphComparisonShape = {
+  fields: {
+    nodes: {
+      items: {
+        omit: [
+          'type',
+          'nodeType',
+          'selected',
+          'width',
+          'height',
+          'measured',
+          'dragging',
+          'resizing',
+          'positionAbsolute',
+        ],
+        fields: {
+          data: {
+            omit: ['status', 'updatable', 'debuggerResult'],
+            fields: {
+              inputs: { items: parameterShape },
+              outputs: { items: parameterShape },
+              nodeParam: {
+                omit: [
+                  'templateErrMsg',
+                  'questionErrMsg',
+                  'repoIdErrMsg',
+                  'codeErrMsg',
+                  'maxLoopCountErrMsg',
+                  'separatorErrMsg',
+                  'dbErrMsg',
+                  'tableNameErrMsg',
+                  'fieldNameErrMsg',
+                  'sqlErrMsg',
+                  'llmIdErrMsg',
+                  'agentIdErrMsg',
+                  'setAnswerContentErrMsg',
+                  'promptPrefixErrMsg',
+                  'fallbackValueErrMsg',
+                ],
+                // Reference-node validation creates this empty wrapper.
+                omitEmpty: ['instruction'],
+                fields: {
+                  instruction: { omit: ['queryErrMsg'] },
+                  intentChains: {
+                    items: { omit: ['nameErrMsg', 'descriptionErrMsg'] },
+                  },
+                  optionAnswer: { items: { omit: ['contentErrMsg'] } },
+                  cases: {
+                    items: {
+                      fields: { conditions: { items: conditionShape } },
+                    },
+                  },
+                  termination: {
+                    fields: { conditions: { items: conditionShape } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    edges: {
+      items: {
+        omit: ['type', 'selected', 'animated', 'style', 'markerEnd'],
+      },
+    },
+  },
+};
+const graphFingerprint = (graph: unknown): string => {
+  const normalize = (value: unknown, shape?: GraphComparisonShape): unknown => {
+    if (Array.isArray(value))
+      return value.map(item => normalize(item, shape?.items));
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !shape?.omit?.includes(key))
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, normalize(item, shape?.fields?.[key])])
+        .filter(
+          ([key, item]) =>
+            !(
+              shape?.omitEmpty?.includes(key as string) &&
+              item &&
+              typeof item === 'object' &&
+              !Array.isArray(item) &&
+              !Object.keys(item).length
+            )
+        )
+    );
+  };
+  return JSON.stringify(normalize(graph, graphComparisonShape));
+};
 let currentFlowSaveCoordinator: SaveCoordinator | undefined;
+let advancedConfigPersistence:
+  | ReturnType<typeof createAdvancedConfigPersistence>
+  | undefined;
+
+export const saveAdvancedConfig = (
+  get: FlowsManagerGetter,
+  patch: AdvancedConfigUpdate,
+  delayed: boolean,
+  generation: number
+): void => {
+  const state = get();
+  if (
+    !state.draftLoaded ||
+    state.historyVersion ||
+    state.canvasesDisabled ||
+    generation !== state.draftSaveGeneration ||
+    !state.currentFlow
+  )
+    return;
+  if (!advancedConfigPersistence) {
+    const { id, flowId } = state.currentFlow;
+    advancedConfigPersistence = createAdvancedConfigPersistence(
+      advancedConfig => saveFlowAPI({ id, flowId, advancedConfig }),
+      error => {
+        if (shouldShowRequestError(error))
+          message.error(
+            error instanceof Error ? error.message : '高级配置保存失败'
+          );
+      }
+    );
+  }
+  advancedConfigPersistence.update(patch, delayed);
+};
+
+export const hasPendingFlowConfig = (): boolean =>
+  advancedConfigPersistence?.hasPending() ?? false;
+export const hasPendingFlowSave = (id?: unknown): boolean =>
+  hasPendingFlowConfig() ||
+  (currentFlowSaveCoordinator?.hasPending() ?? false) ||
+  hasPendingWorkflowSaves(id);
 
 const captureCurrentFlowSnapshot = (
   get: FlowsManagerGetter
 ): SaveSnapshot<WorkflowSaveParams> | undefined => {
   const currentFlow = get().currentFlow;
-  if (!currentFlow || !shouldPersistWorkflowDraft(get().historyVersion)) {
+  if (
+    !currentFlow ||
+    !get().draftLoaded ||
+    loadedGraphBaseline === undefined ||
+    !shouldPersistWorkflowDraft(get().historyVersion)
+  ) {
     return undefined;
   }
 
@@ -369,10 +559,15 @@ const captureCurrentFlowSnapshot = (
     },
   });
 
-  return {
-    value: params,
-    fingerprint: JSON.stringify(params),
-  };
+  if (graphFingerprint(params.data) === loadedGraphBaseline) return undefined;
+  return { value: params, fingerprint: graphFingerprint(params.data) };
+};
+
+export const hasUnsavedCurrentFlow = (get: FlowsManagerGetter): boolean => {
+  return (
+    !!captureCurrentFlowSnapshot(get) ||
+    hasPendingFlowSave(get().currentFlow?.id)
+  );
 };
 
 const getCurrentFlowSaveCoordinator = (
@@ -402,6 +597,7 @@ const getCurrentFlowSaveCoordinator = (
         ) {
           return;
         }
+        loadedGraphBaseline = graphFingerprint(params.data);
         get().setCurrentFlow({
           ...currentFlow,
           updateTime: data.updateTime,
@@ -416,7 +612,7 @@ const getCurrentFlowSaveCoordinator = (
 
 // Debounce background saves while preserving a single, ordered write stream.
 export const autoSaveCurrentFlow = (get: FlowsManagerGetter): void => {
-  if (!shouldPersistWorkflowDraft(get().historyVersion)) return;
+  if (!captureCurrentFlowSnapshot(get)) return;
   getCurrentFlowSaveCoordinator(get).schedule();
 };
 
@@ -424,12 +620,32 @@ export const autoSaveCurrentFlow = (get: FlowsManagerGetter): void => {
 export const flushCurrentFlow = async (
   get: FlowsManagerGetter
 ): Promise<void> => {
-  if (!shouldPersistWorkflowDraft(get().historyVersion)) return;
-  await getCurrentFlowSaveCoordinator(get).flush();
+  // Historical canvases are never captured, but writes started in the draft
+  // must still settle before a restore or navigation.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const before = captureCurrentFlowSnapshot(get)?.fingerprint;
+    await Promise.all([
+      getCurrentFlowSaveCoordinator(get).flush(),
+      advancedConfigPersistence?.flush(),
+      waitForWorkflowSaves(get().currentFlow?.id),
+    ]);
+    await waitForWorkflowSaves(get().currentFlow?.id);
+    if (
+      before === captureCurrentFlowSnapshot(get)?.fingerprint &&
+      !hasPendingFlowConfig()
+    )
+      return;
+  }
+  throw new Error('工作流仍在变化，请停止编辑后重试');
 };
 
 export const resetCurrentFlowSave = (): void => {
+  // Also invalidate any load that could complete after the editor unmounts.
+  draftGeneration += 1;
+  loadedGraphBaseline = undefined;
   currentFlowSaveCoordinator?.reset();
+  advancedConfigPersistence?.reset();
+  advancedConfigPersistence = undefined;
 };
 // Can Publish Set Not
 export const canPublishSetNot = (get: FlowsManagerGetter): void => {
@@ -438,12 +654,10 @@ export const canPublishSetNot = (get: FlowsManagerGetter): void => {
     get().errNodes?.length === 0 &&
     get().setOpenOperationResult(false);
   //改变画布时，将画布可发布态置为false
-  const flowId = get().currentFlow?.id;
-  get().canPublish &&
-    flowId &&
-    canPublishSetNotAPI(flowId).then(() => {
-      get().setCanPublish(false);
-    });
+  // This flag only caches client-side graph validation. Console validates and
+  // freezes the current draft independently when running or publishing it.
+  // Editing must not invoke the removed legacy eligibility-mutation endpoint.
+  if (get().canPublish) get().setCanPublish(false);
 };
 // Set Current Store
 export const setCurrentStore = (
@@ -489,18 +703,6 @@ export const setTextNodeConfigList = (
     typeof change === 'function' ? change(get().textNodeConfigList) : change;
   set({
     textNodeConfigList,
-  });
-};
-// Set Agent Strategy
-export const setAgentStrategy = (
-  change: Parameters<FlowsManagerStoreType['setAgentStrategy']>[0],
-  get: FlowsManagerGetter,
-  set: FlowsManagerSetter
-): void => {
-  const agentStrategy =
-    typeof change === 'function' ? change(get().agentStrategy) : change;
-  set({
-    agentStrategy,
   });
 };
 // Set Knowledge Pro Strategy

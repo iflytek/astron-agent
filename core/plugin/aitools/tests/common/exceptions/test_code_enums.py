@@ -58,7 +58,7 @@ class TestCodeEnums:
     def test_enum_iteration(self) -> None:
         """Test that all enum members can be iterated."""
         all_enums = list(CodeEnums)
-        assert len(all_enums) == 14
+        assert len(all_enums) == 15
         assert CodeEnums.ServiceInernalError in all_enums
         assert CodeEnums.HTTPClientError in all_enums
         assert CodeEnums.WebSocketClientError in all_enums

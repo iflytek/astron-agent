@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28" role="img">
+  <title>管理</title>
+  <rect x="1" y="1" width="26" height="26" rx="7.3" fill="#ECF1F9" stroke="#DFE8F5"/>
+  <g fill="none" stroke="#45597D" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round" transform="translate(2 2)">
+    <path d="M6 5.1v13.8m6-13.8v13.8m6-13.8v13.8"/>
+    <rect x="3.8" y="7.25" width="4.4" height="3.25" rx="1.05" fill="#CDD9EF"/>
+    <rect x="9.8" y="13.55" width="4.4" height="3.25" rx="1.05" fill="#CDD9EF"/>
+    <rect x="15.8" y="8.95" width="4.4" height="3.25" rx="1.05" fill="#CDD9EF"/>
+  </g>
+</svg>

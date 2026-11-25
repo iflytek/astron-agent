@@ -87,7 +87,7 @@ const FilePage: FC = () => {
   return (
     <div
       className="w-full h-full flex flex-col flex-1 p-6 pb-2 bg-[#fff] border border-[#E2E8FF]"
-      style={{ borderRadius: 24 }}
+      style={{ borderRadius: 14 }}
     >
       {editModal && (
         <EditChunk
@@ -481,7 +481,7 @@ export const FilePageChunks: FC<{
         style={{ width: showParameter ? '16%' : '0px' }}
       >
         <div className="w-full h-full px-6">
-          <h2 className="text-2xl font-semibold text-second">
+          <h2 className="text-xl font-semibold text-second">
             {t('knowledge.technicalParameters')}
           </h2>
           <div className="flex flex-col gap-3 mt-3">

@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import http from '@/utils/http';
 import { message } from 'antd';
 import {
@@ -90,7 +91,7 @@ export async function hitHistoryByPage(
 export async function knowledgeSetTop(
   id: number
 ): Promise<KnowledgeOperationResponse> {
-  return await http.get(`/repo/set-top?id=${id}`);
+  return await http.post(`/repo/set-top`, { id });
 }
 
 export async function getKnowledgeDetail(
@@ -184,7 +185,7 @@ export async function updateKnowledgeAPI(
 
 export async function enableKnowledgeAPI(
   params: EnableKnowledgeParams
-): Promise<string> {
+): Promise<KnowledgeItem> {
   return await http.put(
     `/knowledge/enable-knowledge?enabled=${params.enabled}&id=${params.id}`
   );
@@ -211,7 +212,9 @@ export async function createHtmlFile(
 export async function sliceFilesAPI(
   params: SliceFilesParams
 ): Promise<KnowledgeOperationResponse> {
-  return await http.post(`/file/slice`, params);
+  return await http.post(`/file/slice`, params, {
+    timeout: Math.max(1, params.fileIds.length) * 200000,
+  });
 }
 
 export async function listKnowledgeByPage(
@@ -229,7 +232,9 @@ export async function listPreviewKnowledgeByPage(
 export async function embeddingFiles(
   params: EmbeddingFilesParams
 ): Promise<KnowledgeOperationResponse> {
-  return await http.post(`/file/embedding`, params);
+  return await http.post(`/file/embedding`, params, {
+    timeout: Math.max(1, params.fileIds.length) * 200000,
+  });
 }
 
 export async function getStatusAPI(
@@ -258,10 +263,10 @@ export async function downloadKnowledgeByViolation(
         responseType: 'blob',
       }
     );
-    return response as unknown as Blob;
+    return response.data as Blob;
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : '操作失败';
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }
@@ -275,7 +280,7 @@ export async function deleteChunkAPI(
     return response as unknown as KnowledgeOperationResponse;
   } catch (error: unknown) {
     const errorMessage = (error as Error)?.message;
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
     throw error;
   }
 }
@@ -283,13 +288,17 @@ export async function deleteChunkAPI(
 export async function embeddingBack(
   params: EmbeddingBackParams
 ): Promise<KnowledgeOperationResponse> {
-  return await http.post(`/file/embedding-back`, params);
+  return await http.post(`/file/embedding-back`, params, {
+    timeout: Math.max(1, params.fileIds.length) * 200000,
+  });
 }
 
 export async function retry(
   params: RetryParams
 ): Promise<KnowledgeOperationResponse> {
-  return await http.post(`/file/retry`, params);
+  return await http.post(`/file/retry`, params, {
+    timeout: Math.max(1, params.fileIds.length) * 200000,
+  });
 }
 
 export async function getRepoUseStatus(

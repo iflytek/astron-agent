@@ -1,3 +1,4 @@
+import { getCsrfToken } from '@/utils/session';
 import { avatarImageGenerate } from '@/services/common';
 import { AvatarType } from '@/types/resource';
 import { message, UploadFile } from 'antd';
@@ -157,7 +158,7 @@ export const useMoreIcons = ({
     action: '/image/upload',
     showUploadList: false,
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
+      'X-CSRFToken': getCsrfToken(),
     },
     accept: '.png,.jpg,.jpeg,.gif,.webp,.bmp,.tiff',
     beforeUpload,

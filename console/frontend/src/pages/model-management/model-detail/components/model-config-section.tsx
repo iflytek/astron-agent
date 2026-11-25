@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import React from 'react';
+import styles from '../../model-workspace.module.scss';
 import ModelParamsTable from '../../components/model-params-table';
 import {
   ModelInfo,
@@ -33,76 +34,39 @@ const ModelConfigSection: React.FC<ModelConfigSectionProps> = ({
 
   return (
     <>
-      <div className="mt-10 p-4 rounded-[10px] border border-[#F2F5FE] box-border">
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <p>
-                <span className="font-['PingFang_SC'] text-sm font-normal text-[#7F7F7F]">
-                  Model：
-                </span>
-                <span className="font-['PingFang_SC'] text-sm font-normal text-[#333333]">
-                  {modelDetail?.domain}
-                </span>
-              </p>
-              {modelDetail.type === ModelCreateType.THIRD_PARTY && (
-                <>
-                  <p>
-                    <span className="font-['PingFang_SC'] text-sm font-normal text-[#7F7F7F]">
-                      {t('model.providerLabel')}：
-                    </span>
-                    <span className="font-['PingFang_SC'] text-sm font-normal text-[#333333]">
-                      {getModelProviderLabel(modelDetail?.provider)}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-['PingFang_SC'] text-sm font-normal text-[#7F7F7F]">
-                      {t('model.interfaceAddress')}：
-                    </span>
-                    <span className="font-['PingFang_SC'] text-sm font-normal text-[#333333]">
-                      {modelDetail?.url}
-                    </span>
-                  </p>
-                  <p>
-                    <span className="font-['PingFang_SC'] text-sm font-normal text-[#7F7F7F]">
-                      {t('model.apiKey')}：
-                    </span>
-                    <span className="font-['PingFang_SC'] text-sm font-normal text-[#333333]">
-                      {maskKey(modelDetail?.apiKey || '')}
-                    </span>
-                  </p>
-                </>
-              )}
-              {modelDetail.type === ModelCreateType.LOCAL && (
-                <p>
-                  <span className="font-['PingFang_SC'] text-sm font-normal text-[#7F7F7F]">
-                    {t('model.acceleratorCount')}：
-                  </span>
-                  <span className="font-['PingFang_SC'] text-sm font-normal text-[#333333]">
-                    {modelDetail?.acceleratorCount}
-                  </span>
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 mt-5">
-        <div className="w-full flex items-center justify-between">
-          <div className="font-bold">{t('model.modelParameters')}：</div>
-        </div>
-        <div>
-          <ModelParamsTable
-            modelParams={modelParams}
-            setModelParams={setModelParams}
-            checkNameConventions={checkNameConventions}
-            detail={true}
-          />
-        </div>
-      </div>
+      <section className={styles.section}>
+        <h2>连接配置</h2>
+        <dl className={styles.definition}>
+          <dt>Model</dt>
+          <dd>{modelDetail.domain}</dd>
+          {modelDetail.type === ModelCreateType.THIRD_PARTY && (
+            <>
+              <dt>{t('model.providerLabel')}</dt>
+              <dd>{getModelProviderLabel(modelDetail.provider)}</dd>
+              <dt>{t('model.interfaceAddress')}</dt>
+              <dd>{modelDetail.url}</dd>
+              <dt>{t('model.apiKey')}</dt>
+              <dd>{maskKey(modelDetail.apiKey || '')}</dd>
+            </>
+          )}
+          {modelDetail.type === ModelCreateType.LOCAL && (
+            <>
+              <dt>{t('model.acceleratorCount')}</dt>
+              <dd>{modelDetail.acceleratorCount}</dd>
+            </>
+          )}
+        </dl>
+      </section>
+      <section className={styles.section}>
+        <h2>{t('model.modelParameters')}</h2>
+        <ModelParamsTable
+          modelParams={modelParams}
+          setModelParams={setModelParams}
+          checkNameConventions={checkNameConventions}
+          detail
+        />
+      </section>
     </>
   );
 };
-
 export default ModelConfigSection;

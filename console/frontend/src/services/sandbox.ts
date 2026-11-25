@@ -5,6 +5,12 @@ export async function getSkillSandboxConfig(): Promise<SkillSandboxConfig> {
   return await http.get('/skill-sandbox/config');
 }
 
+export function revealSandboxCredential(
+  signal: AbortSignal
+): Promise<{ value: string }> {
+  return http.post('/skill-sandbox/credential', {}, { signal });
+}
+
 export async function saveSkillSandboxConfig(
   params: SkillSandboxConfig
 ): Promise<SkillSandboxConfig> {

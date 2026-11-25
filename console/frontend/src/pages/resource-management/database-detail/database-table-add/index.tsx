@@ -17,6 +17,7 @@ import { useTableInitializer } from './hooks/use-table-initializer';
 import { TableForm } from './components/table-form';
 import { FieldActions } from './components/field-actions';
 import { ActionButtons } from './components/action-buttons';
+import { resourceStyles as styles } from '../../knowledge-page/resource-surface';
 import { BackButton } from './components/back-button';
 
 interface DataBaseTableAddProps {
@@ -60,14 +61,13 @@ const DataBaseTableAddContent: React.FC<{ handleUpdate?: () => void }> = memo(
 
     return (
       <div
-        className="flex flex-col w-full h-full mx-auto overflow-hidden"
-        style={{
-          width: state.isModule ? '100%' : '85%',
-        }}
+        className={
+          state.isModule ? 'flex flex-col w-full h-full min-w-0' : styles.detail
+        }
       >
         {!state.isModule && <BackButton onBack={handleNavigateBack} />}
 
-        <div className="flex-1 w-full overflow-scroll rounded-2xl bg-[#fff] p-6">
+        <div className="flex-1 w-full overflow-auto rounded-[14px] bg-white p-4 min-w-0">
           <TableForm
             form={baseForm}
             databaseKeywords={state.databaseKeywords}

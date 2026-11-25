@@ -1,44 +1,21 @@
 # 配置与认证 FAQ
 
-## 登录后一直在登录页循环，或跳转到 localhost？
+## 如何注册和登录？
 
-1. Casdoor 配置: Casdoor 的 origin  和 redirect_uri  必须与浏览器访问的地址一致。
-2. Casdoor 后台: 登录 Casdoor 管理后台 (默认端口 8000)，检查 Application 的回调地址配置。
+访问同一控制台的 `/register`，使用用户名和密码注册；访问 `/login` 登录，`/account` 修改资料、修改密码或退出。没有预置管理员密码，不依赖邮箱、短信或外部身份服务。
 
-## 默认的账号密码是什么？
+## 旧账号怎样登录？
 
-- Casdoor (管理后台): 账号 admin ，密码 123 。
-- Ragflow: 需要自行注册账号。
+原用户 ID、资料和资源归属保留。管理员按 [Python Console 运维说明](../console/backend/README.md) 导入旧用户，核实身份后发放一次性重设密码链接。旧密码不导入；忘记密码也通过管理员重设。
 
-## Casdoor 支持 HTTPS 吗？
+## 登录循环、登录状态丢失或写请求返回 403？
 
-目前 Astron 内置的 Casdoor 配置可能不支持直接开启 HTTPS。建议在 Casdoor 服务前添加一层
-Nginx 反向代理 来处理 SSL/HTTPS 加密。
+确认页面和 `/console-api/` 使用同一 origin，代理保留 Host 及端口并正确转发 Cookie。默认 IP 访问无需填写地址变量，Cookie 随 HTTP/HTTPS 自动设置，写请求仍必须携带当前 CSRF Token。只有自定义域名、跨 origin 或额外 HTTPS 代理时，才需核对显式的允许主机、可信来源和代理配置；详见 [Console 运维说明](../console/backend/README.md)。
 
-## 创建应用失败，日志显示 403 错误？
+## 修改访问域名或端口后如何处理？
 
-403 通常是权限或认证问题。请检查环境变量配置（如 API Key、Secret 等）是否正确填写，且与部署文档要求一致。
+默认 IP 或端口变化不需要修改 Console 环境变量。使用自定义域名时配置 `CONSOLE_ALLOWED_HOSTS`；若已显式设置 `CONSOLE_PUBLIC_ORIGIN` 或可信来源，则同步更新这些覆盖项。切换访问主机后浏览器 Cookie 不共享，需要重新登录。
 
-## 修改了 IP 地址或端口配置后不生效？
+## 可以关闭注册或切换组织吗？
 
-修改 .env  文件或 docker-compose.yaml  中的环境变量后，必须重启容器才能生效：
-docker compose down  然后 docker compose up -d 。
-
-## 客户端可以切换组织吗？
-
-可以。客户端登录基于 Casdoor 认证。请参考 带认证的部署指南，在 Casdoor 管理页面进行组织和用户的配置。
-
-## 开源版可以关闭注册账号功能吗？
-
-可以，在 Casdoor 中关闭：
-
-1. 登录 Casdoor 控制台（默认 8000 端口）。
-2. 进入 `astron-agent-app` 应用的编辑页面。
-
-![Casdoor 应用编辑入口](assets/casdoor_app_edit.png)
-
-3. 找到「启用注册」开关并关闭，保存退出即可。
-
-![关闭启用注册](assets/casdoor_disable_signup.png)
-
-关闭后新用户无法自助注册，只能由管理员在 Casdoor 中添加。
+Console 提供开放注册，没有注册开关。空间与组织管理通过已登录账号的成员和权限设置控制。

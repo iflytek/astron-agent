@@ -552,7 +552,7 @@ function IterativeAmplificationModal(): React.ReactElement {
       {createPortal(
         <div className="mask">
           <div
-            className="flex items-start modalContent"
+            className="workflow-authoring workflow-canvas-workspace relative flex items-start modalContent"
             style={{
               height: '87vh',
               width: '90%',

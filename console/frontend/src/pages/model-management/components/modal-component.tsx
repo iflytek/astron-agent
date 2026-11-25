@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useState,
   useEffect,
@@ -15,23 +16,27 @@ import {
   InputNumber,
   ConfigProvider,
   Switch,
+  Modal,
+  Alert,
+  Skeleton,
+  Segmented,
 } from 'antd';
 import {
   modelCreate,
   deleteModelAPI,
-  modelRsaPublicKey,
   getModelDetail,
   getLocalModelList,
   createOrUpdateLocalModel,
+  revealModelCredential,
 } from '@/services/model';
 import MoreIcons from '@/components/more-icons';
+import SavedCredentialInput from '@/components/saved-credential-input';
 import globalStore from '@/store/global-store';
+import useSpaceStore from '@/store/space-store';
 import ModelParamsTable from './model-params-table';
 import { v4 as uuid } from 'uuid';
 import tipsSvg from '@/assets/svgs/tips.svg';
-import close from '@/assets/imgs/common/close.png';
-import dialogDel from '@/assets/imgs/common/delete-red.png';
-import inputAddIcon from '@/assets/imgs/common/add-blue.png';
+import { PlusOutlined } from '@ant-design/icons';
 import {
   ModelInfo,
   CategoryNode,
@@ -54,7 +59,7 @@ import {
   normalizeModelProvider,
 } from '../utils/provider';
 import { mapProviderToVendor } from '../utils/provider-group';
-import { encryptApiKey } from '../utils/encrypt-api-key';
+import workspaceStyles from '../model-workspace.module.scss';
 
 const { TextArea } = Input;
 
@@ -354,7 +359,7 @@ const handleLocalModelSubmit = (params: {
       if (getModels) getModels();
     })
     .catch((error: ResponseBusinessError) => {
-      message.error(error.message);
+      shouldShowRequestError(error) && message.error(error.message);
     })
     .finally(() => {
       setLoading(false);
@@ -404,8 +409,7 @@ const handleSubmitForm = async (params: {
   if (!validateFormData(modelParams)) return;
 
   try {
-    const data = await modelRsaPublicKey();
-    const encryptedApiKey = encryptApiKey(data, modelInfo?.apiKEY);
+    const encryptedApiKey = modelInfo?.apiKEY;
 
     // 构建提交参数
     const submitParams = buildSubmitParams({
@@ -443,7 +447,7 @@ const handleSubmitForm = async (params: {
       error instanceof Error
         ? error.message
         : i18next.t('model.modelCreateFailed');
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
   } finally {
     setLoading(false);
   }
@@ -483,11 +487,13 @@ const SelectLocalModel = ({
   const [localModelOptions, setLocalModelOptions] = useState<
     Array<{ label: string; value: string }>
   >([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const fetchLocalModels = async (): Promise<void> => {
     try {
       setLoading(true);
+      setError('');
       const models = await getLocalModelList();
       const options = models.map((model: LocalModelFile) => ({
         label: model.modelName,
@@ -495,8 +501,11 @@ const SelectLocalModel = ({
       }));
       setLocalModelOptions(options);
     } catch (error) {
-      message.error(t('model.localModelLoadFailed'));
-      setLocalModelOptions([]);
+      shouldShowRequestError(error) &&
+        message.error(t('model.localModelLoadFailed'));
+      setError(
+        error instanceof Error ? error.message : t('model.localModelLoadFailed')
+      );
     } finally {
       setLoading(false);
     }
@@ -522,7 +531,17 @@ const SelectLocalModel = ({
           </a>
         </div>
       </div>
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message="本地模型加载失败"
+          description={error}
+          action={<Button onClick={() => void fetchLocalModels()}>重试</Button>}
+        />
+      )}
       <Select
+        aria-label={t('model.selectModel')}
         placeholder={
           loading
             ? 'Loading...'
@@ -626,6 +645,8 @@ const ModelBasicForm = ({
   setShowModal,
   modelCreateType,
   lockProvider = false,
+  modelId,
+  busy,
 }: {
   modelInfo: ModelFormData;
   setModelInfo: (info: ModelFormData) => void;
@@ -634,8 +655,12 @@ const ModelBasicForm = ({
   setShowModal: (show: boolean) => void;
   modelCreateType: ModelCreateType;
   lockProvider?: boolean;
+  modelId?: string;
+  busy: boolean;
 }): JSX.Element => {
   const { t } = useTranslation();
+  const spaceId = useSpaceStore(state => state.spaceId);
+  const enterpriseId = useSpaceStore(state => state.enterpriseId);
   const currentProvider = normalizeModelProvider(modelInfo?.provider);
   // 根据供应商类型决定显示什么提示信息
   const isAnthropicProvider = currentProvider === ModelProviderType.ANTHROPIC;
@@ -680,6 +705,7 @@ const ModelBasicForm = ({
             <div>{t('model.providerLabel')}：</div>
           </div>
           <Select
+            aria-label={t('model.providerLabel')}
             value={currentProvider}
             disabled={lockProvider}
             style={{ width: '100%' }}
@@ -716,8 +742,10 @@ const ModelBasicForm = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div
-            className={`w-10 h-10 flex justify-center items-center rounded-lg mr-3 cursor-pointer`}
+          <button
+            type="button"
+            aria-label="选择模型图标"
+            className={`w-10 h-10 flex justify-center items-center rounded-lg mr-3 cursor-pointer shrink-0`}
             style={{
               background: botColor
                 ? botColor
@@ -731,8 +759,9 @@ const ModelBasicForm = ({
             {botColor && (
               <img src={botIcon?.value || ''} className="w-6 h-6" alt="" />
             )}
-          </div>
+          </button>
           <Input
+            aria-label={t('model.modelName')}
             placeholder={t('common.inputPlaceholder')}
             className="global-input w-full"
             maxLength={50}
@@ -755,6 +784,7 @@ const ModelBasicForm = ({
             <Input
               maxLength={50}
               showCount
+              aria-label="Model"
               placeholder={modelPlaceholder}
               className="global-input w-full"
               value={modelInfo?.domain}
@@ -774,6 +804,7 @@ const ModelBasicForm = ({
         </div>
         <div className="relative">
           <TextArea
+            aria-label={t('model.modelDescription')}
             placeholder={t('common.inputPlaceholder')}
             className="global-input w-full"
             maxLength={200}
@@ -800,6 +831,7 @@ const ModelBasicForm = ({
             <Input
               maxLength={1024}
               showCount
+              aria-label={t('model.interfaceAddress')}
               placeholder={endpointPlaceholder}
               className="global-input w-full"
               value={modelInfo?.interfaceAddress}
@@ -814,12 +846,20 @@ const ModelBasicForm = ({
                 <span className="text-[#F74E43]">*</span> {t('model.apiKey')}：
               </div>
             </div>
-            <Input
+            <SavedCredentialInput
+              key={`${enterpriseId}:${spaceId}:${modelId}`}
+              aria-label={t('model.apiKey')}
               maxLength={1024}
-              showCount
               placeholder={t('common.inputPlaceholder')}
               className="global-input w-full"
               value={modelInfo?.apiKEY}
+              disabled={busy}
+              maskedValue="********"
+              loadSaved={
+                modelId
+                  ? signal => revealModelCredential(modelId, signal)
+                  : undefined
+              }
               onChange={e =>
                 setModelInfo({ ...modelInfo, apiKEY: e.target.value })
               }
@@ -834,6 +874,7 @@ const ModelBasicForm = ({
         </div>
         <div className="flex items-center gap-3">
           <Switch
+            aria-label={t('model.thinkingCapability')}
             checked={modelInfo?.isThink}
             onChange={checked =>
               setModelInfo({ ...modelInfo, isThink: checked })
@@ -852,6 +893,7 @@ const ModelBasicForm = ({
         </div>
         <div className="flex items-center gap-3">
           <Switch
+            aria-label={t('model.multimodalCapability')}
             checked={modelInfo?.multiMode}
             onChange={checked =>
               setModelInfo({ ...modelInfo, multiMode: checked })
@@ -923,6 +965,7 @@ const ModelCategoryForm = ({
           placeholder={t('model.pleaseSelectModelType')}
           allowClear
           style={{ width: '100%' }}
+          aria-label={t('model.modelType')}
           value={modelTypes}
           onChange={handleTypeChange}
           filterOption={(input: string, option?: { label?: string }) =>
@@ -959,6 +1002,7 @@ const ModelCategoryForm = ({
           placeholder={t('model.pleaseSelectLanageSupport')}
           allowClear
           style={{ width: '100%' }}
+          aria-label={t('model.languageSupport')}
           value={languageSystemId}
           onChange={val => setLanguageSystemId(val)}
           filterOption={(input: string, option?: { label?: string }) =>
@@ -991,6 +1035,7 @@ const ModelCategoryForm = ({
           placeholder={t('model.pleaseSelectContextLenght')}
           allowClear
           style={{ width: '100%' }}
+          aria-label={t('model.contextLength')}
           value={contextLengthSystemId}
           onChange={val => setContextLengthSystemId(val)}
           filterOption={(input: string, option?: { label?: string }) =>
@@ -1024,6 +1069,7 @@ const ModelCategoryForm = ({
           placeholder={t('model.pleaseSelectModelScene')}
           allowClear
           style={{ width: '100%' }}
+          aria-label={t('model.modelScene')}
           value={modelScenes}
           onChange={handleSceneChange}
           filterOption={(input: string, option?: { label?: string }) =>
@@ -1386,11 +1432,17 @@ const useCreateModal = (
     setModelCreateType: (type: ModelCreateType) => void;
     selectedLocalModel: string;
     setSelectedLocalModel: (model: string) => void;
+    detailLoading: boolean;
+    detailError: string;
+    reloadDetail: () => void;
     acceleratorCount: number;
     setAcceleratorCount: (count: number) => void;
   } => {
   const modalRef = useRef<HTMLDivElement>(null);
   const [showModal, setShowModal] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(Boolean(modelId));
+  const [detailError, setDetailError] = useState('');
+  const [detailRevision, setDetailRevision] = useState(0);
   const [modelCreateType, setModelCreateType] = useState<ModelCreateType>(
     hideLocalModel ? ModelCreateType.THIRD_PARTY : ModelCreateType.THIRD_PARTY
   );
@@ -1491,12 +1543,16 @@ const useCreateModal = (
   }, [initialProvider, initialEndpoint, modelId]);
 
   useEffect(() => {
+    let active = true;
     if (modelId) {
+      setDetailLoading(true);
+      setDetailError('');
       getModelDetail({
         modelId: parseInt(modelId),
         llmSource: LLMSource.CUSTOM,
       })
         .then(data => {
+          if (!active) return;
           updateCategoryStates(data, categoryState);
           updateBasicInfo(data, formState, avatarState);
           updateModelParams(data, paramsState);
@@ -1505,13 +1561,25 @@ const useCreateModal = (
             setSelectedLocalModel(data.domain || '');
           }
         })
-        .catch((error: ResponseBusinessError) => {
-          message.error(error.message);
+        .catch((error: unknown) => {
+          if (active)
+            setDetailError(
+              error instanceof Error ? error.message : '模型配置加载失败'
+            );
+        })
+        .finally(() => {
+          if (active) setDetailLoading(false);
         });
     }
-  }, [modelId]);
+    return () => {
+      active = false;
+    };
+  }, [modelId, detailRevision]);
 
   return {
+    detailLoading,
+    detailError,
+    reloadDetail: (): void => setDetailRevision(value => value + 1),
     modalRef,
     showModal,
     setShowModal,
@@ -1543,13 +1611,9 @@ const ModelParametersSection = ({
     <div className="flex flex-col gap-2 font-normal text-sm">
       <div className="w-full flex items-center justify-between">
         <div>{t('model.modelParameters')}：</div>
-        <div
-          className="flex items-center gap-1.5 text-[#6356EA] cursor-pointer"
-          onClick={handleAddData}
-        >
-          <img src={inputAddIcon} className="w-2.5 h-2.5" alt="" />
-          <span>{t('model.add')}</span>
-        </div>
+        <Button type="link" icon={<PlusOutlined />} onClick={handleAddData}>
+          {t('model.add')}
+        </Button>
       </div>
       <div>
         <ModelParamsTable
@@ -1592,6 +1656,12 @@ export function CreateModal({
         })
       : t('model.selectLocalModel');
   const handleOk = (): void => {
+    if (
+      modalState.loading ||
+      modalState.detailLoading ||
+      modalState.detailError
+    )
+      return;
     if (modalState.modelCreateType === ModelCreateType.LOCAL) {
       handleLocalModelSubmit({
         selectedLocalModel: modalState.selectedLocalModel,
@@ -1635,7 +1705,16 @@ export function CreateModal({
     }
   };
   return (
-    <div className="mask cursor-default" onClick={e => e.stopPropagation()}>
+    <Modal
+      open
+      title={isEditMode ? `编辑 · ${modalTitle}` : modalTitle}
+      width={880}
+      footer={null}
+      maskClosable={false}
+      keyboard={!modalState.loading}
+      closable={!modalState.loading}
+      onCancel={() => setCreateModal(false)}
+    >
       {modalState.showModal && (
         <MoreIcons
           icons={modalState.avatarIcon}
@@ -1647,59 +1726,50 @@ export function CreateModal({
           setShowModal={modalState.setShowModal}
         />
       )}
-      <div
-        className="modalContent text-sm"
-        style={{ paddingRight: 0, width: 880 }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between font-medium pr-6 mb-[16px]">
-          <span className="font-semibold text-base text-[#3d3d3d]">
-            {modalTitle}
-          </span>
-          <img
-            src={close}
-            className="w-3 h-3 cursor-pointer"
-            alt=""
-            onClick={e => {
-              e.stopPropagation();
-              setCreateModal(false);
-            }}
+      <div className="text-sm" onClick={e => e.stopPropagation()}>
+        {modalState.detailError && (
+          <Alert
+            className={workspaceStyles.feedback}
+            type="error"
+            showIcon
+            message="模型配置加载失败"
+            description={modalState.detailError}
+            action={<Button onClick={modalState.reloadDetail}>重试</Button>}
           />
-        </div>
+        )}
+        {modalState.detailLoading && (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        )}
         <div
-          className="pr-6 flex flex-col gap-6 overflow-auto"
-          style={{ maxHeight: '60vh' }}
+          className="flex flex-col gap-6 overflow-auto"
+          style={{
+            maxHeight: '60vh',
+            display:
+              modalState.detailLoading || modalState.detailError
+                ? 'none'
+                : undefined,
+          }}
           ref={modalState.modalRef}
         >
           {!hideLocalModel && (
-            <div className="flex">
-              <div className="flex items-center bg-[#f6f9ff] rounded-xl h-10 p-1 gap-1">
-                <div
-                  className={`${
-                    modalState.modelCreateType === ModelCreateType.THIRD_PARTY
-                      ? 'bg-white text-[#6356EA] shadow'
-                      : 'text-[#7f7f7f] hover:text-[#6356EA]'
-                  } min-w-[70px] h-8 px-3 rounded-lg text-sm flex items-center justify-center  transition-colors ${isEditMode ? 'pointer-events-none' : 'cursor-pointer'}`}
-                  onClick={() =>
-                    modalState.setModelCreateType(ModelCreateType.THIRD_PARTY)
-                  }
-                >
-                  {t('model.addThirdPartyModel')}
-                </div>
-                <div
-                  className={`${
-                    modalState.modelCreateType === ModelCreateType.LOCAL
-                      ? 'bg-white text-[#6356EA] shadow'
-                      : 'text-[#7f7f7f] hover:text-[#6356EA]'
-                  } min-w-[70px] h-8 px-3 rounded-lg text-sm flex items-center justify-center  transition-colors ${isEditMode ? 'pointer-events-none' : 'cursor-pointer'}`}
-                  onClick={() =>
-                    modalState.setModelCreateType(ModelCreateType.LOCAL)
-                  }
-                >
-                  {t('model.selectLocalModel')}
-                </div>
-              </div>
-            </div>
+            <Segmented
+              aria-label="模型接入方式"
+              disabled={isEditMode || modalState.loading}
+              value={modalState.modelCreateType}
+              options={[
+                {
+                  label: t('model.addThirdPartyModel'),
+                  value: ModelCreateType.THIRD_PARTY,
+                },
+                {
+                  label: t('model.selectLocalModel'),
+                  value: ModelCreateType.LOCAL,
+                },
+              ]}
+              onChange={value =>
+                modalState.setModelCreateType(value as ModelCreateType)
+              }
+            />
           )}
 
           {modalState.modelCreateType === ModelCreateType.LOCAL && (
@@ -1716,6 +1786,8 @@ export function CreateModal({
             setShowModal={modalState.setShowModal}
             modelCreateType={modalState.modelCreateType}
             lockProvider={lockProvider}
+            modelId={modelId}
+            busy={modalState.loading || modalState.detailLoading}
           />
           {showCategoryForm && (
             <ModelCategoryForm
@@ -1753,13 +1825,15 @@ export function CreateModal({
             setModelParams={modalState.setModelParams}
           />
         </div>
-        <div className="flex flex-row-reverse gap-3 mt-7 pr-6">
+        <div className="flex flex-row-reverse flex-wrap gap-3 mt-7">
           <Button
             loading={modalState.loading}
             type="primary"
             className="px-[48px]"
             onClick={handleOk}
             disabled={
+              modalState.detailLoading ||
+              Boolean(modalState.detailError) ||
               !modalState.modelInfo?.modelName ||
               !modalState.modelInfo?.modelDesc ||
               (modalState.modelCreateType === ModelCreateType.THIRD_PARTY &&
@@ -1773,7 +1847,8 @@ export function CreateModal({
           </Button>
           <Button
             type="text"
-            className="origin-btn px-[48px]"
+            className="origin-btn px-[24px]"
+            disabled={modalState.loading}
             onClick={e => {
               e.stopPropagation();
               setCreateModal(false);
@@ -1783,7 +1858,7 @@ export function CreateModal({
           </Button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1797,6 +1872,7 @@ export function DeleteModal({
   const [loading, setLoading] = useState(false);
 
   function handleOk(): void {
+    if (loading) return;
     setLoading(true);
     deleteModelAPI(currentModel.modelId)
       .then(() => {
@@ -1807,7 +1883,7 @@ export function DeleteModal({
       .catch(error => {
         const errorMessage =
           error instanceof Error ? error.message : t('model.modelDeleteFailed');
-        message.error(errorMessage);
+        shouldShowRequestError(error) && message.error(errorMessage);
       })
       .finally(() => {
         setLoading(false);
@@ -1815,48 +1891,25 @@ export function DeleteModal({
   }
 
   return (
-    <div className="mask">
-      <div
-        className="p-6 absolute bg-[#fff] rounded-2xl top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 text-second font-medium text-md min-w-[310px]"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center">
-          <div className="bg-[#fff5f4] w-10 h-10 flex justify-center items-center rounded-lg">
-            <img src={dialogDel} className="w-7 h-7" alt="" />
-          </div>
-          <p className="ml-2.5">{t('model.confirmDeleteModel')}</p>
-        </div>
-        <div className="w-full h-10 bg-[#F9FAFB] text-center mt-7 py-2">
-          {currentModel.name}
-        </div>
-        <p className="mt-6 text-desc max-w-[310px]">{msg}</p>
-        <div className="flex flex-row-reverse gap-3 mt-7">
-          <Button
-            type="text"
-            loading={loading}
-            onClick={e => {
-              e.stopPropagation();
-              handleOk();
-            }}
-            className="delete-btn"
-            style={{ paddingLeft: 24, paddingRight: 24 }}
-          >
-            {t('model.delete')}
-          </Button>
-          <Button
-            type="text"
-            className="origin-btn"
-            onClick={e => {
-              e.stopPropagation();
-
-              setDeleteModal(false);
-            }}
-            style={{ paddingLeft: 24, paddingRight: 24 }}
-          >
-            {t('common.cancel')}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open
+      title={t('model.confirmDeleteModel')}
+      width={440}
+      onCancel={() => {
+        if (!loading) setDeleteModal(false);
+      }}
+      maskClosable={false}
+      keyboard={!loading}
+      closable={!loading}
+      onOk={handleOk}
+      confirmLoading={loading}
+      okButtonProps={{ danger: true }}
+      okText={t('model.delete')}
+      cancelText={t('common.cancel')}
+      cancelButtonProps={{ disabled: loading }}
+    >
+      <p className="font-medium break-all">{currentModel.name}</p>
+      <p className={workspaceStyles.hint}>{msg}</p>
+    </Modal>
   );
 }

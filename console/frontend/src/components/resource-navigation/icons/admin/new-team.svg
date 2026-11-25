@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>新建团队</title>
+  <g fill="none" stroke="#236B63" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="9" cy="7.8" r="2.7" fill="#BAE7DA"/>
+    <path d="M3.75 18.5v-1.15a4.4 4.4 0 0 1 4.4-4.4h1.7a4.4 4.4 0 0 1 4.4 4.4v1.15Z" fill="#BAE7DA" fill-opacity=".67"/>
+    <path d="M14.3 9.85h6.15m-3.075-3.075v6.15"/>
+  </g>
+</svg>

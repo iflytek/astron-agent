@@ -14,7 +14,15 @@ type MenuClickEvent = Parameters<NonNullable<MenuProps['onClick']>>[0];
 
 import React, { useEffect, useMemo, useRef, useState, memo } from 'react';
 import { cloneDeep } from 'lodash';
-import { message, Dropdown, Space, Tooltip } from 'antd';
+import { message, Button, Dropdown, Space, Tooltip } from 'antd';
+import {
+  EditOutlined,
+  MoreOutlined,
+  PlayCircleOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  FileTextOutlined,
+} from '@ant-design/icons';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import SingleNodeDebugging from '@/components/workflow/drawer/single-node-debugging';
 import { generateDefaultInput } from '@/components/workflow/utils/reactflowUtils';
@@ -23,7 +31,6 @@ import { useMemoizedFn } from 'ahooks';
 import { useLocation } from 'react-router-dom';
 import { useNodeCommon } from '@/components/workflow/hooks/use-node-common';
 
-import { Icons } from '@/components/workflow/icons';
 import { debugWorkflowNode } from '@/services/flow';
 import { getActiveImportDependencyIssues } from '@/components/workflow/utils/workflow-import-dependencies';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
@@ -193,6 +200,9 @@ const useNodeDebugger = (
               flowId: latestFlow?.flowId,
               name: latestFlow?.name,
               description: latestFlow?.description,
+              ...(manager.historyVersion
+                ? { version: manager.historyVersionData?.versionNum }
+                : {}),
               data: {
                 nodes: [requestNode],
                 edges: [],
@@ -371,8 +381,8 @@ const NodeMenu = ({
       key: '1',
       label: (
         <Space size={4}>
-          <img width={15} src={Icons.nodeOperation.remark} alt="" />
-          <span className="text-[#99A1B6]">
+          <FileTextOutlined />
+          <span className="text-[#526580]">
             {remarkStatus
               ? remarkStatus === 'show'
                 ? t('workflow.nodes.common.hideNote')
@@ -390,8 +400,8 @@ const NodeMenu = ({
       key: '2',
       label: (
         <Space size={4}>
-          <img width={15} src={Icons.nodeOperation.copy} alt="" />
-          <span className="text-[#99A1B6]">
+          <CopyOutlined />
+          <span className="text-[#526580]">
             {t('workflow.nodes.common.createCopy')}
           </span>
         </Space>
@@ -405,13 +415,14 @@ const NodeMenu = ({
       key: '3',
       label: (
         <Space size={4}>
-          <div className="w-[15px] h-[15px] flex justify-center items-center delete-icon"></div>
+          <DeleteOutlined />
           <span className="delete-text">
             {t('workflow.nodes.common.deleteNode')}
           </span>
         </Space>
       ),
       'data-type': 'delete',
+      danger: true,
       onClick: (e: MenuClickEvent): void => {
         e.domEvent.stopPropagation();
         deleteNode(id);
@@ -428,10 +439,11 @@ const NodeMenu = ({
       placement="bottomLeft"
       overlayClassName="dropdown"
     >
-      <img
-        src={Icons.nodeOperation.dot}
-        className="w-4 h-4 cursor-pointer hover:bg-[#DDE3F1] rounded-[2px]"
-        alt=""
+      <Button
+        type="text"
+        size="small"
+        aria-label="更多节点操作"
+        icon={<MoreOutlined />}
       />
     </Dropdown>
   );
@@ -464,7 +476,7 @@ function index({
   return (
     <>
       {!canvasesDisabled ? (
-        <div className="flex items-center gap-3">
+        <div className="workflow-node-actions flex items-center gap-1">
           <SingleNodeDebugging
             id={id}
             open={open}
@@ -477,25 +489,26 @@ function index({
             nodeType as string
           ) && (
             <Tooltip title="测试该节点" overlayClassName="black-tooltip">
-              <img
-                src={Icons.nodeOperation.nodeDebugger}
-                className="w-4 h-4 cursor-pointer"
-                alt=""
-                onClick={() => {
+              <Button
+                type="text"
+                size="small"
+                aria-label="测试该节点"
+                icon={<PlayCircleOutlined />}
+                onClick={e => {
+                  e.stopPropagation();
                   handleNodeDebug();
                 }}
-                style={{
-                  pointerEvents: 'auto',
-                }}
+                style={{ pointerEvents: 'auto' }}
               />
             </Tooltip>
           )}
           {!data?.labelEdit && (
             <Tooltip title="重命名" overlayClassName="black-tooltip">
-              <img
-                src={Icons.nodeOperation.nodeEdit}
-                className="w-4 h-4 cursor-pointer"
-                alt=""
+              <Button
+                type="text"
+                size="small"
+                aria-label="重命名节点"
+                icon={<EditOutlined />}
                 onClick={(e): void => {
                   e.stopPropagation();
                   updateNodeNameStatus(id, labelInputId);

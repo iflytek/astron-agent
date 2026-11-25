@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { Select, message } from 'antd';
 import { useDebounceFn } from 'ahooks';
@@ -180,7 +181,8 @@ const MemberManage: React.FC = () => {
         invitationListRef.current?.reload();
         return true;
       } catch (error: any) {
-        message.error(error?.msg || error?.desc);
+        shouldShowRequestError(error) &&
+          message.error(error?.msg || error?.desc);
         return false;
       }
     },
@@ -233,8 +235,9 @@ const MemberManage: React.FC = () => {
       } = config;
 
       return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className={styles.tabActions}>
           <Select
+            aria-label={filterPlaceholder}
             value={filterValue}
             onChange={onFilterChange}
             style={{ width: 120 }}

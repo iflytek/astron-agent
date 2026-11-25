@@ -8,7 +8,6 @@ export default defineConfig(({ mode }) => {
   const isDev = mode === 'development';
 
   return {
-    envPrefix: ['CONSOLE_', 'VITE_'],
     build: {
       rollupOptions: {
         maxParallelFileOps: 1, // 限制并行文件操作数为1
@@ -34,37 +33,17 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       proxy: {
-        //代理规则
-        '/xingchen-api': {
-          // target: 'https://agent.xfyun.cn',
-          // target: 'http://172.29.201.92:8081',
-          target: 'http://172.29.202.54:8080', // 联调服务器地址
-          //  target: 'http://172.29.201.92:8080', // 测试服务器地址
-          changeOrigin: true,
-          headers: {
-            Connection: 'keep-alive',
-            'Keep-Alive': 'timeout=30, max=100',
-          },
-          rewrite: path => path.replace(/^\/xingchen-api/, ''),
+        '/console-api': {
+          target: process.env.CONSOLE_DEV_BACKEND || 'http://127.0.0.1:8080',
+          rewrite: path => path.replace(/^\/console-api/, ''),
         },
-        '/chat-': {
-          // target: "http://10.7.104.244:8080",
-          //target: "http://agent.xfyun.cn",
-          // target: 'http://172.29.201.92:8081',
-          changeOrigin: true,
-          headers: {
-            Connection: 'keep-alive',
-            'Keep-Alive': 'timeout=30, max=100',
-          },
-        },
-        '/workflow': {
-          // target: 'http://172.29.202.54:8080', // 联调服务器地址
-          target: 'http://172.29.201.92:8080', // 测试服务器地址
-          changeOrigin: true,
-          headers: {
-            Connection: 'keep-alive',
-            'Keep-Alive': 'timeout=30, max=100',
-          },
+      },
+    },
+    preview: {
+      proxy: {
+        '/console-api': {
+          target: process.env.CONSOLE_DEV_BACKEND || 'http://127.0.0.1:8080',
+          rewrite: path => path.replace(/^\/console-api/, ''),
         },
       },
     },

@@ -154,7 +154,7 @@ class CustomChatCompletion(CompletionBase):
                 }
             )
             sp.add_info_events(
-                {"workflow-agent-inputs": _serialize_workflow_agent_inputs(self.inputs)}
+                {"agent-id": self.bot_id, "caller": self.inputs.meta_data.caller}
             )
             node_trace = await self.build_node_trace(bot_id=self.bot_id, span=sp)
             meter = await self.build_meter(sp)
@@ -264,7 +264,7 @@ async def custom_chat_completions(
         inputs=completion_inputs,
         log_caller=completion_inputs.meta_data.caller,
         span=span,
-        bot_id="",
+        bot_id=completion_inputs.meta_data.agent_id,
         uid=completion_inputs.uid,
         question=completion_inputs.get_last_message_content(),
     )

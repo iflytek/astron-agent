@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>分支器</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#F2EDFF" stroke="#E4D8FC"/>
+  <g fill="none" stroke="#6842B5" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8.85 16h13.3m-13.3 0h1.5c5.7 0 2.95-6.8 8.05-6.8h3.75m-13.3 6.8h1.5c5.7 0 2.95 6.8 8.05 6.8h3.75"/>
+    <circle cx="7.85" cy="16" r="1.95" fill="#6842B5" stroke="none"/>
+    <g fill="#CBB6FA" stroke="#8e6ecf" stroke-width="1">
+      <rect x="22" y="7.1" width="4.2" height="4.2" rx="1.05"/>
+      <rect x="22" y="13.9" width="4.2" height="4.2" rx="1.05"/>
+      <rect x="22" y="20.7" width="4.2" height="4.2" rx="1.05"/>
+    </g>
+  </g>
+</svg>

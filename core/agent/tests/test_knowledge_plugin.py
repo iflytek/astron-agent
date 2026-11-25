@@ -86,6 +86,7 @@ class TestKnowledgePluginFactory:
         span.tracer = provider.get_tracer("knowledge-test")
 
         mock_response_data: dict[str, Any] = {
+            "code": 0,
             "data": {
                 "results": [
                     {
@@ -95,7 +96,7 @@ class TestKnowledgePluginFactory:
                         "references": {},
                     }
                 ]
-            }
+            },
         }
 
         def mock_post(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN001
@@ -137,27 +138,25 @@ class TestKnowledgePluginFactory:
         factory.repo_ids = []
         span = Span(app_id="test_app", uid="test_uid")
 
-        result = await factory.retrieve(span)
-
-        assert result == {}
+        with pytest.raises(PluginExc):
+            await factory.retrieve(span)
 
     @pytest.mark.asyncio
-    async def test_retrieve_cbg_rag_with_doc_ids(
-        self, factory: KnowledgePluginFactory
+    @pytest.mark.parametrize("rag_type", ["AIUI-RAG2", "CBG-RAG", "Ragflow-RAG"])
+    async def test_retrieve_preserves_authorized_document_filter(
+        self, factory: KnowledgePluginFactory, rag_type: str
     ) -> None:
-        """Test CBG-RAG type containing doc_ids"""
-        factory.rag_type = "CBG-RAG"
+        """Every backend must receive the Console's enabled-document allowlist."""
+        factory.rag_type = rag_type
         factory.doc_ids = ["doc1", "doc2"]
         span = Span(app_id="test_app", uid="test_uid")
 
-        mock_response_data: dict[str, Any] = {"data": {"results": []}}
+        mock_response_data: dict[str, Any] = {"code": 0, "data": {"results": []}}
 
         def mock_post(*args: Any, **kwargs: Any) -> AsyncMock:  # noqa: ANN001
-            # Verify request data contains docIds
-            request_data = kwargs.get("json", {})
-            if "match" in request_data and "docIds" in request_data["match"]:
-                assert "doc1" in request_data["match"]["docIds"]
-                assert "doc2" in request_data["match"]["docIds"]
+            request_data = kwargs["json"]
+            assert request_data["ragType"] == rag_type
+            assert request_data["match"]["docIds"] == ["doc1", "doc2"]
 
             mock_resp = AsyncMock()
             mock_resp.status = 200
@@ -235,7 +234,9 @@ class TestKnowledgePluginFactory:
             captured_data.update(kwargs.get("json", {}))
             mock_resp = AsyncMock()
             mock_resp.status = 200
-            mock_resp.json = AsyncMock(return_value={"data": {"results": []}})
+            mock_resp.json = AsyncMock(
+                return_value={"code": 0, "data": {"results": []}}
+            )
             mock_resp.raise_for_status = MagicMock()
             mock_resp.read = AsyncMock(return_value=b'{"data": {}}')
             mock_resp.__aenter__.return_value = mock_resp
@@ -267,7 +268,9 @@ class TestKnowledgePluginFactory:
             captured_headers.update(kwargs.get("headers", {}))
             mock_resp = AsyncMock()
             mock_resp.status = 200
-            mock_resp.json = AsyncMock(return_value={"data": {"results": []}})
+            mock_resp.json = AsyncMock(
+                return_value={"code": 0, "data": {"results": []}}
+            )
             mock_resp.raise_for_status = MagicMock()
             mock_resp.read = AsyncMock(return_value=b'{"data": {}}')
             mock_resp.__aenter__.return_value = mock_resp
@@ -282,6 +285,7 @@ class TestKnowledgePluginFactory:
                 await factory.retrieve(span)
 
         assert captured_data["match"]["datasetId"] == ["dataset-1"]
+        assert captured_data["match"]["docIds"] == ["doc1"]
         assert captured_headers == {"Content-Type": "application/json"}
 
 
@@ -301,3 +305,24 @@ class TestKnowledgePlugin:
         assert plugin.name == "knowledge"
         assert plugin.typ == "knowledge"
         assert callable(plugin.run)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"code": 503, "message": "secret", "data": {"results": []}},
+        {"code": 0, "data": {}},
+        {"code": 0, "data": {"results": None}},
+        {"code": 0, "data": {"results": [{"docId": "doc", "content": None}]}},
+    ],
+)
+def test_failed_or_malformed_retrieval_is_not_an_empty_success(payload: Any) -> None:
+    with pytest.raises(PluginExc) as error:
+        KnowledgePluginFactory.validate_response(payload)
+    assert error.value.c == 40025
+    assert "secret" not in str(error.value)
+
+
+def test_successful_empty_retrieval_is_valid() -> None:
+    KnowledgePluginFactory.validate_response({"code": 0, "data": {"results": []}})

@@ -105,10 +105,10 @@ jobs:
             echo "✅ Detected $CORE_COUNT Core service components"
           fi
 
-          # Detect Console Hub (Java)
-          if [[ -f "console/backend/hub/pom.xml" && -f "console/backend/hub/Dockerfile" ]]; then
+          # Detect Console Hub (Python)
+          if [[ -f "console/backend/pyproject.toml" && -f "console/backend/Dockerfile" ]]; then
             HAS_CONSOLE_HUB="true"
-            echo "✅ Console Hub: console/backend/hub/ (Java Spring Boot)"
+            echo "✅ Console Hub: console/backend/ (Django ASGI)"
           fi
 
           # Detect Console Frontend (React)
@@ -315,7 +315,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./console/backend/hub/Dockerfile
+          file: ./console/backend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

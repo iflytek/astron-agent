@@ -65,6 +65,7 @@ class NodeDebugVo(BaseModel):
     description: str = Field(default="")
     # Node DSL
     data: WorkflowDSL
+    console_context: dict = Field(default_factory=dict)
 
 
 class NodeDebugRespVo(BaseModel):

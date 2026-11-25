@@ -136,6 +136,7 @@ const translation = {
   searching: '搜索中...',
   selected: '选定: ',
   maxValue: '（最大值{{count}}）',
+  invitationBatchLimit: '（每次最多邀请 {{count}} 人）',
 
   // SpaceList
   applySuccess: '申请成功',

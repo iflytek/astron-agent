@@ -33,14 +33,15 @@ type ModelParametersProps<Key extends keyof ModelParametersContext> = Pick<
 >;
 
 import React, { useEffect, useState, useRef, memo } from 'react';
-import { Tooltip, Slider, Switch } from 'antd';
+import { Button, Tooltip, Slider, Switch } from 'antd';
+import {
+  CloseOutlined,
+  QuestionCircleOutlined,
+  SlidersOutlined,
+} from '@ant-design/icons';
 import { useMemoizedFn } from 'ahooks';
 import { FlowInputNumber } from '@/components/workflow/ui';
 import { useTranslation } from 'react-i18next';
-
-import debuggerIcon from '@/assets/imgs/workflow/debugger-icon.png';
-import close from '@/assets/imgs/workflow/modal-close.png';
-import questionMark from '@/assets/imgs/common/questionmark.png';
 
 // ----------------- hooks -----------------
 function useClickOutside(
@@ -190,7 +191,7 @@ function ParamItem({
               title={item.desc}
               overlayClassName="black-tooltip config-secret"
             >
-              <img src={questionMark} width={16} className="ml-1" alt="" />
+              <QuestionCircleOutlined className="ml-1 text-slate-400" />
             </Tooltip>
           )}
         </div>
@@ -251,24 +252,25 @@ function ModelParams({
   return (
     <div
       ref={paramsRef}
-      className="absolute right-[-3px] top-8 border border-[#f5f7fc] bg-[#fff] rounded-lg p-4"
+      className="absolute right-0 top-10 border border-[#dfe6f1] bg-white rounded-xl p-4"
       style={{
         zIndex: 100,
         width: 'calc(100% - 4px)',
-        boxShadow: '0px 4px 10px 0px rgba(0, 0, 0, 0.3)',
+        boxShadow: '0 12px 32px rgba(24, 36, 61, 0.12)',
       }}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img src={debuggerIcon} className="w-3 h-3" alt="" />
+          <SlidersOutlined className="text-slate-500" />
           <span className="font-medium text-base">
             {t('workflow.nodes.modelSelect.modelParamsSettings')}
           </span>
         </div>
-        <img
-          src={close}
-          className="w-3 h-3 cursor-pointer"
-          alt=""
+        <Button
+          type="text"
+          size="small"
+          icon={<CloseOutlined />}
+          aria-label="关闭模型参数"
           onClick={e => {
             e.stopPropagation();
             setShowModelParmas(false);
@@ -276,6 +278,11 @@ function ModelParams({
         />
       </div>
       <div className="flex flex-col gap-2 w-full text-second font-medium mt-4">
+        {configs.length === 0 && (
+          <p className="text-sm font-normal text-slate-500">
+            此模型没有可调整的参数。
+          </p>
+        )}
         {configs
           ?.filter(item => ['range', 'switch'].includes(item.constraintType))
           ?.map((item, index) => (

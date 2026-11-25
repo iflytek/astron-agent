@@ -24,9 +24,21 @@ Agent 服务的智能体执行使用 **Deep Agents 0.7.29**。普通模型推理
 
 ## 工具、隔离和资源
 
-Link / MCP / Workflow / Skill 的业务实现、权限、资源 URL 校验、内部凭据和 E2B 沙箱路径保留，经官方 StructuredTool 调度。工具参数使用 JSON Schema 校验；中文或受限名称转换为稳定内部别名，SSE 和节点追踪保留平台名称。成功结果保留原格式；失败工具结果携带非零 code，模型和追踪均可识别。
+Link / MCP / Workflow 经官方 StructuredTool 调度，沿用平台权限和业务约定。工具参数使用 JSON Schema 校验；中文或受限名称转换为稳定内部别名，SSE 和节点追踪保留平台名称。成功结果保留原格式；失败工具结果携带非零 code，模型和追踪均可识别。
 
-文件工具使用请求内 StateBackend；不暴露宿主文件或本地 shell，不配置共享 checkpointer/store。Skill 命令继续调用现有 E2B 沙箱。OpenAI / Google 请求级客户端在正常结束、异常和取消后关闭；Anthropic 传输池由官方集成管理。无需配置 LangSmith SaaS，继续沿用现有 OTel / Langfuse 管道和内容采集开关。
+来自不同 HTTP 工具或 MCP 连接的同名操作按资源身份生成稳定别名，实际调用仍使用原始操作名。MCP 输入保留完整 `inputSchema`，Link 发现及调用复用官方 SDK 的 `Tool` 与 `CallToolResult`，保留多种内容块和 `structuredContent`；`isError` 会进入 Agent 与工作流的失败状态。MCP 传输和会话始终由 Link 管理，不在 Agent 中另写协议客户端。
+
+内置目录读取运行中 AI Tools 的真实 OpenAPI，为生成的工具文档添加 `info.x-astron-response-envelope: aitools-v1`。这一显式契约表示响应体的整数 `code=0` 为成功，其他整数为业务失败，缺失或无效 code 为协议错误。Link 在响应 Schema 校验和字段过滤前将失败映射为 `header.code=30400`，保留上游错误码和消息，管理测试、Agent 和工作流沿用现有失败处理。普通 HTTP 工具不解释任意响应体的 `code`；AI Tools 直连响应的 HTTP 状态和响应体保持兼容。安装时须保留完整 OpenAPI 的 `info`；已有安装若缺少标记，应从内置目录重新接入以获得该契约。HTTP 执行按当前 `operationId` 选择响应 Schema，管理调试按请求方法与端点选择，路径公共参数继续继承。
+
+文件工具默认使用请求内 StateBackend。OpenAI / Google 请求级客户端在运行结束、异常和取消后关闭。Anthropic 传输池由官方集成管理，追踪继续使用现有 OTel / Langfuse 设置。
+
+### Agent Skill
+
+Console 根据 Agent 配置的 Skill 文件 ID，在每次运行时解析最新包内容。独立、发布和工作流 Agent 使用同一套解析规则。Core Agent 校验 MinIO 下载来源，把授权文件挂载到只读的 `/skills/<name>/`。Deep Agents 的 `SkillsMiddleware` 将名称和描述提供给模型，模型用通用 `read_file` 读取完整正文和附件。缺少标准 frontmatter 的旧 Skill 在运行时生成兼容的元数据。
+
+启用 E2B 后，模型可以通过通用 `execute` 运行脚本。用 `cd /skills/<name> && python scripts/example.py` 执行依赖相对路径的脚本，把产物写到 `/home/user/workspace/output/`。多个 Skill 一起使用时，可以用 `output/<name>/` 为产物指定归属。命令间共用本次运行的沙箱，文件工具的临时状态与沙箱工作目录各自存储。
+
+每个文件最多 5 MiB。一个 Skill 最多包含 100 个附件，附件总大小最多 20 MiB。单次运行选择的包合计最多 100 MiB。
 
 ## 运行与验证
 

@@ -1,0 +1,51 @@
+.guide {
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  p {
+    margin: 12px 0;
+    color: var(--console-muted, #526580);
+  }
+
+  a {
+    margin-inline: 4px;
+    color: var(--console-primary, #315ff4);
+  }
+}
+
+.example {
+  padding: 12px 16px;
+  border: 1px solid var(--console-line, #dfe6f1);
+  border-radius: 8px;
+  background: #f6f8fd;
+
+  pre {
+    overflow: auto;
+    margin: 8px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 13px;
+  }
+}
+
+.parameters {
+  margin-top: 16px;
+
+  ul {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--console-line, #dfe6f1);
+  }
+
+  span {
+    color: var(--console-muted, #526580);
+  }
+}

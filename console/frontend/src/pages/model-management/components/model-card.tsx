@@ -1,23 +1,28 @@
-import { useState, useMemo, useCallback, JSX, Fragment } from 'react';
+import { shouldShowRequestError } from '@/utils/http-error';
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useEffect,
+  JSX,
+  Fragment,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Switch, message, Button } from 'antd';
 
 import { DeleteModal, CreateModal } from './modal-component';
 import StatusTag from './status-tag';
-import { EllipsisIcon } from '@/components/svg-icons/model';
 import {
   enabledModelAPI,
   getModelDetail,
   modelCreate,
   createOrUpdateLocalModel,
-  modelRsaPublicKey,
 } from '@/services/model';
 import {
   ModelInfo,
   CategoryNode,
   LLMSource,
-  ShelfStatus,
   LocalModelStatus,
   ModelCreateType,
 } from '@/types/model';
@@ -26,17 +31,7 @@ import i18next from 'i18next';
 import styles from './model-card.module.scss';
 import classNames from 'classnames';
 import { getModelProviderLabel } from '../utils/provider';
-import { encryptApiKey as encryptLongApiKey } from '../utils/encrypt-api-key';
-
-// 加密API密钥工具函数
-const encryptApiKey = (publicKey: string, apiKey: string): string => {
-  return encryptLongApiKey(publicKey, apiKey); /*
-    throw new Error('API密钥加密失败');
-  }
-  return encrypted;
-*/
-};
-
+import { defaultModelAvatar, getModelAvatar } from '../utils/model-avatar';
 // 重新发布模型函数
 const republishModel = async (
   model: ModelInfo,
@@ -66,12 +61,6 @@ const republishModel = async (
       await createOrUpdateLocalModel(localModelParams);
     } else {
       // 第三方模型重新发布
-      const publicKey = await modelRsaPublicKey();
-      const encryptedApiKey = encryptApiKey(
-        publicKey,
-        modelDetail.apiKey || ''
-      );
-
       // 解析配置参数
       let config = [];
       if (modelDetail.config && typeof modelDetail.config === 'string') {
@@ -85,7 +74,7 @@ const republishModel = async (
       const submitParams = {
         id: model.id,
         endpoint: modelDetail.url,
-        apiKey: encryptedApiKey,
+        apiKey: modelDetail.apiKey || '',
         apiKeyMasked: false, // 因为重新发布，不需要掩码
         modelName: modelDetail.name,
         description: modelDetail.desc,
@@ -108,7 +97,7 @@ const republishModel = async (
       error instanceof Error
         ? error.message
         : i18next.t('model.republishFailed');
-    message.error(errorMessage);
+    shouldShowRequestError(error) && message.error(errorMessage);
   }
 };
 
@@ -124,42 +113,6 @@ function collectNames(nodes: CategoryNode[] = []): string[] {
   }
   dfs(nodes);
   return res;
-}
-
-// 检查模型状态
-function checkLocalModelStatus(model: ModelInfo): boolean {
-  return [LocalModelStatus.FAILED, LocalModelStatus.PENDING].includes(
-    model.status
-  );
-}
-
-// 获取发布状态样式和文本
-function getPublishStatusInfo(status: LocalModelStatus): {
-  text: string;
-  className: string;
-} {
-  switch (status) {
-    case LocalModelStatus.RUNNING:
-      return {
-        text: i18next.t('model.publishRunning'),
-        className: 'bg-[#dfffce] text-[#3DC253]',
-      };
-    case LocalModelStatus.PENDING:
-      return {
-        text: i18next.t('model.publishPending'),
-        className: 'bg-[#FFF4E5] text-[#EBA300]',
-      };
-    case LocalModelStatus.FAILED:
-      return {
-        text: i18next.t('model.publishFailed'),
-        className: 'bg-[#FEEDEC] text-[#F74E43]',
-      };
-    default:
-      return {
-        text: '',
-        className: '',
-      };
-  }
 }
 
 // 模型卡片头部组件
@@ -178,40 +131,27 @@ function ModelCardHeader({
 }): JSX.Element {
   const { t } = useTranslation();
   const [enabled, setEnabled] = useState(model.enabled);
+  const [updating, setUpdating] = useState(false);
+  useEffect(() => setEnabled(model.enabled), [model.enabled]);
   return (
-    <div className="flex items-start justify-between mb-3">
+    <div className={styles.identity}>
       <div className={`flex items-center ${styles.modelCardHeader}`}>
-        {model?.llmSource === LLMSource.CUSTOM ? (
-          <span
-            className="w-12 h-12 flex items-center justify-center rounded-lg flex-shrink-0 mr-3"
-            style={{
-              background: model.color
-                ? model.color
-                : `url(${model.icon}) no-repeat center / cover`,
+        <div className={styles.icon}>
+          <img
+            src={getModelAvatar(model)}
+            alt=""
+            className="w-9 h-9 object-contain"
+            onError={event => {
+              if (
+                event.currentTarget.getAttribute('src') !== defaultModelAvatar
+              ) {
+                event.currentTarget.src = defaultModelAvatar;
+              }
             }}
-          >
-            {model.color && (
-              <img src={model.icon} className="w-[28px] h-[28px]" alt="" />
-            )}
-          </span>
-        ) : (
-          <div className="w-[48px] h-[48px] flex justify-center items-center rounded-lg flex-shrink-0 border border-[#E2E8FF] mr-3">
-            <img src={model.icon} alt="" className="w-[48px] h-[48px]" />
-          </div>
-        )}
-        <div>
+          />
+        </div>
+        <div className={styles.identityText}>
           <span className={styles.modelCardTitle}>{model.name}</span>
-          {/* {model.llmSource === LLMSource.CUSTOM &&
-            ((): JSX.Element | null => {
-              const statusInfo = getPublishStatusInfo(model.status);
-              return statusInfo.text ? (
-                <span
-                  className={`${statusInfo.className} rounded-[12px] px-2 py-1 inline-block text-[12px] text-center ml-2`}
-                >
-                  {statusInfo.text}
-                </span>
-              ) : null;
-            })()} */}
           <StatusTag status={model.shelfStatus} />
           <p className="text-sm text-gray-500 flex flex-wrap gap-x-2 gap-2 mt-2">
             <span className={classNames(styles.modelTag, styles.category)}>
@@ -243,21 +183,18 @@ function ModelCardHeader({
       </div>
       {model.llmSource === LLMSource.CUSTOM && (
         <Switch
-          size="default"
+          aria-label={`启用模型 ${model.name}`}
+          loading={updating}
+          size="small"
           checked={enabled}
           disabled={[
             LocalModelStatus.FAILED,
             LocalModelStatus.PENDING,
           ].includes(model.status)}
-          className={`${
-            model.enabled
-              ? '[&_.ant-switch-inner]:bg-[#6356EA]'
-              : '[&_.ant-switch-inner]:bg-gray-400'
-          }
-            ${styles.modelSwitch}`}
           onChange={(checked, e) => {
             e.stopPropagation();
             setEnabled(checked);
+            setUpdating(true);
             enabledModelAPI(model.id, model.llmSource, checked ? 'on' : 'off')
               .then(() => {
                 message.success(
@@ -269,8 +206,9 @@ function ModelCardHeader({
               })
               .catch((error: ResponseBusinessError) => {
                 setEnabled(model.enabled);
-                message.error(error.message);
-              });
+                shouldShowRequestError(error) && message.error(error.message);
+              })
+              .finally(() => setUpdating(false));
           }}
         />
       )}
@@ -282,8 +220,6 @@ function ModelCardHeader({
 function ModelCardFooter({
   bottomTexts,
   model,
-  menuVisible,
-  setMenuVisible,
   setModelId,
   setCreateModal,
   setDeleteModal,
@@ -295,8 +231,6 @@ function ModelCardFooter({
 }: {
   bottomTexts: (string | false | undefined)[];
   model: ModelInfo;
-  menuVisible: boolean;
-  setMenuVisible: (visible: boolean) => void;
   setModelId: (id: number | undefined) => void;
   setCreateModal: (show: boolean) => void;
   setDeleteModal: (show: boolean) => void;
@@ -324,61 +258,31 @@ function ModelCardFooter({
           ))}
           {/* {bottomTexts.join(' \u00A0\u00A0|\u00A0\u00A0 ')} */}
         </span>
-        {model.llmSource === LLMSource.CUSTOM && (
-          <div className="relative">
-            <Button
-              className={styles.modelEllipsis}
-              type="text"
-              size="small"
-              icon={<EllipsisIcon />}
-              onClick={e => {
-                e.stopPropagation();
-                setMenuVisible(!menuVisible);
-              }}
-            />
-            {menuVisible && (
-              <div
-                className="absolute top-full right-0 mt-1 w-24 bg-white border rounded shadow z-10"
-                onMouseLeave={() => setMenuVisible(false)}
-              >
-                <button
-                  className={`block w-full text-left px-3 py-1 text-sm hover:bg-gray-100`}
-                  onClick={e => {
-                    e.stopPropagation();
-                    setModelId(model.id);
-                    setCreateModal(true);
-                    setMenuVisible(false);
-                  }}
-                >
-                  {t('model.editAction')}
-                </button>
-                <button
-                  className={`block w-full text-left px-3 py-1 text-sm hover:bg-gray-100 text-red-600`}
-                  onClick={e => {
-                    e.stopPropagation();
-                    setDeleteModal(true);
-                    setMenuVisible(false);
-                  }}
-                >
-                  {t('model.deleteAction')}
-                </button>
-                {model.status === LocalModelStatus.FAILED && (
-                  <button
-                    className="block w-full text-left px-3 py-1 hover:bg-gray-100 text-sm text-[#6356ea]"
-                    onClick={e => {
-                      e.stopPropagation();
-                      setMenuVisible(false);
-                      republishModel(model, getModels);
-                    }}
-                  >
-                    {t('model.republish')}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
+      {model.llmSource === LLMSource.CUSTOM && (
+        <div className={styles.actions}>
+          <Button
+            type="link"
+            onClick={() => {
+              setModelId(model.id);
+              setCreateModal(true);
+            }}
+          >
+            {t('model.editAction')}
+          </Button>
+          {model.status === LocalModelStatus.FAILED && (
+            <Button
+              type="link"
+              onClick={() => void republishModel(model, getModels)}
+            >
+              {t('model.republish')}
+            </Button>
+          )}
+          <Button type="text" danger onClick={() => setDeleteModal(true)}>
+            {t('model.deleteAction')}
+          </Button>
+        </div>
+      )}
       {createModal && (
         <CreateModal
           setCreateModal={setCreateModal}
@@ -414,7 +318,6 @@ function ModelCard({
 }: ModelCardProps): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [menuVisible, setMenuVisible] = useState(false);
 
   const [createModal, setCreateModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
@@ -481,16 +384,13 @@ function ModelCard({
 
   const handleUse = (): void => {
     navigate(
-      `/management/model/detail/${model.id}?llmSource=${model.llmSource}&modelIcon=${model.icon}`,
+      `/management/model/detail/${model.id}?llmSource=${model.llmSource}`,
       { state: { model, bottomTexts } }
     );
   };
 
   return (
-    <div
-      className={`p-5 duration-200 flex flex-col h-full cursor-pointer h-[188px] ${styles.modelCard}`}
-      onClick={handleUse}
-    >
+    <article className={styles.modelCard}>
       <ModelCardHeader
         model={model}
         modelCategoryTags={modelCategoryTags}
@@ -507,11 +407,12 @@ function ModelCard({
         {model.desc}
       </p>
 
+      <Button type="link" className={styles.detailButton} onClick={handleUse}>
+        查看详情
+      </Button>
       <ModelCardFooter
         bottomTexts={bottomTexts}
         model={model}
-        menuVisible={menuVisible}
-        setMenuVisible={setMenuVisible}
         setModelId={setModelId}
         setCreateModal={setCreateModal}
         setDeleteModal={setDeleteModal}
@@ -521,7 +422,7 @@ function ModelCard({
         categoryTree={categoryTree}
         getModels={getModels}
       />
-    </div>
+    </article>
   );
 }
 

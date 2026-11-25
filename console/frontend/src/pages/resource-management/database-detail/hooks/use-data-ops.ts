@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useCallback } from 'react';
 import { message, Modal } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -124,7 +125,8 @@ export const useDataOps = (): {
             }
             message.success(t('database.deleteSuccess'));
           } catch (error) {
-            message.error(t('database.deleteFailed'));
+            shouldShowRequestError(error) &&
+              message.error(t('database.deleteFailed'));
           }
         },
       });

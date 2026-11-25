@@ -1,6 +1,5 @@
-[server]
+[service]
 port = 5052
-location = "ss"
 
 [database]
 dbType = "mysql"
@@ -11,4 +10,4 @@ maxOpenConns = 10
 maxIdleConns = 5
 
 [log]
-logFile = "./logs/app.log"
+path = "./logs/app.log"

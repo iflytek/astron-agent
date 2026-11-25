@@ -1,3 +1,4 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
 import React, { useMemo, useCallback, memo } from 'react';
 import { Drawer, Form, Button } from 'antd';
 import { cloneDeep } from 'lodash';
@@ -290,10 +291,10 @@ function SingleNodeDebugging({
         </div>
         <div className="flex-1 mt-4">
           <div className="flex items-center gap-3">
-            <img
-              src={String(currentNode?.data?.icon || '')}
+            <WorkflowNodeIcon
+              nodeType={id.split('::')[0] || ''}
+              src={currentNode?.data?.icon}
               className="w-5 h-5"
-              alt=""
             />
             <span className="text-base font-medium">
               {String(currentNode?.data?.label || '')}节点

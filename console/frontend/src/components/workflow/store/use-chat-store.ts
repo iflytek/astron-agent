@@ -12,7 +12,6 @@ import {
   handleEnterKey,
   handleStopConversation,
   deleteAllChat,
-  handleWorkflowDeleteComparisons,
   setChatList,
   setStartNodeParams,
   setInterruptChat,
@@ -43,7 +42,7 @@ const useChatStore = create<ChatStoreType>((set, get) => ({
   setDeleteAllModal: (change): void => setDeleteAllModal(change, get, set),
   handleChatTypeChange: (type: string) => handleChatTypeChange(type, set),
   getDialogues: (id: string, shouldAddDivider = false): void =>
-    getDialogues(id, set, shouldAddDivider),
+    getDialogues(id, set, shouldAddDivider, get),
   clearNodeStatus: (): void => clearNodeStatus(get),
   handleSaveDialogue: (): void => handleSaveDialogue(get, set),
   handleResumeChat: (content): void => handleResumeChat(content, get, set),
@@ -51,10 +50,8 @@ const useChatStore = create<ChatStoreType>((set, get) => ({
     handleRunDebugger({ nodes, edges, get, set, inputs, regen }),
   clearData: (setOpen): void => clearData(setOpen, get),
   handleEnterKey: (e): void => handleEnterKey(e, get, set),
-  handleStopConversation: (): void => handleStopConversation(get),
+  handleStopConversation: (): void => handleStopConversation(get, set),
   deleteAllChat: (): void => deleteAllChat(get),
-  handleWorkflowDeleteComparisons: (): void =>
-    handleWorkflowDeleteComparisons(get),
   canRunDebugger: (): boolean => canRunDebugger(get),
   setWsMessageStatus: (status: string): void => setWsMessageStatus(status, set),
   resetNodesAndEdges: (): ReturnType<ChatStoreType['resetNodesAndEdges']> =>

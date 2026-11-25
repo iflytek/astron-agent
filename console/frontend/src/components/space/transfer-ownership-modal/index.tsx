@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal, Input, Button, Select, message } from 'antd';
 import { UserOutlined } from '@ant-design/icons';
@@ -22,14 +23,12 @@ interface Member {
 interface TransferOwnershipModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: { memberId: string }) => void;
   onSuccess?: () => void;
 }
 
 const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
   open,
   onClose,
-  onSubmit,
   onSuccess,
 }) => {
   const { t } = useTranslation();
@@ -65,7 +64,7 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
       });
       setMemberList(members);
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
     } finally {
       setLoading(false);
     }
@@ -88,7 +87,7 @@ const TransferOwnershipModal: React.FC<TransferOwnershipModalProps> = ({
       onSuccess?.();
       handleClose();
     } catch (err: any) {
-      message.error(err?.msg || err?.desc);
+      shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
     }
   };
 

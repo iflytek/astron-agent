@@ -4,6 +4,7 @@ import json
 import os
 import time
 from typing import Any, Dict, Optional, Tuple
+from uuid import uuid4
 
 import aiohttp
 from aiohttp import ClientTimeout
@@ -34,6 +35,7 @@ from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.middleware.database.utils import session_getter
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.infra import console_runtime
 from workflow.utils.credentials import credential_from_env_or_file
 
 WORKFLOW_INTERNAL_API_KEY_PLACEHOLDER = "CHANGE_ME_WORKFLOW_INTERNAL_API_KEY"
@@ -107,14 +109,25 @@ class FlowNode(BaseNode):
             )
 
             # Execute the nested workflow via SSE API
-            outputs, token_usage = await self.req_flow_api_with_see(
-                sparkflow_url_sse,
-                inputs,
-                variable_pool,
-                span,
-                event_log_node_trace=event_log_node_trace,
-                msg_or_end_node_deps=msg_or_end_node_deps,
+            context = variable_pool.system_params.get(
+                ParamKey.ConsoleContext, default={}
             )
+            if context:
+                outputs, token_usage = await self._console_execute(
+                    inputs,
+                    context,
+                    variable_pool,
+                    msg_or_end_node_deps,
+                )
+            else:
+                outputs, token_usage = await self.req_flow_api_with_see(
+                    sparkflow_url_sse,
+                    inputs,
+                    variable_pool,
+                    span,
+                    event_log_node_trace=event_log_node_trace,
+                    msg_or_end_node_deps=msg_or_end_node_deps,
+                )
 
             # Order outputs according to the defined output identifiers
             order_outputs = {}
@@ -297,6 +310,58 @@ class FlowNode(BaseNode):
             output_mode, result_content, result_reasoning_content
         )
         return outputs, token_usage
+
+    async def _console_execute(
+        self,
+        inputs: dict,
+        context: dict,
+        variable_pool: VariablePool,
+        dependencies: Dict[str, MsgOrEndDepInfo],
+    ) -> Tuple[dict, dict]:
+        context = {**context, "node_id": self.node_id, "source": "flow-node"}
+        schema = await console_runtime.request(
+            "tool-schema",
+            {
+                "context": context,
+                "flowId": self.flowId,
+            },
+        )
+        output_mode = schema.get("outputMode", 0)
+        content = reasoning = ""
+        usage: dict = {}
+        node_outputs = None
+        async for message in console_runtime.tool_stream(
+            {
+                "context": context,
+                "flowId": self.flowId,
+                "parameters": inputs,
+                "invocationId": str(uuid4()),
+            }
+        ):
+            node = (message.get("workflow_step") or {}).get("node") or {}
+            if (
+                str(node.get("id", "")).startswith("node-end::")
+                and node.get("outputs") is not None
+            ):
+                node_outputs = node["outputs"]
+            choice = message["choices"][0]
+            delta = choice.get("delta") or {}
+            content += delta.get("content") or ""
+            reasoning += delta.get("reasoning_content") or ""
+            usage = message.get("usage") or usage
+            if output_mode == 1:
+                await self.put_stream_content(
+                    self.node_id,
+                    variable_pool,
+                    dependencies,
+                    NodeType.FLOW.value,
+                    message,
+                )
+        if output_mode == 0 and isinstance(node_outputs, dict):
+            return node_outputs, usage
+        if output_mode == 1 and len(self.output_identifier) == 1:
+            output_mode = EndNodeOutputModeEnum.OLD_PROMPT_MODE.value
+        return self._handle_outputs(output_mode, content, reasoning), usage
 
     async def _assemble_request(
         self,

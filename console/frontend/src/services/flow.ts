@@ -15,6 +15,12 @@ import type {
   WorkflowModelsResponse,
 } from '@/types/workflow-api';
 import http from '@/utils/http';
+import { normalizeWorkflowResponse } from './workflow-response';
+import { trackWorkflowSave } from './workflow-save-tracker';
+export {
+  waitForWorkflowSaves,
+  hasPendingWorkflowSaves,
+} from './workflow-save-tracker';
 export {
   getWorkflowImportEntryStatus,
   getWorkflowImportDependencyPresentation,
@@ -34,11 +40,23 @@ export {
 export async function listFlows(
   params: WorkflowListParams
 ): Promise<WorkflowPage> {
-  return http.get<WorkflowPage, WorkflowPage>('/workflow/list', { params });
+  const page = await http.get<WorkflowPage, WorkflowPage>('/workflow/list', {
+    params,
+  });
+  return { ...page, pageData: page.pageData.map(normalizeWorkflowResponse) };
 }
 
-export async function getFlowInputsInfo(flowId: string): Promise<unknown> {
-  return http.get('/workflow/get-inputs-info', { params: { flowId } });
+export const favoriteWorkflow = (
+  id: number | string,
+  favorite: boolean
+): Promise<{ favorite: boolean }> =>
+  http.post(`/workflow/${id}/favorite`, { favorite });
+
+export async function getFlowInputsInfo(
+  flowId: string,
+  version?: string
+): Promise<unknown> {
+  return http.get('/workflow/get-inputs-info', { params: { flowId, version } });
 }
 
 export async function createFlowAPI(params: unknown): Promise<unknown> {
@@ -50,7 +68,9 @@ export async function deleteFlowAPI(id: number): Promise<unknown> {
 }
 
 export async function getFlowDetailAPI(id: string): Promise<FlowType> {
-  return http.get<FlowType, FlowType>(`/workflow?id=${id}`);
+  return normalizeWorkflowResponse(
+    await http.get<FlowType, FlowType>(`/workflow?id=${id}`)
+  );
 }
 
 export async function getFlowModelList(
@@ -58,36 +78,47 @@ export async function getFlowModelList(
   nodeType: string | number
 ): Promise<WorkflowModelsResponse> {
   return http.get<WorkflowModelsResponse, WorkflowModelsResponse>(
-    `/llm/auth-list?appId=${appId}&nodeType=${nodeType}&scene=workflow`
+    `/workflow/models?appId=${appId}&nodeType=${nodeType}`
   );
 }
 
 export async function copyFlowAPI(id: string | number): Promise<FlowType> {
-  return http.get<FlowType, FlowType>(`/workflow/clone?id=${id}`);
+  return normalizeWorkflowResponse(
+    await http.get<FlowType, FlowType>(`/workflow/clone?id=${id}`)
+  );
 }
 
 export async function saveFlowAPI(params: unknown): Promise<FlowType> {
-  return http.put<FlowType, FlowType>('/workflow', params);
+  const id =
+    params && typeof params === 'object' && 'id' in params
+      ? params.id
+      : undefined;
+  return trackWorkflowSave(
+    id,
+    http
+      .put<FlowType, FlowType>('/workflow', params)
+      .then(normalizeWorkflowResponse)
+  );
 }
 
 export async function buildFlowAPI(params: unknown): Promise<unknown> {
   return http.post('/workflow/build', params);
 }
 
-export async function addComparisons(params: unknown): Promise<unknown> {
-  return http.post('/workflow/add-comparisons', params);
-}
-
-export async function saveDialogueAPI(params: unknown): Promise<unknown> {
-  return http.post('/workflow/dialog', params);
+export async function stopWorkflowRun(
+  runId: string
+): Promise<{ runId: string; status: string }> {
+  return http.post(`/workflow/runs/${encodeURIComponent(runId)}/stop`);
 }
 
 export async function getDialogueAPI(
   id: string | number,
-  type: number
+  type: number,
+  version?: string
 ): Promise<WorkflowDialogue[]> {
   return http.get<WorkflowDialogue[], WorkflowDialogue[]>(
-    `/workflow/dialog/list?workflowId=${id}&type=${type}`
+    '/workflow/dialog/list',
+    { params: { workflowId: id, type, version } }
   );
 }
 
@@ -117,12 +148,6 @@ export async function debugWorkflowNode(
       signal,
     }
   );
-}
-
-export async function canPublishSetNotAPI(
-  id: string | number
-): Promise<unknown> {
-  return http.get(`/workflow/can-publish-set-not?id=${id}`);
 }
 
 export async function codeRun(params: CodeRunParams): Promise<CodeRunResponse> {
@@ -171,7 +196,7 @@ export async function workflowDialogClear(
   id: string | number,
   type: number
 ): Promise<unknown> {
-  return http.get(`/workflow/dialog/clear?workflowId=${id}&type=${type}`);
+  return http.post('/workflow/dialog/clear', { workflowId: id, type });
 }
 
 export async function workflowReleaseStatusList(
@@ -219,12 +244,6 @@ export async function getReleaseChannelStatus(
   );
 }
 
-export async function getAgentStrategyAPI(): Promise<AgentStrategy[]> {
-  return http.get<AgentStrategy[], AgentStrategy[]>(
-    '/workflow/get-agent-strategy'
-  );
-}
-
 export async function getKnowledgeProStrategyAPI(): Promise<AgentStrategy[]> {
   return http.get<AgentStrategy[], AgentStrategy[]>(
     '/workflow/get-knowledge-pro-strategy'
@@ -252,11 +271,6 @@ export async function getBotInfo(params: unknown): Promise<unknown> {
   return http.post('/bot/bot-detail', params);
 }
 
-//同步flow数据到开放平台
-export async function getInputsType(params: unknown): Promise<unknown> {
-  return http.post('/workflow/bot/get-inputs-type', params);
-}
-
 //工作流导入
 export async function workflowImport(params: unknown): Promise<unknown> {
   return http.post('/workflow/import', params, {
@@ -264,13 +278,6 @@ export async function workflowImport(params: unknown): Promise<unknown> {
       'Content-Type': 'multipart/form-data',
     },
   });
-}
-
-//工作流临时版本删除
-export async function workflowDeleteComparisons(
-  params: unknown
-): Promise<unknown> {
-  return http.post('/workflow/delete-comparisons', params);
 }
 
 // 获取测评任务状态
@@ -282,7 +289,9 @@ export async function getEvaluateStatus(params: unknown): Promise<unknown> {
 export async function getLatestWorkflow(params: {
   flowId: string;
 }): Promise<FlowType> {
-  return http.get<FlowType, FlowType>('/workflow/get-max-version', { params });
+  return normalizeWorkflowResponse(
+    await http.get<FlowType, FlowType>('/workflow/get-max-version', { params })
+  );
 }
 
 //workflow上传流式图片接口

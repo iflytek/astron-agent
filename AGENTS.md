@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Astron Agent is an enterprise-grade Agentic Workflow development platform. It includes the console frontend and backend, multiple core microservices, a plugin system, and deployment and infrastructure configuration. The repository uses a multi-language, multi-module structure. The primary languages are TypeScript, Java, Python, and Go.
+Astron Agent is an enterprise-grade Agentic Workflow development platform. It includes the console frontend and backend, multiple core microservices, a plugin system, and deployment and infrastructure configuration. The repository uses a multi-language, multi-module structure. The primary languages are TypeScript and Python.
 
 ## Repository Structure
 
@@ -12,30 +12,28 @@ Astron Agent is an enterprise-grade Agentic Workflow development platform. It in
   - React 18 + TypeScript + Vite frontend application
   - Responsible for the console UI, agent creation, chat interface, workflow visualization, model management, plugin marketplace, and related features
 - `console/backend`
-  - Java Spring Boot backend
+  - Python Django 5.2 ASGI backend
   - Responsible for console REST APIs, SSE, authentication, management capabilities, and business aggregation
-  - Main submodules:
-    - `hub`
-    - `toolkit`
-    - `commons`
+  - Domain modules under `astron_console`: accounts, spaces, resources, knowledge, agents, workflows, publishing
+  - Django owns management, authorization, immutable releases, and execution records; core services own Agent and workflow execution
 
 ### Core Microservices
 
 - `core/agent`
   - Python FastAPI service
-  - Responsible for the agent execution engine, Chat/CoT/CoT Process Agent, plugin invocation, and session context handling
+  - Responsible for unified Deep Agents execution for standalone Agents and workflow Agent nodes, tool invocation, and execution context
 - `core/workflow`
   - Python FastAPI service
-  - Responsible for workflow orchestration, execution, debugging, versioning, and event handling
+  - Responsible for workflow orchestration, execution, debugging, and execution events; Console owns release versions
 - `core/knowledge`
   - Python FastAPI service
   - Responsible for the knowledge base, document processing, vectorization, retrieval, and RAG integration
 - `core/memory`
   - Python module
-  - Responsible for conversation history, short-term and long-term memory, and session persistence
+  - Provides database, table, and SQL operations under `core/memory/database`; Console owns conversation history and optional Mem0 integration
 - `core/tenant`
-  - Go service
-  - Responsible for multi-tenancy, space isolation, organization management, and resource quota management
+  - Python FastAPI service
+  - Responsible for application and API key management and verification; Console owns space membership and resource authorization
 - `core/plugin`
   - Plugin capability directory
   - Includes plugin services such as `aitools`, `rpa`, and `link`
@@ -56,13 +54,14 @@ Astron Agent is an enterprise-grade Agentic Workflow development platform. It in
 ## Typical Communication Flows
 
 - Frontend -> Console Backend: HTTP/REST, SSE
-- Console Backend -> Core Services: HTTP/REST
-- Core Services -> Core Services: Kafka event-driven communication
+- Console Backend -> Core Services: HTTP/REST, SSE
+- Workflow -> Agent / Knowledge / Plugins / Database: HTTP, SSE
+- Agent -> Console: internal configuration and resource APIs
 
 ## Important Notes
 
 - Before making any changes, clearly identify the target module along with its complete call chain and upstream/downstream dependencies. For cross‑service changes, explicitly document the invocation path and dependency direction. Direct modifications to shared layers are strictly prohibited without a thorough impact assessment.
-- If Kafka, Redis, MinIO, or authentication is involved, evaluate the impact on other services first.
+- If Redis, MinIO, or authentication is involved, evaluate the impact on other services first.
 - **Always prioritize official frameworks, SDKs, and APIs.** When an official framework, SDK, or API exists for a task, you MUST use it instead of hand-rolling a custom implementation, reimplementing existing capabilities, or calling lower-level interfaces directly. Only fall back to a custom approach when no official option covers the need, and state explicitly why the official option was insufficient.
 - If it is a complete feature request or a complex bug, add logs at key points as much as reasonably possible to help with troubleshooting, but do not add excessive logging.
 

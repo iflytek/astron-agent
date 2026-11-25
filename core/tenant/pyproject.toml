@@ -1,0 +1,18 @@
+[project]
+name = "astron-tenant"
+version = "0.1.0"
+description = "Astron application and API credential service"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.116,<1",
+    "pydantic>=2.11,<3",
+    "pymysql[rsa]>=1.1,<2",
+    "sqlalchemy>=2.0,<2.1",
+    "uvicorn>=0.35,<1",
+]
+
+[dependency-groups]
+dev = ["httpx>=0.28,<1", "pytest>=8,<10", "pytest-cov>=6,<8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

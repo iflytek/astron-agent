@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useCallback } from 'react';
 import { message, Modal } from 'antd';
 import { useTranslation } from 'react-i18next';
@@ -51,7 +52,7 @@ export const useTableOps = (): {
               message.success(t('database.deleteSuccess'));
             })
             .catch(error => {
-              message.error(error.message);
+              shouldShowRequestError(error) && message.error(error.message);
               actions.setTables(state.tables, false);
             });
         },

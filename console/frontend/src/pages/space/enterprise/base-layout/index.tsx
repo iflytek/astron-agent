@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import classNames from 'classnames';
 import { Tooltip } from 'antd';
-import { enterpriseMenuItems, PAGE_TITLES } from '../config';
+import { enterpriseMenuItems } from '../config';
 import styles from './index.module.scss';
 import useEnterpriseStore from '@/store/enterprise-store';
 
@@ -11,7 +11,7 @@ export default function EnterpriseSpaceLayout() {
   const location = useLocation();
   const [activeKey, setActiveKey] = useState('');
   const {
-    info: { avatarUrl, name, officerName, roleTypeText, serviceType },
+    info: { avatarUrl, name, roleTypeText },
   } = useEnterpriseStore();
   const [avatar, setAvatar] = useState(avatarUrl);
 
@@ -28,7 +28,6 @@ export default function EnterpriseSpaceLayout() {
 
   useEffect(() => {
     setAvatar(avatarUrl);
-    console.log(avatarUrl, '=========== avatarUrl ============');
   }, [avatarUrl]);
 
   // 处理菜单点击
@@ -57,7 +56,9 @@ export default function EnterpriseSpaceLayout() {
         {/* 菜单列表 */}
         <div className={styles.menuList}>
           {enterpriseMenuItems.map(item => (
-            <div
+            <button
+              type="button"
+              aria-current={activeKey === item.key ? 'page' : undefined}
               key={item.key}
               className={classNames(
                 styles.menuItem,
@@ -67,7 +68,7 @@ export default function EnterpriseSpaceLayout() {
             >
               <item.icon className={styles.icon} />
               <span className={styles.text}>{item.title}</span>
-            </div>
+            </button>
           ))}
         </div>
       </div>

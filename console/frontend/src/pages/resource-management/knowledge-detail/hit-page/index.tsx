@@ -26,7 +26,7 @@ const HitPage: FC<{ repoId: string }> = ({ repoId }) => {
   return (
     <div
       className="w-full h-full flex flex-col flex-1 p-6 pb-2 bg-[#fff] border border-[#E2E8FF] overflow-hidden"
-      style={{ borderRadius: 24 }}
+      style={{ borderRadius: 14 }}
     >
       {detailModal && (
         <DetailModal
@@ -34,8 +34,8 @@ const HitPage: FC<{ repoId: string }> = ({ repoId }) => {
           setDetailModal={setDetailModal}
         />
       )}
-      <div className="w-full flex pb-5 border-b border-[#E2E8FF] ">
-        <h2 className="text-2xl font-semibold text-second">
+      <div className="w-full flex flex-wrap gap-3 pb-5 border-b border-[#E2E8FF] ">
+        <h2 className="text-xl font-semibold text-second">
           {t('knowledge.hitTest')}
         </h2>
         <p className="ml-2 desc-color font-medium mt-2">

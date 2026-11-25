@@ -44,7 +44,7 @@ export const EditChunk: FC<{
   const [isEdit, setIsEdit] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [loading, setLoading] = useState(false);
-  const [checked, setChecked] = useState(false);
+  const checked = Boolean(currentChunk.enabled);
   const [moreTags, setMoreTags] = useState(false);
   const [images] = useState<string[]>([]);
 
@@ -59,7 +59,6 @@ export const EditChunk: FC<{
     const remainTags = currentChunk.tagDtoList.filter(item => item.type !== 4);
     setTagValue(currentTags.join('，'));
     setOtherTags(remainTags);
-    setChecked(currentChunk.enabled ? true : false);
   }, []);
 
   useEffect(() => {
@@ -155,7 +154,6 @@ export const EditChunk: FC<{
               size="small"
               checked={checked}
               onChange={checked => {
-                setChecked(checked);
                 enableChunk(currentChunk, checked);
               }}
               className="list-switch ml-4"

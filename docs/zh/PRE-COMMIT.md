@@ -28,10 +28,8 @@ Pre-commit 是一个用于管理和维护多语言 pre-commit 钩子的框架。
 
 确保已安装以下工具：
 
-- Python 3.9+
-- Node.js 18+（用于 TypeScript/JavaScript 检查）
-- Go 1.21+（用于 Go 检查）
-- Java 21+ 和 Maven 3.8+（用于 Java 检查）
+- Python 3.11+
+- Node.js 20+（用于 TypeScript/JavaScript 检查）
 
 ### 安装 pre-commit
 
@@ -125,21 +123,11 @@ pre-commit autoupdate
 | `prettier-check` | 检查代码格式 | console/frontend/src |
 | `eslint-check` | 代码问题检查 | console/frontend/src |
 
-### Go 检查
+Tenant Python 文件由 `tenant-python-check` 钩子检查。
 
-| 钩子 | 描述 | 范围 |
-|------|------|------|
-| `golangci-lint` | 综合代码检查 | core/tenant |
-| `go-fmt-check` | 检查 gofmt 格式 | core/tenant |
-| `go-imports-check` | 检查 goimports 格式 | core/tenant |
-| `go-vet` | 检查可疑代码 | core/tenant |
+### Python Console
 
-### Java 检查
-
-| 钩子 | 描述 | 范围 |
-|------|------|------|
-| `spotless-check` | 检查 Google Java 格式 | console/backend |
-| `checkstyle` | 检查代码风格 | console/backend |
+`console-ruff-check` 使用锁定版本的 Ruff 检查 `console/backend` 代码与格式。Django 测试和迁移检查见 [后端命令](../../console/backend/README.md)。
 
 ### 安全扫描
 
@@ -182,28 +170,6 @@ npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,md}"
 
 # 修复 linting 问题（仅可自动修复的）
 npx eslint "src/**/*.{ts,tsx}" --fix
-```
-
-### Go
-
-```bash
-cd core/tenant
-
-# 修复格式
-gofmt -w .
-goimports -w .
-
-# 或使用 gofumpt 进行更严格的格式化
-gofumpt -w .
-```
-
-### Java
-
-```bash
-cd console/backend
-
-# 使用 Spotless 修复格式
-mvn spotless:apply
 ```
 
 ## 配置
@@ -269,17 +235,11 @@ python3 -m flake8 --version
 npx prettier --version
 npx eslint --version
 
-# 检查 Go 工具
-golangci-lint --version
-gofmt -help
-
-# 检查 Java 工具
-mvn --version
 ```
 
 #### 2. 钩子运行时间过长
 
-某些钩子（如 Java 检查）可能较慢。它们仅在相关文件发生变化时运行。
+钩子仅在匹配文件发生变化时运行；可单独运行某个钩子以定位耗时检查。
 
 #### 3. gitleaks 误报
 

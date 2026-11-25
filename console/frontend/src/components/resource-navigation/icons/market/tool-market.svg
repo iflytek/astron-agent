@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>工具市场</title>
+  <g fill="none" stroke="#246583" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3.85" y="8.7" width="16.3" height="11" rx="2.15" fill="#ADE0EC"/>
+    <path d="M8.55 8.65V6.8c0-.9.72-1.62 1.62-1.62h3.66c.9 0 1.62.72 1.62 1.62v1.85m-11.4 4.5h15.9"/>
+    <rect x="10.3" y="12.15" width="3.4" height="2.15" rx=".6" fill="#FFF" stroke="none"/>
+  </g>
+</svg>

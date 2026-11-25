@@ -21,18 +21,7 @@ import { ModuleType, OperationType } from '@/types/permission';
 import { useSpaceType } from '@/hooks/use-space-type';
 import { roleToRoleType } from '@/pages/space/config';
 import { useTranslation } from 'react-i18next';
-
-interface SpaceInfo {
-  id: string;
-  name: string;
-  description: string;
-  avatarUrl?: string;
-  role: 'owner' | 'admin' | 'member';
-  memberCount: number;
-  totalMembers: number;
-  ownerName: string;
-  userRole: number;
-}
+import type { SpaceInfo } from '../../use-space-info';
 
 interface DetailHeaderProps {
   spaceInfo: SpaceInfo;
@@ -65,11 +54,6 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
       type: 'text',
       size: 'small',
       tooltip: t('space.editSpaceInfo'),
-      permission: {
-        module: ModuleType.SPACE,
-        operation: OperationType.SPACE_SETTINGS,
-        // failureBehavior: PermissionFailureBehavior.DISABLE,
-      },
       onClick: () => onEditSpace(),
     },
   ];
@@ -106,7 +90,13 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
   return (
     <div className={styles.detailHeader}>
       <div className={styles.back}>
-        <img src={BackIcon} alt="back" onClick={() => goToSpaceManagement()} />
+        <button
+          type="button"
+          aria-label="返回空间管理"
+          onClick={() => goToSpaceManagement()}
+        >
+          <img src={BackIcon} alt="" />
+        </button>
       </div>
       <div className={styles.spaceInfo}>
         <div className={styles.avatarContainer}>
@@ -123,11 +113,13 @@ const DetailHeader: React.FC<DetailHeaderProps> = ({
             <Tooltip title={spaceInfo.name} placement="bottomLeft">
               <h1 className={styles.title}>{spaceInfo.name}</h1>
             </Tooltip>
-            <SpaceButton
-              config={titleButtons[0] || { key: '', text: '' }}
-              className={styles.editBtn}
-              style={{ color: '#999' }}
-            />
+            {spaceInfo.canEdit && (
+              <SpaceButton
+                config={titleButtons[0] || { key: '', text: '' }}
+                className={styles.editBtn}
+                style={{ color: '#999' }}
+              />
+            )}
             <span className={styles.roleTag}>
               {getRoleText(roleToRoleType(spaceInfo.userRole))}
             </span>

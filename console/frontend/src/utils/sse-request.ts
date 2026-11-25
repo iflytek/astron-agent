@@ -1,8 +1,8 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { ensureCsrfToken } from './session.js';
 
 export interface SseHeaderContext {
   languageCode: string;
-  accessToken: string | null;
   spaceId: string;
   spaceType: string;
   enterpriseId: string;
@@ -16,27 +16,28 @@ type SseRequestOptions = FetchEventSourceOptions & {
 
 const buildSseHeaders = ({
   languageCode,
-  accessToken,
   spaceId,
   spaceType,
   enterpriseId,
 }: SseHeaderContext): Record<string, string> => ({
   'Accept-Language': languageCode,
-  authorization: `Bearer ${accessToken}`,
   ...(spaceId ? { 'space-id': spaceId } : {}),
   ...(spaceType === 'team' && enterpriseId
     ? { 'enterprise-id': enterpriseId }
     : {}),
 });
 
-export const fetchSseWithContext = (
+export const fetchSseWithContext = async (
   input: FetchEventSourceInput,
   { getContext, ...options }: SseRequestOptions
-): Promise<void> =>
-  fetchEventSource(input, {
+): Promise<void> => {
+  const csrfToken = await ensureCsrfToken();
+  return fetchEventSource(input, {
     ...options,
     headers: {
       ...options.headers,
       ...buildSseHeaders(getContext()),
+      'X-CSRFToken': csrfToken,
     },
   });
+};

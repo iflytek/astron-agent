@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, {
   useCallback,
   useMemo,
@@ -82,7 +83,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
             '------------- getEnterpriseInviteList -------------'
           );
 
-          message.error(err?.msg || err?.desc);
+          shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
 
           return {
             data: [],
@@ -138,18 +139,6 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
       [getStatusTag, t]
     );
 
-    // 处理重发邀请
-    const handleResend = useCallback(
-      (record: InvitationData) => {
-        message.success(
-          t('common.invitationResentToUser', {
-            username: record.inviteeNickname,
-          })
-        );
-      },
-      [t]
-    );
-
     // 处理取消邀请
     const handleCancel = useCallback(
       async (record: InvitationData) => {
@@ -158,22 +147,10 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
 
           message.success(t('space.revokeSuccess'));
         } catch (err: any) {
-          message.error(err?.msg || err?.desc);
+          shouldShowRequestError(err) && message.error(err?.msg || err?.desc);
         } finally {
           tableRef.current?.reload();
         }
-      },
-      [t]
-    );
-
-    // 处理删除邀请记录
-    const handleDelete = useCallback(
-      (record: InvitationData) => {
-        message.success(
-          t('common.invitationRecordDeleted', {
-            username: record.inviteeNickname,
-          })
-        );
       },
       [t]
     );
@@ -210,7 +187,7 @@ const InvitationList = forwardRef<InvitationListRef, InvitationListProps>(
           return buttons;
         },
       }),
-      [handleResend, handleCancel, handleDelete, t]
+      [handleCancel, t]
     );
 
     return (

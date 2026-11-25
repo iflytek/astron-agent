@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>发布栏 · 应用管理</title>
+  <g fill="none" stroke="#355A9E" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="4.5" y="6.05" width="15" height="13.9" rx="2.05" fill="#C5D8FD" fill-opacity=".42"/>
+    <path d="M9.1 6.05v-.7a1.35 1.35 0 0 1 1.35-1.35h3.1a1.35 1.35 0 0 1 1.35 1.35v.7m-7.03 7.12 1.35 1.4 2.4-2.5m2.55 1.13h2.3"/>
+  </g>
+</svg>

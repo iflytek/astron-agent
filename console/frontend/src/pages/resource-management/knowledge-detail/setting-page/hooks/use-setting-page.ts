@@ -21,6 +21,7 @@ export const useSettingPage = ({
   tagValue: string;
   desc: string;
   loading: boolean;
+  error: string;
   botIcon: { name?: string; value?: string };
   botColor: string;
   showModal: boolean;
@@ -50,6 +51,7 @@ export const useSettingPage = ({
   const [tagValue, setTagValue] = useState('');
   const [desc, setDesc] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [botIcon, setBotIcon] = useState<{ name?: string; value?: string }>({});
   const [botColor, setBotColor] = useState<string>('');
   const [showModal, setShowModal] = useState(false);
@@ -89,6 +91,8 @@ export const useSettingPage = ({
   }, [tagValue]);
 
   function handleSave(): void {
+    if (loading) return;
+    setError('');
     setLoading(true);
     const params: {
       id: string;
@@ -116,6 +120,11 @@ export const useSettingPage = ({
         initData();
         getKnowledges();
       })
+      .catch(failure =>
+        setError(
+          failure instanceof Error ? failure.message : '保存失败，请重试。'
+        )
+      )
       .finally(() => setLoading(false));
   }
   return {
@@ -128,6 +137,7 @@ export const useSettingPage = ({
     tagValue,
     desc,
     loading,
+    error,
     botIcon,
     botColor,
     showModal,

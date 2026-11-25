@@ -22,6 +22,10 @@ class CodeEnums(BaseCodeEnum, Enum):
     ServiceInernalError = (45000, "服务通用错误")
     ServiceParamsError = (45001, "服务参数错误")
     ServiceResponseError = (45002, "服务响应错误")
+    ImageGenerateLicenseError = (
+        45003,
+        "当前讯飞应用的文生图授权不足，请在讯飞开放平台检查该应用的文生图服务授权",
+    )
 
     ServiceLocalError = (45010, "本地服务错误")
 

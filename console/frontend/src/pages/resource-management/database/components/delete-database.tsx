@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React, { useState } from 'react';
 import { Button, message } from 'antd';
 import { deleteDb } from '@/services/database';
@@ -25,7 +26,7 @@ export default function DeleteModal({
         getDataBase();
       })
       .catch(error => {
-        message.error(error.message);
+        shouldShowRequestError(error) && message.error(error.message);
       })
       .finally(() => {
         setLoading(false);

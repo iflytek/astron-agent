@@ -1,3 +1,5 @@
+import { WorkflowNodeIcon } from '@/components/workflow/nodes/node-icon';
+import { workflowModelAvatar } from '../model-avatar';
 import type { ChangeNodeParameter } from '@/components/workflow/nodes/types';
 import type {
   WorkflowInput,
@@ -407,7 +409,11 @@ export const Model = memo(({ model }: NodePropsFor<'model'>) => {
         {t('workflow.nodes.largeModelNode.model')}
       </div>
       <div className="flex items-center gap-1">
-        <img src={model?.icon} className="w-[14px] h-[14px]" alt="" />
+        <img
+          src={workflowModelAvatar(model)}
+          className="w-[14px] h-[14px]"
+          alt=""
+        />
         <span>{model?.name}</span>
       </div>
     </>
@@ -461,7 +467,11 @@ export const NodeHeader = memo<NodeHeaderProps>(
     return (
       <div className="w-full flex items-center justify-between px-[14px] relative pt-[14px]">
         <div className="flex items-center gap-3">
-          <img src={nodeIcon} className="w-[18px] h-[18px]" alt="" />
+          <WorkflowNodeIcon
+            nodeType={id.split('::')[0] || ''}
+            src={nodeIcon}
+            className="w-[18px] h-[18px]"
+          />
           <Label id={id} data={data} />
           {renderTypeOneClickUpdate()}
         </div>
@@ -601,6 +611,13 @@ type DebugInputActions = Pick<
   UseSingleNodeDebuggingReturn,
   'uploadComplete' | 'handleFileUpload' | 'handleDeleteFile'
 > & {
+  uploadFile?: (
+    file: File,
+    field: string,
+    index: number,
+    fileId: string
+  ) => Promise<void>;
+  disabled?: boolean;
   handleChangeParam: <Value>(
     index: number,
     update: (data: { default?: unknown }, value: Value) => void,
@@ -677,11 +694,18 @@ const getMaxSize = (fileType: string | undefined): number => {
 const renderFileUpload = (
   params: DebugInputParameter,
   index: number,
-  uploadComplete: DebugInputActions['uploadComplete'],
-  handleFileUpload: DebugInputActions['handleFileUpload'],
-  handleDeleteFile: DebugInputActions['handleDeleteFile']
+  {
+    uploadComplete,
+    handleFileUpload,
+    handleDeleteFile,
+    uploadFile,
+    disabled,
+  }: DebugInputActions
 ): React.ReactElement => {
-  const multiple = params?.schema?.type === 'array-string';
+  const multiple = ['array-string', 'array'].includes(
+    params.schema?.type || params.type || ''
+  );
+  const configuredMaxSize = getMaxSize(params.fileType);
   return (
     <>
       <FlowUpload
@@ -692,7 +716,13 @@ const renderFileUpload = (
             uploadComplete(event, index, fileId),
           handleFileUpload: (file, fileId) =>
             handleFileUpload(file, index, multiple, fileId),
-          maxSize: getMaxSize(params?.fileType),
+          uploadFile: uploadFile
+            ? (file, fileId) => uploadFile(file, params.name, index, fileId)
+            : undefined,
+          disabled,
+          maxSize: uploadFile
+            ? Math.min(configuredMaxSize, 19)
+            : configuredMaxSize,
         }}
       />
       {(Array.isArray(params.default)
@@ -824,21 +854,9 @@ export const renderParamInput = (
   index: number,
   fnc: DebugInputActions
 ): React.ReactElement | null => {
-  const {
-    handleChangeParam,
-    uploadComplete,
-    handleFileUpload,
-    handleDeleteFile,
-  } = fnc;
+  const { handleChangeParam } = fnc;
   const type = params?.schema?.type || params?.type;
-  if (params?.fileType)
-    return renderFileUpload(
-      params,
-      index,
-      uploadComplete,
-      handleFileUpload,
-      handleDeleteFile
-    );
+  if (params?.fileType) return renderFileUpload(params, index, fnc);
 
   switch (type) {
     case 'string':

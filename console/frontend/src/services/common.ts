@@ -1,6 +1,7 @@
+import type { FlowType } from '@/components/workflow/types';
+import { normalizeWorkflowResponse } from './workflow-response';
 import type {
   VersionItem,
-  PublicResultItem,
   FeedbackItem,
 } from '@/components/workflow/types/drawer/chat-debugger';
 import type { ConfigResponse } from '@/types/resource';
@@ -58,24 +59,15 @@ export async function getVersionList(params: {
 export async function restoreVersion(params: {
   flowId: string;
   id: string;
-}): Promise<unknown> {
-  return await http.post('/workflow/version/restore', params);
+}): Promise<FlowType> {
+  return normalizeWorkflowResponse(
+    await http.post<FlowType, FlowType>('/workflow/version/restore', params)
+  );
 }
 // 删除版本
 export async function delVersion(id: string): Promise<unknown> {
   return await http.delete(`/workflow/version?id=${id}`);
 }
-//发布结果
-export async function getPublicResult(params: {
-  flowId: string;
-  name: string;
-}): Promise<PublicResultItem[]> {
-  return await http.get<PublicResultItem[], PublicResultItem[]>(
-    '/workflow/version/publish-result',
-    { params }
-  );
-}
-
 export async function nextQuestionAdvice(data: {
   question: string;
 }): Promise<string[]> {

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>模型栏 · 模型管理</title>
+  <g fill="none" stroke="#65479B" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="6.05" y="6.05" width="11.9" height="11.9" rx="2.1" fill="#E0CEF9" fill-opacity=".58"/>
+    <path d="M9 3.65v2.4m6-2.4v2.4m-6 11.9v2.4m6-2.4v2.4m-11.35-11.35h2.4m-2.4 6h2.4m11.9-6h2.4m-2.4 6h2.4"/>
+    <path d="m12 9.1 2.9 2.9-2.9 2.9L9.1 12Z" fill="#7C60AD" stroke="none"/>
+  </g>
+</svg>

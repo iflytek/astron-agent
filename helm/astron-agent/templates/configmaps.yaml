@@ -1,17 +1,3 @@
-{{- if .Values.casdoor.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "astron-agent.fullname" . }}-casdoor-conf
-  labels:
-    {{- include "astron-agent.labels" . | nindent 4 }}
-data:
-  app.conf: {{ .Files.Get "files/casdoor/conf/app.conf" | quote }}
-  init_data.json: {{ .Files.Get "files/casdoor/conf/init_data.json" | quote }}
-  init_data.json.template: {{ .Files.Get "files/casdoor/conf/init_data.json.template" | quote }}
-  entrypoint.sh: {{ .Files.Get "files/casdoor/entrypoint.sh" | quote }}
----
-{{- end }}
 {{- if .Values.postgresql.enabled }}
 apiVersion: v1
 kind: ConfigMap
@@ -36,17 +22,6 @@ data:
   {{- range $path, $_ := .Files.Glob "files/mysql/*.sql" }}
   {{ base $path }}: {{ $.Files.Get $path | quote }}
   {{- end }}
----
-{{- end }}
-{{- if .Values.coreTenant.enabled }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "astron-agent.fullname" . }}-core-tenant-config
-  labels:
-    {{- include "astron-agent.labels" . | nindent 4 }}
-data:
-  config.toml: {{ .Files.Get "files/config/tenant/config.toml" | quote }}
 ---
 {{- end }}
 {{- if .Values.coreDatabase.enabled }}

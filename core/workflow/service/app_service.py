@@ -129,6 +129,11 @@ async def get_app_source_detail(app_id: str, span: Span) -> tuple[str, str, str,
         raise CustomException(
             CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR, cause_error="data is null"
         )
+    if data[0].get("is_disable"):
+        raise CustomException(
+            CodeEnum.APP_GET_WITH_REMOTE_FAILED_ERROR,
+            cause_error="application is disabled",
+        )
 
     # The response contains API credentials; record only non-sensitive outcome data.
     await span.add_info_event_async("Application detail lookup completed")
@@ -138,8 +143,9 @@ async def get_app_source_detail(app_id: str, span: Span) -> tuple[str, str, str,
     desc = data[0].get("desc")
 
     # Extract API credentials from auth_list
-    api_key = data[0].get("auth_list", [{}])[0].get("api_key")
-    api_secret = data[0].get("auth_list", [{}])[0].get("api_secret")
+    auth_list = data[0].get("auth_list") or [{}]
+    api_key = auth_list[0].get("api_key")
+    api_secret = auth_list[0].get("api_secret")
 
     # Validate that API credentials are present
     if not api_key or not api_secret:

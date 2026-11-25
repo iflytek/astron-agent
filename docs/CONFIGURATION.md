@@ -7,18 +7,14 @@ see [Cryptographic mechanisms and deployment limits](CRYPTOGRAPHY.md).
 
 ## Quick Start
 
-### Required Manual Configuration Fields
+### Default startup requires no environment edits
 
-Before deploying with Docker Compose, the following environment variables **must be manually configured**. For detailed configuration steps and instructions, please refer to the [Deployment Guide](https://github.com/iflytek/astron-agent/blob/main/docs/DEPLOYMENT_GUIDE.md).
+In `docker/astronAgent`, run `docker compose up -d --build` without copying or editing `.env`. Open `http://localhost/` or `http://<server-ip>/` on port 80. The defaults include internal accounts and bundled infrastructure; model providers and optional external capabilities are configured after startup.
 
-**Key Configuration Items Overview**:
+**Optional overrides and persistent credentials**:
 
-- **Casdoor Authentication Configuration** (requires Casdoor service deployment):
-  - `CONSOLE_CASDOOR_URL`, `CONSOLE_CASDOOR_ID`
-  - `CONSOLE_CASDOOR_APP`, `CONSOLE_CASDOOR_ORG`
-
-- **Host Address Configuration**:
-  - `HOST_BASE_ADDRESS` - Set to your server address or domain name
+- **Python Console accounts**: see [configuration and migration](../console/backend/README.md). The signing key is generated once and reused from the `console_signing_secrets` volume. Preserve that volume on upgrades.
+- **Custom domains and HTTPS**: configure only when needed; see the Console settings below. Server IP access and an optional `EXPOSE_NGINX_PORT` change require no fixed public origin.
 
 - **Deployment-internal authentication (no manual configuration)**:
   - Docker Compose generates and persists `WORKFLOW_INTERNAL_API_KEY`,
@@ -55,12 +51,11 @@ Configuration items in this document are marked as follows:
 ## 1. Middleware Configuration Module
 
 > **Independent Deployment Note**:
-> - If using Docker Compose one-click deployment, the following configurations can use container names (such as `postgres`, `mysql`, `redis`, `kafka`, `minio`) as host addresses
+> - If using Docker Compose one-click deployment, the following configurations can use container names (such as `postgres`, `mysql`, `redis`, `minio`) as host addresses
 > - If middleware services are **deployed separately** (not in the same Docker network), you need to replace the container names in the following configurations with actual IP addresses or domain names, and synchronize the corresponding connection information (such as username, password, port, etc.):
 >   - PostgreSQL related: `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT`, etc.
 >   - MySQL related: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_URL`, etc.
 >   - Redis related: `REDIS_ADDR`, `REDIS_HOST`, `REDIS_PASSWORD`, `REDIS_PORT`, etc.
->   - Kafka related: `KAFKA_SERVERS` and authentication information (if needed)
 >   - MinIO related: `OSS_ENDPOINT`, `OSS_DOWNLOAD_HOST`, `OSS_ACCESS_KEY_ID`, `OSS_ACCESS_KEY_SECRET`, etc.
 >
 > **MinIO defaults**:
@@ -79,7 +74,7 @@ Configuration items in this document are marked as follows:
 | MYSQL_PASSWORD | Use Default | string | MySQL database password (defaults from MYSQL_ROOT_PASSWORD) | root123 |
 | MYSQL_HOST | Use Default | string | MySQL database host address | mysql |
 | MYSQL_PORT | Use Default | int | MySQL database port number | 3306 |
-| MYSQL_URL | Use Default | string | MySQL database JDBC connection URL | jdbc:mysql://mysql:3306/astron_console |
+| MYSQL_URL | Use Default | string | Legacy JDBC-form URL accepted by core account-config readers; Console uses MYSQL_HOST/PORT and CONSOLE_MYSQL_DB | jdbc:mysql://mysql:3306/astron_console |
 | REDIS_PASSWORD | Optional | string | Redis password (empty means no password) | (empty) |
 | REDIS_DATABASE | Use Default | int | Redis database index (0-15) | 0 |
 | REDIS_IS_CLUSTER | Use Default | bool | Whether Redis is in cluster mode | false |
@@ -88,13 +83,9 @@ Configuration items in this document are marked as follows:
 | REDIS_ADDR | Use Default | string | Redis connection address (standalone mode) | redis:6379 |
 | REDIS_HOST | Use Default | string | Redis host address | redis |
 | REDIS_PORT | Use Default | int | Redis port number | 6379 |
-| ELASTICSEARCH_SECURITY_ENABLED | Use Default | bool | Whether Elasticsearch has security authentication enabled | false |
-| ES_JAVA_OPTS | Use Default | string | Elasticsearch JVM parameter configuration | -Xms512m -Xmx512m |
-| EXPOSE_KAFKA_PORT | Use Default | int | Kafka externally exposed port number | 9092 |
-| KAFKA_REPLICATION_FACTOR | Use Default | int | Kafka replication factor | 1 |
-| KAFKA_CLUSTER_ID | Use Default | string | Kafka cluster ID | MkU3OEVBNTcwNTJENDM2Qk |
+| KAFKA_ENABLE | Use Default | bool | Enable optional execution log export to external Kafka | 0 |
 | KAFKA_TIMEOUT | Use Default | int | Kafka connection timeout (seconds) | 60 |
-| KAFKA_SERVERS | Use Default | string | Kafka server address list | kafka:29092 |
+| KAFKA_SERVERS | When enabled | string | External Kafka broker addresses reachable from the service containers | — |
 | MINIO_ROOT_USER | Use Default | string | Bundled MinIO administrator username; override when exposing MinIO externally | minioadmin |
 | MINIO_ROOT_PASSWORD | Use Default | string | Bundled MinIO administrator password; override when exposing MinIO externally | minioadmin123 |
 | EXPOSE_MINIO_PORT | Use Default | int | Host loopback-only MinIO API maintenance port (`127.0.0.1` binding is fixed by Compose) | 18998 |
@@ -167,18 +158,15 @@ See the [Langfuse observability guide](/guide/observability) for privacy behavio
 
 ---
 
-## 4. Authentication Configuration Module (Casdoor)
+## 4. Python Console accounts
 
-| Variable Name | Configuration Type | Type | Description | Example Value |
-|---------------|-------------------|------|-------------|---------------|
-| CONSOLE_CASDOOR_URL | User Required | url | Casdoor authentication server address | http://your-casdoor-server:8000 |
-| CONSOLE_CASDOOR_ID | User Required | string | Casdoor OAuth2 client ID | astron-agent-client |
-| CONSOLE_CASDOOR_APP | User Required | string | Casdoor application name | astron-agent-app |
-| CONSOLE_CASDOOR_ORG | User Required | string | Casdoor organization name | built-in |
+See [Python Console configuration](../console/backend/README.md) for the required persistent secret, public origin, allowed hosts, secure cookies, database and Redis settings. Registration uses username/password. Existing users retain their UID and require an operator-issued password reset.
 
 ---
 
 ## 5. Tenant Module Configuration
+
+Tenant runs on Python 3.11 and loads MySQL and startup credentials before serving traffic. See the [Tenant service guide](../core/tenant/README.md) for credential files and local startup.
 
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
@@ -230,12 +218,10 @@ See the [Langfuse observability guide](/guide/observability) for privacy behavio
 | AGENT_MYSQL_DB | Required | string | MySQL database name used by Agent module | agent |
 | UPLOAD_NODE_TRACE | Required | bool | Whether to upload node trace data | true |
 | UPLOAD_METRICS | Required | bool | Whether to upload metrics data | true |
-| AGENT_KAFKA_TOPIC | Required | string | Kafka topic name used by Agent | spark-agent-builder |
+| AGENT_KAFKA_TOPIC | Optional | string | Kafka topic name used by Agent | spark-agent-builder |
 | GET_LINK_URL | Required | url | API address to get tool link | http://core-link:18888/api/v1/tools |
 | VERSIONS_LINK_URL | Required | url | API address to get tool version | http://core-link:18888/api/v1/tools/versions |
 | RUN_LINK_URL | Required | url | API address to run tool | http://core-link:18888/api/v1/tools/http_run |
-| GET_WORKFLOWS_URL | Required | url | API address to get workflow (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/sparkflow/v1/protocol/get |
-| WORKFLOW_SSE_BASE_URL | Required | url | Workflow SSE (Server-Sent Events) base address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1 |
 | CHUNK_QUERY_URL | Required | url | Knowledge base chunk query API address (port defaults from CORE_KNOWLEDGE_PORT) | http://core-knowledge:${CORE_KNOWLEDGE_PORT:-20010}/knowledge/v1/chunk/query |
 | LIST_MCP_PLUGIN_URL | Required | url | API address to list MCP plugins | http://core-link:18888/api/v1/mcp/tool_list |
 | RUN_MCP_PLUGIN_URL | Required | url | API address to run MCP plugin | http://core-link:18888/api/v1/mcp/call_tool |
@@ -271,7 +257,7 @@ See the [Langfuse observability guide](/guide/observability) for privacy behavio
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
 | WORKFLOW_MYSQL_DB | Required | string | MySQL database name used by Workflow module | workflow |
-| WORKFLOW_KAFKA_TOPIC | Required | string | Kafka topic name used by Workflow | spark-agent-builder |
+| WORKFLOW_KAFKA_TOPIC | Optional | string | Kafka topic name used by Workflow | spark-agent-builder |
 | RUNTIME_ENV | Required | string | Runtime environment (dev/test/prod) | dev |
 | CODE_EXEC_TYPE | Use Default | string | Isolated code executor. The built-in LangChain/Pyodide sandbox is enabled by default and needs no external credentials. E2B is optional and takes priority when enabled for a workflow; iFly and iFly-v2 remain optional remote executors. `disabled` explicitly disables code nodes and `local` is rejected. | langchain |
 | CODE_EXEC_TIMEOUT_SEC | Use Default | int | Maximum built-in sandbox execution time in seconds (bounded to 1-600) | 10 |
@@ -295,22 +281,20 @@ no manual configuration change is required. To explicitly disable Code nodes, se
 
 | Variable Name | Configuration Type | Type | Description | Example Value |
 |---------------|-------------------|------|-------------|---------------|
-| HOST_BASE_ADDRESS | User Required | url | Host base address | http://localhost |
-| CONSOLE_DOMAIN | Required | url | Console domain address (defaults from HOST_BASE_ADDRESS and EXPOSE_NGINX_PORT) | ${HOST_BASE_ADDRESS}:${EXPOSE_NGINX_PORT} |
+| CONSOLE_SECRET_KEY | Auto-generated | secret | Generated once in console_signing_secrets; Console reads /app/secrets/console/secret-key. First upgrade imports an existing key; conflicts fail without rotating it. | generated and persisted |
+| CONSOLE_ALLOWED_HOSTS | Optional | string | Empty accepts IP literals, localhost and console-hub; custom domains require an explicit strict allowlist | empty |
+| CONSOLE_PUBLIC_ORIGIN | Optional | url origin | Empty uses the validated request origin for API URLs; image links are relative. WeChat OAuth requires a fixed HTTPS origin | empty |
+| CONSOLE_CSRF_TRUSTED_ORIGINS | Optional | string | Empty retains Django same-origin checks; specify full origins only for required cross-origin trust | empty |
+| CONSOLE_COOKIE_SECURE | Use Default | string | auto sets Secure for HTTPS, omits it for HTTP | auto |
+| CONSOLE_TRUSTED_PROXIES | Optional | string | Only configured direct proxy IPs/CIDRs may supply client/protocol headers; proxies must set/overwrite them | empty |
 | OSS_REMOTE_ENDPOINT | Required | url origin | Exact origin embedded in Console presigned URLs and trusted by Core Agent; the local default is reachable with the same signed Host from both the Docker host and Compose containers; remote clients require a separately protected TLS endpoint | http://minio.localhost:${EXPOSE_MINIO_PORT} |
 | OSS_BUCKET_CONSOLE | Required | string | Object storage bucket name used by Console | console-oss |
 | OSS_PRESIGN_EXPIRY_SECONDS_CONSOLE | Required | int | Console presigned URL expiration time (seconds) | 600 |
 | REDIS_DATABASE_CONSOLE | Required | int | Redis database index used by Console | 1 |
-| OAUTH2_ISSUER_URI | Required | url | OAuth2 issuer URI (defaults from CONSOLE_CASDOOR_URL) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000} |
-| OAUTH2_JWK_SET_URI | Required | url | OAuth2 JWK key set URI (defaults from CONSOLE_CASDOOR_URL) | ${CONSOLE_CASDOOR_URL:-http://auth-server:8000}/.well-known/jwks |
-| OAUTH2_AUDIENCE | Required | string | OAuth2 audience identifier (defaults from CONSOLE_CASDOOR_ID) | ${CONSOLE_CASDOOR_ID:-your-oauth2-client-id} |
 | WECHAT_COMPONENT_APPID | Optional | string | WeChat third-party platform AppID | your-wechat-component-appid |
 | WECHAT_COMPONENT_SECRET | Optional | string | WeChat third-party platform Secret | your-wechat-secret |
 | WECHAT_TOKEN | Optional | string | WeChat message verification Token | your-wechat-token |
 | WECHAT_ENCODING_AES_KEY | Optional | string | WeChat message encryption key | your-wechat-encoding-aes-key |
-| WORKFLOW_CHAT_URL | Required | url | Workflow chat API address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/chat/completions |
-| WORKFLOW_DEBUG_URL | Required | url | Workflow debug API address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/debug/chat/completions |
-| WORKFLOW_RESUME_URL | Required | url | Workflow resume API address (port defaults from CORE_WORKFLOW_PORT) | http://core-workflow:${CORE_WORKFLOW_PORT:-7880}/workflow/v1/resume |
 | TENANT_ID | Required | string | Tenant ID | 680ab54f |
 | TENANT_KEY | Auto-generated | secret | Tenant API Key generated and persisted by Compose or Helm; leave empty for normal startup | generated and persisted |
 | TENANT_SECRET | Auto-generated | secret | Tenant Secret generated and persisted by Compose or Helm; leave empty for normal startup | generated and persisted |
@@ -348,7 +332,6 @@ no manual configuration change is required. To explicitly disable Code nodes, se
 | MAAS_MCP_REGISTER | Required | url | MaaS MCP register API address | http://127.0.0.1:8080/workflow/release |
 | MAAS_WORKFLOW_CONFIG | Required | url | MaaS workflow configuration API address | http://127.0.0.1:8080/workflow/get-flow-advanced-config |
 | BOT_API_CBM_BASE_URL | Required | url | Bot API CBM base address (supports ws/wss, note written as ws(s):// in env.example) | wss://spark-openapi.cn-huabei-1.xf-yun.com |
-| BOT_API_MAAS_BASE_URL | Required | url | Bot API MaaS base address (note written as http(s):// in env.example) | https://xingchen-api.xf-yun.com |
 | TENANT_CREATE_APP | Required | url | Tenant create application API address (port defaults from CORE_TENANT_PORT) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app |
 | TENANT_GET_APP_DETAIL | Required | url | Tenant get application details API address (port defaults from CORE_TENANT_PORT) | http://core-tenant:${CORE_TENANT_PORT:-5052}/v2/app/details |
 

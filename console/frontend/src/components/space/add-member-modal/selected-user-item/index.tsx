@@ -5,6 +5,7 @@ import classNames from 'classnames';
 import styles from './index.module.scss';
 import { useSpaceI18n } from '@/pages/space/hooks/use-space-i18n';
 import defaultAvatar from '@/assets/imgs/space/creator.png';
+import { MEMBER_ROLE } from '@/pages/space/config';
 
 const { Option } = Select;
 
@@ -18,12 +19,13 @@ interface SelectedUser {
 
 interface SelectedUserItemProps {
   user: SelectedUser;
+  canInviteAdmin: boolean;
   handleRoleChange: (userId: string, role: string) => void;
   handleRemoveUser: (userId: string) => void;
 }
 
 const SelectedUserItem: React.FC<SelectedUserItemProps> = React.memo(
-  ({ user, handleRoleChange, handleRemoveUser }) => {
+  ({ user, canInviteAdmin, handleRoleChange, handleRemoveUser }) => {
     const { memberRoleOptions } = useSpaceI18n();
     const handleRoleChangeCallback = useCallback(
       (value: string) => {
@@ -44,13 +46,16 @@ const SelectedUserItem: React.FC<SelectedUserItemProps> = React.memo(
         />
         <span className={styles.username}>{user.username}</span>
         <Select
+          aria-label={`${user.username || user.nickname || user.uid} 的角色`}
           value={`${user.role}`}
           onChange={handleRoleChangeCallback}
           className={styles.roleSelect}
           popupMatchSelectWidth={false}
         >
           {memberRoleOptions
-            .filter(option => option.value != null)
+            .filter(
+              option => canInviteAdmin || String(option.value) === MEMBER_ROLE
+            )
             .map(option => (
               <Option key={option.value} value={`${option.value}`}>
                 {option.label}
@@ -58,6 +63,7 @@ const SelectedUserItem: React.FC<SelectedUserItemProps> = React.memo(
             ))}
         </Select>
         <Button
+          aria-label={`移除 ${user.username || user.nickname || user.uid}`}
           type="text"
           icon={<CloseOutlined />}
           onClick={handleRemoveCallback}

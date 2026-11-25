@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>Agent 市场</title>
+  <g fill="none" stroke="#355A9E" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M5.6 10.9h12.8l1.3 7a1.45 1.45 0 0 1-1.4 1.65H5.7a1.45 1.45 0 0 1-1.4-1.65z" fill="#C5D8FD"/>
+    <path d="M8.8 10.65V7.75a3.2 3.2 0 0 1 6.4 0v2.9"/>
+    <circle cx="9.2" cy="15.15" r="1.05" fill="#355A9E" stroke="none"/>
+    <circle cx="14.8" cy="15.15" r="1.05" fill="#355A9E" stroke="none"/>
+  </g>
+</svg>

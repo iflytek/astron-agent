@@ -2,11 +2,6 @@ import http from '../utils/http';
 import { objectToQueryString } from '@/utils';
 import { SpaceItem } from '@/types/space';
 
-//个人空间创建
-export const personalSpaceCreate = (params: any) => {
-  return http.post('/space/create-personal-space', params);
-};
-
 //获取个人全部空间
 export const getAllSpace = (name?: string) => {
   const params = name ? { name } : {};
@@ -15,18 +10,12 @@ export const getAllSpace = (name?: string) => {
 
 //访问空间
 export const visitSpace = (params: any) => {
-  return http.get(`/space/visit-space?spaceId=${params}`);
+  return http.post('/space/visit-space', { spaceId: params || null });
 };
 
 //最近访问列表
 export const getRecentVisit = () => {
   return http.get('/space/recent-visit-list');
-};
-
-//我创建的空间
-export const getMyCreateSpace = (name?: string) => {
-  const params = name ? { name } : {};
-  return http.get('/space/personal-self-list', { params });
 };
 
 //个人创建空间
@@ -35,25 +24,16 @@ export const createPersonalSpace = (params: any) => {
 };
 
 // 编辑个人空间
-export const updatePersonalSpace = (params: any) => {
-  return http.post('/space/update-personal-space', params);
+export const updatePersonalSpace = (params: any, spaceId: string) => {
+  return http.post('/space/update-personal-space', params, {
+    headers: { 'space-id': spaceId, 'enterprise-id': '' },
+  });
 };
 
 //个人空间删除
-export const deletePersonalSpace = (params: {
-  spaceId: string;
-  mobile: string;
-  verifyCode: string;
-}) => {
+export const deletePersonalSpace = (params: { spaceId: string }) => {
   return http.delete(
     `/space/delete-personal-space${objectToQueryString(params)}`
-  );
-};
-
-//删除空间发送验证码
-export const deleteSpaceSendCode = ({ spaceId }: { spaceId: string }) => {
-  return http.get(
-    `/space/send-message-code${objectToQueryString({ spaceId })}`
   );
 };
 
@@ -63,8 +43,10 @@ export const checkSpaceName = (params: { name: string; id?: string }) => {
 };
 
 // 空间详情
-export const getSpaceDetail = () => {
-  return http.get('/space/detail');
+export const getSpaceDetail = (spaceId: string) => {
+  return http.get('/space/detail', {
+    headers: { 'space-id': spaceId, 'enterprise-id': '' },
+  });
 };
 
 // 获取空间成员列表
@@ -81,31 +63,46 @@ export const getSpaceMemberList = (params: {
  * 企业空间
  */
 // 获取全部企业空间 /space/corporateList
-export const getAllCorporateList = (params?: any): Promise<SpaceItem[]> => {
-  return http.get('/space/corporate-list', { params });
+export const getAllCorporateList = (params: {
+  name?: string;
+  enterpriseId: string;
+}): Promise<SpaceItem[]> => {
+  return http.get('/space/corporate-list', {
+    params: { name: params.name },
+    headers: { 'space-id': '', 'enterprise-id': params.enterpriseId },
+  });
 };
 
 // 获取我加入的企业空间
 export const getJoinedCorporateList = (params?: any): Promise<SpaceItem[]> => {
-  return http.get('/space/corporate-join-list', { params });
+  return http.get('/space/corporate-join-list', {
+    params: { name: params?.name },
+    headers: params?.enterpriseId
+      ? { 'space-id': '', 'enterprise-id': String(params.enterpriseId) }
+      : undefined,
+  });
 };
 
 // 创建企业空间
-export const createCorporateSpace = (params: any) => {
-  return http.post('/space/create-corporate-space', params);
+export const createCorporateSpace = (params: any, enterpriseId: string) => {
+  return http.post('/space/create-corporate-space', params, {
+    headers: { 'space-id': '', 'enterprise-id': enterpriseId },
+  });
 };
 
 // 编辑企业空间
-export const updateCorporateSpace = (params: any) => {
-  return http.post('/space/update-corporate-space', params);
+export const updateCorporateSpace = (
+  params: any,
+  enterpriseId: string,
+  spaceId: string
+) => {
+  return http.post('/space/update-corporate-space', params, {
+    headers: { 'space-id': spaceId, 'enterprise-id': enterpriseId },
+  });
 };
 
 // 删除企业空间
-export const deleteCorporateSpace = (params: {
-  spaceId: string;
-  mobile: string;
-  verifyCode: string;
-}) => {
+export const deleteCorporateSpace = (params: { spaceId: string }) => {
   return http.delete(
     `/space/delete-corporate-space${objectToQueryString(params)}`
   );
@@ -126,12 +123,12 @@ export const getSpaceSearchUsername = (params: any) => {
 };
 
 //修改空间用户角色
-export const updateUserRole = (params: { uid: number; role: number }) => {
+export const updateUserRole = (params: { uid: string; role: number }) => {
   return http.post('/space-user/update-role', null, { params });
 };
 
 //删除空间用户角色
-export const deleteUser = (params: { uid: number }) => {
+export const deleteUser = (params: { uid: string }) => {
   return http.delete(`/space-user/remove${objectToQueryString(params)}`);
 };
 
@@ -142,7 +139,7 @@ export const leaveSpace = () => {
 
 // 邀请进入空间 /inviteRecord/spaceInvite
 export const spaceInvite = (params: any) => {
-  return http.post('/invite-record/space-invite', params);
+  return http.post('/invite-record/space-invite', { members: params });
 };
 
 // 撤回邀请进入空间 /inviteRecord/revokeSpaceInvite

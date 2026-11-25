@@ -1,13 +1,13 @@
 import Loading from '@/components/loading';
 import { lazy, Suspense } from 'react';
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, useParams } from 'react-router-dom';
 import Layout from '@/layouts/index';
-import ConfigPage from '@/pages/config-page';
+import AgentWorkspace from '@/pages/agents/editor';
 
-const CallbackPage = lazy(() => import('@/pages/callback'));
-const HomePage = lazy(() => import('@/pages/home-page'));
-const StorePlugin = lazy(() => import('@/pages/plugin-store'));
-const ToolSquareDetail = lazy(() => import('@/pages/plugin-store/detail'));
+const AccountAccess = lazy(() => import('@/pages/account-access'));
+const ResourceTools = lazy(
+  () => import('@/pages/resource-management/resource-tools')
+);
 const OfficialModel = lazy(
   () => import('@/pages/model-management/official-model/official-model-home')
 );
@@ -17,19 +17,23 @@ const PersonalModel = lazy(
 const ModelDetail = lazy(() => import('@/pages/model-management/model-detail'));
 const ResourceManagement = lazy(() => import('@/pages/resource-management'));
 const WorkFlow = lazy(() => import('@/pages/workflow'));
-const WorkFlowAnalysis = lazy(
-  () => import('@/pages/workflow/workflow-analysis')
-);
-const WorkFlowFiles = lazy(() => import('@/pages/workflow/workflow-files'));
+const WorkflowList = lazy(() => import('@/pages/workflow/list'));
+function WorkflowToolRedirect({ panel }: { panel: 'analysis' | 'files' }) {
+  const { id } = useParams();
+  return <Navigate to={`/work_flow/${id}/arrange?panel=${panel}`} replace />;
+}
 
-const ChatPage = lazy(() => import('@/pages/chat-page'));
+const AgentList = lazy(() => import('@/pages/agents/list'));
 const PersonalSpace = lazy(() => import('@/pages/space/personal'));
+const SpaceInvitations = lazy(() => import('@/pages/space/invitations'));
 const SpaceDetail = lazy(() => import('@/pages/space/space-detail'));
 const EnterpriseSpace = lazy(() => import('@/pages/space/enterprise'));
-const SpacePage = lazy(() => import('@/pages/space-page'));
+
 const TeamCreate = lazy(() => import('@/pages/space/team-create'));
-// const SmartRedirect = lazy(() => import('@/pages/smart-redirect'));
-const ReleaseManagement = lazy(() => import('@/pages/release-management'));
+const ReleaseManagement = lazy(() => import('@/pages/publishing'));
+const PublishedChat = lazy(() => import('@/pages/publishing/chat'));
+const AgentMarket = lazy(() => import('@/pages/publishing/market'));
+const WechatCallback = lazy(() => import('@/pages/channels/wechat-callback'));
 const BotApi = lazy(() => import('@/pages/bot-api/api'));
 const SharePage = lazy(() => import('@/pages/share-page'));
 const AppListPage = lazy(() => import('@/pages/bot-api/app-list'));
@@ -39,6 +43,22 @@ const PlatformAccountManagement = lazy(
 
 const routes = [
   {
+    path: '/publish/wechat/callback',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <WechatCallback />
+      </Suspense>
+    ),
+  },
+  {
+    path: '/published/:botId',
+    element: (
+      <Suspense fallback={<Loading />}>
+        <PublishedChat />
+      </Suspense>
+    ),
+  },
+  {
     path: '/',
     element: (
       <Suspense fallback={<Loading />}>
@@ -47,14 +67,30 @@ const routes = [
     ),
     children: [
       {
+        path: '/store/agent',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <AgentMarket />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/space/workflows',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <WorkflowList />
+          </Suspense>
+        ),
+      },
+      {
         index: true,
-        element: <Navigate to="/home" />,
+        element: <Navigate to="/space/agent" replace />,
       },
       {
         path: '/home',
         element: (
           <Suspense fallback={<Loading />}>
-            <HomePage />
+            <Navigate to="/space/agent" replace />
           </Suspense>
         ),
       },
@@ -104,6 +140,14 @@ const routes = [
         element: (
           <Suspense fallback={<Loading />}>
             <ResourceManagement />
+          </Suspense>
+        ),
+      },
+      {
+        path: '/space/invitations',
+        element: (
+          <Suspense fallback={<Loading />}>
+            <SpaceInvitations />
           </Suspense>
         ),
       },
@@ -160,23 +204,27 @@ const routes = [
     ),
     children: [
       {
-        path: '/space/*',
+        path: '/space/agent',
         element: (
           <Suspense fallback={<Loading />}>
-            <SpacePage />
+            <AgentList />
           </Suspense>
         ),
       },
     ],
   },
-  {
-    path: '/callback',
-    element: (
-      <Suspense fallback={<Loading />}>
-        <CallbackPage />
-      </Suspense>
-    ),
-  },
+  { path: '/space/bot/:id/chat', element: <AgentWorkspace mode="chat" /> },
+  { path: '/space/config/base', element: <AgentWorkspace /> },
+  ...(['login', 'register', 'reset-password', 'account'] as const).map(
+    path => ({
+      path: `/${path}`,
+      element: (
+        <Suspense fallback={<Loading />}>
+          <AccountAccess mode={path === 'reset-password' ? 'reset' : path} />
+        </Suspense>
+      ),
+    })
+  ),
   {
     path: '/team/create/:type',
     element: (
@@ -197,7 +245,7 @@ const routes = [
         path: '/store/plugin',
         element: (
           <Suspense fallback={<Loading />}>
-            <StorePlugin />
+            <ResourceTools market />
           </Suspense>
         ),
       },
@@ -205,7 +253,7 @@ const routes = [
         path: '/store/plugin/:id',
         element: (
           <Suspense fallback={<Loading />}>
-            <ToolSquareDetail />
+            <Navigate to="/store/plugin" replace />
           </Suspense>
         ),
       },
@@ -215,7 +263,7 @@ const routes = [
     path: '/chat/:botId/:version?',
     element: (
       <Suspense fallback={<Loading />}>
-        <ChatPage />
+        <AgentWorkspace mode="chat" />
       </Suspense>
     ),
   },
@@ -231,8 +279,8 @@ const routes = [
     path: '/space',
     children: [
       {
-        path: '/space/config/*',
-        element: <ConfigPage />,
+        path: '/space/config/:id/base',
+        element: <AgentWorkspace />,
       },
     ],
   },
@@ -248,7 +296,7 @@ const routes = [
     path: '/work_flow/:id/overview',
     element: (
       <Suspense fallback={<Loading />}>
-        <WorkFlowAnalysis />
+        <WorkflowToolRedirect panel="analysis" />
       </Suspense>
     ),
   },
@@ -256,7 +304,7 @@ const routes = [
     path: '/work_flow/:id/files',
     element: (
       <Suspense fallback={<Loading />}>
-        <WorkFlowFiles />
+        <WorkflowToolRedirect panel="files" />
       </Suspense>
     ),
   },

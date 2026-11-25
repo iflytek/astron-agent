@@ -27,7 +27,7 @@
     .formLabel {
       margin-bottom: 12px;
       font-size: 14px;
-      color: #1a1a1a;
+      color: #18243d;
       line-height: 1.5;
     }
 
@@ -38,11 +38,9 @@
         height: 45px;
         padding-right: 200px;
         border-radius: 8px;
-        background: #FFFFFF;
+        background: #ffffff;
         box-sizing: border-box;
-        border: 1px solid #E4EAFF;
-
-
+        border: 1px solid #dfe6f1;
       }
 
       .codeInput::-webkit-outer-spin-button,
@@ -50,7 +48,7 @@
         -webkit-appearance: none;
         margin: 0;
       }
-      .codeInput[type="number"] {
+      .codeInput[type='number'] {
         -moz-appearance: textfield;
       }
 
@@ -59,7 +57,7 @@
         right: 0;
         top: 50%;
         transform: translateY(-50%);
-        color: var(--primary-color);
+        color: var(--console-primary);
         font-size: 14px;
 
         &:hover {
@@ -86,4 +84,4 @@
       padding: 0 38px;
     }
   }
-} 
+}

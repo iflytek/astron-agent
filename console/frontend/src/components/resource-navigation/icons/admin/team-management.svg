@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" role="img">
+  <title>团队管理</title>
+  <g fill="none" stroke="#4F46AD" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M14.8 5.35a2.7 2.7 0 0 1 .1 5.15m.65 2.35c2.53.25 4.18 2.03 4.18 4.45v1.2h-3.5" stroke="#6D60CB"/>
+    <circle cx="9.65" cy="8.05" r="2.65" fill="#CFCAFA"/>
+    <path d="M4.05 18.5v-1.05a4.6 4.6 0 0 1 4.6-4.6h2a4.6 4.6 0 0 1 4.6 4.6v1.05Z" fill="#CFCAFA" fill-opacity=".72"/>
+  </g>
+</svg>

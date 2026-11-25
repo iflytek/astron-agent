@@ -1,7 +1,7 @@
+import { useWorkflowSaveNavigation } from '@/components/workflow/hooks/use-workflow-save-navigation';
 import type { WorkflowSnapshot } from '@/components/workflow/types/domain';
-import React, { useEffect, useState, memo } from 'react';
-import { Button, Spin } from 'antd';
-import { useTranslation } from 'react-i18next';
+import React, { useEffect, memo } from 'react';
+import { Alert, Button, Modal, Spin } from 'antd';
 import { useMemoizedFn } from 'ahooks';
 import { useParams, useLocation } from 'react-router-dom';
 import BtnGroups from './components/btn-groups';
@@ -16,25 +16,23 @@ import { cloneDeep } from 'lodash';
 
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
 import useFlowStore from '@/components/workflow/store/use-flow-store';
-
-import chatResultClose from '@/assets/imgs/workflow/chat-result-close.png';
+import useChatStore from '@/components/workflow/store/use-chat-store';
 
 // ========= 组件 =========
 const Index = (): React.ReactElement => {
-  const { t } = useTranslation();
   const { id } = useParams();
   const location = useLocation();
   // store hooks
   const currentFlow = useFlowsManager(state => state.currentFlow);
+  const initializationError = useFlowsManager(
+    state => state.initializationError
+  );
   const setModels = useFlowsManager(state => state.setModels);
   const setCanvasesDisabled = useFlowsManager(
     state => state.setCanvasesDisabled
   );
   const showNodeList = useFlowsManager(state => state.showNodeList);
   const setShowNodeList = useFlowsManager(state => state.setShowNodeList);
-  const setFlowChatResultOpen = useFlowsManager(
-    state => state.setFlowChatResultOpen
-  );
   const initFlowData = useFlowsManager(state => state.initFlowData);
   const resetFlowsManager = useFlowsManager(state => state.resetFlowsManager);
   const setFlowResult = useFlowsManager(state => state.setFlowResult);
@@ -52,11 +50,21 @@ const Index = (): React.ReactElement => {
   const setZoom = useFlowStore(state => state.setZoom);
 
   // 本地状态
-  const [publishModal, setPublishModal] = useState<boolean>(false);
   const historyVersion = useFlowsManager(state => state.historyVersion);
+  const debuggering = useChatStore(state => state.debuggering);
+  const stopRequested = useChatStore(state => state.stopRequested);
+  const paused = useChatStore(state => state.interruptChat.interrupt);
+  const activeWorkflowRun = debuggering || paused || stopRequested;
+  const navigation = useWorkflowSaveNavigation(
+    activeWorkflowRun ||
+      Boolean(singleNodeDebuggingInfo?.controller && !showNodeList)
+  );
+  const handleStopConversation = useChatStore(
+    state => state.handleStopConversation
+  );
 
   useEffect(() => {
-    id && initFlowData(id);
+    if (id) void initFlowData(id).catch(() => undefined);
   }, [id, location]);
 
   useEffect(() => {
@@ -92,7 +100,6 @@ const Index = (): React.ReactElement => {
 
   // 初始化清理
   useEffect(() => {
-    setCanvasesDisabled(false);
     return (): void => {
       setNodes([]);
     };
@@ -105,8 +112,12 @@ const Index = (): React.ReactElement => {
   }, [currentFlow?.appId, setModels]);
 
   const handleCancelBuildFlow = useMemoizedFn(() => {
+    if (activeWorkflowRun) {
+      handleStopConversation();
+      return;
+    }
     setFlowResult({
-      status: '',
+      status: 'interrupted',
       timeCost: '',
       totalTokens: '',
     });
@@ -122,49 +133,60 @@ const Index = (): React.ReactElement => {
   });
 
   return (
-    <div className="flex flex-col w-full h-full flow-container">
+    <div className="workflow-authoring flex flex-col w-full h-full flow-container">
+      {initializationError && (
+        <Alert
+          type="error"
+          showIcon
+          message={initializationError}
+          action={
+            <Button
+              onClick={() => {
+                if (id) void initFlowData(id).catch(() => undefined);
+              }}
+            >
+              重新加载
+            </Button>
+          }
+        />
+      )}
       <FlowModal />
+      <Modal
+        title="离开正在调试的工作流？"
+        open={navigation.blocked && (activeWorkflowRun || !showNodeList)}
+        okText="保存并离开"
+        cancelText="留在工作流"
+        onOk={navigation.proceed}
+        onCancel={navigation.reset}
+      >
+        离开会断开当前调试反馈连接。服务端运行可能继续，可在运行追踪中查看；也可以留在页面先停止运行。
+      </Modal>
       <FlowDrawer />
       <CommunityQRCode />
-      {/* 聊天结果按钮 */}
-      <div
-        className="fixed right-0 top-[80px] bg-[#EBEFF4] border border-[#DFE4ED] mt-5"
-        style={{
-          borderRadius: '21px 0 0 21px',
-          padding: '10px 17px 10px 28px',
-          zIndex: 998,
-        }}
-      >
-        <div
-          className="w-[22px] h-[22px] flex items-center justify-center bg-[#fff] shadow-sm rounded-md cursor-pointer"
-          onClick={() => setFlowChatResultOpen(true)}
-        >
-          <img src={chatResultClose} className="w-[10px] h-[10px]" alt="" />
-        </div>
-      </div>
       {/* 顶部工具栏 */}
       <FlowHeader currentFlow={currentFlow}>
-        {showNodeList ? (
-          <BtnGroups
-            publishModal={publishModal}
-            setPublishModal={setPublishModal}
-          />
-        ) : (
+        <BtnGroups />
+        {!showNodeList && (
           <Button
-            type="text"
-            className="origin-btn px-[36px]"
+            danger
+            loading={stopRequested}
+            disabled={stopRequested}
             onClick={() => handleCancelBuildFlow()}
           >
-            {t('common.cancel')}
+            {activeWorkflowRun
+              ? stopRequested
+                ? '正在停止运行…'
+                : '停止运行'
+              : '取消节点调试'}
           </Button>
         )}
       </FlowHeader>
       {!historyVersion && <MultipleCanvasesTip />}
       <Spin spinning={loadingModels} wrapperClassName="flow-spin-wrapper">
         <div className="w-full h-full">
-          <div className="flex items-start w-full h-full px-6">
+          <div className="workflow-canvas-workspace flex items-start w-full h-full">
             {showNodeList && <NodeList />}
-            <FlowContainer zoom={zoom} setZoom={setZoom} />
+            <FlowContainer key={id} zoom={zoom} setZoom={setZoom} />
           </div>
         </div>
       </Spin>

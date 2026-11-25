@@ -41,6 +41,8 @@ async def chat_open(
     :return: Streaming or JSON response
     """
     m = Meter()
+    # Public app credentials do not authorize Console execution identities.
+    chat_vo.ext.pop("console_context", None)
     app_id = x_consumer_username
 
     span = Span(app_id=app_id, uid=chat_vo.uid, chat_id=chat_vo.chat_id)
@@ -123,7 +125,7 @@ async def resume_open(request: ResumeVo) -> Union[StreamingResponse, JSONRespons
 
         try:
             event: Optional[Event] = EventRegistry().get_event(event_id=event_id)
-            if event is None:
+            if event is None or event.console_run_id:
                 raise CustomException(
                     CodeEnum.EVENT_REGISTRY_NOT_FOUND_ERROR,
                     "Event not found",

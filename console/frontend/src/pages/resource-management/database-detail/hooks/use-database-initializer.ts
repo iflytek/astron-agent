@@ -1,48 +1,48 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDatabaseContext } from '../context/database-context';
 import { dbDetail, tableList } from '@/services/database';
-
-/**
- * 数据库初始化Hook
- * 专门负责页面初始化时的数据加载
- * 只应该在顶层组件中调用一次
- */
-export const useDatabaseInitializer = (): void => {
+export const useDatabaseInitializer = () => {
   const { id } = useParams();
   const { actions } = useDatabaseContext();
-
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const retry = useCallback(() => setRevision(value => value + 1), []);
   useEffect(() => {
-    if (!id) return;
-
-    // 并行加载数据库详情和表格列表
-    const loadInitialData = async (): Promise<void> => {
-      try {
-        // 设置表格加载状态
-        actions.setTables([], true);
-
-        // 并行执行两个请求，提高加载速度
-        const [dbData, tableData] = await Promise.all([
-          dbDetail({ id }),
-          tableList({ dbId: Number(id) }),
-        ]);
-
-        // 批量更新状态
-        actions.setDbDetail(dbData);
-        actions.setTables(tableData, false);
-
-        // 设置默认选中第一个表格
-        if (tableData?.length > 0) {
-          actions.setCurrentSheet(tableData[0] || null);
+    let active = true;
+    setLoading(true);
+    setError('');
+    actions.resetState();
+    if (!id) {
+      setLoading(false);
+      setError('缺少数据库标识，请返回列表重新选择。');
+      return;
+    }
+    actions.setTables([], true);
+    void Promise.all([dbDetail({ id }), tableList({ dbId: Number(id) })])
+      .then(([detail, tables]) => {
+        if (!active) return;
+        actions.setDbDetail(detail);
+        actions.setTables(tables, false);
+        actions.setCurrentSheet(tables?.[0] || null);
+      })
+      .catch(failure => {
+        if (active) {
+          setError(
+            failure instanceof Error
+              ? failure.message
+              : '数据库详情加载失败，请重试。'
+          );
+          actions.setTables([], false);
         }
-      } catch (error) {
-        // 统一错误处理
-        actions.setTables([], false);
-        // 可以在这里添加错误提示或日志记录
-        // console.error('加载数据库初始数据失败:', error);
-      }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
     };
-
-    loadInitialData();
-  }, [id, actions]);
+  }, [id, actions, revision]);
+  return { loading, error, retry };
 };

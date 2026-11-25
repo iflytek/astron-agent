@@ -740,7 +740,7 @@ const translation = {
     chatDebugger: {
       dialogue: 'Debug and Preview',
       runResult: 'Run Result',
-      keepOnly10DialogueRecords: 'Currently only keeps 10 debug records',
+      debugHistory: 'Debug history',
       multiParamWorkflowOnlySupportDebugAndPublishAsAPI:
         'Multi-parameter workflows only support debugging and publishing as API, no user dialogue page',
       switchToUserDialoguePage: 'User Dialogue Page Preview',

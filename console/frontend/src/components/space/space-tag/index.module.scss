@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   box-sizing: border-box;
-  
+
   .icon {
     margin-right: 4px;
     display: flex;
@@ -40,22 +40,22 @@
 
   // 成功主题
   &.success {
-    color: #1FC92D;
-    background-color: #DFFFCE;
+    color: #1fc92d;
+    background-color: #dfffce;
     border-color: #b7eb8f;
   }
 
   // 警告主题
   &.warning {
-    color: #FF9602;
-    background-color: #FFF4E5;
+    color: #ff9602;
+    background-color: #fff4e5;
     border-color: #ffe58f;
   }
 
   // 危险主题
   &.danger {
-    color: #F74E43;
-    background-color: #FEEDEC;
+    color: #f74e43;
+    background-color: #feedec;
     border-color: #ffccc7;
   }
 }

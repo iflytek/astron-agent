@@ -1,14 +1,90 @@
 import json
 import time
 from base64 import b64encode
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
 import aiohttp
+from jsonschema import Draft202012Validator
+from referencing import Registry
 
 from workflow.exception.e import CustomException
 from workflow.exception.errors.code_convert import CodeConvert
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.trace.span import Span
+
+_MISSING = object()
+_HTTP_METHODS = {"get", "post", "put", "delete", "patch", "head", "options", "trace"}
+_CREDENTIAL_HEADERS = {"authorization", "proxy-authorization", "x-api-key", "api-key"}
+
+
+def _value(schema: dict, name: str, inputs: dict, business: dict) -> Any:
+    if schema.get("readOnly"):
+        return _MISSING
+    default = schema.get(
+        "x-value", schema.get("const", schema.get("default", _MISSING))
+    )
+    if schema.get("format") == "password" or "x-value" in schema or "const" in schema:
+        return default
+    if "x-display" in schema:
+        return inputs.get(name, default) if schema["x-display"] else default
+    if schema.get("x-from", 0) == 2:
+        return default
+    return (business if schema.get("x-from", 0) == 1 else inputs).get(name, default)
+
+
+def _assemble(schema: dict, inputs: dict, business: dict) -> dict:
+    result = {}
+    for name, detail in schema.get("properties", {}).items():
+        value = _value(detail, name, inputs, business)
+        if value is _MISSING:
+            continue
+        if isinstance(value, dict) and "properties" in detail:
+            value = _assemble(detail, value, business.get(name, {}))
+        elif isinstance(value, list) and "properties" in detail.get("items", {}):
+            value = [_assemble(detail["items"], item, {}) for item in value]
+        result[name] = value
+    for name, value in inputs.items():
+        if (
+            name not in schema.get("properties", {})
+            and schema.get("additionalProperties", True) is not False
+        ):
+            result[name] = value
+    return result
+
+
+def _validation_schema(schema: Any) -> Any:
+    if isinstance(schema, list):
+        return [_validation_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    normalized = {key: _validation_schema(value) for key, value in schema.items()}
+    if normalized.get("nullable") and isinstance(normalized.get("type"), str):
+        normalized["type"] = [normalized["type"], "null"]
+    for bound in ("Minimum", "Maximum"):
+        exclusive = "exclusive" + bound
+        if isinstance(normalized.get(exclusive), bool):
+            enabled = normalized.pop(exclusive)
+            if enabled:
+                normalized[exclusive] = normalized.pop(bound.lower())
+    if "properties" in normalized:
+        normalized["properties"] = {
+            name: detail
+            for name, detail in normalized["properties"].items()
+            if not detail.get("readOnly")
+        }
+        normalized["required"] = [
+            name
+            for name in normalized.get("required", [])
+            if name in normalized["properties"]
+        ]
+    return normalized
+
+
+def _validate(schema: dict, value: Any) -> None:
+    # Explicit registry disallows remote $ref fetching from user schemas.
+    Draft202012Validator(_validation_schema(schema), registry=Registry()).validate(
+        value
+    )
 
 
 class Tool:
@@ -95,17 +171,26 @@ class Tool:
         :param action_input: Action-specific input parameters
         :param business_input: Business-specific input parameters
         """
-        x_from = header_parameter.get("schema", {}).get("x-from")
+        schema = dict(header_parameter.get("schema", {}))
+        schema.update(
+            {
+                key: header_parameter[key]
+                for key in ("x-value", "x-from", "x-display")
+                if key in header_parameter
+            }
+        )
         name = header_parameter.get("name", "unknown_field")
-        default_value = header_parameter.get("schema", {}).get("default")
-
-        if x_from == 0:  # Model recognition source
-            value = action_input.get(name, default_value)
-        elif x_from == 1:  # Business passthrough source
-            value = business_input.get(name, default_value)
-        else:
-            # Default to action input, fallback to default value
-            value = action_input.get(name, default_value)
+        if (
+            header_parameter.get("in") == "header"
+            and name.lower() in _CREDENTIAL_HEADERS
+        ):
+            schema["x-display"] = False
+        value = _value(schema, name, action_input, business_input)
+        if value is _MISSING:
+            if header_parameter.get("required"):
+                raise ValueError("Missing required OpenAPI parameter")
+            return
+        _validate(schema, value)
         params[name] = value
 
     def assemble_body(
@@ -122,41 +207,12 @@ class Tool:
         :param business_input: Business-specific input parameters
         :return: Assembled request body dictionary
         """
-        properties = {}
-        body_properties = body_schema.get("properties", {})
-        for parameter_name, parameter_detail in body_properties.items():
-            parameter_type = parameter_detail.get("type")
-            # TODO: Add validation for required parameters
-            # required = parameter_detail.get("required", [])
-            if parameter_type == "object":
-                # Recursively process nested objects
-                _properties = self.assemble_body(
-                    parameter_detail,
-                    action_input.get(parameter_name, {}),
-                    business_input,
-                )
-                properties[parameter_name] = _properties
-            else:
-                x_from = parameter_detail.get("x-from")
-                default_value = parameter_detail.get("default", None)
-                # Determine value source based on x-from configuration
-                if x_from == 0:
-                    value = action_input.get(parameter_name, None)
-                elif x_from == 1:
-                    value = business_input.get(parameter_name, None)
-                else:
-                    value = action_input.get(parameter_name, None)
-
-                # Use default value if no value found
-                if value is None:
-                    if default_value is None:
-                        continue
-                    value = default_value
-                properties[parameter_name] = value
-        return properties
+        result = _assemble(body_schema, action_input, business_input)
+        _validate(body_schema, result)
+        return result
 
     @staticmethod
-    def dumps(payload: dict) -> str | dict:
+    def dumps(payload: dict | None) -> str:
         """
         Encode payload as base64-encoded JSON string.
 
@@ -166,9 +222,9 @@ class Tool:
         :param payload: Dictionary payload to encode
         :return: Base64-encoded JSON string or original payload if empty
         """
-        if payload:
+        if payload is not None:
             return b64encode(json.dumps(payload, ensure_ascii=True).encode()).decode()
-        return payload
+        return ""
 
     async def run(
         self, action_input: dict, business_input: dict, span: Span, **kwargs: Any
@@ -189,9 +245,8 @@ class Tool:
         """
 
         with span.start("run_link_tool") as link_tool_span:
-            event_log_node_trace = kwargs.get("event_log_node_trace")
             await link_tool_span.add_info_events_async(
-                {"schema": json.dumps(self.method_schema, ensure_ascii=False)}
+                {"tool_id": self.tool_id, "version": self.version}
             )
 
             start_time = time.time() * 1000
@@ -210,7 +265,31 @@ class Tool:
             _header, _query, _path = self.assemble_parameters(
                 action_input, business_input
             )
-            _body = self.assemble_body(body_schema, action_input, business_input)
+            parameter_names = {
+                item["name"] for item in self.method_schema.get("parameters", [])
+            }
+            body_inputs = {
+                name: value
+                for name, value in action_input.items()
+                if name not in parameter_names
+            }
+            _body = None
+            if body_schema:
+                assembled = _assemble(body_schema, body_inputs, business_input)
+                validator = Draft202012Validator(
+                    _validation_schema(body_schema), registry=Registry()
+                )
+                errors = list(validator.iter_errors(assembled))
+                optional_absent = (
+                    not self.method_schema.get("requestBody", {}).get("required")
+                    and not body_inputs
+                )
+                missing_required = errors and all(
+                    error.validator == "required" for error in errors
+                )
+                if not optional_absent or (assembled and not missing_required):
+                    validator.validate(assembled)
+                    _body = assembled
 
             # Construct Link system request payload
             run_link_payload: Dict[str, Any] = {
@@ -223,44 +302,16 @@ class Tool:
             run_link_payload["parameter"]["operation_id"] = self.operation_id
             run_link_payload["parameter"]["version"] = self.version
 
-            # Encode parameters for transmission
-            callback_payload: Dict[str, Any] = {}
-            header = self.dumps(_header)
-            query = self.dumps(_query)
-            path = self.dumps(_path)
-            body = self.dumps(_body)
-            # Add encoded parameters to payload if they exist
-            if header:
-                run_link_payload["payload"]["message"]["header"] = header
-                callback_payload["header"] = _header
-            if query:
-                run_link_payload["payload"]["message"]["query"] = query
-                callback_payload["query"] = _query
-            if body:
-                run_link_payload["payload"]["message"]["body"] = body
-                callback_payload["body"] = _body
-            if path:
-                run_link_payload["payload"]["message"]["path"] = path
-                callback_payload["path"] = _path
-
-            tool_input = json.dumps(callback_payload, ensure_ascii=False)
-
-            # Log request information for debugging and monitoring
-            await link_tool_span.add_info_events_async({"input": tool_input})
-            await link_tool_span.add_info_events_async(
-                {"link_input": json.dumps(run_link_payload, ensure_ascii=False)}
-            )
-
-            if event_log_node_trace:
-                event_log_node_trace.append_config_data(
-                    {
-                        "tool_input": tool_input,
-                        "url": self.run_url,
-                        "link_req_payload": json.dumps(
-                            run_link_payload, ensure_ascii=False
-                        ),
-                    }
-                )
+            run_link_payload["payload"]["message"] = {
+                name: self.dumps(value)
+                for name, value in {
+                    "header": _header,
+                    "query": _query,
+                    "path": _path,
+                    "body": _body,
+                }.items()
+                if value or (name == "body" and value is not None)
+            }
 
             # Execute HTTP request to Link system
 
@@ -269,7 +320,9 @@ class Tool:
                 async with aiohttp.ClientSession() as session:
                     start_time = time.time() * 1000
                     async with session.post(
-                        self.run_url, json=run_link_payload
+                        self.run_url,
+                        json=run_link_payload,
+                        timeout=aiohttp.ClientTimeout(total=90),
                     ) as response:
                         link_response = await response.json()
                         # Log response timing and content
@@ -278,13 +331,7 @@ class Tool:
                                 "plugin_node_link_post_cost_time": f"{time.time() * 1000 - start_time}"
                             }
                         )
-                        await link_tool_span.add_info_events_async(
-                            {
-                                "link_response": json.dumps(
-                                    link_response, ensure_ascii=False
-                                )
-                            }
-                        )
+
             except aiohttp.ClientConnectionError as e:
                 # Handle transport failures raised by the aiohttp client
                 raise CustomException(
@@ -297,7 +344,7 @@ class Tool:
                 raise e
 
             await link_tool_span.add_info_events_async(
-                {"link_response": json.dumps(link_response, ensure_ascii=False)}
+                {"link_code": link_response.get("header", {}).get("code")}
             )
 
             # Process response and handle errors
@@ -350,13 +397,14 @@ class Link:
         self.get_url = get_url
         self.run_url = run_url
         self.version = version
-        # Retrieve OpenAPI schema list from Spark Link system
-        self.open_api_schema_list = self.tool_schema_list()
-        self.tools: List[Tool] = []  # List of Tool instances
-        # Parse schemas and create Tool instances
+        self.open_api_schema_list: List[Dict[str, Any]] = []
+        self.tools: List[Tool] = []
+
+    async def load_tools(self) -> None:
+        self.open_api_schema_list = await self.tool_schema_list()
         self.parse_react_schema_list()
 
-    def tool_schema_list(self) -> List[Dict[str, Any]]:
+    async def tool_schema_list(self) -> List[Dict[str, Any]]:
         """
         Query tool schema list from Spark Link subsystem.
 
@@ -371,11 +419,14 @@ class Link:
             "app_id": self.app_id,
         }
 
-        import requests  # type: ignore
-
-        response_json = requests.get(
-            self.get_url, headers=self.const_headers, params=params
-        ).json()
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=30)
+        ) as session:
+            async with session.get(
+                self.get_url, headers=self.const_headers, params=params
+            ) as response:
+                response.raise_for_status()
+                response_json = await response.json()
         code = response_json.get("code", 0)
         if code != 0:
             raise CustomException(
@@ -383,69 +434,14 @@ class Link:
                 err_msg=response_json.get("message", ""),
                 cause_error=json.dumps(response_json, ensure_ascii=False),
             )
-        return response_json.get("data", {}).get("tools", [])
-
-    @staticmethod
-    def parse_request_query_schema(
-        query_schema: list,
-    ) -> Tuple[Dict[str, Dict[str, str]], set]:
-        """
-        Parse query parameters from OpenAPI schema.
-
-        This method extracts query parameters from the OpenAPI parameter schema
-        and identifies which parameters are required.
-
-        :param query_schema: List of parameter definitions from OpenAPI schema
-        :return: Tuple containing (query_parameters_dict, required_parameters_set)
-        """
-        query_parameters = {}
-        query_required = set()
-        for parameter in query_schema:
-            parameter_name = parameter.get("name")
-            parameter_description = parameter.get("description")
-            parameter_type = parameter.get("schema", {}).get("type")
-            parameter_in = parameter.get("in")
-            parameter_required = parameter.get("required")
-
-            if parameter_in == "query":
-                query_parameters[parameter_name] = {
-                    "description": parameter_description,
-                    "type": parameter_type,
-                }
-                if parameter_required:
-                    query_required.add(parameter_name)
-        return query_parameters, query_required
-
-    def recursive_parse_request_body_schema(
-        self, body_schema: dict, properties: dict, required_set: set
-    ) -> None:
-        """
-        Recursively parse request body schema.
-
-        This method processes the OpenAPI request body schema recursively to extract
-        all parameter definitions and required field information.
-
-        :param body_schema: OpenAPI request body schema
-        :param properties: Dictionary to store parsed properties
-        :param required_set: Set to store required field names
-        """
-        request_body_properties = body_schema.get("properties", {})
-        for parameter_name, parameter_detail in request_body_properties.items():
-            parameter_description = parameter_detail.get("description", "")
-            parameter_type = parameter_detail.get("type")
-            if parameter_type == "object":
-                # Recursively process nested objects
-                self.recursive_parse_request_body_schema(
-                    parameter_detail, properties, required_set
-                )
-            else:
-                properties[parameter_name] = {
-                    "description": parameter_description,
-                    "type": parameter_type,
-                }
-        # Add top-level required fields
-        request_body_required = body_schema.get("required", [])
-        required_set.update(request_body_required)
+        tools = response_json.get("data", {}).get("tools", [])
+        actual = {(row.get("id"), row.get("version")) for row in tools}
+        if not {(tool_id, self.version) for tool_id in self.tool_ids}.issubset(actual):
+            raise CustomException(
+                CodeEnum.SPARK_LINK_TOOL_NOT_EXIST_ERROR,
+                err_msg="Tool version is unavailable",
+            )
+        return tools
 
     def parse_react_schema_list(self) -> None:
         """
@@ -467,37 +463,30 @@ class Link:
             # Process each path and method in the OpenAPI schema
             for path, path_schema in tool_schema.get("paths", {}).items():
                 for method, method_schema in path_schema.items():
-                    action_name = method_schema.get(
-                        "operationId", ""
-                    )  # Tool operation name
-                    # Parse query parameters
-                    query_schema = method_schema.get("parameters", [])
-                    query_parameters, query_required = self.parse_request_query_schema(
-                        query_schema
+                    if method not in _HTTP_METHODS:
+                        continue
+                    action_name = method_schema.get("operationId", "")
+                    inherited = {
+                        (p["in"], p["name"]): p
+                        for p in path_schema.get("parameters", [])
+                    }
+                    inherited.update(
+                        {
+                            (p["in"], p["name"]): p
+                            for p in method_schema.get("parameters", [])
+                        }
                     )
-                    # Parse request body (currently only supports application/json format)
-                    request_body_schema = (
-                        method_schema.get("requestBody", {})
-                        .get("content", {})
-                        .get("application/json", {})
-                        .get("schema", {})
-                    )
-                    body_parameters: Dict[str, Any] = {}
-                    body_required: Set[str] = set()
-                    self.recursive_parse_request_body_schema(
-                        request_body_schema, body_parameters, body_required
-                    )
-                    # Merge body and query parameters
-                    parameters: dict[str, dict] = dict(
-                        **query_parameters, **body_parameters
-                    )
+                    method_schema = {
+                        **method_schema,
+                        "parameters": list(inherited.values()),
+                    }
                     # Create Tool execution instance
                     tool = Tool(
                         app_id=self.app_id,
                         tool_id=tool_id,
                         operation_id=action_name,
                         method_schema=method_schema,
-                        parameters=parameters,
+                        parameters={},
                         get_url=self.get_url,
                         run_url=self.run_url,
                         version=self.version,

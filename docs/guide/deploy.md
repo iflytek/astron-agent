@@ -20,17 +20,18 @@ Best for standardized production deployment, scaling, and long-term operations.
 - Typical use cases: enterprise clusters, CI/CD, environment isolation
 - Related directory: `helm/`
 
-## What To Decide Before Deployment
+## Optional Customization After Default Startup
 
-- Prepare database, cache, and object storage dependencies
+- The default Compose stack includes database, cache, and storage; external replacements are optional
 - Confirm model access strategy and secret management
-- Decide whether authentication is required
+- Default Compose needs no `.env` edits, including access by server IP; signing credentials persist automatically and cookie security follows HTTP/HTTPS
+- Custom domains and additional HTTPS proxies can be configured explicitly when needed
 - Evaluate whether you need RPA, plugin, and tenant capabilities
 
 ## Recommended References
 
-- [Auth Deployment Guide](/DEPLOYMENT_GUIDE_WITH_AUTH)
-- [Auth + RPA Deployment Guide](/DEPLOYMENT_GUIDE_WITH_AUTH_RPA)
+- [Account Setup and Migration](/DEPLOYMENT_GUIDE_WITH_AUTH)
+- [External RPA Integration](/DEPLOYMENT_GUIDE_WITH_AUTH_RPA)
 - [Full Deployment Guide](/DEPLOYMENT_GUIDE)
 - [Deployment FAQ](/DEPLOYMENT_FAQ)
 - [Configuration Reference](/CONFIGURATION)
@@ -38,5 +39,5 @@ Best for standardized production deployment, scaling, and long-term operations.
 ## Typical Guidance
 
 - Need the fastest path: start with Docker Compose
-- Need unified identity: review the authentication-related deployment docs first
+- Upgrading existing users: follow the account import and password-reset instructions
 - Planning production rollout: combine deployment, configuration, and FAQ together

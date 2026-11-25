@@ -6,7 +6,7 @@
 
 ## Architecture Diagram
 
-![Astron Agent Architecture](./imgs/arch.png)
+![Astron Agent Architecture](./imgs/architecture.svg)
 
 ---
 
@@ -39,7 +39,7 @@
 
 **Module Path**: `console/backend/`
 
-**Language**: Java
+**Language**: Python
 
 **Main Responsibilities**:
 - Provide REST API and SSE interfaces for management console
@@ -48,13 +48,12 @@
 - Model management and configuration APIs
 - File upload/download services
 - Data statistics and analytics
+- Immutable release snapshots, publication credentials, and execution records
+- Space membership and scoped resource authorization
 
-**Tech Stack**: Spring Boot 3.5.4, MyBatis Plus 3.5.7, Spring Security, OAuth2
+**Tech Stack**: Django 5.2, ASGI, Django ORM, session authentication and CSRF
 
-**Sub-modules**:
-- **hub**: Main API service module
-- **toolkit**: Utility module
-- **commons**: Common module (DTOs, utilities, etc.)
+**Domain modules**: accounts, spaces, resources, knowledge, agents, workflows, publishing.
 
 ---
 
@@ -68,10 +67,10 @@
 
 **Main Responsibilities**:
 - Agent core execution engine
-- Support multiple Agent types (Chat Agent, CoT Agent, CoT Process Agent)
-- Agent lifecycle management
+- Unified Deep Agents execution for independent Agents and workflow Agent nodes
+- Execute Agent configurations supplied by Console
 - Tool invocation and plugin integration
-- Session management and context persistence
+- Execution context, streaming output, and tool-call state
 
 **Tech Stack**: FastAPI, SQLAlchemy 2.0, Pydantic, OpenTelemetry
 
@@ -88,13 +87,13 @@
 **Main Responsibilities**:
 - Workflow orchestration and execution engine (Spark Flow)
 - Multi-step process automation
-- Workflow version management
-- Event-driven asynchronous processing
+- Execute workflow snapshots supplied by Console
+- DAG scheduling and streaming execution events
 - Visual workflow runtime debugging
 
-**Tech Stack**: FastAPI, SQLModel, SQLAlchemy 2.0, Kafka (event streaming), LangChain
+**Tech Stack**: FastAPI, SQLModel, SQLAlchemy 2.0, LangChain
 
-**Event Mechanism**: Event communication via Kafka Topic `workflow-events`
+**Execution path**: Console invokes the workflow service over HTTP/SSE; Agent nodes call `core/agent`.
 
 ---
 
@@ -113,7 +112,7 @@
 
 **Tech Stack**: FastAPI, RAGFlow SDK, OpenAI API, SQLModel, Redis
 
-**Event Mechanism**: Event communication via Kafka Topic `knowledge-events`
+**Invocation**: Console and execution services access document and retrieval APIs over HTTP.
 
 ---
 
@@ -124,9 +123,11 @@
 **Language**: Python
 
 **Main Responsibilities**:
-- Conversation history storage and retrieval
-- Context management (long-term and short-term memory)
-- Session data persistence
+- Database creation, deletion, and metadata management
+- Table schema operations (DDL)
+- Data queries and updates (DML) for workflow database nodes
+
+Console manages conversation history and integrates optional Mem0 long-term memory.
 
 **Tech Stack**: Python, database abstraction layer
 
@@ -136,17 +137,17 @@
 
 **Module Path**: `core/tenant/`
 
-**Language**: Go
+**Language**: Python
 
 **Main Responsibilities**:
-- Multi-tenant management
-- Space isolation and permission control
-- Organization structure management
-- Resource quota management
+- Application registration and management
+- Application API key creation, update, deletion, and verification
 
-**Tech Stack**: Go 1.23, Gin framework, MySQL
+Console owns space membership, roles, and resource authorization.
 
-**Design Philosophy**: Implemented in Go for high performance and low memory overhead
+**Tech Stack**: FastAPI, SQLAlchemy Core, PyMySQL, MySQL
+
+**Design Philosophy**: Keeps application identity and API keys in MySQL. Console, Agent and Workflow call the internal HTTP API.
 
 ---
 
@@ -175,8 +176,8 @@
 
 **Main Responsibilities**:
 - RPA process automation
-- Process recording and playback
-- Automated script execution
+- Invoke configured external RPA tasks
+- Retrieve execution results
 - Integration with external RPA executors
 
 **Tech Stack**: FastAPI, RPA SDK
@@ -190,9 +191,9 @@
 **Language**: Python
 
 **Main Responsibilities**:
-- External link resource integration
-- URL content fetching and processing
-- Link validation and metadata extraction
+- HTTP tool definition and version management
+- HTTP tool execution and debugging
+- MCP tool discovery and invocation
 
 **Tech Stack**: FastAPI, HTTP Client
 
@@ -214,7 +215,7 @@
 - Unified logging system
 - OSS (MinIO) object storage integration
 
-**Tech Stack**: Python, SQLModel, Redis Client, Kafka Client, OpenTelemetry
+**Tech Stack**: Python, SQLModel, Redis Client, OpenTelemetry
 
 **Core Value**: Provide unified infrastructure abstraction for all Python microservices
 
@@ -223,15 +224,9 @@
 ## Infrastructure Components (Data Mgmt & Messaging)
 
 ### Data Persistence
-- **MySQL**: Primary database for structured data storage
-- **Redis**: Cache service, session storage, event registry
+- **MySQL**: Console accounts, DB-backed sessions, configuration, releases, and execution records; service-specific structured data
+- **Redis**: Cache, rate limits, and execution event registry
 - **PostgreSQL**: Optional auxiliary database
-
-### Message Queue
-- **Kafka**: Event streaming and inter-service communication
-  - Topic: `workflow-events` - Workflow events
-  - Topic: `knowledge-events` - Knowledge events
-  - Topic: `agent-events` - Agent events
 
 ### Object Storage
 - **MinIO**: File storage service (PUT/GET operations)
@@ -264,15 +259,15 @@ UI Layer
          ↓ HTTP/REST/SSE
 
 Console Backend Layer
-    └── Console Backend (Java Spring Boot)
-         ↓ HTTP/REST
+    └── Console Backend (Python Django ASGI)
+         ↓ HTTP/REST/SSE
 
 Core Microservices Layer
     ├── Agent Service (Python FastAPI)
     ├── Workflow Service (Python FastAPI)
     ├── Knowledge Service (Python FastAPI)
     ├── Memory DB Service (Python)
-    ├── Tenant Service (Go Gin)
+    ├── Tenant Service (Python FastAPI)
     ├── Plugin: AI Tools (Python FastAPI)
     ├── Plugin: Link (Python FastAPI)
     └── Plugin: RPA (Python FastAPI)
@@ -284,10 +279,8 @@ Common Services Layer
 
 Data & Messaging Layer
     ├── MySQL (Relational Database)
-    ├── Redis (Cache/Session)
-    ├── Kafka (Event Streaming)
+    ├── Redis (Cache/Events)
     └── MinIO (Object Storage)
-         ↓
 
 External Services
     ├── LLM Providers (Large Language Models)
@@ -300,11 +293,11 @@ External Services
 | Communication Path | Protocol | Description |
 |-------------------|----------|-------------|
 | Frontend → Backend | HTTP/REST, SSE | REST API calls and server-sent events |
-| Backend → Core Services | HTTP/REST | RESTful API invocation |
-| Core Services ↔ Core Services | Kafka Topics | Asynchronous event-driven communication |
-| Core Services → MySQL | JDBC/SQLAlchemy | Data persistence |
-| Core Services → Redis | Redis Protocol | Cache read/write, session management |
-| Core Services → Kafka | Kafka Protocol | Publish/subscribe events |
+| Backend → Core Services | HTTP/REST, SSE | Resource operations, execution requests, and streamed results |
+| Workflow → Agent / Knowledge / Plugins / Database | HTTP, SSE | Node execution and resource access |
+| Agent → Console | Internal HTTP APIs | Scoped runtime configuration and resource access |
+| Core Services → MySQL | MySQL drivers / SQLAlchemy | Data persistence |
+| Core Services → Redis | Redis Protocol | Cache and execution events |
 | Core Services → MinIO | MinIO API (PUT/GET) | File upload/download |
 | Plugins → External Services | HTTP/gRPC | External API calls |
 
@@ -315,16 +308,16 @@ External Services
 | Module | Dependencies | Dependents |
 |--------|-------------|------------|
 | **Console Frontend** | Console Backend | - |
-| **Console Backend** | Agent, Workflow, Knowledge, Tenant | Console Frontend |
+| **Console Backend** | Agent, Workflow, Knowledge, Tenant, Plugins, Database | Console Frontend; Agent runtime callbacks |
 | **Agent Service** | Common, Plugins (AI Tools/Link/RPA), Memory | Workflow, Console Backend |
 | **Workflow Service** | Common, Agent, Plugins | Console Backend |
 | **Knowledge Service** | Common, LLM Providers | Agent, Workflow, Console Backend |
-| **Memory DB Service** | Common | Agent |
-| **Tenant Service** | MySQL | All services (tenant context) |
+| **Memory DB Service** | Common | Console Backend, Workflow |
+| **Tenant Service** | MySQL | Application credential management and verification callers |
 | **Plugin: AI Tools** | Common, IFLYTEX API | Agent, Workflow |
 | **Plugin: RPA** | Common, RPA Executors | Agent, Workflow |
 | **Plugin: Link** | Common | Agent, Workflow |
-| **Common Module** | MySQL, Redis, Kafka, MinIO | All Python services |
+| **Common Module** | MySQL, Redis, MinIO | All Python services |
 
 ---
 
@@ -333,19 +326,18 @@ External Services
 | Layer | Module | Language/Framework | Version |
 |-------|--------|-------------------|---------|
 | **Frontend** | Console Frontend | TypeScript + React | TS 5.9.2, React 18.2.0 |
-| **Backend** | Console Backend | Java + Spring Boot | Java 21, Spring Boot 3.5.4 |
+| **Backend** | Console Backend | Python + Django | Python 3.11, Django 5.2 |
 | **Microservices** | Agent Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Workflow Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Knowledge Service | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Memory DB Service | Python | Python 3.11+ |
-| | Tenant Service | Go + Gin | Go 1.23, Gin 1.10.1 |
+| | Tenant Service | Python + FastAPI | Python 3.11+, FastAPI 0.116+ |
 | **Plugins** | AI Tools Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | RPA Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | | Link Plugin | Python + FastAPI | Python 3.11+, FastAPI 0.115+ |
 | **Common** | Common Module | Python | Python 3.11+ |
 | **Data** | MySQL | Relational Database | MySQL 5.7+ |
 | | Redis | Cache/In-memory DB | Redis 6.0+ |
-| | Kafka | Message Queue | Kafka 2.5.0+ |
 | | MinIO | Object Storage | MinIO 8.5.10 |
 
 ---
@@ -359,20 +351,15 @@ External Services
 - **Code Analysis**: Pylint, Flake8
 - **Testing**: Pytest (coverage ≥ 70%)
 
-### Java Modules
-- **Architecture**: Spring Boot layered architecture
-- **Code Style**: Checkstyle
-- **Code Analysis**: PMD
-- **Testing**: JUnit
+### Python Console
+- **Architecture**: Django domain modules with ASGI streaming
+- **Checks**: Ruff, Django migration checks and Django test runner
+- **Execution**: core/agent and core/workflow own runtime orchestration
 
 ### TypeScript Modules
 - **Code Style**: ESLint + Prettier
 - **Type Checking**: TypeScript strict mode
-- **Testing**: Jest + React Testing Library
-
-### Go Modules
-- **Code Style**: Go fmt
-- **Code Analysis**: Go vet, Golint
+- **Testing**: Node.js test runner (`npm run test:unit`)
 
 ---
 
@@ -387,4 +374,4 @@ External Services
 ---
 
 **Document Version**: v1.0
-**Last Updated**: 2025-11-25
+**Last Updated**: 2026-11-06

@@ -20,22 +20,23 @@ Astron Agent 当前更适合按「先快速体验、再逐步生产化」的方�
 - 典型场景：企业集群部署、持续交付、环境隔离
 - 相关目录：`helm/`
 
-## 部署前准备
+## 默认启动后的可选配置
 
-- 准备数据库、缓存、对象存储等基础设施
+- 默认 Compose 已包含数据库、缓存、对象存储，按需替换外部基础设施
 - 确认模型接入方式和密钥管理策略
-- 根据是否需要登录鉴权，选择标准部署或带鉴权部署
+- 默认 Compose 及服务器 IP 访问无需修改 `.env`；签名凭据自动持久化，Cookie 随 HTTP/HTTPS 适配
+- 自定义域名和额外 HTTPS 代理按需显式配置
 - 明确是否需要接入 RPA、插件和租户能力
 
 ## 推荐阅读
 
-- [带鉴权部署指南](/zh/DEPLOYMENT_GUIDE_WITH_AUTH)
-- [带鉴权与 RPA 部署指南](/zh/DEPLOYMENT_GUIDE_WITH_AUTH_RPA)
+- [账号配置与迁移](/zh/DEPLOYMENT_GUIDE_WITH_AUTH)
+- [外部 RPA 集成](/zh/DEPLOYMENT_GUIDE_WITH_AUTH_RPA)
 - [标准部署指南](/zh/DEPLOYMENT_GUIDE)
 - [配置说明](/zh/guide/config)
 
 ## 常见选择建议
 
 - 只想尽快跑起来：优先 Docker Compose
-- 需要统一身份认证：优先带鉴权部署文档
+- 升级已有账号：按账号迁移说明导入用户并发放重设密码链接
 - 计划进入生产环境：结合 Helm、配置说明和 FAQ 一起评估

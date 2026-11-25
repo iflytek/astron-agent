@@ -348,6 +348,26 @@ class TestMaasAuth:
                 await maas_auth.sk(span)
 
     @pytest.mark.asyncio
+    async def test_sk_rejects_disabled_application(
+        self, maas_auth: MaasAuth, span: Span
+    ) -> None:
+        app_detail = {
+            "code": 0,
+            "data": [
+                {
+                    "is_disable": True,
+                    "auth_list": [{"api_key": "test_key", "api_secret": "test_secret"}],
+                }
+            ],
+        }
+
+        with patch.object(APPAuth, "app_detail", return_value=app_detail):
+            with pytest.raises(
+                _TestAppAuthFailedExc, match=maas_auth.app_id_not_found_msg
+            ):
+                await maas_auth.sk(span)
+
+    @pytest.mark.asyncio
     async def test_sk_app_detail_none(self, maas_auth: MaasAuth, span: Span) -> None:
         """Test when app details are None"""
         with patch.object(APPAuth, "app_detail", return_value=None):

@@ -56,11 +56,6 @@ http { \
     index index.html; \
     root /var/www; \
     access_log off; \
-    location = /runtime-config.js { \
-      expires -1; \
-      add_header Cache-Control \"no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0\"; \
-      add_header Pragma \"no-cache\"; \
-    } \
     location / { \
       try_files \$uri \$uri/ /index.html; \
       expires -1; \

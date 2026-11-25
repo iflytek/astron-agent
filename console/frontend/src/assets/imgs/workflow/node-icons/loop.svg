@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" role="img">
+  <title>循环</title>
+  <rect x="1.5" y="1.5" width="29" height="29" rx="7.5" fill="#E6F7F5" stroke="#CBECE7"/>
+  <g fill="none" stroke="#08766F" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7.7 14.05a8.6 8.6 0 0 1 15.93-2.19l.77 1.43m0-4.9v4.9h-4.9" stroke-width="2.1"/>
+    <path d="M24.3 17.95a8.6 8.6 0 0 1-15.93 2.19L7.6 18.71m0 4.9v-4.9h4.9" stroke="#379991" stroke-width="2.1"/>
+  </g>
+</svg>

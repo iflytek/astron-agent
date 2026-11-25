@@ -10,6 +10,7 @@ import uvicorn
 from common.service.base import ServiceType
 from fastapi import APIRouter, FastAPI
 from plugin.aitools.api.middlewares.otlp_middleware import OTLPMiddleware
+from plugin.aitools.api.routes.catalog import catalog_router
 from plugin.aitools.api.routes.register import register_api_services
 from plugin.aitools.common.clients.aiohttp_client import (
     close_aiohttp_session,
@@ -112,6 +113,7 @@ def aitools_app() -> FastAPI:
     router = APIRouter()
     register_api_services(router)
     main_app.include_router(router)
+    main_app.include_router(catalog_router)
 
     sample_rate = safe_get_float_env(SAMPLE_RATE_KEY, 1.0)
     include_paths = safe_get_list_env(INCLUDE_PATHS_KEY, ["/aitools/v1"])

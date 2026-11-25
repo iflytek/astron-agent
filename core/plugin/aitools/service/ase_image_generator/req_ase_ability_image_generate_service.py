@@ -3,15 +3,16 @@ ASE Image Generator Service
 """
 
 import base64
-import json
 import os
 import uuid
 from typing import Any, Dict, Optional, Tuple
 
+from aiohttp import ClientResponse
 from common.otlp.log_trace.node_trace_log import NodeTraceLog
 from common.otlp.metrics.meter import Meter
 from common.utils.hmac_auth import HMACAuth
 from fastapi import Request
+from loguru import logger
 from plugin.aitools.api.decorators.api_service import api_service
 from plugin.aitools.api.schemas.types import BaseResponse, SuccessResponse
 from plugin.aitools.common.clients.adapters import SpanLike
@@ -49,8 +50,8 @@ def gen_params(
         "parameter": {
             "chat": {
                 "domain": "general",
-                "width": height,
-                "height": width,
+                "width": width,
+                "height": height,
             }
         },
         "payload": {
@@ -67,6 +68,26 @@ def gen_params(
     }
 
     return body, params
+
+
+def check_vendor_header(content: dict[str, Any]) -> None:
+    header = content.get("header")
+    if not isinstance(header, dict) or type(header.get("code")) is not int:
+        logger.warning("iFLYTEK text-to-image returned an invalid response")
+        raise ServiceException.from_error_code(
+            CodeEnums.ServiceResponseError, extra_message="讯飞文生图响应格式无效"
+        )
+
+    code = header["code"]
+    if code != 0:
+        logger.warning("iFLYTEK text-to-image request failed, vendor code={}", code)
+        message = header.get("message")
+        if isinstance(message, str) and "AppIdNoEnoughLicenceError" in message:
+            error = CodeEnums.ImageGenerateLicenseError
+            raise ServiceException(code=error.code, message=error.message)
+        raise ServiceException.from_error_code(
+            CodeEnums.ServiceResponseError, extra_message=f"讯飞文生图返回错误码 {code}"
+        )
 
 
 @api_service(
@@ -106,23 +127,30 @@ async def req_ase_ability_image_generate_service(
         json=data,
     ).start() as client:
         async with client.request() as response:
-            content = json.loads(await response.data.get("content", "").text())  # type: ignore[union-attr]
+            content = (response.data or {}).get("content")
+            if isinstance(content, ClientResponse):
+                # The vendor also sends JSON with a non-JSON Content-Type.
+                try:
+                    content = await content.json(content_type=None)
+                except ValueError:
+                    content = None
 
-    header = content.get("header", {})
-    code = header.get("code", 0)
-    message = header.get("message", "")
+    if not isinstance(content, dict):
+        content = {}
+    check_vendor_header(content)
 
-    if code != 0:
+    try:
+        text = content["payload"]["choices"]["text"][0]["content"]
+        image = base64.b64decode(text, validate=True)
+        if not image:
+            raise ValueError
+    except (KeyError, IndexError, TypeError, ValueError):
+        logger.warning("iFLYTEK text-to-image response contained no valid image")
         raise ServiceException.from_error_code(
-            CodeEnums.ServiceResponseError, extra_message=message
-        )
+            CodeEnums.ServiceResponseError, extra_message="讯飞文生图未返回有效图片"
+        ) from None
 
-    payload = content.get("payload", {})
-    text = payload.get("choices", {}).get("text", [{}])[0].get("content", "")
-
-    image_url = await upload_file(
-        str(uuid.uuid4()) + ".jpg", base64.b64decode(text), span
-    )
+    image_url = await upload_file(str(uuid.uuid4()) + ".jpg", image, span)
 
     return SuccessResponse(
         data={"image_url": image_url, "image_url_md": f"![]({image_url})"},

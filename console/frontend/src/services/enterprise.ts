@@ -27,8 +27,10 @@ export const updateEnterpriseName = (params: any) => {
 };
 
 // 获取企业团队详情 /enterprise/detail
-export const getEnterpriseDetail = () => {
-  return http.get('/enterprise/detail');
+export const getEnterpriseDetail = (enterpriseId: string) => {
+  return http.get('/enterprise/detail', {
+    headers: { 'space-id': '', 'enterprise-id': enterpriseId },
+  });
 };
 
 // 加入的团队列表 get /enterprise/joinList
@@ -45,7 +47,7 @@ export const getEnterpriseSearchUsername = (params: any) => {
 
 // 邀请加入企业团队 /inviteRecord/enterpriseInvite
 export const enterpriseInvite = (params: any) => {
-  return http.post(`/invite-record/enterprise-invite`, params);
+  return http.post(`/invite-record/enterprise-invite`, { members: params });
 };
 
 // 获取团队成员列表 /enterpriseUser/page
@@ -77,22 +79,12 @@ export const getEnterpriseInviteList = (params: any) => {
   return http.post('/invite-record/enterprise-invite-list', params);
 };
 
-// 离开团队 / 企业 (接口未实现)
-export const leaveTeam = (params: any) => {
-  return http.post(`/enterprise/leave${objectToQueryString(params)}`);
-};
-
 // 更新企业头像 /enterprise/updateAvatar
 export const updateEnterpriseAvatar = (avatarUrl: string) => {
-  return http.post(`/enterprise/update-avatar?avatarUrl=${avatarUrl}`);
+  return http.post('/enterprise/update-avatar', { avatarUrl });
 };
 export const quitEnterprise = () => {
   return http.post('/enterprise-user/quit-enterprise');
-};
-
-// 团队邀请限制获取
-export const getEnterpriseUserLimit = () => {
-  return http.get('/enterprise-user/get-user-limit');
 };
 
 // 团队批量导入
@@ -101,14 +93,8 @@ export const batchImportEnterpriseUsername = (
   options: { signal?: AbortSignal } = {}
 ) => {
   return http.post('/invite-record/enterprise-batch-search-username', params, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     signal: options.signal, // 传递 AbortSignal
   });
-};
-
-// 访问企业团队
-export const visitEnterprise = (enterpriseId: string) => {
-  return http.get(`/enterprise/visit-enterprise?enterpriseId=${enterpriseId}`);
 };
 
 // 开源 升级套餐

@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import {
   enableFlieAPI,
   getRepoUseStatus,
@@ -17,9 +18,11 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { fetchSseWithContext } from '@/utils/sse-request';
+import { getLanguageCode } from '@/utils/http';
+import useSpaceStore from '@/store/space-store';
 import { debounce } from 'lodash';
-import { Modal } from 'antd';
+import { Modal, message } from 'antd';
 import { getFixedUrl } from '@/components/workflow/utils';
 
 // 文档数据管理 Hook
@@ -42,6 +45,7 @@ const useDocumentData = ({
   >;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }): {
+  error: string;
   dataResource: FileItem[];
   setDataResource: React.Dispatch<React.SetStateAction<FileItem[]>>;
   directoryTree: FileDirectoryTreeResponse[];
@@ -52,6 +56,14 @@ const useDocumentData = ({
 } => {
   const navigate = useNavigate();
   const [dataResource, setDataResource] = useState<FileItem[]>([]);
+  const [error, setError] = useState('');
+  const sequence = useRef(0);
+  useEffect(
+    () => () => {
+      sequence.current += 1;
+    },
+    []
+  );
   const [directoryTree, setDirectoryTree] = useState<
     FileDirectoryTreeResponse[]
   >([]);
@@ -61,9 +73,11 @@ const useDocumentData = ({
       fileId: parentId || '',
       repoId,
     };
-    listFileDirectoryTree(params).then(data => {
-      setDirectoryTree(data);
-    });
+    listFileDirectoryTree(params)
+      .then(data => {
+        setDirectoryTree(data);
+      })
+      .catch(() => setDirectoryTree([]));
   }, [parentId, repoId]);
 
   const getFiles = useCallback(async (): Promise<void> => {
@@ -75,18 +89,27 @@ const useDocumentData = ({
       pageNo: pagination.current,
       pageSize: pagination.pageSize,
     };
-    const data = await queryFileList(params).finally(() => setLoading(false));
-    const files = data.pageData?.map((item: FileItem) => ({
-      ...item,
-      type: fileType(item),
-      size: item.fileInfoV2?.size,
-      tagDtoList: item.tagDtoList,
-    }));
-    setDataResource(files as FileItem[]);
-    setPagination(prevPagination => ({
-      ...prevPagination,
-      total: data.totalCount,
-    }));
+    const id = ++sequence.current;
+    setError('');
+    try {
+      const data = await queryFileList(params);
+      if (sequence.current !== id) return;
+      const files = (data.pageData || []).map((item: FileItem) => ({
+        ...item,
+        type: fileType(item),
+        size: item.fileInfoV2?.size,
+        tagDtoList: item.tagDtoList,
+      }));
+      setDataResource(files);
+      setPagination(previous => ({ ...previous, total: data.totalCount }));
+    } catch (failure) {
+      if (sequence.current === id)
+        setError(
+          failure instanceof Error ? failure.message : '文档加载失败，请重试。'
+        );
+    } finally {
+      if (sequence.current === id) setLoading(false);
+    }
   }, [
     tag,
     parentId,
@@ -120,6 +143,7 @@ const useDocumentData = ({
   }, [parentId, getDirectoryTree]);
 
   return {
+    error,
     dataResource,
     setDataResource,
     directoryTree,
@@ -146,6 +170,7 @@ const useDocumentSearch = ({
   cancel: () => void;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }): {
+  error: string;
   searchValue: string;
   setSearchValue: React.Dispatch<React.SetStateAction<string>>;
   searchData: FileItem[];
@@ -153,78 +178,88 @@ const useDocumentSearch = ({
   handleInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   requestSearchFilesRun: (value: string) => void;
 } => {
+  const { spaceId, spaceType, enterpriseId } = useSpaceStore();
   const [searchValue, setSearchValue] = useState('');
+  const [error, setError] = useState('');
   const [searchData, setSearchData] = useState<FileItem[]>([]);
   const controllerRef = useRef<AbortController | null>(null);
 
   const connectToSSE = useCallback(
     async (searchValue: string): Promise<void> => {
       setSearchData([]);
+      setError('');
       setLoading(true);
       if (controllerRef.current) {
         controllerRef.current?.abort();
         controllerRef.current = null;
       }
-      controllerRef.current = new AbortController();
-
-      // 获取访问令牌
-      const accessToken = localStorage.getItem('accessToken');
-      const headers: Record<string, string> = {};
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
-
-      await fetchEventSource(
-        `${getFixedUrl('/file/search-file')}?fileName=${encodeURIComponent(
-          searchValue
-        )}&repoId=${repoId}&pid=${parentId}&tag=${tag}`,
-        {
-          signal: controllerRef?.current?.signal,
-          headers,
-          async onopen(response) {
-            if (response.ok) {
-              setLoading(false);
-            } else {
-              throw new Error(`Failed to establish SSE connection`);
-            }
-          },
-          onmessage(event) {
-            if (event.data === 'bye') {
-              controllerRef.current?.abort();
-              controllerRef.current = null;
-              return;
-            }
-            const item = JSON.parse(event.data);
-            item.type = fileType(item);
-            const regexPattern = new RegExp(searchValue, 'gi');
-            item.name = item.name.replaceAll(
-              regexPattern,
-              '<span style="color:#6356EA;font-weight:600;display:inline-block;padding:4px 0px;background:#dee2f9">$&</span>'
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      const isCurrent = (): boolean =>
+        controllerRef.current === controller && !controller.signal.aborted;
+      try {
+        await fetchSseWithContext(
+          `${getFixedUrl('/file/search-file')}?fileName=${encodeURIComponent(searchValue)}&repoId=${repoId}&pid=${parentId}&tag=${encodeURIComponent(tag)}`,
+          {
+            signal: controller.signal,
+            credentials: 'same-origin',
+            cache: 'no-store',
+            getContext: () => ({
+              languageCode: getLanguageCode(),
+              spaceId,
+              spaceType,
+              enterpriseId,
+            }),
+            async onopen(response) {
+              if (
+                !response.ok ||
+                !response.headers
+                  .get('content-type')
+                  ?.includes('text/event-stream')
+              ) {
+                throw new Error(`文档搜索失败（${response.status}）`);
+              }
+            },
+            onmessage(event) {
+              if (!isCurrent() || !event.data) return;
+              if (event.data === 'bye') {
+                controller.abort();
+                return;
+              }
+              const item = JSON.parse(event.data);
+              item.type = fileType(item);
+              setSearchData(resultList => [...resultList, item]);
+            },
+            onerror(error) {
+              // Stop the library's automatic retry on authorization or protocol failure.
+              throw error;
+            },
+            openWhenHidden: true,
+          }
+        );
+      } catch (error) {
+        if (isCurrent()) {
+          setError(
+            error instanceof Error ? error.message : '文档搜索失败，请重试。'
+          );
+          shouldShowRequestError(error) &&
+            message.error(
+              error instanceof Error ? error.message : '文档搜索失败'
             );
-
-            setSearchData(resultList => [...resultList, item]);
-          },
-          onerror(error) {
-            setLoading(false);
-            controllerRef.current?.abort();
-            controllerRef.current = null;
-          },
-          openWhenHidden: true,
         }
-      );
+      } finally {
+        if (controllerRef.current === controller) {
+          controllerRef.current = null;
+          setLoading(false);
+        }
+      }
     },
-    [tag, repoId, parentId, setLoading]
+    [tag, repoId, parentId, setLoading, spaceId, spaceType, enterpriseId]
   );
 
   const { run: requestSearchFilesRun, cancel: searchRunCancel } = useRequest(
     connectToSSE,
-    {
-      manual: true,
-      pollingInterval: 15000,
-      pollingWhenHidden: false,
-      pollingErrorRetryCount: 3,
-      refreshOnWindowFocus: false,
-    }
+    { manual: true }
   );
 
   const searchFileDebounce = useCallback(
@@ -247,8 +282,17 @@ const useDocumentSearch = ({
     ]
   );
 
+  useEffect(
+    () => () => {
+      searchFileDebounce.cancel();
+      controllerRef.current?.abort();
+    },
+    [searchFileDebounce, spaceId, enterpriseId]
+  );
+
   const handleInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
+      controllerRef.current?.abort();
       const value = event.target.value;
       setSearchValue(value);
       searchFileDebounce(value);
@@ -257,6 +301,7 @@ const useDocumentSearch = ({
   );
 
   return {
+    error,
     searchValue,
     setSearchValue,
     searchData,
@@ -518,7 +563,7 @@ const useDocumentUI = (
 } => {
   const { t } = useTranslation();
   const optionsRef = useRef<HTMLDivElement | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const allowUploadFileContent = useMemo(() => {
     return tag === 'AIUI-RAG2'
@@ -558,6 +603,8 @@ export const useDocumentPage = ({
   repoId: number | string;
   pid: number;
 }): {
+  error: string;
+  retryLoad: () => void;
   run: (record: FileItem) => void;
   retrySegmentation: (record: FileItem) => void;
   showConfirmModal: (record: FileItem) => void;
@@ -642,6 +689,11 @@ export const useDocumentPage = ({
   }, [navigate, pid]);
 
   return {
+    error: search.searchValue ? search.error : documentData.error,
+    retryLoad: () => {
+      if (search.searchValue) search.requestSearchFilesRun(search.searchValue);
+      else void documentData.getFiles();
+    },
     // 文件操作相关
     run: actions.run,
     retrySegmentation: actions.retrySegmentation,

@@ -30,11 +30,8 @@ Please read our [Code of Conduct](.github/code_of_conduct.md) for details on our
 
 Before contributing, ensure you have the following installed:
 
-- **Java 21+** (for backend services)
-- **Maven 3.8+** (for Java project management)
-- **Node.js 18+** (for frontend development)
-- **Python 3.9+** (for core services)
-- **Go 1.21+** (for tenant service)
+- **Node.js 20** (for frontend development and CI)
+- **Python 3.11+** and **uv** (for the Django Console; core services use their module requirements)
 - **Docker & Docker Compose** (for containerized services)
 - **Git** (for version control)
 
@@ -96,8 +93,8 @@ pre-commit install --hook-type commit-msg
 ```
 
 Pre-commit will automatically run on every commit to:
-- Check code formatting (Black, Prettier, gofmt, Spotless)
-- Run linters (flake8, ESLint, golangci-lint, Checkstyle)
+- Check code formatting (Black, Ruff, Prettier)
+- Run linters (Ruff, flake8, ESLint)
 - Perform type checking (mypy, TypeScript)
 - Scan for secrets (gitleaks)
 - Validate commit message format
@@ -111,12 +108,8 @@ Astron Agent is a microservices-based platform with the following structure:
 ```
 astron-agent/
 ├── console/                    # Console subsystem
-│   ├── backend/               # Java Spring Boot services
-│   │   ├── auth/              # Authentication service
-│   │   ├── commons/           # Shared utilities
-│   │   ├── hub/               # Main business logic
-│   │   ├── toolkit/           # Toolkit services
-│   │   └── config/            # Quality configuration
+│   ├── backend/               # Django Console API and workers
+│   │   └── astron_console/    # Authentication, resources, agents, workflows and publishing
 │   └── frontend/              # React TypeScript SPA
 ├── core/                      # Core platform services
 │   ├── agent/                 # Agent execution engine (Python)
@@ -124,7 +117,7 @@ astron-agent/
 │   ├── knowledge/             # Knowledge base service (Python)
 │   ├── memory/                # Memory management
 │   ├── plugin/                # Plugin system
-│   ├── tenant/                # Multi-tenant service (Go)
+│   ├── tenant/                # Multi-tenant service (Python)
 │   └── workflow/              # Workflow orchestration (Python)
 ├── docs/                      # Documentation
 ├── makefiles/                 # Build system components
@@ -184,9 +177,7 @@ Astron Agent supports multiple programming languages with unified quality standa
 
 | Language | Formatting | Quality Tools | Standards |
 |----------|------------|---------------|-----------|
-| **Go** | gofmt + goimports + gofumpt | golangci-lint + staticcheck | Go standard format, complexity ≤10 |
-| **Java** | Spotless (Google Java Format) | Checkstyle + PMD + SpotBugs | Google Java Style, complexity ≤10 |
-| **Python** | black + isort | flake8 + mypy + pylint | PEP 8, complexity ≤10 |
+| **Python** | Ruff (Console), black + isort (core) | Ruff (Console), flake8 + mypy + pylint (core) | PEP 8, complexity ≤10 |
 | **TypeScript** | prettier | eslint + tsc | ESLint rules, strict typing |
 
 ### Code Quality Requirements
@@ -214,7 +205,6 @@ pre-commit run --all-files
 # Run a specific hook
 pre-commit run black --all-files
 pre-commit run eslint-check --all-files
-pre-commit run golangci-lint --all-files
 ```
 
 For more details, see the [Pre-commit Usage Guide](docs/PRE-COMMIT.md).
@@ -234,8 +224,6 @@ For more details, see the [Pre-commit Usage Guide](docs/PRE-COMMIT.md).
 make test
 
 # Run specific language tests
-make test-go
-make test-java
 make test-python
 make test-typescript
 

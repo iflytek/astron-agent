@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -144,7 +145,8 @@ export const useTableSave = (
           }
         } catch (error) {
           actions.setSaveLoading(false);
-          message.error(t('database.saveFailed'));
+          shouldShowRequestError(error) &&
+            message.error(t('database.saveFailed'));
         }
       })
       .catch(() => {

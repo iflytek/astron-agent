@@ -1,3 +1,4 @@
+import { shouldShowRequestError } from '@/utils/http-error';
 import React from 'react';
 import { Modal, message } from 'antd';
 import ButtonGroup from '@/components/button-group/button-group';
@@ -9,6 +10,7 @@ import styles from './index.module.scss';
 import warningImg from '@/assets/imgs/space/warning.png';
 import { useSpaceType } from '@/hooks/use-space-type';
 import { useNavigate } from 'react-router-dom';
+import eventBus from '@/utils/event-bus';
 interface DeleteSpaceModalProps {
   open: boolean;
   onClose: () => void;
@@ -26,18 +28,15 @@ const DeleteSpaceModal: React.FC<DeleteSpaceModalProps> = ({
 
   const handleSubmit = async () => {
     try {
-      // Since we removed captcha, pass dummy values for mobile and verifyCode
-      // This assumes the backend will be updated to not require these fields
       await deleteSpace({
         spaceId,
-        mobile: '',
-        verifyCode: '',
       });
       message.success(t('space.deleteSpaceSuccess'));
       deleteSpaceCb();
+      eventBus.emit('spaceList');
       onSubmit();
     } catch (error: any) {
-      message.error(error?.msg || error?.desc);
+      shouldShowRequestError(error) && message.error(error?.msg || error?.desc);
     }
   };
 

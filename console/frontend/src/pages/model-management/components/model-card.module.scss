@@ -1,114 +1,107 @@
 .modelCard {
-  border-radius: 20px;
-  /* 卡片背景 */
-  background: #FFFFFF;
-  box-sizing: border-box;
-  /* 颜色/中性色/边框中性色 */
-  border: 1px solid #E7E7F0;
-  /* 阴影/一级阴影 */
-  box-shadow: 0px 1px 10px 0px rgba(122, 120, 150, 0.1);
-
-  &:hover {
-    border: 1px solid #6356EA;
-    /* 阴影/二级样式 */
-    box-shadow: 0px 4px 16px 0px rgba(134, 130, 191, 0.3);
-  }
-
-  .modelCardHeader {
-    .modelCardTitle {
-      display: inline-block;
-      font-family: "PingFang-Sim";
-      font-size: 20px;
-      font-weight: 500;
-      line-height: 26px;
-      text-align: center;
-      letter-spacing: normal;
-      /* 颜色/文本中性色/主标题、正文 */
-      color: #222529;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      max-width: 170px;
-      vertical-align: bottom;
-    }
-  }
-}
-
-.modelTag {
-  padding: 2px 6px;
-  border-radius: 16px;
-  /* 标签底色 */
-  background-color: #F0F0F1;
-  font-family: PingFang SC;
-  font-size: 12px;
-  font-weight: normal;
-  line-height: 18px;
-  text-align: center;
-  letter-spacing: normal;
-  color: #676773;
-
-  &.category {
-    background: rgba(99, 86, 234, 0.1);
-    color: #8475AF;
-  }
-}
-
-.modelDesc {
-  font-family: 'PingFang-Sim';
-  font-size: 14px;
-  font-weight: normal;
-  line-height: 22px;
-  text-align: justify; /* 浏览器可能不支持 */
+  border: 1px solid #dfe6f1;
+  border-radius: 14px;
+  background: #fff;
+  min-width: 0;
+  min-height: 236px;
+  padding: 16px 16px 10px;
   display: flex;
-  align-items: center;
-  letter-spacing: normal;
-  /* 颜色/文本中性色/副标题、次要正文内容 */
-  color: #676773;
-
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  line-clamp: 2;
-  -webkit-line-clamp: 2;
+  flex-direction: column;
+  transition: border-color 0.18s ease-out;
+  &:hover,
+  &:focus-within {
+    border-color: #8aa5f5;
+  }
 }
-
-.modelInfo {
-  width: 100%;
+.identity {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  gap: 8px;
   justify-content: space-between;
-  letter-spacing: normal;
-  /* 颜色/文本中性色/辅助色（说明、标签） */
-  font-family: PingFang SC;
+}
+.modelCardHeader {
+  display: flex;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 10px;
+}
+.identityText {
+  min-width: 0;
+}
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.modelCardTitle {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+  color: #18243d;
+  overflow-wrap: anywhere;
+}
+.modelTag {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #f2f5fb;
+  color: #52688c;
   font-size: 12px;
-  font-weight: normal;
-  line-height: 24px;
-  color: #B5B5B5;
-  overflow: hidden;
+  line-height: 19px;
+  overflow-wrap: anywhere;
+}
+.category {
+  color: #52688c;
+}
+.modelDesc {
+  color: #526580;
+  font-size: 13px;
+  line-height: 20px;
+  margin: 16px 0 10px;
+  overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  line-clamp: 1;
-  -webkit-line-clamp: 1;
-
-  .modelInfoDivider {
-    display: inline-block;
-    width: 1px;
-    height: 6px;
-    margin: 0 7px;
-    background: #E4EAFF;
-  }
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
-
-.modelSwitch {
-  width: 36px;
-  height: 20px !important;
-
-  :global(.ant-switch-handle) {
-    width: 17px !important;
-    height: 16px !important;
-  }
+.modelInfo {
+  color: #607089;
+  font-size: 12px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
-
-.modelEllipsis {
-  height: 20px !important;
+.modelInfoDivider {
+  display: inline-block;
+  width: 1px;
+  height: 8px;
+  margin: 0 7px;
+  background: #dfe6f1;
+}
+.detailButton {
+  align-self: flex-end;
+  margin-top: auto;
+  padding: 0 4px;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  border-top: 1px solid #e8edf5;
+  margin-top: 8px;
+  padding-top: 8px;
+}
+.actions :global(.ant-btn) {
+  padding: 0 4px;
+  height: 30px !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .modelCard {
+    transition: none;
+  }
 }

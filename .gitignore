@@ -11,23 +11,17 @@ out/
 # Language-Specific Build Files
 # =============================================================================
 
-# Go
+# Native build output
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-*.test
 *.out
-go.work
-go.work.sum
 bin/
-pkg/
 vendor/
-.gocache/
-.golangci-cache/
 
-# Java/Maven
+# Retired build output must not be committed during upgrades
 target/
 *.class
 *.jar
@@ -213,6 +207,7 @@ ENV/
 virtualenv/
 *.venv*
 .python-version
+!core/tenant/.python-version
 
 # Python Tools Cache
 .ruff_cache/
@@ -251,3 +246,11 @@ docker-compose.override.yml
 .codex/
 openspec/
 docs/superpowers/
+
+# Local Python Console development databases
+console/backend/*.sqlite3
+
+# Local Impeccable design context
+/PRODUCT.md
+/DESIGN.md
+/.impeccable/

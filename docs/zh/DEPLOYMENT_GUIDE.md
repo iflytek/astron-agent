@@ -1,12 +1,14 @@
 # astronAgent 项目完整部署指南
 
+> Console 使用 Python Django ASGI，覆盖账号、空间、资源、Agent、工作流与发布管理。升级保留原数据库、UID、资源归属和持久凭据；运行端统一使用 core/agent 与 core/workflow。
+
 本指南将帮助您按照正确的顺序启动 astronAgent 项目的所有组件，包括身份认证、知识库和核心服务。
 
 ## 📋 项目架构概述
 
 astronAgent 项目包含以下三个主要组件：
 
-1. **Casdoor** - 身份认证和单点登录服务(必要部署组件,提供单点登录功能)
+1. **Python Console** - 内部账号、空间权限、资源、Agent/工作流配置与发布管理；作为主 Compose 的 `console-hub` 服务启动，无需单独认证服务
 2. **RagFlow** - 知识库和文档检索服务(非必要部署组件,根据需要部署)
 3. **astronAgent** - 核心业务服务集群(必要部署组件)
 
@@ -24,24 +26,9 @@ astronAgent 项目包含以下三个主要组件：
 - RAM >= 16 GB
 - Disk >= 50 GB
 
-### 第一步：启动 Casdoor 身份认证服务
+### 第一步：准备 Docker 并保留已有数据
 
-Casdoor 是一个开源的身份和访问管理平台，提供OAuth 2.0、OIDC、SAML等多种认证协议支持。
-
-启动 Casdoor 服务请运行我们的 [docker-compose-with-auth.yaml](/docker/astronAgent/docker-compose-with-auth.yaml) 文件。在运行安装命令之前，请确保您的机器上安装了 Docker 和 Docker Compose。
-
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 启动 Casdoor 服务
-docker compose -f docker-compose-auth.yml up -d
-```
-
-**服务信息：**
-- 访问地址：http://localhost:8000
-- 容器名称：casdoor
-- 默认配置：生产模式 (GIN_MODE=release)
+安装 Docker 和 Docker Compose。默认启动无需 `.env` 文件，也无需修改环境变量。升级时保留业务表、数据卷与既有凭据；旧账号导入与重设密码见 [Python Console 运维说明](../../console/backend/README.md)。
 
 ### 第二步：启动 RagFlow 知识库服务（可选）
 
@@ -57,7 +44,7 @@ cd docker/ragflow
 chmod +x *.sh
 
 # 启动 RagFlow 服务（包含所有依赖）
-docker compose up -d
+docker compose up -d --build
 ```
 
 **访问地址：**
@@ -69,87 +56,22 @@ docker compose up -d
 
 
 **重要配置说明：**
-- 默认使用 Elasticsearch，如需使用 opensearch、infinity，请修改 .env 中的 DOC_ENGINE 配置
+- 可选的 RAGFlow 部署默认使用 Elasticsearch 作为文档检索引擎。可在 `docker/ragflow/.env` 中设置 `DOC_ENGINE`，切换到 OpenSearch 或 Infinity。
 - 支持GPU加速，使用 `docker-compose-gpu.yml` 启动
 
-### 第三步：集成配置 Casdoor 和基础环境变量（根据需要配置相关信息）
+### 第三步：了解可选的访问与集成配置
 
-在启动 astronAgent 服务之前，配置 Casdoor、访问地址和其他基础设施连接信息。
+默认栈已提供账号认证、数据库、Redis 和存储配置。在 `docker/astronAgent` 直接启动即可，无需复制或编辑 `.env`。默认通过 80 端口访问 `http://localhost/` 或 `http://<服务器IP>/`，支持 IPv4 和带方括号的 IPv6 地址。可选修改 `EXPOSE_NGINX_PORT`，无需同步设置 origin。
 
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
+Console 签名密钥在首次启动时自动生成到 `console_signing_secrets` 卷，重启复用；首次升级导入已有 `CONSOLE_SECRET_KEY`，与持久文件冲突时明确失败，不静默轮换。保留该卷及业务数据卷。
 
-# 复制环境变量配置
-cp .env.example .env
-```
+自定义域名可按需设置 `CONSOLE_ALLOWED_HOSTS`。API 调用示例默认采用经过主机校验的当前请求 origin，图片链接使用相对路径。`CONSOLE_PUBLIC_ORIGIN` 是可选的固定公开地址，公众号 OAuth 回调仍需固定 HTTPS origin。密码重设命令默认输出相对 `/reset-password#...` 链接，追加到当前控制台地址即可；也可在执行时加 `--origin` 输出完整链接，无需修改环境变量。
 
-`.env` 文件只用于配置服务启动、访问地址、认证、数据库、Redis、对象存储等基础设施参数。RAGFlow、讯飞开放平台、AI Ability Chat、虚拟人能力、星火知识库等业务能力账号不再写入 `.env`，请在 astronAgent 启动后登录控制台，通过 **平台账号管理** 页面配置。
+`CONSOLE_CSRF_TRUSTED_ORIGINS` 默认留空，继续使用 Django 同源 CSRF 校验。`CONSOLE_COOKIE_SECURE=auto` 根据 HTTP/HTTPS 设置 Cookie。增加 HTTPS 反向代理时，通过 `CONSOLE_TRUSTED_PROXIES` 仅信任直接代理，并由该代理设置或覆盖转发协议头。自定义域名与 HTTPS 按需配置，详见[配置文档](CONFIGURATION.md)。
 
-#### 3.1 配置服务主机地址
+对用户公开应用网关。内置 MinIO 维护端口保持宿主机回环绑定，外部存储访问需独立受保护的端点。RAGFlow 和 RPA 按需独立部署；RAGFlow、讯飞开放平台、AI Ability Chat、虚拟人和星火知识库业务账号在启动后的 **平台账号管理** 页面配置。
 
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 编辑环境变量配置
-vim .env
-```
-
-配置 astronAgent 服务的主机地址：
-
-```env
-HOST_BASE_ADDRESS=http://localhost
-```
-
-**说明：**
-- 如果您使用域名访问，请将 `localhost` 替换为您的域名
-- 仅向用户公开 Astron Agent 的应用入口（Nginx/Ingress）
-- 内置 MinIO API 与管理控制台必须保持安全默认值：Docker Compose 仅绑定宿主机回环地址，Helm 使用 `ClusterIP`。只有存在明确运维需求，并配置独立认证、TLS 与网络策略/防火墙限制时，才可显式开放相应端点；禁止将 MinIO 直接发布到互联网
-
-#### 3.2 配置 Casdoor 认证集成（必须配置）
-
-编辑 docker/astronAgent/.env 文件，配置 Casdoor 连接信息：
-
-**关键配置项：**
-
-```env
-# Casdoor配置
-CONSOLE_CASDOOR_URL=http://your-casdoor-server:8000
-CONSOLE_CASDOOR_ID=your-casdoor-client-id
-CONSOLE_CASDOOR_APP=your-casdoor-app-name
-CONSOLE_CASDOOR_ORG=your-casdoor-org-name
-```
-
-**获取 Casdoor 配置信息：**
-1. 访问 Casdoor 管理控制台： [http://localhost:8000](http://localhost:8000)
-2. 使用默认管理员账号登录：`admin / 123`
-3. **创建组织**
-   进入 [http://localhost:8000/organizations](http://localhost:8000/organizations) 页面，点击"添加"，填写组织名称后保存并退出。
-4. **创建应用并绑定组织**
-   进入 [http://localhost:8000/applications](http://localhost:8000/applications) 页面，点击"添加"。
-
-   创建应用时填写以下信息：
-   - **Name**：自定义应用名称，例如 `agent`
-   - **Redirect URL**：设置为项目的回调地址。如果 Nginx 暴露的端口号是 `80`，使用 `http://your-local-ip/callback`；如果是其他端口（例如 `888`），使用 `http://your-local-ip:888/callback`
-   - **Organization**：选择刚创建的组织名称
-5. 保存应用后，记录以下信息并与项目配置项一一对应：
-
-| Casdoor 信息项 | 示例值 | `.env` 中对应配置项 |
-|----------------|--------|----------------------|
-| Casdoor 服务地址（URL） | `http://localhost:8000` | `CONSOLE_CASDOOR_URL=http://localhost:8000` |
-| 客户端 ID（Client ID） | `your-casdoor-client-id` | `CONSOLE_CASDOOR_ID=your-casdoor-client-id` |
-| 应用名称（Name） | `your-casdoor-app-name` | `CONSOLE_CASDOOR_APP=your-casdoor-app-name` |
-| 组织名称（Organization） | `your-casdoor-org-name` | `CONSOLE_CASDOOR_ORG=your-casdoor-org-name` |
-
-6. 将以上配置信息填写到项目的环境变量文件中：
-```bash
-# 进入 astronAgent 目录
-cd docker/astronAgent
-
-# 编辑环境变量配置
-vim .env
-```
+新用户访问 `/register` 注册，没有默认管理员密码。已有用户保留 UID，由管理员核实身份后发放重设密码链接。
 
 ### 第四步：启动 astronAgent 核心服务（必要部署步骤）
 
@@ -162,8 +84,10 @@ vim .env
 cd docker/astronAgent
 
 # 启动所有服务
-docker compose up -d
+docker compose up -d --build
 ```
+
+启动后访问 `http://localhost/` 或 `http://<服务器IP>/` 并注册账号。默认 HTTP 入口无需填写主机、origin 或 Cookie 环境变量。
 
 #### 4.2 配置平台账号管理（可选，按需配置业务能力）
 
@@ -247,9 +171,6 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 
 启动完成后，您可以通过以下地址访问各项服务：
 
-### 认证服务
-- **Casdoor 管理界面**：http://localhost:8000
-
 ### 知识库服务
 - **RagFlow Web界面**：http://localhost:18080
 
@@ -259,7 +180,6 @@ curl -X PUT 'https://chatdoc.xfyun.cn/openapi/v1/dataset/create' \
 ## 📚 更多资源
 
 - [AstronAgent 官方文档](https://www.xfyun.cn/doc/spark/Agent01-%E5%B9%B3%E5%8F%B0%E4%BB%8B%E7%BB%8D.html)
-- [Casdoor 官方文档](https://casdoor.org/docs/overview)
 - [RagFlow 官方文档](https://ragflow.io/docs)
 - [Docker Compose 官方文档](https://docs.docker.com/compose/)
 

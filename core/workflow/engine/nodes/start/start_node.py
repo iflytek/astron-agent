@@ -10,6 +10,7 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.utils.trace_sanitization import redact_private_workflow_upload_urls
 
 
 class StartNode(BaseNode):
@@ -53,7 +54,19 @@ class StartNode(BaseNode):
             # Set special tracing attribute for agent user input if present
             # This helps with debugging and monitoring agent interactions
             if "AGENT_USER_INPUT" in outputs:
-                span.set_attribute("AGENT_USER_INPUT", outputs["AGENT_USER_INPUT"])
+                value = outputs["AGENT_USER_INPUT"]
+                if isinstance(value, str):
+                    value = redact_private_workflow_upload_urls(value)
+                elif isinstance(value, list):
+                    value = [
+                        (
+                            redact_private_workflow_upload_urls(item)
+                            if isinstance(item, str)
+                            else item
+                        )
+                        for item in value
+                    ]
+                span.set_attribute("AGENT_USER_INPUT", value)
 
             return NodeRunResult(
                 status=WorkflowNodeExecutionStatus.SUCCEEDED,

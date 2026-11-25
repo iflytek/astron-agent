@@ -58,27 +58,24 @@ check-tools-typescript: ## Check TypeScript development tools availability
 	@echo "  Prettier version: $$(prettier --version)"
 	@echo "  ESLint version: $$(eslint --version)"
 
+# Keep project subshells unguarded: if/&&/|| would disable Bash errexit inside.
+check-typescript test-typescript build-typescript: SHELL := /bin/bash
+
 check-typescript: ## Check TypeScript code quality
-	@if [ -n "$(TS_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Checking TypeScript code quality in: $(TS_DIRS)$(RESET)"; \
 		for dir in $(TS_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Processing $$dir...$(RESET)"; \
-				(cd $$dir && \
-				echo "$(YELLOW)    Installing dependencies...$(RESET)" && \
-				$(NPM) ci --legacy-peer-deps && \
-				echo "$(YELLOW)    Checking format compliance...$(RESET)" && \
-				UNFORMATTED=$$(npx prettier --list-different "**/*.{ts,tsx,js,jsx,json,md}" 2>/dev/null || true) && \
-				if [ -n "$$UNFORMATTED" ]; then \
-					echo "$(RED)Files that need formatting:$(RESET)" && \
-					echo "$$UNFORMATTED" && \
-					echo "$(YELLOW)Run 'npm run format' to fix formatting issues.$(RESET)" && \
-					exit 1; \
-				fi && \
-				echo "$(YELLOW)    Running TypeScript type checking...$(RESET)" && \
-				(npx tsc --noEmit --pretty || echo "$(YELLOW)TypeScript type checking found errors, but continuing...$(RESET)") && \
-				echo "$(YELLOW)    Running ESLint (errors only)...$(RESET)" && \
-				npx eslint "**/*.{ts,tsx}" --quiet) || exit 1; \
+				(cd "$$dir"; \
+				echo "$(YELLOW)    Installing dependencies...$(RESET)"; \
+				$(NPM) ci --legacy-peer-deps; \
+				echo "$(YELLOW)    Checking format compliance...$(RESET)"; \
+				npx prettier --check "**/*.{ts,tsx,js,jsx,json,md}"; \
+				echo "$(YELLOW)    Running TypeScript type checking...$(RESET)"; \
+				npx tsc --noEmit --pretty; \
+				echo "$(YELLOW)    Running ESLint (errors only)...$(RESET)"; \
+				npx eslint "**/*.{ts,tsx}" --quiet); \
 			else \
 				echo "$(RED)Directory $$dir does not exist$(RESET)"; \
 				exit 1; \
@@ -90,18 +87,18 @@ check-typescript: ## Check TypeScript code quality
 	fi
 
 test-typescript: ## Run TypeScript tests
-	@if [ -n "$(TS_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Running TypeScript tests in: $(TS_DIRS)$(RESET)"; \
 		for dir in $(TS_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Testing $$dir...$(RESET)"; \
 				if [ -f "$$dir/package.json" ] && grep -q '"test:unit"' "$$dir/package.json"; then \
-					(cd "$$dir" && $(NPM) run test:unit) || exit 1; \
+					(cd "$$dir"; $(NPM) run test:unit); \
 				else \
-					echo "$(BLUE)    No test:unit script found in package.json$(RESET)"; \
+					echo "$(RED)    No test:unit script found in $$dir/package.json$(RESET)"; exit 1; \
 				fi; \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)TypeScript tests completed$(RESET)"; \
@@ -110,26 +107,26 @@ test-typescript: ## Run TypeScript tests
 	fi
 
 build-typescript: ## Build TypeScript projects
-	@if [ -n "$(TS_DIRS)" ]; then \
+	@set -e; set -o pipefail; if [ -n "$(TS_DIRS)" ]; then \
 		echo "$(YELLOW)Building TypeScript projects in: $(TS_DIRS)$(RESET)"; \
 		for dir in $(TS_DIRS); do \
 			if [ -d "$$dir" ]; then \
 				echo "$(YELLOW)  Building $$dir...$(RESET)"; \
-				cd $$dir; \
+				(cd "$$dir"; \
 				if [ -f package.json ]; then \
-					$(NPM) ci --prefer-offline; \
+					$(NPM) ci --legacy-peer-deps --prefer-offline; \
 					if grep -q '"build"' package.json; then \
 						$(NPM) run build; \
 						echo "$(GREEN)  Built: $$dir$(RESET)"; \
 					else \
-						echo "$(BLUE)  No build script found in $$dir/package.json$(RESET)"; \
+						echo "$(RED)  No build script found in $$dir/package.json$(RESET)"; exit 1; \
 					fi; \
 				else \
-					echo "$(RED)  No package.json found in $$dir$(RESET)"; \
+					echo "$(RED)  No package.json found in $$dir$(RESET)"; exit 1; \
 				fi; \
-				cd - > /dev/null; \
+				); \
 			else \
-				echo "$(RED)    Directory $$dir does not exist$(RESET)"; \
+				echo "$(RED)    Directory $$dir does not exist$(RESET)"; exit 1; \
 			fi; \
 		done; \
 		echo "$(GREEN)TypeScript build completed$(RESET)"; \

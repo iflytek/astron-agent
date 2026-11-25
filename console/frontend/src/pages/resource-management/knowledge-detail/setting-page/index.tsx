@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Input, Button } from 'antd';
+import { Alert, Input, Button } from 'antd';
 import copy from 'copy-to-clipboard';
 import MoreIcons from '@/components/modal/more-icons';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,7 @@ const SettingPage: FC<{
     name,
     desc,
     loading,
+    error,
     botIcon,
     botColor,
     showModal,
@@ -39,8 +40,11 @@ const SettingPage: FC<{
   return (
     <div
       className="w-full h-full flex flex-col flex-1 p-6 pb-2 bg-[#fff] border border-[#E2E8FF]"
-      style={{ borderRadius: 24 }}
+      style={{ borderRadius: 14 }}
     >
+      {error && (
+        <Alert type="error" showIcon message={error} className="mb-4" />
+      )}
       {showModal && (
         <MoreIcons
           icons={avatarIcon}
@@ -52,9 +56,9 @@ const SettingPage: FC<{
           setShowModal={setShowModal}
         />
       )}
-      <div className="w-full flex pb-5 border-b border-[#E2E8FF] justify-between items-center">
+      <div className="w-full flex flex-wrap gap-3 pb-5 border-b border-[#E2E8FF] justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-second">
+          <h2 className="text-xl font-semibold text-second">
             {t('knowledge.knowledgeSettings')}
           </h2>
           <p className="ml-2 desc-color font-medium mt-2">
@@ -72,7 +76,7 @@ const SettingPage: FC<{
         </Button>
       </div>
       <div className="flex-1 overflow-auto pt-10 pb-8 flex justify-center">
-        <div className="w-1/2">
+        <div className="w-full max-w-[720px]">
           <h3 className="text-second font-medium text-lg flex items-center">
             <span className="text-[#F74E43] text-lg font-medium h-5">*</span>
             <span className="ml-0.5">{t('knowledge.knowledgeBaseName')}</span>
@@ -82,9 +86,10 @@ const SettingPage: FC<{
               {t('knowledge.knowledgeBaseId')}
               {knowledgeInfo.coreRepoId}
             </p>
-            <img
-              src={idCopied ? chatCopied : chatCopy}
-              className="w-4 h-4 cursor-pointer hidden group-hover:block"
+            <button
+              type="button"
+              aria-label={idCopied ? '已复制知识库 ID' : '复制知识库 ID'}
+              className="p-1"
               onClick={() => {
                 copy(knowledgeInfo.coreRepoId);
                 setIdCopied(true);
@@ -92,11 +97,17 @@ const SettingPage: FC<{
                   setIdCopied(false);
                 }, 2000);
               }}
-              alt=""
-            />
+            >
+              <img
+                src={idCopied ? chatCopied : chatCopy}
+                className="w-4 h-4"
+                alt=""
+              />
+            </button>
           </div>
           <div className="flex items-center mt-3">
             <Input
+              aria-label={t('knowledge.knowledgeBaseName')}
               maxLength={20}
               showCount
               type="text"
@@ -115,6 +126,7 @@ const SettingPage: FC<{
             </p>
             <div className="relative">
               <TextArea
+                aria-label={t('knowledge.knowledgeBaseDescription')}
                 maxLength={200}
                 placeholder={t('knowledge.pleaseEnter')}
                 className="global-textarea mt-3 shrink-0"
@@ -142,7 +154,7 @@ const SettingPage: FC<{
                 执行嵌入预估消耗 <span className='text-[#1F2A37]' style={{ fontFamily: 'SF Pro Text, SF Pro Text-500' }}>8,665 tokens(<span className='text-[#13A10E]'>$0.0008665</span>)</span>
               </p> */}
             </div>
-            <div className="w-5 h-5 bg-[#6356EA] rounded-full flex justify-center items-center">
+            <div className="w-5 h-5 bg-[#315ff4] rounded-full flex justify-center items-center">
               <img src={check} className="w-4 h-4" alt="" />
             </div>
           </div>
