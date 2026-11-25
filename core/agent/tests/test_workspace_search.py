@@ -47,6 +47,7 @@ class ObjectStorage:
         pass
 
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+        assert "//" not in Key
         self.gets += 1
         if Key not in self.objects:
             raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
@@ -65,6 +66,7 @@ class ObjectStorage:
         ContentType: str,
         IfMatch: str | None = None,
     ) -> None:
+        assert "//" not in Key
         with self.lock:
             if IfMatch is not None and self.etag(self.objects[Key]) != IfMatch:
                 raise ClientError(
@@ -76,6 +78,7 @@ class ObjectStorage:
         return self
 
     def paginate(self, *, Bucket: str, Prefix: str) -> list[dict[str, Any]]:
+        assert "//" not in Prefix
         return [
             {
                 "Contents": [
@@ -91,6 +94,7 @@ class ObjectStorage:
         ]
 
     def delete_object(self, *, Bucket: str, Key: str) -> None:
+        assert "//" not in Key
         del self.objects[Key]
 
 
@@ -141,6 +145,22 @@ async def test_workspace_discovery_does_not_fetch_contents_or_search_sandbox() -
     mounted.agrep.assert_not_awaited()
     assert (await backend.aglob("*.txt", "/sandbox")).error == "sandbox unavailable"
     mounted.aglob.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_minio_normalizes_paths_for_all_file_operations() -> None:
+    storage = MinIOStore(ObjectStorage(), "test", ("session",))
+    backend = AgentFilesystem(MinIOWorkspace(storage), {})
+    assert (await backend.awrite("//notes/one.txt", "agent notes")).error is None
+    assert (await backend.aread("/notes/one.txt")).error is None
+    entries = (await backend.als("//notes")).entries or []
+    assert [entry["path"] for entry in entries] == ["/notes/one.txt"]
+    matches = (await backend.aglob("*.txt", "//notes")).matches or []
+    assert [match["path"] for match in matches] == ["/notes/one.txt"]
+    assert (await backend.agrep("notes", "//notes")).matches
+    assert (await backend.aedit("//notes/one.txt", "agent", "workspace")).error is None
+    assert (await backend.adelete("//notes")).error is None
+    assert (await backend.aread("/notes/one.txt")).error
 
 
 @pytest.mark.asyncio

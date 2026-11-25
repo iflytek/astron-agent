@@ -41,6 +41,10 @@ MAX_GREP_FILES = 100
 SANDBOX_ROUTE = "/sandbox/"
 
 
+def _workspace_path(path: str) -> str:
+    return "/" + validate_path(path.replace("\\", "/")).lstrip("/")
+
+
 def _relative_path(key: str, base: str) -> str:
     return key.rsplit("/", 1)[-1] if key == base else key[len(base) + 1 :]
 
@@ -62,9 +66,10 @@ class MinIOStore(BaseStore):
         return item
 
     def get_version(self, path: str) -> tuple[Item | None, str]:
+        path = _workspace_path(path)
         try:
             response = self.client.get_object(
-                Bucket=self.bucket, Key=self.prefix + path
+                Bucket=self.bucket, Key=self.prefix + path[1:]
             )
         except ClientError as exc:
             if exc.response["Error"]["Code"] in {"NoSuchKey", "404"}:
@@ -86,13 +91,13 @@ class MinIOStore(BaseStore):
         return item, response["ETag"]
 
     def files(self, path: str) -> Iterable[FileInfo]:
-        base = validate_path(path).rstrip("/")
+        base = _workspace_path(path).rstrip("/")
         pages = self.client.get_paginator("list_objects_v2").paginate(
-            Bucket=self.bucket, Prefix=self.prefix + (base or "/")
+            Bucket=self.bucket, Prefix=self.prefix + base[1:]
         )
         for page in pages:
             for row in page.get("Contents", []):
-                key = row["Key"].removeprefix(self.prefix)
+                key = "/" + row["Key"].removeprefix(self.prefix)
                 if key == base or key.startswith(base + "/"):
                     yield FileInfo(
                         path=key,
@@ -102,7 +107,8 @@ class MinIOStore(BaseStore):
                     )
 
     def _put(self, op: PutOp, *, etag: str | None = None) -> None:
-        key = self.prefix + op.key
+        # The prefix already ends with a separator. MinIO rejects empty segments.
+        key = self.prefix + _workspace_path(op.key)[1:]
         if op.value is None:
             self.client.delete_object(Bucket=self.bucket, Key=key)
             return
@@ -197,7 +203,7 @@ class MinIOWorkspace(StoreBackend):
         )
 
     def ls(self, path: str) -> LsResult:
-        prefix = validate_path(path).rstrip("/") + "/"
+        prefix = _workspace_path(path).rstrip("/") + "/"
         entries: dict[str, FileInfo] = {}
         for info in self.storage.files(path):
             key = info["path"]
@@ -212,7 +218,7 @@ class MinIOWorkspace(StoreBackend):
         return LsResult(entries=[entries[key] for key in sorted(entries)])
 
     def glob(self, pattern: str, path: str | None = None) -> GlobResult:
-        base = validate_path(path or "/").rstrip("/")
+        base = _workspace_path(path or "/").rstrip("/")
         try:
             matches = compile_grep_include_glob(pattern)
         except InvalidGlobPatternError as exc:
@@ -237,12 +243,13 @@ class MinIOWorkspace(StoreBackend):
             matcher = compile_grep_include_glob(glob) if glob is not None else None
         except InvalidGlobPatternError as exc:
             return GrepResult(error=str(exc))
-        base = validate_path(path or "/").rstrip("/")
+        path = _workspace_path(path or "/")
+        base = path.rstrip("/")
         files = {}
         remaining = MAX_GREP_BYTES
         scanned = 0
         truncated = False
-        for info in self.storage.files(path or "/"):
+        for info in self.storage.files(path):
             key = info["path"]
             if matcher is not None and not matcher(_relative_path(key, base)):
                 continue
