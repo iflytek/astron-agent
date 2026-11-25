@@ -8,7 +8,7 @@ from django.urls import include, path
 
 from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.models import Agent, AgentState, AgentVersion
-from astron_console.resources.models import McpConfig, Model, Tool
+from astron_console.resources.models import McpConfig, Model, SandboxConfig, Tool
 from astron_console.spaces.models import Space, SpaceMember, SpacePermission
 from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.execution_context import (
@@ -77,6 +77,7 @@ class RuntimeTests(TransactionTestCase):
         )
 
     def test_versions_fixed_for_retry_resume_and_new_run_updates(self):
+        SandboxConfig.objects.create(uid=self.user.pk, enabled=True, api_key="sandbox-key")
         first = prepare_run(self.scope, self.workflow, {"question": "hello"})
         self.assertEqual(first.resolved_agents["agent::one"]["versionId"], self.version.pk)
         second_version = AgentVersion.objects.create(
@@ -96,6 +97,8 @@ class RuntimeTests(TransactionTestCase):
         )
         self.assertEqual(config.status_code, 200, config.content)
         self.assertEqual(config.json()["data"]["instruction"]["answer"], "v1")
+        self.assertEqual(config.json()["data"]["sandbox"], {"enabled": True, "provider": "e2b"})
+        self.assertEqual(config.json()["data"]["plugin"]["skills"], [])
         first.status = "failed"
         first.save()
         retried = prepare_run(self.scope, self.workflow, {}, retry_of=first)

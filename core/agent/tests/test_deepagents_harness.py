@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import Any
 
@@ -131,6 +133,57 @@ async def test_plain_answer_uses_real_graph_and_records_usage_once(
     assert len(model.prompts) == 1
     assert "Answer in Chinese" in str(model.prompts[0][0].content)
     assert runner.model_handle._closed
+
+
+@pytest.mark.asyncio
+async def test_native_execute_uses_selected_sandbox_without_skills(
+    context: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from deepagents.backends import StateBackend
+    from deepagents.backends.protocol import ExecuteResponse, SandboxBackendProtocol
+
+    from agent.engine.sandbox import SANDBOX_PROVIDERS
+    from agent.service.sandbox import AgentSandboxConfig
+
+    class TestSandbox(StateBackend, SandboxBackendProtocol):
+        id = "test-sandbox"
+
+        async def aexecute(
+            self, command: str, *, timeout: int | None = None
+        ) -> ExecuteResponse:
+            assert command == "printf ready"
+            return ExecuteResponse(output="sandbox output", exit_code=0)
+
+    lifecycle = []
+
+    @asynccontextmanager
+    async def open_test_sandbox(
+        files: dict[str, bytes],
+        artifact_owners: dict[str, str],
+        config: AgentSandboxConfig,
+    ) -> AsyncIterator[SandboxBackendProtocol]:
+        assert not files and not artifact_owners
+        assert config.provider == "test"
+        lifecycle.append("opened")
+        try:
+            yield TestSandbox()
+        finally:
+            lifecycle.append("closed")
+
+    monkeypatch.setitem(SANDBOX_PROVIDERS, "test", open_test_sandbox)
+    span, trace, _ = context
+    runner, model = engine(
+        [call("execute", args={"command": "printf ready"}), answer()],
+        max_loop=1,
+        sandbox_config=AgentSandboxConfig(enabled=True, provider="test"),
+    )
+    responses = [response async for response in runner.run(span, trace)]
+    assert "execute" in model.bindings[0]
+    assert responses[-1].content == "done"
+    result = next(r.content for r in responses if r.typ == "tool_result")
+    assert result.action == "execute"
+    assert "sandbox output" in str(result.action_output)
+    assert lifecycle == ["opened", "closed"]
 
 
 @pytest.mark.asyncio
@@ -718,8 +771,8 @@ async def test_native_skills_disclose_only_metadata_and_use_shared_tools(
     from agent.api.schemas.workflow_agent_inputs import (
         CustomCompletionPluginSkillInputs,
     )
-    from agent.engine.skill_sandbox import NativeSkillSandbox
-    from agent.service.plugin.skill_sandbox import SkillSandboxConfig
+    from agent.engine.e2b_sandbox import E2BAgentSandbox
+    from agent.service.sandbox import AgentSandboxConfig
 
     content = {
         "entry": b"---\nname: csv-check\ndescription: Inspect CSV headers\n---\nPrivate instructions",
@@ -743,7 +796,7 @@ async def test_native_skills_disclose_only_metadata_and_use_shared_tools(
         "agent.engine.skill_files.validate_skill_resource_url", lambda url: url
     )
     monkeypatch.setattr("agent.engine.skill_files.download_skill_resource", download)
-    monkeypatch.setattr(NativeSkillSandbox, "aexecute", execute)
+    monkeypatch.setattr(E2BAgentSandbox, "aexecute", execute)
     skill = CustomCompletionPluginSkillInputs(
         name="csv-check",
         skill_id="1",
@@ -781,9 +834,7 @@ async def test_native_skills_disclose_only_metadata_and_use_shared_tools(
     runner, model = engine(
         turns,
         skills=[skill, skill, legacy, header_only],
-        skill_sandbox_config=(
-            SkillSandboxConfig(enabled=True) if sandbox_enabled else None
-        ),
+        sandbox_config=AgentSandboxConfig(enabled=True) if sandbox_enabled else None,
     )
 
     span, trace, _ = context

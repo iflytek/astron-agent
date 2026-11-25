@@ -300,6 +300,27 @@ spec:
           value: {{ include "astron-agent.minioPublicEndpoint" $ | quote }}
         - name: SKILL_RESOURCE_TRUSTED_BUCKET
           value: {{ required "consoleHub.env.ossBucketConsole is required for Core Agent Skill resource validation" $.Values.consoleHub.env.ossBucketConsole | quote }}
+        - name: AGENT_WORKSPACE_S3_ENDPOINT
+          value: {{ include "astron-agent.minioEndpoint" $ | quote }}
+        - name: AGENT_WORKSPACE_S3_BUCKET
+          value: {{ $.Values.consoleHub.env.ossBucketConsole | quote }}
+        - name: AGENT_WORKSPACE_S3_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretUserKey" $ }}
+        - name: AGENT_WORKSPACE_S3_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "astron-agent.minioSecretName" $ }}
+              key: {{ include "astron-agent.minioSecretPasswordKey" $ }}
+        {{- with $serviceConfig.tavilySecret }}
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ required "coreAgent.tavilySecret.name is required" .name | quote }}
+              key: {{ default "api-key" .key | quote }}
+        {{- end }}
         {{- end }}
         - name: LANGFUSE_ENABLED
           value: {{ $langfuseEnabled | quote }}

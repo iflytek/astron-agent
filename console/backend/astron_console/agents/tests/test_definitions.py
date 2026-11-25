@@ -10,7 +10,7 @@ from django.urls import include, path
 from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.definitions import READ, WRITE, definition, resolve_version
 from astron_console.agents.models import Agent, AgentState, AgentVersion, Personality
-from astron_console.resources.models import Model
+from astron_console.resources.models import Model, SandboxConfig
 from astron_console.spaces.models import Space, SpaceMember, SpacePermission
 from astron_console.spaces.permissions import ResourceScope
 
@@ -216,6 +216,28 @@ class DefinitionTests(TransactionTestCase):
         finally:
             with connection.cursor() as cursor:
                 cursor.execute("ALTER TABLE chat_bot_base DROP COLUMN preserved_external_config")
+
+    def test_runtime_sandbox_selection_is_scoped_and_independent_of_skills(self):
+        from astron_console.agents.resource_resolution import resolve_resources
+
+        self.model.enable = True
+        self.model.api_key = "model-key"
+        self.model.url = "https://model.invalid/v1"
+        self.model.save()
+        scope = ResourceScope(self.user.pk, None, None)
+        config = definition(self.agent)
+        SandboxConfig.objects.create(uid=self.other.pk, enabled=True, api_key="other-key")
+        self.assertEqual(resolve_resources(scope, config)["sandbox"], {"enabled": False})
+
+        row = SandboxConfig.objects.create(uid=self.user.pk, enabled=True, api_key="sandbox-key")
+        runtime = resolve_resources(scope, config)
+        self.assertEqual(runtime["sandbox"], {"enabled": True, "provider": "e2b"})
+        self.assertEqual(runtime["plugin"]["skills"], [])
+        self.assertNotIn("sandbox-key", json.dumps(runtime))
+
+        row.enabled = False
+        row.save(update_fields=["enabled"])
+        self.assertEqual(resolve_resources(scope, config)["sandbox"], {"enabled": False})
 
     def test_legacy_tool_read_save_keeps_current_authorized_version(self):
         from astron_console.agents.resource_resolution import resolve_resources

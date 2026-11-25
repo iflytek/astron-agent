@@ -13,8 +13,9 @@ from agent.engine.deepagents_runner import DeepAgentsRunner
 from agent.exceptions.plugin_exc import KnowledgeQueryExc
 from agent.service.builder.base_builder import BaseApiBuilder
 from agent.service.plugin.knowledge import KnowledgePluginFactory
-from agent.service.plugin.skill_sandbox import SkillSandboxConfig
+from agent.service.plugin.web_search import tavily_search_plugin
 from agent.service.runner.workflow_agent_runner import WorkflowAgentRunner
+from agent.service.sandbox import AgentSandboxConfig
 
 
 @dataclass
@@ -45,7 +46,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
 
             try:
                 skills = self.inputs.plugin.skills
-                sandbox_config = self._skill_sandbox_config()
+                sandbox_config = self._sandbox_config()
                 plugins = await self.build_plugins(
                     tool_ids=self.inputs.plugin.tools,
                     mcp_server_ids=self.inputs.plugin.mcp_server_ids,
@@ -53,6 +54,9 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     workflow_ids=self.inputs.plugin.workflow_ids,
                     console_context=self.inputs.meta_data.console_context,
                 )
+                search = tavily_search_plugin()
+                if search is not None:
+                    plugins = [*plugins, search]
                 metadata_list, knowledge = await self.query_knowledge_by_workflow(
                     self.inputs.plugin.knowledge, sp
                 )
@@ -60,7 +64,8 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     model_handle=model,
                     plugins=plugins,
                     skills=skills,
-                    skill_sandbox_config=sandbox_config,
+                    sandbox_config=sandbox_config,
+                    workspace_scope=self._workspace_scope(),
                     chat_history=self.inputs.get_chat_history(),
                     reasoning_instruction=self.inputs.instruction.reasoning,
                     answer_instruction=self.inputs.instruction.answer,
@@ -76,11 +81,25 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 await model.aclose()
                 raise
 
-    def _skill_sandbox_config(self) -> SkillSandboxConfig | None:
-        # Use the trusted execution scope instead of copying fields from Skill JSON.
-        if not any(
-            skill.sandbox.get("enabled") is True for skill in self.inputs.plugin.skills
-        ):
+    def _workspace_scope(self) -> tuple[str, ...]:
+        metadata = self.inputs.meta_data
+        context = metadata.console_context
+        if not metadata.run_id or context.get("run_id") != metadata.run_id:
+            return ()
+        owner = (str(metadata.space_id), self.inputs.uid, metadata.agent_id)
+        if metadata.session_id:
+            return (*owner, "session", metadata.session_id)
+        return (
+            *owner,
+            "run",
+            metadata.run_id,
+            metadata.node_id,
+            str(context.get("invocation_id", "")),
+        )
+
+    def _sandbox_config(self) -> AgentSandboxConfig | None:
+        selection = self.inputs.sandbox
+        if selection is None or not selection.enabled:
             return None
         metadata = self.inputs.meta_data
         context = metadata.console_context
@@ -91,8 +110,9 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
             raise ValueError("Console artifact execution context is incomplete")
         if context and context["run_id"] != metadata.run_id:
             raise ValueError("Console artifact run identity does not match")
-        return SkillSandboxConfig(
+        return AgentSandboxConfig(
             enabled=True,
+            provider=selection.provider,
             console=bool(context),
             root_id=context.get("root_id", ""),
             uid=str(metadata.execution_uid or self.inputs.uid),

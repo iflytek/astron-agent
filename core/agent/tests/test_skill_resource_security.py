@@ -188,7 +188,7 @@ async def test_redirect_response_is_not_followed_or_read() -> None:
 async def test_skill_files_are_read_only_and_colliding_names_remain_visible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from agent.engine.skill_files import skill_backend
+    from agent.engine.skill_files import agent_backend
 
     async def download(session: Any, url: str, limit: int) -> bytes:
         return b"---\nname: same\ndescription: Original\n---\nBody"
@@ -200,7 +200,7 @@ async def test_skill_files_are_read_only_and_colliding_names_remain_visible(
         )
         for i in range(2)
     ]
-    async with skill_backend(skills, None) as backend:
+    async with agent_backend(skills, None) as backend:
         listing = await backend.als("/skills")
         assert listing.entries is not None
         assert {item["path"].rstrip("/") for item in listing.entries} == {

@@ -93,20 +93,18 @@ class TestCustomChatCompletion:
             question="test question",
         )
 
-    def test_trace_payload_redacts_nested_sandbox_and_model_api_keys(
+    def test_trace_payload_omits_legacy_skill_sandbox_and_redacts_model_api_key(
         self, completion_inputs: CustomCompletionInputs
     ) -> None:
         sandbox_api_key = "LEGACY-SANDBOX-API-KEY-MUST-NOT-REACH-TRACE"
         model_api_key = completion_inputs.model_config_inputs.api_key
         completion_inputs.plugin.skills = [
-            CustomCompletionPluginSkillInputs(
-                skill_id="skill-1",
-                name="script-skill",
-                sandbox={
-                    "enabled": True,
-                    "apiKey": sandbox_api_key,
-                    "workflowId": "flow-1",
-                },
+            CustomCompletionPluginSkillInputs.model_validate(
+                {
+                    "skill_id": "skill-1",
+                    "name": "script-skill",
+                    "sandbox": {"enabled": True, "apiKey": sandbox_api_key},
+                }
             )
         ]
 
@@ -115,10 +113,7 @@ class TestCustomChatCompletion:
         assert sandbox_api_key not in serialized
         assert model_api_key not in serialized
         sanitized = json.loads(serialized)
-        assert sanitized["plugin"]["skills"][0]["sandbox"] == {
-            "enabled": True,
-            "workflowId": "flow-1",
-        }
+        assert "sandbox" not in sanitized["plugin"]["skills"][0]
 
     @pytest.mark.asyncio
     async def test_build_runner(

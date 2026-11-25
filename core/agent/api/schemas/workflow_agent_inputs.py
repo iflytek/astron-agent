@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 from agent.api.schemas.base_inputs import BaseInputs
 
@@ -46,7 +46,6 @@ class CustomCompletionPluginSkillInputs(BaseModel):
     description: str = Field(default="", min_length=0, max_length=1024)
     download_url: str = Field(default="")
     resources: list[ResourceInputs] = Field(default_factory=list)
-    sandbox: dict[str, Any] = Field(default_factory=dict)
 
 
 class CustomCompletionPluginInputs(BaseModel):
@@ -62,6 +61,11 @@ class CustomCompletionPluginInputs(BaseModel):
     )
 
 
+class AgentSandboxInputs(BaseModel):
+    enabled: StrictBool = False
+    provider: str = Field(default="e2b", min_length=1, max_length=32)
+
+
 class CustomCompletionInputs(BaseInputs):
     model_config_inputs: CustomCompletionModelConfigInputs = Field(alias="model_config")
     instruction: CustomCompletionInstructionInputs = Field(
@@ -70,4 +74,5 @@ class CustomCompletionInputs(BaseInputs):
     plugin: CustomCompletionPluginInputs = Field(
         default_factory=CustomCompletionPluginInputs
     )
+    sandbox: AgentSandboxInputs | None = None
     max_loop_count: int = Field(ge=1)

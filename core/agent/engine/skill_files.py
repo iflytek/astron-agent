@@ -3,24 +3,32 @@
 import asyncio
 import re
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 
 import aiohttp
 import yaml
-from deepagents.backends import CompositeBackend, FilesystemBackend, StateBackend
+from deepagents.backends import FilesystemBackend, StateBackend
 from deepagents.backends.protocol import (
     PERMISSION_DENIED,
     BackendProtocol,
     DeleteResult,
     EditResult,
     FileUploadResponse,
+    SandboxBackendProtocol,
     WriteResult,
 )
 
 from agent.api.schemas.workflow_agent_inputs import CustomCompletionPluginSkillInputs
-from agent.engine.skill_sandbox import NativeSkillSandbox
+from agent.engine.sandbox import sandbox_backend
+from agent.engine.workspace import (
+    SANDBOX_ROUTE,
+    AgentFilesystem,
+    ExecutableWorkspace,
+    MinIOWorkspace,
+    workspace_store,
+)
 from agent.exceptions.agent_exc import AgentInternalExc
 from agent.service.plugin.skill_resource_security import (
     MAX_SKILL_RESOURCE_BYTES,
@@ -29,7 +37,7 @@ from agent.service.plugin.skill_resource_security import (
     download_skill_resource,
     validate_skill_resource_url,
 )
-from agent.service.plugin.skill_sandbox import SkillSandboxConfig
+from agent.service.sandbox import AgentSandboxConfig
 
 SKILL_SOURCE = "/skills/"
 MAX_SKILL_RUN_BYTES = 100 * 1024 * 1024
@@ -196,30 +204,42 @@ async def _materialize_skills(
 
 
 @asynccontextmanager
-async def skill_backend(
+async def agent_backend(
     skills: list[CustomCompletionPluginSkillInputs],
-    sandbox_config: SkillSandboxConfig | None,
+    sandbox_config: AgentSandboxConfig | None,
+    workspace_scope: tuple[str, ...] = (),
 ) -> AsyncIterator[BackendProtocol]:
-    if not skills:
-        yield StateBackend()
-        return
-    with TemporaryDirectory(prefix="astron-skills-") as path:
-        root = Path(path)
-        names = await _materialize_skills(root, skills)
-        skill_files = ReadOnlySkillFiles(root_dir=root, virtual_mode=True)
-        sandbox = None
-        if sandbox_config and sandbox_config.enabled:
-            files = {
-                f"{SKILL_SOURCE}{file.relative_to(root).as_posix()}": file.read_bytes()
-                for file in root.rglob("*")
-                if file.is_file()
-            }
-            sandbox = NativeSkillSandbox(files, names, sandbox_config)
-        try:
-            yield CompositeBackend(
-                default=sandbox if sandbox is not None else StateBackend(),
-                routes={SKILL_SOURCE: skill_files},
+    files: dict[str, bytes] = {}
+    names: dict[str, str] = {}
+    routes: dict[str, BackendProtocol] = {}
+    async with AsyncExitStack() as stack:
+        if skills:
+            root = Path(
+                stack.enter_context(TemporaryDirectory(prefix="astron-skills-"))
             )
-        finally:
-            if sandbox is not None:
-                await sandbox.aclose()
+            names = await _materialize_skills(root, skills)
+            routes[SKILL_SOURCE] = ReadOnlySkillFiles(root_dir=root, virtual_mode=True)
+            if sandbox_config and sandbox_config.enabled:
+                files = {
+                    f"{SKILL_SOURCE}{file.relative_to(root).as_posix()}": file.read_bytes()
+                    for file in root.rglob("*")
+                    if file.is_file()
+                }
+        backend = await stack.enter_async_context(
+            sandbox_backend(sandbox_config, files, names)
+        )
+        sandbox = backend if isinstance(backend, SandboxBackendProtocol) else None
+        if sandbox is not None:
+            routes[SANDBOX_ROUTE] = getattr(sandbox, "file_backend", sandbox)
+        store = workspace_store(workspace_scope)
+        if store is not None:
+            stack.callback(store.client.close)
+            backend = (
+                ExecutableWorkspace(store, sandbox)
+                if sandbox is not None
+                else MinIOWorkspace(store)
+            )
+            state = StateBackend()
+            routes["/large_tool_results/"] = state
+            routes["/conversation_history/"] = state
+        yield AgentFilesystem(default=backend, routes=routes) if routes else backend

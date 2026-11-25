@@ -327,6 +327,7 @@ coreAgent:
   enabled: true
   image: core-agent
   replicaCount: 1
+  tavilySecret: {} # Existing Secret. Set name and optionally key (defaults to api-key).
   resources:
     requests:
       memory: "512Mi"

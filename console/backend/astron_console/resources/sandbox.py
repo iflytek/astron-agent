@@ -12,6 +12,7 @@ from astron_console.accounts.http import response
 from astron_console.http import api_endpoint
 from astron_console.spaces.permissions import (
     ResourceScope,
+    permits,
     require_space_permission,
     scope_queryset,
 )
@@ -23,6 +24,21 @@ from .models import Model, SandboxConfig, WorkflowScope
 logger = logging.getLogger(__name__)
 READ = "ToolBoxController_getDetail_GET"
 WRITE = "ToolBoxController_updateTool_PUT"
+
+
+def enabled_sandbox(scope):
+    return scope_queryset(SandboxConfig.objects.filter(deleted=False, enabled=True), scope).first()
+
+
+def agent_sandbox_selection(scope):
+    if scope.space_id is not None and not permits(
+        require_space_permission, scope.uid, scope.space_id, READ
+    ):
+        return {"enabled": False}
+    row = enabled_sandbox(scope)
+    if row is None:
+        return {"enabled": False}
+    return {"enabled": True, "provider": row.provider}
 
 
 def service_auth(request, setting, header):
@@ -199,12 +215,12 @@ def runtime(request):
         from astron_console.agents.definitions import get_scoped_agent
 
         get_scoped_agent(scope, request.GET["agentId"])
-    row = scope_queryset(SandboxConfig.objects.filter(deleted=False, enabled=True), scope).first()
+    row = enabled_sandbox(scope)
     if row is None or not row.api_key:
         raise Http404
     return no_store(
         {
-            "provider": "e2b",
+            "provider": row.provider,
             "apiKey": row.api_key,
             "timeoutSeconds": row.timeout_seconds,
             "allowInternetAccess": row.allow_internet_access,

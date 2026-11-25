@@ -14,7 +14,8 @@ from astron_console.knowledge.skill_packages import (
 )
 from astron_console.resources.clients import normalize_provider
 from astron_console.resources.common import http_url, parsed
-from astron_console.resources.models import McpConfig, Model, SandboxConfig, Tool
+from astron_console.resources.models import McpConfig, Model, Tool
+from astron_console.resources.sandbox import agent_sandbox_selection
 from astron_console.spaces.models import GroupVisibility
 from astron_console.spaces.permissions import require_space_permission, scope_queryset
 
@@ -95,7 +96,7 @@ def skill_rows(query, values):
     return list(unique.values())
 
 
-def skill_payload(row, packages, sandbox):
+def skill_payload(row, packages):
     resources = packages.resources(row)
     validate_skill_package(row, resources)
     return {
@@ -113,7 +114,6 @@ def skill_payload(row, packages, sandbox):
             }
             for path, item in resources
         ],
-        "sandbox": sandbox,
     }
 
 
@@ -171,11 +171,7 @@ def resolve_resources(scope, definition, *, runtime=True):
         rows = skill_rows(query, skills)
         if runtime:
             packages = SkillPackages(query)
-            enabled = scope_queryset(
-                SandboxConfig.objects.filter(deleted=False, enabled=True), scope
-            ).exists()
-            sandbox = {"enabled": enabled, "space_id": str(scope.space_id or "")}
-            plugin["skills"] = [skill_payload(row, packages, sandbox) for row in rows]
+            plugin["skills"] = [skill_payload(row, packages) for row in rows]
     repos = refs(definition.get("repoIds"))
     if repos:
         query = repo_query(scope)
@@ -222,6 +218,7 @@ def resolve_resources(scope, definition, *, runtime=True):
             "api_key": model.api_key,
         },
         "plugin": plugin,
+        "sandbox": agent_sandbox_selection(scope),
     }
 
 

@@ -10,6 +10,7 @@ from common.otlp.trace.span import Span
 
 from agent.api.schemas.llm_message import LLMMessage
 from agent.api.schemas.workflow_agent_inputs import (
+    AgentSandboxInputs,
     CustomCompletionInputs,
     CustomCompletionInstructionInputs,
     CustomCompletionModelConfigInputs,
@@ -87,34 +88,21 @@ class TestWorkflowAgentRunnerBuilder:
             inputs=inputs,
         )
 
-    def test_skill_context_ignores_untrusted_sandbox_credentials(
+    def test_legacy_skill_metadata_cannot_select_a_sandbox(
         self, builder: WorkflowAgentRunnerBuilder
     ) -> None:
         builder.inputs.plugin.skills = [
-            CustomCompletionPluginSkillInputs(
-                skill_id="1",
-                name="example",
-                sandbox={
-                    "enabled": True,
-                    "uid": "other",
-                    "provider": "local",
-                    "apiKey": "legacy-api-key",
-                    "timeoutSeconds": 600,
-                    "allowInternetAccess": True,
-                    "runtimeConfigUrl": "https://example.com/runtime-config",
-                    "artifactUploadToken": "legacy-artifact-token",
-                    "runtimeCredentialToken": "legacy-runtime-token",
-                },
+            CustomCompletionPluginSkillInputs.model_validate(
+                {
+                    "skill_id": "1",
+                    "name": "example",
+                    "sandbox": {"enabled": True, "provider": "local"},
+                }
             )
         ]
-
-        config = builder._skill_sandbox_config()
-        assert config is not None
-        assert config.uid == "test_uid"
-        assert config.artifact_uid == "test_uid"
-        assert set(config.model_dump()).isdisjoint(
-            builder.inputs.plugin.skills[0].sandbox.keys() - {"enabled", "uid"}
-        )
+        assert builder._sandbox_config() is None
+        builder.inputs.sandbox = AgentSandboxInputs(enabled=False)
+        assert builder._sandbox_config() is None
 
     @pytest.mark.asyncio
     async def test_build(self, builder: WorkflowAgentRunnerBuilder) -> None:
@@ -191,7 +179,7 @@ class TestWorkflowAgentRunnerBuilder:
 
         assert runner.engine.skills == builder.inputs.plugin.skills
         assert runner.engine.plugins == []
-        assert runner.engine.skill_sandbox_config is None
+        assert runner.engine.sandbox_config is None
 
     @pytest.mark.asyncio
     async def test_query_knowledge_by_workflow_empty(
@@ -416,7 +404,7 @@ class TestKnowledgeQueryParams:
         assert params.rag_type == "AIUI-RAG2"
 
 
-def test_standalone_skill_context_uses_console_scope_and_no_workflow() -> None:
+def test_standalone_sandbox_context_uses_console_scope_and_selected_provider() -> None:
     from agent.api.schemas.base_inputs import MetaDataInputs
 
     inputs = CustomCompletionInputs(
@@ -426,31 +414,23 @@ def test_standalone_skill_context_uses_console_scope_and_no_workflow() -> None:
             domain="m", api="https://example.com", api_key="key"
         ),
         max_loop_count=1,
+        sandbox=AgentSandboxInputs(enabled=True, provider="test-provider"),
         meta_data=MetaDataInputs(agent_id="42", space_id=5, session_id="s", run_id="r"),
     )
     builder = WorkflowAgentRunnerBuilder(
         app_id="test", uid="owner", span=Span(app_id="test", uid="owner"), inputs=inputs
     )
-    builder.inputs.plugin.skills = [
-        CustomCompletionPluginSkillInputs(
-            skill_id="1",
-            name="example",
-            sandbox={
-                "enabled": True,
-                "uid": "other",
-                "space_id": 9,
-                "flowId": "forged",
-            },
-        )
-    ]
-    config = builder._skill_sandbox_config()
+    config = builder._sandbox_config()
     assert config is not None
+    assert config.provider == "test-provider"
     assert config.uid == "owner" and config.space_id == "5"
     assert config.agent_id == "42" and config.session_id == "s"
     assert config.workflow_id == ""
 
 
-def test_public_workflow_skill_keeps_config_owner_and_upload_caller_separate() -> None:
+def test_public_workflow_sandbox_keeps_config_owner_and_upload_caller_separate() -> (
+    None
+):
     from agent.api.schemas.base_inputs import MetaDataInputs
     from agent.service.plugin.skill_sandbox import _runtime_config_query
 
@@ -461,6 +441,7 @@ def test_public_workflow_skill_keeps_config_owner_and_upload_caller_separate() -
             domain="m", api="https://example.com", api_key="key"
         ),
         max_loop_count=1,
+        sandbox=AgentSandboxInputs(enabled=True),
         meta_data=MetaDataInputs(
             execution_uid="owner",
             workflow_id="flow",
@@ -477,20 +458,7 @@ def test_public_workflow_skill_keeps_config_owner_and_upload_caller_separate() -
         span=Span(app_id="test", uid="caller"),
         inputs=inputs,
     )
-    builder.inputs.plugin.skills = [
-        CustomCompletionPluginSkillInputs(
-            skill_id="1",
-            name="example",
-            sandbox={
-                "enabled": True,
-                "uid": "forged",
-                "root_id": "forged",
-                "artifact_uid": "forged",
-                "space_id": 99,
-            },
-        )
-    ]
-    config = builder._skill_sandbox_config()
+    config = builder._sandbox_config()
     assert config is not None
     assert config.uid == "owner" and config.artifact_uid == "caller"
     assert config.console and config.root_id == "root" and config.run_id == "run"
@@ -502,4 +470,4 @@ def test_public_workflow_skill_keeps_config_owner_and_upload_caller_separate() -
     }
     inputs.meta_data.console_context.pop("root_id")
     with pytest.raises(ValueError, match="incomplete"):
-        builder._skill_sandbox_config()
+        builder._sandbox_config()
