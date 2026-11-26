@@ -427,8 +427,8 @@ function SandboxConfiguration(): React.ReactElement {
           <div>
             <h1>脚本沙箱</h1>
             <p className="mt-2 mb-0 max-w-[720px] text-[13px] leading-5 text-[#607089]">
-              统一配置第三方脚本沙箱。启用后，Agent 节点的 Skill
-              脚本和工作流代码节点都会在隔离沙箱中执行，并自动归档执行过程中生成的文件。
+              启用后，Agent 可以通过 execute
+              在所选沙箱中运行命令。工作流代码节点也可使用此配置。
             </p>
           </div>
           <Button

@@ -26,6 +26,7 @@ from agent.service.plugin.skill_resource_security import (
     download_skill_resource,
     validate_skill_resource_url,
 )
+from agent.service.sandbox import SandboxExecutionContext as SkillSandboxConfig
 
 SCRIPT_SANDBOX_UNCONFIGURED_MESSAGE = (
     "当前环境未配置脚本沙箱，暂不支持直接执行 Skill 脚本。"
@@ -455,6 +456,8 @@ async def _run_command_with_bounded_output(
     command: str,
     cwd: str,
     timeout_seconds: int,
+    *,
+    stdout_limit: int = MAX_SANDBOX_COMMAND_OUTPUT_BYTES,
 ) -> tuple[int, str, str]:
     output_id = uuid.uuid4().hex
     stdout_path = f"/tmp/.astron-command-{output_id}.stdout"
@@ -475,7 +478,7 @@ async def _run_command_with_bounded_output(
         stdout_bytes, stdout_truncated = await _read_bounded_snapshot(
             sandbox,
             stdout_path,
-            MAX_SANDBOX_COMMAND_OUTPUT_BYTES,
+            stdout_limit,
             min(max(timeout_seconds, 1), 60),
         )
         stderr_bytes, stderr_truncated = await _read_bounded_snapshot(
@@ -495,20 +498,6 @@ async def _run_command_with_bounded_output(
                 await sandbox.files.remove(output_path, user="root")
             except Exception:
                 pass
-
-
-class SkillSandboxConfig(BaseModel):
-    enabled: bool = False
-    console: bool = False
-    root_id: str = ""
-    artifact_uid: str = ""
-    agent_id: str = ""
-    session_id: str = ""
-    workflow_id: str = ""
-    run_id: str = ""
-    node_id: str = ""
-    uid: str = ""
-    space_id: str = ""
 
 
 class SandboxExecutionRequest(BaseModel):

@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr, StrictBool
 
 from agent.api.schemas.base_inputs import BaseInputs
 
@@ -46,10 +46,16 @@ class CustomCompletionPluginSkillInputs(BaseModel):
     description: str = Field(default="", min_length=0, max_length=1024)
     download_url: str = Field(default="")
     resources: list[ResourceInputs] = Field(default_factory=list)
-    sandbox: dict[str, Any] = Field(default_factory=dict)
+
+
+class TavilyToolInputs(BaseModel):
+    tool_id: str = Field(min_length=1, max_length=30)
+    version: str = Field(min_length=1, max_length=100)
+    api_key: SecretStr = Field(exclude=True, repr=False)
 
 
 class CustomCompletionPluginInputs(BaseModel):
+    tavily: list[TavilyToolInputs] = Field(default_factory=list, max_length=100)
     tools: List[Union[str, Dict[str, Any]]] = Field(default_factory=list)
     mcp_server_ids: list[str] = Field(default_factory=list)
     mcp_server_urls: list[str] = Field(default_factory=list)
@@ -62,6 +68,11 @@ class CustomCompletionPluginInputs(BaseModel):
     )
 
 
+class AgentSandboxInputs(BaseModel):
+    enabled: StrictBool = False
+    provider: str = Field(default="e2b", min_length=1, max_length=32)
+
+
 class CustomCompletionInputs(BaseInputs):
     model_config_inputs: CustomCompletionModelConfigInputs = Field(alias="model_config")
     instruction: CustomCompletionInstructionInputs = Field(
@@ -70,4 +81,5 @@ class CustomCompletionInputs(BaseInputs):
     plugin: CustomCompletionPluginInputs = Field(
         default_factory=CustomCompletionPluginInputs
     )
+    sandbox: AgentSandboxInputs | None = None
     max_loop_count: int = Field(ge=1)

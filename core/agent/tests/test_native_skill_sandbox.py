@@ -1,4 +1,5 @@
 import asyncio
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -7,8 +8,9 @@ from deepagents.backends import CompositeBackend, FilesystemBackend
 from deepagents.middleware.filesystem import supports_execution
 from e2b import CommandExitException
 
-from agent.engine import skill_sandbox
+from agent.engine import e2b_sandbox
 from agent.service.plugin import skill_sandbox as sandbox_provider
+from agent.service.sandbox import AgentSandboxConfig
 
 
 @pytest.fixture
@@ -23,21 +25,96 @@ def remote_sandbox(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
         kill=AsyncMock(),
     )
     remote.create = AsyncMock(return_value=remote)
-    monkeypatch.setattr(skill_sandbox.AsyncSandbox, "create", remote.create)
+    monkeypatch.setattr(e2b_sandbox.AsyncSandbox, "create", remote.create)
     monkeypatch.setattr(
-        skill_sandbox,
+        e2b_sandbox,
         "_fetch_e2b_runtime_config",
         AsyncMock(return_value=("key", 60, False)),
     )
     return remote
 
 
-def make_backend() -> skill_sandbox.NativeSkillSandbox:
-    return skill_sandbox.NativeSkillSandbox(
+def make_backend() -> e2b_sandbox.E2BAgentSandbox:
+    return e2b_sandbox.E2BAgentSandbox(
         {"/skills/reports/SKILL.md": b"Reports"},
         {"reports": "34", "tables": "36"},
-        sandbox_provider.SkillSandboxConfig(enabled=True),
+        AgentSandboxConfig(enabled=True),
     )
+
+
+@pytest.mark.asyncio
+async def test_e2b_shell_runs_without_skill_mounts_or_artifact_upload(
+    remote_sandbox: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = AsyncMock(return_value=(0, "ready", ""))
+    collect = AsyncMock()
+    monkeypatch.setattr(e2b_sandbox, "_run_command_with_bounded_output", run)
+    monkeypatch.setattr(
+        sandbox_provider.E2BSandboxProvider, "_collect_artifacts", collect
+    )
+    backend = e2b_sandbox.E2BAgentSandbox({}, {}, AgentSandboxConfig(enabled=True))
+
+    result = await backend.aexecute("printf ready")
+    await backend.aclose()
+
+    assert result.output == "ready" and result.exit_code == 0
+    run.assert_awaited_once()
+    remote_sandbox.files.write_files.assert_not_awaited()
+    collect.assert_not_awaited()
+    remote_sandbox.kill.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_sandbox_file_helpers_keep_large_json_responses_intact(
+    remote_sandbox: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    filename = "/home/user/workspace/report.txt"
+    content = "文" * 150_000 + "\u0001" * 30000
+    response = json.dumps(
+        {
+            "content": content,
+            "encoding": "utf-8",
+            "total_lines": 1,
+            "start_line": 1,
+            "end_line": 1,
+        }
+    )
+    assert len(response) > sandbox_provider.MAX_SANDBOX_COMMAND_OUTPUT_BYTES
+
+    async def capture(
+        sandbox: object, command: str, cwd: str, timeout: int, *, stdout_limit: int
+    ) -> tuple[int, str, str]:
+        return 0, response[:stdout_limit], ""
+
+    run = AsyncMock(side_effect=capture)
+    monkeypatch.setattr(e2b_sandbox, "_run_command_with_bounded_output", run)
+
+    backend = e2b_sandbox.E2BAgentSandbox({}, {}, AgentSandboxConfig(enabled=True))
+    result = await backend.file_backend.aread(filename)
+    await backend.aexecute("printf ready")
+    await backend.aclose()
+    helper, user = run.await_args_list
+    assert result.file_data and result.file_data["content"] == content
+    assert helper.kwargs["stdout_limit"] >= len(response)
+    assert (
+        user.kwargs["stdout_limit"] == sandbox_provider.MAX_SANDBOX_COMMAND_OUTPUT_BYTES
+    )
+
+
+@pytest.mark.asyncio
+async def test_sandbox_grep_rejects_incomplete_transport_records(
+    remote_sandbox: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = "/one.txt\0" + "1:match\n/two.txt\0" + "1:part"
+    run = AsyncMock(
+        return_value=(0, output + sandbox_provider.SANDBOX_OUTPUT_TRUNCATED_MARKER, "")
+    )
+    monkeypatch.setattr(e2b_sandbox, "_run_command_with_bounded_output", run)
+    backend = e2b_sandbox.E2BAgentSandbox({}, {}, AgentSandboxConfig(enabled=True))
+    result = await backend.file_backend.agrep("match", "/")
+    await backend.aclose()
+    assert result.error and "exceeded the limit" in result.error
+    assert result.matches is None
 
 
 @pytest.mark.asyncio
@@ -46,7 +123,7 @@ async def test_native_shell_mounts_once_limits_timeout_and_returns_artifact_link
 ) -> None:
     run = AsyncMock(side_effect=[(7, "output", "error"), (0, "again", "")])
     collect = AsyncMock(side_effect=[[{"download_url": "/files/artifact"}], []])
-    monkeypatch.setattr(skill_sandbox, "_run_command_with_bounded_output", run)
+    monkeypatch.setattr(e2b_sandbox, "_run_command_with_bounded_output", run)
     monkeypatch.setattr(
         sandbox_provider.E2BSandboxProvider, "_collect_artifacts", collect
     )
@@ -66,10 +143,10 @@ async def test_native_shell_mounts_once_limits_timeout_and_returns_artifact_link
     assert second.output == "again"
     assert [call.args[-1] for call in run.await_args_list] == [60, 15]
     assert all(
-        call.args[2] == skill_sandbox.SKILL_WORKSPACE for call in run.await_args_list
+        call.args[2] == e2b_sandbox.SANDBOX_WORKSPACE for call in run.await_args_list
     )
     assert run.await_args_list[0].args[1] == "/bin/bash -c 'echo output'"
-    assert collect.await_args_list[0].args[2] == skill_sandbox.SKILL_OUTPUT_DIRECTORY
+    assert collect.await_args_list[0].args[2] == e2b_sandbox.SANDBOX_OUTPUT_DIRECTORY
     assert (
         collect.await_args_list[0].kwargs["budget"]
         is collect.await_args_list[1].kwargs["budget"]
@@ -83,7 +160,7 @@ async def test_native_shell_mounts_once_limits_timeout_and_returns_artifact_link
         [{"path": "/skills/reports/SKILL.md", "data": b"Reports"}], user="root"
     )
     remote_sandbox.files.make_dir.assert_awaited_once_with(
-        skill_sandbox.SKILL_OUTPUT_DIRECTORY, user="user"
+        e2b_sandbox.SANDBOX_OUTPUT_DIRECTORY, user="user"
     )
     remote_sandbox.kill.assert_awaited_once()
 

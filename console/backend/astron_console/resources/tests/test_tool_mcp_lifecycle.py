@@ -348,9 +348,12 @@ class ToolMcpLifecycleTests(TestCase):
         self.assertEqual(json.loads(row.schema), SCHEMA)
         self.assertEqual(sum(path == "/api/v1/tools/versions" for _, path, _ in calls), 1)
 
-    def test_catalog_failure_is_an_error_and_foreign_install_is_not_reused(self):
+    def test_link_catalog_failure_preserves_local_entries_and_blocks_link_install(self):
         with patch("astron_console.resources.clients.call", side_effect=UpstreamError("offline")):
-            self.assertEqual(self.client.get("/resources/tools/catalog").status_code, 502)
+            items = self.client.get("/resources/tools/catalog").json()["data"]
+            self.assertEqual([item["id"] for item in items], ["tavily.search"])
+            result = self.write("post", "/resources/tools/catalog/ocr/install", {})
+            self.assertEqual(result.status_code, 502)
         foreign = Tool.objects.create(user_id="other", tool_tag="builtin:ocr", name="Foreign")
         with patch("astron_console.resources.clients.call", return_value={"tools": []}):
             result = self.write("post", "/resources/tools/catalog/ocr/install", {})

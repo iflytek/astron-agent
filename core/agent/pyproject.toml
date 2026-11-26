@@ -51,6 +51,7 @@ dependencies = [
     "jsonschema>=4.25,<5",
     "httpx-sse==0.4.3",
     "pyyaml>=6,<7",
+    "tavily-python>=0.7,<1",
 ]
 
 [dependency-groups]

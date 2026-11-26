@@ -8,6 +8,7 @@ from django.db.models import Max
 from astron_console.agents.resource_resolution import tool_query
 from astron_console.http import api_endpoint
 from astron_console.resources.common import page, scope_for
+from astron_console.resources.tavily import TAG as TAVILY_TAG
 from astron_console.resources.tools import data as tool_data
 from astron_console.spaces.permissions import scope_queryset
 
@@ -101,7 +102,7 @@ def canvas_tool(row):
 @api_endpoint(["GET"])
 def listing(request):
     scope = scope_for(request, "ToolBoxController_listTools_GET")
-    query = tool_query(scope).filter(status=1)
+    query = tool_query(scope).filter(status=1).exclude(tool_tag=TAVILY_TAG)
     if request.GET.get("market") == "true":
         query = query.filter(is_public=True)
     else:

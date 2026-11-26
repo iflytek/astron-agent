@@ -1,16 +1,21 @@
-"""Built-in capabilities are discovered from Link, then installed as scoped tools."""
+"""Discover built-in capabilities and install them as scoped tools."""
 
+import logging
+
+from django.db import transaction
 from django.http import Http404
 
 from astron_console.http import api_endpoint
 from astron_console.spaces.permissions import scope_queryset
 
-from . import clients, tools
+from . import clients, tavily, tools
 from .common import UpstreamError, scope_for, upstream_errors
 from .models import Tool
 
+logger = logging.getLogger(__name__)
 
-def entries():
+
+def link_entries():
     result = clients.call("RESOURCE_TOOL_URL", "GET", "/api/v1/tools/builtin_catalog")
     rows = result.get("tools") if isinstance(result, dict) else None
     if not isinstance(rows, list):
@@ -22,6 +27,11 @@ def entries():
 @upstream_errors
 def catalog(request):
     scope = scope_for(request, "ToolBoxController_listTools_GET")
+    try:
+        rows = link_entries()
+    except UpstreamError:
+        logger.warning("Link catalog unavailable; serving Console-managed built-in tools")
+        rows = []
     installed = set(
         scope_queryset(Tool.objects.filter(deleted=False), scope, uid_field="user_id").values_list(
             "tool_tag", flat=True
@@ -40,7 +50,7 @@ def catalog(request):
             "configurationHint": row.get("configurationHint", "实际调用取决于厂商授权"),
             "installed": "builtin:" + row["id"] in installed,
         }
-        for row in entries()
+        for row in [*rows, tavily.catalog_entry()]
     ]
 
 
@@ -48,18 +58,13 @@ def catalog(request):
 @upstream_errors
 def install(request, catalog_id):
     scope = scope_for(request, "ToolBoxController_createTool_POST")
-    existing = (
-        scope_queryset(
-            Tool.objects.filter(deleted=False, status=1, tool_tag="builtin:" + catalog_id),
-            scope,
-            uid_field="user_id",
-        )
-        .order_by("-id")
-        .first()
-    )
+    if catalog_id == tavily.CATALOG_ID:
+        return install_tavily(request, scope)
+    rows = Tool.objects.filter(deleted=False, status=1, tool_tag="builtin:" + catalog_id)
+    existing = scope_queryset(rows, scope, uid_field="user_id").order_by("-id").first()
     if existing:
         return tools.data(existing)
-    row = next((row for row in entries() if row["id"] == catalog_id), None)
+    row = next((row for row in link_entries() if row["id"] == catalog_id), None)
     if row is None:
         raise Http404
     return tools.save(
@@ -70,4 +75,23 @@ def install(request, catalog_id):
             "schema": row["openapi_schema"],
         },
         builtin_id=catalog_id,
+    )
+
+
+@transaction.atomic
+def install_tavily(request, scope):
+    tavily.lock_scope(scope)
+    rows = Tool.objects.filter(deleted=False, tool_tag=tavily.TAG)
+    existing = scope_queryset(rows, scope, uid_field="user_id").order_by("-id").first()
+    if existing:
+        return tools.data(existing)
+    return tools.save(
+        request,
+        payload={
+            "name": tavily.NAME,
+            "description": tavily.DESCRIPTION,
+            "schema": tavily.schema(),
+            "draft": True,
+        },
+        builtin_id=tavily.CATALOG_ID,
     )

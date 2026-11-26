@@ -11,7 +11,7 @@ from astron_console.agents.models import Agent, AgentRun, AgentSession
 from astron_console.publishing import public_runtime, services
 from astron_console.publishing.models import App, Publication, PublicRunGrant, ShareRecord
 from astron_console.publishing.runtime_authorization import check_grant, memory_scope
-from astron_console.resources.models import Model
+from astron_console.resources.models import Model, SandboxConfig
 from astron_console.spaces.permissions import ResourceScope
 from astron_console.workflows.models import ExecutionContext
 
@@ -168,10 +168,14 @@ class PublicExecutionTests(TestCase):
         )
 
     def test_caller_identity_is_separate_and_owner_memory_unavailable(self):
+        SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, api_key="sandbox-key")
         run, grant, data = self.prepared()
         payload, _, subject_scope = data
         self.assertEqual(run.session.uid, self.viewer.pk)
         self.assertEqual(payload["uid"], self.viewer.pk)
+        self.assertEqual(payload["sandbox"], {"enabled": True, "provider": "e2b"})
+        self.assertEqual(payload["meta_data"]["execution_uid"], self.owner.pk)
+        self.assertEqual(payload["plugin"]["skills"], [])
         self.assertIsNone(subject_scope)
         self.assertEqual(ExecutionContext.objects.get(pk=grant.root_id).uid, self.owner.pk)
         self.assertNotIn("secret", json.dumps(run.definition))

@@ -8,6 +8,7 @@ from fastapi import APIRouter
 
 from agent.api.v1.llm_completion import llm_completion_router
 from agent.api.v1.skill_sandbox_api import skill_sandbox_router
+from agent.api.v1.web_search import web_search_router
 from agent.api.v1.workflow_agent import workflow_agent_router
 
 router_v1 = APIRouter(
@@ -16,3 +17,4 @@ router_v1 = APIRouter(
 router_v1.include_router(workflow_agent_router)
 router_v1.include_router(skill_sandbox_router)
 router_v1.include_router(llm_completion_router)
+router_v1.include_router(web_search_router)

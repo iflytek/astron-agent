@@ -12,9 +12,11 @@ from astron_console.knowledge.skill_packages import (
     is_skill_entry,
     validate_skill_package,
 )
+from astron_console.resources import tavily
 from astron_console.resources.clients import normalize_provider
 from astron_console.resources.common import http_url, parsed
-from astron_console.resources.models import McpConfig, Model, SandboxConfig, Tool
+from astron_console.resources.models import McpConfig, Model, Tool
+from astron_console.resources.sandbox import agent_sandbox_selection
 from astron_console.spaces.models import GroupVisibility
 from astron_console.spaces.permissions import require_space_permission, scope_queryset
 
@@ -62,7 +64,8 @@ def tool_query(scope):
         type=2, user_id=scope.uid, space_id=scope.space_id
     ).values("relation_id")
     return Tool.objects.filter(deleted=0, status=1).filter(
-        Q(pk__in=owned.values("id")) | Q(is_public=True, status=1) | Q(pk__in=shared)
+        Q(pk__in=owned.values("id"))
+        | ((Q(is_public=True) | Q(pk__in=shared)) & ~Q(tool_tag=tavily.TAG))
     )
 
 
@@ -95,7 +98,7 @@ def skill_rows(query, values):
     return list(unique.values())
 
 
-def skill_payload(row, packages, sandbox):
+def skill_payload(row, packages):
     resources = packages.resources(row)
     validate_skill_package(row, resources)
     return {
@@ -113,7 +116,6 @@ def skill_payload(row, packages, sandbox):
             }
             for path, item in resources
         ],
-        "sandbox": sandbox,
     }
 
 
@@ -146,7 +148,16 @@ def resolve_resources(scope, definition, *, runtime=True):
             if runtime:
                 if not row.tool_id or not row.version:
                     raise ValidationError("工具缺少已同步版本")
-                plugin["tools"].append({"tool_id": row.tool_id, "version": row.version})
+                if row.tool_tag == tavily.TAG:
+                    plugin.setdefault("tavily", []).append(
+                        {
+                            "tool_id": row.tool_id,
+                            "version": row.version,
+                            "api_key": tavily.key_from_schema(parsed(row.schema)),
+                        }
+                    )
+                else:
+                    plugin["tools"].append({"tool_id": row.tool_id, "version": row.version})
     mcp = refs(definition.get("mcpServerIds"))
     if mcp:
         query = scoped(
@@ -171,11 +182,7 @@ def resolve_resources(scope, definition, *, runtime=True):
         rows = skill_rows(query, skills)
         if runtime:
             packages = SkillPackages(query)
-            enabled = scope_queryset(
-                SandboxConfig.objects.filter(deleted=False, enabled=True), scope
-            ).exists()
-            sandbox = {"enabled": enabled, "space_id": str(scope.space_id or "")}
-            plugin["skills"] = [skill_payload(row, packages, sandbox) for row in rows]
+            plugin["skills"] = [skill_payload(row, packages) for row in rows]
     repos = refs(definition.get("repoIds"))
     if repos:
         query = repo_query(scope)
@@ -222,6 +229,7 @@ def resolve_resources(scope, definition, *, runtime=True):
             "api_key": model.api_key,
         },
         "plugin": plugin,
+        "sandbox": agent_sandbox_selection(scope),
     }
 
 
