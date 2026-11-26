@@ -22,6 +22,7 @@ from memory.database.api.v1.exec_ddl import (
     is_ddl_allowed,
 )
 from memory.database.exceptions.error_code import CodeEnum
+from sqlglot import exp
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
@@ -42,6 +43,15 @@ def test_is_ddl_allowed_allowed_statements() -> None:
         result = is_ddl_allowed(sql, mock_span_context)
         assert result is True, f"Allowed SQL[{sql}] was incorrectly rejected"
         mock_span_context.add_info_event.assert_any_call(f"sql: {sql}")
+
+
+def test_is_ddl_allowed_rejects_opaque_parser_result() -> None:
+    """A command fallback cannot authorize even otherwise supported SQL text."""
+    with patch(
+        "memory.database.api.v1.exec_ddl.sqlglot.parse_one",
+        return_value=exp.Command(this="UNSUPPORTED"),
+    ):
+        assert not is_ddl_allowed("ALTER TABLE users ADD COLUMN name TEXT", MagicMock())
 
 
 @pytest.mark.asyncio

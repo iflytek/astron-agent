@@ -1,6 +1,5 @@
 """API endpoints for executing DDL (Data Definition Language) statements."""
 
-import re
 import string
 from typing import Any, List, Union
 
@@ -25,7 +24,7 @@ from memory.database.repository.middleware.adapters import get_adapter
 from memory.database.repository.middleware.getters import get_session
 from sqlglot import exp
 from sqlglot.errors import ParseError
-from sqlglot.expressions import Alter, ColumnDef, Command, Create, Drop
+from sqlglot.expressions import Alter, ColumnDef, Create, Drop
 from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.responses import JSONResponse
 
@@ -68,12 +67,6 @@ def is_ddl_allowed(sql: str, span_context: Span) -> bool:
         elif isinstance(parsed, Alter):
             object_type = parsed.args.get("kind", "").upper()
             full_type = f"ALTER {object_type}"
-        elif isinstance(parsed, Command):
-            match = re.search(r"\bALTER\s+TABLE\b", sql, re.IGNORECASE)
-            if match:
-                full_type = match.group(0).upper()
-            else:
-                full_type = statement_type
         else:
             full_type = statement_type
 
