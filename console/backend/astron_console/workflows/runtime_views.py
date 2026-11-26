@@ -8,7 +8,8 @@ from django.http import Http404, StreamingHttpResponse
 from django.utils import timezone
 
 from astron_console.http import api_endpoint
-from astron_console.resources.common import page, scope_for
+from astron_console.resources.common import page, scope_for, upstream_errors
+from astron_console.resources.local_sandbox import resource_files
 
 from .authorization import EXECUTE, READ, get_workflow
 from .execution_context import cancel_root, select_graph
@@ -22,6 +23,15 @@ from .lifecycle import (
 from .models import WorkflowDialog, WorkflowRun
 
 logger = logging.getLogger(__name__)
+
+
+@api_endpoint(["GET"])
+@upstream_errors
+def sandbox_files(request, workflow_id, download=False):
+    workflow = get_workflow(scope_for(request, READ), workflow_id)
+    if not workflow.flow_id:
+        raise Http404
+    return resource_files(request, workflow, "workflow", workflow.flow_id, download=download)
 
 
 def streaming(run, **kwargs):

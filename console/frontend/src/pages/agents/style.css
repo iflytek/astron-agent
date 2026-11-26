@@ -1387,6 +1387,11 @@
   gap: 12px;
   padding: 6px 16px 0;
 }
+.agent-chat-page-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 .agent-chat-page-actions .button {
   min-height: 32px;
   padding: 5px 10px;

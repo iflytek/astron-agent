@@ -5,22 +5,24 @@ export interface SkillSandboxConfig {
   apiKeyMasked?: boolean;
   timeoutSeconds: number;
   allowInternetAccess: boolean;
+  e2bAllowInternetAccess?: boolean;
+  localAvailable?: boolean;
   lastTestStatus?: string;
   lastTestMessage?: string;
   lastTestTime?: string;
   spaceId?: number;
 }
 
-export interface WorkflowArtifact {
-  id: number;
-  workflowId: number;
-  runId?: string;
-  nodeId?: string;
-  skillId?: string;
-  fileName: string;
-  contentType?: string;
-  fileSize?: number;
-  source?: string;
-  downloadUrl?: string;
-  createTime?: string;
+export interface SandboxFileEntry {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  size: number;
+  modifiedAt: string;
+}
+
+export interface SandboxFileListing {
+  entries: SandboxFileEntry[];
+  truncated: boolean;
+  nextCursor?: string | null;
 }

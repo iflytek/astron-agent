@@ -178,6 +178,8 @@ def prepare_public(
     agent = Agent.objects.get(pk=candidate.bot_id, is_delete=0)
     config = effective_definition(candidate.definition)
     runtime = resolve_resources(scope, config)
+    if runtime["sandbox"].get("provider") == "docker":
+        runtime["sandbox"] = {"enabled": False}
     from .public_files import authorize_inputs, file_data
 
     uploads = authorize_inputs(publication, caller, caller_space_id, values.get("files", []))

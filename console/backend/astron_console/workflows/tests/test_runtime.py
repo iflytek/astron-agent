@@ -560,6 +560,7 @@ class RuntimeTests(TransactionTestCase):
                 "outputs": [{"name": "result", "schema": {"type": "string"}}],
             },
         }
+        SandboxConfig.objects.create(uid=self.user.pk, enabled=True, provider="docker")
         self.graph["nodes"].append(node)
         # An unrelated invalid inline Agent must not prevent a selected code test.
         self.graph["nodes"].append({"id": "agent::invalid", "data": {"nodeParam": {}}})
@@ -606,6 +607,7 @@ class RuntimeTests(TransactionTestCase):
         self.assertEqual(nodes[0]["data"]["inputs"][0]["name"], "new_argument")
         self.assertEqual(nodes[0]["data"]["outputs"], [])
         self.assertEqual(nodes[0]["data"]["nodeParam"]["code"], "new code")
+        self.assertTrue(nodes[0]["data"]["nodeParam"]["sandbox"]["enabled"])
         self.workflow.refresh_from_db()
         self.assertEqual(
             json.loads(self.workflow.data)["nodes"][-2]["data"]["nodeParam"]["code"], "old code"

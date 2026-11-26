@@ -14,6 +14,7 @@ from astron_console.http import api_endpoint
 from astron_console.knowledge import storage
 from astron_console.knowledge.clients import ResourceServiceError
 from astron_console.resources.common import UpstreamError, upstream_errors
+from astron_console.resources.local_sandbox import resource_files
 from astron_console.resources.sandbox import service_auth
 from astron_console.spaces.permissions import ResourceScope
 
@@ -134,6 +135,13 @@ def download(request, agent_id, file_id):
     return FileResponse(
         io.BytesIO(body), as_attachment=True, filename=row.name, content_type=row.content_type
     )
+
+
+@api_endpoint(["GET"])
+@upstream_errors
+def sandbox_files(request, agent_id, download=False):
+    agent, _ = get_agent(request, agent_id)
+    return resource_files(request, agent, "agent", agent.pk, download=download)
 
 
 @csrf_exempt

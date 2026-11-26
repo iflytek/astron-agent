@@ -22,6 +22,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  FolderOpenOutlined,
 } from '@ant-design/icons';
 import agentAvatar from '@/assets/imgs/avatars/agent-chat-avatar.svg';
 import SavedCredentialInput from '@/components/saved-credential-input';
@@ -55,6 +56,7 @@ import {
 } from '@/services/agents';
 import Conversation from './conversation';
 import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
+import SandboxFileBrowser from '@/components/sandbox-file-browser';
 import { errorText } from './errors';
 import { versionModel, versionPrompt } from './version-summary';
 import './style.css';
@@ -548,6 +550,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
   const [mcpChanged, setMcpChanged] = useState(false);
   const [resources, setResources] = useState<AgentResourceOptions | null>(null);
   const [tab, setTab] = useState(mode === 'chat' ? 'chat' : 'definition');
+  const [filesOpen, setFilesOpen] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [messageApi, messageHolder] = message.useMessage();
@@ -769,6 +772,31 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
     }
   };
 
+  const sandboxFilesButton = (
+    <Button
+      aria-label="文件"
+      disabled={!agent}
+      icon={<FolderOpenOutlined />}
+      onClick={() => setFilesOpen(true)}
+    >
+      文件
+    </Button>
+  );
+  const sandboxFilesModal = (
+    <Modal
+      title="Agent 文件"
+      open={filesOpen}
+      onCancel={() => setFilesOpen(false)}
+      footer={null}
+      width={760}
+      centered
+      destroyOnClose
+      styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
+    >
+      {agent && <SandboxFileBrowser kind="agent" id={String(id)} />}
+    </Modal>
+  );
+
   if (mode === 'chat') {
     return (
       <main className="agents-page agent-chat-page">
@@ -781,6 +809,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
             <ArrowLeftOutlined /> Agent 列表
           </button>
           <div className="agent-chat-page-actions">
+            {sandboxFilesButton}
             <button
               className="button"
               type="button"
@@ -790,6 +819,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
             </button>
           </div>
         </header>
+        {sandboxFilesModal}
         {error && (
           <div className="agents-error agents-error-action" role="alert">
             <span>{error}</span>
@@ -916,6 +946,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           )}
         </div>
         <div className="agents-actions">
+          {sandboxFilesButton}
           <Button
             className="agent-open-chat"
             onClick={() => requestNavigation(`/space/bot/${id}/chat`)}
@@ -942,6 +973,7 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
           )}
         </div>
       </header>
+      {sandboxFilesModal}
       {error && (
         <p className="agents-error" role="alert">
           {error}

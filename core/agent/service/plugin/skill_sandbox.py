@@ -274,9 +274,17 @@ def _runtime_config_query(config: "SkillSandboxConfig") -> dict[str, str]:
     return query
 
 
-async def _fetch_e2b_runtime_config(
-    config: "SkillSandboxConfig",
-) -> tuple[str, int, bool]:
+async def _fetch_runtime_policy(
+    config: "SkillSandboxConfig", *, docker: bool = False
+) -> dict[str, Any]:
+    query = _runtime_config_query(config)
+    if docker:
+        query.update(
+            purpose="agent",
+            rootId=config.root_id,
+            runId=config.run_id,
+            nodeId=config.node_id,
+        )
     try:
         runtime_config_url = _load_runtime_config_url()
         credential_token = _load_runtime_credential_token()
@@ -285,7 +293,7 @@ async def _fetch_e2b_runtime_config(
             async with session.get(
                 runtime_config_url,
                 headers={RUNTIME_CREDENTIAL_HEADER: credential_token},
-                params=_runtime_config_query(config),
+                params=query,
                 allow_redirects=False,
             ) as response:
                 if not 200 <= response.status < 300:
@@ -296,12 +304,22 @@ async def _fetch_e2b_runtime_config(
         if isinstance(code, bool) or not isinstance(code, int) or code != 0:
             raise ValueError
         data = payload.get("data") if isinstance(payload, dict) else None
-        provider = data.get("provider") if isinstance(data, dict) else None
-        api_key = data.get("apiKey") if isinstance(data, dict) else None
-        timeout_seconds = data.get("timeoutSeconds") if isinstance(data, dict) else None
-        allow_internet_access = (
-            data.get("allowInternetAccess") if isinstance(data, dict) else None
-        )
+        if not isinstance(data, dict):
+            raise ValueError
+        return data
+    except Exception:
+        raise RuntimeError(SANDBOX_RUNTIME_CONFIG_ERROR) from None
+
+
+async def _fetch_e2b_runtime_config(
+    config: "SkillSandboxConfig",
+) -> tuple[str, int, bool]:
+    try:
+        data = await _fetch_runtime_policy(config)
+        provider = data.get("provider")
+        api_key = data.get("apiKey")
+        timeout_seconds = data.get("timeoutSeconds")
+        allow_internet_access = data.get("allowInternetAccess")
         if not isinstance(provider, str) or provider.strip().lower() != "e2b":
             raise ValueError
         if not isinstance(api_key, str) or not api_key.strip():

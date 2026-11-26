@@ -247,17 +247,19 @@ def core_headers():
 
 def core_payload(run):
     scope, workflow = reauthorize(run)
-    from .protocol import to_protocol
-
-    protocol = to_protocol(run.graph, workflow, scope)
-    for node in protocol["data"]["nodes"]:
-        if node["id"].startswith("ifly-code::"):
-            node["data"]["nodeParam"]["sandbox"]["console"] = True
     from astron_console.publishing.public_files import resolve_workflow_file_inputs
     from astron_console.publishing.runtime_authorization import check_root
+    from astron_console.resources.sandbox import agent_sandbox_selection
+
+    from .protocol import to_protocol
 
     root = checked_root(run.context_id)
     grant = check_root(root)
+    local_docker = grant is None and agent_sandbox_selection(scope).get("provider") == "docker"
+    protocol = to_protocol(run.graph, workflow, scope, local_docker=local_docker)
+    for node in protocol["data"]["nodes"]:
+        if node["id"].startswith("ifly-code::"):
+            node["data"]["nodeParam"]["sandbox"]["console"] = True
     subject = grant.caller_uid if grant is not None else root.uid
     inputs = resolve_workflow_file_inputs(grant, run.inputs) if grant is not None else run.inputs
     return {

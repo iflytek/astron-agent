@@ -7,6 +7,7 @@ from deepagents.backends import StateBackend
 from deepagents.backends.protocol import BackendProtocol, SandboxBackendProtocol
 from loguru import logger
 
+from agent.engine.docker_sandbox import DockerAgentSandbox
 from agent.engine.e2b_sandbox import E2BAgentSandbox
 from agent.service.sandbox import AgentSandboxConfig
 
@@ -24,7 +25,19 @@ def _open_e2b(
     return aclosing(E2BAgentSandbox(files, artifact_owners, config))
 
 
-SANDBOX_PROVIDERS: dict[str, SandboxFactory] = {"e2b": _open_e2b}
+@asynccontextmanager
+async def _open_docker(
+    files: dict[str, bytes],
+    artifact_owners: dict[str, str],
+    config: AgentSandboxConfig,
+) -> AsyncIterator[SandboxBackendProtocol]:
+    yield DockerAgentSandbox(files, artifact_owners, config)
+
+
+SANDBOX_PROVIDERS: dict[str, SandboxFactory] = {
+    "e2b": _open_e2b,
+    "docker": _open_docker,
+}
 
 
 @asynccontextmanager

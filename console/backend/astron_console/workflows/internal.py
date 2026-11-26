@@ -1,5 +1,6 @@
 """Service-only runtime authorization. No identity or credentials come from graph inputs."""
 
+from asgiref.sync import async_to_sync
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.http import Http404, StreamingHttpResponse
@@ -10,6 +11,7 @@ from astron_console.agents.conversations import prompt_for
 from astron_console.agents.definitions import get_scoped_agent, resolve_version
 from astron_console.agents.resource_resolution import resolve_resources
 from astron_console.http import api_endpoint
+from astron_console.resources.common import text
 from astron_console.resources.sandbox import no_store, service_auth
 
 from .authorization import EXECUTE, active_scope, get_workflow
@@ -28,6 +30,26 @@ from .models import WorkflowRun
 
 def authenticate(request):
     service_auth(request, "WORKFLOW_INTERNAL_API_KEY", "X-Workflow-Internal-Key")
+
+
+@csrf_exempt
+@api_endpoint(["POST"], authenticated=False)
+def archive_media(request):
+    from .sandbox_media import archive_node_files
+
+    authenticate(request)
+    payload = request.payload
+    run = WorkflowRun.objects.filter(
+        pk=text(payload, "runId", required=True, limit=36),
+        context_id=text(payload, "rootId", required=True, limit=36),
+        status__in=("running", "resuming"),
+        cancel_requested=False,
+    ).first()
+    if run is not None:
+        async_to_sync(archive_node_files)(
+            run, text(payload, "nodeId", required=True, limit=255), payload.get("outputs")
+        )
+    return no_store({})
 
 
 @csrf_exempt
@@ -54,6 +76,11 @@ def agent_runtime(request):
     agent = get_scoped_agent(scope, fixed["agentId"])
     extend_chain(run.call_chain, f"agent:{agent.pk}")
     runtime = resolve_resources(scope, config)
+    if runtime["sandbox"].get("provider") == "docker":
+        from astron_console.publishing.runtime_authorization import grant_for_root
+
+        if grant_for_root(root) is not None:
+            runtime["sandbox"] = {"enabled": False}
     query = payload.get("query", "")
     if not isinstance(query, str) or len(query) > 200000:
         raise ValidationError("Agent输入无效")

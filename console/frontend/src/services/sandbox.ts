@@ -1,5 +1,9 @@
-import http from '@/utils/http';
-import type { SkillSandboxConfig, WorkflowArtifact } from '@/types/sandbox';
+import http, { downloadFileWithHeaders } from '@/utils/http';
+import type {
+  SandboxFileEntry,
+  SandboxFileListing,
+  SkillSandboxConfig,
+} from '@/types/sandbox';
 
 export async function getSkillSandboxConfig(): Promise<SkillSandboxConfig> {
   return await http.get('/skill-sandbox/config');
@@ -23,20 +27,32 @@ export async function testSkillSandboxConfig(
   return await http.post('/skill-sandbox/test', params);
 }
 
-export async function listWorkflowArtifacts(
-  workflowId: string | number
-): Promise<WorkflowArtifact[]> {
-  return await http.get(`/workflow/${workflowId}/artifacts`);
+function sandboxFilesPath(kind: 'agent' | 'workflow', id: string): string {
+  const resource = kind === 'agent' ? 'agents' : 'workflow';
+  return `/${resource}/${encodeURIComponent(id)}/sandbox-files`;
 }
 
-export async function getWorkflowArtifactDownload(
-  artifactId: string | number
-): Promise<WorkflowArtifact> {
-  return await http.get(`/workflow/artifacts/${artifactId}/download`);
+export function listSandboxFiles(
+  kind: 'agent' | 'workflow',
+  id: string,
+  path: string,
+  signal: AbortSignal,
+  after?: string
+): Promise<SandboxFileListing> {
+  return http.get(sandboxFilesPath(kind, id), {
+    params: { path, after },
+    signal,
+  });
 }
 
-export async function deleteWorkflowArtifact(
-  artifactId: string | number
-): Promise<void> {
-  await http.delete(`/workflow/artifacts/${artifactId}`);
+export function downloadSandboxFile(
+  kind: 'agent' | 'workflow',
+  id: string,
+  entry: SandboxFileEntry
+): void {
+  const query = new URLSearchParams({ path: entry.path });
+  downloadFileWithHeaders(
+    `/console-api${sandboxFilesPath(kind, id)}/download?${query}`,
+    entry.name
+  );
 }

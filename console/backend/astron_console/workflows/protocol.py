@@ -142,7 +142,23 @@ def io_items(items, *, inputs=False):
     return result
 
 
-def authorized_params(node, workflow, scope):
+def authorized_plugin(scope, params):
+    from astron_console.resources.tavily import TAG as TAVILY_TAG
+
+    tools = tool_query(scope)
+    tool = select(tools, params.get("pluginId"), remote="tool_id")
+    if params.get("version") and str(params["version"]) != str(tool.version):
+        tool = tools.filter(tool_id=tool.tool_id, version=params["version"]).first()
+    if tool is None or not tool.tool_id or not tool.version:
+        raise PermissionDenied("工具版本不存在或未授权")
+    if tool.tool_tag == TAVILY_TAG:
+        raise ValidationError("请在工作流的 Agent 节点中使用 Tavily 搜索")
+    if params.get("operationId") != tool.operation_id:
+        raise PermissionDenied("工具操作不存在或未授权")
+    return tool
+
+
+def authorized_params(node, workflow, scope, *, local_docker=False):
     """Authorize persistent references and provide only nonsecret runtime routing metadata."""
     params = clean_config(copy.deepcopy(node["data"].get("nodeParam", {})))
     kind = node["id"].split("::")[0]
@@ -177,17 +193,7 @@ def authorized_params(node, workflow, scope):
             source=normalize_provider(model.provider),
         )
     if kind == "plugin":
-        from astron_console.resources.tavily import TAG as TAVILY_TAG
-
-        tool = select(tool_query(scope), params.get("pluginId"), remote="tool_id")
-        if params.get("version") and str(params["version"]) != str(tool.version):
-            tool = tool_query(scope).filter(tool_id=tool.tool_id, version=params["version"]).first()
-        if tool is None or not tool.tool_id or not tool.version:
-            raise PermissionDenied("工具版本不存在或未授权")
-        if tool.tool_tag == TAVILY_TAG:
-            raise ValidationError("请在工作流的 Agent 节点中使用 Tavily 搜索")
-        if params.get("operationId") != tool.operation_id:
-            raise PermissionDenied("工具操作不存在或未授权")
+        tool = authorized_plugin(scope, params)
         params.update(pluginId=tool.tool_id, version=tool.version, appId=tool.app_id)
     if kind in {"knowledge-base", "knowledge-expert-base", "knowledge-pro-base"}:
         key = "repoIds" if "repoIds" in params else "repoId"
@@ -270,8 +276,9 @@ def authorized_params(node, workflow, scope):
         # Canvas/retained JSON only selects whether to use the sandbox. Its
         # ownership and execution identifiers never authorize a callback.
         sandbox = params.get("sandbox")
+        enabled = sandbox.get("enabled") if isinstance(sandbox, dict) else None
         params["sandbox"] = {
-            "enabled": isinstance(sandbox, dict) and sandbox.get("enabled") is True,
+            "enabled": local_docker if enabled is None else enabled is True,
             "uid": scope.uid,
             "spaceId": str(scope.space_id or ""),
             "workflowId": str(workflow.flow_id),
@@ -282,7 +289,7 @@ def authorized_params(node, workflow, scope):
     return params
 
 
-def to_protocol(graph, workflow, scope):
+def to_protocol(graph, workflow, scope, *, local_docker=False):
     graph = normalize_graph(graph)
     nodes = []
     for node in iter_nodes(graph):
@@ -299,7 +306,9 @@ def to_protocol(graph, workflow, scope):
                         "aliasName": data.get("label", node["id"]),
                         "nodeType": data.get("nodeMeta", {}).get("nodeType", "基础节点"),
                     },
-                    "nodeParam": authorized_params(node, workflow, scope),
+                    "nodeParam": authorized_params(
+                        node, workflow, scope, local_docker=local_docker
+                    ),
                     "inputs": io_items(data.get("inputs", []), inputs=True),
                     "outputs": io_items(data.get("outputs", [])),
                     "retryConfig": retry,

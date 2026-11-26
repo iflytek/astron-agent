@@ -54,9 +54,9 @@ def validate_context(value: Any) -> dict[str, str]:
     return value
 
 
-async def request(action: str, payload: dict) -> dict:
+async def request(action: str, payload: dict, *, timeout: float = 10) -> dict:
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
             response = await client.post(
                 endpoint(action), json=payload, headers=headers()
             )

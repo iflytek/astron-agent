@@ -1408,3 +1408,54 @@ def test_modern_code_upload_missing_identity_cannot_use_legacy_route(
     config.pop(missing)
     with pytest.raises(RuntimeError, match=SANDBOX_RUNTIME_CONFIG_ERROR):
         CodeArtifactUploader(config).is_configured()
+
+
+@pytest.mark.asyncio
+async def test_console_code_node_dispatches_to_docker_with_workflow_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from workflow.engine.nodes.code.executor.e2b import e2b_executor
+
+    monkeypatch.setenv("LOCAL_SANDBOX_URL", "http://sandbox:8090")
+    fetch = AsyncMock(
+        return_value={
+            "provider": "docker",
+            "sandboxScope": "space-5",
+            "sandboxResourceId": "fixed-flow",
+            "timeoutSeconds": 30,
+            "allowInternetAccess": False,
+        }
+    )
+    request = AsyncMock(
+        return_value={"stdout": "ok\n", "exitCode": 0, "truncated": False}
+    )
+    monkeypatch.setattr(e2b_executor, "_fetch_runtime_policy", fetch)
+    monkeypatch.setattr(
+        e2b_executor, "_load_runtime_credential_token", lambda: "x" * 32
+    )
+    monkeypatch.setattr(e2b_executor.LocalSandbox, "request", request)
+    monkeypatch.setattr(
+        e2b_executor.CodeArtifactUploader, "is_configured", lambda _: False
+    )
+    config = {
+        "console": True,
+        "workflow_id": "fixed-flow",
+        "run_id": "run-1",
+        "node_id": "ifly-code::node",
+        "uid": "owner",
+        "artifact_context": {"root_id": "root-1", "uid": "caller"},
+    }
+
+    result = await E2BExecutor().execute(
+        language="python",
+        code="print('ok')",
+        timeout=10,
+        span=DummySpan(),
+        sandbox=config,
+    )
+
+    assert result == "ok"
+    fetch.assert_awaited_once_with(config, local_available=True)
+    assert request.await_args is not None
+    assert request.await_args.kwargs["pythonCode"] == "print('ok')"
+    assert request.await_args.kwargs["timeout"] == 30

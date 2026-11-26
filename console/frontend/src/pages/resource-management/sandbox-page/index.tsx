@@ -1,16 +1,9 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
   Card,
   Form,
-  Input,
   InputNumber,
   message,
   Modal,
@@ -22,9 +15,9 @@ import type { FormInstance } from 'antd';
 import {
   CheckCircleOutlined,
   CloudServerOutlined,
+  CodeOutlined,
   ExperimentOutlined,
   GlobalOutlined,
-  LockOutlined,
   SettingOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
@@ -58,24 +51,32 @@ const PROVIDERS = [
       '通过 E2B 官方 SDK 在第三方隔离环境中运行 Skill 脚本和工作流代码。',
   },
   {
+    key: 'docker',
+    name: '本地 Docker',
+    icon: <CodeOutlined />,
+    description: '在部署服务器上运行脚本和代码，按 Agent 或工作流保留文件。',
+  },
+  {
     key: 'daytona',
     name: 'Daytona',
     icon: <GlobalOutlined />,
     description: '预留第三方沙箱入口，后续可接入云端开发环境类运行时。',
   },
-  {
-    key: 'custom',
-    name: '自定义沙箱',
-    icon: <LockOutlined />,
-    description: '预留私有化或企业内部沙箱入口，适合后续扩展。',
-  },
 ] as const;
 
 type Provider = (typeof PROVIDERS)[number];
+type ConfigurableProvider = 'e2b' | 'docker';
+
+function testStatusText(config: SkillSandboxConfig | null): string {
+  if (!config?.lastTestStatus) return '尚未测试';
+  const status = config.lastTestStatus === 'success' ? '测试通过' : '测试失败';
+  return config.lastTestTime ? status + ' · ' + config.lastTestTime : status;
+}
 
 interface ProviderCardProps {
   provider: Provider;
   loading: boolean;
+  configurable: boolean;
   lastTestText: string;
   statusTag: React.ReactNode;
   onConfigure: () => void;
@@ -83,6 +84,8 @@ interface ProviderCardProps {
 
 interface ConfigModalProps {
   form: FormInstance<SkillSandboxConfig>;
+  provider: ConfigurableProvider;
+  localAvailable: boolean;
   open: boolean;
   loading: boolean;
   saving: boolean;
@@ -99,20 +102,13 @@ interface ConfigModalProps {
 function ProviderCard({
   provider,
   loading,
+  configurable,
   lastTestText,
   statusTag,
   onConfigure,
 }: ProviderCardProps): React.ReactElement {
-  const isE2b = provider.key === 'e2b';
-  const handleButtonClick = (event: React.MouseEvent<HTMLElement>): void => {
-    event.stopPropagation();
-    if (isE2b) {
-      onConfigure();
-    }
-  };
-
   return (
-    <Card loading={loading && isE2b} className={styles.providerCard}>
+    <Card loading={loading} className={styles.providerCard}>
       <div className="flex min-h-[190px] flex-col justify-between">
         <div>
           <div className="mb-4 flex items-start justify-between gap-3">
@@ -124,12 +120,14 @@ function ProviderCard({
                 <div className="text-[16px] font-medium text-[#18243d]">
                   {provider.name}
                 </div>
-                <div className="mt-1 text-[12px] text-[#607089]">
-                  {isE2b ? lastTestText : '待接入'}
-                </div>
+                {lastTestText && (
+                  <div className="mt-1 text-[12px] text-[#607089]">
+                    {lastTestText}
+                  </div>
+                )}
               </div>
             </div>
-            {isE2b ? statusTag : <Tag color="default">待接入</Tag>}
+            {statusTag}
           </div>
           <p className="m-0 text-[13px] leading-6 text-[#607089]">
             {provider.description}
@@ -137,11 +135,11 @@ function ProviderCard({
         </div>
         <div className="mt-5">
           <Button
-            icon={isE2b ? <SettingOutlined /> : undefined}
-            disabled={!isE2b}
-            onClick={handleButtonClick}
+            icon={configurable ? <SettingOutlined /> : undefined}
+            disabled={!configurable}
+            onClick={onConfigure}
           >
-            {isE2b ? '配置' : '未开放'}
+            {provider.key === 'daytona' ? '未开放' : '配置'}
           </Button>
         </div>
       </div>
@@ -151,6 +149,8 @@ function ProviderCard({
 
 function SandboxConfigModal({
   form,
+  provider,
+  localAvailable,
   open,
   loading,
   saving,
@@ -163,12 +163,14 @@ function SandboxConfigModal({
   onSave,
   onTest,
 }: ConfigModalProps): React.ReactElement {
+  const local = provider === 'docker';
+  const name = local ? '本地 Docker' : 'E2B Sandbox';
   return (
     <Modal
-      title="配置 E2B Sandbox"
+      title={'配置 ' + name}
       open={open}
       width={680}
-      destroyOnClose
+      forceRender
       onCancel={saving || testing ? undefined : onCancel}
       closable={!saving && !testing}
       maskClosable={!saving && !testing}
@@ -177,7 +179,7 @@ function SandboxConfigModal({
           key="test"
           icon={<ExperimentOutlined />}
           loading={testing}
-          disabled={saving || loading}
+          disabled={saving || loading || (local && !localAvailable)}
           onClick={onTest}
         >
           测试配置
@@ -209,79 +211,100 @@ function SandboxConfigModal({
           type="info"
           showIcon
           className="mb-5"
-          message="启用并配置 E2B 后，Agent Skill 脚本和工作流代码节点会优先使用 E2B 沙箱；关闭 E2B 时，工作流代码节点自动使用内置 LangChain/Pyodide 隔离执行器，无需额外配置。"
+          message={
+            local
+              ? '本地 Docker 在部署服务器上执行。Agent 和工作流产出的文件保存在各自的沙箱目录。'
+              : '启用后，Agent Skill 脚本和已开启沙箱的工作流代码节点使用 E2B 隔离环境。'
+          }
         />
-        <Form.Item name="provider" hidden>
-          <Input />
-        </Form.Item>
+        {local && !localAvailable && (
+          <Alert
+            type="warning"
+            showIcon
+            className="mb-5"
+            message="当前部署尚未启用本地 Docker 沙箱。"
+          />
+        )}
         <div className={styles.enableSection}>
           <div>
-            <div id="e2b-enabled-label" className={styles.enableLabel}>
-              启用 E2B 沙箱
+            <div id="sandbox-enabled-label" className={styles.enableLabel}>
+              {'启用 ' + name}
             </div>
             <p
-              id="e2b-enabled-description"
+              id="sandbox-enabled-description"
               className={styles.enableDescription}
             >
-              保存配置或测试配置时应用更改。
+              {local ? '保存后应用更改。' : '保存配置或测试配置时应用更改。'}
             </p>
           </div>
           <Form.Item name="enabled" valuePropName="checked" noStyle>
             <Switch
               className={styles.enableSwitch}
-              aria-labelledby="e2b-enabled-label"
-              aria-describedby="e2b-enabled-description"
+              aria-labelledby="sandbox-enabled-label"
+              aria-describedby="sandbox-enabled-description"
               checkedChildren="已启用"
               unCheckedChildren="已停用"
             />
           </Form.Item>
         </div>
-        <Form.Item
-          label="API Key"
-          name="apiKey"
-          rules={[
-            ({ getFieldValue }): RuleObject => ({
-              validator(_, value): Promise<void> {
-                if (!getFieldValue('enabled') || value) {
-                  return Promise.resolve();
-                }
-                return Promise.reject(
-                  new Error('启用脚本沙箱后需要填写 E2B API Key')
-                );
-              },
-            }),
-          ]}
-        >
-          {open && (
+        {!local && (
+          <Form.Item
+            label="API Key"
+            name="apiKey"
+            rules={[
+              ({ getFieldValue }): RuleObject => ({
+                validator(_, value): Promise<void> {
+                  if (!getFieldValue('enabled') || value) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(
+                    new Error('启用脚本沙箱后需要填写 E2B API Key')
+                  );
+                },
+              }),
+            ]}
+          >
             <SavedCredentialInput
               placeholder="输入 E2B API Key"
-              disabled={loading || saving || testing}
+              disabled={!open || loading || saving || testing}
               maskedValue="********"
-              loadSaved={revealSandboxCredential}
+              loadSaved={open ? revealSandboxCredential : undefined}
             />
-          )}
-        </Form.Item>
+          </Form.Item>
+        )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Form.Item
             label="执行超时"
             name="timeoutSeconds"
-            rules={[{ required: true, message: '请设置执行超时时间' }]}
+            rules={[
+              { required: true, message: '请设置执行超时时间' },
+              {
+                type: 'integer',
+                min: local ? 1 : 30,
+                max: local ? 600 : 1800,
+                message: local
+                  ? '请输入 1 到 600 的整数'
+                  : '请输入 30 到 1800 的整数',
+              },
+            ]}
           >
             <InputNumber
-              min={30}
-              max={1800}
+              min={local ? 1 : 30}
+              max={local ? 600 : 1800}
               addonAfter="秒"
               className="w-full"
             />
           </Form.Item>
-          <Form.Item
-            label="允许访问公网"
-            name="allowInternetAccess"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
+          {!local && (
+            <Form.Item
+              label="允许访问公网"
+              name="allowInternetAccess"
+              valuePropName="checked"
+            >
+              <Switch />
+            </Form.Item>
+          )}
         </div>
 
         {lastTestMessage && (
@@ -308,7 +331,10 @@ function SandboxConfiguration(): React.ReactElement {
   const [saving, setSaving] = useState(false);
   const pendingAction = useRef(false);
   const [testing, setTesting] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<ConfigurableProvider | null>(null);
+  const [probeResult, setProbeResult] = useState<SkillSandboxConfig | null>(
+    null
+  );
   const [loadedConfig, setLoadedConfig] =
     useState<SkillSandboxConfig>(DEFAULT_CONFIG);
 
@@ -317,55 +343,69 @@ function SandboxConfiguration(): React.ReactElement {
     setError('');
     try {
       const data = await getSkillSandboxConfig();
-      const nextConfig = { ...DEFAULT_CONFIG, ...data, provider: 'e2b' };
+      const nextConfig = { ...DEFAULT_CONFIG, ...data };
       setLoadedConfig(nextConfig);
-      form.setFieldsValue(nextConfig);
       setLoaded(true);
     } catch {
       setError('无法加载沙箱配置，请重试。');
     } finally {
       setLoading(false);
     }
-  }, [form]);
+  }, []);
 
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
 
-  const normalizeSubmitConfig = useCallback(
-    (values: SkillSandboxConfig): SkillSandboxConfig => {
-      const apiKeyMasked =
-        Boolean(loadedConfig.apiKeyMasked) &&
-        values.apiKey === loadedConfig.apiKey;
-      return {
-        ...DEFAULT_CONFIG,
-        ...values,
-        provider: 'e2b',
-        apiKeyMasked,
-      };
-    },
-    [loadedConfig]
-  );
+  const normalizeSubmitConfig = (
+    values: SkillSandboxConfig,
+    provider: ConfigurableProvider
+  ): SkillSandboxConfig => ({
+    provider,
+    enabled: values.enabled,
+    timeoutSeconds: values.timeoutSeconds,
+    apiKey: provider === 'e2b' ? values.apiKey : '',
+    apiKeyMasked:
+      provider === 'e2b' &&
+      Boolean(loadedConfig.apiKeyMasked) &&
+      values.apiKey === loadedConfig.apiKey,
+    allowInternetAccess:
+      provider === 'e2b' && Boolean(values.allowInternetAccess),
+  });
 
-  const openE2bModal = (): void => {
+  const openModal = (provider: ConfigurableProvider): void => {
     if (!loaded || loading) return;
-    form.setFieldsValue(loadedConfig);
+    form.setFieldsValue({
+      ...loadedConfig,
+      ...(provider === 'e2b' && {
+        allowInternetAccess:
+          loadedConfig.e2bAllowInternetAccess ??
+          loadedConfig.allowInternetAccess,
+      }),
+      ...(provider !== loadedConfig.provider && {
+        enabled: false,
+        timeoutSeconds: DEFAULT_CONFIG.timeoutSeconds,
+      }),
+    });
     setActionError('');
-    setModalOpen(true);
+    setProbeResult(null);
+    setEditing(provider);
   };
 
   const handleSave = async (): Promise<void> => {
-    if (pendingAction.current) return;
+    if (pendingAction.current || !editing) return;
     pendingAction.current = true;
     setSaving(true);
     setActionError('');
     try {
       const values = await form.validateFields();
-      const data = await saveSkillSandboxConfig(normalizeSubmitConfig(values));
-      const nextConfig = { ...DEFAULT_CONFIG, ...data, provider: 'e2b' };
+      const data = await saveSkillSandboxConfig(
+        normalizeSubmitConfig(values, editing)
+      );
+      const nextConfig = { ...DEFAULT_CONFIG, ...data };
       setLoadedConfig(nextConfig);
       form.setFieldsValue(nextConfig);
-      setModalOpen(false);
+      setEditing(null);
       message.success('脚本沙箱配置已保存');
     } catch (error) {
       if (!(error && typeof error === 'object' && 'errorFields' in error)) {
@@ -378,16 +418,23 @@ function SandboxConfiguration(): React.ReactElement {
   };
 
   const handleTest = async (): Promise<void> => {
-    if (pendingAction.current) return;
+    if (pendingAction.current || !editing) return;
     pendingAction.current = true;
     setTesting(true);
     setActionError('');
+    setProbeResult(null);
     try {
       const values = await form.validateFields();
-      const data = await testSkillSandboxConfig(normalizeSubmitConfig(values));
-      const nextConfig = { ...DEFAULT_CONFIG, ...data, provider: 'e2b' };
-      setLoadedConfig(nextConfig);
-      form.setFieldsValue(nextConfig);
+      const data = await testSkillSandboxConfig(
+        normalizeSubmitConfig(values, editing)
+      );
+      if (editing === 'docker') {
+        setProbeResult(data);
+      } else {
+        const nextConfig = { ...DEFAULT_CONFIG, ...data };
+        setLoadedConfig(nextConfig);
+        form.setFieldsValue(nextConfig);
+      }
       if (data.lastTestStatus === 'success') {
         message.success(data.lastTestMessage || '脚本沙箱配置可用');
       } else {
@@ -403,22 +450,15 @@ function SandboxConfiguration(): React.ReactElement {
     }
   };
 
-  const lastTestText = useMemo(() => {
-    if (!loadedConfig.lastTestStatus) {
-      return '尚未测试';
-    }
-    const status =
-      loadedConfig.lastTestStatus === 'success' ? '测试通过' : '测试失败';
-    return `${status}${loadedConfig.lastTestTime ? ` · ${loadedConfig.lastTestTime}` : ''}`;
-  }, [loadedConfig.lastTestStatus, loadedConfig.lastTestTime]);
-
-  const e2bStatusTag = loadedConfig.enabled ? (
+  const activeStatus = loadedConfig.enabled ? (
     <Tag color="success" icon={<CheckCircleOutlined />}>
       已启用
     </Tag>
   ) : (
     <Tag>未启用</Tag>
   );
+  const modalResult =
+    probeResult ?? (editing === loadedConfig.provider ? loadedConfig : null);
 
   return (
     <div className={styles.page}>
@@ -434,7 +474,7 @@ function SandboxConfiguration(): React.ReactElement {
           <Button
             icon={<ReloadOutlined />}
             loading={loading}
-            disabled={modalOpen}
+            disabled={editing !== null}
             onClick={() => void loadConfig()}
           >
             刷新
@@ -458,36 +498,53 @@ function SandboxConfiguration(): React.ReactElement {
           type="info"
           showIcon
           className="mb-5"
-          message="关闭 E2B 时，工作流代码节点默认使用内置 LangChain/Pyodide 隔离执行器，无需额外配置；Agent Skill 脚本需要启用并配置 E2B。显式将 CODE_EXEC_TYPE 设为 disabled 时，代码节点会被禁用。"
+          message="工作流代码节点关闭沙箱时默认使用内置 LangChain/Pyodide 执行器。Agent 的 execute 工具需要启用一种沙箱。"
         />
 
         {(loaded || loading) && (
           <div className={styles.providerGrid}>
-            {PROVIDERS.map(provider => (
-              <ProviderCard
-                key={provider.key}
-                provider={provider}
-                loading={loading || !loaded}
-                lastTestText={lastTestText}
-                statusTag={e2bStatusTag}
-                onConfigure={openE2bModal}
-              />
-            ))}
+            {PROVIDERS.map(provider => {
+              const active = loadedConfig.provider === provider.key;
+              const unavailable =
+                provider.key === 'docker' && !loadedConfig.localAvailable;
+              let statusTag = active ? activeStatus : <Tag>未选择</Tag>;
+              if (unavailable) statusTag = <Tag>部署未启用</Tag>;
+              if (provider.key === 'daytona') statusTag = <Tag>待接入</Tag>;
+              return (
+                <ProviderCard
+                  key={provider.key}
+                  provider={provider}
+                  loading={loading || !loaded}
+                  configurable={
+                    provider.key !== 'daytona' && (active || !unavailable)
+                  }
+                  lastTestText={active ? testStatusText(loadedConfig) : ''}
+                  statusTag={statusTag}
+                  onConfigure={() => {
+                    if (provider.key !== 'daytona') openModal(provider.key);
+                  }}
+                />
+              );
+            })}
           </div>
         )}
       </div>
 
       <SandboxConfigModal
         form={form}
-        open={modalOpen}
+        provider={editing ?? 'e2b'}
+        localAvailable={Boolean(loadedConfig.localAvailable)}
+        open={editing !== null}
         loading={loading}
         saving={saving}
         testing={testing}
-        lastTestText={lastTestText}
+        lastTestText={testStatusText(modalResult)}
         actionError={actionError}
-        lastTestMessage={loadedConfig.lastTestMessage}
-        statusTag={e2bStatusTag}
-        onCancel={() => setModalOpen(false)}
+        lastTestMessage={modalResult?.lastTestMessage}
+        statusTag={
+          editing === loadedConfig.provider ? activeStatus : <Tag>未选择</Tag>
+        }
+        onCancel={() => setEditing(null)}
         onSave={handleSave}
         onTest={handleTest}
       />

@@ -6,6 +6,7 @@ from urllib.parse import quote, urlsplit
 from django.conf import settings
 from minio import Minio
 from minio.error import MinioException, S3Error
+from urllib3 import PoolManager, Timeout
 from urllib3.exceptions import HTTPError
 
 from .clients import ResourceServiceError
@@ -15,7 +16,7 @@ def bucket():
     return getattr(settings, "OSS_BUCKET_CONSOLE", "astron-agent")
 
 
-def client(public=False):
+def client(public=False, *, http_client=None):
     endpoint = getattr(settings, "OSS_REMOTE_ENDPOINT" if public else "OSS_ENDPOINT", "")
     parsed = urlsplit(endpoint)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -26,6 +27,7 @@ def client(public=False):
         secret_key=getattr(settings, "OSS_ACCESS_KEY_SECRET", ""),
         secure=parsed.scheme == "https",
         region="us-east-1",
+        **({"http_client": http_client} if http_client is not None else {}),
     )
 
 
@@ -36,11 +38,20 @@ def put(key, stream, size, content_type="application/octet-stream", bucket_name=
         raise ResourceServiceError("文件上传失败") from None
 
 
-def read(key, bucket_name=None):
+def read(key, bucket_name=None, *, limit=None):
     stream = None
     try:
-        stream = client().get_object(bucket_name or bucket(), key)
-        return stream.read()
+        if limit is None:
+            stream = client().get_object(bucket_name or bucket(), key)
+            return stream.read()
+        with PoolManager(timeout=Timeout(connect=3, read=5), retries=False) as transport:
+            stream = client(http_client=transport).get_object(
+                bucket_name or bucket(), key, length=limit + 1
+            )
+            data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise ResourceServiceError("文件超过读取大小限制")
+        return data
     except (MinioException, HTTPError, OSError):
         raise ResourceServiceError("文件读取失败") from None
     finally:

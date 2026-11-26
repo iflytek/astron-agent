@@ -13,6 +13,12 @@ from urllib.parse import urlsplit
 import aiohttp
 from loguru import logger
 
+from common.utils.local_sandbox import (
+    LocalSandbox,
+    LocalSandboxError,
+    LocalSandboxPolicy,
+    sandbox_bytes,
+)
 from workflow.engine.nodes.code.executor.base_executor import BaseExecutor
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
@@ -237,9 +243,18 @@ def _runtime_config_query(sandbox_config: dict[str, Any]) -> dict[str, str]:
     return query
 
 
-async def _fetch_e2b_runtime_config(
-    sandbox_config: dict[str, Any],
-) -> tuple[str, int, bool]:
+async def _fetch_runtime_policy(
+    sandbox_config: dict[str, Any], *, local_available: bool = False
+) -> dict[str, Any]:
+    query = _runtime_config_query(sandbox_config)
+    if local_available:
+        context = sandbox_config["artifact_context"]
+        query.update(
+            purpose="workflow",
+            rootId=context["root_id"],
+            runId=sandbox_config["run_id"],
+            nodeId=sandbox_config["node_id"],
+        )
     try:
         runtime_config_url = _load_runtime_config_url()
         credential_token = _load_runtime_credential_token()
@@ -248,7 +263,7 @@ async def _fetch_e2b_runtime_config(
             async with session.get(
                 runtime_config_url,
                 headers={RUNTIME_CREDENTIAL_HEADER: credential_token},
-                params=_runtime_config_query(sandbox_config),
+                params=query,
                 allow_redirects=False,
             ) as response:
                 if not 200 <= response.status < 300:
@@ -258,13 +273,26 @@ async def _fetch_e2b_runtime_config(
         code = payload.get("code") if isinstance(payload, dict) else None
         if isinstance(code, bool) or not isinstance(code, int) or code != 0:
             raise ValueError
-        data = payload.get("data") if isinstance(payload, dict) else None
-        provider = data.get("provider") if isinstance(data, dict) else None
-        api_key = data.get("apiKey") if isinstance(data, dict) else None
-        timeout_seconds = data.get("timeoutSeconds") if isinstance(data, dict) else None
-        allow_internet_access = (
-            data.get("allowInternetAccess") if isinstance(data, dict) else None
-        )
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise ValueError
+        return data
+    except Exception:
+        raise RuntimeError(SANDBOX_RUNTIME_CONFIG_ERROR) from None
+
+
+async def _fetch_e2b_runtime_config(
+    sandbox_config: dict[str, Any],
+) -> tuple[str, int, bool]:
+    return _e2b_policy(await _fetch_runtime_policy(sandbox_config))
+
+
+def _e2b_policy(data: dict[str, Any]) -> tuple[str, int, bool]:
+    try:
+        provider = data.get("provider")
+        api_key = data.get("apiKey")
+        timeout_seconds = data.get("timeoutSeconds")
+        allow_internet_access = data.get("allowInternetAccess")
         if not isinstance(provider, str) or provider.strip().lower() != "e2b":
             raise ValueError
         if not isinstance(api_key, str) or not api_key.strip():
@@ -461,12 +489,16 @@ def _require_sandbox_config(language: str, value: Any) -> dict[str, Any]:
     return value
 
 
-async def _create_e2b_sandbox(sandbox_config: dict[str, Any]) -> tuple[Any, int]:
+async def _create_e2b_sandbox(
+    sandbox_config: dict[str, Any], policy: dict[str, Any] | None = None
+) -> tuple[Any, int]:
     from e2b import AsyncSandbox
 
     try:
         api_key, execution_timeout, allow_internet_access = (
-            await _fetch_e2b_runtime_config(sandbox_config)
+            _e2b_policy(policy)
+            if policy is not None
+            else await _fetch_e2b_runtime_config(sandbox_config)
         )
     except RuntimeError:
         raise CustomException(
@@ -505,7 +537,21 @@ class E2BExecutor(BaseExecutor):
         self, language: str, code: str, timeout: int, span: Span, **kwargs: Any
     ) -> str:
         sandbox_config = _require_sandbox_config(language, kwargs.get("sandbox") or {})
-        sandbox, execution_timeout = await _create_e2b_sandbox(sandbox_config)
+        policy = None
+        if sandbox_config.get("console") and os.getenv("LOCAL_SANDBOX_URL"):
+            try:
+                policy = await _fetch_runtime_policy(
+                    sandbox_config, local_available=True
+                )
+                if policy.get("provider") == "docker":
+                    return await self._execute_in_local(
+                        code, span, sandbox_config, policy
+                    )
+            except RuntimeError as exc:
+                raise CustomException(
+                    CodeEnum.CODE_EXECUTION_ERROR, err_msg=str(exc)
+                ) from None
+        sandbox, execution_timeout = await _create_e2b_sandbox(sandbox_config, policy)
         workspace = "/home/user/code"
         main_path = f"{workspace}/main.py"
         try:
@@ -526,6 +572,65 @@ class E2BExecutor(BaseExecutor):
             ) from err
         finally:
             await _kill_sandbox(sandbox)
+
+    async def _execute_in_local(
+        self,
+        code: str,
+        span: Span,
+        sandbox_config: dict[str, Any],
+        policy_data: dict[str, Any],
+    ) -> str:
+        policy = LocalSandboxPolicy.from_response(policy_data)
+        sandbox = LocalSandbox("workflow", policy, _load_runtime_credential_token())
+        result = await sandbox.request(
+            "execute",
+            pythonCode=code,
+            timeout=policy.timeout,
+            outputLimit=MAX_SANDBOX_COMMAND_OUTPUT_BYTES,
+            collectArtifacts=".",
+        )
+        if result.get("timedOut"):
+            raise CustomException(
+                CodeEnum.CODE_EXECUTION_TIMEOUT_ERROR,
+                err_msg="Local sandbox execution timed out",
+            )
+        uploader = CodeArtifactUploader(sandbox_config)
+        artifacts = []
+        if uploader.is_configured():
+            for item in result.get("changedFiles", []):
+                path = item["path"]
+                if self._should_skip_artifact(path):
+                    continue
+                name = posixpath.basename(path)
+                try:
+                    artifacts.append(
+                        await uploader.upload(
+                            name, sandbox_bytes(item), self._guess_content_type(name)
+                        )
+                    )
+                except (RuntimeError, aiohttp.ClientError) as exc:
+                    logger.warning(
+                        "Docker code artifact upload failed: {}", type(exc).__name__
+                    )
+        if result.get("artifactsTruncated"):
+            logger.warning(
+                "Some Docker code artifacts exceeded the per-command attachment limit"
+            )
+            await span.add_info_events_async({"docker_code_artifacts_truncated": True})
+        if artifacts:
+            await span.add_info_events_async(
+                {"docker_code_artifacts": json.dumps(artifacts, ensure_ascii=False)}
+            )
+        if result["exitCode"] != 0:
+            raise CustomException(
+                CodeEnum.CODE_EXECUTION_ERROR,
+                err_msg=result.get("stderr")
+                or result.get("stdout")
+                or "Local sandbox command failed",
+            )
+        if result["truncated"]:
+            raise LocalSandboxError("Local sandbox output exceeded the size limit")
+        return result["stdout"].removesuffix("\n")
 
     async def _execute_in_sandbox(
         self,
