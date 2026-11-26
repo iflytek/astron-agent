@@ -23,6 +23,7 @@ export interface SandboxFileEntry {
 export interface SandboxFileListing {
   provider: string | null;
   directory: string | null;
+  canDelete?: boolean;
   entries: SandboxFileEntry[];
   truncated: boolean;
   nextCursor?: string | null;

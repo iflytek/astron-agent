@@ -69,3 +69,11 @@ export function downloadSandboxFile(
     entry.name
   );
 }
+
+export async function deleteSandboxFile(
+  kind: 'agent' | 'workflow',
+  id: string,
+  path: string
+): Promise<void> {
+  await http.delete(`${sandboxFilesPath(kind, id)}/file`, { data: { path } });
+}

@@ -466,6 +466,8 @@ def dispatch(job, cancel_path):
         return {}
     parts = subject + path_parts(path)
     with directory(WORKSPACE, parts[:-1]) as fd:
+        if cancel_path.exists():
+            raise JobError(499, "Local sandbox request disconnected")
         os.unlink(parts[-1], dir_fd=fd)
     return {}
 

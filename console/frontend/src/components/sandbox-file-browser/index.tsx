@@ -5,7 +5,16 @@ import {
   useState,
   type ReactElement,
 } from 'react';
-import { Alert, Button, Empty, Skeleton, Table, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Empty,
+  Popconfirm,
+  Skeleton,
+  Table,
+  Typography,
+  message,
+} from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   DownloadOutlined,
@@ -13,12 +22,14 @@ import {
   ReloadOutlined,
 } from '@ant-design/icons';
 import {
+  deleteSandboxFile,
   downloadSandboxFile,
   listSandboxFiles,
   SANDBOX_CONFIG_CHANGED,
 } from '@/services/sandbox';
 import type { SandboxFileEntry, SandboxFileListing } from '@/types/sandbox';
 import { formatFileSize } from '@/utils';
+import { shouldShowRequestError } from '@/utils/http-error';
 
 type Resource = { kind: 'agent' | 'workflow'; id: string };
 const PAGE_SIZE = 10;
@@ -29,7 +40,8 @@ type DirectoryState =
   | { status: 'ready'; listing: SandboxFileListing };
 
 function directoryColumns(
-  download: (entry: SandboxFileEntry) => void
+  download: (entry: SandboxFileEntry) => void,
+  remove?: (entry: SandboxFileEntry) => Promise<void>
 ): ColumnsType<SandboxFileEntry> {
   return [
     {
@@ -62,19 +74,58 @@ function directoryColumns(
     {
       title: '操作',
       key: 'action',
-      width: 104,
+      width: remove ? 120 : 104,
       render: (_, entry): ReactElement => (
-        <Button
-          type="link"
-          icon={<DownloadOutlined />}
-          aria-label={'下载 ' + entry.path}
-          onClick={() => download(entry)}
-        >
-          下载
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="link"
+            size="small"
+            icon={<DownloadOutlined />}
+            aria-label={'下载 ' + entry.path}
+            onClick={() => download(entry)}
+          >
+            下载
+          </Button>
+          {remove && (
+            <Popconfirm
+              title="删除此文件？"
+              description={
+                <span className="block max-w-56 break-all">{entry.path}</span>
+              }
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => remove(entry)}
+            >
+              <Button
+                type="link"
+                size="small"
+                danger
+                aria-label={'删除 ' + entry.path}
+              >
+                删除
+              </Button>
+            </Popconfirm>
+          )}
+        </div>
       ),
     },
   ];
+}
+
+async function removeFile(
+  { kind, id }: Resource,
+  entry: SandboxFileEntry,
+  notify: ReturnType<typeof message.useMessage>[0],
+  refresh: () => void
+): Promise<void> {
+  try {
+    await deleteSandboxFile(kind, id, entry.path);
+    notify.success('文件已删除');
+    refresh();
+  } catch (error) {
+    if (shouldShowRequestError(error)) notify.error('删除文件失败，请重试。');
+  }
 }
 
 export default function SandboxFileBrowser({
@@ -85,6 +136,7 @@ export default function SandboxFileBrowser({
 }
 
 function DirectoryBrowser({ kind, id }: Resource): ReactElement {
+  const [notify, messageHolder] = message.useMessage();
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<DirectoryState>({ status: 'loading' });
   const [page, setPage] = useState(1);
@@ -175,6 +227,7 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
       aria-busy={loading || loadingMore}
       className="min-w-0"
     >
+      {messageHolder}
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           {listing?.directory && (
@@ -237,8 +290,12 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
           <Table
             rowKey="path"
             size="small"
-            columns={directoryColumns(entry =>
-              downloadSandboxFile(kind, id, entry)
+            columns={directoryColumns(
+              entry => downloadSandboxFile(kind, id, entry),
+              listing.canDelete
+                ? (entry): Promise<void> =>
+                    removeFile({ kind, id }, entry, notify, refresh)
+                : undefined
             )}
             dataSource={listing.entries}
             pagination={{

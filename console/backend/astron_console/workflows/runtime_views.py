@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from astron_console.http import api_endpoint
 from astron_console.resources.common import page, scope_for, upstream_errors
-from astron_console.resources.local_sandbox import resource_files
+from astron_console.resources.local_sandbox import delete_resource_file, resource_files
 
 from .authorization import EXECUTE, READ, get_workflow
 from .execution_context import cancel_root, select_graph
@@ -20,6 +20,7 @@ from .lifecycle import (
     run_data,
     stream_run,
 )
+from .management_views import WRITE
 from .models import WorkflowDialog, WorkflowRun
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,17 @@ logger = logging.getLogger(__name__)
 def sandbox_files(request, workflow_id, download=False):
     scope = scope_for(request, READ)
     workflow = get_workflow(scope, workflow_id)
-    return resource_files(request, workflow, "workflow", scope, download=download)
+    return resource_files(
+        request, workflow, "workflow", scope, download=download, write_permission=WRITE
+    )
+
+
+@api_endpoint(["DELETE"])
+@upstream_errors
+def delete_sandbox_file(request, workflow_id):
+    scope = scope_for(request, WRITE)
+    workflow = get_workflow(scope, workflow_id, WRITE)
+    return delete_resource_file(request, workflow, "workflow", scope)
 
 
 def streaming(run, **kwargs):

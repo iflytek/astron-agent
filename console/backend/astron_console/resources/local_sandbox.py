@@ -13,6 +13,7 @@ from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404
 
 from astron_console.accounts.http import response
+from astron_console.spaces.permissions import permits, require_space_permission
 
 from .common import UpstreamError
 
@@ -67,9 +68,11 @@ def request_runner(operation, **fields):
     if not available():
         raise UpstreamError("本地 Docker 沙箱未配置")
     url = settings.LOCAL_SANDBOX_URL.rstrip("/") + "/v1/sandbox"
+    # End the upstream wait before the Console gateway's 30-second deadline.
+    timeout = 15 if operation == "delete" else 85
     try:
         with httpx.Client(
-            timeout=httpx.Timeout(85, connect=5), follow_redirects=False, trust_env=False
+            timeout=httpx.Timeout(timeout, connect=5), follow_redirects=False, trust_env=False
         ) as client:
             with client.stream(
                 "POST",
@@ -98,7 +101,32 @@ def request_runner(operation, **fields):
         raise UpstreamError("本地 Docker 沙箱连接失败，请稍后重试") from None
 
 
-def resource_files(request, resource, kind, scope, *, download=False):
+def validate_file_path(path, *, required=False):
+    if (
+        not isinstance(path, str)
+        or (required and not path)
+        or len(path) > 1024
+        or "\\" in path
+        or "\x00" in path
+        or (path and any(part in {"", ".", ".."} for part in path.split("/")))
+    ):
+        raise ValidationError("文件路径无效")
+
+
+def delete_resource_file(request, resource, kind, scope):
+    from .sandbox import enabled_sandbox
+
+    config = enabled_sandbox(scope)
+    if config is None or config.provider != "docker":
+        raise ValidationError("启用本地 Docker 沙箱后才能删除文件")
+    path = request.payload.get("path")
+    validate_file_path(path, required=True)
+    request_runner("delete", kind=kind, **sandbox_identity(resource), path=path)
+    logger.info("Sandbox file removed kind=%s id=%s uid=%s", kind, resource.pk, scope.uid)
+    return {"deleted": True}
+
+
+def resource_files(request, resource, kind, scope, *, download=False, write_permission):
     from .sandbox import enabled_sandbox
 
     def active_provider():
@@ -117,12 +145,9 @@ def resource_files(request, resource, kind, scope, *, download=False):
     provider = active_provider()
     path = request.GET.get("path", "")
     after = request.GET.get("after")
+    validate_file_path(path, required=download)
     if (
-        len(path) > 1024
-        or "\\" in path
-        or any(ord(char) < 32 for char in path)
-        or (path and any(part in {"", ".", ".."} for part in path.split("/")))
-        or (download and not path)
+        any(ord(char) < 32 for char in path)
         or (not download and path)
         or (after is not None and (download or len(after) > 1024))
     ):
@@ -154,6 +179,8 @@ def resource_files(request, resource, kind, scope, *, download=False):
             {
                 "provider": provider,
                 "directory": resource.sandbox_directory,
+                "canDelete": scope.space_id is None
+                or permits(require_space_permission, scope.uid, scope.space_id, write_permission),
                 "entries": entries,
                 "truncated": truncated,
                 "nextCursor": cursor,

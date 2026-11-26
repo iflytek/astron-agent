@@ -108,6 +108,25 @@ class WorkspaceTests(unittest.TestCase):
             self.run_job(command="echo stale > report.txt")
         self.assertEqual(exc.exception.status, 410)
 
+    def test_delete_removes_only_the_requested_workspace_file(self):
+        self.run_job(command="touch output/remove.txt output/keep.txt")
+        self.run_job(resourceId="10", command="touch output/remove.txt")
+        subject = self.workspace.joinpath(*self.subject)
+        neighbor = subject.parent / "10" / "output" / "remove.txt"
+        (subject / "neighbor").symlink_to(neighbor.parent, target_is_directory=True)
+        with self.assertRaises(OSError):
+            self.run_job(operation="delete", path="neighbor/remove.txt")
+        self.cancel_path.touch()
+        with self.assertRaises(execution.JobError) as error:
+            self.run_job(operation="delete", path="output/remove.txt")
+        self.assertEqual(error.exception.status, 499)
+        self.assertTrue((subject / "output" / "remove.txt").is_file())
+        self.cancel_path.unlink()
+        self.run_job(operation="delete", path="output/remove.txt")
+        self.assertFalse((subject / "output" / "remove.txt").exists())
+        self.assertTrue((subject / "output" / "keep.txt").is_file())
+        self.assertTrue(neighbor.is_file())
+
     def test_workflow_python_imports_from_its_persistent_workspace(self):
         created = self.run_job(
             kind="workflow",

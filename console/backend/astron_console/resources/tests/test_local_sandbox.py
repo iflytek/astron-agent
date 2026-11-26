@@ -150,6 +150,104 @@ class LocalSandboxTests(TestCase):
         self.assertEqual(download.status_code, 404)
 
     @patch("astron_console.resources.local_sandbox.request_runner")
+    def test_single_file_deletion_uses_saved_directory_and_active_provider(self, runner):
+        config = SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
+        runner.return_value = {}
+        for kind, resource, prefix in (
+            ("agent", self.agent, "agents"),
+            ("workflow", self.workflow, "workflow"),
+        ):
+            url = f"/{prefix}/{resource.pk}/sandbox-files/file"
+            for path in (None, "", "/output/report.md", "../report.md", "output/../report.md"):
+                result = self.client.delete(url, {"path": path}, content_type="application/json")
+                self.assertEqual(result.status_code, 400)
+            runner.assert_not_called()
+            result = self.client.delete(
+                url,
+                {"path": "output/报告.md", "scope": "space-7", "resourceId": "other"},
+                content_type="application/json",
+            )
+            self.assertEqual(result.json()["data"], {"deleted": True})
+            runner.assert_called_once_with(
+                "delete",
+                kind=kind,
+                scope=self.scope,
+                resourceId=resource.sandbox_directory.rsplit("/", 1)[1],
+                path="output/报告.md",
+            )
+            runner.reset_mock()
+        config.provider = "e2b"
+        config.save(update_fields=["provider"])
+        result = self.client.delete(
+            url, {"path": "output/报告.md"}, content_type="application/json"
+        )
+        self.assertEqual(result.status_code, 400)
+        runner.assert_not_called()
+
+    @patch("astron_console.resources.local_sandbox.request_runner")
+    def test_read_only_team_member_cannot_delete_files(self, runner):
+        space = Space.objects.create(uid=self.owner.pk, name="Sandbox team")
+        SpaceMember.objects.create(space_id=space.pk, uid=self.other.pk, role=3)
+        agent = Agent.objects.create(uid=self.owner.pk, space_id=space.pk)
+        workflow = Workflow.objects.create(uid=self.owner.pk, space_id=space.pk, name="Test")
+        SandboxConfig.objects.create(
+            uid=self.owner.pk, space_id=space.pk, enabled=True, provider="docker"
+        )
+        self.client.force_login(self.other)
+        runner.return_value = {"entries": [], "truncated": False}
+        for url, read, write in (
+            (
+                f"/agents/{agent.pk}/sandbox-files",
+                "MyBotController_getBotDetail_POST",
+                "BotCreateController_updateBot_POST",
+            ),
+            (
+                f"/workflow/{workflow.pk}/sandbox-files",
+                "WorkflowController_detail_GET",
+                "WorkflowController_update_PUT",
+            ),
+        ):
+            SpacePermission.objects.update_or_create(permission_key=read, defaults={"member": True})
+            SpacePermission.objects.update_or_create(
+                permission_key=write, defaults={"member": False}
+            )
+            headers = {"HTTP_SPACE_ID": str(space.pk)}
+            listing = self.client.get(url, **headers)
+            self.assertFalse(listing.json()["data"]["canDelete"])
+            runner.reset_mock()
+            denied = self.client.delete(
+                url + "/file", {"path": "report.md"}, content_type="application/json", **headers
+            )
+            self.assertEqual(denied.status_code, 403)
+            runner.assert_not_called()
+
+    @patch("astron_console.resources.local_sandbox.request_runner")
+    def test_workflow_file_routes_accept_existing_numeric_flow_identifier(self, runner):
+        SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
+        self.workflow.flow_id = "123456789012345678"
+        self.workflow.save(update_fields=["flow_id"])
+        url = f"/workflow/{self.workflow.flow_id}/sandbox-files"
+        runner.return_value = {"entries": [], "truncated": False}
+        self.assertEqual(
+            self.client.get(url).json()["data"]["directory"], self.workflow.sandbox_directory
+        )
+        runner.return_value = {"content": "dGVzdA=="}
+        downloaded = self.client.get(url + "/download", {"path": "report.md"})
+        self.assertEqual(b"".join(downloaded.streaming_content), b"test")
+        runner.return_value = {}
+        deleted = self.client.delete(
+            url + "/file", {"path": "report.md"}, content_type="application/json"
+        )
+        self.assertEqual(deleted.status_code, 200)
+        runner.assert_called_with(
+            "delete",
+            kind="workflow",
+            scope=self.scope,
+            resourceId=f"~{self.workflow.pk}",
+            path="report.md",
+        )
+
+    @patch("astron_console.resources.local_sandbox.request_runner")
     def test_team_download_uses_space_and_returns_attachment(self, runner):
         space = Space.objects.create(uid=self.owner.pk, name="local")
         SpaceMember.objects.create(uid=self.other.pk, space_id=space.pk, role=3)

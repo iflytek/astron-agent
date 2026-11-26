@@ -18,6 +18,7 @@ urlpatterns = [
     path(
         "workflow/<int:workflow_id>/sandbox-files/download", views.sandbox_files, {"download": True}
     ),
+    path("workflow/<int:workflow_id>/sandbox-files/file", views.delete_sandbox_file),
     path("textNode/config/list", text_nodes.listing),
     path("textNode/config/save", text_nodes.save),
     path("textNode/config/delete", text_nodes.remove),
