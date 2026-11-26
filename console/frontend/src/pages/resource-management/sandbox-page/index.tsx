@@ -217,6 +217,15 @@ function SandboxConfigModal({
               : '启用后，Agent Skill 脚本和已开启沙箱的工作流代码节点使用 E2B 隔离环境。'
           }
         />
+        {!local && (
+          <Alert
+            type="warning"
+            showIcon
+            className="mb-5"
+            message="第三方沙箱文件可能随实例回收"
+            description="本地 Docker 沙箱提供持久文件目录。"
+          />
+        )}
         {local && !localAvailable && (
           <Alert
             type="warning"
@@ -234,7 +243,7 @@ function SandboxConfigModal({
               id="sandbox-enabled-description"
               className={styles.enableDescription}
             >
-              {local ? '保存后应用更改。' : '保存配置或测试配置时应用更改。'}
+              保存后应用更改。
             </p>
           </div>
           <Form.Item name="enabled" valuePropName="checked" noStyle>
@@ -428,13 +437,7 @@ function SandboxConfiguration(): React.ReactElement {
       const data = await testSkillSandboxConfig(
         normalizeSubmitConfig(values, editing)
       );
-      if (editing === 'docker') {
-        setProbeResult(data);
-      } else {
-        const nextConfig = { ...DEFAULT_CONFIG, ...data };
-        setLoadedConfig(nextConfig);
-        form.setFieldsValue(nextConfig);
-      }
+      setProbeResult(data);
       if (data.lastTestStatus === 'success') {
         message.success(data.lastTestMessage || '脚本沙箱配置可用');
       } else {

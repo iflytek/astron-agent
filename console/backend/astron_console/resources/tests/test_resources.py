@@ -465,7 +465,7 @@ class ResourceTests(TransactionTestCase):
             )
         self.assertEqual(result.status_code, 502, result.content)
         self.assertNotIn(b"credential-secret", result.content)
-        self.assertEqual(SandboxConfig.objects.get(uid=self.user.pk).last_test_status, "failed")
+        self.assertFalse(SandboxConfig.objects.filter(uid=self.user.pk).exists())
 
     def test_platform_is_admin_only(self):
         ConfigInfo.objects.create(

@@ -317,12 +317,15 @@ def item(request, agent_id):
     if request.method == "DELETE":
         from .conversation_models import AgentRun
 
+        if agent.is_delete:
+            raise Http404
         AgentRun.objects.filter(session__agent_id=agent.pk, status="running").update(
             cancel_requested=True
         )
         agent.is_delete = 1
         agent.update_time = timezone.now()
-        agent.save(update_fields=["is_delete", "update_time"])
+        agent.sandbox_cleanup_pending = True
+        agent.save(update_fields=["is_delete", "update_time", "sandbox_cleanup_pending"])
         logger.info("Agent soft deleted agent_id=%s uid=%s", agent.pk, scope.uid)
         return {"deleted": True}
     return save_definition(agent, scope, request.payload)

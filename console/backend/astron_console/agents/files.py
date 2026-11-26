@@ -140,8 +140,8 @@ def download(request, agent_id, file_id):
 @api_endpoint(["GET"])
 @upstream_errors
 def sandbox_files(request, agent_id, download=False):
-    agent, _ = get_agent(request, agent_id)
-    return resource_files(request, agent, "agent", agent.pk, download=download)
+    agent, scope = get_agent(request, agent_id)
+    return resource_files(request, agent, "agent", scope, download=download)
 
 
 @csrf_exempt

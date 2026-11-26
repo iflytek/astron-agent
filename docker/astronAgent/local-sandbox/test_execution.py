@@ -89,6 +89,25 @@ class WorkspaceTests(unittest.TestCase):
             b"second",
         )
 
+    def test_tree_lists_nested_files_and_purge_is_idempotent(self):
+        self.run_job(
+            command="mkdir -p output/reports && echo hi > output/reports/report.txt"
+        )
+        self.run_job(resourceId="10", command="echo keep > neighbor.txt")
+        tree = self.run_job(operation="list-tree")
+        self.assertEqual(
+            [entry["path"] for entry in tree["entries"]], ["output/reports/report.txt"]
+        )
+        subject = self.workspace.joinpath(*self.subject)
+        (subject / "link").symlink_to(subject.parent / "10", target_is_directory=True)
+        self.run_job(operation="purge")
+        self.run_job(operation="purge")
+        self.assertFalse(subject.exists())
+        self.assertTrue((subject.parent / "10" / "neighbor.txt").is_file())
+        with self.assertRaises(execution.JobError) as exc:
+            self.run_job(command="echo stale > report.txt")
+        self.assertEqual(exc.exception.status, 410)
+
     def test_workflow_python_imports_from_its_persistent_workspace(self):
         created = self.run_job(
             kind="workflow",

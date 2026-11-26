@@ -19,7 +19,7 @@ from astron_console.resources.local_sandbox import (
     MAX_DOWNLOAD_BYTES,
     available,
     request_runner,
-    resource_scope,
+    sandbox_identity,
 )
 from astron_console.resources.sandbox import agent_sandbox_selection
 
@@ -91,7 +91,7 @@ def resolve_media(run, node_id, outputs):
         tool = authorized_plugin(scope, node["data"]["nodeParam"])
         key = media_object_key(tool, outputs)
         if key:
-            return key, resource_scope(workflow), str(workflow.flow_id)
+            return key, sandbox_identity(workflow)
     except (PermissionDenied, ValidationError, Http404) as exc:
         logger.warning(
             "Sandbox media authorization failed run=%s error_type=%s", run.pk, type(exc).__name__
@@ -99,13 +99,12 @@ def resolve_media(run, node_id, outputs):
     return None
 
 
-def copy_media(key, scope, resource_id):
+def copy_media(key, identity):
     contents = storage.read(key, settings.WORKFLOW_MEDIA_BUCKET, limit=MAX_DOWNLOAD_BYTES)
     request_runner(
         "write",
         kind="workflow",
-        scope=scope,
-        resourceId=resource_id,
+        **identity,
         files=[{"path": f"output/{key}", "content": base64.b64encode(contents).decode()}],
     )
 

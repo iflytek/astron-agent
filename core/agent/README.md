@@ -38,11 +38,11 @@ OpenAI / Google 请求级客户端在运行结束、异常和取消后关闭。A
 
 ### Agent 虚拟文件系统
 
-独立、发布和工作流 Agent 使用 Deep Agents 的 `CompositeBackend`。常规文件路径默认由 MinIO 持久化，独立 Agent 的同一会话可跨轮次复用，工作流按节点调用隔离。框架的 `/large_tool_results/` 和 `/conversation_history/` 存在运行内状态中。缺少已授权的运行范围或未配置工作区时，普通文件使用运行内状态。
+独立、发布和工作流 Agent 使用 Deep Agents 的 `CompositeBackend`。未启用沙箱时，已配置的独立虚拟工作区由 MinIO 持久化，独立 Agent 的同一会话可跨轮次复用，工作流按节点调用隔离。框架的 `/large_tool_results/` 和 `/conversation_history/` 存在运行内状态中。缺少已授权的运行范围或未配置工作区时，普通文件使用运行内状态。
 
 Compose 默认使用 Console 的对象存储配置，可以用 `AGENT_WORKSPACE_S3_ENDPOINT`、`AGENT_WORKSPACE_S3_BUCKET`、`AGENT_WORKSPACE_S3_ACCESS_KEY` 和 `AGENT_WORKSPACE_S3_SECRET_KEY` 覆盖。Helm 使用现有 MinIO Secret 和 Console 存储桶。工作区对象位于 `agent-workspaces/` 前缀，可按部署的保留策略管理。
 
-沙箱文件位于 `/sandbox/`。例如，E2B 的 `execute` 写入 `/home/user/workspace/output/report.txt` 后，Agent 用 `read_file` 读取 `/sandbox/home/user/workspace/output/report.txt`。搜索沙箱中的文件时指定 `/sandbox/` 下的路径。沙箱随本次运行回收，普通 MinIO 文件按会话保留。
+启用沙箱时，普通文件工具和 `execute` 使用当前沙箱的工作目录。文件工具可直接操作 `/output/report.txt`。E2B 使用 `/home/user/workspace`，实例随运行回收。Docker 使用 Console 保存的 Agent 目录，文件保留在持久卷。Skill 文件由独立的只读 `/skills/` 挂载提供。
 
 ### Agent 沙箱
 

@@ -12,11 +12,16 @@ from deepagents.backends.protocol import (
     FILE_NOT_FOUND,
     PERMISSION_DENIED,
     DeleteResult,
+    EditResult,
     ExecuteResponse,
     FileDownloadResponse,
     FileUploadResponse,
+    GlobResult,
     GrepResult,
+    LsResult,
+    ReadResult,
     SandboxBackendProtocol,
+    WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
 from e2b import AsyncSandbox, FileNotFoundException
@@ -62,6 +67,7 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
         self._timeout = 0
         self._lock = asyncio.Lock()
         self.file_backend = E2BFiles(self)
+        self.workspace_backend = E2BWorkspaceFiles(self)
 
     @property
     def id(self) -> str:
@@ -284,3 +290,81 @@ class E2BFiles(BaseSandbox):
             except FileNotFoundException:
                 return DeleteResult(error="Sandbox file not found")
         return DeleteResult(path=file_path)
+
+
+def _workspace_path(path: str) -> str:
+    if path.rstrip("/") == SANDBOX_WORKSPACE or path.startswith(
+        SANDBOX_WORKSPACE + "/"
+    ):
+        return path
+    return SANDBOX_WORKSPACE + "/" + path.lstrip("/")
+
+
+class E2BWorkspaceFiles(E2BFiles):
+    """Map normal tool paths into the shell's working directory."""
+
+    async def als(self, path: str) -> LsResult:
+        return await self.sandbox.file_backend.als(_workspace_path(path))
+
+    async def aread(
+        self, file_path: str, offset: int = 0, limit: int = 2000
+    ) -> ReadResult:
+        return await self.sandbox.file_backend.aread(
+            _workspace_path(file_path), offset, limit
+        )
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        return await self.sandbox.file_backend.awrite(
+            _workspace_path(file_path), content
+        )
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        return await self.sandbox.file_backend.aedit(
+            _workspace_path(file_path), old_string, new_string, replace_all
+        )
+
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return await self.sandbox.file_backend.aglob(
+            pattern, _workspace_path(path or "/")
+        )
+
+    async def agrep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        return await self.sandbox.file_backend.agrep(
+            pattern, _workspace_path(path or "/"), glob, max_count=max_count
+        )
+
+    async def aupload_files(
+        self, files: list[tuple[str, bytes]]
+    ) -> list[FileUploadResponse]:
+        result = await self.sandbox.file_backend.aupload_files(
+            [(_workspace_path(path), body) for path, body in files]
+        )
+        return [
+            FileUploadResponse(path=path, error=item.error)
+            for (path, _), item in zip(files, result, strict=True)
+        ]
+
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        result = await self.sandbox.file_backend.adownload_files(
+            [_workspace_path(path) for path in paths]
+        )
+        return [
+            FileDownloadResponse(path=path, content=item.content, error=item.error)
+            for path, item in zip(paths, result, strict=True)
+        ]
+
+    async def adelete(self, file_path: str) -> DeleteResult:
+        return await self.sandbox.file_backend.adelete(_workspace_path(file_path))

@@ -164,7 +164,7 @@ async def test_minio_normalizes_paths_for_all_file_operations() -> None:
 
 
 @pytest.mark.asyncio
-async def test_composite_workspace_reads_shell_files_and_keeps_minio_scoped(
+async def test_sandbox_and_minio_workspace_use_distinct_backends(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:
     from deepagents.backends import FilesystemBackend
@@ -192,16 +192,21 @@ async def test_composite_workspace_reads_shell_files_and_keeps_minio_scoped(
     monkeypatch.setitem(sandbox.SANDBOX_PROVIDERS, "test", open_test)
     config = AgentSandboxConfig(enabled=True, provider="test")
 
+    async with skill_files.agent_backend([], None, ("first",)) as backend:
+        assert (await backend.awrite("/note.txt", "persistent note")).error is None
+
     async with skill_files.agent_backend([], config, ("first",)) as backend:
         assert supports_execution(backend)
-        assert (await backend.awrite("/note.txt", "persistent note")).error is None
+        assert (await backend.aread("/note.txt")).error
+        assert (await backend.awrite("/note.txt", "sandbox note")).error is None
+        assert (tmp_path / "note.txt").read_text() == "sandbox note"
         assert (await backend.aexecute("create report")).exit_code == 0
         report = await backend.aread("/sandbox/report.txt")
         assert report.file_data and report.file_data["content"] == "sandbox report"
-        assert (await backend.aread("/report.txt")).error
+        assert (await backend.aread("/report.txt")).file_data
         assert (await backend.awrite("/sandbox/extra.txt", "shell file")).error is None
         assert (tmp_path / "extra.txt").read_text() == "shell file"
-        assert (await backend.aedit("/note.txt", "persistent", "updated")).error is None
+        assert (await backend.aedit("/note.txt", "sandbox", "updated")).error is None
         listing = await backend.als("/")
         assert {entry["path"] for entry in listing.entries or []} >= {
             "/sandbox/",
@@ -217,7 +222,7 @@ async def test_composite_workspace_reads_shell_files_and_keeps_minio_scoped(
         assert (await backend.aread("/note.txt")).error
     async with skill_files.agent_backend([], None, ("first",)) as backend:
         note = await backend.aread("/note.txt")
-        assert note.file_data and note.file_data["content"] == "updated note"
+        assert note.file_data and note.file_data["content"] == "persistent note"
         assert (await backend.adelete("/note.txt")).error is None
 
 

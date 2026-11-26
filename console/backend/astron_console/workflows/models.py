@@ -3,7 +3,7 @@
 import uuid
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, router, transaction
 from django.utils import timezone as django_timezone
 
 from astron_console.fields import StoredBooleanField
@@ -59,6 +59,20 @@ class Workflow(models.Model):
     category = models.IntegerField(null=True)
     space_id = models.BigIntegerField(null=True)
     type = models.IntegerField(null=True)
+
+    sandbox_directory = models.CharField(max_length=360, blank=True, default="", editable=False)
+    sandbox_cleanup_pending = models.BooleanField(default=False, db_index=True, editable=False)
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or self.sandbox_directory:
+            return super().save(*args, **kwargs)
+        from astron_console.resources.local_sandbox import default_sandbox_directory
+
+        using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            super().save(*args, **kwargs)
+            self.sandbox_directory = default_sandbox_directory(self, "workflow")
+            super().save(using=using, update_fields=["sandbox_directory"])
 
     class Meta:
         db_table = "workflow"

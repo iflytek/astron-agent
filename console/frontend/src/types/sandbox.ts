@@ -16,12 +16,13 @@ export interface SkillSandboxConfig {
 export interface SandboxFileEntry {
   name: string;
   path: string;
-  isDirectory: boolean;
   size: number;
   modifiedAt: string;
 }
 
 export interface SandboxFileListing {
+  provider: string | null;
+  directory: string | null;
   entries: SandboxFileEntry[];
   truncated: boolean;
   nextCursor?: string | null;

@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.models import Agent, AgentRun, AgentSession
+from astron_console.resources.local_sandbox import purge_deleted_resources
 from astron_console.resources.models import SandboxConfig
 from astron_console.spaces.models import Space, SpaceMember, SpacePermission
 from astron_console.workflows.models import Workflow
@@ -72,33 +73,57 @@ class LocalSandboxTests(TestCase):
         self.assertEqual(cloud.status_code, 200, cloud.content)
         self.assertTrue(cloud.json()["data"]["allowInternetAccess"])
 
+    @patch("e2b.Sandbox.create")
+    def test_e2b_probe_keeps_saved_docker_provider(self, create):
+        row = SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
+        result = self.client.post(
+            "/skill-sandbox/test",
+            {"provider": "e2b", "enabled": True, "apiKey": "test-key"},
+            content_type="application/json",
+        )
+        self.assertEqual(result.status_code, 200)
+        create.assert_called_once_with(api_key="test-key", timeout=60, allow_internet_access=False)
+        row.refresh_from_db()
+        self.assertTrue(row.enabled)
+        self.assertEqual(row.provider, "docker")
+        self.assertFalse(row.api_key)
+
     @patch("astron_console.resources.local_sandbox.request_runner")
     def test_file_routes_use_resource_identity_and_require_authorization(self, runner):
+        config = SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
         runner.return_value = {"entries": [], "truncated": False}
         agent_url = f"/agents/{self.agent.pk}/sandbox-files"
         workflow_url = f"/workflow/{self.workflow.pk}/sandbox-files"
-        self.assertEqual(self.client.get(agent_url).status_code, 200)
+        response = self.client.get(agent_url)
+        self.assertEqual(response.json()["data"]["directory"], self.agent.sandbox_directory)
         runner.assert_called_once_with(
-            "list", kind="agent", scope=self.scope, resourceId=str(self.agent.pk), path=""
+            "list-tree", kind="agent", scope=self.scope, resourceId=str(self.agent.pk), after=None
         )
         runner.reset_mock()
-        self.assertEqual(self.client.get(workflow_url, {"path": "results"}).status_code, 200)
+        runner.return_value = {"entries": [], "truncated": True, "nextCursor": "results/report"}
+        response = self.client.get(workflow_url, {"after": "results/other"})
+        self.assertEqual(response.json()["data"]["nextCursor"], "results/report")
         runner.assert_called_once_with(
-            "list", kind="workflow", scope=self.scope, resourceId="flow-key", path="results"
-        )
-        runner.reset_mock()
-        runner.return_value = {"entries": [], "truncated": True, "nextCursor": "dYXJ0"}
-        response = self.client.get(workflow_url, {"path": "results", "after": "dZm9v"})
-        self.assertEqual(response.json()["data"]["nextCursor"], "dYXJ0")
-        runner.assert_called_once_with(
-            "list",
+            "list-tree",
             kind="workflow",
             scope=self.scope,
-            resourceId="flow-key",
-            path="results",
-            after="dZm9v",
+            resourceId=f"~{self.workflow.pk}",
+            after="results/other",
         )
         runner.reset_mock()
+        config.provider = "e2b"
+        config.save(update_fields=["provider"])
+        listing = self.client.get(workflow_url).json()["data"]
+        self.assertEqual(listing["provider"], "e2b")
+        self.assertIsNone(listing["directory"])
+        self.assertEqual(listing["entries"], [])
+        self.assertEqual(
+            self.client.get(workflow_url + "/download", {"path": "results/report"}).status_code,
+            404,
+        )
+        config.enabled = False
+        config.save(update_fields=["enabled"])
+        self.assertIsNone(self.client.get(workflow_url).json()["data"]["provider"])
         for path in ("../results", "/results", "results/../../other", "dir//file"):
             self.assertEqual(self.client.get(workflow_url, {"path": path}).status_code, 400)
         self.assertEqual(Client().get(agent_url).status_code, 401)
@@ -110,13 +135,33 @@ class LocalSandboxTests(TestCase):
         runner.assert_not_called()
 
     @patch("astron_console.resources.local_sandbox.request_runner")
+    def test_switch_during_runner_request_discards_docker_response(self, runner):
+        url = f"/agents/{self.agent.pk}/sandbox-files"
+        config = SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
+
+        def switch_to_e2b(*args, **kwargs):
+            SandboxConfig.objects.filter(pk=config.pk).update(provider="e2b")
+            return {"entries": [{"path": "docker.txt"}], "truncated": False}
+
+        runner.side_effect = switch_to_e2b
+        self.assertEqual(self.client.get(url).json()["data"]["entries"], [])
+        SandboxConfig.objects.filter(pk=config.pk).update(provider="docker")
+        download = self.client.get(url + "/download", {"path": "docker.txt"})
+        self.assertEqual(download.status_code, 404)
+
+    @patch("astron_console.resources.local_sandbox.request_runner")
     def test_team_download_uses_space_and_returns_attachment(self, runner):
         space = Space.objects.create(uid=self.owner.pk, name="local")
         SpaceMember.objects.create(uid=self.other.pk, space_id=space.pk, role=3)
         SpacePermission.objects.update_or_create(
             permission_key="WorkflowController_detail_GET", defaults={"member": True}
         )
-        Workflow.objects.filter(pk=self.workflow.pk).update(space_id=space.pk)
+        self.workflow = Workflow.objects.create(
+            uid=self.owner.pk, space_id=space.pk, app_id="app", flow_id="team-flow", name="Team"
+        )
+        SandboxConfig.objects.create(
+            uid=self.owner.pk, space_id=space.pk, enabled=True, provider="docker"
+        )
         runner.return_value = {"content": base64.b64encode(b"\x00\x01").decode()}
         self.client.force_login(self.other)
         result = self.client.get(
@@ -129,7 +174,7 @@ class LocalSandboxTests(TestCase):
             "read",
             kind="workflow",
             scope=f"space-{space.pk}",
-            resourceId="flow-key",
+            resourceId=f"~{self.workflow.pk}",
             path="results/报告.bin",
         )
         self.assertEqual(b"".join(result.streaming_content), b"\x00\x01")
@@ -137,6 +182,31 @@ class LocalSandboxTests(TestCase):
         self.assertTrue(result["Content-Disposition"].startswith("attachment;"))
         self.assertEqual(result["Cache-Control"], "private, no-store")
         self.assertEqual(result["X-Content-Type-Options"], "nosniff")
+
+    @patch("astron_console.resources.local_sandbox.request_runner")
+    def test_deletion_retries_cleanup_independently_of_selected_sandbox(self, runner):
+        from astron_console.resources.common import UpstreamError
+
+        SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="e2b")
+        self.assertEqual(self.client.delete(f"/agents/{self.agent.pk}").status_code, 200)
+        self.assertEqual(self.client.delete(f"/workflow?id={self.workflow.pk}").status_code, 200)
+        runner.side_effect = UpstreamError("busy")
+        purge_deleted_resources()
+        self.agent.refresh_from_db()
+        self.workflow.refresh_from_db()
+        self.assertTrue(self.agent.sandbox_cleanup_pending)
+        self.assertTrue(self.workflow.sandbox_cleanup_pending)
+        runner.reset_mock(side_effect=True)
+        purge_deleted_resources()
+        self.assertEqual([call.args for call in runner.call_args_list], [("purge",), ("purge",)])
+        self.assertEqual(
+            [call.kwargs["resourceId"] for call in runner.call_args_list],
+            [str(self.agent.pk), f"~{self.workflow.pk}"],
+        )
+        self.agent.refresh_from_db()
+        self.workflow.refresh_from_db()
+        self.assertFalse(self.agent.sandbox_cleanup_pending)
+        self.assertFalse(self.workflow.sandbox_cleanup_pending)
 
     def test_runtime_distinguishes_referenced_agent_from_its_workflow(self):
         SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
@@ -160,7 +230,7 @@ class LocalSandboxTests(TestCase):
         }
         for node_id, purpose, agent_id, expected in (
             (agent_node, "agent", self.agent.pk, str(self.agent.pk)),
-            (code_node, "workflow", "", self.workflow.flow_id),
+            (code_node, "workflow", "", f"~{self.workflow.pk}"),
         ):
             with self.subTest(purpose=purpose):
                 response = self.client.get(
@@ -177,6 +247,7 @@ class LocalSandboxTests(TestCase):
                         "allowInternetAccess": False,
                         "sandboxScope": self.scope,
                         "sandboxResourceId": expected,
+                        "sandboxDirectory": f"/workspace/{purpose}s/{self.scope}/{expected}",
                     },
                 )
         for fields in (

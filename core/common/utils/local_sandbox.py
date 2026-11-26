@@ -21,8 +21,11 @@ class LocalSandboxPolicy:
     resource_id: str
     timeout: int
 
+    def directory(self, kind: str) -> str:
+        return f"/workspace/{kind}s/{self.scope}/{self.resource_id}"
+
     @classmethod
-    def from_response(cls, data: dict[str, Any]) -> "LocalSandboxPolicy":
+    def from_response(cls, data: dict[str, Any], kind: str) -> "LocalSandboxPolicy":
         scope = data.get("sandboxScope")
         resource_id = data.get("sandboxResourceId")
         timeout = data.get("timeoutSeconds")
@@ -37,7 +40,10 @@ class LocalSandboxPolicy:
             or data.get("allowInternetAccess") is not False
         ):
             raise LocalSandboxError("Invalid local sandbox policy")
-        return cls(scope, resource_id, timeout)
+        policy = cls(scope, resource_id, timeout)
+        if data.get("sandboxDirectory") != policy.directory(kind):
+            raise LocalSandboxError("Invalid local sandbox directory")
+        return policy
 
 
 class LocalSandbox:
@@ -72,6 +78,7 @@ class LocalSandbox:
                     if response.status != 200:
                         message = {
                             404: "Sandbox file not found",
+                            410: "Sandbox resource was deleted",
                             409: "Sandbox file already exists. Use edit to modify it.",
                             413: "Sandbox file exceeds the size limit",
                             503: "Local sandbox is busy or unavailable",

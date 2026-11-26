@@ -21,11 +21,12 @@ from deepagents.backends.protocol import (
 )
 
 from agent.api.schemas.workflow_agent_inputs import CustomCompletionPluginSkillInputs
+from agent.engine.docker_sandbox import DockerAgentSandbox
+from agent.engine.e2b_sandbox import SANDBOX_WORKSPACE, E2BAgentSandbox
 from agent.engine.sandbox import sandbox_backend
 from agent.engine.workspace import (
     SANDBOX_ROUTE,
     AgentFilesystem,
-    ExecutableWorkspace,
     MinIOWorkspace,
     workspace_store,
 )
@@ -213,13 +214,14 @@ async def agent_backend(
     names: dict[str, str] = {}
     routes: dict[str, BackendProtocol] = {}
     async with AsyncExitStack() as stack:
-        if skills:
+        if skills or (sandbox_config and sandbox_config.enabled):
             root = Path(
                 stack.enter_context(TemporaryDirectory(prefix="astron-skills-"))
             )
-            names = await _materialize_skills(root, skills)
             routes[SKILL_SOURCE] = ReadOnlySkillFiles(root_dir=root, virtual_mode=True)
-            if sandbox_config and sandbox_config.enabled:
+            if skills:
+                names = await _materialize_skills(root, skills)
+            if skills and sandbox_config and sandbox_config.enabled:
                 files = {
                     f"{SKILL_SOURCE}{file.relative_to(root).as_posix()}": file.read_bytes()
                     for file in root.rglob("*")
@@ -230,15 +232,29 @@ async def agent_backend(
         )
         sandbox = backend if isinstance(backend, SandboxBackendProtocol) else None
         if sandbox is not None:
-            routes[SANDBOX_ROUTE] = getattr(sandbox, "file_backend", sandbox)
+            files_backend = getattr(sandbox, "file_backend", sandbox)
+            routes[SANDBOX_ROUTE] = files_backend
+            directory = ""
+            if isinstance(sandbox, DockerAgentSandbox):
+                runtime = await sandbox.runtime()
+                directory = runtime.policy.directory("agent")
+            if isinstance(sandbox, E2BAgentSandbox):
+                directory = SANDBOX_WORKSPACE
+                files_backend = sandbox.workspace_backend
+            state = StateBackend()
+            routes["/large_tool_results/"] = state
+            routes["/conversation_history/"] = state
+            yield AgentFilesystem(
+                default=files_backend,
+                routes=routes,
+                command_backend=sandbox,
+                sandbox_directory=directory,
+            )
+            return
         store = workspace_store(workspace_scope)
         if store is not None:
             stack.callback(store.client.close)
-            backend = (
-                ExecutableWorkspace(store, sandbox)
-                if sandbox is not None
-                else MinIOWorkspace(store)
-            )
+            backend = MinIOWorkspace(store)
             state = StateBackend()
             routes["/large_tool_results/"] = state
             routes["/conversation_history/"] = state

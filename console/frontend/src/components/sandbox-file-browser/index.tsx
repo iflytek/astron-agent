@@ -1,13 +1,22 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
-import { Alert, Breadcrumb, Button, Empty, Skeleton, Table } from 'antd';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
+import { Alert, Button, Empty, Skeleton, Table, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import {
   DownloadOutlined,
   FileOutlined,
-  FolderOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
-import { downloadSandboxFile, listSandboxFiles } from '@/services/sandbox';
+import {
+  downloadSandboxFile,
+  listSandboxFiles,
+  SANDBOX_CONFIG_CHANGED,
+} from '@/services/sandbox';
 import type { SandboxFileEntry, SandboxFileListing } from '@/types/sandbox';
 import { formatFileSize } from '@/utils';
 
@@ -20,32 +29,18 @@ type DirectoryState =
   | { status: 'ready'; listing: SandboxFileListing };
 
 function directoryColumns(
-  openDirectory: (path: string) => void,
   download: (entry: SandboxFileEntry) => void
 ): ColumnsType<SandboxFileEntry> {
   return [
     {
       title: '名称',
-      dataIndex: 'name',
-      render: (name: string, entry): ReactElement =>
-        entry.isDirectory ? (
-          <Button
-            type="link"
-            className="h-auto max-w-full p-0 text-left"
-            aria-label={name}
-            icon={<FolderOutlined />}
-            onClick={() => openDirectory(entry.path)}
-          >
-            <span className="break-all" title={name}>
-              {name}
-            </span>
-          </Button>
-        ) : (
-          <span className="flex items-start gap-2 break-all">
-            <FileOutlined className="mt-1 shrink-0" />
-            {name}
-          </span>
-        ),
+      dataIndex: 'path',
+      render: (path: string): ReactElement => (
+        <span className="flex items-start gap-2 break-all" title={path}>
+          <FileOutlined className="mt-1 shrink-0" />
+          {path}
+        </span>
+      ),
     },
     {
       title: '大小',
@@ -53,8 +48,7 @@ function directoryColumns(
       width: 100,
       responsive: ['sm'],
       className: 'tabular-nums',
-      render: (size: number, entry): string =>
-        entry.isDirectory ? '—' : formatFileSize(size),
+      render: (size: number): string => formatFileSize(size),
     },
     {
       title: '修改时间',
@@ -69,17 +63,16 @@ function directoryColumns(
       title: '操作',
       key: 'action',
       width: 104,
-      render: (_, entry): ReactElement | null =>
-        entry.isDirectory ? null : (
-          <Button
-            type="link"
-            icon={<DownloadOutlined />}
-            aria-label={'下载 ' + entry.name}
-            onClick={() => download(entry)}
-          >
-            下载
-          </Button>
-        ),
+      render: (_, entry): ReactElement => (
+        <Button
+          type="link"
+          icon={<DownloadOutlined />}
+          aria-label={'下载 ' + entry.path}
+          onClick={() => download(entry)}
+        >
+          下载
+        </Button>
+      ),
     },
   ];
 }
@@ -92,7 +85,6 @@ export default function SandboxFileBrowser({
 }
 
 function DirectoryBrowser({ kind, id }: Resource): ReactElement {
-  const [path, setPath] = useState('');
   const [revision, setRevision] = useState(0);
   const [state, setState] = useState<DirectoryState>({ status: 'loading' });
   const [page, setPage] = useState(1);
@@ -103,7 +95,7 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
 
   useEffect(() => {
     const controller = new AbortController();
-    void listSandboxFiles(kind, id, path, controller.signal)
+    void listSandboxFiles(kind, id, controller.signal)
       .then(listing => {
         if (!controller.signal.aborted) setState({ status: 'ready', listing });
       })
@@ -115,25 +107,31 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
       appendRequest.current?.abort();
       appendRequest.current = null;
     };
-  }, [kind, id, path, revision]);
+  }, [kind, id, revision]);
 
-  const resetListing = (): void => {
+  const refresh = useCallback((): void => {
     appendRequest.current?.abort();
     appendRequest.current = null;
     setPage(1);
     setLoadingMore(false);
     setLoadMoreFailed(false);
     setState({ status: 'loading' });
-  };
-  const openDirectory = (nextPath: string): void => {
-    if (path === nextPath) return;
-    resetListing();
-    setPath(nextPath);
-  };
-  const refresh = (): void => {
-    resetListing();
     setRevision(value => value + 1);
-  };
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('focus', refresh);
+    const channel =
+      typeof BroadcastChannel === 'undefined'
+        ? null
+        : new BroadcastChannel(SANDBOX_CONFIG_CHANGED);
+    channel?.addEventListener('message', refresh);
+    return (): void => {
+      channel?.close();
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refresh]);
+
   const loadMore = async (listing: SandboxFileListing): Promise<void> => {
     if (!listing.nextCursor || appendRequest.current) return;
     const controller = new AbortController();
@@ -144,11 +142,17 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
       const next = await listSandboxFiles(
         kind,
         id,
-        path,
         controller.signal,
         listing.nextCursor
       );
       if (controller.signal.aborted) return;
+      if (
+        next.provider !== listing.provider ||
+        next.directory !== listing.directory
+      ) {
+        refresh();
+        return;
+      }
       const entries = [...listing.entries, ...next.entries];
       setState({ status: 'ready', listing: { ...next, entries } });
       if (next.entries.length) {
@@ -163,25 +167,7 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
       }
     }
   };
-  const segments = path ? path.split('/') : [];
-  const crumbs = ['沙箱目录', ...segments].map((name, index) => {
-    const target = segments.slice(0, index).join('/');
-    return {
-      key: target,
-      title:
-        target === path ? (
-          <span aria-current="location">{name}</span>
-        ) : (
-          <Button
-            type="link"
-            className="h-auto p-0"
-            onClick={() => openDirectory(target)}
-          >
-            {name}
-          </Button>
-        ),
-    };
-  });
+  const listing = state.status === 'ready' ? state.listing : null;
 
   return (
     <section
@@ -190,7 +176,21 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
       className="min-w-0"
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <Breadcrumb className="min-w-0 flex-1 break-all" items={crumbs} />
+        <div className="min-w-0 flex-1">
+          {listing?.directory && (
+            <>
+              <div className="mb-1 font-medium">沙箱目录</div>
+              <Typography.Text copyable className="break-all" code>
+                {listing.directory}
+              </Typography.Text>
+              {kind === 'workflow' && (
+                <div className="mt-2 text-sm">
+                  代码节点将文件写入此目录后，可在下方查看和下载。
+                </div>
+              )}
+            </>
+          )}
+        </div>
         <Button
           aria-label="刷新"
           icon={<ReloadOutlined />}
@@ -205,7 +205,7 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
         <Alert
           showIcon
           type="error"
-          message="无法读取沙箱目录。请确认本地沙箱已启动后重试。"
+          message="无法读取沙箱文件，请重试。"
           action={
             <Button aria-label="重试" onClick={refresh}>
               重试
@@ -213,9 +213,20 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
           }
         />
       )}
-      {state.status === 'ready' && (
+      {listing && !listing.directory && (
+        <Alert
+          showIcon
+          type="info"
+          message={listing.provider ? '当前使用第三方沙箱' : '当前未启用沙箱'}
+          description={
+            listing.provider &&
+            '第三方沙箱的文件可能随实例回收。启用本地 Docker 沙箱后可在此查看持久保存的文件。'
+          }
+        />
+      )}
+      {listing?.directory && (
         <>
-          {state.listing.truncated && !state.listing.nextCursor && (
+          {listing.truncated && !listing.nextCursor && (
             <Alert
               showIcon
               type="warning"
@@ -226,10 +237,10 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
           <Table
             rowKey="path"
             size="small"
-            columns={directoryColumns(openDirectory, entry =>
+            columns={directoryColumns(entry =>
               downloadSandboxFile(kind, id, entry)
             )}
-            dataSource={state.listing.entries}
+            dataSource={listing.entries}
             pagination={{
               current: page,
               onChange: setPage,
@@ -247,14 +258,14 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
               ),
             }}
           />
-          {state.listing.nextCursor && (
+          {listing.nextCursor && (
             <div className="mt-3 flex flex-wrap items-center justify-end gap-3">
               {loadMoreFailed && (
                 <span role="alert">加载更多文件失败，请重试。</span>
               )}
               <Button
                 loading={loadingMore}
-                onClick={() => void loadMore(state.listing)}
+                onClick={() => void loadMore(listing)}
               >
                 加载更多
               </Button>

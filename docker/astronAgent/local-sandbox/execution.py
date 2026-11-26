@@ -4,6 +4,7 @@ import base64
 import binascii
 import errno
 import fcntl
+import hashlib
 import heapq
 import json
 import os
@@ -229,7 +230,10 @@ def scan_files(subject, base_path):
                         path_parts(path)
                     except (JobError, UnicodeError):
                         continue
-                    st = entry.stat(follow_symlinks=False)
+                    try:
+                        st = entry.stat(follow_symlinks=False)
+                    except FileNotFoundError:
+                        continue
                     if stat.S_ISDIR(st.st_mode):
                         pending.append(relative)
                     elif visible(st):
@@ -237,6 +241,82 @@ def scan_files(subject, base_path):
         except FileNotFoundError:
             continue
     return result, False
+
+
+def tree_candidates(subject, after):
+    pending = [""]
+    while pending:
+        parent = pending.pop()
+        prefix = parent + "/" if parent else ""
+        try:
+            with (
+                directory(
+                    WORKSPACE, subject + (parent.split("/") if parent else [])
+                ) as fd,
+                os.scandir(fd) as children,
+            ):
+                for (_, name), st in listed_entries(children, (False, "")):
+                    path = prefix + name
+                    try:
+                        path_parts(path)
+                    except (JobError, UnicodeError):
+                        continue
+                    if stat.S_ISDIR(st.st_mode):
+                        # Every descendant starts with this prefix. Skip subtrees
+                        # whose entries all sort before the requested cursor.
+                        child_prefix = path + "/"
+                        if child_prefix > after or after.startswith(child_prefix):
+                            pending.append(path)
+                    elif path > after:
+                        yield path, st
+        except (FileNotFoundError, NotADirectoryError):
+            continue
+
+
+def list_tree(subject, after):
+    if after:
+        path_parts(after)
+    candidates = heapq.nsmallest(
+        MAX_ENTRIES + 1, tree_candidates(subject, after or ""), key=lambda item: item[0]
+    )
+    page = candidates[:MAX_ENTRIES]
+    truncated = len(candidates) > MAX_ENTRIES
+    return {
+        "entries": [entry_info(path.rsplit("/", 1)[-1], path, st) for path, st in page],
+        "truncated": truncated,
+        "nextCursor": page[-1][0] if truncated else None,
+    }
+
+
+def deletion_marker(resource_id):
+    return ".deleted-" + hashlib.sha256(resource_id.encode()).hexdigest()
+
+
+def purge_resource(subject):
+    with directory(WORKSPACE, subject[:-1], create=True) as parent:
+        resource_id = subject[-1]
+        marker = deletion_marker(resource_id)
+        fd = os.open(
+            marker, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=parent
+        )
+        os.close(fd)
+        try:
+            st = os.stat(resource_id, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if stat.S_ISDIR(st.st_mode):
+            shutil.rmtree(resource_id, dir_fd=parent)
+        else:
+            os.unlink(resource_id, dir_fd=parent)
+
+
+def require_live_resource(subject):
+    try:
+        with directory(WORKSPACE, subject[:-1]) as parent:
+            os.stat(deletion_marker(subject[-1]), dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    raise JobError(410, "Workspace resource was deleted")
 
 
 def version(st):
@@ -367,7 +447,13 @@ def dispatch(job, cancel_path):
                 raise JobError(503, "Local sandbox probe failed")
             return {"status": "ok"}
     subject = [job["kind"] + "s", job["scope"], job["resourceId"]]
+    if operation == "purge":
+        purge_resource(subject)
+        return {}
+    require_live_resource(subject)
     path = job["path"]
+    if operation == "list-tree":
+        return list_tree(subject, job.get("after"))
     if operation == "execute":
         return execute(subject, job, cancel_path)
     if operation == "list":

@@ -71,7 +71,7 @@ class DockerAgentSandbox(StateBackend, SandboxBackendProtocol):
         if not self.config.console or not self.config.agent_id:
             raise LocalSandboxError("Local sandbox requires an authorized Agent run")
         data = await _fetch_runtime_policy(self.config, docker=True)
-        policy = LocalSandboxPolicy.from_response(data)
+        policy = LocalSandboxPolicy.from_response(data, "agent")
         return LocalSandbox("agent", policy, _load_runtime_credential_token())
 
     async def aexecute(
@@ -156,7 +156,14 @@ class DockerAgentSandbox(StateBackend, SandboxBackendProtocol):
         return artifacts
 
 
-def _relative_path(path: str) -> str:
+def _relative_path(path: str, runtime: LocalSandbox) -> str:
+    directory = runtime.policy.directory("agent")
+    if path.rstrip("/") == directory:
+        return ""
+    if path.startswith(directory + "/"):
+        path = path.removeprefix(directory)
+    elif path.startswith(("/workspace/", "/home/user/workspace/")):
+        raise LocalSandboxError("Use this Agent's sandbox directory", 400)
     value = path.strip("/")
     if "\\" in value or any(
         part in {".", "..", ""} for part in value.split("/") if value
@@ -196,11 +203,12 @@ class DockerFiles(BaseSandbox):
 
     async def _path(self, path: str) -> str:
         runtime = await self.sandbox.runtime()
-        return f"/workspace/agents/{runtime.policy.scope}/{runtime.policy.resource_id}/{_relative_path(path)}"
+        relative = _relative_path(path, runtime)
+        return runtime.policy.directory("agent") + "/" + relative
 
     async def als(self, path: str) -> LsResult:
         runtime = await self.sandbox.runtime()
-        data = await runtime.request("list", path=_relative_path(path))
+        data = await runtime.request("list", path=_relative_path(path, runtime))
         return LsResult(
             entries=[
                 FileInfo(
@@ -237,7 +245,9 @@ class DockerFiles(BaseSandbox):
         try:
             await runtime.request(
                 "write",
-                files=[sandbox_file(_relative_path(file_path), content.encode())],
+                files=[
+                    sandbox_file(_relative_path(file_path, runtime), content.encode())
+                ],
                 createOnly=True,
             )
         except LocalSandboxError as exc:
@@ -297,7 +307,7 @@ class DockerFiles(BaseSandbox):
         for path, body in files:
             try:
                 await runtime.request(
-                    "write", files=[sandbox_file(_relative_path(path), body)]
+                    "write", files=[sandbox_file(_relative_path(path, runtime), body)]
                 )
             except LocalSandboxError:
                 results.append(FileUploadResponse(path=path, error=PERMISSION_DENIED))
@@ -310,7 +320,7 @@ class DockerFiles(BaseSandbox):
         results = []
         for path in paths:
             try:
-                item = await runtime.request("read", path=_relative_path(path))
+                item = await runtime.request("read", path=_relative_path(path, runtime))
                 results.append(
                     FileDownloadResponse(path=path, content=sandbox_bytes(item))
                 )
@@ -322,7 +332,7 @@ class DockerFiles(BaseSandbox):
     async def adelete(self, file_path: str) -> DeleteResult:
         runtime = await self.sandbox.runtime()
         try:
-            await runtime.request("delete", path=_relative_path(file_path))
+            await runtime.request("delete", path=_relative_path(file_path, runtime))
         except LocalSandboxError as exc:
             return DeleteResult(error=str(exc))
         return DeleteResult(path=file_path)

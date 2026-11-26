@@ -15,10 +15,24 @@ export function revealSandboxCredential(
   return http.post('/skill-sandbox/credential', {}, { signal });
 }
 
+export const SANDBOX_CONFIG_CHANGED = 'astron-sandbox-config-changed';
+
+function notifySandboxConfigChange(): void {
+  if (typeof BroadcastChannel === 'undefined') return;
+  const channel = new BroadcastChannel(SANDBOX_CONFIG_CHANGED);
+  channel.postMessage(null);
+  channel.close();
+}
+
 export async function saveSkillSandboxConfig(
   params: SkillSandboxConfig
 ): Promise<SkillSandboxConfig> {
-  return await http.put('/skill-sandbox/config', params);
+  const result: SkillSandboxConfig = await http.put(
+    '/skill-sandbox/config',
+    params
+  );
+  notifySandboxConfigChange();
+  return result;
 }
 
 export async function testSkillSandboxConfig(
@@ -35,12 +49,11 @@ function sandboxFilesPath(kind: 'agent' | 'workflow', id: string): string {
 export function listSandboxFiles(
   kind: 'agent' | 'workflow',
   id: string,
-  path: string,
   signal: AbortSignal,
   after?: string
 ): Promise<SandboxFileListing> {
   return http.get(sandboxFilesPath(kind, id), {
-    params: { path, after },
+    params: { after },
     signal,
   });
 }

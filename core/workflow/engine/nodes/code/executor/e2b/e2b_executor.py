@@ -580,7 +580,7 @@ class E2BExecutor(BaseExecutor):
         sandbox_config: dict[str, Any],
         policy_data: dict[str, Any],
     ) -> str:
-        policy = LocalSandboxPolicy.from_response(policy_data)
+        policy = LocalSandboxPolicy.from_response(policy_data, "workflow")
         sandbox = LocalSandbox("workflow", policy, _load_runtime_credential_token())
         result = await sandbox.request(
             "execute",

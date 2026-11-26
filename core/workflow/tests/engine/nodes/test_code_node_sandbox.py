@@ -1422,6 +1422,7 @@ async def test_console_code_node_dispatches_to_docker_with_workflow_scope(
             "provider": "docker",
             "sandboxScope": "space-5",
             "sandboxResourceId": "fixed-flow",
+            "sandboxDirectory": "/workspace/workflows/space-5/fixed-flow",
             "timeoutSeconds": 30,
             "allowInternetAccess": False,
         }

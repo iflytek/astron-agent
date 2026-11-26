@@ -29,7 +29,7 @@ MAX_QUEUED_REQUESTS = 16
 QUEUE_TIMEOUT_SECONDS = 60
 BODY_TIMEOUT_SECONDS = 30
 SCOPE_PATTERN = re.compile(r"space-[1-9][0-9]*|user-[a-f0-9]{24,64}")
-ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,255}")
+ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,255}|~[1-9][0-9]*")
 LABEL = "ai.astron-agent.local-sandbox"
 ALLOWED_MOUNTS = {
     "/workspace": "volume",
@@ -53,12 +53,14 @@ class FileInput(BaseModel):
 class Job(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    operation: Literal["probe", "list", "read", "write", "delete", "execute"]
+    operation: Literal[
+        "probe", "list", "list-tree", "read", "write", "delete", "purge", "execute"
+    ]
     kind: Literal["agent", "workflow"] | None = None
     scope: str | None = Field(default=None, max_length=69)
     resourceId: str | None = Field(default=None, max_length=255)
     path: str = Field(default="", max_length=1024)
-    after: str | None = Field(default=None, max_length=345)
+    after: str | None = Field(default=None, max_length=1024)
     command: str | None = Field(default=None, max_length=65536, min_length=1)
     pythonCode: str | None = Field(
         default=None, max_length=2 * 1024 * 1024, min_length=1

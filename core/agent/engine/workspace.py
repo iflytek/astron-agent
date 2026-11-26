@@ -21,7 +21,6 @@ from deepagents.backends.protocol import (
     GrepResult,
     LsResult,
     SandboxBackendProtocol,
-    execute_accepts_timeout,
 )
 from deepagents.backends.utils import (
     InvalidGlobPatternError,
@@ -277,37 +276,20 @@ class MinIOWorkspace(StoreBackend):
         return await asyncio.to_thread(self.delete, file_path)
 
 
-class ExecutableWorkspace(MinIOWorkspace, SandboxBackendProtocol):
-    """Keep normal file operations in MinIO and forward execute to the sandbox."""
-
-    def __init__(self, store: MinIOStore, sandbox: SandboxBackendProtocol) -> None:
-        super().__init__(store)
-        self.sandbox = sandbox
-
-    @property
-    def id(self) -> str:
-        return self.sandbox.id
-
-    def execute(self, command: str, *, timeout: int | None = None) -> ExecuteResponse:
-        if timeout is not None and execute_accepts_timeout(type(self.sandbox)):
-            return self.sandbox.execute(command, timeout=timeout)
-        return self.sandbox.execute(command)
-
-    async def aexecute(
-        self, command: str, *, timeout: int | None = None
-    ) -> ExecuteResponse:
-        if timeout is not None and execute_accepts_timeout(type(self.sandbox)):
-            return await self.sandbox.aexecute(command, timeout=timeout)
-        return await self.sandbox.aexecute(command)
-
-
 class AgentFilesystem(CompositeBackend):
-    """Search the virtual workspace without starting a sandbox implicitly."""
+    """Search the default workspace and mounted files through their respective backends."""
 
     def __init__(
-        self, default: BackendProtocol, routes: dict[str, BackendProtocol]
+        self,
+        default: BackendProtocol,
+        routes: dict[str, BackendProtocol],
+        *,
+        command_backend: SandboxBackendProtocol | None = None,
+        sandbox_directory: str = "",
     ) -> None:
         super().__init__(default, routes)
+        self.command_backend = command_backend
+        self.sandbox_directory = sandbox_directory
         self.virtual = CompositeBackend(
             default,
             {
@@ -316,6 +298,15 @@ class AgentFilesystem(CompositeBackend):
                 if prefix != SANDBOX_ROUTE
             },
         )
+
+    async def aexecute(
+        self, command: str, *, timeout: int | None = None
+    ) -> ExecuteResponse:
+        if self.command_backend is not None:
+            if timeout is not None:
+                return await self.command_backend.aexecute(command, timeout=timeout)
+            return await self.command_backend.aexecute(command)
+        return await super().aexecute(command, timeout=timeout)
 
     def _search_backend(self, path: str | None) -> CompositeBackend:
         return self.virtual if path in (None, "/") else self

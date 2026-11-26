@@ -98,7 +98,7 @@ class SandboxMediaTests(TestCase):
                     "write",
                     kind="workflow",
                     scope=self.scope,
-                    resourceId=self.workflow.flow_id,
+                    resourceId=f"~{self.workflow.pk}",
                     files=[
                         {
                             "path": "output/" + key,

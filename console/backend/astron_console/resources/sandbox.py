@@ -19,7 +19,7 @@ from astron_console.spaces.permissions import (
 
 from .clients import normalize_provider
 from .common import UpstreamError, number, scope_for, serialize, text, upstream_errors
-from .local_sandbox import TOKEN_HEADER, available, request_runner, resource_scope
+from .local_sandbox import TOKEN_HEADER, available, request_runner, sandbox_identity
 from .models import Model, SandboxConfig, WorkflowScope
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ def masked(row):
     return result
 
 
-def save(request):
+def validated_config(request):
     scope = scope_for(request, WRITE)
     row = scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first()
     row = row or SandboxConfig(uid=scope.uid, space_id=scope.space_id)
@@ -146,15 +146,16 @@ def save(request):
     if row.provider != provider:
         row.last_test_status = row.last_test_message = row.last_test_time = None
     row.provider = provider
-    row.update_time = timezone.now()
-    row.save()
     return row
 
 
 @api_endpoint(["GET", "PUT"])
 def config(request):
     if request.method == "PUT":
-        return masked(save(request))
+        row = validated_config(request)
+        row.update_time = timezone.now()
+        row.save()
+        return masked(row)
     scope = scope_for(request, READ)
     return masked(scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first())
 
@@ -190,7 +191,7 @@ def test(request):
     from e2b import Sandbox
 
     request.payload.setdefault("provider", "e2b")
-    row = save(request)
+    row = validated_config(request)
     if not row.api_key:
         raise ValidationError("API Key必填")
     sandbox = None
@@ -214,7 +215,6 @@ def test(request):
                 row.last_test_status = "failed"
                 row.last_test_message = "测试沙箱终止失败，将在60秒超时后回收"
         row.last_test_time = timezone.now()
-        row.save()
     if row.last_test_status != "success":
         raise UpstreamError(row.last_test_message)
     return masked(row)
@@ -286,7 +286,7 @@ def docker_runtime(request, scope, agent, workflow, row):
             raise PermissionDenied
     else:
         node_id = text(request.GET, "nodeId", required=True, limit=255)
-        get_workflow(scope, workflow.pk, EXECUTE)
+        workflow = get_workflow(scope, workflow.pk, EXECUTE)
         run = WorkflowRun.objects.filter(
             pk=run_id,
             context_id=root.pk,
@@ -305,10 +305,13 @@ def docker_runtime(request, scope, agent, workflow, row):
             )
         ):
             raise PermissionDenied
+    resource = agent if agent is not None else workflow
+    identity = sandbox_identity(resource)
     return {
         "provider": "docker",
         "timeoutSeconds": row.timeout_seconds,
         "allowInternetAccess": False,
-        "sandboxScope": resource_scope(agent if agent is not None else workflow),
-        "sandboxResourceId": str(agent.pk if agent is not None else workflow.flow_id),
+        "sandboxScope": identity["scope"],
+        "sandboxResourceId": identity["resourceId"],
+        "sandboxDirectory": resource.sandbox_directory,
     }

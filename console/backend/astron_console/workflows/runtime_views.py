@@ -28,10 +28,9 @@ logger = logging.getLogger(__name__)
 @api_endpoint(["GET"])
 @upstream_errors
 def sandbox_files(request, workflow_id, download=False):
-    workflow = get_workflow(scope_for(request, READ), workflow_id)
-    if not workflow.flow_id:
-        raise Http404
-    return resource_files(request, workflow, "workflow", workflow.flow_id, download=download)
+    scope = scope_for(request, READ)
+    workflow = get_workflow(scope, workflow_id)
+    return resource_files(request, workflow, "workflow", scope, download=download)
 
 
 def streaming(run, **kwargs):
