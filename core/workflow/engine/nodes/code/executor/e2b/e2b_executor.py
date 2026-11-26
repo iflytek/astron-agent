@@ -11,14 +11,14 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import aiohttp
-from loguru import logger
-
 from common.utils.local_sandbox import (
     LocalSandbox,
     LocalSandboxError,
     LocalSandboxPolicy,
     sandbox_bytes,
 )
+from loguru import logger
+
 from workflow.engine.nodes.code.executor.base_executor import BaseExecutor
 from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
@@ -594,6 +594,24 @@ class E2BExecutor(BaseExecutor):
                 CodeEnum.CODE_EXECUTION_TIMEOUT_ERROR,
                 err_msg="Local sandbox execution timed out",
             )
+        await self._upload_local_artifacts(result, sandbox_config, span)
+        if result["exitCode"] != 0:
+            raise CustomException(
+                CodeEnum.CODE_EXECUTION_ERROR,
+                err_msg=result.get("stderr")
+                or result.get("stdout")
+                or "Local sandbox command failed",
+            )
+        if result["truncated"]:
+            raise LocalSandboxError("Local sandbox output exceeded the size limit")
+        return result["stdout"].removesuffix("\n")
+
+    async def _upload_local_artifacts(
+        self,
+        result: dict[str, Any],
+        sandbox_config: dict[str, Any],
+        span: Span,
+    ) -> None:
         uploader = CodeArtifactUploader(sandbox_config)
         artifacts = []
         if uploader.is_configured():
@@ -621,16 +639,6 @@ class E2BExecutor(BaseExecutor):
             await span.add_info_events_async(
                 {"docker_code_artifacts": json.dumps(artifacts, ensure_ascii=False)}
             )
-        if result["exitCode"] != 0:
-            raise CustomException(
-                CodeEnum.CODE_EXECUTION_ERROR,
-                err_msg=result.get("stderr")
-                or result.get("stdout")
-                or "Local sandbox command failed",
-            )
-        if result["truncated"]:
-            raise LocalSandboxError("Local sandbox output exceeded the size limit")
-        return result["stdout"].removesuffix("\n")
 
     async def _execute_in_sandbox(
         self,

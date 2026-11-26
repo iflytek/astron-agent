@@ -14,6 +14,12 @@ from typing import (
     cast,
 )
 
+from common.exceptions.base import BaseExc
+from common.otlp.log_trace.base import Usage
+from common.otlp.log_trace.node_log import Data, NodeLog
+from common.otlp.log_trace.node_trace_log import NodeTraceLog
+from common.otlp.trace.langfuse import langfuse_observation_attributes
+from common.otlp.trace.span import Span
 from deepagents import create_deep_agent
 from deepagents.backends.protocol import BackendProtocol
 from langchain.agents.middleware import (
@@ -47,12 +53,6 @@ from agent.exceptions.agent_exc import AgentInternalExc
 from agent.exceptions.plugin_exc import CallLlmPluginExc, PluginExc, llm_plugin_error
 from agent.service.plugin.base import BasePlugin
 from agent.service.sandbox import AgentSandboxConfig
-from common.exceptions.base import BaseExc
-from common.otlp.log_trace.base import Usage
-from common.otlp.log_trace.node_log import Data, NodeLog
-from common.otlp.log_trace.node_trace_log import NodeTraceLog
-from common.otlp.trace.langfuse import langfuse_observation_attributes
-from common.otlp.trace.span import Span
 
 
 def tool_error_message(exc: Exception, request: Any) -> str:
