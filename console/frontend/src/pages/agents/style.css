@@ -1626,13 +1626,10 @@
   font-size: 13px;
 }
 .agent-loop-heading .ant-input-number {
-  width: 70px;
-}
-.agent-loop-setting .ant-slider {
-  margin: 14px 6px 8px;
+  width: 108px;
 }
 .agent-loop-setting p {
-  margin: 0;
+  margin: 8px 0 0;
   color: var(--agents-muted);
   font-size: 12px;
 }

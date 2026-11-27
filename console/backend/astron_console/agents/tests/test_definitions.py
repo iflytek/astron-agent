@@ -174,9 +174,11 @@ class DefinitionTests(TransactionTestCase):
             self.assertEqual(
                 self.write("put", f"/agents/{self.agent.pk}", {key: "false"}).status_code, 400
             )
-        for value in [1, 50, 0, 51]:
+        for value in [1, 50, 0, 51, 1000]:
             response = self.write("put", f"/agents/{self.agent.pk}", {"maxLoopCount": value})
-            self.assertEqual(response.status_code, 200 if value in (1, 50) else 400)
+            self.assertEqual(response.status_code, 200 if value > 0 else 400)
+            if value > 0:
+                self.assertEqual(response.json()["data"]["maxLoopCount"], value)
 
     def test_old_snapshot_effective_definition_does_not_rewrite_history(self):
         stored = {

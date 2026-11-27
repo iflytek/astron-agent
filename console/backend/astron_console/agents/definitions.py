@@ -241,9 +241,7 @@ def save_definition(agent, scope, payload):
             if key == "repoIds":
                 config["legacyDatasetIds"] = []
     if "maxLoopCount" in payload:
-        state.config["maxLoopCount"] = config["maxLoopCount"] = number(
-            payload["maxLoopCount"], maximum=50
-        )
+        state.config["maxLoopCount"] = config["maxLoopCount"] = number(payload["maxLoopCount"])
     if "promptType" in payload:
         if payload["promptType"] not in (0, 1) or isinstance(payload["promptType"], bool):
             raise ValidationError("提示词类型无效")

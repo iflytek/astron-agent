@@ -127,11 +127,8 @@ def delete_resource_file(request, resource, kind, scope):
 
 
 def resource_files(request, resource, kind, scope, *, download=False, write_permission):
+    from . import e2b_files
     from .sandbox import enabled_sandbox
-
-    def active_provider():
-        config = enabled_sandbox(scope)
-        return config.provider if config else None
 
     def inactive_listing(provider):
         if download:
@@ -142,25 +139,49 @@ def resource_files(request, resource, kind, scope, *, download=False, write_perm
         result["Cache-Control"] = "private, no-store"
         return result
 
-    provider = active_provider()
+    config = enabled_sandbox(scope)
+    provider = config.provider if config else None
     path = request.GET.get("path", "")
     after = request.GET.get("after")
     validate_file_path(path, required=download)
     if (
         any(ord(char) < 32 for char in path)
         or (not download and path)
-        or (after is not None and (download or len(after) > 1024))
+        or (after is not None and (download or len(after) > (8192 if provider == "e2b" else 1024)))
     ):
         raise ValidationError("文件路径无效")
+    if provider == "e2b":
+        if download:
+            file_ref = request.GET.get("fileRef", "")
+            if not config.api_key or not file_ref or len(file_ref) > 8192:
+                raise Http404
+            contents = e2b_files.download_file(resource, kind, config, path, file_ref)
+        else:
+            data = (
+                e2b_files.list_files(resource, kind, config, after)
+                if config.api_key
+                else {"entries": [], "truncated": False}
+            )
+        current = enabled_sandbox(scope)
+        if not current or current.provider != "e2b" or current.api_key != config.api_key:
+            return inactive_listing(current.provider if current else None)
+        if download:
+            return download_response(contents, path)
+        result = response({"provider": "e2b", "directory": e2b_files.WORKSPACES[kind], **data})
+        result["Cache-Control"] = "private, no-store"
+        return result
     if provider != "docker":
         return inactive_listing(provider)
+    if download and request.GET.get("fileRef"):
+        raise Http404
     data = request_runner(
         "read" if download else "list-tree",
         kind=kind,
         **sandbox_identity(resource),
         **({"path": path} if download else {"after": after}),
     )
-    provider = active_provider()
+    current = enabled_sandbox(scope)
+    provider = current.provider if current else None
     if provider != "docker":
         return inactive_listing(provider)
     if not download:
@@ -194,6 +215,10 @@ def resource_files(request, resource, kind, scope, *, download=False, write_perm
         raise UpstreamError("本地 Docker 沙箱文件响应无效") from None
     if len(content) > MAX_DOWNLOAD_BYTES:
         raise ValidationError("文件超过下载大小限制")
+    return download_response(content, path)
+
+
+def download_response(content, path):
     result = FileResponse(
         io.BytesIO(content),
         as_attachment=True,

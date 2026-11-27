@@ -64,6 +64,7 @@ export function downloadSandboxFile(
   entry: SandboxFileEntry
 ): void {
   const query = new URLSearchParams({ path: entry.path });
+  if (entry.fileRef) query.set('fileRef', entry.fileRef);
   downloadFileWithHeaders(
     `/console-api${sandboxFilesPath(kind, id)}/download?${query}`,
     entry.name

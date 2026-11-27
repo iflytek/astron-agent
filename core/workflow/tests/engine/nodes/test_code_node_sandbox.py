@@ -548,11 +548,14 @@ async def test_code_runtime_config_rejects_redirect_with_valid_json_body(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("console", [False, True])
 async def test_code_executor_creates_e2b_with_only_fetched_ephemeral_key(
     monkeypatch: pytest.MonkeyPatch,
+    console: bool,
 ) -> None:
     create_kwargs: dict[str, Any] = {}
     ephemeral_api_key = "ephemeral-e2b-api-key-never-persist"
+    kill = AsyncMock()
 
     class FakeFiles:
         async def write(self, path: str, content: str) -> None:
@@ -566,14 +569,13 @@ async def test_code_executor_creates_e2b_with_only_fetched_ephemeral_key(
         files = FakeFiles()
         commands = FakeCommands()
 
-        async def kill(self) -> None:
-            return None
-
     class FakeAsyncSandbox:
         @classmethod
-        async def create(cls, **kwargs: Any) -> FakeSandbox:
+        async def create(cls, **kwargs: Any) -> Any:
             create_kwargs.update(kwargs)
-            return FakeSandbox()
+            return SimpleNamespace(
+                files=FakeSandbox.files, commands=FakeSandbox.commands, kill=kill
+            )
 
     monkeypatch.setitem(
         sys.modules, "e2b", SimpleNamespace(AsyncSandbox=FakeAsyncSandbox)
@@ -583,11 +585,24 @@ async def test_code_executor_creates_e2b_with_only_fetched_ephemeral_key(
         AsyncMock(return_value=(ephemeral_api_key, 12, False)),
     )
     monkeypatch.setattr(
+        "workflow.engine.nodes.code.executor.e2b.e2b_executor._fetch_runtime_policy",
+        AsyncMock(
+            return_value={
+                "provider": "e2b",
+                "apiKey": ephemeral_api_key,
+                "timeoutSeconds": 12,
+                "allowInternetAccess": False,
+                "workspaceMetadata": {"astron_workspace": "authorized-workflow"},
+            }
+        ),
+    )
+    monkeypatch.setattr(
         "workflow.engine.nodes.code.executor.e2b.e2b_executor._run_command_with_bounded_output",
         AsyncMock(return_value=(0, "ok\n", "")),
     )
     monkeypatch.setattr(E2BExecutor, "_collect_artifacts", AsyncMock(return_value=[]))
     sandbox_config = {
+        "console": console,
         "workflow_id": "flow-1",
         "node_id": "node-1",
         "api_key": "legacy-api-key-must-not-be-used",
@@ -606,6 +621,11 @@ async def test_code_executor_creates_e2b_with_only_fetched_ephemeral_key(
     assert create_kwargs["api_key"] == ephemeral_api_key
     assert create_kwargs["timeout"] == 12
     assert create_kwargs["allow_internet_access"] is False
+    if console:
+        assert create_kwargs["metadata"]["astron_workspace"] == "authorized-workflow"
+        kill.assert_not_awaited()
+    else:
+        kill.assert_awaited_once()
     assert sandbox_config["api_key"] == "legacy-api-key-must-not-be-used"
 
 

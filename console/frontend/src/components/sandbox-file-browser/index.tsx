@@ -206,7 +206,10 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
         return;
       }
       const entries = [...listing.entries, ...next.entries];
-      setState({ status: 'ready', listing: { ...next, entries } });
+      setState({
+        status: 'ready',
+        listing: { ...next, entries, partial: listing.partial || next.partial },
+      });
       if (next.entries.length) {
         setPage(Math.floor(listing.entries.length / PAGE_SIZE) + 1);
       }
@@ -266,29 +269,33 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
           }
         />
       )}
-      {listing && !listing.directory && (
+      {listing && listing.provider !== 'docker' && (
         <Alert
           showIcon
           type="info"
+          className={listing.directory ? 'mb-3' : undefined}
           message={listing.provider ? '当前使用第三方沙箱' : '当前未启用沙箱'}
           description={
-            listing.provider &&
-            '第三方沙箱的文件可能随实例回收。启用本地 Docker 沙箱后可在此查看持久保存的文件。'
+            listing.provider && '第三方沙箱文件可能随实例回收，请及时下载。'
           }
         />
       )}
       {listing?.directory && (
         <>
-          {listing.truncated && !listing.nextCursor && (
+          {(listing.partial || (listing.truncated && !listing.nextCursor)) && (
             <Alert
               showIcon
               type="warning"
-              message="此目录的文件数量已超过展示上限。"
+              message={
+                listing.provider === 'e2b'
+                  ? '部分沙箱文件暂时无法读取，请刷新重试。'
+                  : '此目录的文件数量已超过展示上限。'
+              }
               className="mb-3"
             />
           )}
           <Table
-            rowKey="path"
+            rowKey={(entry): string => entry.fileRef ?? entry.path}
             size="small"
             columns={directoryColumns(
               entry => downloadSandboxFile(kind, id, entry),
@@ -310,7 +317,11 @@ function DirectoryBrowser({ kind, id }: Resource): ReactElement {
               emptyText: (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="此目录暂无文件"
+                  description={
+                    listing.partial || listing.truncated
+                      ? '暂未加载到文件'
+                      : '此目录暂无文件'
+                  }
                 />
               ),
             }}

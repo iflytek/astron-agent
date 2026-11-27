@@ -18,6 +18,7 @@ export interface SandboxFileEntry {
   path: string;
   size: number;
   modifiedAt: string;
+  fileRef?: string;
 }
 
 export interface SandboxFileListing {
@@ -25,6 +26,7 @@ export interface SandboxFileListing {
   directory: string | null;
   canDelete?: boolean;
   entries: SandboxFileEntry[];
+  partial?: boolean;
   truncated: boolean;
   nextCursor?: string | null;
 }

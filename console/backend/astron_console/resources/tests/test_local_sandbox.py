@@ -1,13 +1,22 @@
 import base64
 import hashlib
 from datetime import timedelta
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
+from e2b import (
+    FileType,
+    SandboxNotFoundException,
+    SandboxState,
+    SandboxUnreachableException,
+    TimeoutException,
+)
 
 from astron_console.accounts.models import User, UserProfile
 from astron_console.agents.models import Agent, AgentRun, AgentSession
+from astron_console.resources.e2b_files import workspace_metadata
 from astron_console.resources.local_sandbox import purge_deleted_resources
 from astron_console.resources.models import SandboxConfig
 from astron_console.spaces.models import Space, SpaceMember, SpacePermission
@@ -88,6 +97,216 @@ class LocalSandboxTests(TestCase):
         self.assertEqual(row.provider, "docker")
         self.assertFalse(row.api_key)
 
+    @patch("astron_console.resources.e2b_files.Sandbox")
+    def test_e2b_lists_downloads_and_expires_resource_files(self, sdk):
+        config = SandboxConfig.objects.create(
+            uid=self.owner.pk, enabled=True, provider="e2b", api_key="test-key"
+        )
+        now = timezone.now()
+        for kind, resource, prefix, directory in (
+            ("agent", self.agent, "agents", "/home/user/workspace"),
+            ("workflow", self.workflow, "workflow", "/home/user/code"),
+        ):
+            url = f"/{prefix}/{resource.pk}/sandbox-files"
+            metadata = workspace_metadata(resource, kind)
+            sandbox = SimpleNamespace(
+                sandbox_id=f"{kind}-sandbox",
+                started_at=now,
+                end_at=now + timedelta(minutes=5),
+                state=SandboxState.RUNNING,
+                metadata=metadata,
+            )
+            foreign = SimpleNamespace(
+                **{**vars(sandbox), "metadata": {"astron_workspace": "other"}}
+            )
+            sdk.list.return_value.has_next = True
+
+            def next_page(items=(foreign, sandbox), **kwargs):
+                sdk.list.return_value.has_next = False
+                return items
+
+            sdk.list.return_value.next_items.side_effect = next_page
+            sdk.connect.side_effect = None
+            sdk.get_info.return_value = sandbox
+            filesystem = sdk.connect.return_value.files
+            report = SimpleNamespace(
+                type=FileType.FILE,
+                symlink_target=None,
+                path=directory + "/output/today.txt",
+                size=6,
+                modified_time=now,
+            )
+            filesystem.list.return_value = [report]
+            filesystem.get_info.side_effect = lambda path, report=report, **kwargs: (
+                report
+                if path == report.path
+                else SimpleNamespace(type=FileType.DIR, symlink_target=None)
+            )
+            filesystem.read.return_value.__enter__.return_value = iter([b"today\n"])
+            data = self.client.get(url).json()["data"]
+            self.assertEqual(data["directory"], directory)
+            self.assertEqual(sdk.list.call_args.args[0].metadata, metadata)
+            self.assertEqual(sdk.connect.call_args.args, (sandbox.sandbox_id,))
+            self.assertEqual([entry["path"] for entry in data["entries"]], ["output/today.txt"])
+            query = {"path": "output/today.txt", "fileRef": data["entries"][0]["fileRef"]}
+            download = self.client.get(url + "/download", query)
+            self.assertEqual(b"".join(download.streaming_content), b"today\n")
+            self.assertEqual(
+                self.client.get(url + "/download", {**query, "path": "other.txt"}).status_code, 404
+            )
+            other_url = (
+                f"/workflow/{self.workflow.pk}" if kind == "agent" else f"/agents/{self.agent.pk}"
+            )
+            self.assertEqual(
+                self.client.get(other_url + "/sandbox-files/download", query).status_code, 404
+            )
+            config.provider = "docker"
+            config.save(update_fields=["provider"])
+            self.assertEqual(self.client.get(url + "/download", query).status_code, 404)
+            config.provider = "e2b"
+            config.save(update_fields=["provider"])
+            sdk.connect.side_effect = SandboxNotFoundException("instance expired")
+            sdk.list.return_value.has_next = True
+            self.assertEqual(self.client.get(url).json()["data"]["entries"], [])
+            self.assertEqual(self.client.get(url + "/download", query).status_code, 404)
+
+    @patch("astron_console.resources.e2b_files.PAGE_SIZE", 2)
+    @patch("astron_console.resources.e2b_files.Sandbox")
+    def test_e2b_cursor_resumes_with_equal_start_times_across_provider_pages(self, sdk):
+        SandboxConfig.objects.create(
+            uid=self.owner.pk, enabled=True, provider="e2b", api_key="test-key"
+        )
+        now = timezone.now()
+        metadata = workspace_metadata(self.agent, "agent")
+        infos = [
+            SimpleNamespace(
+                sandbox_id=sandbox_id, started_at=now, state=SandboxState.RUNNING, metadata=metadata
+            )
+            for sandbox_id in ("first", "second", "third")
+        ]
+
+        def list_sandboxes(*args, next_token, **kwargs):
+            paginator = MagicMock()
+            paginator.has_next = True
+            paginator.next_token = next_token
+
+            def next_items(**kwargs):
+                if paginator.next_token == "page-two":
+                    paginator.has_next = False
+                    paginator.next_token = None
+                    return infos[2:]
+                paginator.next_token = "page-two"
+                return infos[:2]
+
+            paginator.next_items.side_effect = next_items
+            return paginator
+
+        sdk.list.side_effect = list_sandboxes
+        files = {"first": ["a", "b", "c"], "second": ["d", "e"], "third": ["f"]}
+
+        def connect(sandbox_id, **kwargs):
+            sandbox = MagicMock()
+            sandbox.files.list.return_value = [
+                SimpleNamespace(
+                    path=f"/home/user/workspace/{name}",
+                    type=FileType.FILE,
+                    symlink_target=None,
+                    size=1,
+                    modified_time=now,
+                )
+                for name in files[sandbox_id]
+            ]
+            return sandbox
+
+        sdk.connect.side_effect = connect
+        url = f"/agents/{self.agent.pk}/sandbox-files"
+        query = {}
+        for paths in (["a", "b"], ["c", "d"], ["e", "f"]):
+            listing = self.client.get(url, query).json()["data"]
+            self.assertEqual([entry["path"] for entry in listing["entries"]], paths)
+            query = {"after": listing["nextCursor"]}
+        self.assertIsNone(listing["nextCursor"])
+
+    @patch("astron_console.resources.e2b_files.Sandbox")
+    def test_e2b_preserves_readable_files_during_partial_failures(self, sdk):
+        SandboxConfig.objects.create(
+            uid=self.owner.pk, enabled=True, provider="e2b", api_key="test-key"
+        )
+        metadata = workspace_metadata(self.agent, "agent")
+        paginator = sdk.list.return_value
+        paginator.has_next = True
+        paginator.next_token = None
+
+        infos = [
+            SimpleNamespace(sandbox_id=name, state=SandboxState.RUNNING, metadata=metadata)
+            for name in ("readable", "slow")
+        ]
+
+        def next_items(**kwargs):
+            paginator.has_next = False
+            return infos
+
+        paginator.next_items.side_effect = next_items
+        sandbox = MagicMock()
+        sandbox.files.list.return_value = [
+            SimpleNamespace(
+                path="/home/user/workspace/report.txt",
+                type=FileType.FILE,
+                symlink_target=None,
+                size=6,
+                modified_time=timezone.now(),
+            )
+        ]
+        sdk.connect.side_effect = [sandbox, SandboxUnreachableException("sandbox unavailable")]
+        url = f"/agents/{self.agent.pk}/sandbox-files"
+        result = self.client.get(url)
+        self.assertEqual(result.status_code, 200)
+        listing = result.json()["data"]
+        self.assertEqual([entry["path"] for entry in listing["entries"]], ["report.txt"])
+        self.assertTrue(listing["partial"])
+        self.assertIsNone(listing["nextCursor"])
+
+        # Reaching the next provider page can also fail after the first page was read.
+        def paginated_items(**kwargs):
+            if paginator.next_token == "page-two":
+                raise TimeoutException("provider page timed out")
+            paginator.next_token = "page-two"
+            return infos[:1]
+
+        sdk.connect.side_effect = None
+        sdk.connect.return_value = sandbox
+        first_page_files = sandbox.files.list.return_value
+
+        def resumed_items(**kwargs):
+            paginator.has_next = False
+            return infos[1:]
+
+        continued = SimpleNamespace(
+            **{**vars(first_page_files[0]), "path": "/home/user/workspace/continued.txt"}
+        )
+        for files in (first_page_files, []):
+            with self.subTest(empty_first_page=not files):
+                paginator.has_next = True
+                paginator.next_token = None
+                paginator.next_items.side_effect = paginated_items
+                sandbox.files.list.return_value = files
+                result = self.client.get(url)
+                self.assertEqual(result.status_code, 200)
+                listing = result.json()["data"]
+                self.assertEqual(
+                    [entry["path"] for entry in listing["entries"]], ["report.txt"] if files else []
+                )
+                self.assertTrue(listing["truncated"])
+                self.assertTrue(listing["nextCursor"])
+
+                paginator.next_items.side_effect = resumed_items
+                paginator.next_token = None
+                sandbox.files.list.return_value = [continued]
+                resumed = self.client.get(url, {"after": listing["nextCursor"]}).json()["data"]
+                self.assertEqual(sdk.list.call_args.kwargs["next_token"], "page-two")
+                self.assertEqual([entry["path"] for entry in resumed["entries"]], ["continued.txt"])
+                self.assertIsNone(resumed["nextCursor"])
+
     @patch("astron_console.resources.local_sandbox.request_runner")
     def test_file_routes_use_resource_identity_and_require_authorization(self, runner):
         config = SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
@@ -115,7 +334,7 @@ class LocalSandboxTests(TestCase):
         config.save(update_fields=["provider"])
         listing = self.client.get(workflow_url).json()["data"]
         self.assertEqual(listing["provider"], "e2b")
-        self.assertIsNone(listing["directory"])
+        self.assertEqual(listing["directory"], "/home/user/code")
         self.assertEqual(listing["entries"], [])
         self.assertEqual(
             self.client.get(workflow_url + "/download", {"path": "results/report"}).status_code,
@@ -307,7 +526,7 @@ class LocalSandboxTests(TestCase):
         self.assertFalse(self.workflow.sandbox_cleanup_pending)
 
     def test_runtime_distinguishes_referenced_agent_from_its_workflow(self):
-        SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
+        config = SandboxConfig.objects.create(uid=self.owner.pk, enabled=True, provider="docker")
         root = ExecutionContext.objects.create(
             uid=self.owner.pk, deadline=timezone.now() + timedelta(minutes=1)
         )
@@ -348,6 +567,21 @@ class LocalSandboxTests(TestCase):
                         "sandboxDirectory": f"/workspace/{purpose}s/{self.scope}/{expected}",
                     },
                 )
+                config.provider = "e2b"
+                config.api_key = "cloud-key"
+                config.save(update_fields=["provider", "api_key"])
+                cloud = self.client.get(
+                    RUNTIME,
+                    {**context, "nodeId": node_id, "purpose": purpose, "agentId": agent_id},
+                    **TOKEN_HEADER,
+                )
+                self.assertEqual(cloud.status_code, 200, cloud.content)
+                resource = self.agent if purpose == "agent" else self.workflow
+                self.assertEqual(
+                    cloud.json()["data"]["workspaceMetadata"], workspace_metadata(resource, purpose)
+                )
+                config.provider = "docker"
+                config.save(update_fields=["provider"])
         for fields in (
             {"nodeId": agent_node},
             {"nodeId": code_node, "agentId": self.agent.pk},

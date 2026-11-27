@@ -257,17 +257,22 @@ def runtime(request):
         return no_store(docker_runtime(request, scope, agent, workflow, row))
     if row.provider != "e2b" or not row.api_key:
         raise Http404
-    return no_store(
-        {
-            "provider": row.provider,
-            "apiKey": row.api_key,
-            "timeoutSeconds": row.timeout_seconds,
-            "allowInternetAccess": row.allow_internet_access,
-        }
-    )
+    data = {
+        "provider": row.provider,
+        "apiKey": row.api_key,
+        "timeoutSeconds": row.timeout_seconds,
+        "allowInternetAccess": row.allow_internet_access,
+    }
+    if request.GET.get("rootId"):
+        from .e2b_files import workspace_metadata
+
+        resource, purpose = workspace_resource(request, scope, agent, workflow, allow_public=True)
+        if resource is not None:
+            data["workspaceMetadata"] = workspace_metadata(resource, purpose)
+    return no_store(data)
 
 
-def docker_runtime(request, scope, agent, workflow, row):
+def workspace_resource(request, scope, agent, workflow, *, allow_public=False):
     from astron_console.publishing.runtime_authorization import grant_for_root
     from astron_console.workflows.authorization import EXECUTE, get_workflow
     from astron_console.workflows.execution_context import checked_root, graph_nodes
@@ -279,7 +284,11 @@ def docker_runtime(request, scope, agent, workflow, row):
     root_id = text(request.GET, "rootId", required=True, limit=36)
     run_id = text(request.GET, "runId", required=True, limit=36)
     root = checked_root(root_id)
-    if root.uid != scope.uid or root.space_id != scope.space_id or grant_for_root(root) is not None:
+    if root.uid != scope.uid or root.space_id != scope.space_id:
+        raise PermissionDenied
+    if grant_for_root(root) is not None:
+        if allow_public:
+            return None, purpose
         raise PermissionDenied
     if workflow is None:
         if root.agent_id != agent.pk or root.agent_run_id != run_id:
@@ -305,7 +314,11 @@ def docker_runtime(request, scope, agent, workflow, row):
             )
         ):
             raise PermissionDenied
-    resource = agent if agent is not None else workflow
+    return agent if agent is not None else workflow, purpose
+
+
+def docker_runtime(request, scope, agent, workflow, row):
+    resource, _ = workspace_resource(request, scope, agent, workflow)
     identity = sandbox_identity(resource)
     return {
         "provider": "docker",

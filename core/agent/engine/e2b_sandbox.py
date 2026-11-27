@@ -36,7 +36,9 @@ from agent.service.plugin.skill_sandbox import (
     E2BSandboxProvider,
     SandboxExecutionRequest,
     _fetch_e2b_runtime_config,
+    _fetch_runtime_policy,
     _run_command_with_bounded_output,
+    e2b_runtime_config,
 )
 from agent.service.sandbox import AgentSandboxConfig
 
@@ -64,6 +66,7 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
         self._artifacts = ArtifactBudget(artifact_owners)
         self._default_skill_id = next(iter(artifact_owners.values()), None)
         self._sandbox: AsyncSandbox | None = None
+        self._browsable = False
         self._timeout = 0
         self._lock = asyncio.Lock()
         self.file_backend = E2BFiles(self)
@@ -76,14 +79,23 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
     async def _get_sandbox(self) -> AsyncSandbox:
         if self._sandbox is not None:
             return self._sandbox
-        api_key, timeout, allow_internet = await _fetch_e2b_runtime_config(self._config)
+        metadata = {}
+        if self._config.console:
+            policy = await _fetch_runtime_policy(self._config)
+            api_key, timeout, allow_internet = e2b_runtime_config(policy)
+            metadata = policy.get("workspaceMetadata", {})
+        else:
+            api_key, timeout, allow_internet = await _fetch_e2b_runtime_config(
+                self._config
+            )
         try:
             sandbox = await AsyncSandbox.create(
                 api_key=api_key,
                 # Keep the workspace across model decisions. The configured
-                # timeout still bounds each command and graph cleanup kills the VM.
+                # timeout still bounds each command. Browsable instances expire in E2B.
                 timeout=MAX_SANDBOX_TIMEOUT_SECONDS,
                 allow_internet_access=allow_internet,
+                metadata=metadata or None,
             )
             self._sandbox = sandbox
             self._timeout = timeout
@@ -96,6 +108,7 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
                     user="root",
                 )
             await sandbox.files.make_dir(SANDBOX_OUTPUT_DIRECTORY, user="user")
+            self._browsable = bool(metadata)
         except asyncio.CancelledError:
             await self._close_sandbox()
             raise
@@ -186,10 +199,14 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
 
     async def aclose(self) -> None:
         async with self._lock:
+            if self._browsable:
+                self._sandbox = None
+                return
             await self._close_sandbox()
 
     async def _close_sandbox(self) -> None:
         sandbox, self._sandbox = self._sandbox, None
+        self._browsable = False
         if sandbox is None:
             return
         try:

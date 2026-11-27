@@ -42,13 +42,13 @@ OpenAI / Google 请求级客户端在运行结束、异常和取消后关闭。A
 
 Compose 默认使用 Console 的对象存储配置，可以用 `AGENT_WORKSPACE_S3_ENDPOINT`、`AGENT_WORKSPACE_S3_BUCKET`、`AGENT_WORKSPACE_S3_ACCESS_KEY` 和 `AGENT_WORKSPACE_S3_SECRET_KEY` 覆盖。Helm 使用现有 MinIO Secret 和 Console 存储桶。工作区对象位于 `agent-workspaces/` 前缀，可按部署的保留策略管理。
 
-启用沙箱时，普通文件工具和 `execute` 使用当前沙箱的工作目录。文件工具可直接操作 `/output/report.txt`。E2B 使用 `/home/user/workspace`，实例随运行回收。Docker 使用 Console 保存的 Agent 目录，文件保留在持久卷。Skill 文件由独立的只读 `/skills/` 挂载提供。
+启用沙箱时，普通文件工具和 `execute` 使用当前沙箱的工作目录。文件工具可直接操作 `/output/report.txt`。E2B 使用 `/home/user/workspace`，文件面板可查看和下载仍在线的 Console 调试及对话实例中的文件。Docker 使用 Console 保存的 Agent 目录，文件保留在持久卷。Skill 文件由独立的只读 `/skills/` 挂载提供。
 
 ### Agent 沙箱
 
 Console 按执行所属的个人或空间解析已启用的沙箱，通过内部请求的 `sandbox` 字段传递开关和提供方。Core Agent 按提供方打开实现 Deep Agents `SandboxBackendProtocol` 的后端，框架据此提供通用 `execute`。Agent 即使没有 Skill 或插件，也可以在已选沙箱中运行命令。
 
-提供方在 `engine/sandbox.py` 注册，负责隔离环境的创建、执行与清理。E2B 适配器使用官方 SDK，通过 Console 内部凭据服务取密钥。它复用平台现有的命令输出限制和产物上传流程。Agent 同一次运行中的命令共用沙箱，结束或取消时释放。文件工具的临时状态与 E2B 工作目录各自存储。
+提供方在 `engine/sandbox.py` 注册，负责隔离环境的创建、执行与清理。E2B 适配器使用官方 SDK，通过 Console 内部凭据服务取密钥。它复用平台现有的命令输出限制和产物上传流程。Agent 同一次运行中的命令共用沙箱。可浏览的实例正常结束后由 E2B 在实例到期时回收。文件工具的临时状态与 E2B 工作目录各自存储。
 
 ### Agent Skill
 

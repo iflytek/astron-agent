@@ -7,7 +7,6 @@ import {
   Modal,
   Select,
   Skeleton,
-  Slider,
   Switch,
   message,
 } from 'antd';
@@ -1081,7 +1080,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                       <InputNumber
                         id="agent-tool-loop-count"
                         min={1}
-                        max={50}
                         precision={0}
                         value={draft.maxLoopCount || 5}
                         disabled={busy}
@@ -1090,14 +1088,6 @@ function Workspace({ id, mode }: { id: number; mode: 'edit' | 'chat' }) {
                         }}
                       />
                     </div>
-                    <Slider
-                      aria-label="最大工具决策轮数"
-                      min={1}
-                      max={50}
-                      value={draft.maxLoopCount || 5}
-                      disabled={busy}
-                      onChange={value => patch({ maxLoopCount: value })}
-                    />
                     <p>限制单次回答中调用工具的决策轮数。</p>
                   </div>
                   <label className="agent-prompt-field">

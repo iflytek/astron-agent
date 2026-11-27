@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import mimetypes
 import os
@@ -247,7 +248,7 @@ async def _fetch_runtime_policy(
     sandbox_config: dict[str, Any], *, local_available: bool = False
 ) -> dict[str, Any]:
     query = _runtime_config_query(sandbox_config)
-    if local_available:
+    if local_available or sandbox_config.get("console"):
         context = sandbox_config["artifact_context"]
         query.update(
             purpose="workflow",
@@ -513,6 +514,7 @@ async def _create_e2b_sandbox(
             metadata={
                 "workflow_id": str(sandbox_config.get("workflow_id") or ""),
                 "node_id": str(sandbox_config.get("node_id") or ""),
+                **(policy.get("workspaceMetadata", {}) if policy else {}),
             },
         )
     except Exception:
@@ -538,10 +540,10 @@ class E2BExecutor(BaseExecutor):
     ) -> str:
         sandbox_config = _require_sandbox_config(language, kwargs.get("sandbox") or {})
         policy = None
-        if sandbox_config.get("console") and os.getenv("LOCAL_SANDBOX_URL"):
+        if sandbox_config.get("console"):
             try:
                 policy = await _fetch_runtime_policy(
-                    sandbox_config, local_available=True
+                    sandbox_config, local_available=bool(os.getenv("LOCAL_SANDBOX_URL"))
                 )
                 if policy.get("provider") == "docker":
                     return await self._execute_in_local(
@@ -552,6 +554,7 @@ class E2BExecutor(BaseExecutor):
                     CodeEnum.CODE_EXECUTION_ERROR, err_msg=str(exc)
                 ) from None
         sandbox, execution_timeout = await _create_e2b_sandbox(sandbox_config, policy)
+        keep_workspace = bool(policy and policy.get("workspaceMetadata"))
         workspace = "/home/user/code"
         main_path = f"{workspace}/main.py"
         try:
@@ -566,12 +569,16 @@ class E2BExecutor(BaseExecutor):
             )
         except CustomException:
             raise
+        except asyncio.CancelledError:
+            keep_workspace = False
+            raise
         except Exception as err:
             raise CustomException(
                 err_code=CodeEnum.CODE_EXECUTION_ERROR, cause_error=err
             ) from err
         finally:
-            await _kill_sandbox(sandbox)
+            if not keep_workspace:
+                await _kill_sandbox(sandbox)
 
     async def _execute_in_local(
         self,

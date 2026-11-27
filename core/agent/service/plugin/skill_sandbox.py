@@ -278,7 +278,7 @@ async def _fetch_runtime_policy(
     config: "SkillSandboxConfig", *, docker: bool = False
 ) -> dict[str, Any]:
     query = _runtime_config_query(config)
-    if docker:
+    if docker or config.console:
         query.update(
             purpose="agent",
             rootId=config.root_id,
@@ -314,8 +314,11 @@ async def _fetch_runtime_policy(
 async def _fetch_e2b_runtime_config(
     config: "SkillSandboxConfig",
 ) -> tuple[str, int, bool]:
+    return e2b_runtime_config(await _fetch_runtime_policy(config))
+
+
+def e2b_runtime_config(data: dict[str, Any]) -> tuple[str, int, bool]:
     try:
-        data = await _fetch_runtime_policy(config)
         provider = data.get("provider")
         api_key = data.get("apiKey")
         timeout_seconds = data.get("timeoutSeconds")
