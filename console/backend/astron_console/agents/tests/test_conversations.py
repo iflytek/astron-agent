@@ -1,6 +1,7 @@
 import asyncio
 import json
 from unittest.mock import patch
+from uuid import uuid4
 
 from asgiref.sync import async_to_sync, sync_to_async
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -107,6 +108,142 @@ class ConversationTests(TransactionTestCase):
         ):
             output = async_to_sync(collect)()
             return output, remember.call_count
+
+    @override_settings(WORKFLOW_INTERNAL_API_KEY="a" * 36)
+    def test_steering_receipt_order_history_and_atomic_close(self):
+        run = self.new_run()
+        run.steering = {"closed": False, "messages": []}
+        run.save(update_fields=["steering"])
+        url = f"/agents/{self.agent.pk}/sessions/{self.session.pk}/runs/{run.pk}/steering"
+        internal = f"/agents/internal/runs/{run.pk}/steering"
+        input_data = {"id": str(uuid4()), "message": "缩短答案"}
+        headers = {"HTTP_X_WORKFLOW_INTERNAL_KEY": "a" * 36}
+        self.assertEqual(self.post(url, input_data).json()["data"], input_data)
+        self.assertEqual(self.post(url, input_data).json()["data"], input_data)
+        self.assertEqual(self.post(internal, {"after": 0, "final": True}).status_code, 403)
+        self.assertEqual(
+            self.client.post(
+                internal, {"after": 0, "final": True}, "application/json", **headers
+            ).json()["data"]["messages"],
+            [input_data],
+        )
+        self.assertEqual(
+            self.client.post(
+                internal, {"after": 1, "final": True}, "application/json", **headers
+            ).json()["data"]["messages"],
+            [],
+        )
+        self.assertEqual(self.post(url, {"id": str(uuid4()), "message": "late"}).status_code, 409)
+        self.assertEqual(self.post(url, input_data).json()["data"], input_data)
+        output, _ = self.collect(
+            run,
+            [
+                {"choices": [{"delta": {"tool_calls": [{"id": "tool"}], "content": "old"}}]},
+                {"steering_input_ids": [input_data["id"]]},
+                {"choices": [{"delta": {"content": "new"}, "finish_reason": "stop"}]},
+                "[DONE]",
+            ],
+        )
+        self.assertLess(
+            next(i for i, event in enumerate(output) if "event: tool" in event),
+            next(i for i, event in enumerate(output) if "event: steering" in event),
+        )
+        run.refresh_from_db()
+        self.assertEqual(run.answer, "new")
+        self.assertEqual(run.events[-1]["data"], {**input_data, "previousAnswer": "old"})
+        self.assertEqual(conversations.run_data(run)["pendingSteering"], [])
+        self.assertEqual(conversations.history_for(self.session)[0]["content"], "hello\n\n缩短答案")
+
+    def test_steering_rejects_other_sessions_and_preserves_unreceived_input_after_stop(self):
+        run = self.new_run()
+        run.steering = {"closed": False, "messages": []}
+        run.save(update_fields=["steering"])
+        url = f"/agents/{self.agent.pk}/sessions/{self.session.pk}/runs/{run.pk}/steering"
+        other_session = AgentSession.objects.create(agent_id=self.agent.pk, uid=self.owner.pk)
+        wrong_url = url.replace(self.session.pk, other_session.pk)
+        input_data = {"id": str(uuid4()), "message": "Use the latest results"}
+        self.assertEqual(self.post(wrong_url, input_data).status_code, 404)
+        self.client.force_login(self.other)
+        self.assertEqual(self.post(url, input_data).status_code, 403)
+        self.client.force_login(self.owner)
+        self.assertEqual(self.post(url, input_data).status_code, 200)
+        self.post(f"/agents/{self.agent.pk}/runs/{run.pk}/stop", {})
+        self.assertEqual(self.post(url, {"id": str(uuid4()), "message": "late"}).status_code, 409)
+        self.collect(run, ["[DONE]"])
+        run.refresh_from_db()
+        self.assertEqual(run.status, "cancelled")
+        self.assertEqual(conversations.run_data(run)["pendingSteering"], [input_data])
+
+    def test_stop_at_upstream_termination_keeps_received_steering_in_next_turn(self):
+        for send_done in (True, False):
+            with self.subTest(send_done=send_done):
+                run = self.new_run()
+                received = {"id": str(uuid4()), "message": "Use the latest results"}
+                pending = {"id": str(uuid4()), "message": "Unreceived input"}
+                run.steering = {"closed": False, "messages": [received, pending]}
+                run.save(update_fields=["steering"])
+
+                async def upstream(payload, run=run, received=received, send_done=send_done):
+                    yield json.dumps({"steering_input_ids": [received["id"]]})
+                    yield json.dumps(
+                        {"choices": [{"delta": {"content": "partial"}, "finish_reason": "stop"}]}
+                    )
+                    await AgentRun.objects.filter(pk=run.pk).aupdate(cancel_requested=True)
+                    if send_done:
+                        yield "[DONE]"
+
+                async def collect(run=run):
+                    return [
+                        event
+                        async for event in conversations.stream_run(
+                            run, {}, self.agent, self.scope, use_memory=False
+                        )
+                    ]
+
+                with patch.object(conversations, "upstream", upstream):
+                    events = async_to_sync(collect)()
+                self.assertIn('"status": "cancelled"', events[-1])
+                self.assertFalse(any("event: error" in event for event in events))
+                run.refresh_from_db()
+                self.assertEqual(run.status, "cancelled")
+                self.assertEqual(conversations.run_data(run)["pendingSteering"], [pending])
+                request = RequestFactory().post("/")
+                request.user = self.owner
+                request.payload = {"message": "Continue"}
+                next_run, payload, _, _ = conversations.prepare(
+                    request, self.agent.pk, self.session.pk
+                )
+                self.assertEqual(len(payload["messages"]), 1)
+                self.assertTrue(
+                    payload["messages"][0]["content"].endswith("Use the latest results\n\nContinue")
+                )
+                self.assertNotIn("Unreceived input", payload["messages"][0]["content"])
+                next_run.delete()
+
+    def test_regeneration_history_retains_only_steering_not_already_replayed(self):
+        original = AgentRun.objects.create(
+            session=self.session, question="Write the report", answer="Draft", status="completed"
+        )
+        input_data = {"id": str(uuid4()), "message": "Use metric units"}
+        retry = AgentRun.objects.create(
+            session=self.session,
+            question=original.question,
+            status="failed",
+            regenerate_id=original.pk,
+            events=[{"type": "steering", "data": input_data}],
+        )
+        request = RequestFactory().post("/")
+        request.user = self.owner
+        for target in (original, retry):
+            request.payload = {"regenerateId": target.pk}
+            run, payload, _, _ = conversations.prepare(request, self.agent.pk, self.session.pk)
+            self.assertEqual(payload["messages"][-1]["content"].count(input_data["message"]), 1)
+            run.answer = "New draft"
+            conversations.checkpoint(run, final="completed")
+            history = conversations.history_for(self.session)
+            self.assertEqual(
+                sum(message["content"].count(input_data["message"]) for message in history), 1
+            )
 
     def test_completion_tool_and_knowledge_are_saved(self):
         run = self.new_run()

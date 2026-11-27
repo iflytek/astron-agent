@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import copy from 'copy-to-clipboard';
+import { v4 as uuid } from 'uuid';
 import { Alert, Button, Drawer, Modal, Skeleton } from 'antd';
 import {
   PaperClipOutlined,
@@ -21,6 +22,7 @@ import {
   deleteAgentSession,
   getAgentMessages,
   listAgentSessions,
+  steerAgentRun,
   stopAgentRun,
   streamAgentRun,
   uploadAgentFile,
@@ -29,16 +31,41 @@ import {
   type AgentKind,
   type AgentRun,
   type AgentSession,
+  type AgentSteering,
 } from '@/services/agents';
 import AgentComposer from './composer';
 import { errorText } from './errors';
 import { isFileAvailable, inputFiles, needsFileUpload } from './files';
 import {
+  hasReceivedSteering,
   interruptRun,
   reduceRun,
   statusText,
   type RunEvent,
 } from './run-state';
+
+function SteeringMessage({
+  input,
+  status,
+}: {
+  input: AgentSteering;
+  status: string;
+}) {
+  return (
+    <div className="agent-steering-message">
+      {input.previousAnswer && (
+        <details className="agent-tool-trace">
+          <summary>调整前的回答</summary>
+          <MarkdownRender content={input.previousAnswer} isSending={false} />
+        </details>
+      )}
+      <div className="agents-question">
+        <span role="status">{status}</span>
+        <p>{input.message}</p>
+      </div>
+    </div>
+  );
+}
 
 function Attachment({ agentId, file }: { agentId: number; file: AgentFile }) {
   if (!isFileAvailable(file))
@@ -146,6 +173,25 @@ export function EventDetails({ events }: { events: AgentRun['events'] }) {
           return (
             <KnowledgeReferences key={index} references={data.references} />
           );
+        if (
+          event.type === 'steering' &&
+          typeof data.id === 'string' &&
+          typeof data.message === 'string'
+        )
+          return (
+            <SteeringMessage
+              key={data.id}
+              input={{
+                id: data.id,
+                message: data.message,
+                previousAnswer:
+                  typeof data.previousAnswer === 'string'
+                    ? data.previousAnswer
+                    : undefined,
+              }}
+              status="已接收指令"
+            />
+          );
         return null;
       })}
     </div>
@@ -200,6 +246,9 @@ function ToolCallDetails({ data }: { data: Record<string, unknown> }) {
 
 export function RunEvents({ run }: { run: AgentRun }) {
   const events = run.events || [];
+  if (events.some(event => event.type === 'steering')) {
+    return <EventDetails events={events} />;
+  }
   const tools = events.filter(event => event.type === 'tool');
   return (
     <>
@@ -227,8 +276,9 @@ export function hasVisibleRunOutput(run: AgentRun): boolean {
     run.answer ||
       run.status !== 'running' ||
       run.files?.some(file => file.direction === 'output') ||
+      run.pendingSteering?.length ||
       run.events?.some(event =>
-        ['tool', 'knowledge', 'error'].includes(String(event.type))
+        ['tool', 'knowledge', 'error', 'steering'].includes(String(event.type))
       )
   );
 }
@@ -253,6 +303,8 @@ function SessionMessages({
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [steering, setSteering] = useState(false);
+  const [steeringError, setSteeringError] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [historyError, setHistoryError] = useState('');
@@ -265,10 +317,40 @@ function SessionMessages({
   const runId = useRef('');
   const alive = useRef(true);
   const sending = useRef(false);
+  const steeringInFlight = useRef<string | null>(null);
+  const retrySteering = useRef<
+    (AgentSteering & { runId: string; draft: string }) | null
+  >(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const messageList = useRef<HTMLDivElement>(null);
   const followsLatest = useRef(true);
   const [copiedId, setCopiedId] = useState('');
+  const confirmSteering = useCallback((runId: string, inputId: string) => {
+    const pending = retrySteering.current;
+    if (!pending || pending.runId !== runId || pending.id !== inputId) return;
+    retrySteering.current = null;
+    if (steeringInFlight.current === inputId) {
+      steeringInFlight.current = null;
+      setSteering(false);
+    }
+    setQuestion(current => (current === pending.draft ? '' : current));
+    setSteeringError('');
+  }, []);
+  const reconcileSteering = useCallback(
+    (rows: AgentRun[]) => {
+      const pending = retrySteering.current;
+      if (!pending) return;
+      const row = rows.find(run => run.id === pending.runId);
+      if (
+        row &&
+        (hasReceivedSteering(row, pending.id) ||
+          row.pendingSteering?.some(input => input.id === pending.id))
+      ) {
+        confirmSteering(row.id, pending.id);
+      }
+    },
+    [confirmSteering]
+  );
   useEffect(() => {
     if (followsLatest.current && messageList.current) {
       messageList.current.scrollTop = messageList.current.scrollHeight;
@@ -283,6 +365,7 @@ function SessionMessages({
     getAgentMessages(agent.id, session.id)
       .then(result => {
         if (active) {
+          reconcileSteering(result);
           setRuns(result);
           setHistoryError('');
           setHistoryLoaded(true);
@@ -299,16 +382,55 @@ function SessionMessages({
       alive.current = false;
       stream.current?.abort();
     };
-  }, [agent.id, session.id, historyRevision, refreshRevision]);
+  }, [
+    agent.id,
+    session.id,
+    historyRevision,
+    refreshRevision,
+    reconcileSteering,
+  ]);
 
   useEffect(() => {
-    onRefreshStateChange(busy || stopping || loading);
-  }, [busy, stopping, loading, onRefreshStateChange]);
+    onRefreshStateChange(busy || steering || stopping || loading);
+  }, [busy, steering, stopping, loading, onRefreshStateChange]);
 
-  const running = runs.some(run => run.status === 'running');
+  const activeRun = runs.find(run => run.status === 'running');
+  const running = Boolean(activeRun);
+  const steerableRunId =
+    activeRun && !activeRun.id.startsWith('pending-') ? activeRun.id : '';
+  useEffect(() => {
+    if (busy || stopping || loading || !steerableRunId) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async (): Promise<void> => {
+      try {
+        const result = await getAgentMessages(agent.id, session.id);
+        if (active) {
+          reconcileSteering(result);
+          setRuns(result);
+        }
+      } catch {
+        // The next poll can recover a transient history request failure.
+      }
+      if (active) timer = setTimeout(poll, 1500);
+    };
+    timer = setTimeout(poll, 1500);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [
+    agent.id,
+    session.id,
+    busy,
+    stopping,
+    loading,
+    steerableRunId,
+    reconcileSteering,
+  ]);
   useEffect(() => {
     onGuardChange(
-      busy || stopping || running
+      busy || steering || stopping || running
         ? '离开会断开当前运行的反馈连接；服务端运行状态可在历史中重新读取。'
         : question.trim() || files.length || uploading
           ? '当前消息或附件尚未发送，离开后会丢失。'
@@ -317,6 +439,7 @@ function SessionMessages({
     return () => onGuardChange('');
   }, [
     busy,
+    steering,
     stopping,
     running,
     question,
@@ -328,6 +451,7 @@ function SessionMessages({
   const refresh = async () => {
     const result = await getAgentMessages(agent.id, session.id);
     if (alive.current) {
+      reconcileSteering(result);
       setRuns(result);
       setHistoryError('');
       setHistoryLoaded(true);
@@ -339,6 +463,7 @@ function SessionMessages({
   const send = async (previous?: AgentRun) => {
     if (
       sending.current ||
+      steeringInFlight.current ||
       stopping ||
       uploading ||
       loading ||
@@ -371,6 +496,7 @@ function SessionMessages({
     };
     const pendingId = attempt.id;
     setError('');
+    setSteeringError('');
     setBusy(true);
     setStopping(false);
     setRuns(current => [...current, attempt]);
@@ -379,13 +505,23 @@ function SessionMessages({
     followsLatest.current = true;
     const apply = (event: RunEvent) => {
       attempt = reduceRun(attempt, event);
-      if (alive.current)
+      const next = attempt;
+      if (event.type === 'run') runId.current = next.id;
+      if (alive.current) {
+        if (event.type === 'steering')
+          confirmSteering(next.id, String(event.data.id));
         setRuns(current =>
-          current.map(row =>
-            row.id === pendingId || row.id === runId.current ? attempt : row
-          )
+          current.map(row => {
+            if (row.id !== pendingId && row.id !== next.id) return row;
+            return {
+              ...next,
+              pendingSteering: row.pendingSteering?.filter(
+                item => !hasReceivedSteering(next, item.id)
+              ),
+            };
+          })
         );
-      if (event.type === 'run') runId.current = attempt.id;
+      }
     };
     try {
       await streamAgentRun(
@@ -401,6 +537,7 @@ function SessionMessages({
           onDelta: data => apply({ type: 'delta', data }),
           onTool: data => apply({ type: 'tool', data }),
           onKnowledge: data => apply({ type: 'knowledge', data }),
+          onSteering: data => apply({ type: 'steering', data: { ...data } }),
           onError: data => apply({ type: 'error', data }),
           onEnd: data => apply({ type: 'end', data }),
         },
@@ -413,7 +550,9 @@ function SessionMessages({
         attempt = interruptRun(attempt, message);
         setRuns(current =>
           current.map(row =>
-            row.id === pendingId || row.id === runId.current ? attempt : row
+            row.id === pendingId || row.id === runId.current
+              ? { ...attempt, pendingSteering: row.pendingSteering }
+              : row
           )
         );
         setError(message);
@@ -424,6 +563,60 @@ function SessionMessages({
       sending.current = false;
       if (alive.current) {
         setBusy(false);
+      }
+    }
+  };
+
+  const steer = async (): Promise<void> => {
+    const message = question.trim();
+    if (!message || !steerableRunId || stopping || steeringInFlight.current)
+      return;
+    const previous = retrySteering.current;
+    const id =
+      previous?.runId === steerableRunId && previous.message === message
+        ? previous.id
+        : uuid();
+    retrySteering.current = {
+      id,
+      message,
+      runId: steerableRunId,
+      draft: question,
+    };
+    steeringInFlight.current = id;
+    setSteering(true);
+    setSteeringError('');
+    try {
+      const accepted = await steerAgentRun(
+        agent.id,
+        session.id,
+        steerableRunId,
+        {
+          id,
+          message,
+        }
+      );
+      if (!alive.current) return;
+      confirmSteering(steerableRunId, accepted.id);
+      followsLatest.current = true;
+      setRuns(current =>
+        current.map(row => {
+          const pending = row.pendingSteering || [];
+          if (
+            row.id !== steerableRunId ||
+            hasReceivedSteering(row, accepted.id) ||
+            pending.some(item => item.id === accepted.id)
+          )
+            return row;
+          return { ...row, pendingSteering: [...pending, accepted] };
+        })
+      );
+    } catch (reason) {
+      if (alive.current && retrySteering.current?.id === id)
+        setSteeringError(errorText(reason));
+    } finally {
+      if (steeringInFlight.current === id) {
+        steeringInFlight.current = null;
+        if (alive.current) setSteering(false);
       }
     }
   };
@@ -444,6 +637,7 @@ function SessionMessages({
       for (let retry = 0; retry < 40 && alive.current; retry++) {
         const result = await getAgentMessages(agent.id, session.id);
         if (!alive.current) return;
+        reconcileSteering(result);
         setRuns(result);
         const stopped = result.find(row => row.id === runId.current);
         if (stopped && stopped.status !== 'running') {
@@ -560,6 +754,17 @@ function SessionMessages({
                         isSending={busy && index === runs.length - 1}
                       />
                     )}
+                    {run.pendingSteering?.map(input => (
+                      <SteeringMessage
+                        key={input.id}
+                        input={input}
+                        status={
+                          run.status === 'running'
+                            ? '等待接收指令'
+                            : '未接收指令'
+                        }
+                      />
+                    ))}
                     {run.files
                       ?.filter(file => file.direction === 'output')
                       .map(file => (
@@ -647,16 +852,31 @@ function SessionMessages({
           </button>
         </div>
       )}
+      {steeringError && (
+        <div role="alert" className="agents-error">
+          {steeringError}
+        </div>
+      )}
       <AgentComposer
         value={question}
-        onChange={setQuestion}
-        onSend={() => void send()}
+        onChange={value => {
+          setQuestion(value);
+          setSteeringError('');
+        }}
+        onSend={() => void (busy || running ? steer() : send())}
         onStop={() => void stop()}
         active={busy || stopping || running}
+        steerable
         stopping={stopping}
-        disabled={busy || stopping || loading}
+        disabled={loading}
         sendDisabled={
-          loading || !historyLoaded || uploading || running || !question.trim()
+          loading ||
+          !historyLoaded ||
+          uploading ||
+          stopping ||
+          steering ||
+          ((busy || running) && !steerableRunId) ||
+          !question.trim()
         }
         stopDisabled={
           !runId.current &&
@@ -667,6 +887,7 @@ function SessionMessages({
         uploading={uploading}
         files={files}
         fileInput={fileInput}
+        uploadDisabled={busy || stopping || running}
         onUpload={selected => void upload(selected)}
         onRemove={id =>
           setFiles(current => current.filter(item => item.id !== id))

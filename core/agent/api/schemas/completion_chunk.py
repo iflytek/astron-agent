@@ -43,3 +43,6 @@ class ReasonChatCompletionChunk(ChatCompletionChunk):
     ]
     logs: list[str] = Field(default_factory=list)
     knowledge_metadata: list[str] = Field(default_factory=list)
+    steering_input_ids: list[str] = Field(
+        default_factory=list, exclude_if=lambda ids: not ids
+    )

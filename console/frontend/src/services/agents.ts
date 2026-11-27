@@ -92,6 +92,13 @@ export interface AgentRun {
   status: 'completed' | 'failed' | 'cancelled' | 'interrupted' | 'running';
   createdAt: string;
   files?: AgentFile[];
+  pendingSteering?: AgentSteering[];
+}
+
+export interface AgentSteering {
+  id: string;
+  message: string;
+  previousAnswer?: string;
 }
 
 export interface AgentMemoryConfig {
@@ -111,10 +118,11 @@ export interface AgentMemoryItem {
 }
 
 export interface AgentStreamHandlers {
-  onRun?: (data: { id: string; sessionId: string }) => void;
+  onRun?: (data: { id: string; sessionId: string; question?: string }) => void;
   onDelta?: (data: { content?: string; reasoningContent?: string }) => void;
   onTool?: (data: Record<string, unknown>) => void;
   onKnowledge?: (data: { references?: unknown[] }) => void;
+  onSteering?: (data: AgentSteering) => void;
   onError?: (data: { code?: number; message?: string }) => void;
   onEnd?: (data: { id: string; status: AgentRun['status'] }) => void;
 }
@@ -210,6 +218,17 @@ export const getAgentMessages = (id: number | string, sessionId: string) =>
 export const stopAgentRun = (id: number | string, runId: string) =>
   http.post(`/agents/${id}/runs/${runId}/stop`);
 
+export const steerAgentRun = (
+  id: number | string,
+  sessionId: string,
+  runId: string,
+  input: AgentSteering
+) =>
+  http.post<unknown, AgentSteering>(
+    `/agents/${id}/sessions/${sessionId}/runs/${runId}/steering`,
+    input
+  );
+
 export const uploadAgentFile = (id: number | string, file: File) => {
   const form = new FormData();
   form.append('file', file);
@@ -275,7 +294,9 @@ export const streamAgentRun = async (
         >;
         switch (event.event) {
           case 'run':
-            handlers.onRun?.(value as { id: string; sessionId: string });
+            handlers.onRun?.(
+              value as { id: string; sessionId: string; question?: string }
+            );
             break;
           case 'delta':
             handlers.onDelta?.(
@@ -287,6 +308,13 @@ export const streamAgentRun = async (
             break;
           case 'knowledge':
             handlers.onKnowledge?.(value as { references?: unknown[] });
+            break;
+          case 'steering':
+            if (
+              typeof value.id === 'string' &&
+              typeof value.message === 'string'
+            )
+              handlers.onSteering?.(value as unknown as AgentSteering);
             break;
           case 'error':
             handlers.onError?.(value as { code?: number; message?: string });

@@ -1,12 +1,34 @@
-import type { AgentRun } from '@/services/agents';
+import type { AgentRun, AgentSteering } from '@/services/agents';
 
 export type RunEvent = { type: string; data: Record<string, unknown> };
+
+export function hasReceivedSteering(run: AgentRun, id: string): boolean {
+  return Boolean(
+    run.events?.some(
+      event =>
+        event.type === 'steering' && (event.data as AgentSteering)?.id === id
+    )
+  );
+}
 
 /** Events append to the actual attempt; failure never erases already received output. */
 export function reduceRun(run: AgentRun, event: RunEvent): AgentRun {
   const data = event.data;
   if (event.type === 'run')
-    return { ...run, id: String(data.id), status: 'running' };
+    return {
+      ...run,
+      id: String(data.id),
+      question:
+        typeof data.question === 'string' ? data.question : run.question,
+      status: 'running',
+    };
+  if (event.type === 'steering')
+    return {
+      ...run,
+      answer: '',
+      pendingSteering: run.pendingSteering?.filter(item => item.id !== data.id),
+      events: [...(run.events || []), event],
+    };
   if (event.type === 'delta')
     return {
       ...run,

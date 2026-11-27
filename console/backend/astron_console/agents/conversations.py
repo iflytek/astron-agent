@@ -20,9 +20,14 @@ from .conversation_models import AgentFile, AgentRun, AgentSession
 from .definitions import definition, get_agent, resolve_version
 from .files import file_data
 from .resource_resolution import resolve_resources, snapshot_references
+from .steering import pending_messages, received_messages, record_received
 
 logger = logging.getLogger(__name__)
 KEEPALIVE_SECONDS = 10
+UPSTREAM_DISCONNECTED = {
+    "code": "upstream_disconnected",
+    "message": "Agent服务在完成前断开，已保存收到的部分内容",
+}
 
 
 def session_data(row):
@@ -47,6 +52,7 @@ def run_data(row):
         "createdAt": row.create_time,
         "files": row.files + [file_data(x) for x in outputs],
         "regenerateId": row.regenerate_id,
+        "pendingSteering": pending_messages(row),
     }
 
 
@@ -143,38 +149,64 @@ def input_content(question, uploads):
     return content
 
 
-def history_for(session, before=None):
+def run_question(row):
+    return "\n\n".join([row.question, *(item["message"] for item in received_messages(row))])
+
+
+def included_steering_ids(row):
+    return [
+        *row.steering.get("replayedIds", []),
+        *(item["id"] for item in received_messages(row)),
+    ]
+
+
+def append_user_message(messages, content):
+    if messages and messages[-1]["role"] == "user":
+        messages[-1]["content"] += "\n\n" + content
+    else:
+        messages.append({"role": "user", "content": content})
+
+
+def session_turns(session):
     runs = list(AgentRun.objects.filter(session=session).order_by("create_time", "id"))
-    roots, turns, positions = {}, {}, []
+    roots, turns, steered = {}, {}, {}
     for row in runs:
         root = roots.get(row.regenerate_id, row.regenerate_id) if row.regenerate_id else row.pk
         roots[row.pk] = root
-        if root not in positions:
-            positions.append(root)
+        turns.setdefault(root, None)
         # A failed retry does not erase an earlier completed answer.
         if row.status == "completed" and row.answer:
             turns[root] = row
+        if row.status != "running":
+            for item in received_messages(row):
+                steered.setdefault(root, {}).setdefault(item["id"], item["message"])
+    return roots, turns, steered
+
+
+def history_for(session, before=None, *, turn_index=None):
+    roots, turns, steered = turn_index if turn_index is not None else session_turns(session)
+    positions = list(turns)
     if before is not None:
         root = roots.get(before.pk, before.pk)
         positions = positions[: positions.index(root)]
     result = []
     for root in positions[-20:]:
-        row = turns.get(root)
-        if row is None:
-            continue
-        uploads = AgentFile.objects.filter(
-            pk__in=[f["id"] for f in row.files if f.get("id")],
-            agent_id=session.agent_id,
-            uid=session.uid,
-            space_id=session.space_id,
-            direction="input",
-        )
-        result.extend(
-            [
-                {"role": "user", "content": input_content(row.question, uploads)},
-                {"role": "assistant", "content": row.answer},
-            ]
-        )
+        row = turns[root]
+        included = set(included_steering_ids(row)) if row else set()
+        instructions = steered.get(root, {})
+        if row is not None:
+            uploads = AgentFile.objects.filter(
+                pk__in=[f["id"] for f in row.files if f.get("id")],
+                agent_id=session.agent_id,
+                uid=session.uid,
+                space_id=session.space_id,
+                direction="input",
+            )
+            append_user_message(result, input_content(run_question(row), uploads))
+            result.append({"role": "assistant", "content": row.answer})
+        for item_id, message in instructions.items():
+            if item_id not in included:
+                append_user_message(result, message)
     return result
 
 
@@ -199,8 +231,12 @@ def prepare(request, agent_id, session_id):
         target = AgentRun.objects.filter(pk=values["regenerateId"], session=session).first()
         if not target or target.status == "running":
             raise ValidationError("重答目标不存在或仍在生成")
-    question = target.question if target else values.get("message", "")
-    if not isinstance(question, str) or not question.strip() or len(question) > 32000:
+    question = run_question(target) if target else values.get("message", "")
+    if (
+        not isinstance(question, str)
+        or not question.strip()
+        or (not target and len(question) > 32000)
+    ):
         raise ValidationError("问题不能为空或超过32000字符")
     version_id = values.get("versionId")
     if session.kind == "debug" and version_id is not None:
@@ -223,15 +259,25 @@ def prepare(request, agent_id, session_id):
     )
     if len(uploads) != len(ids):
         raise ValidationError("文件不存在或未授权")
-    content = input_content(question, uploads)
-    if len(content) > 200000:
-        raise ValidationError("本次输入总长度超过200000字符")
-    history = history_for(session, target)
     with transaction.atomic():
         session = AgentSession.objects.select_for_update().get(pk=session.pk)
         recover_interrupted(session)
         if session.active_run_id:
             raise ValidationError("当前会话仍在生成，请先停止")
+        turns = session_turns(session)
+        replayed_ids = []
+        if target:
+            roots, _, steered = turns
+            replayed_ids = included_steering_ids(target)
+            included = set(replayed_ids)
+            for item_id, message in steered.get(roots[target.pk], {}).items():
+                if item_id not in included:
+                    question += "\n\n" + message
+                    replayed_ids.append(item_id)
+        content = input_content(question, uploads)
+        if len(content) > 200000:
+            raise ValidationError("本次输入总长度超过200000字符")
+        history = history_for(session, target, turn_index=turns)
         run = AgentRun.objects.create(
             session=session,
             question=question,
@@ -239,17 +285,23 @@ def prepare(request, agent_id, session_id):
             version_id=version_id,
             regenerate_id=target.pk if target else None,
             files=[file_data(row) for row in uploads],
+            steering={
+                "closed": False,
+                "messages": [],
+                "replayedIds": replayed_ids,
+            },
         )
         session.active_run_id = run.pk
         session.update_time = timezone.now()
         if session.title == "新会话":
             session.title = question[:80]
         session.save()
+    append_user_message(history, content)
     payload = {
         **runtime,
         "uid": scope.uid,
         "stream": True,
-        "messages": history + [{"role": "user", "content": content}],
+        "messages": history,
         "instruction": {"reasoning": prompt_for(config), "answer": prompt_for(config)},
         "max_loop_count": config.get("maxLoopCount", 5),
         "meta_data": {
@@ -260,6 +312,7 @@ def prepare(request, agent_id, session_id):
             "session_id": session.pk,
             "run_id": run.pk,
             "caller_sid": run.pk,
+            "steering": True,
         },
     }
     from astron_console.workflows.execution_context import register_agent_root
@@ -312,14 +365,24 @@ def checkpoint(run, *, final=None, error_code=""):
         "events": run.events,
         "update_time": now,
     }
-    if final:
-        changes.update(status=final, finished_at=now, error_code=str(error_code))
-    with transaction.atomic():
+    if final is None:
         AgentRun.objects.filter(pk=run.pk, status="running").update(**changes)
-        if final:
-            AgentSession.objects.filter(pk=run.session_id, active_run_id=run.pk).update(
-                active_run_id=None, update_time=now
-            )
+        return None
+    with transaction.atomic():
+        # Deletion and run preparation acquire the same locks in session/run order.
+        session = AgentSession.objects.select_for_update().get(pk=run.session_id)
+        row = AgentRun.objects.select_for_update().get(pk=run.pk)
+        if row.status != "running":
+            return row.status
+        if row.cancel_requested:
+            final, error_code = "cancelled", "cancelled"
+        elif error_code == UPSTREAM_DISCONNECTED["code"]:
+            run.events.append({"type": "error", "data": UPSTREAM_DISCONNECTED})
+        changes.update(status=final, finished_at=now, error_code=str(error_code))
+        AgentRun.objects.filter(pk=row.pk).update(**changes)
+        if session.active_run_id == row.pk:
+            AgentSession.objects.filter(pk=session.pk).update(active_run_id=None, update_time=now)
+        return final
 
 
 async def cancellation_requested(run_id):
@@ -361,11 +424,12 @@ async def stream_run(run, payload, agent, scope, *, use_memory=True):
     stream = None
     read_task = None
     finished = done = failed = False
+    replaced_answer_length = 0
     loop = asyncio.get_running_loop()
     last_saved = last_sent = loop.time()
     deadline = loop.time() + settings.AGENT_TIMEOUT_SECONDS
     try:
-        yield sse("run", {"id": run.pk, "sessionId": run.session_id})
+        yield sse("run", {"id": run.pk, "sessionId": run.session_id, "question": run.question})
         memories = (
             await sync_to_async(memory.search)(scope, agent, run.question) if use_memory else []
         )
@@ -413,6 +477,16 @@ async def stream_run(run, payload, agent, scope, *, use_memory=True):
             if not isinstance(chunk, dict):
                 raise ValueError("Invalid upstream event")
             events = []
+            if steering_ids := chunk.get("steering_input_ids"):
+                receipts = await sync_to_async(record_received)(run, steering_ids)
+                replaced_answer_length += len(run.answer)
+                run.answer = ""
+                run.events.extend(receipts)
+                await sync_to_async(checkpoint)(run)
+                logger.info("Agent steering received run=%s count=%s", run.pk, len(receipts))
+                for receipt in receipts:
+                    yield sse("steering", receipt["data"])
+                last_sent = loop.time()
             if chunk.get("code"):
                 failed = True
                 error_code = str(chunk["code"])
@@ -445,7 +519,7 @@ async def stream_run(run, payload, agent, scope, *, use_memory=True):
                     run.events.append({"type": kind, "data": data})
                 yield sse(kind, data)
                 last_sent = loop.time()
-            if len(run.answer) + len(run.reasoning) > 2000000:
+            if replaced_answer_length + len(run.answer) + len(run.reasoning) > 2000000:
                 raise ValueError("Agent response exceeds maximum size")
         if status != "cancelled":
             status = (
@@ -456,12 +530,7 @@ async def stream_run(run, payload, agent, scope, *, use_memory=True):
             if status == "completed":
                 error_code = ""
             if status == "interrupted":
-                event = {
-                    "code": "upstream_disconnected",
-                    "message": "Agent服务在完成前断开，已保存收到的部分内容",
-                }
-                run.events.append({"type": "error", "data": event})
-                yield sse("error", event)
+                error_code = UPSTREAM_DISCONNECTED["code"]
     except (asyncio.CancelledError, GeneratorExit):
         if await cancellation_requested(run.pk):
             status, error_code = "cancelled", "cancelled"
@@ -503,15 +572,21 @@ async def stream_run(run, payload, agent, scope, *, use_memory=True):
         from astron_console.workflows.execution_context import cancel_root
         from astron_console.workflows.models import ExecutionContext
 
+        status = await asyncio.shield(
+            sync_to_async(checkpoint)(run, final=status, error_code=error_code)
+        )
         if status != "completed":
             await asyncio.shield(sync_to_async(cancel_root)(run.pk, status))
         else:
             await sync_to_async(ExecutionContext.objects.filter(pk=run.pk).update)(status=status)
-        await asyncio.shield(sync_to_async(checkpoint)(run, final=status, error_code=error_code))
         logger.info("Agent run ended run=%s agent=%s status=%s", run.pk, agent.pk, status)
+    if status == "interrupted" and error_code == UPSTREAM_DISCONNECTED["code"]:
+        yield sse("error", UPSTREAM_DISCONNECTED)
     if status == "completed" and use_memory:
         try:
-            await sync_to_async(memory.remember)(scope, agent, run.question, run.answer, run.pk)
+            await sync_to_async(memory.remember)(
+                scope, agent, run_question(run), run.answer, run.pk
+            )
         except Exception as exc:
             logger.warning(
                 "Agent memory write failed run=%s error_type=%s", run.pk, type(exc).__name__

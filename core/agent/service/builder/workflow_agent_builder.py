@@ -66,6 +66,7 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                 metadata_list, knowledge = await self.query_knowledge_by_workflow(
                     self.inputs.plugin.knowledge, sp
                 )
+                meta = self.inputs.meta_data
                 engine = DeepAgentsRunner(
                     model_handle=model,
                     plugins=plugins,
@@ -78,6 +79,15 @@ class WorkflowAgentRunnerBuilder(BaseApiBuilder):
                     knowledge=knowledge,
                     question=self.inputs.get_last_message_content(),
                     max_loop=self.inputs.max_loop_count,
+                    steering_run_id=(
+                        meta.run_id
+                        if meta.steering
+                        and self.inputs.stream
+                        and meta.caller in {"console-chat", "console-debug"}
+                        and meta.run_id == meta.console_context.get("root_id")
+                        and meta.run_id == meta.console_context.get("run_id")
+                        else ""
+                    ),
                 )
                 return WorkflowAgentRunner(
                     engine=engine,
