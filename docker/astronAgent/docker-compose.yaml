@@ -794,7 +794,7 @@ services:
 
   # Nginx Reverse Proxy
   nginx:
-    image: nginx:1.25-alpine
+    image: nginx:1.30.7-alpine
     container_name: astron-agent-nginx
     ulimits:
       nofile:

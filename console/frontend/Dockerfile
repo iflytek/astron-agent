@@ -22,7 +22,7 @@ RUN npm run build-prod
 #############################################
 # 2) Runtime：按目标平台各自封装 Nginx 镜像
 #############################################
-FROM nginx:1.15-alpine
+FROM nginx:1.30.7-alpine
 
 # 接收来自 GitHub Actions 的构建参数（可用于打标）
 ARG VERSION
