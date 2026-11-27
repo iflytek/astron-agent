@@ -219,6 +219,18 @@ async def test_tools_budget_and_answer_phase_preserve_platform_protocol(
 
 
 @pytest.mark.asyncio
+async def test_agent_can_use_more_than_fifty_tool_decision_rounds(context: Any) -> None:
+    span, trace, _ = context
+    decisions = 51
+    responses = [call(call_id=f"call-{index}") for index in range(decisions)]
+    runner, model = engine([*responses, answer()], [plugin()], max_loop=decisions)
+    adapter = WorkflowAgentRunner(engine=runner, knowledge_metadata_list=[])
+    chunks = [response async for response in adapter.run(span, trace)]
+    assert len(model.prompts) == decisions + 1
+    assert "".join(chunk.choices[0].delta.content or "" for chunk in chunks) == "done"
+
+
+@pytest.mark.asyncio
 async def test_early_completion_transitions_to_final_answer(context: Any) -> None:
     (span, trace, _) = context
     (runner, model) = engine(

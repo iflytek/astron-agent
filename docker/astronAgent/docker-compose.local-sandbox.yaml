@@ -1,0 +1,73 @@
+# Optional overlay for trusted local Agent and Workflow execution.
+services:
+  console-hub:
+    environment:
+      LOCAL_SANDBOX_URL: http://local-sandbox-runner:8090
+      AITOOLS_BASE_URL: "${AITOOLS_BASE_URL:-http://core-aitools:${CORE_AITOOLS_PORT:-18668}}"
+      OSS_BUCKET_NAME: "${OSS_BUCKET_NAME:-workflow}"
+
+  core-agent:
+    environment:
+      LOCAL_SANDBOX_URL: http://local-sandbox-runner:8090
+
+  core-workflow:
+    environment:
+      LOCAL_SANDBOX_URL: http://local-sandbox-runner:8090
+
+  local-sandbox-runtime:
+    build:
+      context: ./local-sandbox
+      target: runtime
+    container_name: astron-agent-local-sandbox-runtime
+    labels:
+      ai.astron-agent.local-sandbox: runtime
+    user: "10001:10001"
+    network_mode: none
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 1
+    mem_limit: 512m
+    pids_limit: 128
+    tmpfs:
+      - /tmp:size=32m,uid=10001,gid=10001,mode=0700,nosuid,nodev
+      - /skills:size=112m,uid=10001,gid=10001,mode=0700,nosuid,nodev
+    volumes:
+      - local_sandbox_workspace:/workspace
+      - local_sandbox_jobs:/run/sandbox-jobs:ro
+    restart: unless-stopped
+
+  local-sandbox-runner:
+    build:
+      context: ./local-sandbox
+      target: runner
+    user: "0:10001"
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      LOCAL_SANDBOX_CONTAINER: astron-agent-local-sandbox-runtime
+      SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN_FILE: /app/secrets/runtime/sandbox-runtime-credential-token
+    depends_on:
+      internal-credentials-init:
+        condition: service_completed_successfully
+      local-sandbox-runtime:
+        condition: service_started
+    volumes:
+      - type: bind
+        source: ${LOCAL_SANDBOX_DOCKER_SOCKET:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: false
+      - local_sandbox_jobs:/run/sandbox-jobs
+      - sandbox_runtime_credential_secrets:/app/secrets/runtime:ro
+    networks:
+      - astron-agent-network
+    restart: unless-stopped
+
+volumes:
+  local_sandbox_workspace:
+  local_sandbox_jobs:

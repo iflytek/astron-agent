@@ -12,11 +12,16 @@ from deepagents.backends.protocol import (
     FILE_NOT_FOUND,
     PERMISSION_DENIED,
     DeleteResult,
+    EditResult,
     ExecuteResponse,
     FileDownloadResponse,
     FileUploadResponse,
+    GlobResult,
     GrepResult,
+    LsResult,
+    ReadResult,
     SandboxBackendProtocol,
+    WriteResult,
 )
 from deepagents.backends.sandbox import BaseSandbox
 from e2b import AsyncSandbox, FileNotFoundException
@@ -31,7 +36,9 @@ from agent.service.plugin.skill_sandbox import (
     E2BSandboxProvider,
     SandboxExecutionRequest,
     _fetch_e2b_runtime_config,
+    _fetch_runtime_policy,
     _run_command_with_bounded_output,
+    e2b_runtime_config,
 )
 from agent.service.sandbox import AgentSandboxConfig
 
@@ -59,9 +66,11 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
         self._artifacts = ArtifactBudget(artifact_owners)
         self._default_skill_id = next(iter(artifact_owners.values()), None)
         self._sandbox: AsyncSandbox | None = None
+        self._browsable = False
         self._timeout = 0
         self._lock = asyncio.Lock()
         self.file_backend = E2BFiles(self)
+        self.workspace_backend = E2BWorkspaceFiles(self)
 
     @property
     def id(self) -> str:
@@ -70,14 +79,23 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
     async def _get_sandbox(self) -> AsyncSandbox:
         if self._sandbox is not None:
             return self._sandbox
-        api_key, timeout, allow_internet = await _fetch_e2b_runtime_config(self._config)
+        metadata = {}
+        if self._config.console:
+            policy = await _fetch_runtime_policy(self._config)
+            api_key, timeout, allow_internet = e2b_runtime_config(policy)
+            metadata = policy.get("workspaceMetadata", {})
+        else:
+            api_key, timeout, allow_internet = await _fetch_e2b_runtime_config(
+                self._config
+            )
         try:
             sandbox = await AsyncSandbox.create(
                 api_key=api_key,
                 # Keep the workspace across model decisions. The configured
-                # timeout still bounds each command and graph cleanup kills the VM.
+                # timeout still bounds each command. Browsable instances expire in E2B.
                 timeout=MAX_SANDBOX_TIMEOUT_SECONDS,
                 allow_internet_access=allow_internet,
+                metadata=metadata or None,
             )
             self._sandbox = sandbox
             self._timeout = timeout
@@ -90,6 +108,7 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
                     user="root",
                 )
             await sandbox.files.make_dir(SANDBOX_OUTPUT_DIRECTORY, user="user")
+            self._browsable = bool(metadata)
         except asyncio.CancelledError:
             await self._close_sandbox()
             raise
@@ -180,10 +199,14 @@ class E2BAgentSandbox(StateBackend, SandboxBackendProtocol):
 
     async def aclose(self) -> None:
         async with self._lock:
+            if self._browsable:
+                self._sandbox = None
+                return
             await self._close_sandbox()
 
     async def _close_sandbox(self) -> None:
         sandbox, self._sandbox = self._sandbox, None
+        self._browsable = False
         if sandbox is None:
             return
         try:
@@ -284,3 +307,81 @@ class E2BFiles(BaseSandbox):
             except FileNotFoundException:
                 return DeleteResult(error="Sandbox file not found")
         return DeleteResult(path=file_path)
+
+
+def _workspace_path(path: str) -> str:
+    if path.rstrip("/") == SANDBOX_WORKSPACE or path.startswith(
+        SANDBOX_WORKSPACE + "/"
+    ):
+        return path
+    return SANDBOX_WORKSPACE + "/" + path.lstrip("/")
+
+
+class E2BWorkspaceFiles(E2BFiles):
+    """Map normal tool paths into the shell's working directory."""
+
+    async def als(self, path: str) -> LsResult:
+        return await self.sandbox.file_backend.als(_workspace_path(path))
+
+    async def aread(
+        self, file_path: str, offset: int = 0, limit: int = 2000
+    ) -> ReadResult:
+        return await self.sandbox.file_backend.aread(
+            _workspace_path(file_path), offset, limit
+        )
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        return await self.sandbox.file_backend.awrite(
+            _workspace_path(file_path), content
+        )
+
+    async def aedit(
+        self,
+        file_path: str,
+        old_string: str,
+        new_string: str,
+        replace_all: bool = False,
+    ) -> EditResult:
+        return await self.sandbox.file_backend.aedit(
+            _workspace_path(file_path), old_string, new_string, replace_all
+        )
+
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return await self.sandbox.file_backend.aglob(
+            pattern, _workspace_path(path or "/")
+        )
+
+    async def agrep(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+        *,
+        max_count: int | None = None,
+    ) -> GrepResult:
+        return await self.sandbox.file_backend.agrep(
+            pattern, _workspace_path(path or "/"), glob, max_count=max_count
+        )
+
+    async def aupload_files(
+        self, files: list[tuple[str, bytes]]
+    ) -> list[FileUploadResponse]:
+        result = await self.sandbox.file_backend.aupload_files(
+            [(_workspace_path(path), body) for path, body in files]
+        )
+        return [
+            FileUploadResponse(path=path, error=item.error)
+            for (path, _), item in zip(files, result, strict=True)
+        ]
+
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        result = await self.sandbox.file_backend.adownload_files(
+            [_workspace_path(path) for path in paths]
+        )
+        return [
+            FileDownloadResponse(path=path, content=item.content, error=item.error)
+            for path, item in zip(paths, result, strict=True)
+        ]
+
+    async def adelete(self, file_path: str) -> DeleteResult:
+        return await self.sandbox.file_backend.adelete(_workspace_path(file_path))

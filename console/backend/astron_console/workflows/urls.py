@@ -14,6 +14,11 @@ urlpatterns = [
     path("workflow/chat", views.chat),
     path("workflow/node/debug/<str:node_id>", views.node_debug),
     path("workflow/code/run", views.code_run),
+    path("workflow/<int:workflow_id>/sandbox-files", views.sandbox_files),
+    path(
+        "workflow/<int:workflow_id>/sandbox-files/download", views.sandbox_files, {"download": True}
+    ),
+    path("workflow/<int:workflow_id>/sandbox-files/file", views.delete_sandbox_file),
     path("textNode/config/list", text_nodes.listing),
     path("textNode/config/save", text_nodes.save),
     path("textNode/config/delete", text_nodes.remove),
@@ -27,6 +32,7 @@ urlpatterns = [
     path("publish/workflows/<str:flow_id>/trace/executions", views.traces),
     path("publish/workflows/<str:flow_id>/trace/executions/<str:run_id>", views.traces),
     path("workflow/internal/agent-runtime", internal.agent_runtime),
+    path("workflow/internal/archive-media", internal.archive_media),
     path("workflow/internal/tool-schema", internal.tool_schema),
     path("workflow/internal/tool-run", internal.tool_run),
     path("workflow/internal/control", internal.control),

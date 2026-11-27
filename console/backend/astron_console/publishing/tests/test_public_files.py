@@ -346,22 +346,13 @@ class PublicFileTests(TestCase):
                 {row.pk for row in rows[2:]},
             )
         self.client.force_login(self.publisher)
-        response = self.client.get(f"/workflow/{workflow.pk}/artifacts")
-        self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(
-            {item["id"] for item in response.json()["data"]}, {row.pk for row in rows[2:]}
-        )
+        self.assertEqual(self.client.get(f"/workflow/{workflow.pk}/artifacts").status_code, 404)
         for row in rows[:2]:
-            self.assertEqual(self.client.get(f"/workflow/artifacts/{row.pk}").status_code, 404)
-            self.assertEqual(
-                self.client.get(f"/workflow/artifacts/{row.pk}/download").status_code, 404
-            )
             with patch("astron_console.knowledge.storage.read") as read:
                 self.assertEqual(
                     self.client.get(f"/workflow/artifacts/{row.pk}/content").status_code, 404
                 )
                 read.assert_not_called()
-            self.assertEqual(self.client.delete(f"/workflow/artifacts/{row.pk}").status_code, 404)
 
     @patch("astron_console.publishing.services.validate_graph")
     @patch("astron_console.knowledge.storage.put")
@@ -471,7 +462,12 @@ class PublicFileTests(TestCase):
             {**values, "runId": private.pk, "rootId": private.context_id, "uid": "publisher"}
         )
         self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(Artifact.objects.get(run_id=private.pk).uid, "publisher")
+        artifact = Artifact.objects.get(run_id=private.pk)
+        self.assertEqual(artifact.uid, "publisher")
+        self.assertEqual(
+            response.json()["data"]["downloadUrl"],
+            f"/console-api/workflow/artifacts/{artifact.pk}/content",
+        )
         run.status = "completed"
         run.save(update_fields=["status"])
         self.assertEqual(upload(values).status_code, 403)

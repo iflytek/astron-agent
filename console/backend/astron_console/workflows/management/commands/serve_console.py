@@ -8,6 +8,8 @@ import time
 
 from django.core.management.base import BaseCommand, CommandError
 
+from astron_console.resources.local_sandbox import available
+
 
 class Command(BaseCommand):
     help = "Run Console ASGI workers and workflow automation worker"
@@ -26,6 +28,10 @@ class Command(BaseCommand):
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
         try:
+            if available():
+                children.append(
+                    subprocess.Popen([sys.executable, "manage.py", "clean_sandbox_directories"])
+                )
             children.append(subprocess.Popen([sys.executable, "manage.py", "run_channel_jobs"]))
             children.append(
                 subprocess.Popen(

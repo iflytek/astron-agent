@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Input, Modal, message } from 'antd';
+import { Button, Input, Modal, message, theme } from 'antd';
 import {
   BarChartOutlined,
   FolderOpenOutlined,
@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useLocation, useNavigate } from 'react-router-dom';
 import WorkflowAnalysis from '../../workflow-analysis';
-import WorkflowFiles from '../../workflow-files';
+import SandboxFileBrowser from '@/components/sandbox-file-browser';
 import './index.scss';
 import useChatStore from '@/components/workflow/store/use-chat-store';
 import useFlowsManager from '@/components/workflow/store/use-flows-manager';
@@ -22,6 +22,7 @@ import { getFixedUrl } from '@/components/workflow/utils';
 import EditorPublishMenu from '@/components/publishing/editor-publish-menu';
 
 export default function WorkflowActions(): ReactElement {
+  const { token } = theme.useToken();
   const debugging = useChatStore(state => state.debuggering);
   const paused = useChatStore(state => state.interruptChat.interrupt);
   const stopping = useChatStore(state => state.stopRequested);
@@ -77,7 +78,12 @@ export default function WorkflowActions(): ReactElement {
       <Button icon={<BarChartOutlined />} onClick={() => setPanel('analysis')}>
         分析
       </Button>
-      <Button icon={<FolderOpenOutlined />} onClick={() => setPanel('files')}>
+      <Button
+        aria-label="文件"
+        icon={<FolderOpenOutlined />}
+        disabled={!currentFlow?.id}
+        onClick={() => setPanel('files')}
+      >
         文件
       </Button>
       <Button
@@ -136,7 +142,8 @@ export default function WorkflowActions(): ReactElement {
         open={panel !== null}
         onCancel={() => setPanel(null)}
         footer={null}
-        width={panel === 'analysis' ? 760 : 1080}
+        width={760}
+        zIndex={panel === 'files' ? token.zIndexPopupBase + 100 : undefined}
         centered
         destroyOnClose
         className="workflow-tool-dialog"
@@ -146,7 +153,7 @@ export default function WorkflowActions(): ReactElement {
           <WorkflowAnalysis flowId={currentFlow.flowId} />
         )}
         {panel === 'files' && currentFlow?.id && (
-          <WorkflowFiles id={String(currentFlow.id)} />
+          <SandboxFileBrowser kind="workflow" id={String(currentFlow.id)} />
         )}
       </Modal>
       <Modal

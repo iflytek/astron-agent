@@ -1387,6 +1387,11 @@
   gap: 12px;
   padding: 6px 16px 0;
 }
+.agent-chat-page-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 .agent-chat-page-actions .button {
   min-height: 32px;
   padding: 5px 10px;
@@ -1621,13 +1626,10 @@
   font-size: 13px;
 }
 .agent-loop-heading .ant-input-number {
-  width: 70px;
-}
-.agent-loop-setting .ant-slider {
-  margin: 14px 6px 8px;
+  width: 108px;
 }
 .agent-loop-setting p {
-  margin: 0;
+  margin: 8px 0 0;
   color: var(--agents-muted);
   font-size: 12px;
 }

@@ -19,6 +19,7 @@ from astron_console.spaces.permissions import (
 
 from .clients import normalize_provider
 from .common import UpstreamError, number, scope_for, serialize, text, upstream_errors
+from .local_sandbox import TOKEN_HEADER, available, request_runner, sandbox_identity
 from .models import Model, SandboxConfig, WorkflowScope
 
 logger = logging.getLogger(__name__)
@@ -104,38 +105,57 @@ def masked(row):
             "apiKeyMasked": False,
             "timeoutSeconds": 60,
             "allowInternetAccess": False,
+            "localAvailable": available(),
         }
     result = serialize(row, exclude=("api_key",))
-    result.update(apiKey="********" if row.api_key else "", apiKeyMasked=bool(row.api_key))
+    result.update(
+        apiKey="********" if row.api_key else "",
+        apiKeyMasked=bool(row.api_key),
+        localAvailable=available(),
+    )
+    if row.provider == "docker":
+        result["e2bAllowInternetAccess"] = row.allow_internet_access
+        result["allowInternetAccess"] = False
     return result
 
 
-def save(request):
+def validated_config(request):
     scope = scope_for(request, WRITE)
     row = scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first()
     row = row or SandboxConfig(uid=scope.uid, space_id=scope.space_id)
     payload = request.payload
-    if payload.get("provider", "e2b") != "e2b":
-        raise ValidationError("沙箱仅支持e2b")
-    row.timeout_seconds = number(payload.get("timeoutSeconds"), 60, 3600)
-    for field, key in [("enabled", "enabled"), ("allow_internet_access", "allowInternetAccess")]:
-        value = payload.get(key, False)
-        if not isinstance(value, bool):
-            raise ValidationError(f"{key}格式无效")
-        setattr(row, field, value)
-    if payload.get("apiKeyMasked") is not True:
-        row.api_key = text(payload, "apiKey", limit=1024)
-    if row.enabled and not row.api_key:
-        raise ValidationError("启用沙箱需要 API Key")
-    row.update_time = timezone.now()
-    row.save()
+    provider = payload.get("provider", row.provider)
+    if provider not in ("e2b", "docker"):
+        raise ValidationError("不支持的沙箱提供商")
+    row.timeout_seconds = number(
+        payload.get("timeoutSeconds"), 60, 600 if provider == "docker" else 3600
+    )
+    row.enabled = payload.get("enabled", False)
+    if not isinstance(row.enabled, bool):
+        raise ValidationError("enabled格式无效")
+    if provider == "e2b":
+        row.allow_internet_access = payload.get("allowInternetAccess", row.allow_internet_access)
+        if not isinstance(row.allow_internet_access, bool):
+            raise ValidationError("allowInternetAccess格式无效")
+        if payload.get("apiKeyMasked") is not True:
+            row.api_key = text(payload, "apiKey", limit=1024)
+        if row.enabled and not row.api_key:
+            raise ValidationError("启用沙箱需要 API Key")
+    elif row.enabled and not available():
+        raise ValidationError("本地 Docker 沙箱未配置")
+    if row.provider != provider:
+        row.last_test_status = row.last_test_message = row.last_test_time = None
+    row.provider = provider
     return row
 
 
 @api_endpoint(["GET", "PUT"])
 def config(request):
     if request.method == "PUT":
-        return masked(save(request))
+        row = validated_config(request)
+        row.update_time = timezone.now()
+        row.save()
+        return masked(row)
     scope = scope_for(request, READ)
     return masked(scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first())
 
@@ -154,9 +174,24 @@ def reveal_credential(request):
 @api_endpoint(["POST"])
 @upstream_errors
 def test(request):
+    if request.payload.get("provider") == "docker":
+        scope = scope_for(request, WRITE)
+        number(request.payload.get("timeoutSeconds"), 60, 600)
+        if request_runner("probe").get("status") != "ok":
+            raise UpstreamError("本地 Docker 沙箱测试失败")
+        row = scope_queryset(SandboxConfig.objects.filter(deleted=False), scope).first()
+        return {
+            **masked(row),
+            "provider": "docker",
+            "allowInternetAccess": False,
+            "lastTestStatus": "success",
+            "lastTestMessage": "本地 Docker 沙箱连接成功",
+            "lastTestTime": timezone.now(),
+        }
     from e2b import Sandbox
 
-    row = save(request)
+    request.payload.setdefault("provider", "e2b")
+    row = validated_config(request)
     if not row.api_key:
         raise ValidationError("API Key必填")
     sandbox = None
@@ -180,7 +215,6 @@ def test(request):
                 row.last_test_status = "failed"
                 row.last_test_message = "测试沙箱终止失败，将在60秒超时后回收"
         row.last_test_time = timezone.now()
-        row.save()
     if row.last_test_status != "success":
         raise UpstreamError(row.last_test_message)
     return masked(row)
@@ -191,7 +225,7 @@ def runtime(request):
     service_auth(
         request,
         "SKILL_SANDBOX_RUNTIME_CREDENTIAL_TOKEN",
-        "X-Skill-Sandbox-Runtime-Credential-Token",
+        TOKEN_HEADER,
     )
     uid = text(request.GET, "uid", required=True, limit=128)
     raw = request.GET.get("spaceId")
@@ -206,6 +240,7 @@ def runtime(request):
         raise PermissionDenied
     if space_id is not None:
         require_space_permission(uid, space_id, READ)
+    workflow = agent = None
     if request.GET.get("flowId"):
         workflow = workflow_scope(request.GET["flowId"])
         if workflow.space_id != space_id or (space_id is None and workflow.uid != uid):
@@ -214,15 +249,82 @@ def runtime(request):
     if request.GET.get("agentId"):
         from astron_console.agents.definitions import get_scoped_agent
 
-        get_scoped_agent(scope, request.GET["agentId"])
+        agent = get_scoped_agent(scope, request.GET["agentId"])
     row = enabled_sandbox(scope)
-    if row is None or not row.api_key:
+    if row is None:
         raise Http404
-    return no_store(
-        {
-            "provider": row.provider,
-            "apiKey": row.api_key,
-            "timeoutSeconds": row.timeout_seconds,
-            "allowInternetAccess": row.allow_internet_access,
-        }
-    )
+    if row.provider == "docker":
+        return no_store(docker_runtime(request, scope, agent, workflow, row))
+    if row.provider != "e2b" or not row.api_key:
+        raise Http404
+    data = {
+        "provider": row.provider,
+        "apiKey": row.api_key,
+        "timeoutSeconds": row.timeout_seconds,
+        "allowInternetAccess": row.allow_internet_access,
+    }
+    if request.GET.get("rootId"):
+        from .e2b_files import workspace_metadata
+
+        resource, purpose = workspace_resource(request, scope, agent, workflow, allow_public=True)
+        if resource is not None:
+            data["workspaceMetadata"] = workspace_metadata(resource, purpose)
+    return no_store(data)
+
+
+def workspace_resource(request, scope, agent, workflow, *, allow_public=False):
+    from astron_console.publishing.runtime_authorization import grant_for_root
+    from astron_console.workflows.authorization import EXECUTE, get_workflow
+    from astron_console.workflows.execution_context import checked_root, graph_nodes
+    from astron_console.workflows.runtime_models import WorkflowRun
+
+    purpose = "agent" if agent is not None else "workflow"
+    if request.GET.get("purpose", purpose) != purpose or (agent is None and workflow is None):
+        raise PermissionDenied
+    root_id = text(request.GET, "rootId", required=True, limit=36)
+    run_id = text(request.GET, "runId", required=True, limit=36)
+    root = checked_root(root_id)
+    if root.uid != scope.uid or root.space_id != scope.space_id:
+        raise PermissionDenied
+    if grant_for_root(root) is not None:
+        if allow_public:
+            return None, purpose
+        raise PermissionDenied
+    if workflow is None:
+        if root.agent_id != agent.pk or root.agent_run_id != run_id:
+            raise PermissionDenied
+    else:
+        node_id = text(request.GET, "nodeId", required=True, limit=255)
+        workflow = get_workflow(scope, workflow.pk, EXECUTE)
+        run = WorkflowRun.objects.filter(
+            pk=run_id,
+            context_id=root.pk,
+            workflow_id=workflow.pk,
+            status__in=("running", "resuming"),
+            cancel_requested=False,
+        ).first()
+        kind = "agent" if agent is not None else "ifly-code"
+        if (
+            run is None
+            or not node_id.startswith(f"{kind}::")
+            or not any(node.get("id") == node_id for node in graph_nodes(run.graph))
+            or (
+                agent is not None
+                and str(run.resolved_agents.get(node_id, {}).get("agentId")) != str(agent.pk)
+            )
+        ):
+            raise PermissionDenied
+    return agent if agent is not None else workflow, purpose
+
+
+def docker_runtime(request, scope, agent, workflow, row):
+    resource, _ = workspace_resource(request, scope, agent, workflow)
+    identity = sandbox_identity(resource)
+    return {
+        "provider": "docker",
+        "timeoutSeconds": row.timeout_seconds,
+        "allowInternetAccess": False,
+        "sandboxScope": identity["scope"],
+        "sandboxResourceId": identity["resourceId"],
+        "sandboxDirectory": resource.sandbox_directory,
+    }

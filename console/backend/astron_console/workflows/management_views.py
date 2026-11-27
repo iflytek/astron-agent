@@ -211,9 +211,13 @@ def collection(request):
     if request.method == "DELETE":
         # Keep all historical graph/version/history/artifact rows. Active execution will
         # fail reauthorization; the running stream's cancellation is handled by lifecycle.
+        row = Workflow.objects.select_for_update().get(pk=row.pk)
+        if row.deleted:
+            raise Http404
         row.deleted = True
         row.update_time = timezone.now()
-        row.save(update_fields=["deleted", "update_time"])
+        row.sandbox_cleanup_pending = True
+        row.save(update_fields=["deleted", "update_time", "sandbox_cleanup_pending"])
         from .models import WorkflowRun
 
         WorkflowRun.objects.filter(

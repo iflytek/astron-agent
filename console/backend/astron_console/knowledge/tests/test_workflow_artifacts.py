@@ -31,25 +31,15 @@ class WorkflowArtifactDownloadTests(TestCase):
         )
         self.path = f"/workflow/artifacts/{self.artifact.pk}"
 
-    def download_path(self, **headers):
-        response = self.client.get(self.path + "/download", **headers)
-        self.assertEqual(response.status_code, 200, response.content)
-        return response.json()["data"]["downloadUrl"].removeprefix("/console-api")
+    def download_path(self, space_id=None):
+        path = self.path + "/content"
+        return path if space_id is None else f"{path}?spaceId={space_id}"
 
     @patch("astron_console.knowledge.storage.download")
     @patch("astron_console.knowledge.storage.read", return_value=b"private result")
-    def test_owner_lists_follows_same_origin_url_and_downloads_attachment(self, read, presign):
-        listing = self.client.get(f"/workflow/{self.workflow.pk}/artifacts")
-        self.assertEqual(listing.status_code, 200, listing.content)
-        self.assertEqual([row["id"] for row in listing.json()["data"]], [self.artifact.pk])
-        response = self.client.get(self.path + "/download")
-        data = response.json()["data"]
-        self.assertEqual(response.status_code, 200, response.content)
-        self.assertEqual(data["downloadUrl"], "/console-api" + self.path + "/content")
-        self.assertTrue({"id", "fileName", "contentType", "fileSize"} <= data.keys())
-        self.assertFalse({"objectKey", "bucketName", "uid", "spaceId", "deleted"} & data.keys())
+    def test_owner_downloads_existing_attachment(self, read, presign):
         with self.assertLogs("astron_console.knowledge.files", level="INFO") as logs:
-            content = self.client.get(data["downloadUrl"].removeprefix("/console-api"))
+            content = self.client.get(self.download_path())
         self.assertEqual(content.status_code, 200)
         self.assertEqual(b"".join(content.streaming_content), b"private result")
         self.assertEqual(content["Content-Type"], self.artifact.content_type)
@@ -65,17 +55,19 @@ class WorkflowArtifactDownloadTests(TestCase):
         read.assert_called_once_with(self.artifact.object_key, "workflow-private")
         presign.assert_not_called()
 
-    @patch("astron_console.knowledge.storage.remove")
     @patch("astron_console.knowledge.storage.read")
-    def test_other_user_and_logged_out_user_cannot_download_or_delete(self, read, remove):
+    def test_other_user_and_logged_out_user_cannot_download(self, read):
         self.client.force_login(self.other)
-        for path in (self.path, self.path + "/download", self.path + "/content"):
-            self.assertEqual(self.client.get(path).status_code, 404)
-            self.assertEqual(Client().get(path).status_code, 401)
-        self.assertEqual(self.client.delete(self.path).status_code, 404)
-        self.assertEqual(Client().delete(self.path).status_code, 401)
+        self.assertEqual(self.client.get(self.download_path()).status_code, 404)
+        self.assertEqual(Client().get(self.download_path()).status_code, 401)
         read.assert_not_called()
-        remove.assert_not_called()
+
+    def test_old_file_browser_endpoints_removed(self):
+        self.assertEqual(
+            self.client.get(f"/workflow/{self.workflow.pk}/artifacts").status_code, 404
+        )
+        self.assertEqual(self.client.get(self.path + "/download").status_code, 404)
+        self.assertEqual(self.client.delete(self.path).status_code, 404)
 
     @patch("astron_console.knowledge.storage.read", return_value=b"space content")
     def test_space_navigation_rechecks_scope_and_membership_without_headers(self, read):
@@ -87,12 +79,7 @@ class WorkflowArtifactDownloadTests(TestCase):
         self.workflow.save()
         self.artifact.space_id = space.pk
         self.artifact.save()
-        headers = {"HTTP_SPACE_ID": str(space.pk)}
-        listing = self.client.get(f"/workflow/{self.workflow.pk}/artifacts", **headers)
-        self.assertEqual(listing.status_code, 200, listing.content)
-        self.assertEqual([row["id"] for row in listing.json()["data"]], [self.artifact.pk])
-        path = self.download_path(**headers)
-        self.assertEqual(path, self.path + f"/content?spaceId={space.pk}")
+        path = self.download_path(space.pk)
         content = self.client.get(path)
         self.assertEqual(content.status_code, 200)
         self.assertEqual(b"".join(content.streaming_content), b"space content")
@@ -116,7 +103,6 @@ class WorkflowArtifactDownloadTests(TestCase):
         space.save()
         member.delete()
         self.assertEqual(self.client.get(path).status_code, 403)
-        self.assertEqual(self.client.get(self.path + "/download", **headers).status_code, 403)
         read.assert_not_called()
 
     @patch("astron_console.knowledge.storage.read", return_value=b"team content")
@@ -131,7 +117,7 @@ class WorkflowArtifactDownloadTests(TestCase):
         SpaceMember.objects.create(uid=self.owner.pk, space_id=space.pk, role=1)
         Workflow.objects.filter(pk=self.workflow.pk).update(space_id=space.pk)
         Artifact.objects.filter(pk=self.artifact.pk).update(space_id=space.pk)
-        path = self.download_path(HTTP_SPACE_ID=str(space.pk), HTTP_ENTERPRISE_ID=str(team.pk))
+        path = self.download_path(space.pk)
         response = self.client.get(path)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(b"".join(response.streaming_content), b"team content")
@@ -150,26 +136,16 @@ class WorkflowArtifactDownloadTests(TestCase):
         read.assert_not_called()
 
     @patch("astron_console.knowledge.storage.read", return_value=b"member content")
-    @patch("astron_console.knowledge.storage.remove")
-    def test_space_member_download_and_delete_permissions_are_preserved(self, remove, read):
+    def test_space_member_can_open_existing_download(self, read):
         space = Space.objects.create(uid=self.owner.pk, name="shared artifact space")
         SpaceMember.objects.create(uid=self.other.pk, space_id=space.pk, role=3)
         Workflow.objects.filter(pk=self.workflow.pk).update(space_id=space.pk)
         Artifact.objects.filter(pk=self.artifact.pk).update(space_id=space.pk)
         self.client.force_login(self.other)
-        headers = {"HTTP_SPACE_ID": str(space.pk)}
-        path = self.download_path(**headers)
-        response = self.client.get(path)
+        response = self.client.get(self.download_path(space.pk))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(b"".join(response.streaming_content), b"member content")
         read.assert_called_once_with(self.artifact.object_key, "workflow-private")
-        self.assertEqual(self.client.delete(self.path).status_code, 404)
-        remove.assert_not_called()
-        self.assertEqual(self.client.delete(self.path, **headers).status_code, 200)
-        self.artifact.refresh_from_db()
-        self.assertTrue(self.artifact.deleted)
-        self.assertEqual(self.artifact.uid, self.owner.pk)
-        remove.assert_called_once()
 
     @patch("astron_console.knowledge.storage.read")
     def test_workflow_authorization_and_deletion_are_rechecked_after_link_creation(self, read):
@@ -177,7 +153,6 @@ class WorkflowArtifactDownloadTests(TestCase):
         self.workflow.uid = self.other.pk
         self.workflow.save()
         self.assertEqual(self.client.get(path).status_code, 403)
-        self.assertEqual(self.client.get(self.path + "/download").status_code, 403)
         self.workflow.uid = self.owner.pk
         self.workflow.deleted = True
         self.workflow.save()
@@ -187,12 +162,10 @@ class WorkflowArtifactDownloadTests(TestCase):
         self.artifact.deleted = True
         self.artifact.save()
         self.assertEqual(self.client.get(path).status_code, 404)
-        self.assertEqual(self.client.get(self.path + "/download").status_code, 404)
         read.assert_not_called()
 
     @patch("astron_console.knowledge.storage.read")
-    @patch("astron_console.knowledge.storage.remove")
-    def test_invalid_bucket_and_object_paths_fail_before_storage(self, remove, read):
+    def test_invalid_bucket_and_object_paths_fail_before_storage(self, read):
         for key, bucket in (
             (self.artifact.object_key, "another-private-bucket"),
             ("workflow/artifacts/999/other.txt", "workflow-private"),
@@ -205,11 +178,8 @@ class WorkflowArtifactDownloadTests(TestCase):
                 Artifact.objects.filter(pk=self.artifact.pk).update(
                     object_key=key, bucket_name=bucket
                 )
-                self.assertEqual(self.client.get(self.path + "/download").status_code, 404)
                 self.assertEqual(self.client.get(self.path + "/content").status_code, 404)
-                self.assertEqual(self.client.delete(self.path).status_code, 404)
         read.assert_not_called()
-        remove.assert_not_called()
 
     @override_settings(OSS_BUCKET_CONSOLE="retained-console-bucket")
     @patch("astron_console.knowledge.storage.read", return_value=b"legacy")
@@ -223,7 +193,7 @@ class WorkflowArtifactDownloadTests(TestCase):
 
     @patch("astron_console.knowledge.storage.read")
     @patch("astron_console.knowledge.storage.remove")
-    def test_content_is_get_only_and_original_delete_remains_authorized(self, remove, read):
+    def test_content_is_get_only(self, remove, read):
         path = self.download_path()
         for method in ("post", "put", "patch", "delete", "head"):
             with self.subTest(method=method):
@@ -234,13 +204,6 @@ class WorkflowArtifactDownloadTests(TestCase):
         self.assertFalse(self.artifact.deleted)
         remove.assert_not_called()
         read.assert_not_called()
-        response = self.client.delete(self.path)
-        self.assertEqual(response.status_code, 200, response.content)
-        remove.assert_called_once_with(self.artifact.object_key, "workflow-private")
-        self.artifact.refresh_from_db()
-        self.assertTrue(self.artifact.deleted)
-        self.assertIsNone(self.artifact.object_key)
-        self.assertEqual(self.client.get(path).status_code, 404)
 
     @patch("astron_console.knowledge.storage.client")
     def test_storage_failure_uses_existing_error_contract_and_hides_details(self, sdk):

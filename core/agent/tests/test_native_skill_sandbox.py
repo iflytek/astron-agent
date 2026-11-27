@@ -9,6 +9,7 @@ from deepagents.middleware.filesystem import supports_execution
 from e2b import CommandExitException
 
 from agent.engine import e2b_sandbox
+from agent.engine.skill_files import agent_backend
 from agent.service.plugin import skill_sandbox as sandbox_provider
 from agent.service.sandbox import AgentSandboxConfig
 
@@ -62,6 +63,59 @@ async def test_e2b_shell_runs_without_skill_mounts_or_artifact_upload(
     remote_sandbox.files.write_files.assert_not_awaited()
     collect.assert_not_awaited()
     remote_sandbox.kill.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_e2b_file_tools_and_commands_share_one_workspace(
+    remote_sandbox: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    remote_sandbox.files.write = AsyncMock()
+    run = AsyncMock(return_value=(0, "", ""))
+    monkeypatch.setattr(e2b_sandbox, "_run_command_with_bounded_output", run)
+
+    async with agent_backend([], AgentSandboxConfig(enabled=True)) as backend:
+        write = await backend.awrite("/output/report.md", "body")
+        assert write.error is None
+        remote_sandbox.files.write.assert_awaited_once_with(
+            "/home/user/workspace/output/report.md", b"body", user="user"
+        )
+        assert (await backend.aexecute("pwd")).exit_code == 0
+        assert run.await_args is not None
+        assert run.await_args.args[2] == "/home/user/workspace"
+
+    remote_sandbox.kill.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_console_e2b_files_remain_available_until_provider_expiry(
+    remote_sandbox: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    metadata = {"astron_workspace": "authorized-agent"}
+    monkeypatch.setattr(
+        e2b_sandbox,
+        "_fetch_runtime_policy",
+        AsyncMock(
+            return_value={
+                "provider": "e2b",
+                "apiKey": "key",
+                "timeoutSeconds": 60,
+                "allowInternetAccess": False,
+                "workspaceMetadata": metadata,
+            }
+        ),
+    )
+    remote_sandbox.files.write = AsyncMock()
+    monkeypatch.setattr(
+        e2b_sandbox,
+        "_run_command_with_bounded_output",
+        AsyncMock(return_value=(0, "", "")),
+    )
+    config = AgentSandboxConfig(enabled=True, console=True)
+    async with agent_backend([], config) as backend:
+        result = await backend.awrite("/today.txt", "today")
+        assert result.error is None
+    assert remote_sandbox.create.await_args.kwargs["metadata"] == metadata
+    remote_sandbox.kill.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -155,6 +209,7 @@ async def test_native_shell_mounts_once_limits_timeout_and_returns_artifact_link
         api_key="key",
         timeout=sandbox_provider.MAX_SANDBOX_TIMEOUT_SECONDS,
         allow_internet_access=False,
+        metadata=None,
     )
     remote_sandbox.files.write_files.assert_awaited_once_with(
         [{"path": "/skills/reports/SKILL.md", "data": b"Reports"}], user="root"

@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import Field
 
 from workflow.engine.entities.variable_pool import (
+    ParamKey,
     VariablePool,
     schema_type_default_value,
     schema_type_map_python,
@@ -18,6 +19,7 @@ from workflow.exception.e import CustomException
 from workflow.exception.errors.err_code import CodeEnum
 from workflow.extensions.otlp.log_trace.node_log import NodeLog
 from workflow.extensions.otlp.trace.span import Span
+from workflow.infra import console_runtime
 
 
 class PluginNode(BaseNode):
@@ -152,6 +154,7 @@ class PluginNode(BaseNode):
                         span,
                         event_log_node_trace=event_log_node_trace,
                     )
+                    await self._archive_media(variable_pool, res, span)
                     # Process and validate output variables
                     for output_key in self.output_identifier:
                         # Handle missing output variables by providing default values
@@ -216,6 +219,37 @@ class PluginNode(BaseNode):
                 alias_name=self.alias_name,
                 node_type=self.node_type,
             )
+
+    async def _archive_media(
+        self, variable_pool: VariablePool, result: Any, span: Span
+    ) -> None:
+        if not os.getenv("LOCAL_SANDBOX_URL") or not isinstance(result, dict):
+            return
+        data = result.get("data")
+        if not isinstance(data, dict):
+            return
+        media = {
+            field: data[field]
+            for field in ("image_url", "voice_url")
+            if isinstance(data.get(field), str) and len(data[field]) <= 2048
+        }
+        context = variable_pool.system_params.get(ParamKey.ConsoleContext, default={})
+        if not context or not media or result.get("code", 0) != 0:
+            return
+        try:
+            context = console_runtime.validate_context(context)
+            await console_runtime.request(
+                "archive-media",
+                {
+                    "rootId": context["root_id"],
+                    "runId": context["run_id"],
+                    "nodeId": self.node_id,
+                    "outputs": {"code": 0, "data": media},
+                },
+                timeout=115,
+            )
+        except CustomException as exc:
+            span.record_exception(exc)
 
     async def async_execute(
         self,

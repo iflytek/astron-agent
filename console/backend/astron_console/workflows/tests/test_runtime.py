@@ -16,7 +16,7 @@ from astron_console.workflows.execution_context import (
     control_state,
     runtime_identity,
 )
-from astron_console.workflows.lifecycle import claim_run, prepare_run, stream_run
+from astron_console.workflows.lifecycle import claim_run, core_payload, prepare_run, stream_run
 from astron_console.workflows.models import (
     ExecutionContext,
     Workflow,
@@ -538,6 +538,47 @@ class RuntimeTests(TransactionTestCase):
         run.refresh_from_db()
         self.assertEqual(run.status, "cancelled")
 
+    def test_workflow_code_defaults_to_enabled_sandbox_and_keeps_explicit_selection(self):
+        config = SandboxConfig.objects.create(
+            uid=self.user.pk, enabled=True, provider="e2b", api_key="test-key"
+        )
+        self.graph["nodes"].extend(
+            {
+                "id": f"ifly-code::{label}",
+                "data": {"nodeParam": params, "inputs": [], "outputs": []},
+            }
+            for label, params in (
+                ("default", {}),
+                ("disabled", {"sandbox": {"enabled": False}}),
+                ("enabled", {"sandbox": {"enabled": True}}),
+            )
+        )
+        self.workflow.data = json.dumps(self.graph)
+        self.workflow.save()
+        run = prepare_run(self.scope, self.workflow, {})
+        for provider, enabled, expected_default in (
+            ("e2b", True, True),
+            ("docker", True, True),
+            ("e2b", False, False),
+        ):
+            with self.subTest(provider=provider, enabled=enabled):
+                config.provider = provider
+                config.enabled = enabled
+                config.save(update_fields=["provider", "enabled"])
+                nodes = core_payload(run)["protocol"]["data"]["nodes"]
+                self.assertEqual(
+                    {
+                        node["id"]: node["data"]["nodeParam"]["sandbox"]["enabled"]
+                        for node in nodes
+                        if node["id"].startswith("ifly-code::")
+                    },
+                    {
+                        "ifly-code::default": expected_default,
+                        "ifly-code::disabled": False,
+                        "ifly-code::enabled": True,
+                    },
+                )
+
     def test_code_idea_uses_temporary_code_inputs_and_reports_actual_tokens(self):
         import httpx
 
@@ -560,6 +601,7 @@ class RuntimeTests(TransactionTestCase):
                 "outputs": [{"name": "result", "schema": {"type": "string"}}],
             },
         }
+        SandboxConfig.objects.create(uid=self.user.pk, enabled=True, provider="docker")
         self.graph["nodes"].append(node)
         # An unrelated invalid inline Agent must not prevent a selected code test.
         self.graph["nodes"].append({"id": "agent::invalid", "data": {"nodeParam": {}}})
@@ -606,6 +648,7 @@ class RuntimeTests(TransactionTestCase):
         self.assertEqual(nodes[0]["data"]["inputs"][0]["name"], "new_argument")
         self.assertEqual(nodes[0]["data"]["outputs"], [])
         self.assertEqual(nodes[0]["data"]["nodeParam"]["code"], "new code")
+        self.assertTrue(nodes[0]["data"]["nodeParam"]["sandbox"]["enabled"])
         self.workflow.refresh_from_db()
         self.assertEqual(
             json.loads(self.workflow.data)["nodes"][-2]["data"]["nodeParam"]["code"], "old code"

@@ -477,7 +477,7 @@ def artifact_location(row):
     return row.bucket_name or storage.bucket(), key
 
 
-def artifact_dump(row, download=False):
+def artifact_dump(row):
     result = {
         k: v
         for k, v in dump(row).items()
@@ -487,13 +487,16 @@ def artifact_dump(row, download=False):
 
     if workflow_grant(row.run_id) is not None:
         result["downloadUrl"] = f"/console-api/published/workflow-artifacts/{row.pk}"
-        return result
-    if download:
-        artifact_location(row)
-        result["downloadUrl"] = f"/console-api/workflow/artifacts/{row.pk}/content"
-        if row.space_id is not None:
-            result["downloadUrl"] += f"?spaceId={row.space_id}"
+    else:
+        result["downloadUrl"] = private_artifact_url(row)
     return result
+
+
+def private_artifact_url(row):
+    url = f"/console-api/workflow/artifacts/{row.pk}/content"
+    if row.space_id is not None:
+        url += f"?spaceId={row.space_id}"
+    return url
 
 
 def private_artifact(scope, artifact_id):
@@ -536,32 +539,6 @@ def artifact_content(request, artifact_id):
         len(body),
     )
     return result
-
-
-@api_endpoint(["GET", "DELETE"])
-@clients.service_errors
-def artifacts(request, artifact_id=None, workflow_id=None, action=None):
-    scope = resolve_scope(request)
-    if workflow_id:
-        artifact_workflow(scope, workflow_id)
-        return [
-            artifact_dump(r)
-            for r in scope_queryset(
-                exclude_public_artifacts(
-                    Artifact.objects.filter(workflow_id=workflow_id, deleted=False)
-                ),
-                scope,
-            ).order_by("-id")
-        ]
-    row = private_artifact(scope, artifact_id)
-    if request.method == "DELETE":
-        bucket, key = artifact_location(row)
-        storage.remove(key, bucket)
-        row.deleted = True
-        row.object_key = None
-        save(row)
-        return None
-    return artifact_dump(row, True)
 
 
 def validate_artifact(file):
