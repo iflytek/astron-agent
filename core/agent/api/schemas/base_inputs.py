@@ -21,6 +21,7 @@ class MetaDataInputs(BaseModel):
     space_id: int | None = Field(default=None, ge=1)
     source: str = Field(default="", max_length=64)
     session_id: str = Field(default="", max_length=128)
+    steering: bool = False
 
 
 class BaseInputs(BaseModel):

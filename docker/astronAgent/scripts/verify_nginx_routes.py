@@ -201,6 +201,7 @@ def exercise(binary, config):
                 checked += 1
             for path in (
                 "/console-api/agents/internal/resolve",
+                "/console-api/agents/internal/runs/run-id/steering",
                 "/console-api/agents/artifacts/internal-upload",
                 "/console-api/workflow/internal/resolve",
                 "/console-api/internal/gateway/auth/workflow",

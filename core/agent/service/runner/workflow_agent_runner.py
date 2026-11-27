@@ -78,6 +78,8 @@ class WorkflowAgentRunner(BaseModel):
             self._handle_log(chunk, message)
         elif message.typ == "knowledge_metadata":
             self._handle_knowledge_metadata(chunk, message)
+        elif message.typ == "steering" and isinstance(message.content, list):
+            chunk.steering_input_ids = message.content
 
         return chunk
 

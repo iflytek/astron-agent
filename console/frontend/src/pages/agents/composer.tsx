@@ -13,6 +13,7 @@ interface ComposerProps {
   onSend: () => void;
   onStop: () => void;
   active: boolean;
+  steerable?: boolean;
   stopping: boolean;
   disabled: boolean;
   sendDisabled: boolean;
@@ -32,6 +33,7 @@ export default function AgentComposer({
   onSend,
   onStop,
   active,
+  steerable,
   stopping,
   disabled,
   sendDisabled,
@@ -44,12 +46,14 @@ export default function AgentComposer({
   onRemove,
   debug,
 }: ComposerProps) {
+  const canSend = !sendDisabled && (!active || steerable);
+  const sendLabel = active && steerable ? '追加指令' : '发送消息';
   return (
     <form
       className="agents-composer"
       onSubmit={event => {
         event.preventDefault();
-        if (!sendDisabled && !active) onSend();
+        if (canSend) onSend();
       }}
     >
       <label className="agent-message-input">
@@ -59,16 +63,23 @@ export default function AgentComposer({
           value={value}
           disabled={disabled}
           onChange={event => onChange(event.target.value)}
-          placeholder={debug ? '发送消息，测试你的 Agent…' : '发送消息…'}
+          placeholder={
+            active && steerable
+              ? '追加指令，调整当前运行…'
+              : debug
+                ? '发送消息，测试你的 Agent…'
+                : '发送消息…'
+          }
           rows={2}
           onKeyDown={event => {
             if (
               event.key === 'Enter' &&
               !event.shiftKey &&
-              !event.nativeEvent.isComposing
+              !event.nativeEvent.isComposing &&
+              event.keyCode !== 229
             ) {
               event.preventDefault();
-              if (!sendDisabled && !active) onSend();
+              if (canSend) onSend();
             }
           }}
         />
@@ -113,24 +124,26 @@ export default function AgentComposer({
             />
           </>
         )}
-        {active ? (
+        {active && (
           <button
             className="danger"
             type="button"
             disabled={stopping || stopDisabled}
             onClick={onStop}
           >
-            <StopOutlined /> <span>{stopping ? '正在停止…' : '停止生成'}</span>
+            <StopOutlined aria-hidden="true" />{' '}
+            <span>{stopping ? '正在停止…' : '停止生成'}</span>
           </button>
-        ) : (
+        )}
+        {(!active || steerable) && (
           <button
             className="primary agent-send-button"
-            aria-label="发送消息"
-            title="发送消息"
+            aria-label={sendLabel}
+            title={sendLabel}
             type="submit"
             disabled={sendDisabled}
           >
-            <ArrowUpOutlined />
+            <ArrowUpOutlined aria-hidden="true" />
           </button>
         )}
       </div>

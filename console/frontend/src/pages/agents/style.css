@@ -1312,6 +1312,26 @@
   overflow: auto;
   margin-top: 8px;
 }
+
+.agent-steering-message {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  margin-block: 8px;
+  min-width: 0;
+}
+.agent-steering-message > details {
+  justify-self: stretch;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.agent-steering-message > .agents-question {
+  max-width: min(100%, 65ch);
+}
+.agent-steering-message .agents-question > span {
+  color: var(--agents-muted);
+  font-size: 12px;
+}
 .agents-conversation > .agents-error {
   flex: none;
   width: min(840px, 100%);

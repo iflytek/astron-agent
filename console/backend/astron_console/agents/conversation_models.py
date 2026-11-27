@@ -36,6 +36,7 @@ class AgentRun(models.Model):
     answer = models.TextField(default="")
     reasoning = models.TextField(default="")
     events = models.JSONField(default=list)
+    steering = models.JSONField(default=dict)
     files = models.JSONField(default=list)
     definition = models.JSONField(default=dict)
     version_id = models.BigIntegerField(null=True)

@@ -23,7 +23,12 @@ class ToolExecution(BaseModel):
 
 class AgentResponse(BaseModel):
     typ: Literal[
-        "reasoning_content", "content", "tool_result", "log", "knowledge_metadata"
+        "reasoning_content",
+        "content",
+        "tool_result",
+        "log",
+        "knowledge_metadata",
+        "steering",
     ]
     content: Union[str, ToolExecution, list]
     model: str

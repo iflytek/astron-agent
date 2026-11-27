@@ -51,6 +51,7 @@ from agent.engine.plugin_tools import build_plugin_tools
 from agent.engine.skill_files import SKILL_SOURCE, agent_backend
 from agent.exceptions.agent_exc import AgentInternalExc
 from agent.exceptions.plugin_exc import CallLlmPluginExc, PluginExc, llm_plugin_error
+from agent.infra.console_steering import MAX_STEERING_INPUTS, read_steering
 from agent.service.plugin.base import BasePlugin
 from agent.service.sandbox import AgentSandboxConfig
 
@@ -88,6 +89,36 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
         self.trace = trace
         self.decisions = 0
         self.answer_mode = not runner.has_tools
+        self.steering_cursor = 0
+
+    async def _read_steering(self, *, final: bool) -> dict[str, Any] | None:
+        if not self.runner.steering_run_id:
+            return None
+        inputs = await read_steering(
+            self.runner.steering_run_id, self.steering_cursor, final
+        )
+        if not inputs:
+            return None
+        self.steering_cursor += len(inputs)
+        get_stream_writer()(
+            AgentResponse(
+                typ="steering",
+                content=[item["id"] for item in inputs],
+                model=self.runner.model_handle.name,
+            )
+        )
+        return {
+            "messages": [
+                HumanMessage(content=item["message"], id=item["id"]) for item in inputs
+            ],
+            "astron_finalizing": False,
+        }
+
+    async def abefore_model(
+        self, state: HarnessState, runtime: Any
+    ) -> dict[str, Any] | None:
+        # LangGraph runs this after the entire parallel tool batch joins.
+        return await self._read_steering(final=False)
 
     async def awrap_model_call(
         self, request: ModelRequest, handler: Any
@@ -241,12 +272,15 @@ class PlatformMiddleware(AgentMiddleware[HarnessState, Any, Any]):
     async def aafter_model(
         self, state: HarnessState, runtime: Any
     ) -> dict[str, Any] | None:
-        if not self.answer_mode and not getattr(
-            state["messages"][-1], "tool_calls", []
-        ):
+        if getattr(state["messages"][-1], "tool_calls", []):
+            return None
+        if not self.answer_mode:
             # A separate final generation preserves the existing answer prompt
             # contract, while LangGraph owns every execution transition.
             return {"astron_finalizing": True, "jump_to": "model"}
+        update = await self._read_steering(final=True)
+        if update is not None:
+            return {**update, "jump_to": "model"}
         return None
 
 
@@ -264,6 +298,7 @@ class DeepAgentsRunner(BaseModel):
     knowledge: str = ""
     question: str = ""
     max_loop: int = Field(default=30, ge=1)
+    steering_run_id: str = ""
 
     @property
     def has_tools(self) -> bool:
@@ -406,6 +441,7 @@ class DeepAgentsRunner(BaseModel):
     ) -> AsyncGenerator[AgentResponse, None]:
         handle = self.model_handle
         middleware = PlatformMiddleware(self, sp, node_trace_log)
+        extra_calls = MAX_STEERING_INPUTS if self.steering_run_id else 0
         tools = build_plugin_tools(self.plugins, sp)
         graph = create_deep_agent(
             model=handle.model,
@@ -429,7 +465,7 @@ class DeepAgentsRunner(BaseModel):
                 list[AgentMiddleware[Any, Any, Any]],
                 [
                     ModelCallLimitMiddleware(
-                        run_limit=self.max_loop + 1, exit_behavior="error"
+                        run_limit=self.max_loop + 1 + extra_calls, exit_behavior="error"
                     ),
                     middleware,
                     ToolErrorMiddleware(on_error=tool_error_message),
@@ -451,7 +487,7 @@ class DeepAgentsRunner(BaseModel):
             graph.astream(
                 {"messages": messages},
                 config={
-                    "recursion_limit": 12 * (self.max_loop + 2),
+                    "recursion_limit": 12 * (self.max_loop + 2 + extra_calls),
                     "callbacks": [usage_callback],
                 },
                 stream_mode=["messages", "updates", "custom"],

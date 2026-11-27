@@ -285,6 +285,7 @@ CONSOLE_INTERNAL_PATHS = (
     "/console-api/workflow/artifacts/console-upload",
     "/console-api/skill-sandbox/internal-runtime-config",
     "/console-api/agents/internal/resolve",
+    "/console-api/agents/internal/runs/run-id/steering",
     "/console-api/agents/artifacts/internal-upload",
 )
 AGENT_STREAM_PATH = "/console-api/agents/147/sessions/test-session/stream"
@@ -410,10 +411,15 @@ def _verify_docker_agent_proxy(source: str) -> None:
     ):
         raise VerificationError("ordinary Docker console API timeouts must remain 30s")
     for path in CONSOLE_INTERNAL_PATHS:
+        expected_prefix = (
+            "/console-api/agents/internal/"
+            if path.startswith("/console-api/agents/internal/")
+            else path
+        )
         for suffix in ("", "/", "/extra.css"):
             modifier, prefix, block = selected(path + suffix)
             if (
-                modifier != "^~" or prefix != path
+                modifier != "^~" or prefix != expected_prefix
                 or "return 404;" not in block or "proxy_pass" in block
             ):
                 raise VerificationError(

@@ -5,9 +5,9 @@
 {{- $artifactUploadDenyPath := "/console-api/workflow/artifacts/(internal|console)-upload(/|$)(.*)" -}}
 {{- $runtimeConfigDenyPath := "/console-api/skill-sandbox/internal-runtime-config(/|$)(.*)" -}}
 {{- $workflowInternalDenyPath := "/console-api/workflow/internal(/|$)(.*)" -}}
-{{- $agentResolveDenyPath := "/console-api/agents/internal/resolve(/|$)(.*)" -}}
+{{- $agentInternalDenyPath := "/console-api/agents/internal(/|$)(.*)" -}}
 {{- $agentArtifactDenyPath := "/console-api/agents/artifacts/internal-upload(/|$)(.*)" -}}
-{{- range $path := list $gatewayAuthDenyPath $artifactUploadDenyPath $runtimeConfigDenyPath $agentResolveDenyPath $agentArtifactDenyPath $workflowInternalDenyPath -}}
+{{- range $path := list $gatewayAuthDenyPath $artifactUploadDenyPath $runtimeConfigDenyPath $agentInternalDenyPath $agentArtifactDenyPath $workflowInternalDenyPath -}}
 {{- if or (le (len $path) (len $consoleApiPath)) (le (len $path) (len $agentsApiPath)) -}}
 {{- fail "internal console API deny paths must remain longer than the Agent and generic API regexes so ingress-nginx orders them first" -}}
 {{- end -}}
@@ -231,7 +231,7 @@ spec:
                 name: {{ include "astron-agent.fullname" $ }}-console-api-deny
                 port:
                   number: 80
-          - path: {{ $agentResolveDenyPath | quote }}
+          - path: {{ $agentInternalDenyPath | quote }}
             pathType: ImplementationSpecific
             backend:
               service:

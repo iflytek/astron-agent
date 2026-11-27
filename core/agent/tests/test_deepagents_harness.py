@@ -13,7 +13,7 @@ from aiohttp import web
 from common.otlp import sid
 from common.otlp.trace.span import Span
 from langchain_core.language_models.fake_chat_models import FakeMessagesListChatModel
-from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGenerationChunk
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -133,6 +133,84 @@ async def test_plain_answer_uses_real_graph_and_records_usage_once(
     assert len(model.prompts) == 1
     assert "Answer in Chinese" in str(model.prompts[0][0].content)
     assert runner.model_handle._closed
+
+
+@pytest.mark.asyncio
+async def test_steering_joins_parallel_tool_batch_before_next_model(
+    context: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    span, trace, _ = context
+    completed: list[str] = []
+    pending: list[dict[str, str]] = []
+
+    async def execute(action_input: dict[str, str], span: Any) -> PluginResponse:
+        city = action_input["city"]
+        if city == "slow":
+            await asyncio.sleep(0.02)
+        else:
+            pending.extend(
+                [
+                    {"id": "one", "message": "Change city"},
+                    {"id": "two", "message": "Be brief"},
+                ]
+            )
+        completed.append(city)
+        return PluginResponse(code=0, result={"city": city})
+
+    async def read(run_id: str, after: int, final: bool) -> list[dict[str, str]]:
+        assert run_id == "run"
+        if pending:
+            assert completed == ["fast", "slow"]
+        return pending[after:]
+
+    monkeypatch.setattr("agent.engine.deepagents_runner.read_steering", read)
+    batch = call(call_id="fast", args={"city": "fast"})
+    batch.tool_calls.extend(call(call_id="slow", args={"city": "slow"}).tool_calls)
+    runner, model = engine(
+        [batch, answer()], [plugin(run=execute)], max_loop=1, steering_run_id="run"
+    )
+    chunks = [c async for c in WorkflowAgentRunner(engine=runner).run(span, trace)]
+    receipt = next(
+        index for index, chunk in enumerate(chunks) if chunk.steering_input_ids
+    )
+    assert chunks[receipt].steering_input_ids == ["one", "two"]
+    assert (
+        sum(bool(chunk.choices[0].delta.tool_calls) for chunk in chunks[:receipt]) == 2
+    )
+    model_inputs = model.prompts[-1]
+    assert {m.tool_call_id for m in model_inputs if isinstance(m, ToolMessage)} == {
+        "fast",
+        "slow",
+    }
+    assert [m.content for m in model_inputs[-2:]] == ["Change city", "Be brief"]
+
+
+@pytest.mark.asyncio
+async def test_steering_during_final_answer_continues_same_graph(
+    context: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    span, trace, _ = context
+    boundaries = []
+
+    async def read(run_id: str, after: int, final: bool) -> list[dict[str, str]]:
+        boundaries.append((after, final))
+        if final and after == 0:
+            return [{"id": "one", "message": "Give a shorter answer"}]
+        return []
+
+    monkeypatch.setattr("agent.engine.deepagents_runner.read_steering", read)
+    runner, model = engine(
+        [answer("first answer"), answer("short")], max_loop=1, steering_run_id="run"
+    )
+    responses = [r async for r in runner.run(span, trace)]
+    assert [(r.typ, r.content) for r in responses] == [
+        ("content", "first answer"),
+        ("steering", ["one"]),
+        ("content", "short"),
+    ]
+    assert boundaries == [(0, False), (0, True), (1, False), (1, True)]
+    assert isinstance(model.prompts[-1][-1], HumanMessage)
+    assert model.prompts[-1][-1].content == "Give a shorter answer"
 
 
 @pytest.mark.asyncio
