@@ -255,8 +255,10 @@ def core_payload(run):
 
     root = checked_root(run.context_id)
     grant = check_root(root)
-    local_docker = grant is None and agent_sandbox_selection(scope).get("provider") == "docker"
-    protocol = to_protocol(run.graph, workflow, scope, local_docker=local_docker)
+    use_configured_sandbox = grant is None and agent_sandbox_selection(scope)["enabled"]
+    protocol = to_protocol(
+        run.graph, workflow, scope, use_configured_sandbox=use_configured_sandbox
+    )
     for node in protocol["data"]["nodes"]:
         if node["id"].startswith("ifly-code::"):
             node["data"]["nodeParam"]["sandbox"]["console"] = True

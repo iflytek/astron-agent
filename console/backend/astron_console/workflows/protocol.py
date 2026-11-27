@@ -158,7 +158,7 @@ def authorized_plugin(scope, params):
     return tool
 
 
-def authorized_params(node, workflow, scope, *, local_docker=False):
+def authorized_params(node, workflow, scope, *, use_configured_sandbox=False):
     """Authorize persistent references and provide only nonsecret runtime routing metadata."""
     params = clean_config(copy.deepcopy(node["data"].get("nodeParam", {})))
     kind = node["id"].split("::")[0]
@@ -278,7 +278,7 @@ def authorized_params(node, workflow, scope, *, local_docker=False):
         sandbox = params.get("sandbox")
         enabled = sandbox.get("enabled") if isinstance(sandbox, dict) else None
         params["sandbox"] = {
-            "enabled": local_docker if enabled is None else enabled is True,
+            "enabled": use_configured_sandbox if enabled is None else enabled is True,
             "uid": scope.uid,
             "spaceId": str(scope.space_id or ""),
             "workflowId": str(workflow.flow_id),
@@ -289,7 +289,7 @@ def authorized_params(node, workflow, scope, *, local_docker=False):
     return params
 
 
-def to_protocol(graph, workflow, scope, *, local_docker=False):
+def to_protocol(graph, workflow, scope, *, use_configured_sandbox=False):
     graph = normalize_graph(graph)
     nodes = []
     for node in iter_nodes(graph):
@@ -307,7 +307,7 @@ def to_protocol(graph, workflow, scope, *, local_docker=False):
                         "nodeType": data.get("nodeMeta", {}).get("nodeType", "基础节点"),
                     },
                     "nodeParam": authorized_params(
-                        node, workflow, scope, local_docker=local_docker
+                        node, workflow, scope, use_configured_sandbox=use_configured_sandbox
                     ),
                     "inputs": io_items(data.get("inputs", []), inputs=True),
                     "outputs": io_items(data.get("outputs", [])),
