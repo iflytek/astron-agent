@@ -1,0 +1,212 @@
+flowMeta:
+  name: Bug Report to GitHub Issue
+  description: Turns a messy bug report into a clean, reproducible GitHub issue.
+  avatarIcon: https://oss-beijing-m8.openstorage.cn/SparkBotProd/icon/common/emojiitem_00_10@2x.png
+  avatarColor: '#FFEAD5'
+  advancedConfig: '{"prologue":{"enabled":true,"inputExample":["","",""]},"textToSpeech":{"enabled":true,"vcn_cn":"aisjiuxu","vcn_en":""}}'
+  category: 13
+  dslVersion: v1
+flowData:
+  nodes:
+  - id: node-start::39391322-82cb-43b9-95cb-20f23174478c
+    dragging: false
+    selected: false
+    width: 361
+    height: 89
+    position:
+      x: -83.10901960784315
+      y: 369.70866666666666
+    positionAbsolute:
+      x: -83.10901960784315
+      y: 369.70866666666666
+    type: custom
+    data:
+      allowInputReference: false
+      allowOutputReference: true
+      label: 开始
+      status: ''
+      nodeMeta:
+        aliasName: 开始节点
+        nodeType: 基础节点
+      inputs: [
+        ]
+      outputs:
+      - id: 902b9873-fb41-45f1-a79f-6a10552f5141
+        name: AGENT_USER_INPUT
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: 用户本轮对话输入内容
+        required: true
+        deleteDisabled: true
+      nodeParam: {
+        }
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/start-node-icon.png
+      description: 工作流的开启节点，用于定义流程调用所需的业务变量信息。
+      updatable: false
+  - id: node-end::f2963aa8-a5b0-4aec-ae16-7e9d369fd599
+    dragging: false
+    selected: true
+    width: 361
+    height: 129
+    position:
+      x: 886.8833333333332
+      y: 343.91588235294114
+    positionAbsolute:
+      x: 886.8833333333332
+      y: 343.91588235294114
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: false
+      label: 结束
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        aliasName: 结束节点
+        nodeType: 基础节点
+      inputs:
+      - id: 9208ed05-2b8c-46dd-a7d3-f8f8fad8d679
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: e80ac693-d0ea-4885-88e4-ea78b1df8764
+              nodeId: spark-llm::84f8ee97-25b2-4d39-b9ae-953450d051ab
+              name: output
+            contentErrMsg: ''
+        fileType: ''
+      outputs: [
+        ]
+      nodeParam:
+        template: |+
+          {{output}}
+
+
+        streamOutput: true
+        outputMode: 1
+        templateErrMsg: ''
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/end-node-icon.png
+      description: 工作流的结束节点，用于输出工作流运行后的最终结果。
+      updatable: false
+  - id: spark-llm::84f8ee97-25b2-4d39-b9ae-953450d051ab
+    dragging: false
+    selected: false
+    width: 361
+    height: 147
+    position:
+      x: 418.5104064941406
+      y: 346
+    positionAbsolute:
+      x: 418.5104064941406
+      y: 346
+    type: custom
+    data:
+      allowInputReference: true
+      allowOutputReference: true
+      label: Issue Writer
+      labelEdit: false
+      references: [
+        ]
+      status: ''
+      nodeMeta:
+        nodeType: 基础节点
+        aliasName: 大模型
+      inputs:
+      - id: aa35e71f-23ba-4f4a-a2e3-b9f507cbdf5a
+        name: input
+        nameErrMsg: ''
+        schema:
+          type: string
+          value:
+            type: ref
+            content:
+              id: 902b9873-fb41-45f1-a79f-6a10552f5141
+              nodeId: node-start::39391322-82cb-43b9-95cb-20f23174478c
+              name: AGENT_USER_INPUT
+            contentErrMsg: ''
+        fileType: ''
+      outputs:
+      - id: e80ac693-d0ea-4885-88e4-ea78b1df8764
+        name: output
+        nameErrMsg: ''
+        schema:
+          type: string
+          default: ''
+      nodeParam:
+        maxTokens: 2048
+        topK: 4
+        auditing: default
+        template: |+
+          Here is the bug report as the user wrote it:
+
+          {{input}}
+
+
+        respFormat: 0
+        appId: YOUR_APP_ID
+        uid: ae07b2a2-2d92-4c66-a360-d8a654c1a65d
+        enableChatHistoryV2:
+          isEnabled: false
+          rounds: 1
+        templateErrMsg: ''
+        llmId: 454665064
+        domain: xminimaxm2
+        serviceId: xminimaxm2
+        url: https://maas-api.cn-huabei-1.xf-yun.com/v1/chat/completions
+        modelId: 3
+        isThink: false
+        multiMode: false
+        modelName: m2
+        modelEnabled: true
+        llmIdErrMsg: ''
+        source: openai
+        extraParams:
+          temperature: 1
+        systemTemplate: |+
+          You turn rough bug reports into GitHub issues a maintainer can act on.
+          The input may be a chat message, a pasted log, or a few hurried sentences, in any language.
+
+          Write the issue in English, in Markdown, with exactly these sections:
+
+          **Title**: one line, under 80 characters, naming the component and the symptom.
+          ## Summary: two or three sentences on what goes wrong.
+          ## Environment: version, OS, runtime, browser, hardware. Only what the report states.
+          ## Steps to reproduce: a numbered list.
+          ## Expected behavior
+          ## Actual behavior: include the exact error message if the report has one.
+          ## Logs: copy any stack trace or log lines verbatim inside a code block.
+          ## Missing information: short questions for the reporter about anything a maintainer would need but the report does not say.
+
+          Rules:
+          - Never invent versions, file names, commands, error text or steps. If something is unknown, write "Not provided" in that section and ask about it under Missing information.
+          - Keep the reporter's own wording for error messages and log lines.
+          - Leave out greetings, apologies and guesses about the cause unless the reporter made the guess, in which case label it as the reporter's guess.
+
+
+      icon: https://oss-beijing-m8.openstorage.cn/pro-bucket/sparkBot/common/workflow/icon/largeModelIcon.png
+      description: 根据输入的提示词，调用选定的大模型，对提示词作出回答
+      updatable: false
+  edges:
+  - source: node-start::39391322-82cb-43b9-95cb-20f23174478c
+    target: spark-llm::84f8ee97-25b2-4d39-b9ae-953450d051ab
+    type: customEdge
+    id: reactflow__edge-node-start::39391322-82cb-43b9-95cb-20f23174478c-spark-llm::84f8ee97-25b2-4d39-b9ae-953450d051ab
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve
+  - source: spark-llm::84f8ee97-25b2-4d39-b9ae-953450d051ab
+    target: node-end::f2963aa8-a5b0-4aec-ae16-7e9d369fd599
+    type: customEdge
+    id: reactflow__edge-spark-llm::84f8ee97-25b2-4d39-b9ae-953450d051ab-node-end::f2963aa8-a5b0-4aec-ae16-7e9d369fd599
+    markerEnd:
+      type: arrow
+      color: '#6356EA'
+    data:
+      edgeType: curve
