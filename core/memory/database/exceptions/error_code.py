@@ -10,6 +10,10 @@ class CodeEnum(Enum):
     including success codes, parameter errors, database errors, and more.
     """
 
+    # Member names are the service's established error-code identifiers and are
+    # referenced across the code base, so they keep their CamelCase form.
+    # pylint: disable=invalid-name
+
     Successes = (0, "success")
     HttpError = (25500, "Server error")
 

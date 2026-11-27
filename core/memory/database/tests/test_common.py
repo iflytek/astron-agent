@@ -1,5 +1,9 @@
 """Unit tests for common database operations functionality."""
 
+# Tests restate request payloads and mocks on purpose rather than
+# sharing helpers across modules.
+# pylint: disable=duplicate-code
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 

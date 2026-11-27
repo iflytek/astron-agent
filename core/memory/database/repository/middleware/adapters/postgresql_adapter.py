@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 from memory.database.repository.middleware.adapters.base import DatabaseAdapter
 from sqlalchemy import text
+from sqlalchemy.exc import NotSupportedError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.sql import quoted_name
 
@@ -271,14 +272,14 @@ class PostgreSQLAdapter(DatabaseAdapter):
 
     def is_retryable_cache_error(self, exception: Exception) -> bool:
         try:
+            # asyncpg is optional (only installed for PostgreSQL deployments).
+            # pylint: disable-next=import-outside-toplevel
             from asyncpg.exceptions import InvalidCachedStatementError
 
             if isinstance(exception, InvalidCachedStatementError):
                 return True
         except ImportError:
             pass
-
-        from sqlalchemy.exc import NotSupportedError
 
         if isinstance(exception, NotSupportedError):
             error_str = str(exception).lower()
@@ -293,6 +294,7 @@ class PostgreSQLAdapter(DatabaseAdapter):
         )
         if original_error:
             try:
+                # pylint: disable-next=import-outside-toplevel
                 from asyncpg.exceptions import InvalidCachedStatementError
 
                 if isinstance(original_error, InvalidCachedStatementError):
@@ -308,7 +310,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
                 await session.execute(text("DISCARD PLANS"))
                 logger.debug("Cleared prepared statement cache using DISCARD PLANS")
                 return
-            except Exception as e:
+            # Fall back to invalidating the connection on any failure.
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning(
                     f"Failed to execute DISCARD PLANS: {e}, trying fallback method"
                 )
@@ -317,7 +320,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
             try:
                 await session.invalidate()
                 logger.debug("Invalidated session connection as fallback")
-            except Exception as e:
+            # Best effort: the caller retries regardless.
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning(f"Failed to invalidate session: {e}")
 
     async def restore_search_path(self, session: Any) -> None:
@@ -329,7 +333,8 @@ class PostgreSQLAdapter(DatabaseAdapter):
                 logger.debug(
                     f"Restored search_path to {current_schema} after cache clearing"
                 )
-            except Exception as restore_error:
+            # Best effort: the retry continues even if search_path is not restored.
+            except Exception as restore_error:  # pylint: disable=broad-exception-caught
                 logger.warning(
                     f"Failed to restore search_path to {current_schema} "
                     f"after cache clearing: {restore_error}"

@@ -59,6 +59,8 @@ def safe_drop_schema_sql(schema_name: str) -> sqlalchemy.sql.elements.TextClause
     return adapter.safe_drop_schema_sql(schema_name)
 
 
+# Pydantic models are data containers without public methods.
+# pylint: disable-next=too-few-public-methods
 class DatabaseInfo(BaseModel):
     """Database information model containing ID and schema names."""
 

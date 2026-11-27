@@ -59,7 +59,8 @@ def retry_on_invalid_cached_statement(
             for attempt in range(max_retries):
                 try:
                     return await func(*args, **kwargs)
-                except Exception as e:
+                # Inspect every failure; anything not retryable is re-raised below.
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     if adapter.is_retryable_cache_error(e) or isinstance(
                         e, InterfaceError
                     ):
