@@ -4,6 +4,7 @@ This script provides functionality to run all tests with coverage reporting
 and generate detailed test reports for the RPA service.
 """
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -64,7 +65,7 @@ class RPATestRunner:
         cmd = [arg for arg in cmd if arg]
 
         try:
-            result = subprocess.run(cmd, cwd=self.project_root)
+            result = subprocess.run(cmd, cwd=self.project_root, check=False)
             return result.returncode
         except subprocess.SubprocessError as e:
             print(f"❌ Error running unit tests: {e}")
@@ -95,7 +96,7 @@ class RPATestRunner:
         cmd = [arg for arg in cmd if arg]
 
         try:
-            result = subprocess.run(cmd, cwd=self.project_root)
+            result = subprocess.run(cmd, cwd=self.project_root, check=False)
             return result.returncode
         except subprocess.SubprocessError as e:
             print(f"❌ Error running integration tests: {e}")
@@ -136,7 +137,7 @@ class RPATestRunner:
         cmd = [arg for arg in cmd if arg]
 
         try:
-            result = subprocess.run(cmd, cwd=self.project_root)
+            result = subprocess.run(cmd, cwd=self.project_root, check=False)
             return result.returncode
         except subprocess.SubprocessError as e:
             print(f"❌ Error running all tests: {e}")
@@ -146,7 +147,8 @@ class RPATestRunner:
         """Run a specific test file or test function.
 
         Args:
-            test_path: Path to test file or test function (e.g., 'tests/unit/test_main.py::test_function')
+            test_path: Path to test file or test function
+                (e.g., 'tests/unit/test_main.py::test_function').
             verbose: Whether to run tests in verbose mode.
 
         Returns:
@@ -160,7 +162,7 @@ class RPATestRunner:
         cmd = [arg for arg in cmd if arg]
 
         try:
-            result = subprocess.run(cmd, cwd=self.project_root)
+            result = subprocess.run(cmd, cwd=self.project_root, check=False)
             return result.returncode
         except subprocess.SubprocessError as e:
             print(f"❌ Error running specific test: {e}")
@@ -187,7 +189,7 @@ class RPATestRunner:
 
         try:
             result = subprocess.run(
-                cmd, cwd=self.project_root, capture_output=True, text=True
+                cmd, cwd=self.project_root, capture_output=True, text=True, check=False
             )
 
             # Parse coverage from output
@@ -280,7 +282,8 @@ class RPATestRunner:
         # Test coverage check
         coverage_ok = self.check_test_coverage()
         print(
-            f"\n📊 Coverage Status: {'✅ Adequate' if coverage_ok else '❌ Needs Improvement'}"
+            "\n📊 Coverage Status: "
+            f"{'✅ Adequate' if coverage_ok else '❌ Needs Improvement'}"
         )
 
         print("\n" + "=" * 80)
@@ -288,8 +291,6 @@ class RPATestRunner:
 
 def main() -> None:
     """Main function for command-line usage."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="RPA Service Test Runner")
     parser.add_argument(
         "command",

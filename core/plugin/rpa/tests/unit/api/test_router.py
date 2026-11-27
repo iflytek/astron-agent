@@ -26,7 +26,7 @@ class TestRouter:
     @patch("plugin.rpa.api.router.execution_router")
     @patch("plugin.rpa.api.router.health_router")
     def test_router_includes_required_routers(
-        self, mock_health_router: MagicMock, mock_execution_router: MagicMock
+        self, _mock_health_router: MagicMock, _mock_execution_router: MagicMock
     ) -> None:
         """Test that router includes both execution and health check routers."""
         # This test verifies the module imports and includes the routers
@@ -34,6 +34,7 @@ class TestRouter:
         # that the routers are imported correctly
 
         # Import the router module to trigger the include_router calls
+        # pylint: disable-next=import-outside-toplevel
         from plugin.rpa.api import router as router_module
 
         # Assert that the routers are imported

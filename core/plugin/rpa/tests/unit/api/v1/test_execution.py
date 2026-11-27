@@ -5,8 +5,7 @@ request validation, response handling, and error scenarios.
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Any
+from datetime import timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -170,8 +169,8 @@ class TestExecFun:
         }
 
         assert isinstance(response, EventSourceResponse)
-        # Note: EventSourceResponse headers are passed during initialization
-        # We verify the datetime formatting was called correctly
+        for name, value in expected_headers.items():
+            assert response.headers[name] == value
         mock_datetime.now.assert_called_once_with(timezone.utc)
 
     @pytest.mark.asyncio

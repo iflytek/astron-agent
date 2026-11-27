@@ -3,6 +3,7 @@ This module defines the main entry point of the FastAPI application and includes
 environment variable loading, configuration checking, logging setup, and Uvicorn
 server startup logic."""
 
+import asyncio
 import functools
 import os
 
@@ -15,7 +16,8 @@ from plugin.rpa.consts import const
 from plugin.rpa.exceptions.config_exceptions import EnvNotFoundException
 from plugin.rpa.utils.log.logger import set_log
 
-print = functools.partial(print, flush=True)
+# Flush every status line so container logs show progress immediately.
+print = functools.partial(print, flush=True)  # pylint: disable=redefined-builtin
 
 
 class RPAServer:
@@ -47,14 +49,15 @@ class RPAServer:
         initialize_services(services=need_init_services)
 
         try:
-            import asyncio
-
+            # The gateway watchdog is an optional extension package.
+            # pylint: disable-next=import-outside-toplevel
             from plugin.rpa.extension.gateway.watchdog import setup_watchdog
 
             asyncio.run(setup_watchdog())
         except (ModuleNotFoundError, ImportError):
             pass
-        except Exception as e:
+        # The watchdog is optional: report any failure and keep the service up.
+        except Exception as e:  # pylint: disable=broad-exception-caught
             print(f"[Service] ⚠️  gateway watchdog setup exception:{str(e)}")
 
     @staticmethod

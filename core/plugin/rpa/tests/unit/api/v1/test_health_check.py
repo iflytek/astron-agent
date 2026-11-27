@@ -3,6 +3,8 @@
 This module contains tests for the health check endpoint functionality.
 """
 
+import inspect
+
 import pytest
 from fastapi import APIRouter
 from plugin.rpa.api.v1.health_check import health_router, pong
@@ -52,15 +54,11 @@ class TestPongEndpoint:
     async def test_pong_is_async_function(self) -> None:
         """Test that pong is properly defined as an async function."""
         # Assert
-        import inspect
-
         assert inspect.iscoroutinefunction(pong)
 
     def test_pong_function_signature(self) -> None:
         """Test that pong function has the correct signature."""
         # Assert
-        import inspect
-
         signature = inspect.signature(pong)
 
         # Should have no parameters
@@ -88,7 +86,7 @@ class TestPongEndpoint:
         # Check if the function has been registered with the router
         route_found = False
         for route in health_router.routes:
-            if hasattr(route, "endpoint") and route.endpoint == pong:
+            if hasattr(route, "endpoint") and route.endpoint is pong:
                 route_found = True
                 assert hasattr(route, "methods")
                 assert "GET" in route.methods

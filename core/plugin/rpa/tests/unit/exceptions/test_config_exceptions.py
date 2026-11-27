@@ -72,6 +72,7 @@ class TestConfigNotFoundException:
 
         # Assert
         assert issubclass(ConfigNotFoundException, Exception)
+        assert isinstance(exception, Exception)
 
 
 class TestEnvNotFoundException:
@@ -130,6 +131,7 @@ class TestEnvNotFoundException:
 
         # Assert
         assert issubclass(EnvNotFoundException, Exception)
+        assert isinstance(exception, Exception)
 
 
 class TestInvalidConfigException:
@@ -190,6 +192,7 @@ class TestInvalidConfigException:
 
         # Assert
         assert issubclass(InvalidConfigException, Exception)
+        assert isinstance(exception, Exception)
 
 
 class TestCreatTaskException:
@@ -248,6 +251,7 @@ class TestCreatTaskException:
 
         # Assert
         assert issubclass(CreatTaskException, Exception)
+        assert isinstance(exception, Exception)
 
 
 class TestQueryTaskException:
@@ -306,6 +310,7 @@ class TestQueryTaskException:
 
         # Assert
         assert issubclass(QueryTaskException, Exception)
+        assert isinstance(exception, Exception)
 
 
 class TestExceptionInteroperability:

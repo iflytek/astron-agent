@@ -49,8 +49,8 @@ def mock_env_vars() -> Generator[dict[str, str], None, None]:
 @pytest.fixture
 def mock_logger() -> Generator[MagicMock, None, None]:
     """Fixture providing a mocked logger for testing."""
-    with patch("plugin.rpa.utils.log.logger.logger") as mock_logger:
-        yield mock_logger
+    with patch("plugin.rpa.utils.log.logger.logger") as patched_logger:
+        yield patched_logger
 
 
 @pytest.fixture
@@ -144,6 +144,8 @@ KAFKA_TOPIC=rpa-events
 
 
 @pytest.fixture
+# pytest injects fixtures by parameter name, so they shadow the fixture functions.
+# pylint: disable-next=redefined-outer-name
 def temp_config_file(temp_dir: Path, config_file_content: str) -> Path:
     """Fixture providing a temporary configuration file."""
     config_file = temp_dir / "test-config.env"
@@ -189,10 +191,10 @@ def mock_span_and_trace() -> dict[str, MagicMock]:
 @pytest.fixture
 def mock_meter() -> MagicMock:
     """Fixture providing a mocked meter object."""
-    mock_meter = MagicMock()
-    mock_meter.in_success_count = MagicMock()
-    mock_meter.in_error_count = MagicMock()
-    return mock_meter
+    meter = MagicMock()
+    meter.in_success_count = MagicMock()
+    meter.in_error_count = MagicMock()
+    return meter
 
 
 @pytest.fixture
@@ -211,7 +213,7 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
-def pytest_collection_modifyitems(config: Any, items: Any) -> None:
+def pytest_collection_modifyitems(items: Any) -> None:
     """Automatically mark tests based on their location."""
     for item in items:
         if "unit" in str(item.fspath):

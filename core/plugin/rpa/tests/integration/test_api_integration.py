@@ -6,12 +6,11 @@ different API components and the complete request-response flow.
 
 import json
 from typing import Any, AsyncGenerator, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 from plugin.rpa.api.app import rpa_server_app
-from plugin.rpa.api.schemas.execution_schema import RPAExecutionRequest
 from plugin.rpa.errors.error_code import ErrorCode
 
 
@@ -295,7 +294,7 @@ class TestEndToEndIntegration:
     @patch("plugin.rpa.service.xiaowu.process.otlp_handle")
     def test_complete_successful_execution_flow(
         self,
-        mock_otlp_handle: MagicMock,
+        _mock_otlp_handle: MagicMock,
         mock_setup_logging: MagicMock,
         mock_setup_span: MagicMock,
         mock_query_status: MagicMock,
@@ -346,7 +345,8 @@ class TestEndToEndIntegration:
             params={"test_data": "e2e_value"},
         )
 
-        # Note: In a real integration test, we would need to handle the streaming response
+        # Note: In a real integration test, we would need to handle the streaming
+        # response
         # For this test, we verify that the endpoint was called correctly
 
     def test_api_error_handling_integration(self, test_client: TestClient) -> None:
