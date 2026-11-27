@@ -1,0 +1,10 @@
+{
+  "repository": "iflytek/astron-agent",
+  "source": "GitHub REST repository.stargazers_count monthly snapshots",
+  "snapshots": [
+    {
+      "date": "2026-08-28",
+      "count": 8902
+    }
+  ]
+}
