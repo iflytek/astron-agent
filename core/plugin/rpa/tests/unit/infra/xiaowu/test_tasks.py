@@ -74,6 +74,46 @@ class TestCreateTask:
             },
         )
 
+    @patch("plugin.rpa.infra.xiaowu.tasks.logger")
+    @patch("plugin.rpa.infra.xiaowu.tasks.is_valid_url")
+    @patch("plugin.rpa.infra.xiaowu.tasks.os.getenv")
+    @pytest.mark.asyncio
+    async def test_create_task_does_not_log_access_token(
+        self,
+        mock_getenv: MagicMock,
+        mock_is_valid_url: MagicMock,
+        mock_logger: MagicMock,
+        mock_http_client: AsyncMock,
+    ) -> None:
+        """Test the access token is sent to the RPA API but never logged."""
+        # Arrange
+        mock_getenv.return_value = "https://api.example.com/tasks"
+        mock_is_valid_url.return_value = True
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "code": "0000",
+            "msg": "Success",
+            "data": {"executionId": "task-123"},
+        }
+        mock_http_client.post.return_value = mock_response
+
+        # Act
+        await create_task(
+            access_token="secret-access-token",
+            project_id="project-123",
+            version=None,
+            phone_number=None,
+            exec_position="EXECUTOR",
+            params={"key": "value"},
+        )
+
+        # Assert
+        headers = mock_http_client.post.call_args.kwargs["headers"]
+        assert headers["Authorization"] == "Bearer secret-access-token"
+        assert "project-123" in str(mock_logger.mock_calls)
+        assert "secret-access-token" not in str(mock_logger.mock_calls)
+
     @patch("plugin.rpa.infra.xiaowu.tasks.is_valid_url")
     @patch("plugin.rpa.infra.xiaowu.tasks.os.getenv")
     @pytest.mark.asyncio
