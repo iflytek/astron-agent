@@ -1,0 +1,58 @@
+name: MCP Server CI
+
+on:
+  pull_request:
+    paths:
+      - "integrations/mcp-server/**"
+      - ".github/workflows/mcp-server.yml"
+      - ".github/workflows/publish-mcp-server.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "integrations/mcp-server/**"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: integrations/mcp-server
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+      - name: Type check
+        run: uv run mypy src
+      - name: Test
+        run: uv run pytest -q
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check versions match
+        run: python3 scripts/check_versions.py
+      - name: Build
+        run: uv build
+      - name: Smoke-test the wheel
+        run: |
+          uv venv /tmp/wheel-venv
+          uv pip install --python /tmp/wheel-venv dist/*.whl
+          /tmp/wheel-venv/bin/astron-agent-mcp --version

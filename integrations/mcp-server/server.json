@@ -1,0 +1,54 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.iflytek/astron-agent",
+  "title": "Astron Agent",
+  "description": "Call iFlytek Spark models and run workflows published from Astron Agent.",
+  "repository": {
+    "url": "https://github.com/iflytek/astron-agent",
+    "source": "github",
+    "subfolder": "integrations/mcp-server"
+  },
+  "websiteUrl": "https://github.com/iflytek/astron-agent/tree/main/integrations/mcp-server",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "astron-agent-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SPARK_API_PASSWORD",
+          "description": "Spark HTTP APIPassword, required for spark_chat",
+          "isSecret": true
+        },
+        {
+          "name": "SPARK_MODEL",
+          "description": "Default Spark model (4.0Ultra, generalv3.5, max-32k, generalv3, pro-128k, lite)",
+          "default": "4.0Ultra"
+        },
+        {
+          "name": "ASTRON_BASE_URL",
+          "description": "Gateway URL of your Astron Agent deployment, required for workflow tools"
+        },
+        {
+          "name": "ASTRON_API_KEY",
+          "description": "API Key of the application a workflow was published with",
+          "isSecret": true
+        },
+        {
+          "name": "ASTRON_API_SECRET",
+          "description": "API Secret of that application",
+          "isSecret": true
+        },
+        {
+          "name": "ASTRON_FLOW_ID",
+          "description": "Default Flow ID for astron_run_workflow"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "astron-agent-mcp"
+dynamic = ["version"]
+description = "MCP server for iFlytek Spark models and published Astron Agent workflows"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "iFlytek Astron Team" }]
+keywords = ["mcp", "model-context-protocol", "iflytek", "spark", "astron", "agent", "workflow"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "mcp>=2.2,<3",
+    "httpx2>=2.5",
+    "pydantic>=2.12",
+    "anyio>=4.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/iflytek/astron-agent/tree/main/integrations/mcp-server"
+Repository = "https://github.com/iflytek/astron-agent"
+Issues = "https://github.com/iflytek/astron-agent/issues"
+
+[project.scripts]
+astron-agent-mcp = "astron_agent_mcp.server:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "ruff>=0.6", "mypy>=1.11"]
+
+[tool.hatch.version]
+path = "src/astron_agent_mcp/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/astron_agent_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true

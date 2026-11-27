@@ -15,6 +15,8 @@ Astron Agent 可以通过已发布的工作流 API，为其他应用提供工作
 
 如果只是评估或运行完整平台，请先阅读[快速开始](./quick-start.md)或[部署说明](./deploy.md)。
 
+如果调用方是支持 MCP 的 AI 智能体（Claude、goose、Cline、Cursor 等），可以直接使用 [Astron Agent MCP Server](https://github.com/iflytek/astron-agent/tree/main/integrations/mcp-server)，无需自己编写 HTTP 客户端。它通过同一套 API 把已发布的工作流暴露为 MCP 工具。
+
 ## 集成边界
 
 ```text
