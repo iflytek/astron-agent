@@ -1,7 +1,7 @@
 import "npm:array-unique-proposal";
 
 import { components } from "npm:@octokit/openapi-types";
-import { $, argv, YAML } from "npm:zx";
+import { $, YAML } from "npm:zx";
 
 import { Reward } from "./type.ts";
 
@@ -15,7 +15,22 @@ const [
   currency,
   reward,
   source,
-] = argv._;
+] = Deno.args;
+
+const currencies = new Set([
+  "USD $", "CAD C$", "AUD A$", "GBP £", "EUR €", "CNY ¥", "HKD HK$",
+  "TWD NT$", "SGD S$", "KRW ₩", "JPY ¥", "INR ₹", "UAH ₴",
+]);
+if (!/^[a-z\d](?:[a-z\d-]{0,37}[a-z\d])?(?:\[bot\])?$/i.test(payer)) {
+  throw new RangeError("Invalid reward payer");
+}
+if (!currencies.has(currency)) throw new RangeError("Invalid reward currency");
+const rewardNumber = Number(reward);
+if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(reward) ||
+    !Number.isFinite(rewardNumber) || rewardNumber <= 0) {
+  throw new RangeError("Invalid reward amount");
+}
+
 
 interface PRMeta {
   author: components["schemas"]["simple-user"];
@@ -86,13 +101,6 @@ console.log(`Filtered users (excluding bots): ${users.join(", ")}`);
 if (!users[0])
   throw new ReferenceError(
     "No real users found (all users are bots). Skipping reward distribution.",
-  );
-
-const rewardNumber = parseFloat(reward);
-
-if (isNaN(rewardNumber) || rewardNumber <= 0)
-  throw new RangeError(
-    `Reward amount is not a valid number, can not proceed with reward distribution. Received reward value: ${reward}`,
   );
 
 const averageReward = (rewardNumber / users.length).toFixed(2);

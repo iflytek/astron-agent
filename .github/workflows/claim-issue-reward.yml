@@ -35,13 +35,20 @@ jobs:
       - name: Calculate & Save Reward
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REWARD_PAYER: ${{ steps.parse_issue.outputs.issueparser_payer || github.event.issue.user.login }}
+          REWARD_CURRENCY: ${{ steps.parse_issue.outputs.issueparser_currency }}
+          REWARD_AMOUNT: ${{ steps.parse_issue.outputs.issueparser_amount }}
+          REWARD_SOURCE: ${{ steps.parse_issue.outputs.issueparser_source || '' }}
         run: |
           deno --allow-run --allow-sys --allow-env --allow-read --allow-net=api.github.com \
             .github/scripts/share-reward.ts \
-            "${{ github.repository_owner }}" \
-            "${{ github.event.repository.name }}" \
-            "${{ github.event.issue.number }}" \
-            "${{ steps.parse_issue.outputs.issueparser_payer || github.event.issue.user.login }}" \
-            "${{ steps.parse_issue.outputs.issueparser_currency }}" \
-            "${{ steps.parse_issue.outputs.issueparser_amount }}" \
-            "${{ steps.parse_issue.outputs.issueparser_source || '' }}"
+            "$REPOSITORY_OWNER" \
+            "$REPOSITORY_NAME" \
+            "$ISSUE_NUMBER" \
+            "$REWARD_PAYER" \
+            "$REWARD_CURRENCY" \
+            "$REWARD_AMOUNT" \
+            "$REWARD_SOURCE"
